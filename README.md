@@ -226,7 +226,8 @@ generator. Results are in [docs/collector-comparison.md](docs/collector-comparis
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, wire encoding, RAII resources).
 - `collector/`: C++ core collector, the default, without alerting (shares the
-  sampler's wire-format header).
+  sampler's wire-format header). [collector/README.md](collector/README.md) lists
+  what it does.
 - `triangulator/`: Python backup collector with alerts and delivery, and the
   dashboard page both collectors serve.
 - `config/`, `deploy/`: example configuration and systemd units.
