@@ -24,7 +24,7 @@ class Dashboard(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/":
-            self.respond(200, (Path(__file__).parent / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
+            self.respond(200, (Path(__file__).parents[1] / "collector/dashboard.html").read_bytes(), "text/html; charset=utf-8")
         elif parsed.path == "/api/live":
             self.respond(200, self.server.live, "application/json")
         elif parsed.path == "/api/alert-settings":

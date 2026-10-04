@@ -33,7 +33,7 @@ namespace triangulator::collector
 {
 
 inline constexpr unsigned char kDashboardHtml[] = {
-#embed "../triangulator/dashboard.html"
+#embed "dashboard.html"
 };
 
 [[nodiscard]] inline double WallNow()
