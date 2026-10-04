@@ -1,0 +1,385 @@
+import http.server
+import json
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import unittest
+import urllib.request
+from pathlib import Path
+
+from triangulator.config import DEFAULT_ALERTS
+from triangulator.engine import Monitor
+from triangulator.protocol import HEADER, RECORD, Packet, Record, classify, decode
+from triangulator.storage import Storage, history
+
+
+def record(**values):
+    return Record(**{**dict(tid=42, state="S", flags=0, syscall=202, futex_op=128,
+                           utime=0, stime=0, run_delay=0, timeslices=10, comm="worker-1"), **values})
+
+
+def packet(sequence, records=None, **values):
+    return Packet(**{**dict(flags=0, chunk=0, chunks=1, session=1, sequence=sequence,
+                           monotonic_ns=(1000 + sequence) * 10**9,
+                           wall_ns=(1700000000 + sequence) * 10**9, interval_ms=1000,
+                           pid=123, records=tuple([record()] if records is None else records)), **values})
+
+
+def encode(value):
+    header = HEADER.pack(b"TMON", 1, value.flags, value.chunk, value.chunks, value.session,
+                         value.sequence, len(value.records), value.monotonic_ns, value.wall_ns,
+                         value.interval_ms, value.pid)
+    body = b"".join(RECORD.pack(item.tid, ord(item.state), item.flags, item.syscall, item.futex_op,
+                               item.utime, item.stime, item.run_delay, item.timeslices,
+                               item.comm.encode().ljust(16, b"\0")) for item in value.records)
+    return header + body
+
+
+class ProtocolTests(unittest.TestCase):
+    def test_exact_wire_sizes_and_round_trip(self):
+        self.assertEqual(HEADER.size, 48)
+        self.assertEqual(RECORD.size, 60)
+        value = packet(123, [record(comm="name ) ( space", syscall=-3)], session=2**64 - 1)
+        self.assertEqual(decode(encode(value)), value)
+
+    def test_reject_invalid_datagrams(self):
+        for data in (b"", encode(packet(0))[:-1], encode(packet(0)) + b"x",
+                     encode(packet(0, chunks=0)), encode(packet(0, flags=1)),
+                     encode(packet(0, [record(), record()])), encode(packet(0, interval_ms=0))):
+            with self.subTest(data=data):
+                with self.assertRaises(ValueError):
+                    decode(data)
+
+    def test_classification_precedence_and_architecture(self):
+        cases = [(record(state="D", flags=1), "kernel"), (record(state="R"), "running"),
+                 (record(syscall=-2), "running"), (record(flags=1), "idle"),
+                 (record(futex_op=128 | 256), "lock"), (record(futex_op=137), "condition"),
+                 (record(futex_op=6), "other"), (record(syscall=0), "socket"),
+                 (record(syscall=-3), "no_access")]
+        for sample, expected in cases:
+            self.assertEqual(classify(sample, "x86_64"), expected)
+        self.assertEqual(classify(record(syscall=98), "aarch64"), "lock")
+        self.assertEqual(classify(record(syscall=63), "aarch64"), "socket")
+
+
+class MonitorTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.storage = Storage(self.directory.name)
+        self.events = []
+        self.config = dict(arch="x86_64", clock_ticks=100, max_live_samples=10000,
+                           group=[dict(name="worker", prefix="worker-")], alerts=dict(DEFAULT_ALERTS))
+        self.monitor = Monitor(self.config, self.storage, self.events.append, 1700000000)
+
+    def tearDown(self):
+        self.storage.close()
+        self.directory.cleanup()
+
+    def feed(self, sequence, samples=None, **values):
+        value = packet(sequence, samples, **values)
+        received = value.wall_ns / 1e9
+        self.monitor.accept(value, received)
+        self.monitor.drain(received, force=True)
+
+    def opened(self, rule):
+        return [event for event in self.events if event["rule"] == rule and event["status"] == "opened"]
+
+    def test_hot_thread_opens_and_resolves_after_sustained_windows(self):
+        for sequence in range(16):
+            self.feed(sequence, [record(state="R", syscall=-2, utime=sequence * 95)])
+        self.assertEqual(len(self.opened("cpu_critical")), 1)
+        for sequence in range(16, 31):
+            self.feed(sequence, [record(flags=1, utime=15 * 95, timeslices=sequence)])
+        self.assertTrue(any(event["rule"] == "cpu_critical" and event["status"] == "resolved" for event in self.events))
+
+    def test_blocked_duration_and_timed_idle_exemption(self):
+        for sequence in range(21):
+            self.feed(sequence)
+        self.assertEqual(len(self.opened("blocked")), 1)
+        self.assertGreater(self.opened("blocked")[0]["ts"] - 1700000000, 15)
+        for sequence in range(21, 41):
+            self.feed(sequence, [record(flags=1, timeslices=sequence)])
+        self.assertNotIn(("blocked", "worker", 42), self.monitor.alerts.open)
+
+    def test_allow_untimed_wait_and_socket_wait_are_normal(self):
+        self.config["group"][0]["allow_untimed_wait"] = True
+        for sequence in range(40):
+            self.feed(sequence, [record(), record(tid=43, syscall=0, comm="io-1")])
+        self.assertFalse(self.opened("blocked"))
+
+    def test_missing_samples_break_blocked_duration(self):
+        for sequence in list(range(11)) + list(range(20, 31)):
+            self.feed(sequence)
+        self.assertFalse(self.opened("blocked"))
+
+    def test_kernel_and_starvation(self):
+        for sequence in range(16):
+            self.feed(sequence, [record(state="D", run_delay=sequence * 300000000)])
+        self.assertEqual(len(self.opened("kernel_wait")), 1)
+        self.assertEqual(len(self.opened("starved")), 1)
+
+    def test_fallback_starvation(self):
+        for sequence in range(16):
+            self.feed(sequence, [record(state="R", run_delay=sequence)], flags=2)
+        self.assertEqual(len(self.opened("starved")), 1)
+        self.assertIsNone(self.monitor.threads[42].last_rollup["run_delay_pct"])
+
+    def test_counter_reset_and_session_reset(self):
+        self.feed(0, [record(utime=100)])
+        self.feed(1, [record(utime=1)])
+        self.assertEqual(self.monitor.threads[42].generation, 1)
+        self.feed(2, [record(utime=1000)], session=2)
+        self.assertEqual(self.monitor.threads[42].generation, 0)
+        self.assertIsNone(self.monitor.threads[42].baseline)
+        self.monitor.accept(packet(3, session=1), 1700000003)
+        self.assertEqual(self.monitor.session, 2)
+
+    def test_reordered_chunks_duplicates_partial_ticks_and_loss(self):
+        self.monitor.accept(packet(1, [record(tid=43)], chunk=1, chunks=2), 1700000001)
+        self.monitor.accept(packet(0), 1700000001.1)
+        self.monitor.accept(packet(1, chunks=2), 1700000001.2)
+        self.monitor.accept(packet(1, chunks=2), 1700000001.3)
+        self.monitor.drain(1700000005)
+        self.assertEqual(set(self.monitor.threads), {42, 43})
+        self.assertEqual(self.monitor.duplicates, 1)
+        self.monitor.accept(packet(2, chunks=2), 1700000006)
+        self.monitor.drain(1700000009)
+        self.assertEqual(set(self.monitor.threads), {42, 43})
+        self.assertGreater(self.monitor.health(1700000009)["packet_loss_pct"], 0)
+        self.monitor.accept(packet(2, [record(tid=43)], chunk=1, chunks=2), 1700000010)
+        self.assertEqual(self.monitor.late_packets, 1)
+
+    def test_health_absence_access_and_silence(self):
+        self.feed(0, [], flags=1, pid=0)
+        self.monitor.health(1700000005)
+        self.assertEqual(len(self.opened("target_absent")), 1)
+        self.monitor.health(1700000011)
+        self.assertEqual(len(self.opened("sampler_silent")), 1)
+        self.feed(12, [record(syscall=-3)])
+        self.monitor.health(1700000012)
+        self.assertEqual(len(self.opened("access_lost")), 1)
+
+    def test_rollups_retention_and_bounded_memory(self):
+        self.config["max_live_samples"] = 5
+        for sequence in range(11):
+            self.feed(sequence)
+        self.assertLessEqual(self.monitor.raw_count, 5)
+        self.storage.flush(1700000011)
+        rows = history(self.directory.name, "1", 42, 1700000000, 1700000100)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["sample_counts"], {"lock": 5})
+        self.storage.flush(1700000000 + 10 * 86400)
+        self.assertEqual(list(Path(self.directory.name).glob("*.sqlite3")), [])
+
+    def test_alert_recovery_does_not_renotify_open_event(self):
+        for sequence in range(21):
+            self.feed(sequence)
+        self.storage.flush(1700000021)
+        events = []
+        restored = Monitor(self.config, self.storage, events.append, 1700000021)
+        self.assertIn(("blocked", "worker", 42), restored.alerts.open)
+        self.assertFalse(events)
+        restored.accept(packet(22, [], flags=1, pid=0, session=2), 1700000022)
+        restored.drain(1700000022, force=True)
+        self.assertTrue(any(event["rule"] == "blocked" and event["status"] == "resolved" for event in events))
+
+    def test_sparse_window_does_not_extend_hot_streak(self):
+        for sequence in list(range(10)) + [14] + list(range(15, 26)):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        self.assertFalse(self.opened("cpu_critical"))
+
+    def test_lowest_rate_produces_valid_delta_windows(self):
+        for sequence in range(5):
+            self.feed(sequence, [record(state="R", utime=sequence * 500)], interval_ms=5000,
+                      monotonic_ns=(1000 + sequence * 5) * 10**9,
+                      wall_ns=(1700000000 + sequence * 5) * 10**9)
+        self.assertEqual(len(self.opened("cpu_critical")), 1)
+
+    def test_sequence_wrap_is_not_packet_loss(self):
+        for sequence, monotonic in ((2**32 - 1, 1000), (0, 1001)):
+            self.feed(sequence, monotonic_ns=monotonic * 10**9, wall_ns=(1700000000 + monotonic) * 10**9)
+        self.assertEqual(sum(entry[2] for entry in self.monitor.loss), 0)
+
+
+class SamplerTests(unittest.TestCase):
+    def test_real_proc_wire_format_reload_and_absent_heartbeat(self):
+        binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(3)
+            target = subprocess.Popen(["sleep", "20"])
+            config = Path(directory) / "sampler.toml"
+            config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+            sampler = subprocess.Popen([str(binary), str(config)], stderr=subprocess.PIPE, text=True)
+            try:
+                first = decode(receiver.recv(1200))
+                self.assertEqual(first.pid, target.pid)
+                self.assertEqual(first.records[0].comm, "sleep")
+                self.assertEqual(first.interval_ms, 100)
+                config.write_text(f'target_pid = {target.pid}\nrate_hz = 99\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+                sampler.send_signal(signal.SIGHUP)
+                for _ in range(3):
+                    unchanged = decode(receiver.recv(1200))
+                    self.assertEqual(unchanged.session, first.session)
+                    self.assertEqual(unchanged.interval_ms, 100)
+                self.assertIsNone(sampler.poll())
+                config.write_text(f'target_pid = {target.pid}\nrate_hz = 5\nstatus_fallback = true\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+                sampler.send_signal(signal.SIGHUP)
+                for _ in range(10):
+                    value = decode(receiver.recv(1200))
+                    if value.session != first.session:
+                        break
+                self.assertEqual(value.interval_ms, 200)
+                self.assertEqual(value.flags, 2)
+                target.terminate()
+                target.wait(timeout=3)
+                for _ in range(10):
+                    absent = decode(receiver.recv(1200))
+                    if absent.flags & 1:
+                        break
+                self.assertEqual(absent.flags, 3)
+                self.assertEqual(absent.records, ())
+                self.assertNotEqual(absent.session, value.session)
+            finally:
+                sampler.terminate()
+                sampler.communicate(timeout=3)
+                if target.poll() is None:
+                    target.terminate()
+                target.wait(timeout=3)
+
+    def test_named_target_chunking_thread_names_and_descriptor_cleanup(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(3)
+            target = subprocess.Popen([sys.executable, str(root / "tests/sampler_target.py")],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            sampler = None
+            try:
+                name = target.stdout.readline().strip()
+                self.assertTrue(name.startswith("tmon-"))
+                config = Path(directory) / "sampler.toml"
+                config.write_text(f'target_process="{name}"\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(config)],
+                                           stderr=subprocess.PIPE, text=True)
+                chunks = {}
+                for _ in range(20):
+                    datagram = receiver.recv(1200)
+                    value = decode(datagram)
+                    self.assertLessEqual(len(datagram), 1188)
+                    self.assertEqual(value.chunks, 2)
+                    chunks.setdefault(value.sequence, {})[value.chunk] = value.records
+                    if len(chunks[value.sequence]) == 2:
+                        records = [item for chunk in chunks[value.sequence].values() for item in chunk]
+                        break
+                else:
+                    self.fail("sampler did not emit a complete multi-packet tick")
+                self.assertEqual(len(records), 26)
+                self.assertEqual(len({item.tid for item in records}), 26)
+                self.assertEqual({item.comm for item in records}, {name} | {f"worker ) ( {index}" for index in range(25)})
+                descriptors = Path(f"/proc/{sampler.pid}/fd")
+                self.assertGreaterEqual(len(list(descriptors.iterdir())), 26 * 3)
+                target.stdin.write("release\n")
+                target.stdin.flush()
+                self.assertEqual(target.stdout.readline().strip(), "released")
+                for _ in range(30):
+                    value = decode(receiver.recv(1200))
+                    if value.chunks == 1 and len(value.records) == 1:
+                        break
+                else:
+                    self.fail("exited threads remain in the sampler cache")
+                self.assertEqual(value.records[0].comm, name)
+                self.assertLessEqual(len(list(descriptors.iterdir())), 12)
+                self.assertEqual(len(list(Path(f"/proc/{sampler.pid}/task").iterdir())), 1)
+            finally:
+                if sampler is not None:
+                    sampler.terminate()
+                    sampler.communicate(timeout=3)
+                target.terminate()
+                target.communicate(timeout=3)
+
+
+class CollectorIntegrationTests(unittest.TestCase):
+    def test_sampler_collector_dashboard_history_and_webhook(self):
+        root = Path(__file__).resolve().parents[1]
+        notifications = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                notifications.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                self.send_response(204)
+                self.end_headers()
+
+            def log_message(self, *_):
+                pass
+
+        with tempfile.TemporaryDirectory() as directory:
+            webhook = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+            thread = threading.Thread(target=webhook.serve_forever, daemon=True)
+            thread.start()
+            with socket.socket() as reservation:
+                reservation.bind(("127.0.0.1", 0))
+                http_port = reservation.getsockname()[1]
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as reservation:
+                reservation.bind(("127.0.0.1", 0))
+                udp_port = reservation.getsockname()[1]
+            collector_config = Path(directory) / "collector.toml"
+            collector_config.write_text(
+                f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
+                f'data_dir="{directory}/data"\n[alerts]\ntarget_absent_secs=1\n'
+                f'webhook_url="http://127.0.0.1:{webhook.server_port}/"\n')
+            target = subprocess.Popen(["sleep", "30"])
+            sampler_config = Path(directory) / "sampler.toml"
+            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
+            collector = subprocess.Popen([sys.executable, "-B", "-m", "triangulator", str(collector_config)],
+                                         cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(sampler_config)],
+                                       stderr=subprocess.PIPE, text=True)
+            base = f"http://127.0.0.1:{http_port}"
+
+            def fetch(path):
+                with urllib.request.urlopen(base + path, timeout=2) as response:
+                    return response.read()
+
+            try:
+                deadline = time.monotonic() + 10
+                rows = []
+                while time.monotonic() < deadline:
+                    if collector.poll() is not None:
+                        self.fail(collector.communicate()[1])
+                    try:
+                        live = json.loads(fetch("/api/live"))
+                        if live.get("threads"):
+                            session = live["health"]["session"]
+                            rows = json.loads(fetch(f"/api/history?session={session}&tid={target.pid}"))["rows"]
+                            if rows:
+                                break
+                    except (OSError, KeyError):
+                        pass
+                    time.sleep(0.1)
+                self.assertTrue(rows, "collector did not persist a live thread rollup")
+                self.assertIn(b"Triangulator", fetch("/"))
+                self.assertFalse(live["health"]["sampler_silent"])
+                self.assertEqual(live["threads"][0]["name"], "sleep")
+                target.terminate()
+                target.wait(timeout=3)
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline and not any(event["rule"] == "target_absent" for event in notifications):
+                    time.sleep(0.1)
+                self.assertTrue(any(event["rule"] == "target_absent" and event["status"] == "opened" for event in notifications))
+            finally:
+                for process in (sampler, collector, target):
+                    if process.poll() is None:
+                        process.terminate()
+                    process.communicate(timeout=8)
+                webhook.shutdown()
+                webhook.server_close()
+                thread.join(timeout=2)
+
+
+if __name__ == "__main__":
+    unittest.main()

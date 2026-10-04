@@ -1,0 +1,5 @@
+target_process = "mybackend"
+# target_pid = 1234
+rate_hz = 1.0
+collector = "10.0.0.5:9400"
+status_fallback = false

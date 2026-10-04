@@ -1,0 +1,53 @@
+arch = "x86_64"
+clock_ticks = 100
+udp_host = "0.0.0.0"
+udp_port = 9400
+http_host = "127.0.0.1"
+http_port = 9401
+sampler_ip = "10.0.0.10"
+data_dir = "/var/lib/triangulator"
+retention_days = 7
+store_raw = false
+max_live_samples = 1000000
+# deadman_url = "https://your-heartbeat-service.example/your-token"
+
+[alerts]
+window_s = 5
+sustain_windows = 3
+resolve_windows = 2
+cpu_warn_pct = 50
+cpu_crit_pct = 90
+starve_run_delay_pct = 20
+blocked_secs = 15
+kernel_wait_secs = 5
+sampler_silent_secs = 10
+target_absent_secs = 5
+packet_loss_pct = 20
+reminder_secs = 1800
+webhook_url = "https://your-alert-service.example/triangulator"
+
+# [alerts.smtp]
+# host = "smtp.example.com"
+# port = 587
+# from = "monitor@example.com"
+# to = ["oncall@example.com"]
+# starttls = true
+# username = "monitor"
+# password_env = "TRIANGULATOR_SMTP_PASSWORD"
+
+[[group]]
+name = "io"
+prefix = "io-"
+
+[[group]]
+name = "worker"
+prefix = "worker-"
+
+[[group]]
+name = "sender"
+prefix = "sender-"
+
+[[group]]
+name = "misc"
+prefix = "misc-"
+allow_untimed_wait = false
