@@ -31,7 +31,7 @@ enum class LogLevel
 }
 
 // Writes "2026-10-04 12:00:00,123 INFO message" to stderr, the format the
-// Python collector's logging setup produces.
+// retired Python collector's logs used.
 inline void Log(LogLevel p_level, std::string_view p_message)
 {
   static std::mutex mutex;

@@ -1,6 +1,6 @@
-// Triangulator UDP collector and dashboard: the C++ core collector. It reads
-// the Python collector's configuration and wire format and writes the same
-// SQLite rollups and HTTP API. It does no alerting: alert rules and delivery
+// Triangulator UDP collector and dashboard: the core collector. It decodes
+// the sampler's datagrams, writes per-thread SQLite rollups and serves the
+// dashboard and HTTP API. It does no alerting: alert rules and delivery
 // belong in a separate program that reads the rollups or the HTTP API.
 
 #include <poll.h>

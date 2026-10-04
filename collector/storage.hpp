@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );
 )";
-// The schema matches the Python collector's day files so either collector
-// (and other tools) can read them. This collector never writes alert_event;
-// alerting is a separate program.
+// The schema matches the day files the retired Python collector wrote, so
+// those stay readable. This collector never writes alert_event; alerting is
+// a separate program.
 // Columns added after the first release; older day files gain them on open.
 inline constexpr std::array<std::pair<std::string_view, std::string_view>, 3>
     kAddedRollupColumns{{{"read_bps", "REAL"},

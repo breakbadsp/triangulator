@@ -3,9 +3,6 @@ udp_host = "0.0.0.0"
 udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
-# Host names (besides localhost, IP literals and http_host) allowed to change
-# alert settings, e.g. a reverse proxy name.
-# http_allowed_hosts = ["monitor.example.com"]
 sampler_ip = "10.0.0.10"
 data_dir = "/var/lib/triangulator"
 retention_days = 7
@@ -13,6 +10,9 @@ store_raw = false
 max_live_samples = 1000000
 # deadman_url = "https://your-heartbeat-service.example/your-token"
 
+# The collector uses only window_s, the rollup window (5-10 s). Everything else
+# here, and deadman_url above, is for the alerting module (alerting/), which is
+# not wired up yet; the collector logs a warning that it ignores them.
 [alerts]
 window_s = 5
 sustain_windows = 3

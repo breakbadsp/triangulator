@@ -1,8 +1,11 @@
-import ipaddress
+"""Alert settings: rule list, defaults, validation and dashboard overrides.
+
+The values come from the [alerts] table of collector.toml. Dashboard changes
+are saved to alert-settings.json in the data directory, layered over the TOML.
+"""
 import json
 import math
 import os
-import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -14,7 +17,7 @@ DEFAULT_ALERTS = {
 }
 
 # Alert rules the dashboard can switch on and off, with the settings each one
-# uses. Every rule is evaluated by the collector; the sampler only reports data.
+# uses.
 RULES = (
     {"rule": "cpu_warn", "label": "High CPU (warning)", "settings": ("cpu_warn_pct", "cpu_sustain_secs"),
      "description": "Thread CPU above the threshold continuously for the duration."},
@@ -116,40 +119,11 @@ def describe_settings(alerts, defaults, saved):
             "values": editable(alerts), "defaults": editable(defaults), "saved": saved}
 
 
-def load(path):
-    with open(path, "rb") as source:
-        config = tomllib.load(source)
-    config = {"clock_ticks": 100, "retention_days": 7,
-              "store_raw": False, "data_dir": "data", "udp_host": "0.0.0.0",
-              "udp_port": 9400, "http_host": "127.0.0.1", "http_port": 9401,
-              "group": [], "max_live_samples": 1_000_000, **config}
-    config["alerts"] = {**DEFAULT_ALERTS, **config.get("alerts", {})}
-    for key in ("clock_ticks", "retention_days", "max_live_samples", "udp_port", "http_port"):
-        if type(config[key]) is not int or config[key] <= 0:
-            raise ValueError(f"{key} must be a positive integer")
-    for key in ("udp_port", "http_port"):
-        if config[key] > 65535:
-            raise ValueError(f"invalid {key}")
-    validate_alerts(config["alerts"])
-    alerts = config["alerts"]
-    for url in (alerts.get("webhook_url"), config.get("deadman_url")):
+def validate_delivery(alerts, deadman_url=None):
+    """Check delivery destinations; raise ValueError on problems. All are optional."""
+    for url in (alerts.get("webhook_url"), deadman_url):
         if url and (urlparse(url).scheme not in {"http", "https"} or not urlparse(url).netloc):
             raise ValueError("delivery URLs must be HTTP(S)")
     if smtp := alerts.get("smtp"):
         if not all(smtp.get(key) for key in ("host", "from", "to")):
             raise ValueError("SMTP requires host, from and to")
-    names = set()
-    for group in config["group"]:
-        if not group.get("name") or not group.get("prefix") or len(group["prefix"].encode()) > 15:
-            raise ValueError("each group needs a name and a prefix of at most 15 bytes")
-        if group["name"] in names or group["name"] == "ungrouped":
-            raise ValueError("group names must be unique; ungrouped is reserved")
-        names.add(group["name"])
-    if config.get("sampler_ip"):
-        config["sampler_ip"] = str(ipaddress.ip_address(config["sampler_ip"]))
-    config["data_dir"] = str(Path(config["data_dir"]).resolve())
-    hosts = config.setdefault("http_allowed_hosts", [])
-    if not isinstance(hosts, list) or not all(isinstance(host, str) and host for host in hosts):
-        raise ValueError("http_allowed_hosts must be a list of host names")
-    config["http_allowed_hosts"] = [host.lower() for host in hosts]
-    return config

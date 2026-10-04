@@ -324,8 +324,8 @@ class Monitor
                               ? Json(static_cast<double>(lost) /
                                      static_cast<double>(expected) * 100)
                               : Json(0);
-    // The Python collector's default silence threshold, used only for the
-    // dashboard's "Silent" card now that there is no alert rule.
+    // The sampler_silent alert rule's default threshold, used only for the
+    // dashboard's "Silent" card; the collector has no alert rules.
     constexpr double kSilentSecs = 10;
     const bool silent = p_now - last_seen_.value_or(started_) >= kSilentSecs;
     return JsonObject{

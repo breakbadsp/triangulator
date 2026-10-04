@@ -1,3 +1,4 @@
+"""Decoder for the sampler's wire format, so the tests can read real sampler datagrams."""
 import dataclasses
 import struct
 
