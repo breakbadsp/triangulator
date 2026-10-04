@@ -28,10 +28,9 @@ struct GroupRule
   std::string prefix_;
 };
 
-// The collector's settings. The file format is shared with the Python
-// collector, so alert keys may be present; the C++ collector does no
-// alerting and ignores them, apart from [alerts] window_s, which sets the
-// rollup window.
+// The collector's settings. The same file holds the alerting module's
+// settings, so alert keys may be present; the collector does no alerting and
+// ignores them, apart from [alerts] window_s, which sets the rollup window.
 struct Config
 {
   std::int64_t clock_ticks_ = 100;
@@ -120,9 +119,8 @@ namespace detail
 
 }  // namespace detail
 
-// Parses and validates a collector TOML file with the Python collector's
-// defaults for the settings this collector uses. Unknown keys are ignored,
-// as in Python.
+// Parses and validates a collector TOML file, with the defaults the retired
+// Python collector used. Unknown keys are ignored, as they were there.
 [[nodiscard]] inline std::expected<Config, std::string> ParseConfig(
     std::string_view p_text)
 {

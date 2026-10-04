@@ -1,5 +1,11 @@
 # Python vs C++ collector: test results
 
+> **Historical record.** The Python collector and `scripts/compare.py` have since
+> been removed; the C++ collector is the only collector. Its alerting code was
+> kept in `alerting/`. To rerun these measurements, check out the parent of the
+> commit that removed `triangulator/`
+> (`git log --diff-filter=D -- triangulator/engine.py`).
+
 The C++ port of the collector (`collector/`) was compared with the Python
 collector (`triangulator/`) on correctness and on resource use, run side by side
 on the same sampler data. Measured on 2026-10-04.

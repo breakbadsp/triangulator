@@ -1,6 +1,6 @@
 # C++ collector
 
-`build/triangulator-collector` is the default collector. It receives the
+`build/triangulator-collector` is the collector. It receives the
 sampler's UDP datagrams, turns them into per-thread state and 5-second
 summaries, stores those in SQLite and serves the dashboard.
 
@@ -10,13 +10,12 @@ build/triangulator-collector config/local/collector.toml
 build/triangulator-collector config/local/collector.toml --check-config
 ```
 
-`scripts/start.sh` starts it for you. The Python collector in `triangulator/` is
-the backup (`TRIANGULATOR_COLLECTOR=python scripts/start.sh`).
+`scripts/start.sh` starts it for you.
 
 ## What it does
 
 **1. Startup and config** (`config.hpp`, `toml.hpp`, `main.cpp`)
-- Reads the same TOML file as the Python collector, with the same defaults.
+- Reads `collector.toml`, with the defaults the retired Python collector used.
 - `--check-config` validates the file and exits.
 - Alert settings in the file (`[alerts]` thresholds, `webhook_url`,
   `deadman_url`, `[alerts.smtp]`) are accepted and ignored, with one startup
@@ -56,8 +55,9 @@ the backup (`TRIANGULATOR_COLLECTOR=python scripts/start.sh`).
   page faults, and how many samples the thread spent in each state.
 
 **5. Storage** (`storage.hpp`)
-- One SQLite file per UTC day, in WAL mode, with the same tables as the Python
-  collector. Either collector, or any other tool, can read the files.
+- One SQLite file per UTC day, in WAL mode, with the same tables the retired
+  Python collector wrote, so old files stay readable. Any other tool can read
+  them.
 - Writes the thread summaries, plus raw samples if `store_raw = true`. The
   `alert_event` table exists but stays empty.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
@@ -82,8 +82,8 @@ the backup (`TRIANGULATOR_COLLECTOR=python scripts/start.sh`).
 - **No alerting.** There are no alert rules, no dashboard alert settings and no
   delivery (webhook, dead-man ping, email). The dashboard hides its alert parts
   because `/api/live` has no alert fields. Alerting will be a separate module
-  that reads the summaries from SQLite or the HTTP API. Until then, use the
-  Python collector for alerts.
+  that reads the summaries from SQLite or the HTTP API; its starting code is in
+  `../alerting/`. Until it is finished, nothing sends alerts.
 - **No `/proc` reading.** That is the sampler's job; the collector only sees
   what arrives over UDP.
 
@@ -99,6 +99,7 @@ the backup (`TRIANGULATOR_COLLECTOR=python scripts/start.sh`).
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live` and `/api/history` endpoints |
+| `dashboard.html` | The dashboard page, built into the binary with `#embed` |
 | `log.hpp` | Timestamped log lines on stderr |
 
 ## Why it is C++
@@ -109,5 +110,6 @@ against the Python collector on the same data, it uses several times less CPU
 and memory, and its dashboard API stays fast under load. See
 `../docs/collector-comparison.md` for the numbers.
 
-Tests: `make check` runs an end-to-end test of this collector, and a parity test
-that requires its summaries to match the Python collector's exactly.
+Tests: `make check` runs `tests/collector_test.cpp` (decoding, ticks, sessions,
+summaries, storage, health) and an end-to-end test with the real sampler
+(`tests/test_monitor.py`).
