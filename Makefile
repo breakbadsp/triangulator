@@ -8,7 +8,7 @@ SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COLLECTOR_HEADERS := $(wildcard collector/*.hpp)
 COLLECTOR_LIBS ?= -lsqlite3
 CPP_SOURCES := sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp \
-	collector/main.cpp $(COLLECTOR_HEADERS)
+	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp
 
 .PHONY: all check clean format format-check
 all: build/triangulator-sampler build/triangulator-collector
@@ -27,8 +27,13 @@ build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
-check: all build/sampler-test
+build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+
+check: all build/sampler-test build/collector-test
 	./build/sampler-test
+	./build/collector-test
 	python3 -m unittest discover -s tests -v
 
 format:
