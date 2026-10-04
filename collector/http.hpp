@@ -13,7 +13,6 @@
 #include <chrono>
 #include <cmath>
 #include <format>
-#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -44,15 +43,8 @@ inline constexpr unsigned char kDashboardHtml[] = {
       .count();
 }
 
-// A dashboard request to change alert settings, answered by the main loop,
-// which owns the monitor.
-struct SettingsRequest
-{
-  Json body_;
-  std::promise<std::pair<int, Json>> reply_;
-};
-
-// State shared between the main loop and the dashboard thread.
+// The latest /api/live payload, written by the main loop and read by the
+// dashboard thread.
 class SharedState
 {
  public:
@@ -67,47 +59,12 @@ class SharedState
     std::lock_guard lock{mutex_};
     return live_;
   }
-  void SetSettings(std::string p_settings)
-  {
-    auto settings = std::make_shared<const std::string>(std::move(p_settings));
-    std::lock_guard lock{mutex_};
-    settings_ = std::move(settings);
-  }
-  [[nodiscard]] std::shared_ptr<const std::string> Settings()
-  {
-    std::lock_guard lock{mutex_};
-    return settings_;
-  }
-  void Push(std::shared_ptr<SettingsRequest> p_request)
-  {
-    std::lock_guard lock{mutex_};
-    requests_.push_back(std::move(p_request));
-  }
-  [[nodiscard]] std::vector<std::shared_ptr<SettingsRequest>> TakeRequests()
-  {
-    std::lock_guard lock{mutex_};
-    return std::exchange(requests_, {});
-  }
 
  private:
   std::mutex mutex_;
   std::shared_ptr<const std::string> live_ =
       std::make_shared<const std::string>("{}");
-  std::shared_ptr<const std::string> settings_ =
-      std::make_shared<const std::string>("{}");
-  std::vector<std::shared_ptr<SettingsRequest>> requests_;
 };
-
-[[nodiscard]] inline std::string Lowercase(std::string_view p_text)
-{
-  std::string result{p_text};
-  for (auto& character : result)
-  {
-    character =
-        static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-  }
-  return result;
-}
 
 [[nodiscard]] inline std::string_view TrimSpace(std::string_view p_text)
 {
@@ -225,82 +182,11 @@ class SharedState
   return value;
 }
 
-// The host name part of a Host header, lowercased and without the port, as
-// Python's urlsplit("//" + host).hostname returns it.
-[[nodiscard]] inline std::string HostName(std::string_view p_host)
-{
-  auto netloc = p_host.substr(0, p_host.find_first_of("/?#"));
-  if (const auto at = netloc.rfind('@'); at != std::string_view::npos)
-  {
-    netloc.remove_prefix(at + 1);
-  }
-  if (netloc.find('[') != std::string_view::npos)
-  {
-    const auto open = netloc.find('[');
-    const auto close = netloc.find(']', open);
-    return Lowercase(close == std::string_view::npos
-                         ? netloc.substr(open + 1)
-                         : netloc.substr(open + 1, close - open - 1));
-  }
-  return Lowercase(netloc.substr(0, netloc.find(':')));
-}
-
-// The network location of an Origin header (scheme://netloc/...).
-[[nodiscard]] inline std::string_view OriginNetloc(std::string_view p_origin)
-{
-  const auto colon = p_origin.find(':');
-  if (colon != std::string_view::npos && colon > 0 &&
-      std::isalpha(static_cast<unsigned char>(p_origin[0])))
-  {
-    const auto scheme = p_origin.substr(0, colon);
-    const bool valid = std::ranges::all_of(
-        scheme,
-        [](char p_character)
-        {
-          return std::isalnum(static_cast<unsigned char>(p_character)) ||
-                 p_character == '+' || p_character == '-' || p_character == '.';
-        });
-    if (valid)
-    {
-      p_origin.remove_prefix(colon + 1);
-    }
-  }
-  if (!p_origin.starts_with("//"))
-  {
-    return {};
-  }
-  p_origin.remove_prefix(2);
-  return p_origin.substr(0, p_origin.find_first_of("/?#"));
-}
-
-[[nodiscard]] inline bool IsIpLiteral(const std::string& p_host)
-{
-  std::array<unsigned char, 16> address{};
-  return ::inet_pton(AF_INET, p_host.c_str(), address.data()) == 1 ||
-         ::inet_pton(AF_INET6, p_host.c_str(), address.data()) == 1;
-}
-
 struct Request
 {
   std::string method_;
   std::string path_;
   std::string query_;
-  std::vector<std::pair<std::string, std::string>> headers_;
-  std::string body_start_;
-
-  [[nodiscard]] std::optional<std::string_view> Header(
-      std::string_view p_name) const
-  {
-    const auto name = Lowercase(p_name);
-    for (const auto& [key, value] : headers_)
-    {
-      if (Lowercase(key) == name)
-      {
-        return std::string_view{value};
-      }
-    }
-    return std::nullopt;
-  }
 };
 
 // Opens a socket bound to p_host:p_port, choosing IPv6 when the host
@@ -459,22 +345,6 @@ class DashboardServer
       path = path.substr(0, question);
     }
     request.path_ = path;
-    head = line_end == std::string_view::npos ? std::string_view{}
-                                              : head.substr(line_end + 2);
-    while (!head.empty())
-    {
-      const auto end = head.find("\r\n");
-      const auto line = head.substr(0, end);
-      head = end == std::string_view::npos ? std::string_view{}
-                                           : head.substr(end + 2);
-      const auto colon = line.find(':');
-      if (colon != std::string_view::npos)
-      {
-        request.headers_.emplace_back(line.substr(0, colon),
-                                      TrimSpace(line.substr(colon + 1)));
-      }
-    }
-    request.body_start_ = data.substr(header_end + 4);
     return request;
   }
 
@@ -542,10 +412,6 @@ class DashboardServer
     {
       Get(p_connection, *request);
     }
-    else if (request->method_ == "POST")
-    {
-      Post(p_connection, *request);
-    }
     else
     {
       Respond(p_connection, 501, "Unsupported method", "text/plain");
@@ -564,10 +430,6 @@ class DashboardServer
     else if (p_request.path_ == "/api/live")
     {
       Respond(p_connection, 200, *state_.Live(), "application/json");
-    }
-    else if (p_request.path_ == "/api/alert-settings")
-    {
-      Respond(p_connection, 200, *state_.Settings(), "application/json");
     }
     else if (p_request.path_ == "/api/history")
     {
@@ -629,100 +491,6 @@ class DashboardServer
                 JsonObject{{"rows", std::move(rows)},
                            {"limit", 2000},
                            {"truncated", truncated}});
-  }
-
-  // Refuses writes that a page on another site, or a rebound DNS name,
-  // could send.
-  [[nodiscard]] std::optional<std::string> RejectCrossSite(
-      const Request& p_request) const
-  {
-    const auto content_type = p_request.Header("Content-Type").value_or("");
-    if (p_request.Header("X-Triangulator") != "1" ||
-        TrimSpace(content_type.substr(0, content_type.find(';'))) !=
-            "application/json")
-    {
-      return "missing JSON content type or X-Triangulator header";
-    }
-    const auto host = p_request.Header("Host").value_or("");
-    const auto hostname = HostName(host);
-    const bool literal = IsIpLiteral(hostname);
-    const bool allowed =
-        hostname == "localhost" || hostname == Lowercase(config_.http_host_) ||
-        std::ranges::find(config_.http_allowed_hosts_, hostname) !=
-            config_.http_allowed_hosts_.end();
-    if (!literal && !allowed)
-    {
-      return "host not allowed; add it to http_allowed_hosts";
-    }
-    if (const auto origin = p_request.Header("Origin");
-        origin && OriginNetloc(*origin) != host)
-    {
-      return "cross-origin request refused";
-    }
-    return std::nullopt;
-  }
-
-  void Post(int p_connection, const Request& p_request)
-  {
-    if (p_request.path_ != "/api/alert-settings")
-    {
-      Respond(p_connection, 404, "Not found", "text/plain");
-      return;
-    }
-    auto error = RejectCrossSite(p_request);
-    std::int64_t length = 0;
-    const auto length_text =
-        TrimSpace(p_request.Header("Content-Length").value_or("0"));
-    if (std::from_chars(length_text.data(),
-                        length_text.data() + length_text.size(), length)
-            .ec != std::errc{})
-    {
-      length = -1;
-    }
-    if (!error && !(0 < length && length <= 16384))
-    {
-      error = "request body must be 1..16384 bytes";
-    }
-    if (error)
-    {
-      const bool forbidden = error->find("origin") != std::string::npos ||
-                             error->find("host") != std::string::npos;
-      RespondJson(p_connection, forbidden ? 403 : 400,
-                  JsonObject{{"error", *error}});
-      return;
-    }
-    std::string body = p_request.body_start_;
-    std::array<char, 4096> buffer{};
-    while (body.size() < static_cast<std::size_t>(length))
-    {
-      const auto received =
-          ::recv(p_connection, buffer.data(), buffer.size(), 0);
-      if (received <= 0)
-      {
-        return;
-      }
-      body.append(buffer.data(), static_cast<std::size_t>(received));
-    }
-    body.resize(static_cast<std::size_t>(length));
-    auto parsed = ParseJson(body);
-    if (!parsed)
-    {
-      Respond(p_connection, 400, R"({"error":"body must be JSON"})",
-              "application/json");
-      return;
-    }
-    auto request = std::make_shared<SettingsRequest>();
-    request->body_ = std::move(*parsed);
-    auto reply = request->reply_.get_future();
-    state_.Push(std::move(request));
-    if (reply.wait_for(std::chrono::seconds{5}) != std::future_status::ready)
-    {
-      RespondJson(p_connection, 503,
-                  JsonObject{{"error", "collector busy; try again"}});
-      return;
-    }
-    auto [code, payload] = reply.get();
-    RespondJson(p_connection, code, payload);
   }
 };
 

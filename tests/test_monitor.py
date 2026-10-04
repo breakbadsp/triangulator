@@ -532,8 +532,6 @@ def free_port(kind):
 
 
 class CollectorIntegrationTests(unittest.TestCase):
-    command = PYTHON_COLLECTOR
-
     def test_sampler_collector_dashboard_history_and_webhook(self):
         root = ROOT
         notifications = []
@@ -565,7 +563,7 @@ class CollectorIntegrationTests(unittest.TestCase):
             target = subprocess.Popen(["sleep", "30"])
             sampler_config = Path(directory) / "sampler.toml"
             sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
-            collector = subprocess.Popen([*self.command, str(collector_config)],
+            collector = subprocess.Popen([*PYTHON_COLLECTOR, str(collector_config)],
                                          cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(sampler_config)],
                                        stderr=subprocess.PIPE, text=True)
@@ -642,15 +640,87 @@ class CollectorIntegrationTests(unittest.TestCase):
 
 
 
-class CppCollectorIntegrationTests(CollectorIntegrationTests):
-    """The same end-to-end checks against the C++ port of the collector."""
-    command = CPP_COLLECTOR
+class CppCollectorIntegrationTests(unittest.TestCase):
+    """The C++ core collector: live data, history and no alerting."""
+
+    def test_sampler_cpp_collector_dashboard_and_history_without_alerting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            udp_port, http_port = free_port(socket.SOCK_DGRAM), free_port(socket.SOCK_STREAM)
+            collector_config = Path(directory) / "collector.toml"
+            # Alert settings from a Python-collector config are accepted and ignored.
+            collector_config.write_text(
+                f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
+                f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\n'
+                '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n')
+            invalid = Path(directory) / "invalid.toml"
+            invalid.write_text("[alerts]\nwindow_s=4\n")
+            checked = subprocess.run([*CPP_COLLECTOR, str(invalid), "--check-config"], capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 2)
+            self.assertIn("window_s must be 5..10", checked.stderr)
+            target = subprocess.Popen(["sleep", "30"])
+            sampler_config = Path(directory) / "sampler.toml"
+            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
+            collector = subprocess.Popen([*CPP_COLLECTOR, str(collector_config)], cwd=ROOT,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(sampler_config)],
+                                       stderr=subprocess.PIPE, text=True)
+            base = f"http://127.0.0.1:{http_port}"
+
+            def fetch(path, method="GET"):
+                request = urllib.request.Request(base + path, method=method,
+                                                 data=b"{}" if method == "POST" else None)
+                try:
+                    with urllib.request.urlopen(request, timeout=2) as response:
+                        return response.status, response.read()
+                except urllib.error.HTTPError as error:
+                    with error:
+                        return error.code, error.read()
+
+            try:
+                deadline = time.monotonic() + 10
+                rows, live = [], {}
+                while time.monotonic() < deadline:
+                    if collector.poll() is not None:
+                        self.fail(collector.communicate()[1])
+                    try:
+                        live = json.loads(fetch("/api/live")[1])
+                        if live.get("threads"):
+                            session = live["health"]["session"]
+                            rows = json.loads(fetch(f"/api/history?session={session}&tid={target.pid}")[1])["rows"]
+                            if rows:
+                                break
+                    except (OSError, KeyError, ValueError):
+                        pass
+                    time.sleep(0.1)
+                self.assertTrue(rows, "collector did not persist a live thread rollup")
+                self.assertEqual(live["threads"][0]["name"], "sleep")
+                self.assertFalse(live["health"]["sampler_silent"])
+                self.assertNotIn("alerts", live)
+                self.assertNotIn("recent_alerts", live)
+                status, page = fetch("/")
+                self.assertEqual(status, 200)
+                self.assertIn(b"showAlerting", page)
+                self.assertEqual(fetch("/api/alert-settings")[0], 404)
+                self.assertEqual(fetch("/api/alert-settings", "POST")[0], 501)
+                self.assertEqual(fetch("/api/history?session=1")[0], 400)
+            finally:
+                for process in (sampler, collector, target):
+                    if process.poll() is None:
+                        process.terminate()
+                stderr = collector.communicate(timeout=8)[1]
+                sampler.communicate(timeout=8)
+                target.wait(timeout=8)
+            self.assertIn("Alerting is not part of the C++ collector", stderr)
+            self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
+            for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
+                with sqlite3.connect(path) as connection:
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
 
 
 class CollectorParityTests(unittest.TestCase):
-    """Both collectors store the same rollups and thread alerts for the same datagrams."""
+    """Both collectors store the same rollups for the same datagrams."""
 
-    def test_python_and_cpp_collectors_store_identical_rollups_and_alerts(self):
+    def test_python_and_cpp_collectors_store_identical_rollups(self):
         with tempfile.TemporaryDirectory() as directory:
             collectors = []
             for name, command in (("python", PYTHON_COLLECTOR), ("cpp", CPP_COLLECTOR)):
@@ -711,22 +781,16 @@ class CollectorParityTests(unittest.TestCase):
                     process.communicate(timeout=8)
 
             def stored(name):
-                rows, events = [], []
+                rows = []
                 for path in sorted((Path(directory) / name).glob("????-??-??.sqlite3")):
                     with sqlite3.connect(path) as connection:
                         connection.row_factory = sqlite3.Row
                         rows += [dict(row) for row in connection.execute(
                             "SELECT * FROM thread_rollup ORDER BY ts, tid, generation")]
-                        events += [tuple(row) for row in connection.execute(
-                            "SELECT ts, rule, group_name, tid, name, detail, status, severity, session "
-                            "FROM alert_event WHERE tid != 0 ORDER BY ts, rule, tid, status")]
-                return rows, events
+                return rows
 
-            python_rows, python_events = stored("python")
-            cpp_rows, cpp_events = stored("cpp")
+            python_rows, cpp_rows = stored("python"), stored("cpp")
             self.assertGreater(len(python_rows), 50)
-            self.assertEqual({event[1] for event in python_events} >= {"cpu_warn", "cpu_critical", "starved", "kernel_wait"},
-                             True, python_events)
             self.assertEqual(len(cpp_rows), len(python_rows))
             for python_row, cpp_row in zip(python_rows, cpp_rows):
                 self.assertEqual(python_row.keys(), cpp_row.keys())
@@ -735,8 +799,6 @@ class CollectorParityTests(unittest.TestCase):
                         self.assertAlmostEqual(value, cpp_row[column], places=9, msg=(column, python_row, cpp_row))
                     else:
                         self.assertEqual(value, cpp_row[column], (column, python_row, cpp_row))
-            self.assertEqual(cpp_events, python_events)
-
 
 
 class CompareScriptTests(unittest.TestCase):

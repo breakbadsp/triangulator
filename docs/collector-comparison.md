@@ -4,6 +4,14 @@ The C++ port of the collector (`collector/`) was compared with the Python
 collector (`triangulator/`) on correctness and on resource use, run side by side
 on the same sampler data. Measured on 2026-10-04.
 
+> **Two stages.** Most measurements below were taken while the C++ collector
+> was still a full port, including alert rules and webhook delivery (commit
+> `7a1d83b`), so the two did the same work. Alerting was then removed from the
+> C++ collector: it now only receives, stores and serves data, and alerting
+> becomes a separate module. [After removing alerting](#after-removing-alerting)
+> has the measurements of that version. The Python collector still evaluates
+> alerts, so those numbers compare different amounts of work.
+
 **Summary:** both collectors produced the same results in every check. The C++
 collector used 5–11× less CPU and 2.3–2.8× less memory. Its dashboard API
 stayed under 2 ms at the 95th percentile, where Python's reached 22–79 ms under
@@ -14,17 +22,25 @@ datagrams a second).
 
 ### Automated tests (`make check`, 37 tests, all pass)
 
-| Test | What it checks | Python | C++ |
-|---|---|:-:|:-:|
-| `CollectorIntegrationTests` / `CppCollectorIntegrationTests` | Real sampler → collector → dashboard: live data, `/api/history`, settings validation (400 on bad values, 403 on cross-site and foreign `Host`), save and reset, webhook delivery of a `target_absent` alert | pass | pass |
-| `CollectorParityTests` | The same 600 datagrams (12 threads, 300 ticks at 10 Hz, with reordered and repeated chunks) sent to both collectors. Requires identical `thread_rollup` rows (every column; floats to 9 decimal places) and identical thread alerts (`cpu_warn`, `cpu_critical`, `starved`, `kernel_wait`) | identical | identical |
-| Other existing tests | Sampler, protocol, engine and config tests (Python collector only) | pass | n/a |
+Current tests, with alerting removed from the C++ collector:
+
+| Test | What it checks |
+|---|---|
+| `CollectorIntegrationTests` | Python collector, end to end: real sampler → collector → dashboard, `/api/history`, settings validation (400 on bad values, 403 on cross-site and foreign `Host`), save and reset, webhook delivery of a `target_absent` alert |
+| `CppCollectorIntegrationTests` | C++ collector, end to end: real sampler → collector → dashboard and `/api/history`. Also checks that `/api/live` has no alert fields, that `/api/alert-settings` is gone (404, POST 501), that alert keys in the config are accepted with a warning, that a bad `window_s` is rejected, and that nothing is written to `alert_event` |
+| `CollectorParityTests` | The same 600 datagrams (12 threads, 300 ticks at 10 Hz, with reordered and repeated chunks) sent to both collectors. Requires identical `thread_rollup` rows: every column, floats to 9 decimal places |
+| Other existing tests | Sampler, protocol, engine and config tests |
+
+Before alerting was removed, the C++ collector also passed the Python
+collector's full end-to-end test (settings and webhook included). The parity
+test also required identical thread alerts (`cpu_warn`, `cpu_critical`,
+`starved`, `kernel_wait`), and they were identical.
 
 ### Live agreement
 
-During every comparison run, `scripts/compare.py` checked each refresh that both
-collectors reported the same thread ids, the same latest state per thread, and
-the same open alerts.
+During every comparison run, `scripts/compare.py` checked at each refresh that
+both collectors reported the same thread ids and the same latest state per
+thread. Before alerting was removed, it also compared open alerts.
 
 | Run | Refreshes that matched |
 |---|---:|
@@ -40,7 +56,8 @@ exited in between. The next refresh matched.
 
 ### Dashboard, checked in a browser
 
-Tested against the C++ collector with live Firefox data. The Python dashboard
+Tested against the C++ collector with live Firefox data, while it still had
+alerting (commit `7a1d83b`). The Python dashboard
 was open at the same time for comparison.
 
 - Health cards, state and wait-channel chips, and the thread table showed the
@@ -120,6 +137,30 @@ those tables.
   state. Both hit the same sample cap at 1,000 and 2,500 threads, and at that
   cap C++ uses about 2.3× less memory per sample.
 
+## After removing alerting
+
+The C++ collector no longer evaluates alert rules, records alert events or
+delivers them. Measured the same way, on the same machine, two minutes per run:
+
+| Run | Python CPU | C++ CPU (before → after) | Python PSS | C++ PSS | `/api/live` p95, Python / C++ |
+|---|---:|---:|---:|---:|---:|
+| Firefox (≈122 threads), 10 Hz | 4.07% | 0.41% → 0.25% | 93.5 MB | 36.4 MB | 0.76 / 0.44 ms |
+| Synthetic, 1,000 threads, 10 Hz | 30.5% | 4.08% → 2.18% | 553.4 MB | 235.9 MB | 16.5 / 0.72 ms |
+
+"Before" is the 3-minute run from the results table above. Removing alerting
+roughly halved the C++ collector's CPU: per-sample CPU checks and window rules
+were a large share of its work. Memory barely changed, because it is mostly
+the raw sample history. `/api/live` is smaller (339 KB instead of 420 KB at
+1,000 threads), since it no longer carries alert lists. No packets were lost,
+and threads and states matched on 23/24 and 24/24 refreshes; the one Firefox
+miss was a thread starting between the two reads.
+
+The C++ dashboard now hides the alert settings button, the "Open alerts" card
+and the alert sections, because `/api/live` has no alert fields. The Python
+dashboard is unchanged. Checked with headless Chromium against live Firefox data:
+
+![C++ dashboard without alerting](screenshots/collector-cpp-no-alerting.png)
+
 ## Limits of this comparison
 
 - One run per scenario on one desktop machine, with Firefox and other programs
@@ -127,8 +168,9 @@ those tables.
 - Runs were 2–3 minutes. Memory at 10 Hz had not reached its cap, and
   long-running effects (fragmentation, SQLite file growth across a day
   boundary) were not measured.
-- Not covered by the C++ port: email (SMTP) delivery, which is deferred. A
-  config with `[alerts.smtp]` starts with a warning.
+- The C++ collector does no alerting (rules, settings, webhook, dead-man,
+  email). A config with alert keys starts with a warning. Alerting will be a
+  separate module.
 
 ## Reproducing
 

@@ -44,53 +44,14 @@ CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );
 )";
+// The schema matches the Python collector's day files so either collector
+// (and other tools) can read them. This collector never writes alert_event;
+// alerting is a separate program.
 // Columns added after the first release; older day files gain them on open.
 inline constexpr std::array<std::pair<std::string_view, std::string_view>, 3>
     kAddedRollupColumns{{{"read_bps", "REAL"},
                          {"write_bps", "REAL"},
                          {"major_faults_delta", "INTEGER"}}};
-
-// An alert is identified by its rule, thread group and thread id. Monitor
-// rules use group "monitor" and tid 0.
-struct AlertKey
-{
-  std::string rule_;
-  std::string group_;
-  std::int64_t tid_{};
-
-  auto operator<=>(const AlertKey&) const = default;
-};
-
-struct AlertEvent
-{
-  std::string name_;
-  std::string session_;
-  std::string rule_;
-  std::string group_;
-  std::int64_t tid_{};
-  std::string status_;
-  double ts_{};
-  std::string detail_;
-  std::string severity_;
-
-  [[nodiscard]] AlertKey Key() const
-  {
-    return {rule_, group_, tid_};
-  }
-};
-
-[[nodiscard]] inline Json EventJson(const AlertEvent& p_event)
-{
-  return JsonObject{{"name", p_event.name_},
-                    {"session", p_event.session_},
-                    {"rule", p_event.rule_},
-                    {"group", p_event.group_},
-                    {"tid", p_event.tid_},
-                    {"status", p_event.status_},
-                    {"ts", p_event.ts_},
-                    {"detail", p_event.detail_},
-                    {"severity", p_event.severity_}};
-}
 
 struct RollupRow
 {
@@ -357,23 +318,6 @@ class Storage
     Run(file.database_.get(), file.rollup_.get());
   }
 
-  void Event(const AlertEvent& p_event)
-  {
-    auto& file = Connection(p_event.ts_);
-    Begin(file);
-    Binder{file.event_.get()}
-        .Add(p_event.ts_)
-        .Add(std::string_view{p_event.rule_})
-        .Add(std::string_view{p_event.group_})
-        .Add(p_event.tid_)
-        .Add(std::string_view{p_event.name_})
-        .Add(std::string_view{p_event.detail_})
-        .Add(std::string_view{p_event.status_})
-        .Add(std::string_view{p_event.severity_})
-        .Add(std::string_view{p_event.session_});
-    Run(file.database_.get(), file.event_.get());
-  }
-
   void Raw(double p_timestamp, std::string_view p_session,
            const Record& p_record)
   {
@@ -439,64 +383,11 @@ class Storage
     files_.clear();
   }
 
-  // Recent events (oldest first, at most 500) and the latest event of every
-  // alert that is still open, read from all day files.
-  [[nodiscard]] std::pair<std::vector<AlertEvent>,
-                          std::map<AlertKey, AlertEvent>>
-  RecoverAlerts() const
-  {
-    std::vector<AlertEvent> recent;
-    std::map<AlertKey, AlertEvent> latest;
-    constexpr std::string_view kColumns =
-        "ts,rule,group_name,tid,name,detail,status,severity,session";
-    for (const auto& path : DayFiles(directory_))
-    {
-      auto database = OpenDatabase(path, true);
-      const auto read = [&](std::string_view p_sql, auto&& p_visit)
-      {
-        auto statement = Prepare(database.get(), p_sql);
-        int result = SQLITE_ROW;
-        while ((result = ::sqlite3_step(statement.get())) == SQLITE_ROW)
-        {
-          p_visit(ReadEvent(statement.get()));
-        }
-        Check(database.get(), result);
-      };
-      read(std::format("SELECT {} FROM alert_event ORDER BY id DESC LIMIT 500",
-                       kColumns),
-           [&](AlertEvent p_event)
-           {
-             recent.push_back(std::move(p_event));
-           });
-      read(std::format("SELECT {} FROM alert_event WHERE id IN (SELECT MAX(id) "
-                       "FROM alert_event GROUP BY rule, group_name, tid)",
-                       kColumns),
-           [&](AlertEvent p_event)
-           {
-             auto key = p_event.Key();
-             latest[std::move(key)] = std::move(p_event);
-           });
-    }
-    std::ranges::stable_sort(recent, {}, &AlertEvent::ts_);
-    if (recent.size() > 500)
-    {
-      recent.erase(recent.begin(),
-                   recent.end() - static_cast<std::ptrdiff_t>(500));
-    }
-    std::erase_if(latest,
-                  [](const auto& p_item)
-                  {
-                    return p_item.second.status_ == "resolved";
-                  });
-    return {std::move(recent), std::move(latest)};
-  }
-
  private:
   struct DayFile
   {
     Database database_;
     Statement rollup_;
-    Statement event_;
     Statement raw_;
     bool in_transaction_ = false;
   };
@@ -506,21 +397,6 @@ class Storage
   bool store_raw_;
   std::map<std::string, DayFile> files_;
   std::optional<Days> last_prune_;
-
-  [[nodiscard]] static AlertEvent ReadEvent(sqlite3_stmt* p_statement)
-  {
-    AlertEvent event;
-    event.ts_ = ::sqlite3_column_double(p_statement, 0);
-    event.rule_ = ColumnText(p_statement, 1);
-    event.group_ = ColumnText(p_statement, 2);
-    event.tid_ = ::sqlite3_column_int64(p_statement, 3);
-    event.name_ = ColumnText(p_statement, 4);
-    event.detail_ = ColumnText(p_statement, 5);
-    event.status_ = ColumnText(p_statement, 6);
-    event.severity_ = ColumnText(p_statement, 7);
-    event.session_ = ColumnText(p_statement, 8);
-    return event;
-  }
 
   // Rows are written in one transaction per flush, like Python's sqlite3
   // module, which opens a transaction before the first insert.
@@ -577,10 +453,6 @@ class Storage
         "cpu_pct,run_delay_pct,sample_counts,timeslices_delta,samples,"
         "expected_samples,valid,generation,read_bps,write_bps,"
         "major_faults_delta) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    file.event_ = Prepare(
-        database,
-        "INSERT INTO alert_event(ts,rule,group_name,tid,name,detail,status,"
-        "severity,session) VALUES (?,?,?,?,?,?,?,?,?)");
     file.raw_ = Prepare(database, "INSERT INTO raw_sample VALUES (?,?,?,?)");
     return files_.emplace(day, std::move(file)).first->second;
   }
