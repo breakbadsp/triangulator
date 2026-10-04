@@ -56,7 +56,8 @@ must stay above them, run delay, kernel-wait, sampler-silence and target-absence
 durations, packet loss and the reminder interval. Changes apply immediately and
 are saved to `alert-settings.json` in `data_dir`, layered over the collector TOML;
 *Reset to config file* deletes that file. Turning a rule off resolves its open
-alerts. Delivery destinations and window sizes stay in the TOML. Writes require a
+alerts. The same ranges apply to TOML values, so for example `reminder_secs`
+must be at least 60. Delivery destinations and window sizes stay in the TOML. Writes require a
 JSON body with an `X-Triangulator: 1` header, refuse other origins, and accept only
 IP-literal, `localhost` or `http_host` host names; list reverse-proxy names in
 `http_allowed_hosts`. Anyone who can reach the dashboard can change alert

@@ -84,7 +84,7 @@ class Dashboard(http.server.BaseHTTPRequestHandler):
             literal = True
         except ValueError:
             literal = False
-        allowed = {"localhost", self.server.config["http_host"], *self.server.config["http_allowed_hosts"]}
+        allowed = {"localhost", self.server.config["http_host"].lower(), *self.server.config["http_allowed_hosts"]}
         if not literal and hostname not in allowed:
             return "host not allowed; add it to http_allowed_hosts"
         origin = self.headers.get("Origin")
@@ -195,6 +195,10 @@ def main():
                     reply.put((400, {"error": str(error)}))
                 except OSError as error:
                     reply.put((500, {"error": f"could not save settings: {error}"}))
+                except Exception:
+                    # Request handling must never stop monitoring; report and carry on.
+                    logging.exception("Alert settings request failed")
+                    reply.put((500, {"error": "internal error; see collector log"}))
             if data is not None:
                 peer_ip = str(ipaddress.ip_address(peer[0]))
                 if sampler_ip is None or peer_ip == sampler_ip:

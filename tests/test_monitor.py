@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from triangulator.config import DEFAULT_ALERTS, RULE_NAMES, merge_settings, validate_alerts
+from triangulator.config import DEFAULT_ALERTS, RULE_NAMES, load, merge_settings, validate_alerts
 from triangulator.engine import Monitor
 from triangulator.protocol import HEADER, RECORD, Packet, Record, classify, decode
 from triangulator.storage import SCHEMA, Storage, history
@@ -89,10 +89,32 @@ class AlertSettingsTests(unittest.TestCase):
         self.assertEqual((current["cpu_warn_pct"], current["enabled"]["starved"]), (50, True))
         for changes in ({"cpu_warn_pct": 95}, {"cpu_sustain_secs": 0}, {"window_s": 7},
                         {"enabled": {"blocked": False}}, {"enabled": {"cpu_warn": "no"}},
+                        {"enabled": "abc"}, {"enabled": ["cpu_warn"]}, {"enabled": None},
                         {"packet_loss_pct": float("nan")}, {"webhook_url": "http://x"}, []):
             with self.subTest(changes=changes):
                 with self.assertRaises(ValueError):
                     merge_settings(current, changes)
+
+
+class ConfigTests(unittest.TestCase):
+    def load_toml(self, text="", alerts=""):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "collector.toml"
+            path.write_text(f'data_dir = "{directory}"\n{text}\n[alerts]\nwebhook_url = "http://127.0.0.1/"\n{alerts}\n')
+            return load(path)
+
+    def test_allowed_hosts_must_be_a_list(self):
+        self.assertEqual(self.load_toml('http_allowed_hosts = ["Proxy.Example"]')["http_allowed_hosts"],
+                         ["proxy.example"])
+        for value in ('"proxy.example"', '[""]', "[1]"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self.load_toml(f"http_allowed_hosts = {value}")
+
+    def test_dashboard_ranges_apply_to_toml(self):
+        with self.assertRaises(ValueError):
+            self.load_toml(alerts="reminder_secs = 30")
+        self.assertEqual(self.load_toml(alerts="reminder_secs = 60")["alerts"]["reminder_secs"], 60)
 
 
 class MonitorTests(unittest.TestCase):
@@ -244,6 +266,21 @@ class MonitorTests(unittest.TestCase):
         self.feed(11, [record(flags=1, read_bytes=0)], session=2)
         self.feed(12, [record(flags=1, read_bytes=0)], session=2)
         self.assertIsNone(self.monitor.snapshot(1700000012)["threads"][0]["read_bps"])
+
+    def test_unreadable_io_sample_does_not_reset_thread_or_fake_traffic(self):
+        for sequence in range(3):
+            self.feed(sequence, [record(read_bytes=5000, write_bytes=5000)])
+        self.feed(3, [record(flags=1, read_bytes=0, write_bytes=0)])
+        self.assertEqual(self.monitor.threads[42].generation, 0)
+        self.assertIsNone(self.monitor.snapshot(1700000003)["threads"][0]["read_bps"])
+        for sequence in range(4, 11):
+            self.feed(sequence, [record(read_bytes=5000 + (sequence - 3) * 100, write_bytes=5000)])
+        self.assertEqual(self.monitor.threads[42].generation, 0)
+        live = self.monitor.snapshot(1700000010)["threads"][0]
+        self.assertAlmostEqual(live["read_bps"], 70)  # 700 bytes over the 10 s since sample 0
+        self.assertAlmostEqual(self.monitor.threads[42].last_rollup["read_bps"], 100)
+        self.feed(11, [record(read_bytes=0, write_bytes=0)])
+        self.assertEqual(self.monitor.threads[42].generation, 1, "a real counter drop is still tid reuse")
 
     def test_existing_day_file_gains_new_rollup_columns(self):
         path = Path(self.directory.name) / "2023-11-14.sqlite3"
@@ -475,6 +512,8 @@ class CollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(post({"cpu_warn_pct": 60}, {"Content-Type": "application/json", "X-Triangulator": "1",
                                                               "Host": "evil.example"})[0], 403)
                 self.assertEqual(post({"cpu_warn_pct": 95})[0], 400)
+                self.assertEqual(post({"enabled": "abc"})[0], 400)
+                self.assertIsNone(collector.poll(), "a malformed settings request must not stop the collector")
                 status, settings = post({"cpu_warn_pct": 60, "enabled": {"target_absent": False}})
                 self.assertEqual(status, 200)
                 self.assertEqual((settings["values"]["cpu_warn_pct"], settings["saved"]), (60, True))

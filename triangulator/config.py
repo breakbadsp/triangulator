@@ -78,6 +78,8 @@ def merge_settings(alerts, changes):
     """Return alerts with dashboard changes applied, validated. alerts is not modified."""
     if not isinstance(changes, dict) or set(changes) - {"enabled", *SETTINGS}:
         raise ValueError("unknown alert setting")
+    if not isinstance(changes.get("enabled", {}), dict):
+        raise ValueError("enabled must map rule names to true or false")
     merged = {**alerts, **{key: value for key, value in changes.items() if key != "enabled"}}
     merged["enabled"] = {**alerts["enabled"], **changes.get("enabled", {})}
     validate_alerts(merged)
@@ -148,7 +150,8 @@ def load(path):
     if config.get("sampler_ip"):
         config["sampler_ip"] = str(ipaddress.ip_address(config["sampler_ip"]))
     config["data_dir"] = str(Path(config["data_dir"]).resolve())
-    for host in config.setdefault("http_allowed_hosts", []):
-        if not isinstance(host, str) or not host:
-            raise ValueError("http_allowed_hosts must be a list of host names")
+    hosts = config.setdefault("http_allowed_hosts", [])
+    if not isinstance(hosts, list) or not all(isinstance(host, str) and host for host in hosts):
+        raise ValueError("http_allowed_hosts must be a list of host names")
+    config["http_allowed_hosts"] = [host.lower() for host in hosts]
     return config

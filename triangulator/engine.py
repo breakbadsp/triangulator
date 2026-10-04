@@ -3,9 +3,23 @@ import dataclasses
 import math
 
 from .config import RULE_NAMES
-from .protocol import IO_UNAVAILABLE, STATUS_FALLBACK, TARGET_ABSENT, classify
+from .protocol import STATUS_FALLBACK, TARGET_ABSENT, classify
 
 
+def counters_regressed(current, previous):
+    """True when a cumulative counter went backwards: the tid now belongs to a new thread."""
+    if any(now < before for now, before in zip(current.counters, previous.counters)):
+        return True
+    io_now, io_before = current.io_counters, previous.io_counters
+    return io_now is not None and io_before is not None and any(
+        now < before for now, before in zip(io_now, io_before))
+
+
+def io_rate(current, previous, index, elapsed):
+    """Bytes per second between two samples, or None if either lacks I/O data."""
+    if elapsed <= 0 or current.io_counters is None or previous.io_counters is None:
+        return None
+    return (current.io_counters[index] - previous.io_counters[index]) / elapsed
 
 
 class AlertEngine:
@@ -223,7 +237,7 @@ class Monitor:
             group = self.group_for(record.comm)
             thread = self.threads.get(record.tid)
             if thread is not None:
-                reset = (any(current < old for current, old in zip(record.counters, thread.latest.record.counters))
+                reset = (counters_regressed(record, thread.latest.record)
                          or thread.latest.fallback != sample.fallback or thread.group != group)
                 if reset:
                     self.finish_window(record.tid, thread)
@@ -342,8 +356,8 @@ class Monitor:
         slices_delta = last.record.timeslices - first.record.timeslices
         cpu = cpu_delta / self.config["clock_ticks"] / elapsed * 100 if valid else None
         delay = delay_delta / 1e9 / elapsed * 100 if valid and not last.fallback else None
-        read_rate = (last.record.read_bytes - first.record.read_bytes) / elapsed if valid else None
-        write_rate = (last.record.write_bytes - first.record.write_bytes) / elapsed if valid else None
+        read_rate = io_rate(last.record, first.record, 0, elapsed) if valid else None
+        write_rate = io_rate(last.record, first.record, 1, elapsed) if valid else None
         faults_delta = last.record.major_faults - first.record.major_faults
         counts = dict(collections.Counter(sample.state for sample in samples))
         row = {"ts": last.wall - (last.monotonic % window_s), "session": str(self.session),
@@ -439,8 +453,8 @@ class Monitor:
                             "cpu_pct": cpu, "state_mix": counts,
                             "run_delay_pct": None if sample.fallback or elapsed <= 0 else rate("run_delay", 1e9) * 100,
                             "switches_per_s": rate("timeslices"), "major_faults_per_s": rate("major_faults"),
-                            "read_bps": None if current.flags & IO_UNAVAILABLE else rate("read_bytes"),
-                            "write_bps": None if current.flags & IO_UNAVAILABLE else rate("write_bytes"),
+                            "read_bps": io_rate(current, previous, 0, elapsed),
+                            "write_bps": io_rate(current, previous, 1, elapsed),
                             "last_sample": sample.wall, "stale": now - sample.wall > max(10, self.interval * 3),
                             "generation": thread.generation})
         return {"threads": threads, "groups": dict(collections.Counter(item["group"] for item in threads)),

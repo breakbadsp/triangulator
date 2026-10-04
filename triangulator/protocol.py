@@ -28,8 +28,12 @@ class Record:
 
     @property
     def counters(self):
-        return (self.utime, self.stime, self.run_delay, self.timeslices, self.major_faults,
-                self.read_bytes, self.write_bytes)
+        return self.utime, self.stime, self.run_delay, self.timeslices, self.major_faults
+
+    @property
+    def io_counters(self):
+        """Bytes read and written, or None when the sampler could not read the io file."""
+        return None if self.flags & IO_UNAVAILABLE else (self.read_bytes, self.write_bytes)
 
 
 @dataclasses.dataclass(frozen=True)
