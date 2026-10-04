@@ -738,5 +738,59 @@ class CollectorParityTests(unittest.TestCase):
             self.assertEqual(cpp_events, python_events)
 
 
+
+class CompareScriptTests(unittest.TestCase):
+    """scripts/compare.py must never deliver alerts or leave processes running."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("compare", ROOT / "scripts/compare.py")
+        cls.compare = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.compare)
+
+    def test_alert_delivery_is_removed_however_it_is_written(self):
+        import tomllib
+        variants = [
+            '[alerts.smtp] # comment\nhost = "smtp.example.com"\nfrom = "a@example.com"\nto = ["b@example.com"]\n',
+            '[ alerts . smtp ]\nhost = "smtp.example.com"\nfrom = "a@example.com"\nto = "b@example.com"\n',
+            '[alerts]\nsmtp = { host = "smtp.example.com", from = "a@example.com", to = "b@example.com" }\n',
+            'alerts.smtp.host = "smtp.example.com"\nalerts.webhook_url = "https://hooks.example.com/x"\n',
+            '[alerts] # thresholds\nwebhook_url = "https://hooks.example.com/x"  # live\ncpu_warn_pct = 60\n',
+        ]
+        for variant in variants:
+            with self.subTest(variant=variant):
+                text = 'deadman_url = "https://ping.example.com/x"\n' + variant + '[[group]]\nname = "io"\nprefix = "io-"\n'
+                result = tomllib.loads(self.compare.comparison_config(text, {"udp_port": 9501, "data_dir": "/tmp/x"}))
+                self.assertNotIn("deadman_url", result)
+                self.assertNotIn("smtp", result.get("alerts", {}))
+                self.assertNotIn("webhook_url", result.get("alerts", {}))
+                self.assertEqual((result["udp_port"], result["data_dir"]), (9501, "/tmp/x"))
+                self.assertEqual(result["group"], [{"name": "io", "prefix": "io-"}])
+        kept = tomllib.loads(self.compare.comparison_config('[alerts]\ncpu_warn_pct = 60.5\n', {}))
+        self.assertEqual(kept["alerts"], {"cpu_warn_pct": 60.5})
+        config_text = (ROOT / "config/collector.toml").read_text()
+        self.assertEqual({key: value for key, value in tomllib.loads(config_text).items()
+                          if key not in ("alerts", "deadman_url")},
+                         {key: value for key, value in tomllib.loads(
+                             self.compare.comparison_config(config_text, {})).items() if key != "alerts"})
+
+    def test_invalid_arguments_fail_before_anything_starts(self):
+        for arguments, message in (
+            (["--synthetic-threads", "3000"], "--synthetic-threads must be 1..2550"),
+            (["--rate-hz", "0"], "--rate-hz must be 0.2..10"),
+            (["--refresh", "0"], "--refresh and --duration must be positive"),
+            (["--port", "65530"], "--port must be"),
+        ):
+            with self.subTest(arguments=arguments):
+                started = time.monotonic()
+                result = subprocess.run([sys.executable, str(ROOT / "scripts/compare.py"), *arguments],
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn("Stopped", result.stdout)
+                self.assertLess(time.monotonic() - started, 5, "the script started work before validating")
+
+
 if __name__ == "__main__":
     unittest.main()

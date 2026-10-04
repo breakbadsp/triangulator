@@ -172,6 +172,19 @@ warning and the C++ collector ignores the table (webhooks work).
 `make check` runs the collector end-to-end tests against both, plus a parity test
 that sends identical datagrams to each and requires identical rollups and alerts.
 
+To compare them live on real data:
+
+```sh
+scripts/compare.py --rate-hz 10 --target-process firefox
+```
+
+This starts a sampler, a UDP tee and both collectors, and shows CPU, memory,
+dashboard latency and whether they agree on threads and alerts. Both dashboards
+stay available (Python on port 9511, C++ on 9512). The comparison configs leave
+out alert delivery, so alerts are not sent twice. Files go to `.run/compare/`.
+`--duration 180` stops after three minutes and prints a summary table;
+`--synthetic-threads 1000` replaces the sampler with a load generator.
+
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
@@ -179,5 +192,5 @@ that sends identical datagrams to each and requires identical rollups and alerts
 - `triangulator/`: Python collector, alerts, SQLite, delivery, HTTP API, dashboard.
 - `collector/`: C++ port of the collector (shares the sampler's wire-format header).
 - `config/`, `deploy/`: example configuration and systemd units.
-- `scripts/`: `start.sh` and `stop.sh`.
+- `scripts/`: `start.sh`, `stop.sh` and `compare.py` (Python vs C++ collector).
 - `tests/`: C++ and Python tests, including a real `/proc` integration check.
