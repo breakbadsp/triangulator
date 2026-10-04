@@ -3,6 +3,9 @@ udp_host = "0.0.0.0"
 udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
+# Host names (besides localhost, IP literals and http_host) allowed to change
+# alert settings, e.g. a reverse proxy name.
+# http_allowed_hosts = ["monitor.example.com"]
 sampler_ip = "10.0.0.10"
 data_dir = "/var/lib/triangulator"
 retention_days = 7

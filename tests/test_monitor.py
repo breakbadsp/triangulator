@@ -9,10 +9,11 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-from triangulator.config import DEFAULT_ALERTS
+from triangulator.config import DEFAULT_ALERTS, RULE_NAMES, merge_settings, validate_alerts
 from triangulator.engine import Monitor
 from triangulator.protocol import HEADER, RECORD, Packet, Record, classify, decode
 from triangulator.storage import SCHEMA, Storage, history
@@ -72,6 +73,28 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(classify(sample), expected)
 
 
+class AlertSettingsTests(unittest.TestCase):
+    def alerts(self):
+        alerts = dict(DEFAULT_ALERTS)
+        validate_alerts(alerts)
+        return alerts
+
+    def test_every_rule_defaults_to_enabled(self):
+        self.assertEqual(self.alerts()["enabled"], {rule: True for rule in RULE_NAMES})
+
+    def test_merge_validates_without_modifying_current_settings(self):
+        current = self.alerts()
+        merged = merge_settings(current, {"cpu_warn_pct": 70, "enabled": {"starved": False}})
+        self.assertEqual((merged["cpu_warn_pct"], merged["enabled"]["starved"]), (70, False))
+        self.assertEqual((current["cpu_warn_pct"], current["enabled"]["starved"]), (50, True))
+        for changes in ({"cpu_warn_pct": 95}, {"cpu_sustain_secs": 0}, {"window_s": 7},
+                        {"enabled": {"blocked": False}}, {"enabled": {"cpu_warn": "no"}},
+                        {"packet_loss_pct": float("nan")}, {"webhook_url": "http://x"}, []):
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError):
+                    merge_settings(current, changes)
+
+
 class MonitorTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -115,6 +138,23 @@ class MonitorTests(unittest.TestCase):
             self.feed(sequence, [record(utime=300 + (sequence - 3) * 30)])
         self.assertFalse(self.opened("cpu_critical"))
         self.assertFalse(self.opened("cpu_warn"))
+
+    def test_disabled_rule_never_opens_and_disabling_resolves_open_alerts(self):
+        alerts = dict(self.config["alerts"])
+        validate_alerts(alerts)
+        self.monitor.apply_alert_settings(merge_settings(alerts, {"enabled": {"cpu_critical": False}}), 1700000000)
+        for sequence in range(8):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        self.assertFalse(self.opened("cpu_critical"))
+        self.assertEqual(len(self.opened("cpu_warn")), 1)
+        self.monitor.apply_alert_settings(merge_settings(self.config["alerts"], {"enabled": {"cpu_warn": False}}), 1700000008)
+        self.assertEqual(self.monitor.alerts.open, {})
+        self.assertEqual(self.events[-1]["detail"], "Alert rule disabled")
+        self.monitor.apply_alert_settings(merge_settings(self.config["alerts"], {"cpu_warn_pct": 99.5, "cpu_crit_pct": 99.9,
+                                                                                  "enabled": {"cpu_warn": True}}), 1700000008)
+        for sequence in range(8, 16):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        self.assertEqual(len(self.opened("cpu_warn")), 2)
 
     def test_futex_and_socket_waits_never_alert(self):
         for sequence in range(40):
@@ -416,6 +456,33 @@ class CollectorIntegrationTests(unittest.TestCase):
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertEqual(live["threads"][0]["name"], "sleep")
 
+                def post(body, headers=None):
+                    request = urllib.request.Request(base + "/api/alert-settings", data=json.dumps(body).encode(),
+                                                     method="POST", headers=headers if headers is not None else
+                                                     {"Content-Type": "application/json", "X-Triangulator": "1"})
+                    try:
+                        with urllib.request.urlopen(request, timeout=8) as response:
+                            return response.status, json.loads(response.read())
+                    except urllib.error.HTTPError as error:
+                        return error.code, json.loads(error.read())
+
+                settings = json.loads(fetch("/api/alert-settings"))
+                self.assertEqual(settings["values"]["cpu_warn_pct"], 50)
+                self.assertFalse(settings["saved"])
+                self.assertEqual(post({"cpu_warn_pct": 60}, {"Content-Type": "application/json"})[0], 400)
+                self.assertEqual(post({"cpu_warn_pct": 60}, {"Content-Type": "application/json", "X-Triangulator": "1",
+                                                              "Origin": "http://evil.example"})[0], 403)
+                self.assertEqual(post({"cpu_warn_pct": 60}, {"Content-Type": "application/json", "X-Triangulator": "1",
+                                                              "Host": "evil.example"})[0], 403)
+                self.assertEqual(post({"cpu_warn_pct": 95})[0], 400)
+                status, settings = post({"cpu_warn_pct": 60, "enabled": {"target_absent": False}})
+                self.assertEqual(status, 200)
+                self.assertEqual((settings["values"]["cpu_warn_pct"], settings["saved"]), (60, True))
+                saved = json.loads((Path(directory) / "data/alert-settings.json").read_text())
+                self.assertEqual(saved["enabled"]["target_absent"], False)
+                status, settings = post({"reset": True})
+                self.assertEqual((status, settings["values"]["cpu_warn_pct"], settings["saved"]), (200, 50, False))
+                self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
                 target.terminate()
                 target.wait(timeout=3)
                 deadline = time.monotonic() + 5

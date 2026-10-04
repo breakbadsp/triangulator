@@ -30,7 +30,7 @@ Threads are named with `pthread_setname_np`. The collector takes a list of threa
   - **monitor health**: sampler last seen, packet loss, target present or absent.
 - R4. The sampler must never noticeably affect the target: non-blocking sends, no listener, no disk writes, bounded CPU and memory.
 - R5. The sampler runs as the target's UID, hardened (section 6), with no capabilities. v1 reads only `/proc` files that the same UID can read without ptrace-attach permission.
-- R6. All interpretation (groups, thresholds, alerts) lives in the collector.
+- R6. All interpretation (groups, thresholds, alerts) lives in the collector. The sampler is generic: it reports `/proc` data for any process and knows nothing about groups or alerts. Alert rules and thresholds can be changed from the dashboard at runtime.
 - R7. The system tolerates UDP loss, reordering and sampler restarts.
 - R8. Alerts are delivered to a person (webhook or email), and the monitor alerts on its own silence.
 
@@ -147,6 +147,7 @@ Behavior rules in code: read-only, send no signals, never `open()` through `/pro
   - Size: 100 threads is about 1.7M rollup rows per day, roughly 150 to 250 MB (estimate). Retention is deleting whole day files (default 7 days, configurable).
   - Optional `store_raw` flag (off by default) keeps raw rows too: about 8.6M rows per day at 100 threads and 1 Hz, so it is only worth it if you want to replay history against new thresholds.
 - **Processing:** deltas from raw counters, state inference, alert rules (section 8).
+- **Alert settings:** each rule can be enabled or disabled and its thresholds changed from the dashboard. Changes are validated, applied by the collector's main loop, and saved as `alert-settings.json` in the data directory on top of the TOML values. Delivery destinations stay in the TOML.
 - **Alert delivery:** webhook (HTTP POST, JSON) and/or SMTP email; at least one configured. An alert notifies when it opens, reminds every 30 min while open (configurable), and notifies when it resolves. Alert identity is `(rule, group, tid)`.
 - **Collector liveness (optional):** ping an external dead-man's-switch URL every minute, so someone is told if the collector itself dies.
 
@@ -276,6 +277,7 @@ Linux thread names are limited to 15 characters, so prefixes must be short and t
 - No capabilities: `syscall` is no longer read. State comes from `stat` plus the kernel wait channel (`wchan`).
 - Futex waits are one state; lock, condition and timed idle are no longer distinguished. The "blocked forever" alert is removed; block types are a dashboard filter instead.
 - CPU alerts open after 5 s continuously over the threshold (per-sample check), instead of three 5 s windows.
+- Alert rules can be switched on and off and their thresholds changed from the dashboard.
 - New per-thread data: wait channel, last CPU, major faults, and read/write bytes from `io`. Records are 112 bytes, 10 per datagram.
 - The collector no longer needs `arch`.
 

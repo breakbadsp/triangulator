@@ -2,13 +2,10 @@ import collections
 import dataclasses
 import math
 
+from .config import RULE_NAMES
 from .protocol import IO_UNAVAILABLE, STATUS_FALLBACK, TARGET_ABSENT, classify
 
 
-
-
-RULES = {"cpu_warn", "cpu_critical", "starved", "kernel_wait",
-         "sampler_silent", "target_absent", "packet_loss", "access_lost"}
 
 
 class AlertEngine:
@@ -19,10 +16,12 @@ class AlertEngine:
         recent, self.open = storage.recover_alerts()
         self.streaks = {}
         self.recent = collections.deque(recent, maxlen=500)
-        for key in [key for key in self.open if key[0] not in RULES]:
-            # Alerts from rules that no longer exist are closed quietly, without notification.
+        for key in [key for key in self.open
+                    if key[0] not in RULE_NAMES or not config.get("enabled", {}).get(key[0], True)]:
+            # Alerts from removed or disabled rules are closed quietly, without notification.
             event = self.open.pop(key)
-            closed = dict(event, status="resolved", ts=now, detail="Alert rule removed")
+            detail = "Alert rule disabled" if key[0] in RULE_NAMES else "Alert rule removed"
+            closed = dict(event, status="resolved", ts=now, detail=detail)
             self.storage.event(closed)
             self.recent.append(closed)
 
@@ -34,9 +33,19 @@ class AlertEngine:
         self.deliver(event)
         return event
 
+    def close_disabled(self, now):
+        for key in [key for key in self.open if not self.config.get("enabled", {}).get(key[0], True)]:
+            event = self.open.pop(key)
+            self.event(key, {"name": event["name"], "session": event["session"]},
+                       "resolved", now, "Alert rule disabled", event["severity"])
+        for key in [key for key in self.streaks if not self.config.get("enabled", {}).get(key[0], True)]:
+            del self.streaks[key]
+
     def evaluate(self, rule, group, tid, condition, now, metadata, detail,
                  severity="warning", immediate=False):
         key = rule, group, tid
+        if not self.config.get("enabled", {}).get(rule, True):
+            return
         if condition is None:
             self.streaks.pop(key, None)
             return
@@ -271,6 +280,12 @@ class Monitor:
                 while len(thread.raw) > quota:
                     thread.raw.popleft()
                     self.raw_count -= 1
+
+    def apply_alert_settings(self, alerts, now):
+        """Replace thresholds and enabled rules in place; both engines share the dict."""
+        self.config["alerts"].clear()
+        self.config["alerts"].update(alerts)
+        self.alerts.close_disabled(now)
 
     def check_cpu(self, tid, thread, sample):
         """Open a CPU alert once a thread stays above the threshold for cpu_sustain_secs.

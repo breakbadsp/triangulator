@@ -1,9 +1,11 @@
 import argparse
+import copy
 import http.server
 import ipaddress
 import json
 import logging
 import math
+import queue
 import signal
 import socket
 import threading
@@ -11,7 +13,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from .config import load
+from .config import SETTINGS_FILE, clear_settings, describe_settings, load, load_settings, merge_settings, save_settings
 from .delivery import Delivery
 from .engine import Monitor
 from .protocol import decode
@@ -25,6 +27,8 @@ class Dashboard(http.server.BaseHTTPRequestHandler):
             self.respond(200, (Path(__file__).parent / "dashboard.html").read_bytes(), "text/html; charset=utf-8")
         elif parsed.path == "/api/live":
             self.respond(200, self.server.live, "application/json")
+        elif parsed.path == "/api/alert-settings":
+            self.respond(200, self.server.settings, "application/json")
         elif parsed.path == "/api/history":
             query = urllib.parse.parse_qs(parsed.query)
             try:
@@ -42,6 +46,51 @@ class Dashboard(http.server.BaseHTTPRequestHandler):
                 self.respond(400, b'{"error":"session, tid and a valid time range are required"}', "application/json")
         else:
             self.respond(404, b"Not found", "text/plain")
+
+    def do_POST(self):
+        if urllib.parse.urlparse(self.path).path != "/api/alert-settings":
+            self.respond(404, b"Not found", "text/plain")
+            return
+        error = self.reject_cross_site()
+        length = int(self.headers.get("Content-Length") or 0)
+        if error is None and not 0 < length <= 16384:
+            error = "request body must be 1..16384 bytes"
+        if error is not None:
+            self.respond(403 if "origin" in error or "host" in error else 400,
+                         json.dumps({"error": error}).encode(), "application/json")
+            return
+        try:
+            body = json.loads(self.rfile.read(length))
+        except (ValueError, UnicodeDecodeError):
+            self.respond(400, b'{"error":"body must be JSON"}', "application/json")
+            return
+        reply = queue.Queue(maxsize=1)
+        self.server.requests.put((body, reply))
+        try:
+            code, payload = reply.get(timeout=5)
+        except queue.Empty:
+            code, payload = 503, {"error": "collector busy; try again"}
+        self.respond(code, json.dumps(payload).encode(), "application/json")
+
+    def reject_cross_site(self):
+        """Refuse writes that a page on another site, or a rebound DNS name, could send."""
+        if self.headers.get("X-Triangulator") != "1" or \
+                self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            return "missing JSON content type or X-Triangulator header"
+        host = self.headers.get("Host", "")
+        hostname = urllib.parse.urlsplit("//" + host).hostname or ""
+        try:
+            ipaddress.ip_address(hostname)
+            literal = True
+        except ValueError:
+            literal = False
+        allowed = {"localhost", self.server.config["http_host"], *self.server.config["http_allowed_hosts"]}
+        if not literal and hostname not in allowed:
+            return "host not allowed; add it to http_allowed_hosts"
+        origin = self.headers.get("Origin")
+        if origin is not None and urllib.parse.urlsplit(origin).netloc != host:
+            return "cross-origin request refused"
+        return None
 
     def respond(self, code, body, content_type):
         self.send_response(code)
@@ -77,6 +126,11 @@ def main():
         config = load(args.config)
     except (OSError, ValueError) as error:
         parser.error(str(error))
+    defaults = copy.deepcopy(config["alerts"])
+    try:
+        load_settings(config)
+    except (OSError, ValueError) as error:
+        parser.error(f"saved dashboard alert settings ({Path(config['data_dir']) / SETTINGS_FILE}): {error}")
     if args.check_config:
         print("Collector configuration is valid")
         return
@@ -98,6 +152,26 @@ def main():
     server = server_class((config["http_host"], config["http_port"]), Dashboard)
     server.config = config
     server.live = b'{}'
+    server.requests = queue.Queue()
+    saved = (Path(config["data_dir"]) / SETTINGS_FILE).exists()
+    server.settings = json.dumps(describe_settings(config["alerts"], defaults, saved)).encode()
+
+    def change_settings(body, now):
+        nonlocal saved
+        if body == {"reset": True}:
+            alerts = copy.deepcopy(defaults)
+            clear_settings(config["data_dir"])
+            saved = False
+        else:
+            alerts = merge_settings(config["alerts"], body)
+            save_settings(config["data_dir"], alerts)
+            saved = True
+        monitor.apply_alert_settings(alerts, now)
+        logging.info("Alert settings changed from the dashboard: %s", json.dumps(body, sort_keys=True))
+        description = describe_settings(config["alerts"], defaults, saved)
+        server.settings = json.dumps(description).encode()
+        return description
+
     dashboard = threading.Thread(target=server.serve_forever, name="dashboard", daemon=True)
     dashboard.start()
     stopped = threading.Event()
@@ -113,6 +187,14 @@ def main():
             except socket.timeout:
                 data = None
             now = time.time()
+            while not server.requests.empty():
+                body, reply = server.requests.get_nowait()
+                try:
+                    reply.put((200, change_settings(body, now)))
+                except ValueError as error:
+                    reply.put((400, {"error": str(error)}))
+                except OSError as error:
+                    reply.put((500, {"error": f"could not save settings: {error}"}))
             if data is not None:
                 peer_ip = str(ipaddress.ip_address(peer[0]))
                 if sampler_ip is None or peer_ip == sampler_ip:

@@ -50,6 +50,18 @@ alerts, monitor health and selectable per-thread rollup history. The HTTP listen
 defaults to loopback; use an SSH tunnel or an authenticated reverse proxy for
 remote access. Neither UDP nor the HTTP API provides authentication.
 
+**Alert settings** (the dashboard's *Alert settings* button) turn each rule on or
+off and change its thresholds: CPU warning/critical percentages and how long CPU
+must stay above them, run delay, kernel-wait, sampler-silence and target-absence
+durations, packet loss and the reminder interval. Changes apply immediately and
+are saved to `alert-settings.json` in `data_dir`, layered over the collector TOML;
+*Reset to config file* deletes that file. Turning a rule off resolves its open
+alerts. Delivery destinations and window sizes stay in the TOML. Writes require a
+JSON body with an `X-Triangulator: 1` header, refuse other origins, and accept only
+IP-literal, `localhost` or `http_host` host names; list reverse-proxy names in
+`http_allowed_hosts`. Anyone who can reach the dashboard can change alert
+settings, so keep it on loopback or behind an authenticating proxy.
+
 The sampler accepts flat `key = value` configuration with double-quoted strings,
 booleans and `#` comments. Duplicate keys, unknown keys and malformed values are
 rejected; configuration must be smaller than 16 KiB, with lines no longer than
