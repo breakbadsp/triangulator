@@ -42,6 +42,8 @@ Make and Python 3.11+. No third-party packages.
 ```sh
 make          # build/triangulator-sampler
 make check    # C++ and Python tests
+make format   # format C++ code (2 spaces, Allman braces)
+make format-check # verify C++ formatting
 ```
 
 ## Configuration
