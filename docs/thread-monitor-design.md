@@ -179,7 +179,7 @@ Starvation deltas are computed over 5 s windows (configurable, 5 to 10 s). A win
 | **Starved** | Delta run delay / delta t | Above 20% of the window |
 | **Stuck in kernel** | State `D` in every sample | For more than 5 s |
 
-Waits do not alert. A futex wait cannot be told apart from an idle thread pool without `syscall`, and an alert on it fires for every parked worker. The dashboard instead shows each thread's state and wait channel.
+Waits do not alert. A futex wait cannot be told apart from an idle thread pool without `syscall`, and an alert on it fires for every parked worker. The dashboard instead shows each thread's block type and wait channel, with counts, as filters.
 
 **Starvation fallback** (only if `schedstat` is unusable): state `R` in most samples while CPU stays under 10%, with `nonvoluntary_ctxt_switches` rising.
 
@@ -274,7 +274,7 @@ Linux thread names are limited to 15 characters, so prefixes must be short and t
 ## Changes in wire version 2
 
 - No capabilities: `syscall` is no longer read. State comes from `stat` plus the kernel wait channel (`wchan`).
-- Futex waits are one state; lock, condition and timed idle are no longer distinguished. The "blocked forever" alert is removed; the dashboard shows each thread's wait instead.
+- Futex waits are one state; lock, condition and timed idle are no longer distinguished. The "blocked forever" alert is removed; block types are a dashboard filter instead.
 - CPU alerts open after 5 s continuously over the threshold (per-sample check), instead of three 5 s windows.
 - New per-thread data: wait channel, last CPU, major faults, and read/write bytes from `io`. Records are 112 bytes, 10 per datagram.
 - The collector no longer needs `arch`.

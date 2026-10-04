@@ -126,7 +126,8 @@ network routing or the performance budget on your target host.
   resolve. Kernel-wait (`D`) alerts use a duration threshold. Sampling gaps break
   continuous-wait evidence.
 - Waits never alert: futex (lock or condition), socket, poll and pipe waits are
-  shown on the dashboard as states with their wait channel.
+  shown on the dashboard as block types with their wait channel, and can be
+  filtered there.
 - Raw live samples expire after ten minutes and are additionally capped by
   `max_live_samples` (default one million, shortened per-thread retention when
   needed). A disappeared thread is removed from live memory; its persisted
