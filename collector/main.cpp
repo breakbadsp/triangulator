@@ -128,7 +128,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   if (config.smtp_ignored_)
   {
     Log(LogLevel::Error,
-        "Email delivery is not supported by the C++ collector yet; "
+        "Email delivery is not part of the C++ collector; "
         "[alerts.smtp] is ignored");
   }
   Storage storage{config.data_dir_, config.retention_days_, config.store_raw_};

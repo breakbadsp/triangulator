@@ -199,8 +199,8 @@ struct Config
   // Delivery destinations are read at startup and never edited, so the
   // delivery thread can read them without locking.
   std::string webhook_url_;
-  // Email delivery is not ported yet; an [alerts.smtp] table is ignored
-  // with a startup warning.
+  // Email delivery is not part of the core collector (see AGENTS.md); an
+  // [alerts.smtp] table is ignored with a startup warning.
   bool smtp_ignored_ = false;
 };
 
