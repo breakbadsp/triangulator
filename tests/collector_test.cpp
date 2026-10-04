@@ -11,6 +11,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -247,8 +248,15 @@ struct MonitorFixture
 {
   TempDirectory directory_;
   Config config_ = MakeConfig();
-  Storage storage_{directory_.Path(), 7};
+  Storage storage_ = MakeStorage(directory_.Path());
   Monitor monitor_{config_, 1'700'000'000};
+
+  static Storage MakeStorage(const std::filesystem::path& p_directory)
+  {
+    auto storage = Storage::Create(p_directory, 7);
+    Require(storage.has_value(), "storage opens the data directory");
+    return std::move(*storage);
+  }
 
   static Config MakeConfig()
   {
@@ -273,11 +281,11 @@ struct MonitorFixture
   {
     for (const auto& row : monitor_.PendingRollups())
     {
-      storage_.Rollup(row);
+      Require(storage_.Rollup(row).has_value(), "a rollup row is written");
     }
     for (const auto& row : monitor_.PendingRaw())
     {
-      storage_.Raw(row);
+      Require(storage_.Raw(row).has_value(), "a raw row is written");
     }
     monitor_.ClearRows();
   }
@@ -303,7 +311,7 @@ struct MonitorFixture
                                   std::string_view p_session = "1")
   {
     WriteRows();
-    storage_.Flush(1'700'000'100);
+    Require(storage_.Flush(1'700'000'100).has_value(), "rows are committed");
     return History(directory_.Path(), p_session, p_tid, 1'700'000'000,
                    1'700'000'100);
   }
@@ -413,7 +421,8 @@ void TestRollupsRetentionAndBoundedMemory()
           "a rollup counts samples per state");
   Require(Field(rows[0], "group_name").AsString() == "worker",
           "threads are grouped by name prefix");
-  fixture.storage_.Flush(1'700'000'000 + 10 * 86400);
+  Require(fixture.storage_.Flush(1'700'000'000 + 10 * 86400).has_value(),
+          "a flush on a later day succeeds");
   Require(DayFiles(fixture.directory_.Path()).empty(),
           "day files past the retention period are deleted");
 }
@@ -506,14 +515,17 @@ void TestExistingDayFileGainsNewRollupColumns()
     // major_faults_delta were added.
     auto old =
         OpenDatabase(fixture.directory_.Path() / "2023-11-14.sqlite3", false);
-    Execute(old.get(),
-            "CREATE TABLE thread_rollup (ts REAL NOT NULL, session TEXT NOT "
-            "NULL, tid INTEGER NOT NULL, name TEXT NOT NULL, group_name TEXT "
-            "NOT NULL, cpu_pct REAL, run_delay_pct REAL, sample_counts TEXT "
-            "NOT NULL, timeslices_delta INTEGER, samples INTEGER NOT NULL, "
-            "expected_samples REAL NOT NULL, valid INTEGER NOT NULL, "
-            "generation INTEGER NOT NULL, PRIMARY KEY(ts, session, tid, "
-            "generation))");
+    Require(old.has_value(), "the old day file opens");
+    const auto created = Execute(
+        old->get(),
+        "CREATE TABLE thread_rollup (ts REAL NOT NULL, session TEXT NOT "
+        "NULL, tid INTEGER NOT NULL, name TEXT NOT NULL, group_name TEXT "
+        "NOT NULL, cpu_pct REAL, run_delay_pct REAL, sample_counts TEXT "
+        "NOT NULL, timeslices_delta INTEGER, samples INTEGER NOT NULL, "
+        "expected_samples REAL NOT NULL, valid INTEGER NOT NULL, "
+        "generation INTEGER NOT NULL, PRIMARY KEY(ts, session, tid, "
+        "generation))");
+    Require(created.has_value(), "the old table is created");
   }
   for (std::uint32_t sequence = 0; sequence <= 10; ++sequence)
   {
@@ -590,6 +602,41 @@ void TestSequenceWrapIsNotPacketLoss()
               0, "the sequence number wrapping to 0 is not loss");
 }
 
+// Storage failures come back as values, not exceptions: a data directory
+// that can't be created, a day file that isn't a database, and History
+// skipping a file it can't read.
+void TestStorageReportsErrors()
+{
+  TempDirectory directory;
+  const auto blocker = directory.Path() / "file";
+  std::ofstream{blocker} << "";
+  const auto unusable = Storage::Create(blocker / "data", 7);
+  Require(!unusable.has_value(), "a data_dir under a regular file fails");
+  Require(unusable.error().starts_with("cannot create"),
+          "the error names the failed step");
+
+  {
+    std::ofstream garbage{directory.Path() / "2023-11-14.sqlite3"};
+    for (int line = 0; line < 100; ++line)
+    {
+      garbage << "not a database";
+    }
+  }
+  auto storage = Storage::Create(directory.Path(), 7);
+  Require(storage.has_value(), "storage opens the data directory");
+  RollupRow row;
+  row.ts_ = 1'700'000'000;  // 2023-11-14 UTC
+  row.session_ = "1";
+  row.tid_ = 42;
+  const auto written = storage->Rollup(row);
+  Require(!written.has_value(), "writing to a damaged day file fails");
+  Require(written.error() == "file is not a database",
+          std::format("the SQLite message is kept, got: {}", written.error()));
+  Require(
+      History(directory.Path(), "1", 42, 1'700'000'000, 1'700'000'100).empty(),
+      "History skips a day file it can't read");
+}
+
 }  // namespace
 
 int main()
@@ -609,6 +656,7 @@ int main()
     TestLowestRateProducesValidWindows();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
+    TestStorageReportsErrors();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health)");

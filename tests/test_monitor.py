@@ -1,3 +1,4 @@
+import datetime
 import json
 import signal
 import socket
@@ -256,6 +257,53 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
+
+
+    def test_unusable_data_dir_stops_at_startup(self):
+        # data_dir sits under a regular file, so it can't be created. The
+        # collector must report that and exit 1, not crash or carry on.
+        with tempfile.TemporaryDirectory() as directory:
+            blocker = Path(directory) / "file"
+            blocker.write_text("")
+            config = Path(directory) / "collector.toml"
+            config.write_text(f'udp_host="127.0.0.1"\nudp_port={free_port(socket.SOCK_DGRAM)}\n'
+                              f'http_port={free_port(socket.SOCK_STREAM)}\ndata_dir="{blocker}/data"\n')
+            result = subprocess.run([*CPP_COLLECTOR, str(config)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("Collector stopped: cannot create", result.stderr)
+
+    def test_storage_write_failure_stops_the_collector(self):
+        # Day files that aren't SQLite databases make the first write fail.
+        # The collector must stop with the SQLite error instead of dropping
+        # rows silently. store_raw writes a row per sample, so the write
+        # happens on the first datagram.
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory) / "data"
+            data.mkdir()
+            today = datetime.datetime.now(datetime.timezone.utc).date()
+            for day in (today - datetime.timedelta(days=1), today, today + datetime.timedelta(days=1)):
+                (data / f"{day.isoformat()}.sqlite3").write_bytes(b"not a database" * 100)
+            udp_port = free_port(socket.SOCK_DGRAM)
+            config = Path(directory) / "collector.toml"
+            config.write_text(f'udp_host="127.0.0.1"\nudp_port={udp_port}\n'
+                              f'http_port={free_port(socket.SOCK_STREAM)}\ndata_dir="{data}"\nstore_raw=true\n')
+            target = subprocess.Popen(["sleep", "30"])
+            sampler_config = Path(directory) / "sampler.toml"
+            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
+            collector = subprocess.Popen([*CPP_COLLECTOR, str(config)], stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE, text=True)
+            sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(sampler_config)],
+                                       stderr=subprocess.PIPE, text=True)
+            try:
+                stderr = collector.communicate(timeout=10)[1]
+            finally:
+                for process in (sampler, collector, target):
+                    if process.poll() is None:
+                        process.terminate()
+                sampler.communicate(timeout=8)
+                target.wait(timeout=8)
+            self.assertEqual(collector.returncode, 1, stderr)
+            self.assertIn("Collector stopped: file is not a database", stderr)
 
 
 if __name__ == "__main__":

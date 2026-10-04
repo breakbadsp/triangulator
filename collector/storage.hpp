@@ -6,12 +6,14 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <format>
+#include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -82,11 +84,8 @@ struct RawRow
   std::shared_ptr<const Record> record_;
 };
 
-class SqliteError : public std::runtime_error
-{
- public:
-  using std::runtime_error::runtime_error;
-};
+// Every SQLite helper reports failure as SQLite's error message.
+using SqliteResult = std::expected<void, std::string>;
 
 struct DatabaseCloser
 {
@@ -106,32 +105,36 @@ struct StatementFinalizer
 };
 using Statement = std::unique_ptr<sqlite3_stmt, StatementFinalizer>;
 
-inline void Check(sqlite3* p_database, int p_result)
+[[nodiscard]] inline SqliteResult Check(sqlite3* p_database, int p_result)
 {
-  if (p_result != SQLITE_OK && p_result != SQLITE_ROW &&
-      p_result != SQLITE_DONE)
+  if (p_result == SQLITE_OK || p_result == SQLITE_ROW ||
+      p_result == SQLITE_DONE)
   {
-    throw SqliteError(::sqlite3_errmsg(p_database));
+    return {};
   }
+  return std::unexpected(std::string{::sqlite3_errmsg(p_database)});
 }
 
-[[nodiscard]] inline Database OpenDatabase(const std::filesystem::path& p_path,
-                                           bool p_read_only)
+[[nodiscard]] inline std::expected<Database, std::string> OpenDatabase(
+    const std::filesystem::path& p_path, bool p_read_only)
 {
   sqlite3* raw = nullptr;
   const int flags = p_read_only ? SQLITE_OPEN_READONLY
                                 : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
   const int result = ::sqlite3_open_v2(p_path.c_str(), &raw, flags, nullptr);
+  // Owned before the check: sqlite3_open_v2 can return a handle on failure.
   Database database{raw};
   if (result != SQLITE_OK)
   {
-    throw SqliteError(raw != nullptr ? ::sqlite3_errmsg(raw)
-                                     : "cannot open database");
+    return std::unexpected(raw != nullptr
+                               ? std::string{::sqlite3_errmsg(raw)}
+                               : std::string{"cannot open database"});
   }
   return database;
 }
 
-inline void Execute(sqlite3* p_database, std::string_view p_sql)
+[[nodiscard]] inline SqliteResult Execute(sqlite3* p_database,
+                                          std::string_view p_sql)
 {
   char* message = nullptr;
   const int result = ::sqlite3_exec(p_database, std::string{p_sql}.c_str(),
@@ -140,18 +143,23 @@ inline void Execute(sqlite3* p_database, std::string_view p_sql)
   {
     std::string text = message != nullptr ? message : "sqlite error";
     ::sqlite3_free(message);
-    throw SqliteError(text);
+    return std::unexpected(std::move(text));
   }
+  return {};
 }
 
-[[nodiscard]] inline Statement Prepare(sqlite3* p_database,
-                                       std::string_view p_sql)
+[[nodiscard]] inline std::expected<Statement, std::string> Prepare(
+    sqlite3* p_database, std::string_view p_sql)
 {
   sqlite3_stmt* raw = nullptr;
-  Check(p_database,
-        ::sqlite3_prepare_v2(p_database, p_sql.data(),
-                             static_cast<int>(p_sql.size()), &raw, nullptr));
-  return Statement{raw};
+  const int result = ::sqlite3_prepare_v2(
+      p_database, p_sql.data(), static_cast<int>(p_sql.size()), &raw, nullptr);
+  Statement statement{raw};
+  if (auto checked = Check(p_database, result); !checked)
+  {
+    return std::unexpected(std::move(checked.error()));
+  }
+  return statement;
 }
 
 // Binds values to parameters 1, 2, ... in order.
@@ -195,10 +203,13 @@ class Binder
   int index_ = 0;
 };
 
-inline void Run(sqlite3* p_database, sqlite3_stmt* p_statement)
+[[nodiscard]] inline SqliteResult Run(sqlite3* p_database,
+                                      sqlite3_stmt* p_statement)
 {
-  Check(p_database, ::sqlite3_step(p_statement));
+  // Read the error message before sqlite3_reset, which starts over.
+  auto result = Check(p_database, ::sqlite3_step(p_statement));
   ::sqlite3_reset(p_statement);
+  return result;
 }
 
 [[nodiscard]] inline Json ColumnJson(sqlite3_stmt* p_statement, int p_column)
@@ -271,20 +282,24 @@ using Days = std::chrono::sys_days;
   return Days{date};
 }
 
-// Day files (????-??-??.sqlite3) in p_directory, sorted by name.
+// Day files (????-??-??.sqlite3) in p_directory, sorted by name. A directory
+// that can't be read (or stops being readable midway) gives the files found
+// so far.
 [[nodiscard]] inline std::vector<std::filesystem::path> DayFiles(
     const std::filesystem::path& p_directory)
 {
   std::vector<std::filesystem::path> files;
   std::error_code error;
-  for (const auto& entry :
-       std::filesystem::directory_iterator{p_directory, error})
+  // increment(error) rather than a range-for: operator++ throws
+  // filesystem_error when reading the next entry fails.
+  for (std::filesystem::directory_iterator entry{p_directory, error}, end;
+       !error && entry != end; entry.increment(error))
   {
-    const auto name = entry.path().filename().string();
+    const auto name = entry->path().filename().string();
     if (name.size() == 18 && name.ends_with(".sqlite3") && name[4] == '-' &&
         name[7] == '-')
     {
-      files.push_back(entry.path());
+      files.push_back(entry->path());
     }
   }
   std::ranges::sort(files);
@@ -294,16 +309,31 @@ using Days = std::chrono::sys_days;
 class Storage
 {
  public:
-  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days)
-      : directory_(std::move(p_directory)), retention_days_(p_retention_days)
+  [[nodiscard]] static std::expected<Storage, std::string> Create(
+      std::filesystem::path p_directory, std::int64_t p_retention_days)
   {
-    std::filesystem::create_directories(directory_);
+    std::error_code error;
+    std::filesystem::create_directories(p_directory, error);
+    if (error)
+    {
+      return std::unexpected(std::format(
+          "cannot create {}: {}", p_directory.string(), error.message()));
+    }
+    return Storage{std::move(p_directory), p_retention_days};
   }
 
-  void Rollup(const RollupRow& p_row)
+  [[nodiscard]] SqliteResult Rollup(const RollupRow& p_row)
   {
-    auto& file = Connection(p_row.ts_);
-    Begin(file);
+    auto connection = Connection(p_row.ts_);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
     Binder{file.rollup_.get()}
         .Add(p_row.ts_)
         .Add(std::string_view{p_row.session_})
@@ -321,30 +351,41 @@ class Storage
         .Add(p_row.read_bps_)
         .Add(p_row.write_bps_)
         .Add(p_row.major_faults_delta_);
-    Run(file.database_.get(), file.rollup_.get());
+    return Run(file.database_.get(), file.rollup_.get());
   }
 
-  void Raw(const RawRow& p_row)
+  [[nodiscard]] SqliteResult Raw(const RawRow& p_row)
   {
-    auto& file = Connection(p_row.ts_);
-    Begin(file);
+    auto connection = Connection(p_row.ts_);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
     Binder{file.raw_.get()}
         .Add(p_row.ts_)
         .Add(std::string_view{p_row.session_})
         .Add(std::int64_t{p_row.record_->tid_})
         .Add(std::string_view{DumpJson(RecordJson(*p_row.record_))});
-    Run(file.database_.get(), file.raw_.get());
+    return Run(file.database_.get(), file.raw_.get());
   }
 
   // Commits pending rows, closes files for past days and, once a day,
   // deletes day files older than the retention period.
-  void Flush(double p_now)
+  [[nodiscard]] SqliteResult Flush(double p_now)
   {
     const auto today = UtcDay(p_now);
     const auto today_name = DayName(today);
     for (auto iterator = files_.begin(); iterator != files_.end();)
     {
-      Commit(iterator->second);
+      if (auto committed = Commit(iterator->second); !committed)
+      {
+        return committed;
+      }
       if (iterator->first != today_name)
       {
         iterator = files_.erase(iterator);
@@ -356,7 +397,7 @@ class Storage
     }
     if (last_prune_ == today)
     {
-      return;
+      return {};
     }
     const auto cutoff =
         today - std::chrono::days{static_cast<int>(retention_days_ - 1)};
@@ -373,15 +414,24 @@ class Storage
       }
     }
     last_prune_ = today;
+    return {};
   }
 
-  void Close()
+  // Commits and closes every file. A failed commit doesn't stop the others;
+  // the first error is returned.
+  [[nodiscard]] SqliteResult Close()
   {
+    SqliteResult result;
     for (auto& [day, file] : files_)
     {
-      Commit(file);
+      auto committed = Commit(file);
+      if (!committed && result)
+      {
+        result = std::move(committed);
+      }
     }
     files_.clear();
+    return result;
   }
 
  private:
@@ -398,65 +448,166 @@ class Storage
   std::map<std::string, DayFile> files_;
   std::optional<Days> last_prune_;
 
-  // Rows are written in one transaction per flush, like Python's sqlite3
-  // module, which opens a transaction before the first insert.
-  static void Begin(DayFile& p_file)
+  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days)
+      : directory_(std::move(p_directory)), retention_days_(p_retention_days)
   {
-    if (!p_file.in_transaction_)
-    {
-      Execute(p_file.database_.get(), "BEGIN");
-      p_file.in_transaction_ = true;
-    }
   }
 
-  static void Commit(DayFile& p_file)
+  // Rows are written in one transaction per flush, like Python's sqlite3
+  // module, which opens a transaction before the first insert.
+  [[nodiscard]] static SqliteResult Begin(DayFile& p_file)
   {
     if (p_file.in_transaction_)
     {
-      Execute(p_file.database_.get(), "COMMIT");
-      p_file.in_transaction_ = false;
+      return {};
     }
+    auto begun = Execute(p_file.database_.get(), "BEGIN");
+    p_file.in_transaction_ = begun.has_value();
+    return begun;
   }
 
-  DayFile& Connection(double p_timestamp)
+  [[nodiscard]] static SqliteResult Commit(DayFile& p_file)
+  {
+    if (!p_file.in_transaction_)
+    {
+      return {};
+    }
+    auto committed = Execute(p_file.database_.get(), "COMMIT");
+    p_file.in_transaction_ = !committed.has_value();
+    return committed;
+  }
+
+  [[nodiscard]] std::expected<std::reference_wrapper<DayFile>, std::string>
+  Connection(double p_timestamp)
   {
     const auto day = DayName(UtcDay(p_timestamp));
     if (const auto found = files_.find(day); found != files_.end())
     {
-      return found->second;
+      return std::ref(found->second);
+    }
+    auto opened = OpenDay(directory_ / (day + ".sqlite3"));
+    if (!opened)
+    {
+      return std::unexpected(std::move(opened.error()));
+    }
+    return std::ref(files_.emplace(day, std::move(*opened)).first->second);
+  }
+
+  // Opens (or creates) a day file, brings its schema up to date and
+  // prepares the insert statements.
+  [[nodiscard]] static std::expected<DayFile, std::string> OpenDay(
+      const std::filesystem::path& p_path)
+  {
+    auto opened = OpenDatabase(p_path, false);
+    if (!opened)
+    {
+      return std::unexpected(std::move(opened.error()));
     }
     DayFile file;
-    file.database_ = OpenDatabase(directory_ / (day + ".sqlite3"), false);
+    file.database_ = std::move(*opened);
     auto* database = file.database_.get();
-    Execute(database, "PRAGMA journal_mode=WAL");
-    Execute(database, kSchema);
+    for (const std::string_view sql :
+         {std::string_view{"PRAGMA journal_mode=WAL"}, kSchema})
+    {
+      if (auto executed = Execute(database, sql); !executed)
+      {
+        return std::unexpected(std::move(executed.error()));
+      }
+    }
     std::vector<std::string> existing;
     {
       auto info = Prepare(database, "PRAGMA table_info(thread_rollup)");
-      while (::sqlite3_step(info.get()) == SQLITE_ROW)
+      if (!info)
       {
-        existing.push_back(ColumnText(info.get(), 1));
+        return std::unexpected(std::move(info.error()));
+      }
+      while (::sqlite3_step(info->get()) == SQLITE_ROW)
+      {
+        existing.push_back(ColumnText(info->get(), 1));
       }
     }
     for (const auto& [column, kind] : kAddedRollupColumns)
     {
-      if (std::ranges::find(existing, column) == existing.end())
+      if (std::ranges::find(existing, column) != existing.end())
       {
-        Execute(database,
-                std::format("ALTER TABLE thread_rollup ADD COLUMN {} {}",
-                            column, kind));
+        continue;
+      }
+      if (auto added =
+              Execute(database,
+                      std::format("ALTER TABLE thread_rollup ADD COLUMN {} {}",
+                                  column, kind));
+          !added)
+      {
+        return std::unexpected(std::move(added.error()));
       }
     }
-    file.rollup_ = Prepare(
+    auto rollup = Prepare(
         database,
         "INSERT OR REPLACE INTO thread_rollup(ts,session,tid,name,group_name,"
         "cpu_pct,run_delay_pct,sample_counts,timeslices_delta,samples,"
         "expected_samples,valid,generation,read_bps,write_bps,"
         "major_faults_delta) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    file.raw_ = Prepare(database, "INSERT INTO raw_sample VALUES (?,?,?,?)");
-    return files_.emplace(day, std::move(file)).first->second;
+    if (!rollup)
+    {
+      return std::unexpected(std::move(rollup.error()));
+    }
+    file.rollup_ = std::move(*rollup);
+    auto raw = Prepare(database, "INSERT INTO raw_sample VALUES (?,?,?,?)");
+    if (!raw)
+    {
+      return std::unexpected(std::move(raw.error()));
+    }
+    file.raw_ = std::move(*raw);
+    return file;
   }
 };
+
+// Up to p_limit rollup rows for one thread from one day file, oldest first.
+[[nodiscard]] inline std::expected<JsonArray, std::string> DayHistory(
+    const std::filesystem::path& p_path, std::string_view p_session,
+    std::int64_t p_tid, double p_start, double p_end, std::size_t p_limit)
+{
+  auto database = OpenDatabase(p_path, true);
+  if (!database)
+  {
+    return std::unexpected(std::move(database.error()));
+  }
+  ::sqlite3_busy_timeout(database->get(), 2000);
+  auto statement =
+      Prepare(database->get(),
+              "SELECT * FROM thread_rollup WHERE session=? AND tid=? AND "
+              "ts>=? AND ts<=? ORDER BY ts LIMIT ?");
+  if (!statement)
+  {
+    return std::unexpected(std::move(statement.error()));
+  }
+  auto* query = statement->get();
+  Binder{query}.Add(p_session).Add(p_tid).Add(p_start).Add(p_end).Add(
+      static_cast<std::int64_t>(p_limit));
+  JsonArray rows;
+  const int columns = ::sqlite3_column_count(query);
+  int status = SQLITE_ROW;
+  while ((status = ::sqlite3_step(query)) == SQLITE_ROW)
+  {
+    Json row{JsonObject{}};
+    for (int column = 0; column < columns; ++column)
+    {
+      const std::string_view name = ::sqlite3_column_name(query, column);
+      auto value = ColumnJson(query, column);
+      if (name == "sample_counts" && value.IsString())
+      {
+        value = ParseJson(value.AsString()).value_or(Json{JsonObject{}});
+      }
+      row.Set(name, std::move(value));
+    }
+    rows.push_back(std::move(row));
+  }
+  if (auto checked = Check(database->get(), status); !checked)
+  {
+    return std::unexpected(std::move(checked.error()));
+  }
+  return rows;
+}
 
 // Rollup rows for one thread between p_start and p_end, oldest first. Day
 // files that cannot be read (locked, damaged) are skipped.
@@ -475,44 +626,13 @@ class Storage
     {
       continue;
     }
-    try
-    {
-      auto database = OpenDatabase(path, true);
-      ::sqlite3_busy_timeout(database.get(), 2000);
-      auto statement =
-          Prepare(database.get(),
-                  "SELECT * FROM thread_rollup WHERE session=? AND tid=? AND "
-                  "ts>=? AND ts<=? ORDER BY ts LIMIT ?");
-      Binder{statement.get()}
-          .Add(p_session)
-          .Add(p_tid)
-          .Add(p_start)
-          .Add(p_end)
-          .Add(static_cast<std::int64_t>(p_limit - result.size()));
-      const int columns = ::sqlite3_column_count(statement.get());
-      int status = SQLITE_ROW;
-      while ((status = ::sqlite3_step(statement.get())) == SQLITE_ROW)
-      {
-        Json row{JsonObject{}};
-        for (int column = 0; column < columns; ++column)
-        {
-          const std::string_view name =
-              ::sqlite3_column_name(statement.get(), column);
-          auto value = ColumnJson(statement.get(), column);
-          if (name == "sample_counts" && value.IsString())
-          {
-            value = ParseJson(value.AsString()).value_or(Json{JsonObject{}});
-          }
-          row.Set(name, std::move(value));
-        }
-        result.push_back(std::move(row));
-      }
-      Check(database.get(), status);
-    }
-    catch (const SqliteError&)
+    auto rows = DayHistory(path, p_session, p_tid, p_start, p_end,
+                           p_limit - result.size());
+    if (!rows)
     {
       continue;
     }
+    std::ranges::move(*rows, std::back_inserter(result));
     if (result.size() >= p_limit)
     {
       break;
