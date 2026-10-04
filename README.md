@@ -2,7 +2,8 @@
 
 Linux thread monitoring using `/proc`: a C++23 sampler sends UDP to a Python
 collector with a live dashboard, daily SQLite history and sustained alerts.
-Design: [docs/thread-monitor-design.md](docs/thread-monitor-design.md).
+Start with the [architecture diagrams](docs/architecture.md); see the
+[full design](docs/thread-monitor-design.md) for details.
 
 ## Quick start
 

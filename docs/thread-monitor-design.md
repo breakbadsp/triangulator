@@ -38,6 +38,9 @@ Out of scope for v1: privileged data (`/proc/<tid>/syscall`, `stack`), "slow but
 
 ## 3. Architecture
 
+See [Architecture at a glance](architecture.md) for diagrams of the complete
+system and the sampler, collector and dashboard flows.
+
 ```
 [prod host]                              [collector host]
  sampler (single thread)                  receiver
