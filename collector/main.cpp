@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -183,6 +184,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::signal(SIGPIPE, SIG_IGN);
 
   auto sampler_ip = config.sampler_ip_;
+  auto socket_sampler_ip = config.sampler_ip_;
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -207,10 +209,27 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     if (length >= 0)
     {
       const auto peer_ip = PeerAddress(peer);
-      if (!sampler_ip || peer_ip == *sampler_ip)
+      const auto data =
+          std::span{buffer.data(), static_cast<std::size_t>(length)};
+      if (data.size() >= 4 && std::memcmp(data.data(), "TSIO", 4) == 0)
       {
-        auto packet =
-            Decode(std::span{buffer.data(), static_cast<std::size_t>(length)});
+        if (!socket_sampler_ip || peer_ip == *socket_sampler_ip)
+        {
+          if (const auto observation =
+                  triangulator::socket_metrics::Decode(data))
+          {
+            socket_sampler_ip = peer_ip;
+            storage_ok = storage.Socket(now, *observation, data);
+          }
+          else
+          {
+            ++monitor.bad_packets_;
+          }
+        }
+      }
+      else if (!sampler_ip || peer_ip == *sampler_ip)
+      {
+        auto packet = Decode(data);
         if (!packet)
         {
           ++monitor.bad_packets_;

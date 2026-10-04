@@ -28,6 +28,7 @@
 #include "config.hpp"
 #include "json.hpp"
 #include "log.hpp"
+#include "socket_report.hpp"
 #include "storage.hpp"
 
 namespace triangulator::collector
@@ -257,14 +258,22 @@ class DashboardServer
  public:
   DashboardServer(const Config& p_config, SharedState& p_state,
                   FileDescriptor p_listener)
-      : config_(p_config), state_(p_state), listener_(std::move(p_listener))
+      : config_(p_config),
+        state_(p_state),
+        listener_(std::move(p_listener)),
+        socket_reports_(p_config.data_dir_)
   {
   }
 
-  // Starts the serving thread. std::thread reports failure (no resources
-  // for another thread) by throwing; this is the one place it is caught.
+  // Starts the socket report worker and the serving thread. std::thread
+  // reports failure (no resources for another thread) by throwing; this and
+  // SocketReportBridge::Start() are the places it is caught.
   [[nodiscard]] std::expected<void, std::string> Start()
   {
+    if (auto started = socket_reports_.Start(); !started)
+    {
+      return started;
+    }
     try
     {
       thread_ = std::thread(
@@ -302,6 +311,7 @@ class DashboardServer
   FileDescriptor listener_;
   std::atomic<bool> stopped_ = false;
   std::thread thread_;
+  SocketReportBridge socket_reports_;
 
   void Serve()
   {
@@ -462,6 +472,22 @@ class DashboardServer
     else if (p_request.path_ == "/api/live")
     {
       Respond(p_connection, 200, *state_.Live(), "application/json");
+    }
+    else if (p_request.path_ == "/api/socket-io")
+    {
+      const auto pid_text = QueryValue(p_request.query_, "pid").value_or("0");
+      const auto pid = triangulator::ParseNumber<std::uint32_t>(pid_text);
+      const auto observer =
+          QueryValue(p_request.query_, "observer").value_or("");
+      if (!pid || (!observer.empty() &&
+                   !triangulator::ParseNumber<unsigned long long>(observer)))
+      {
+        Respond(p_connection, 400, R"({"error":"invalid pid or observer"})",
+                "application/json");
+        return;
+      }
+      const auto report = socket_reports_.Request(*pid, observer);
+      Respond(p_connection, 200, *report, "application/json");
     }
     else if (p_request.path_ == "/api/history")
     {

@@ -113,3 +113,15 @@ and memory, and its dashboard API stays fast under load. See
 Tests: `make check` runs `tests/collector_test.cpp` (decoding, ticks, sessions,
 summaries, storage, health) and an end-to-end test with the real sampler
 (`tests/test_monitor.py`).
+
+## Optional socket and message observations
+
+The C++ collector accepts raw `TSIO` observations from the optional C++/eBPF
+socket sampler alongside the unchanged scheduler sampler. Raw socket records
+are always stored in WAL day files, even with `store_raw=false`. Socket totals
+and rates are calculated by a separate read-only C++ executable invoked by the HTTP
+worker and exposed at `/api/socket-io`; UDP ingestion only validates and stores
+raw records. The dashboard shows received/sent bytes and, when an application
+completion marker is configured, messages processed. See
+[the socket design and setup guide](../docs/socket-ingress-design.md) for build
+instructions, permissions, the marker contract, and explicit coverage limits.

@@ -49,7 +49,7 @@ Python is used by `scripts/start.sh`, the tests and the alerting module; it
 needs no third-party packages.
 
 ```sh
-make          # build/triangulator-sampler and build/triangulator-collector
+make          # sampler, collector and read-only socket report helper
 make check    # C++ and Python tests
 make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
@@ -87,7 +87,8 @@ The API is read-only (other methods than `GET` get 501): `/api/live` and
 ## Production setup
 
 The units in `deploy/` are templates with a placeholder target user and collector
-IP; edit them first. Install the sampler and collector binaries in `/usr/local/bin`
+IP; edit them first. Install the sampler, collector and `triangulator-socket-report`
+binaries in `/usr/local/bin`
 and configuration in `/etc/triangulator`. `triangulator-collector.service` runs
 the collector. Keep sampler code
 and configuration root-owned and not writable by the target user. The collector unit
@@ -174,6 +175,17 @@ remind, resolve), the alert event log and webhook/email delivery. It is not
 connected to the collector and does not run. [alerting/README.md](alerting/README.md)
 describes what is there and what is missing, including each rule's condition.
 
+## Socket I/O and messages processed
+
+The C++ dashboard includes received/sent socket bytes, monitoring-period totals
+and averages, recent minimum/maximum rates, and a breakdown by thread and socket
+kind. Build the optional source with `make socket-sampler`; it requires existing
+BPF tracing privileges and a compatible kernel. Completion counts require an
+explicit application marker called once after successful processing. Setup and
+measurement limits are in [the socket design guide](docs/socket-ingress-design.md).
+Reporting runs in the separate `triangulator-socket-report` executable installed
+next to the collector; `/api/socket-io?pid=PID` exposes the report.
+
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
@@ -186,6 +198,8 @@ describes what is there and what is missing, including each rule's condition.
   [collector/README.md](collector/README.md) lists what it does.
 - `alerting/`: Python alerting code kept for the future alerting module; not
   wired up (see [alerting/README.md](alerting/README.md)).
+- `socket_sampler/`: optional C++/eBPF socket and completion-marker source.
+- `metrics/`: separate read-only C++ reporting program.
 - `config/`, `deploy/`: example configuration and systemd units.
 - `scripts/`: `start.sh` and `stop.sh`.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
