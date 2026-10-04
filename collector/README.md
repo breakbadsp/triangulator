@@ -63,7 +63,7 @@ the backup (`TRIANGULATOR_COLLECTOR=python scripts/start.sh`).
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
 **6. Dashboard and API** (`http.hpp`)
-- Serves the dashboard page (`triangulator/dashboard.html`, built into the
+- Serves the dashboard page (`dashboard.html`, built into the
   binary).
 - `GET /api/live`: current threads, group counts and monitor health (sampler
   connected or silent, target, packet loss, packet counters, sample interval).

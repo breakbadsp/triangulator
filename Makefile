@@ -17,9 +17,9 @@ build/triangulator-sampler: sampler/main.cpp $(SAMPLER_HEADERS) Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
-# The C++ port of the Python collector. It embeds triangulator/dashboard.html,
-# so both collectors serve the same page.
-build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) triangulator/dashboard.html Makefile
+# The collector embeds collector/dashboard.html, so the binary serves the
+# page without reading files at run time.
+build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) collector/dashboard.html Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
