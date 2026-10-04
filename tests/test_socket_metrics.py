@@ -95,6 +95,15 @@ class SocketIntegrationTests(unittest.TestCase):
         self.send(packet(seq, wall=wall, **kwargs),
                   packet(seq, 1, input_bytes=value, output_bytes=value // 2, wall=wall, **kwargs))
 
+    def test_dashboard_serves_socket_entrypoint(self):
+        # The binary embeds the page. Check the served artifact, so an omitted
+        # dashboard commit cannot silently publish an API without its UI.
+        with urllib.request.urlopen(f'http://127.0.0.1:{self.http}/', timeout=3) as response:
+            page = response.read().decode()
+        self.assertIn('id="socket-panel"', page)
+        self.assertIn('data-socket-metric="messages"', page)
+        self.assertIn("fetch('/api/socket-io?pid='", page)
+
     def test_storage_rates_loss_duplicates_reordering_restart(self):
         self.assertFalse(self.fetch()['available'])
         self.snapshot(0, 0)
