@@ -40,10 +40,11 @@ systemd, see [Production setup](#production-setup).
 ## Requirements and build
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-Make and Python 3.11+. No third-party packages.
+Make and Python 3.11+. No third-party packages. The optional C++ collector
+also needs GCC 15+ (for `#embed`) and the libsqlite3 and libcurl development files.
 
 ```sh
-make          # build/triangulator-sampler
+make          # build/triangulator-sampler and build/triangulator-collector
 make check    # C++ and Python tests
 make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
@@ -161,11 +162,22 @@ Checklist before going live (design section 12):
   monitor diagnostics and every event stays in SQLite. Reminders default to 30
   minutes.
 
+## C++ collector (comparison)
+
+`collector/` is a C++ port of the Python collector. It reads the same config file,
+stores the same SQLite rows, applies the same alert rules and serves the same
+dashboard and API: `build/triangulator-collector config/local/collector.toml`.
+Email delivery is not ported yet: a config with `[alerts.smtp]` starts with a
+warning and the C++ collector ignores the table (webhooks work).
+`make check` runs the collector end-to-end tests against both, plus a parity test
+that sends identical datagrams to each and requires identical rollups and alerts.
+
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, wire encoding, RAII resources).
 - `triangulator/`: Python collector, alerts, SQLite, delivery, HTTP API, dashboard.
+- `collector/`: C++ port of the collector (shares the sampler's wire-format header).
 - `config/`, `deploy/`: example configuration and systemd units.
 - `scripts/`: `start.sh` and `stop.sh`.
 - `tests/`: C++ and Python tests, including a real `/proc` integration check.

@@ -520,9 +520,22 @@ class DescriptorLimitTests(unittest.TestCase):
                 target.communicate(timeout=3)
 
 
+ROOT = Path(__file__).resolve().parents[1]
+PYTHON_COLLECTOR = [sys.executable, "-B", "-m", "triangulator"]
+CPP_COLLECTOR = [str(ROOT / "build/triangulator-collector")]
+
+
+def free_port(kind):
+    with socket.socket(socket.AF_INET, kind) as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        return reservation.getsockname()[1]
+
+
 class CollectorIntegrationTests(unittest.TestCase):
+    command = PYTHON_COLLECTOR
+
     def test_sampler_collector_dashboard_history_and_webhook(self):
-        root = Path(__file__).resolve().parents[1]
+        root = ROOT
         notifications = []
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -552,7 +565,7 @@ class CollectorIntegrationTests(unittest.TestCase):
             target = subprocess.Popen(["sleep", "30"])
             sampler_config = Path(directory) / "sampler.toml"
             sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
-            collector = subprocess.Popen([sys.executable, "-B", "-m", "triangulator", str(collector_config)],
+            collector = subprocess.Popen([*self.command, str(collector_config)],
                                          cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(sampler_config)],
                                        stderr=subprocess.PIPE, text=True)
@@ -626,6 +639,103 @@ class CollectorIntegrationTests(unittest.TestCase):
                 webhook.shutdown()
                 webhook.server_close()
                 thread.join(timeout=2)
+
+
+
+class CppCollectorIntegrationTests(CollectorIntegrationTests):
+    """The same end-to-end checks against the C++ port of the collector."""
+    command = CPP_COLLECTOR
+
+
+class CollectorParityTests(unittest.TestCase):
+    """Both collectors store the same rollups and thread alerts for the same datagrams."""
+
+    def test_python_and_cpp_collectors_store_identical_rollups_and_alerts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            collectors = []
+            for name, command in (("python", PYTHON_COLLECTOR), ("cpp", CPP_COLLECTOR)):
+                udp_port, http_port = free_port(socket.SOCK_DGRAM), free_port(socket.SOCK_STREAM)
+                config = Path(directory) / f"{name}.toml"
+                config.write_text(f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
+                                  f'sampler_ip="127.0.0.1"\ndata_dir="{directory}/{name}"\n'
+                                  '[[group]]\nname="worker"\nprefix="worker-"\n')
+                process = subprocess.Popen([*command, str(config)], cwd=ROOT,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                collectors.append((name, process, udp_port, http_port))
+            try:
+                for name, process, _udp, http_port in collectors:
+                    deadline = time.monotonic() + 10
+                    while True:
+                        self.assertIsNone(process.poll(), f"{name} collector exited")
+                        try:
+                            urllib.request.urlopen(f"http://127.0.0.1:{http_port}/api/live", timeout=1).read()
+                            break
+                        except OSError:
+                            self.assertLess(time.monotonic(), deadline, f"{name} collector did not start")
+                            time.sleep(0.1)
+                start_wall = int(time.time()) - 60
+                datagrams = []
+                for sequence in range(300):
+                    # 12 threads in two chunks at 10 Hz: one hot, one starved,
+                    # one stuck in D, the rest idle on futexes.
+                    records = []
+                    for index in range(12):
+                        values = dict(tid=100 + index, comm=f"worker-{index}", timeslices=sequence)
+                        if index == 0:
+                            values.update(state="R", utime=sequence * 10, wchan="")
+                        elif index == 1:
+                            values.update(state="R", utime=sequence // 10, run_delay=sequence * 50_000_000, wchan="")
+                        elif index == 2:
+                            values.update(state="D", wchan="io_schedule")
+                        records.append(record(**values))
+                    tick = dict(session=7, sequence=sequence, chunks=2, interval_ms=100,
+                                monotonic_ns=(5000 + sequence) * 10**8,
+                                wall_ns=start_wall * 10**9 + sequence * 10**8)
+                    chunks = [encode(packet(sequence, records[:10], chunk=0, **{k: v for k, v in tick.items() if k != "sequence"})),
+                              encode(packet(sequence, records[10:], chunk=1, **{k: v for k, v in tick.items() if k != "sequence"}))]
+                    # Reorder every fifth tick's chunks and repeat every seventh datagram.
+                    datagrams += reversed(chunks) if sequence % 5 == 0 else chunks
+                    if sequence % 7 == 0:
+                        datagrams.append(chunks[0])
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+                    sender.bind(("127.0.0.1", 0))
+                    for offset, datagram in enumerate(datagrams):
+                        for _name, _process, udp_port, _http in collectors:
+                            sender.sendto(datagram, ("127.0.0.1", udp_port))
+                        if offset % 50 == 0:
+                            time.sleep(0.01)
+                time.sleep(1.5)
+            finally:
+                for _name, process, _udp, _http in collectors:
+                    process.terminate()
+                    process.communicate(timeout=8)
+
+            def stored(name):
+                rows, events = [], []
+                for path in sorted((Path(directory) / name).glob("????-??-??.sqlite3")):
+                    with sqlite3.connect(path) as connection:
+                        connection.row_factory = sqlite3.Row
+                        rows += [dict(row) for row in connection.execute(
+                            "SELECT * FROM thread_rollup ORDER BY ts, tid, generation")]
+                        events += [tuple(row) for row in connection.execute(
+                            "SELECT ts, rule, group_name, tid, name, detail, status, severity, session "
+                            "FROM alert_event WHERE tid != 0 ORDER BY ts, rule, tid, status")]
+                return rows, events
+
+            python_rows, python_events = stored("python")
+            cpp_rows, cpp_events = stored("cpp")
+            self.assertGreater(len(python_rows), 50)
+            self.assertEqual({event[1] for event in python_events} >= {"cpu_warn", "cpu_critical", "starved", "kernel_wait"},
+                             True, python_events)
+            self.assertEqual(len(cpp_rows), len(python_rows))
+            for python_row, cpp_row in zip(python_rows, cpp_rows):
+                self.assertEqual(python_row.keys(), cpp_row.keys())
+                for column, value in python_row.items():
+                    if isinstance(value, float):
+                        self.assertAlmostEqual(value, cpp_row[column], places=9, msg=(column, python_row, cpp_row))
+                    else:
+                        self.assertEqual(value, cpp_row[column], (column, python_row, cpp_row))
+            self.assertEqual(cpp_events, python_events)
 
 
 if __name__ == "__main__":
