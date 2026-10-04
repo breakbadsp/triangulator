@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS socket_observation (
  packet BLOB NOT NULL, PRIMARY KEY(observer, sequence, part)
 );
 CREATE INDEX IF NOT EXISTS socket_latest ON socket_observation(pid, received);
+CREATE INDEX IF NOT EXISTS socket_heartbeat_pid
+ ON socket_observation(pid, received) WHERE part=0;
+CREATE INDEX IF NOT EXISTS socket_heartbeat_received
+ ON socket_observation(received) WHERE part=0;
 CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );

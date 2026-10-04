@@ -139,6 +139,9 @@ class SocketIntegrationTests(unittest.TestCase):
         self.wait_for(lambda: self.fetch().get('lower_bound'))
         self.assertIsNone(self.fetch()['totals']['input']['average'])
         self.assertIsNone(self.fetch()['totals']['input']['current'])
+        self.snapshot(7, 800, losses=2)
+        self.wait_for(lambda: self.fetch().get('totals', {}).get('input', {}).get('current') == 50)
+        self.assertIsNone(self.fetch()['totals']['input']['average'])
 
     def test_marker_session_identity_and_invalid_wire(self):
         self.snapshot(0, 9007199254740993, flags=0)
@@ -182,6 +185,53 @@ class SocketIntegrationTests(unittest.TestCase):
         data = self.fetch('/api/socket-io?pid=50&observer=99')
         self.assertEqual(data['totals']['input']['total'], '125')
         self.assertEqual(data['rate_windows'], 1)
+
+    def test_maximum_snapshot_uses_paced_sender(self):
+        # Use the production transport with 4096 counters, without BPF privileges.
+        subprocess.run([str(ROOT / 'build/socket-metrics-test'),
+                        f'127.0.0.1:{self.udp}'], check=True, timeout=5)
+        self.wait_for(lambda: self.fetch().get('available'))
+        data = self.fetch()
+        self.assertEqual(data['totals']['input']['total'], '4096')
+        with sqlite3.connect(next((self.root / 'data').glob('*.sqlite3'))) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM socket_observation').fetchone()[0], 4097)
+
+    def test_latest_observer_queries_use_indexes(self):
+        self.snapshot(0, 1)
+        self.wait_for(lambda: self.fetch().get('available'))
+        self.assertEqual(self.fetch('/api/socket-io')['observer'], '99')
+        with sqlite3.connect(next((self.root / 'data').glob('*.sqlite3'))) as db:
+            for predicate, parameters, index in (
+                    ('part=0 AND pid=?', (50,), 'socket_heartbeat_pid'),
+                    ('part=0', (), 'socket_heartbeat_received')):
+                plan = db.execute('EXPLAIN QUERY PLAN SELECT observer,received '
+                                  'FROM socket_observation WHERE ' + predicate +
+                                  ' ORDER BY received DESC LIMIT 1', parameters).fetchall()
+                details = ' '.join(row[3] for row in plan)
+                self.assertIn(index, details)
+                self.assertNotIn('TEMP B-TREE', details)
+
+    def test_legacy_day_files_and_covered_window(self):
+        self.stop()
+        data_dir = self.root / 'data'
+        data_dir.mkdir(exist_ok=True)
+        legacy = data_dir / '2000-01-01.sqlite3'
+        with sqlite3.connect(legacy) as db:
+            db.execute('CREATE TABLE raw_sample (sample TEXT)')
+        # Even a query with no socket data must tolerate the old schema.
+        self.start()
+        self.assertFalse(self.fetch()['read_error'])
+        self.assertFalse(self.fetch('/api/socket-io?pid=50&observer=99')['read_error'])
+        self.snapshot(1, 100)
+        self.wait_for(lambda: self.fetch().get('available'))
+        # Sequence zero is absent, so the report must examine the legacy day.
+        self.assertFalse(self.fetch()['read_error'])
+        self.snapshot(0, 0)
+        self.wait_for(lambda: self.fetch().get('rate_windows') == 1)
+        # A corrupt older file proves that a covered range stops further reads.
+        (data_dir / '1999-01-01.sqlite3').write_bytes(b'not a sqlite database')
+        time.sleep(1.1)
+        self.assertFalse(self.fetch()['read_error'])
 
     def test_report_helper_timeout_does_not_stop_ingestion(self):
         self.stop()

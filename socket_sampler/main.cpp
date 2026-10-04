@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "../sampler/proc.hpp"
-#include "protocol.hpp"
+#include "transport.hpp"
 
 namespace
 {
@@ -166,23 +166,7 @@ int Run(int p_argc, char** p_argv)
     observation.monotonic_ns_ =
         static_cast<U64>(ClockNow(CLOCK_MONOTONIC).count());
     observation.wall_ns_ = static_cast<U64>(ClockNow(CLOCK_REALTIME).count());
-    observation.count_ = static_cast<U32>(rows.size() + 1);
-    for (U32 index = 0; index < observation.count_; ++index)
-    {
-      observation.index_ = index;
-      observation.key_ = index ? rows[index - 1].first : CounterKey{};
-      observation.counters_ = index ? rows[index - 1].second : Counters{};
-      const auto data = Encode(observation);
-      const auto& destination = *endpoint;
-      if (::sendto(
-              destination.socket_.Get(), data.data(), data.size(), MSG_DONTWAIT,
-              reinterpret_cast<const sockaddr*>(&destination.address_),
-              destination.address_length_) != static_cast<ssize_t>(data.size()))
-      {
-        std::fprintf(stderr, "socket snapshot datagram dropped: %s\n",
-                     std::strerror(errno));
-      }
-    }
+    SendSnapshot(observation, rows, *endpoint);
     if (finished)
     {
       break;

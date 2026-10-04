@@ -75,7 +75,7 @@ build/socket.bpf.o: socket_sampler/socket.bpf.cpp socket_sampler/shared.hpp Make
 	mkdir -p build
 	$(BPF_CXX) -target bpf -std=c++20 -O2 -g -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -c $< -o $@
 
-build/triangulator-socket-sampler: socket_sampler/main.cpp socket_sampler/protocol.hpp socket_sampler/shared.hpp $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) Makefile
+build/triangulator-socket-sampler: socket_sampler/main.cpp $(SOCKET_HEADERS) $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -lbpf -o $@
 

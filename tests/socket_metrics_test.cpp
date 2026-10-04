@@ -1,7 +1,9 @@
 #include <cassert>
 #include <iostream>
 
+#include "../collector/socket_report.hpp"
 #include "../metrics/socket_report.hpp"
+#include "../socket_sampler/transport.hpp"
 
 namespace
 {
@@ -118,6 +120,19 @@ void Reporting()
   result = Report(samples, 102, false);
   assert(Get(result, "lower_bound").AsBool());
   assert(Metric(result, "input", "average").IsNull());
+  assert(Metric(result, "input", "current").IsNull());
+  auto recovered = Sample(3, 150);
+  recovered.header_.losses_ = 5;
+  for (auto& [index, record] : recovered.records_)
+  {
+    record.losses_ = 5;
+  }
+  samples[3] = recovered;
+  result = Report(samples, 103, false);
+  assert(Metric(result, "input", "current").AsNumber() == 50);
+  assert(Metric(result, "input", "minimum").AsNumber() == 50);
+  assert(Metric(result, "input", "maximum").AsNumber() == 50);
+  assert(Metric(result, "input", "average").IsNull());
   // Retired identities stay in the total and TID reuse creates separate rows.
   auto retired = Sample(3, 100);
   auto record = retired.records_[1];
@@ -146,8 +161,32 @@ void Reporting()
   assert(!mixed.Complete());
 }
 }  // namespace
-int main()
+int main(int p_argc, char** p_argv)
 {
+  if (p_argc == 2)
+  {
+    auto endpoint = triangulator::MakeEndpoint(p_argv[1]);
+    assert(endpoint);
+    std::vector<std::pair<CounterKey, Counters>> rows;
+    for (U32 index = 0; index < kMaxSocketCounters; ++index)
+    {
+      rows.push_back(
+          {CounterKey{123000, index + 1, 51, 1}, Counters{1, 0, 0, 0, 0, {}}});
+    }
+    SendSnapshot(Header(0), rows, *endpoint);
+    return 0;
+  }
+  // Exercise destruction with the worker starting or already waiting.
+  for (int index = 0; index < 1000; ++index)
+  {
+    triangulator::collector::SocketReportBridge bridge{"/nonexistent"};
+    const auto started = bridge.Start();
+    assert(started);
+    if (index % 2)
+    {
+      std::this_thread::sleep_for(std::chrono::microseconds{10});
+    }
+  }
   Protocol();
   Reporting();
   std::cout << "socket protocol and reporting tests passed\n";

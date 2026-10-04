@@ -171,7 +171,7 @@ inline Json Report(const std::map<U64, Snapshot>& p_snapshots, double p_now,
     bool valid = previous &&
                  current.sequence_ == previous->header_.sequence_ + 1 &&
                  current.monotonic_ns_ > previous->header_.monotonic_ns_ &&
-                 !current.losses_ && !previous->header_.losses_ &&
+                 current.losses_ == previous->header_.losses_ &&
                  current.started_ns_ == previous->header_.started_ns_ &&
                  current.process_start_ == previous->header_.process_start_;
     const double seconds =
@@ -304,6 +304,26 @@ inline Json Report(const std::map<U64, Snapshot>& p_snapshots, double p_now,
       {"history", std::move(history)}};
 }
 
+// Older collector day files legitimately have no socket observations.
+[[nodiscard]] inline std::expected<bool, std::string> HasSocketObservations(
+    sqlite3* p_database)
+{
+  auto statement =
+      collector::Prepare(p_database,
+                         "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                         "name='socket_observation'");
+  if (!statement)
+  {
+    return std::unexpected(std::move(statement.error()));
+  }
+  const int status = ::sqlite3_step(statement->get());
+  if (auto checked = collector::Check(p_database, status); !checked)
+  {
+    return std::unexpected(std::move(checked.error()));
+  }
+  return status == SQLITE_ROW;
+}
+
 struct LatestObservation
 {
   std::string observer_;
@@ -322,15 +342,29 @@ FindLatestObserver(const std::filesystem::path& p_path, U32 p_pid)
   {
     return std::unexpected(std::move(database.error()));
   }
+  const auto has_table = HasSocketObservations(database->get());
+  if (!has_table)
+  {
+    return std::unexpected(has_table.error());
+  }
+  if (!*has_table)
+  {
+    return std::nullopt;
+  }
   auto statement =
       Prepare(database->get(),
-              "SELECT observer,received FROM socket_observation WHERE "
-              "part=0 AND (?=0 OR pid=?) ORDER BY received DESC LIMIT 1");
+              p_pid ? "SELECT observer,received FROM socket_observation WHERE "
+                      "part=0 AND pid=? ORDER BY received DESC LIMIT 1"
+                    : "SELECT observer,received FROM socket_observation WHERE "
+                      "part=0 ORDER BY received DESC LIMIT 1");
   if (!statement)
   {
     return std::unexpected(std::move(statement.error()));
   }
-  Binder{statement->get()}.Add(std::int64_t{p_pid}).Add(std::int64_t{p_pid});
+  if (p_pid)
+  {
+    Binder{statement->get()}.Add(std::int64_t{p_pid});
+  }
   const int status = ::sqlite3_step(statement->get());
   if (status == SQLITE_ROW)
   {
@@ -357,6 +391,15 @@ FindLatestObserver(const std::filesystem::path& p_path, U32 p_pid)
   if (!database)
   {
     return std::unexpected(std::move(database.error()));
+  }
+  const auto has_table = HasSocketObservations(database->get());
+  if (!has_table)
+  {
+    return std::unexpected(has_table.error());
+  }
+  if (!*has_table)
+  {
+    return {};
   }
   ::sqlite3_busy_timeout(database->get(), 100);
   auto statement = Prepare(
@@ -401,6 +444,22 @@ FindLatestObserver(const std::filesystem::path& p_path, U32 p_pid)
     return Check(database->get(), status);
   }
   return {};
+}
+
+// True when every snapshot in the requested window is complete.
+[[nodiscard]] inline bool Covered(const std::map<U64, Snapshot>& p_snapshots,
+                                  U64 p_newest)
+{
+  for (U64 sequence = p_newest > 60 ? p_newest - 60 : 0; sequence <= p_newest;
+       ++sequence)
+  {
+    const auto found = p_snapshots.find(sequence);
+    if (found == p_snapshots.end() || !found->second.Complete())
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 // Bound query work: latest 61 sequences, at most 250,000 raw datagrams. Totals
@@ -448,6 +507,13 @@ inline Json SocketReport(const std::filesystem::path& p_directory, U32 p_pid,
                        read_error))
     {
       read_error = true;
+      continue;
+    }
+    // Keep looking across midnight until every requested snapshot is
+    // complete.
+    if (Covered(snapshots, newest))
+    {
+      break;
     }
   }
   auto result = Report(snapshots, p_now, remaining == 0);

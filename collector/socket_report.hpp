@@ -6,6 +6,7 @@
 #include <spawn.h>
 #include <sys/wait.h>
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <expected>
@@ -199,7 +200,10 @@ class SocketReportBridge
     {
       return;
     }
-    worker_.request_stop();
+    {
+      std::lock_guard lock{mutex_};
+      worker_.request_stop();
+    }
     ready_.notify_all();
     worker_.join();
   }
