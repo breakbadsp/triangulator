@@ -73,6 +73,15 @@ struct RollupRow
   std::optional<std::int64_t> major_faults_delta_;
 };
 
+// One raw sample for the raw_sample table (written only when store_raw is
+// on).
+struct RawRow
+{
+  double ts_{};
+  std::string session_;
+  std::shared_ptr<const Record> record_;
+};
+
 class SqliteError : public std::runtime_error
 {
  public:
@@ -285,11 +294,8 @@ using Days = std::chrono::sys_days;
 class Storage
 {
  public:
-  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days,
-          bool p_store_raw)
-      : directory_(std::move(p_directory)),
-        retention_days_(p_retention_days),
-        store_raw_(p_store_raw)
+  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days)
+      : directory_(std::move(p_directory)), retention_days_(p_retention_days)
   {
     std::filesystem::create_directories(directory_);
   }
@@ -318,20 +324,15 @@ class Storage
     Run(file.database_.get(), file.rollup_.get());
   }
 
-  void Raw(double p_timestamp, std::string_view p_session,
-           const Record& p_record)
+  void Raw(const RawRow& p_row)
   {
-    if (!store_raw_)
-    {
-      return;
-    }
-    auto& file = Connection(p_timestamp);
+    auto& file = Connection(p_row.ts_);
     Begin(file);
     Binder{file.raw_.get()}
-        .Add(p_timestamp)
-        .Add(p_session)
-        .Add(std::int64_t{p_record.tid_})
-        .Add(std::string_view{DumpJson(RecordJson(p_record))});
+        .Add(p_row.ts_)
+        .Add(std::string_view{p_row.session_})
+        .Add(std::int64_t{p_row.record_->tid_})
+        .Add(std::string_view{DumpJson(RecordJson(*p_row.record_))});
     Run(file.database_.get(), file.raw_.get());
   }
 
@@ -394,7 +395,6 @@ class Storage
 
   std::filesystem::path directory_;
   std::int64_t retention_days_;
-  bool store_raw_;
   std::map<std::string, DayFile> files_;
   std::optional<Days> last_prune_;
 

@@ -60,6 +60,20 @@ void HandleStopSignal(int)
   return buffer.data();
 }
 
+// Writes the rows the monitor produced since the last call.
+void WriteRows(Monitor& p_monitor, Storage& p_storage)
+{
+  for (const auto& row : p_monitor.PendingRollups())
+  {
+    p_storage.Rollup(row);
+  }
+  for (const auto& row : p_monitor.PendingRaw())
+  {
+    p_storage.Raw(row);
+  }
+  p_monitor.ClearRows();
+}
+
 int Run(const std::filesystem::path& p_config_path, bool p_check_config)
 {
   auto loaded = LoadConfig(p_config_path);
@@ -80,9 +94,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
 
-  Storage storage{config.data_dir_, config.retention_days_, config.store_raw_};
+  Storage storage{config.data_dir_, config.retention_days_};
   storage.Flush(WallNow());
-  Monitor monitor{config, storage, WallNow()};
+  Monitor monitor{config, WallNow()};
   auto receiver = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   const int buffer_size = 4 * 1024 * 1024;
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
@@ -136,6 +150,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                   std::format("Pinned sampler source to {}", peer_ip));
             }
             monitor.Accept(std::move(*packet), now);
+            WriteRows(monitor, storage);
           }
         }
       }
@@ -146,6 +161,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         auto live = monitor.Snapshot(now);
         live.Set("health", std::move(health));
         state.SetLive(DumpJson(live));
+        WriteRows(monitor, storage);
         storage.Flush(now);
         next_refresh =
             std::chrono::steady_clock::now() + std::chrono::milliseconds{500};
@@ -156,11 +172,13 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     server.Stop();
     monitor.Close();
+    WriteRows(monitor, storage);
     storage.Close();
     throw;
   }
   server.Stop();
   monitor.Close();
+  WriteRows(monitor, storage);
   storage.Close();
   return 0;
 }

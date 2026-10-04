@@ -145,11 +145,15 @@ inline void CountState(StateCounts& p_counts, std::string_view p_state)
 // Turns sampler datagrams into per-thread state, rollup rows and the live
 // dashboard snapshot. Alerting is not done here: it is a separate program
 // that reads the rollups (SQLite) or the HTTP API.
+//
+// Monitor does no I/O. The rows it produces wait in PendingRollups() and
+// PendingRaw() until the caller writes them and calls ClearRows(), so a
+// storage failure is handled in one place, by the caller.
 class Monitor
 {
  public:
-  Monitor(const Config& p_config, Storage& p_storage, double p_now)
-      : config_(p_config), storage_(p_storage), started_(p_now)
+  Monitor(const Config& p_config, double p_now)
+      : config_(p_config), started_(p_now)
   {
   }
 
@@ -425,6 +429,23 @@ class Monitor
     }
   }
 
+  [[nodiscard]] const std::vector<RollupRow>& PendingRollups() const noexcept
+  {
+    return rollups_;
+  }
+
+  [[nodiscard]] const std::vector<RawRow>& PendingRaw() const noexcept
+  {
+    return raw_rows_;
+  }
+
+  // Keeps the vectors' capacity, so steady-state writes don't allocate.
+  void ClearRows() noexcept
+  {
+    rollups_.clear();
+    raw_rows_.clear();
+  }
+
  private:
   struct Tick
   {
@@ -442,8 +463,9 @@ class Monitor
   };
 
   const Config& config_;
-  Storage& storage_;
   double started_;
+  std::vector<RollupRow> rollups_;
+  std::vector<RawRow> raw_rows_;
   std::optional<double> last_seen_;
   std::optional<std::uint64_t> session_;
   std::string session_text_;
@@ -540,7 +562,10 @@ class Monitor
       thread.raw_.push_back(sample);
       ++raw_count_;
       thread.window_.push_back(sample);
-      storage_.Raw(wall, session_text_, *record);
+      if (config_.store_raw_)
+      {
+        raw_rows_.push_back({wall, session_text_, record});
+      }
     }
     if (p_complete)
     {
@@ -669,7 +694,7 @@ class Monitor
     row.expected_samples_ = expected;
     row.valid_ = valid;
     row.generation_ = p_thread.generation_;
-    storage_.Rollup(row);
+    rollups_.push_back(std::move(row));
     p_thread.baseline_ = last;
   }
 };

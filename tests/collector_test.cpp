@@ -240,15 +240,15 @@ class TempDirectory
   std::filesystem::path path_;
 };
 
-// A Monitor writing to a temporary directory, with one "worker" group. As in
-// the real collector, the config is shared by reference, so tests may change
-// it after construction.
+// A Monitor whose rows go to a temporary directory, with one "worker" group.
+// As in the real collector, the config is shared by reference, so tests may
+// change it after construction.
 struct MonitorFixture
 {
   TempDirectory directory_;
   Config config_ = MakeConfig();
-  Storage storage_{directory_.Path(), 7, false};
-  Monitor monitor_{config_, storage_, 1'700'000'000};
+  Storage storage_{directory_.Path(), 7};
+  Monitor monitor_{config_, 1'700'000'000};
 
   static Config MakeConfig()
   {
@@ -265,6 +265,21 @@ struct MonitorFixture
     const double received = static_cast<double>(p_packet.wall_ns_) / 1e9;
     monitor_.Accept(p_packet, received);
     monitor_.Drain(received, true);
+    WriteRows();
+  }
+
+  // Writes the rows the monitor produced, as the collector's main loop does.
+  void WriteRows()
+  {
+    for (const auto& row : monitor_.PendingRollups())
+    {
+      storage_.Rollup(row);
+    }
+    for (const auto& row : monitor_.PendingRaw())
+    {
+      storage_.Raw(row);
+    }
+    monitor_.ClearRows();
   }
 
   void Feed(std::uint32_t p_sequence, Record p_record)
@@ -287,6 +302,7 @@ struct MonitorFixture
   [[nodiscard]] JsonArray Rollups(std::int64_t p_tid = 42,
                                   std::string_view p_session = "1")
   {
+    WriteRows();
     storage_.Flush(1'700'000'100);
     return History(directory_.Path(), p_session, p_tid, 1'700'000'000,
                    1'700'000'100);
