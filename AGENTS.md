@@ -21,5 +21,8 @@
 
 ## Conventions
 
-- C++: follow `$HOME/ai/conventions/cpp.md` and run `make format`.
+- C++: follow `docs/cpp-coding-standards.md` (naming matches
+  `$HOME/ai/conventions/cpp.md`) and run `make format`. Fallible functions
+  return `std::expected` / `std::optional`; exceptions only where that doc
+  allows them.
 - Each commit must build and pass `make check` on its own.
