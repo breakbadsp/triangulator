@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 DEFAULT_ALERTS = {
     "window_s": 5, "sustain_windows": 3, "resolve_windows": 2,
     "cpu_warn_pct": 50, "cpu_crit_pct": 90, "starve_run_delay_pct": 20,
-    "blocked_secs": 15, "kernel_wait_secs": 5, "sampler_silent_secs": 10,
+    "cpu_sustain_secs": 5, "kernel_wait_secs": 5, "sampler_silent_secs": 10,
     "target_absent_secs": 5, "packet_loss_pct": 20, "reminder_secs": 1800,
 }
 
@@ -31,8 +31,10 @@ def load(path):
         if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
             raise ValueError(f"alerts.{key} must be positive and finite")
     alerts = config["alerts"]
-    if not 5 <= alerts["window_s"] <= 10 or not 10 <= alerts["blocked_secs"] <= 30:
-        raise ValueError("window_s must be 5..10; blocked_secs must be 10..30")
+    if not 5 <= alerts["window_s"] <= 10:
+        raise ValueError("window_s must be 5..10")
+    if alerts["cpu_sustain_secs"] < 1:
+        raise ValueError("cpu_sustain_secs must be at least 1")
     if alerts["cpu_warn_pct"] >= alerts["cpu_crit_pct"]:
         raise ValueError("cpu_warn_pct must be below cpu_crit_pct")
     if not alerts.get("webhook_url") and not alerts.get("smtp"):

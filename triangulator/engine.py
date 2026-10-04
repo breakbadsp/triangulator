@@ -5,14 +5,26 @@ import math
 from .protocol import IO_UNAVAILABLE, STATUS_FALLBACK, TARGET_ABSENT, classify
 
 
+
+
+RULES = {"cpu_warn", "cpu_critical", "starved", "kernel_wait",
+         "sampler_silent", "target_absent", "packet_loss", "access_lost"}
+
+
 class AlertEngine:
-    def __init__(self, config, storage, deliver):
+    def __init__(self, config, storage, deliver, now):
         self.config = config
         self.storage = storage
         self.deliver = deliver
         recent, self.open = storage.recover_alerts()
         self.streaks = {}
         self.recent = collections.deque(recent, maxlen=500)
+        for key in [key for key in self.open if key[0] not in RULES]:
+            # Alerts from rules that no longer exist are closed quietly, without notification.
+            event = self.open.pop(key)
+            closed = dict(event, status="resolved", ts=now, detail="Alert rule removed")
+            self.storage.event(closed)
+            self.recent.append(closed)
 
     def event(self, key, metadata, status, now, detail, severity):
         event = dict(metadata, rule=key[0], group=key[1], tid=key[2], status=status,
@@ -74,15 +86,16 @@ class ThreadState:
         self.baseline = None
         self.bucket = None
         self.last_rollup = None
-        self.blocked_since = None
         self.kernel_since = None
+        self.cpu_runs = {}
+        self.contiguous_since = sample.monotonic
 
 
 class Monitor:
     def __init__(self, config, storage, deliver, now):
         self.config = config
         self.storage = storage
-        self.alerts = AlertEngine(config["alerts"], storage, deliver)
+        self.alerts = AlertEngine(config["alerts"], storage, deliver, now)
         self.started = now
         self.last_seen = None
         self.last_tick_seen = None
@@ -220,11 +233,13 @@ class Monitor:
                     self.invalidate(record.tid, thread)
                     thread.baseline = None
             if thread.raw and monotonic - thread.latest.monotonic > self.interval * 1.5:
-                thread.blocked_since = None
                 thread.kernel_since = None
+                thread.cpu_runs.clear()
+                thread.contiguous_since = monotonic
             thread.bucket = bucket
             thread.latest = sample
             thread.raw.append(sample)
+            self.check_cpu(record.tid, thread, sample)
             self.raw_count += 1
             thread.window.append(sample)
             self.storage.raw(wall, str(self.session), dataclasses.asdict(record))
@@ -257,10 +272,43 @@ class Monitor:
                     thread.raw.popleft()
                     self.raw_count -= 1
 
+    def check_cpu(self, tid, thread, sample):
+        """Open a CPU alert once a thread stays above the threshold for cpu_sustain_secs.
+
+        CPU is measured against the newest sample at least one second older, so
+        clock-tick resolution stays near 1% at any sampling rate. A run of
+        above- or below-threshold readings starts at that reference sample; a
+        sampling gap clears the runs and the usable history (see process).
+        """
+        reference = next((item for item in reversed(thread.raw)
+                          if item.monotonic <= sample.monotonic - 1.0), None)
+        if reference is None or reference.monotonic < thread.contiguous_since:
+            return
+        elapsed = sample.monotonic - reference.monotonic
+        ticks = (sample.record.utime + sample.record.stime
+                 - reference.record.utime - reference.record.stime)
+        cpu = ticks / self.config["clock_ticks"] / elapsed * 100
+        thresholds = self.config["alerts"]
+        sustain = thresholds["cpu_sustain_secs"]
+        metadata = {"name": sample.record.comm, "session": str(self.session)}
+        for rule, threshold, severity in (("cpu_warn", thresholds["cpu_warn_pct"], "warning"),
+                                          ("cpu_critical", thresholds["cpu_crit_pct"], "critical")):
+            above = cpu > threshold
+            run = thread.cpu_runs.get(rule)
+            if run is None or run[0] != above:
+                run = thread.cpu_runs[rule] = (above, reference.monotonic)
+            duration = sample.monotonic - run[1]
+            condition = above if duration >= sustain else None
+            if condition is None:
+                continue
+            detail = (f"CPU {cpu:.1f}% for {duration:.0f}s (over {threshold:g}%)" if above
+                      else f"CPU {cpu:.1f}%, below {threshold:g}% for {duration:.0f}s")
+            self.alerts.evaluate(rule, thread.group["name"], tid, condition, sample.wall, metadata,
+                                 detail, severity, immediate=True)
+
     def invalidate(self, tid, thread):
-        thread.blocked_since = None
         thread.kernel_since = None
-        for rule in ("cpu_warn", "cpu_critical", "starved", "blocked", "kernel_wait"):
+        for rule in ("starved", "kernel_wait"):
             self.alerts.streaks.pop((rule, thread.group["name"], tid), None)
 
     def finish_window(self, tid, thread):
@@ -300,8 +348,6 @@ class Monitor:
         metadata = {"name": last.record.comm, "session": str(self.session)}
         thresholds = self.config["alerts"]
         conditions = {
-            "cpu_warn": (cpu > thresholds["cpu_warn_pct"], f"CPU {cpu:.1f}%", "warning"),
-            "cpu_critical": (cpu > thresholds["cpu_crit_pct"], f"CPU {cpu:.1f}%", "critical"),
             "starved": ((sum(sample.record.state == "R" for sample in samples) > len(samples) / 2 and cpu < 10 and delay_delta > 0)
                         if last.fallback else delay > thresholds["starve_run_delay_pct"],
                         "Runnable with little CPU" if last.fallback else f"Run delay {delay:.1f}%", "warning"),
@@ -310,13 +356,8 @@ class Monitor:
             self.alerts.evaluate(rule, thread.group["name"], tid, condition, last.wall, metadata, detail, severity)
         contiguous = all(right.monotonic - left.monotonic <= max(left.interval, right.interval) * 1.5
                          for left, right in zip([first] + samples, samples))
-        frozen = cpu_delta == 0 and slices_delta == 0 and (not last.fallback or delay_delta == 0)
-        all_blocked = (all(sample.state == "futex" for sample in samples)
-                       and len({sample.record.wchan for sample in samples}) == 1
-                       and frozen and not thread.group.get("allow_untimed_wait", False))
         all_kernel = counts.get("kernel", 0) == len(samples)
         for rule, active, attribute, duration in (
-            ("blocked", all_blocked, "blocked_since", thresholds["blocked_secs"]),
             ("kernel_wait", all_kernel, "kernel_since", thresholds["kernel_wait_secs"]),
         ):
             since = getattr(thread, attribute)

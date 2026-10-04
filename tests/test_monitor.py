@@ -94,33 +94,40 @@ class MonitorTests(unittest.TestCase):
     def opened(self, rule):
         return [event for event in self.events if event["rule"] == rule and event["status"] == "opened"]
 
-    def test_hot_thread_opens_and_resolves_after_sustained_windows(self):
-        for sequence in range(16):
+    def test_hot_thread_opens_after_five_seconds_and_resolves_after_five_cool_seconds(self):
+        for sequence in range(5):
             self.feed(sequence, [record(state="R", wchan="", utime=sequence * 95)])
+        self.assertFalse(self.opened("cpu_critical"))
+        self.feed(5, [record(state="R", wchan="", utime=5 * 95)])
         self.assertEqual(len(self.opened("cpu_critical")), 1)
-        for sequence in range(16, 31):
-            self.feed(sequence, [record(utime=15 * 95, timeslices=sequence)])
-        self.assertTrue(any(event["rule"] == "cpu_critical" and event["status"] == "resolved" for event in self.events))
+        self.assertEqual(len(self.opened("cpu_warn")), 1)
+        self.assertEqual(self.opened("cpu_critical")[0]["ts"], 1700000005)
+        for sequence in range(6, 10):
+            self.feed(sequence, [record(utime=5 * 95, timeslices=10 + sequence)])
+        self.assertIn(("cpu_critical", "worker", 42), self.monitor.alerts.open)
+        self.feed(10, [record(utime=5 * 95, timeslices=20)])
+        self.assertNotIn(("cpu_critical", "worker", 42), self.monitor.alerts.open)
 
-    def test_blocked_duration_and_timed_idle_exemption(self):
-        for sequence in range(21):
-            self.feed(sequence)
-        self.assertEqual(len(self.opened("blocked")), 1)
-        self.assertGreater(self.opened("blocked")[0]["ts"] - 1700000000, 15)
-        for sequence in range(21, 41):
-            self.feed(sequence, [record(timeslices=sequence)])
-        self.assertNotIn(("blocked", "worker", 42), self.monitor.alerts.open)
+    def test_short_cpu_spike_and_moderate_cpu_do_not_alert(self):
+        for sequence in range(4):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        for sequence in range(4, 20):
+            self.feed(sequence, [record(utime=300 + (sequence - 3) * 30)])
+        self.assertFalse(self.opened("cpu_critical"))
+        self.assertFalse(self.opened("cpu_warn"))
 
-    def test_allow_untimed_wait_and_socket_wait_are_normal(self):
-        self.config["group"][0]["allow_untimed_wait"] = True
+    def test_futex_and_socket_waits_never_alert(self):
         for sequence in range(40):
             self.feed(sequence, [record(), record(tid=43, wchan="__skb_wait_for_more_packets", comm="io-1")])
-        self.assertFalse(self.opened("blocked"))
+        self.assertFalse([event for event in self.events if event["status"] == "opened"])
 
-    def test_missing_samples_break_blocked_duration(self):
-        for sequence in list(range(11)) + list(range(20, 31)):
-            self.feed(sequence)
-        self.assertFalse(self.opened("blocked"))
+    def test_sampling_gap_restarts_cpu_duration(self):
+        for sequence in list(range(4)) + list(range(7, 11)):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        self.assertFalse(self.opened("cpu_critical"))
+        self.feed(11, [record(state="R", utime=1100)])
+        self.feed(12, [record(state="R", utime=1200)])
+        self.assertEqual(len(self.opened("cpu_critical")), 1)
 
     def test_kernel_and_starvation(self):
         for sequence in range(16):
@@ -210,21 +217,28 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(rows[0]["read_bps"], 0)
 
     def test_alert_recovery_does_not_renotify_open_event(self):
-        for sequence in range(21):
-            self.feed(sequence)
-        self.storage.flush(1700000021)
+        for sequence in range(8):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
+        self.storage.flush(1700000008)
         events = []
-        restored = Monitor(self.config, self.storage, events.append, 1700000021)
-        self.assertIn(("blocked", "worker", 42), restored.alerts.open)
+        restored = Monitor(self.config, self.storage, events.append, 1700000008)
+        self.assertIn(("cpu_critical", "worker", 42), restored.alerts.open)
         self.assertFalse(events)
         restored.accept(packet(22, [], flags=1, pid=0, session=2), 1700000022)
         restored.drain(1700000022, force=True)
-        self.assertTrue(any(event["rule"] == "blocked" and event["status"] == "resolved" for event in events))
+        self.assertTrue(any(event["rule"] == "cpu_critical" and event["status"] == "resolved" for event in events))
 
-    def test_sparse_window_does_not_extend_hot_streak(self):
-        for sequence in list(range(10)) + [14] + list(range(15, 26)):
-            self.feed(sequence, [record(state="R", utime=sequence * 100)])
-        self.assertFalse(self.opened("cpu_critical"))
+    def test_recovered_alert_from_removed_rule_closes_quietly(self):
+        self.storage.event(dict(ts=1700000000, rule="blocked", group="worker", tid=42, name="worker-1",
+                                detail="blocked: sustained over 15s", status="opened", severity="warning",
+                                session="1"))
+        self.storage.flush(1700000001)
+        events = []
+        restored = Monitor(self.config, self.storage, events.append, 1700000001)
+        self.assertNotIn(("blocked", "worker", 42), restored.alerts.open)
+        self.assertFalse(events)
+        self.storage.flush(1700000002)
+        self.assertEqual(Monitor(self.config, self.storage, events.append, 1700000002).alerts.open, {})
 
     def test_lowest_rate_produces_valid_delta_windows(self):
         for sequence in range(5):
@@ -401,6 +415,7 @@ class CollectorIntegrationTests(unittest.TestCase):
                 self.assertIn(b"Triangulator", fetch("/"))
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertEqual(live["threads"][0]["name"], "sleep")
+
                 target.terminate()
                 target.wait(timeout=3)
                 deadline = time.monotonic() + 5

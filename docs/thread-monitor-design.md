@@ -8,7 +8,6 @@ A rough, low-cost view of a production process's threads, built only from OS-pro
 2. **Worst-case alerts**: a thread that is
    - using too much CPU,
    - starved (runnable but not getting CPU),
-   - blocked forever (stuck on a lock or an untimed wait), or
    - stuck in the kernel (state `D`).
 
 Rough is fine. Sustained problems matter; short blips do not.
@@ -172,18 +171,15 @@ Wait-channel names are kernel symbols and change between kernel versions, so mat
 
 ### Alerts
 
-Deltas are computed over 5 s windows (configurable, 5 to 10 s). A window needs at least half of its expected samples, otherwise it is skipped. Unless noted, a condition must hold for 3 consecutive windows to open an alert and be clear for 2 windows to resolve it.
+Starvation deltas are computed over 5 s windows (configurable, 5 to 10 s). A window needs at least half of its expected samples, otherwise it is skipped; the condition must hold for 3 consecutive windows to open an alert and be clear for 2 windows to resolve it. CPU and kernel-wait alerts use durations instead.
 
 | Case | Signal | Alert when |
 |---|---|---|
-| **Too much CPU** | Delta(`utime`+`stime`) / delta t | Above 50% (warn) or 90% (critical, spin or runaway) on any thread |
+| **Too much CPU** | Delta(`utime`+`stime`) / delta t, measured at every sample over the trailing second | Above 50% (warn) or 90% (critical, spin or runaway) continuously for 5 s (`cpu_sustain_secs`); resolves after 5 s below. A sampling gap restarts the duration. |
 | **Starved** | Delta run delay / delta t | Above 20% of the window |
-| **Blocked forever** | Futex wait with the same `wchan` in every sample, timeslices unchanged, CPU unchanged | For more than 15 s (configurable 10 to 30 s). The duration replaces the 3-window rule. |
 | **Stuck in kernel** | State `D` in every sample | For more than 5 s |
 
-Why "blocked forever" works: a healthy idle worker wakes on every timeout, so its timeslice count keeps rising. A thread stuck in an untimed wait shows the same wait channel and a frozen count. A timed wait whose timeout is longer than `blocked_secs` looks the same and is flagged too. This covers all groups, so an IO thread is flagged if it sits in a futex wait, but an IO thread idle in a socket read or `epoll_wait` is normal and is not flagged.
-
-Groups can set `allow_untimed_wait = true` to exempt threads that legitimately wait forever (for example a misc thread that sleeps until shutdown).
+Waits do not alert. A futex wait cannot be told apart from an idle thread pool without `syscall`, and an alert on it fires for every parked worker. The dashboard instead shows each thread's state and wait channel.
 
 **Starvation fallback** (only if `schedstat` is unusable): state `R` in most samples while CPU stays under 10%, with `nonvoluntary_ctxt_switches` rising.
 
@@ -219,9 +215,9 @@ store_raw   = false
 window_s = 5
 sustain_windows = 3
 cpu_warn_pct = 50
+cpu_sustain_secs = 5
 cpu_crit_pct = 90
 starve_run_delay_pct = 20
-blocked_secs = 15
 kernel_wait_secs = 5
 sampler_silent_secs = 10
 webhook_url = "https://..."
@@ -242,7 +238,6 @@ prefix = "sender-"
 [[group]]
 name   = "misc"
 prefix = "misc-"
-allow_untimed_wait = false
 ```
 
 Linux thread names are limited to 15 characters, so prefixes must be short and thread names must not be truncated into each other.
@@ -271,7 +266,7 @@ Linux thread names are limited to 15 characters, so prefixes must be short and t
 
 1. **Wait channels:** as the target's UID, `cat /proc/<pid>/task/*/wchan` while the target is idle and busy. Confirm that the names map to the expected states (section 8); add any new names to the collector table.
 2. **`schedstat`:** `cat /proc/<pid>/task/<tid>/schedstat` on the target box. It needs `CONFIG_SCHED_INFO`, and on some kernels `kernel.sched_schedstats` must be enabled. When unsupported it reads as zeros, so check that run delay is non-zero under load, not only that the file exists.
-3. **Idle waits:** confirm which thread groups idle in untimed futex waits (thread pools often do), and set `allow_untimed_wait` for them.
+3. **Idle waits:** confirm the wait channels each thread group normally sits in, so unusual block types stand out on the dashboard.
 4. **Thread names:** confirm all thread groups are named and the names fit in 15 characters.
 5. **Network:** confirm the path from prod to the collector and the firewall or WireGuard setup.
 6. **Operations:** choose the alert channel, retention period and collector disk budget.
@@ -279,7 +274,8 @@ Linux thread names are limited to 15 characters, so prefixes must be short and t
 ## Changes in wire version 2
 
 - No capabilities: `syscall` is no longer read. State comes from `stat` plus the kernel wait channel (`wchan`).
-- Futex waits are one state; lock, condition and timed idle are no longer distinguished. "Blocked forever" uses a futex `wchan` with frozen counters.
+- Futex waits are one state; lock, condition and timed idle are no longer distinguished. The "blocked forever" alert is removed; the dashboard shows each thread's wait instead.
+- CPU alerts open after 5 s continuously over the threshold (per-sample check), instead of three 5 s windows.
 - New per-thread data: wait channel, last CPU, major faults, and read/write bytes from `io`. Records are 112 bytes, 10 per datagram.
 - The collector no longer needs `arch`.
 

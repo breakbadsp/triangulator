@@ -16,8 +16,8 @@ sustain_windows = 3
 resolve_windows = 2
 cpu_warn_pct = 50
 cpu_crit_pct = 90
+cpu_sustain_secs = 5
 starve_run_delay_pct = 20
-blocked_secs = 15
 kernel_wait_secs = 5
 sampler_silent_secs = 10
 target_absent_secs = 5
@@ -49,4 +49,3 @@ prefix = "sender-"
 [[group]]
 name = "misc"
 prefix = "misc-"
-allow_untimed_wait = false

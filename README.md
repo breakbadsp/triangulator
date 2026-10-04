@@ -116,17 +116,17 @@ network routing or the performance budget on your target host.
   Counter regressions, sampler sessions and counter-mode changes reset baselines.
   Collector `clock_ticks` must match the target. Wall clocks should be synchronized
   for history; offsets over one day fall back to collector arrival time.
-- Alerts use configurable 5–10 second windows with at least half the expected
-  samples. CPU/starvation require three qualifying windows and two clear windows
-  by default. Blocked/kernel alerts use duration thresholds and two clear
-  windows. Sampling gaps break continuous-wait evidence. Detection occurs at
-  window completion, plus the reorder grace period.
-- A blocked wait requires a futex wait channel in every sample, with unchanged
-  CPU and scheduling counters, for `blocked_secs`. Without privileged syscall
-  data, lock, condition and timed waits look alike; a timed wait still wakes on
-  each timeout, so its rising timeslice count clears the condition unless its
-  timeout exceeds `blocked_secs`. `allow_untimed_wait` exempts a group. Socket,
-  poll and pipe waits do not trigger blocked alerts.
+- CPU alerts are checked at every sample. CPU is measured over the trailing
+  second, and an alert opens once a thread stays above `cpu_warn_pct` or
+  `cpu_crit_pct` continuously for `cpu_sustain_secs` (default 5). It resolves
+  after the same duration below the threshold. A sampling gap restarts the
+  duration.
+- Starvation uses configurable 5–10 second windows with at least half the
+  expected samples, three qualifying windows to open and two clear windows to
+  resolve. Kernel-wait (`D`) alerts use a duration threshold. Sampling gaps break
+  continuous-wait evidence.
+- Waits never alert: futex (lock or condition), socket, poll and pipe waits are
+  shown on the dashboard as states with their wait channel.
 - Raw live samples expire after ten minutes and are additionally capped by
   `max_live_samples` (default one million, shortened per-thread retention when
   needed). A disappeared thread is removed from live memory; its persisted
