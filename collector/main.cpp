@@ -1,8 +1,8 @@
-// Triangulator UDP collector and dashboard: a C++ port of the Python
-// collector in triangulator/. Same configuration, wire format, SQLite files,
-// alert rules and HTTP API, so the two can run side by side for comparison.
+// Triangulator UDP collector and dashboard: the C++ core collector. It reads
+// the Python collector's configuration and wire format and writes the same
+// SQLite rollups and HTTP API. It does no alerting: alert rules and delivery
+// belong in a separate program that reads the rollups or the HTTP API.
 
-#include <curl/curl.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -18,7 +18,6 @@
 #include <string_view>
 
 #include "config.hpp"
-#include "delivery.hpp"
 #include "engine.hpp"
 #include "http.hpp"
 #include "json.hpp"
@@ -61,50 +60,6 @@ void HandleStopSignal(int)
   return buffer.data();
 }
 
-// Applies one dashboard settings change; returns the HTTP status and body.
-[[nodiscard]] std::pair<int, Json> ChangeSettings(
-    const Json& p_body, Config& p_config, const AlertSettings& p_defaults,
-    bool& p_saved, Monitor& p_monitor, SharedState& p_state, double p_now)
-{
-  const auto* reset = p_body.IsObject() && p_body.AsObject().size() == 1
-                          ? p_body.Find("reset")
-                          : nullptr;
-  // Python compares body == {"reset": True}, which 1 and 1.0 also satisfy.
-  const bool is_reset =
-      reset != nullptr && ((reset->IsBool() && reset->AsBool()) ||
-                           (reset->IsNumber() && reset->AsNumber() == 1));
-  AlertSettings alerts;
-  if (is_reset)
-  {
-    alerts = p_defaults;
-    ClearSettings(p_config);
-    p_saved = false;
-  }
-  else
-  {
-    auto merged = MergeSettings(p_config.alerts_, p_body);
-    if (!merged)
-    {
-      return {400, JsonObject{{"error", merged.error()}}};
-    }
-    if (auto status = SaveSettings(p_config, *merged); !status)
-    {
-      return {500,
-              JsonObject{{"error", std::format("could not save settings: {}",
-                                               status.error())}}};
-    }
-    alerts = *merged;
-    p_saved = true;
-  }
-  p_monitor.ApplyAlertSettings(alerts, p_now);
-  Log(LogLevel::Info,
-      std::format("Alert settings changed from the dashboard: {}",
-                  DumpJson(p_body)));
-  auto description = DescribeSettings(p_config.alerts_, p_defaults, p_saved);
-  p_state.SetSettings(DumpJson(description));
-  return {200, std::move(description)};
-}
-
 int Run(const std::filesystem::path& p_config_path, bool p_check_config)
 {
   auto loaded = LoadConfig(p_config_path);
@@ -112,42 +67,27 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     Usage(loaded.error());
   }
-  Config config = std::move(*loaded);
-  const AlertSettings defaults = config.alerts_;
-  if (auto status = LoadSettings(config); !status)
-  {
-    Usage(std::format("saved dashboard alert settings ({}): {}",
-                      SettingsPath(config).string(), status.error()));
-  }
+  const Config config = std::move(*loaded);
   if (p_check_config)
   {
     std::puts("Collector configuration is valid");
     return 0;
   }
-
-  if (config.smtp_ignored_)
+  if (config.alerting_ignored_)
   {
     Log(LogLevel::Error,
-        "Email delivery is not part of the C++ collector; "
-        "[alerts.smtp] is ignored");
+        "Alerting is not part of the C++ collector; alert thresholds, "
+        "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
+
   Storage storage{config.data_dir_, config.retention_days_, config.store_raw_};
   storage.Flush(WallNow());
-  Delivery delivery{config};
-  Monitor monitor{config, storage,
-                  [&](const AlertEvent& p_event)
-                  {
-                    delivery.Submit(p_event);
-                  },
-                  WallNow()};
+  Monitor monitor{config, storage, WallNow()};
   auto receiver = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   const int buffer_size = 4 * 1024 * 1024;
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
                sizeof(buffer_size));
   SharedState state;
-  bool saved = std::filesystem::exists(SettingsPath(config));
-  state.SetSettings(
-      DumpJson(DescribeSettings(config.alerts_, defaults, saved)));
   DashboardServer server{config, state};
 
   struct sigaction action{};
@@ -176,23 +116,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                             reinterpret_cast<sockaddr*>(&peer), &peer_length);
       }
       const double now = WallNow();
-      for (const auto& request : state.TakeRequests())
-      {
-        try
-        {
-          request->reply_.set_value(ChangeSettings(
-              request->body_, config, defaults, saved, monitor, state, now));
-        }
-        catch (const std::exception& error)
-        {
-          // Request handling must never stop monitoring; report and carry on.
-          Log(LogLevel::Error,
-              std::format("Alert settings request failed: {}", error.what()));
-          request->reply_.set_value(
-              {500,
-               JsonObject{{"error", "internal error; see collector log"}}});
-        }
-      }
       if (length >= 0)
       {
         const auto peer_ip = PeerAddress(peer);
@@ -219,9 +142,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       if (std::chrono::steady_clock::now() >= next_refresh)
       {
         auto health = monitor.Health(now);
-        health.Set("delivery_failures", delivery.Failures());
-        health.Set("delivery_dropped", delivery.Dropped());
-        health.Set("delivery_queued", delivery.Queued());
         health.Set("sampler_ip", Json(sampler_ip));
         auto live = monitor.Snapshot(now);
         live.Set("health", std::move(health));
@@ -237,13 +157,11 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     server.Stop();
     monitor.Close();
     storage.Close();
-    delivery.Close();
     throw;
   }
   server.Stop();
   monitor.Close();
   storage.Close();
-  delivery.Close();
   return 0;
 }
 
@@ -280,12 +198,9 @@ int main(int p_argc, char** p_argv)
   {
     Usage("the following arguments are required: config");
   }
-  ::curl_global_init(CURL_GLOBAL_DEFAULT);
   try
   {
-    const int status = Run(*config_path, check_config);
-    ::curl_global_cleanup();
-    return status;
+    return Run(*config_path, check_config);
   }
   catch (const std::exception& error)
   {

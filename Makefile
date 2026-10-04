@@ -6,7 +6,7 @@ LDLIBS ?=
 CLANG_FORMAT ?= clang-format
 SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COLLECTOR_HEADERS := $(wildcard collector/*.hpp)
-COLLECTOR_LIBS ?= -lsqlite3 -lcurl
+COLLECTOR_LIBS ?= -lsqlite3
 CPP_SOURCES := sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS)
 

@@ -3,7 +3,8 @@
 
 A UDP tee forwards every sampler datagram to both collectors, each with its
 own dashboard and data directory. A live table compares their CPU, memory
-and dashboard latency, and checks that they agree on threads and alerts.
+and dashboard latency, and checks that they agree on threads and states. The C++
+collector does no alerting, so open alerts are compared only when both report them.
 
 Usage: scripts/compare.py [--rate-hz N] [--target-process NAME | --target-pid PID]
                           [--synthetic-threads N] [--duration SECONDS]
@@ -272,8 +273,11 @@ def agreement(left, right):
         problems.append(f"{states} threads show a different latest state")
 
     def alerts(live):
-        return {(item["rule"], item["group"], item["tid"]) for item in live.get("alerts", [])}
+        return {(item["rule"], item["group"], item["tid"]) for item in live["alerts"]}
 
+    # The C++ core collector does no alerting and sends no "alerts" list.
+    if "alerts" not in left or "alerts" not in right:
+        return problems
     difference = alerts(left) ^ alerts(right)
     if difference:
         problems.append("open alerts differ: " + ", ".join(f"{rule}/{tid}" for rule, _group, tid in sorted(difference)))
@@ -295,7 +299,10 @@ def render(collectors, stats, tee, started, args):
         values = []
         for collector in collectors:
             live = collector.live
-            values.append(len(live.get("threads", [])) if key is None else len(live.get(key, [])))
+            if key is None:
+                values.append(len(live.get("threads", [])))
+            else:
+                values.append(len(live[key]) if key in live else "-")
         rows.append((label, *values))
     for label, key, formatter in (("Packet loss", "packet_loss_pct", lambda value: fmt(value, "%")),
                                   ("Bad/dup/late packets", None, None),
@@ -316,7 +323,7 @@ def render(collectors, stats, tee, started, args):
              f"{'':24}{'Python':>16}{'C++':>16}"]
     lines += [f"{label:24}{str(left):>16}{str(right):>16}" for label, left, right in rows]
     problems = agreement(collectors[0].live, collectors[1].live)
-    lines += ["", "Agreement: " + ("threads, states and open alerts match" if not problems else "; ".join(problems)),
+    lines += ["", "Agreement: " + ("threads, states (and open alerts where both report them) match" if not problems else "; ".join(problems)),
               "", f"Logs and configs in {RUN.relative_to(ROOT)}/. Ctrl-C to stop."]
     print("\n".join(lines), flush=True)
 
@@ -348,7 +355,7 @@ def summarize(history, agreed, checked, elapsed, args, tee):
              f"{tee.datagrams} datagrams to each collector",
              "", "| Measure | Python | C++ |", "|---|---:|---:|"]
     lines += [f"| {label} | {python[label]} | {cpp[label]} |" for label in python]
-    lines += [f"| Refreshes where threads, states and open alerts matched | {agreed}/{checked} | |"]
+    lines += [f"| Refreshes where threads and states matched | {agreed}/{checked} | |"]
     return "\n".join(lines) + "\n"
 
 

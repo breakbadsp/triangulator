@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <deque>
 #include <format>
-#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -73,211 +72,6 @@ namespace triangulator::collector
   return static_cast<double>(delta) / p_elapsed;
 }
 
-class AlertEngine
-{
- public:
-  using Deliver = std::function<void(const AlertEvent&)>;
-
-  struct OpenAlert
-  {
-    std::uint64_t order_;
-    AlertEvent event_;
-  };
-
-  AlertEngine(const AlertSettings& p_settings, Storage& p_storage,
-              Deliver p_deliver, double p_now)
-      : settings_(p_settings),
-        storage_(p_storage),
-        deliver_(std::move(p_deliver))
-  {
-    auto [recent, open] = storage_.RecoverAlerts();
-    for (auto& event : recent)
-    {
-      Remember(std::move(event));
-    }
-    for (auto& [key, event] : open)
-    {
-      const auto rule = RuleIndex(key.rule_);
-      if (rule && settings_.enabled_[*rule])
-      {
-        open_.emplace(key, OpenAlert{next_order_++, std::move(event)});
-        continue;
-      }
-      // Alerts from removed or disabled rules are closed quietly, without
-      // notification.
-      AlertEvent closed = std::move(event);
-      closed.status_ = "resolved";
-      closed.ts_ = p_now;
-      closed.detail_ = rule ? "Alert rule disabled" : "Alert rule removed";
-      storage_.Event(closed);
-      Remember(std::move(closed));
-    }
-  }
-
-  [[nodiscard]] const std::map<AlertKey, OpenAlert>& Open() const noexcept
-  {
-    return open_;
-  }
-  [[nodiscard]] const std::deque<AlertEvent>& Recent() const noexcept
-  {
-    return recent_;
-  }
-
-  void CloseDisabled(double p_now)
-  {
-    for (auto iterator = open_.begin(); iterator != open_.end();)
-    {
-      if (settings_.Enabled(iterator->first.rule_))
-      {
-        ++iterator;
-        continue;
-      }
-      const auto event = iterator->second.event_;
-      iterator = open_.erase(iterator);
-      Emit(event.Key(), event.name_, event.session_, "resolved", p_now,
-           "Alert rule disabled", event.severity_);
-    }
-    std::erase_if(streaks_,
-                  [&](const auto& p_item)
-                  {
-                    return !settings_.Enabled(p_item.first.rule_);
-                  });
-  }
-
-  // Tracks a rule's condition for one thread. nullopt means "no evidence"
-  // and clears the streak. An alert opens after sustain_windows matching
-  // results in a row and resolves after resolve_windows, or at once when
-  // p_immediate is set.
-  void Evaluate(std::string_view p_rule, std::string_view p_group,
-                std::int64_t p_tid, std::optional<bool> p_condition,
-                double p_now, std::string_view p_name,
-                std::string_view p_session, std::string_view p_detail,
-                std::string_view p_severity = "warning",
-                bool p_immediate = false)
-  {
-    if (!settings_.Enabled(p_rule))
-    {
-      return;
-    }
-    AlertKey key{std::string{p_rule}, std::string{p_group}, p_tid};
-    if (!p_condition)
-    {
-      streaks_.erase(key);
-      return;
-    }
-    auto& streak = streaks_[key];
-    streak.count_ = streak.count_ > 0 && streak.condition_ == *p_condition
-                        ? streak.count_ + 1
-                        : 1;
-    streak.condition_ = *p_condition;
-    const auto found = open_.find(key);
-    if (*p_condition && found == open_.end() &&
-        (p_immediate ||
-         static_cast<double>(streak.count_) >= settings_.sustain_windows_))
-    {
-      auto event =
-          Emit(key, p_name, p_session, "opened", p_now, p_detail, p_severity);
-      open_.emplace(std::move(key), OpenAlert{next_order_++, std::move(event)});
-    }
-    else if (!*p_condition && found != open_.end() &&
-             (p_immediate ||
-              static_cast<double>(streak.count_) >= settings_.resolve_windows_))
-    {
-      const auto severity = found->second.event_.severity_;
-      open_.erase(found);
-      Emit(key, p_name, p_session, "resolved", p_now, p_detail, severity);
-    }
-  }
-
-  // Resolves every open alert of thread p_tid and forgets its streaks.
-  void Retire(std::int64_t p_tid, double p_now, std::string_view p_detail)
-  {
-    if (p_tid == 0)
-    {
-      return;
-    }
-    for (auto iterator = open_.begin(); iterator != open_.end();)
-    {
-      if (iterator->first.tid_ != p_tid)
-      {
-        ++iterator;
-        continue;
-      }
-      const auto event = iterator->second.event_;
-      iterator = open_.erase(iterator);
-      Emit(event.Key(), event.name_, event.session_, "resolved", p_now,
-           p_detail, event.severity_);
-    }
-    std::erase_if(streaks_,
-                  [&](const auto& p_item)
-                  {
-                    return p_item.first.tid_ == p_tid;
-                  });
-  }
-
-  void Reminders(double p_now)
-  {
-    for (auto& [key, alert] : open_)
-    {
-      if (p_now - alert.event_.ts_ >= settings_.reminder_secs_)
-      {
-        const auto previous = alert.event_;
-        alert.event_ = Emit(key, previous.name_, previous.session_, "reminder",
-                            p_now, previous.detail_, previous.severity_);
-      }
-    }
-  }
-
-  void ForgetStreak(const AlertKey& p_key)
-  {
-    streaks_.erase(p_key);
-  }
-
- private:
-  struct Streak
-  {
-    bool condition_ = false;
-    int count_ = 0;
-  };
-
-  const AlertSettings& settings_;
-  Storage& storage_;
-  Deliver deliver_;
-  std::map<AlertKey, OpenAlert> open_;
-  std::map<AlertKey, Streak> streaks_;
-  std::deque<AlertEvent> recent_;
-  std::uint64_t next_order_ = 0;
-
-  void Remember(AlertEvent p_event)
-  {
-    recent_.push_back(std::move(p_event));
-    if (recent_.size() > 500)
-    {
-      recent_.pop_front();
-    }
-  }
-
-  AlertEvent Emit(const AlertKey& p_key, std::string_view p_name,
-                  std::string_view p_session, std::string_view p_status,
-                  double p_now, std::string_view p_detail,
-                  std::string_view p_severity)
-  {
-    AlertEvent event{std::string{p_name},
-                     std::string{p_session},
-                     p_key.rule_,
-                     p_key.group_,
-                     p_key.tid_,
-                     std::string{p_status},
-                     p_now,
-                     std::string{p_detail},
-                     std::string{p_severity}};
-    storage_.Event(event);
-    Remember(event);
-    deliver_(event);
-    return event;
-  }
-};
-
 struct Sample
 {
   double monotonic_{};
@@ -294,12 +88,6 @@ struct Sample
   }
 };
 
-struct CpuRun
-{
-  bool above_;
-  double since_;
-};
-
 struct ThreadState
 {
   std::string group_;
@@ -309,10 +97,6 @@ struct ThreadState
   std::vector<Sample> window_;
   std::optional<Sample> baseline_;
   std::optional<std::int64_t> bucket_;
-  std::optional<double> kernel_since_;
-  // Indexed like kCpuRules: warning, then critical.
-  std::array<std::optional<CpuRun>, 2> cpu_runs_;
-  double contiguous_since_{};
 };
 
 // State counts in order of first appearance, like Python's Counter.
@@ -358,24 +142,18 @@ inline void CountState(StateCounts& p_counts, std::string_view p_state)
   return text;
 }
 
+// Turns sampler datagrams into per-thread state, rollup rows and the live
+// dashboard snapshot. Alerting is not done here: it is a separate program
+// that reads the rollups (SQLite) or the HTTP API.
 class Monitor
 {
  public:
-  Monitor(Config& p_config, Storage& p_storage, AlertEngine::Deliver p_deliver,
-          double p_now)
-      : config_(p_config),
-        storage_(p_storage),
-        alerts_(p_config.alerts_, p_storage, std::move(p_deliver), p_now),
-        started_(p_now)
+  Monitor(const Config& p_config, Storage& p_storage, double p_now)
+      : config_(p_config), storage_(p_storage), started_(p_now)
   {
   }
 
   std::int64_t bad_packets_ = 0;
-
-  [[nodiscard]] const AlertEngine& Alerts() const noexcept
-  {
-    return alerts_;
-  }
 
   void Accept(Packet p_packet, double p_received)
   {
@@ -398,24 +176,10 @@ class Monitor
         for (auto& [tid, thread] : threads_)
         {
           FinishWindow(tid, thread);
-          alerts_.Retire(tid, p_received, "Sampler session or target changed");
         }
       }
       session_ = p_packet.session_;
       session_text_ = std::to_string(*session_);
-      std::vector<AlertEvent> stale;
-      for (const auto& [key, alert] : alerts_.Open())
-      {
-        stale.push_back(alert.event_);
-      }
-      for (const auto& event : stale)
-      {
-        if (event.tid_ != 0 && event.session_ != session_text_)
-        {
-          alerts_.Retire(event.tid_, p_received,
-                         "Sampler session or target changed");
-        }
-      }
       threads_.clear();
       generations_.clear();
       raw_count_ = 0;
@@ -423,7 +187,6 @@ class Monitor
       last_monotonic_.reset();
       last_sequence_.reset();
       loss_.clear();
-      absent_since_.reset();
     }
     if (last_monotonic_ && p_packet.monotonic_ns_ <= *last_monotonic_)
     {
@@ -531,7 +294,6 @@ class Monitor
            expected - static_cast<std::int64_t>(tick.chunks_.size())});
       last_sequence_ = tick.header_.sequence_;
       last_monotonic_ = tick.header_.monotonic_ns_;
-      last_tick_seen_ = tick.received_;
       std::vector<Record> records;
       for (auto& [chunk, chunk_records] : tick.chunks_)
       {
@@ -542,29 +304,8 @@ class Monitor
     }
   }
 
-  void ApplyAlertSettings(const AlertSettings& p_alerts, double p_now)
-  {
-    // A run proves "above/below the old threshold", which says nothing about
-    // a new threshold, so a changed threshold must collect fresh evidence.
-    const bool warn_changed =
-        config_.alerts_.cpu_warn_pct_ != p_alerts.cpu_warn_pct_;
-    const bool critical_changed =
-        config_.alerts_.cpu_crit_pct_ != p_alerts.cpu_crit_pct_;
-    for (auto& [tid, thread] : threads_)
-    {
-      if (warn_changed)
-      {
-        thread.cpu_runs_[0].reset();
-      }
-      if (critical_changed)
-      {
-        thread.cpu_runs_[1].reset();
-      }
-    }
-    config_.alerts_ = p_alerts;
-    alerts_.CloseDisabled(p_now);
-  }
-
+  // Monitor health for the dashboard: sampler silence, estimated packet
+  // loss over the last minute and packet counters.
   [[nodiscard]] Json Health(double p_now)
   {
     Drain(p_now);
@@ -579,53 +320,19 @@ class Monitor
       expected += item.expected_;
       lost += item.lost_;
     }
-    const Json loss_json = expected != 0
-                               ? Json(static_cast<double>(lost) /
-                                      static_cast<double>(expected) * 100)
-                               : Json(0);
-    const double loss_pct = loss_json.AsNumber();
-    const auto& thresholds = config_.alerts_;
-    const bool silent = p_now - last_seen_.value_or(started_) >=
-                        thresholds.sampler_silent_secs_;
-    const std::string session = session_ ? session_text_ : "0";
-    std::int64_t no_access = 0;
-    for (const auto& [tid, thread] : threads_)
-    {
-      no_access += thread.latest_.state_ == "no_access" ? 1 : 0;
-    }
-    const std::array<std::tuple<std::string_view, bool, std::string>, 4>
-        conditions{{
-            {"sampler_silent", silent, "No fresh sampler datagrams"},
-            {"target_absent",
-             !silent && absent_since_ &&
-                 p_now - *absent_since_ >= thresholds.target_absent_secs_,
-             "Sampler reports target absent"},
-            {"packet_loss", loss_pct > thresholds.packet_loss_pct_,
-             std::format("Estimated packet loss {:.1f}% over 60s", loss_pct)},
-            {"access_lost",
-             !silent && !threads_.empty() &&
-                 static_cast<double>(no_access) >
-                     static_cast<double>(threads_.size()) / 2,
-             "Most threads have a hidden wait channel"},
-        }};
-    for (const auto& [rule, condition, detail] : conditions)
-    {
-      alerts_.Evaluate(rule, "monitor", 0, condition, p_now, "monitor", session,
-                       detail, "warning", true);
-    }
-    if (silent)
-    {
-      for (auto& [tid, thread] : threads_)
-      {
-        Invalidate(tid, thread);
-      }
-    }
-    alerts_.Reminders(p_now);
+    const Json loss_pct = expected != 0
+                              ? Json(static_cast<double>(lost) /
+                                     static_cast<double>(expected) * 100)
+                              : Json(0);
+    // The Python collector's default silence threshold, used only for the
+    // dashboard's "Silent" card now that there is no alert rule.
+    constexpr double kSilentSecs = 10;
+    const bool silent = p_now - last_seen_.value_or(started_) >= kSilentSecs;
     return JsonObject{
         {"last_seen", Json(last_seen_)},
         {"sampler_silent", silent},
         {"target_absent", Json(target_absent_)},
-        {"packet_loss_pct", loss_json},
+        {"packet_loss_pct", loss_pct},
         {"session", session_ ? Json(session_text_) : Json(nullptr)},
         {"pid", pid_},
         {"bad_packets", bad_packets_},
@@ -636,6 +343,8 @@ class Monitor
          static_cast<std::int64_t>(std::nearbyint(interval_ * 1000))}};
   }
 
+  // Current threads and group counts. There are no "alerts" fields; the
+  // dashboard hides its alert sections when they are missing.
   [[nodiscard]] Json Snapshot(double p_now) const
   {
     JsonArray threads;
@@ -703,27 +412,8 @@ class Monitor
           {"stale", p_now - sample.wall_ > std::max(10.0, interval_ * 3)},
           {"generation", thread.generation_}});
     }
-    std::vector<const AlertEngine::OpenAlert*> open;
-    for (const auto& [key, alert] : alerts_.Open())
-    {
-      open.push_back(&alert);
-    }
-    std::ranges::sort(open, {}, &AlertEngine::OpenAlert::order_);
-    JsonArray open_json;
-    for (const auto* alert : open)
-    {
-      open_json.push_back(EventJson(alert->event_));
-    }
-    JsonArray recent;
-    for (auto iterator = alerts_.Recent().rbegin();
-         iterator != alerts_.Recent().rend(); ++iterator)
-    {
-      recent.push_back(EventJson(*iterator));
-    }
     return JsonObject{{"threads", std::move(threads)},
-                      {"groups", CountsJson(groups)},
-                      {"alerts", std::move(open_json)},
-                      {"recent_alerts", std::move(recent)}};
+                      {"groups", CountsJson(groups)}};
   }
 
   void Close()
@@ -751,15 +441,10 @@ class Monitor
     std::int64_t lost_;
   };
 
-  static constexpr std::array<std::pair<std::string_view, std::string_view>, 2>
-      kCpuRules{{{"cpu_warn", "warning"}, {"cpu_critical", "critical"}}};
-
-  Config& config_;
+  const Config& config_;
   Storage& storage_;
-  AlertEngine alerts_;
   double started_;
   std::optional<double> last_seen_;
-  std::optional<double> last_tick_seen_;
   std::optional<std::uint64_t> session_;
   std::string session_text_;
   std::deque<std::uint64_t> retired_sessions_;
@@ -769,7 +454,6 @@ class Monitor
   std::optional<std::uint64_t> last_monotonic_;
   std::optional<std::uint32_t> last_sequence_;
   std::deque<LossEntry> loss_;
-  std::optional<double> absent_since_;
   std::optional<bool> target_absent_;
   std::uint32_t pid_ = 0;
   double interval_ = 1.0;
@@ -797,17 +481,6 @@ class Monitor
     interval_ = p_header.interval_ms_ / 1000.0;
     pid_ = p_header.pid_;
     target_absent_ = (p_header.flags_ & kTargetAbsent) != 0;
-    if (*target_absent_)
-    {
-      if (!absent_since_)
-      {
-        absent_since_ = p_received;
-      }
-    }
-    else
-    {
-      absent_since_.reset();
-    }
     const double monotonic = static_cast<double>(p_header.monotonic_ns_) / 1e9;
     double wall = static_cast<double>(p_header.wall_ns_) / 1e9;
     if (std::fabs(wall - p_received) > 86400)
@@ -834,8 +507,6 @@ class Monitor
         if (reset)
         {
           FinishWindow(tid, existing);
-          alerts_.Retire(tid, p_received,
-                         "Thread counters, group or counter mode changed");
           raw_count_ -= static_cast<std::int64_t>(existing.raw_.size());
           threads_.erase(found);
           found = threads_.end();
@@ -851,32 +522,22 @@ class Monitor
         state.group_ = group;
         state.generation_ = next;
         state.latest_ = sample;
-        state.contiguous_since_ = sample.monotonic_;
         found = threads_.emplace(tid, std::move(state)).first;
       }
       auto& thread = found->second;
-      const auto bucket = static_cast<std::int64_t>(
-          std::floor(monotonic / config_.alerts_.window_s_));
+      const auto bucket =
+          static_cast<std::int64_t>(std::floor(monotonic / config_.window_s_));
       if (thread.bucket_ && bucket != *thread.bucket_)
       {
         FinishWindow(tid, thread);
         if (bucket != *thread.bucket_ + 1)
         {
-          Invalidate(tid, thread);
           thread.baseline_.reset();
         }
-      }
-      if (!thread.raw_.empty() &&
-          monotonic - thread.latest_.monotonic_ > interval_ * 1.5)
-      {
-        thread.kernel_since_.reset();
-        thread.cpu_runs_ = {};
-        thread.contiguous_since_ = monotonic;
       }
       thread.bucket_ = bucket;
       thread.latest_ = sample;
       thread.raw_.push_back(sample);
-      CheckCpu(tid, thread, sample);
       ++raw_count_;
       thread.window_.push_back(sample);
       storage_.Raw(wall, session_text_, *record);
@@ -893,19 +554,7 @@ class Monitor
       }
       for (const auto tid : gone)
       {
-        RemoveThread(tid, p_received, "Thread exited or target absent");
-      }
-      std::vector<std::int64_t> open_tids;
-      for (const auto& [key, alert] : alerts_.Open())
-      {
-        open_tids.push_back(alert.event_.tid_);
-      }
-      for (const auto tid : open_tids)
-      {
-        if (tid != 0 && !seen.contains(tid))
-        {
-          alerts_.Retire(tid, p_received, "Thread exited or target absent");
-        }
+        RemoveThread(tid);
       }
     }
     std::vector<std::int64_t> unobserved;
@@ -918,19 +567,17 @@ class Monitor
     }
     for (const auto tid : unobserved)
     {
-      RemoveThread(tid, p_received,
-                   "Thread no longer observed (possibly packet loss)");
+      RemoveThread(tid);
     }
     PruneRaw(monotonic);
   }
 
-  void RemoveThread(std::int64_t p_tid, double p_now, std::string_view p_detail)
+  void RemoveThread(std::int64_t p_tid)
   {
     auto found = threads_.find(p_tid);
     FinishWindow(p_tid, found->second);
     raw_count_ -= static_cast<std::int64_t>(found->second.raw_.size());
     threads_.erase(found);
-    alerts_.Retire(p_tid, p_now, p_detail);
   }
 
   void PruneRaw(double p_monotonic)
@@ -961,81 +608,7 @@ class Monitor
     }
   }
 
-  // Opens a CPU alert once a thread stays above the threshold for
-  // cpu_sustain_secs.
-  //
-  // CPU is measured against the newest sample at least one second older, so
-  // clock-tick resolution stays near 1% at any sampling rate. A run of
-  // above- or below-threshold readings starts at the first sample that
-  // measured it, not at that measurement's reference: a reading over one
-  // second can cross the threshold although only part of that second was
-  // busy, and crediting the whole second would let a burst shorter than
-  // cpu_sustain_secs open an alert. A sampling gap clears the runs and the
-  // usable history (see Process).
-  void CheckCpu(std::int64_t p_tid, ThreadState& p_thread,
-                const Sample& p_sample)
-  {
-    const Sample* reference = nullptr;
-    for (auto iterator = p_thread.raw_.rbegin();
-         iterator != p_thread.raw_.rend(); ++iterator)
-    {
-      if (iterator->monotonic_ <= p_sample.monotonic_ - 1.0)
-      {
-        reference = &*iterator;
-        break;
-      }
-    }
-    if (reference == nullptr ||
-        reference->monotonic_ < p_thread.contiguous_since_)
-    {
-      return;
-    }
-    const double elapsed = p_sample.monotonic_ - reference->monotonic_;
-    const auto ticks =
-        Delta(CpuTicks(p_sample.Get()), CpuTicks(reference->Get()));
-    const double cpu = static_cast<double>(ticks) /
-                       static_cast<double>(config_.clock_ticks_) / elapsed *
-                       100;
-    const auto& thresholds = config_.alerts_;
-    const double sustain = thresholds.cpu_sustain_secs_;
-    const std::array limits{thresholds.cpu_warn_pct_, thresholds.cpu_crit_pct_};
-    for (std::size_t index = 0; index < kCpuRules.size(); ++index)
-    {
-      const auto [rule, severity] = kCpuRules[index];
-      const double threshold = limits[index];
-      const bool above = cpu > threshold;
-      auto& run = p_thread.cpu_runs_[index];
-      if (!run || run->above_ != above)
-      {
-        run = CpuRun{above, p_sample.monotonic_};
-      }
-      const double duration = p_sample.monotonic_ - run->since_;
-      if (duration < sustain)
-      {
-        continue;
-      }
-      const auto detail =
-          above ? std::format("CPU {:.1f}% for {:.0f}s (over {:g}%)", cpu,
-                              duration, threshold)
-                : std::format("CPU {:.1f}%, below {:g}% for {:.0f}s", cpu,
-                              threshold, duration);
-      alerts_.Evaluate(rule, p_thread.group_, p_tid, above, p_sample.wall_,
-                       p_sample.Get().comm_, session_text_, detail, severity,
-                       true);
-    }
-  }
-
-  void Invalidate(std::int64_t p_tid, ThreadState& p_thread)
-  {
-    p_thread.kernel_since_.reset();
-    for (const std::string_view rule : {"starved", "kernel_wait"})
-    {
-      alerts_.ForgetStreak(AlertKey{std::string{rule}, p_thread.group_, p_tid});
-    }
-  }
-
-  // Writes the rollup row for the thread's current window and evaluates the
-  // window-based rules (starvation, stuck in kernel).
+  // Writes the rollup row for the thread's current window.
   void FinishWindow(std::int64_t p_tid, ThreadState& p_thread)
   {
     if (p_thread.window_.empty())
@@ -1047,7 +620,7 @@ class Monitor
     const Sample first =
         p_thread.baseline_ ? *p_thread.baseline_ : samples.front();
     const Sample& last = samples.back();
-    const double window_s = config_.alerts_.window_s_;
+    const double window_s = config_.window_s_;
     double expected = 0;
     for (const auto& sample : samples)
     {
@@ -1061,24 +634,6 @@ class Monitor
         elapsed <= window_s + std::max(first.interval_, last.interval_) * 1.5;
     const auto& last_record = last.Get();
     const auto& first_record = first.Get();
-    const auto cpu_delta = Delta(CpuTicks(last_record), CpuTicks(first_record));
-    const auto delay_delta =
-        Delta(last_record.run_delay_, first_record.run_delay_);
-    const auto slices_delta =
-        Delta(last_record.timeslices_, first_record.timeslices_);
-    std::optional<double> cpu;
-    std::optional<double> delay;
-    if (valid)
-    {
-      cpu = static_cast<double>(cpu_delta) /
-            static_cast<double>(config_.clock_ticks_) / elapsed * 100;
-      if (!last.fallback_)
-      {
-        delay = static_cast<double>(delay_delta) / 1e9 / elapsed * 100;
-      }
-    }
-    const auto faults_delta =
-        Delta(last_record.major_faults_, first_record.major_faults_);
     StateCounts counts;
     for (const auto& sample : samples)
     {
@@ -1090,15 +645,25 @@ class Monitor
     row.tid_ = p_tid;
     row.name_ = last_record.comm_;
     row.group_ = p_thread.group_;
-    row.cpu_pct_ = cpu;
-    row.run_delay_pct_ = delay;
     row.sample_counts_ = PythonCountsText(counts);
     if (valid)
     {
-      row.timeslices_delta_ = slices_delta;
+      row.cpu_pct_ = static_cast<double>(
+                         Delta(CpuTicks(last_record), CpuTicks(first_record))) /
+                     static_cast<double>(config_.clock_ticks_) / elapsed * 100;
+      if (!last.fallback_)
+      {
+        row.run_delay_pct_ =
+            static_cast<double>(
+                Delta(last_record.run_delay_, first_record.run_delay_)) /
+            1e9 / elapsed * 100;
+      }
+      row.timeslices_delta_ =
+          Delta(last_record.timeslices_, first_record.timeslices_);
       row.read_bps_ = IoRate(last_record, first_record, false, elapsed);
       row.write_bps_ = IoRate(last_record, first_record, true, elapsed);
-      row.major_faults_delta_ = faults_delta;
+      row.major_faults_delta_ =
+          Delta(last_record.major_faults_, first_record.major_faults_);
     }
     row.samples_ = static_cast<std::int64_t>(samples.size());
     row.expected_samples_ = expected;
@@ -1106,81 +671,6 @@ class Monitor
     row.generation_ = p_thread.generation_;
     storage_.Rollup(row);
     p_thread.baseline_ = last;
-    if (!valid)
-    {
-      Invalidate(p_tid, p_thread);
-      return;
-    }
-    const auto& thresholds = config_.alerts_;
-    const auto& name = last_record.comm_;
-    if (last.fallback_)
-    {
-      const auto running =
-          std::ranges::count_if(samples,
-                                [](const Sample& p_sample)
-                                {
-                                  return p_sample.Get().state_ == 'R';
-                                });
-      const bool starved = static_cast<double>(running) >
-                               static_cast<double>(samples.size()) / 2 &&
-                           *cpu < 10 && delay_delta > 0;
-      alerts_.Evaluate("starved", p_thread.group_, p_tid, starved, last.wall_,
-                       name, session_text_, "Runnable with little CPU");
-    }
-    else
-    {
-      alerts_.Evaluate("starved", p_thread.group_, p_tid,
-                       *delay > thresholds.starve_run_delay_pct_, last.wall_,
-                       name, session_text_,
-                       std::format("Run delay {:.1f}%", *delay));
-    }
-    bool contiguous = true;
-    const Sample* left = &first;
-    for (const auto& right : samples)
-    {
-      if (right.monotonic_ - left->monotonic_ >
-          std::max(left->interval_, right.interval_) * 1.5)
-      {
-        contiguous = false;
-        break;
-      }
-      left = &right;
-    }
-    const bool all_kernel =
-        std::ranges::all_of(samples,
-                            [](const Sample& p_sample)
-                            {
-                              return p_sample.state_ == "kernel";
-                            });
-    const double duration = thresholds.kernel_wait_secs_;
-    std::optional<bool> condition;
-    if (all_kernel && contiguous)
-    {
-      if (!p_thread.kernel_since_)
-      {
-        p_thread.kernel_since_ = samples.front().monotonic_;
-      }
-      condition = last.monotonic_ - *p_thread.kernel_since_ > duration;
-      if (!*condition)
-      {
-        return;
-      }
-    }
-    else
-    {
-      p_thread.kernel_since_.reset();
-      if (!all_kernel)
-      {
-        condition = false;
-      }
-    }
-    const bool firing = condition.value_or(false);
-    alerts_.Evaluate(
-        "kernel_wait", p_thread.group_, p_tid, condition, last.wall_, name,
-        session_text_,
-        firing ? std::format("kernel_wait: sustained over {:g}s", duration)
-               : std::string{"kernel_wait: condition cleared"},
-        "warning", firing);
   }
 };
 

@@ -41,7 +41,7 @@ systemd, see [Production setup](#production-setup).
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
 Make and Python 3.11+. No third-party packages. The optional C++ collector
-also needs GCC 15+ (for `#embed`) and the libsqlite3 and libcurl development files.
+also needs GCC 15+ (for `#embed`) and the libsqlite3 development files.
 
 ```sh
 make          # build/triangulator-sampler and build/triangulator-collector
@@ -162,21 +162,28 @@ Checklist before going live (design section 12):
   monitor diagnostics and every event stays in SQLite. Reminders default to 30
   minutes.
 
-## C++ collector (comparison)
+## C++ collector
 
-`collector/` is a C++ port of the Python collector. It reads the same config file,
-stores the same SQLite rows, applies the same alert rules and serves the same
-dashboard and API: `build/triangulator-collector config/local/collector.toml`.
-Email delivery is deliberately not part of it: a config with `[alerts.smtp]`
-starts with a warning and the table is ignored (webhooks work).
+`collector/` is the C++ core collector. It reads the same config file as the
+Python collector, stores the same SQLite rollups and serves the same dashboard,
+`/api/live` and `/api/history`: `build/triangulator-collector config/local/collector.toml`.
 
-**Rule:** latency- and performance-critical code (receiving datagrams, the alert
-engine, storage, the dashboard API) belongs in C++ or Rust. Email and other
-notifications, reports and richer dashboard data can be added in other languages
-as separate programs that read the SQLite files or the HTTP API. They must stay
-off the UDP stream and out of the collector's main loop.
-`make check` runs the collector end-to-end tests against both, plus a parity test
-that sends identical datagrams to each and requires identical rollups and alerts.
+It does **no alerting**: no alert rules, no dashboard alert settings, and no
+webhook, dead-man or email delivery. Those config keys are accepted and ignored
+with a startup warning (only `[alerts] window_s`, the rollup window, is used), and
+the dashboard hides its alert parts. Alerting is a separate module that reads the
+rollups from SQLite or the HTTP API; until it exists, use the Python collector
+for alerts.
+
+**Rule:** latency- and performance-critical code (receiving datagrams, building
+per-thread state and rollups, storage, the dashboard API) belongs in C++ or Rust.
+Alerting, notifications, reports and richer dashboard data are separate programs
+that read the SQLite files or the HTTP API. They must stay off the UDP stream and
+out of the collector's main loop. A separate program that needs per-sample data
+at high rates must itself be written in C++ or Rust.
+
+`make check` runs an end-to-end test of the C++ collector, plus a parity test
+that sends identical datagrams to both collectors and requires identical rollups.
 
 To compare them live on real data:
 
@@ -185,19 +192,19 @@ scripts/compare.py --rate-hz 10 --target-process firefox
 ```
 
 This starts a sampler, a UDP tee and both collectors, and shows CPU, memory,
-dashboard latency and whether they agree on threads and alerts. Both dashboards
+dashboard latency and whether they agree on threads and states. Both dashboards
 stay available (Python on port 9511, C++ on 9512). The comparison configs leave
-out alert delivery, so alerts are not sent twice. Files go to `.run/compare/`.
-`--duration 180` stops after three minutes and prints a summary table;
-`--synthetic-threads 1000` replaces the sampler with a load generator. Results
-so far are in [docs/collector-comparison.md](docs/collector-comparison.md).
+out alert delivery, so the Python collector's alerts are not sent anywhere. Files
+go to `.run/compare/`. `--duration 180` stops after three minutes and prints a
+summary table; `--synthetic-threads 1000` replaces the sampler with a load
+generator. Results are in [docs/collector-comparison.md](docs/collector-comparison.md).
 
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, wire encoding, RAII resources).
 - `triangulator/`: Python collector, alerts, SQLite, delivery, HTTP API, dashboard.
-- `collector/`: C++ port of the collector (shares the sampler's wire-format header).
+- `collector/`: C++ core collector, without alerting (shares the sampler's wire-format header).
 - `config/`, `deploy/`: example configuration and systemd units.
 - `scripts/`: `start.sh`, `stop.sh` and `compare.py` (Python vs C++ collector).
 - `tests/`: C++ and Python tests, including a real `/proc` integration check.
