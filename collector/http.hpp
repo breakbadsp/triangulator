@@ -12,13 +12,14 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <expected>
 #include <format>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -190,10 +191,16 @@ struct Request
   std::string query_;
 };
 
+// errno as text, read at once so a later call can't overwrite it.
+[[nodiscard]] inline std::string ErrnoText()
+{
+  return std::generic_category().message(errno);
+}
+
 // Opens a socket bound to p_host:p_port, choosing IPv6 when the host
 // contains ':' as the Python collector does.
-[[nodiscard]] inline FileDescriptor BindSocket(const std::string& p_host,
-                                               std::int64_t p_port, int p_type)
+[[nodiscard]] inline std::expected<FileDescriptor, std::string> BindSocket(
+    const std::string& p_host, std::int64_t p_port, int p_type)
 {
   addrinfo hints{};
   hints.ai_family = p_host.find(':') != std::string::npos ? AF_INET6 : AF_INET;
@@ -205,7 +212,7 @@ struct Request
                                       port.c_str(), &hints, &found);
       error != 0)
   {
-    throw std::runtime_error(
+    return std::unexpected(
         std::format("cannot resolve {}: {}", p_host, ::gai_strerror(error)));
   }
   std::unique_ptr<addrinfo, decltype(&::freeaddrinfo)> addresses{
@@ -214,7 +221,7 @@ struct Request
       ::socket(found->ai_family, found->ai_socktype | SOCK_CLOEXEC, 0)};
   if (!socket)
   {
-    throw std::system_error(errno, std::generic_category(), "socket");
+    return std::unexpected(std::format("socket: {}", ErrnoText()));
   }
   if (p_type == SOCK_STREAM)
   {
@@ -224,32 +231,54 @@ struct Request
   }
   if (::bind(socket.Get(), found->ai_addr, found->ai_addrlen) != 0)
   {
-    throw std::system_error(errno, std::generic_category(),
-                            std::format("bind {}:{}", p_host, p_port));
+    return std::unexpected(
+        std::format("bind {}:{}: {}", p_host, p_port, ErrnoText()));
+  }
+  return socket;
+}
+
+// A TCP socket bound to p_host:p_port and listening.
+[[nodiscard]] inline std::expected<FileDescriptor, std::string> Listen(
+    const std::string& p_host, std::int64_t p_port)
+{
+  auto socket = BindSocket(p_host, p_port, SOCK_STREAM);
+  if (socket && ::listen(socket->Get(), 16) != 0)
+  {
+    return std::unexpected(std::format("listen: {}", ErrnoText()));
   }
   return socket;
 }
 
 // Serves the dashboard and its JSON API, one request at a time, on its own
-// thread, like the Python collector's http.server.HTTPServer.
+// thread, like the Python collector's http.server.HTTPServer. Construct it
+// with a socket from Listen(), then call Start().
 class DashboardServer
 {
  public:
-  DashboardServer(const Config& p_config, SharedState& p_state)
-      : config_(p_config),
-        state_(p_state),
-        listener_(
-            BindSocket(p_config.http_host_, p_config.http_port_, SOCK_STREAM))
+  DashboardServer(const Config& p_config, SharedState& p_state,
+                  FileDescriptor p_listener)
+      : config_(p_config), state_(p_state), listener_(std::move(p_listener))
   {
-    if (::listen(listener_.Get(), 16) != 0)
+  }
+
+  // Starts the serving thread. std::thread reports failure (no resources
+  // for another thread) by throwing; this is the one place it is caught.
+  [[nodiscard]] std::expected<void, std::string> Start()
+  {
+    try
     {
-      throw std::system_error(errno, std::generic_category(), "listen");
+      thread_ = std::thread(
+          [this]
+          {
+            Serve();
+          });
     }
-    thread_ = std::thread(
-        [this]
-        {
-          Serve();
-        });
+    catch (const std::system_error& error)
+    {
+      return std::unexpected(
+          std::format("cannot start the dashboard thread: {}", error.what()));
+    }
+    return {};
   }
   ~DashboardServer()
   {
@@ -294,6 +323,8 @@ class DashboardServer
                    sizeof(timeout));
       ::setsockopt(connection.Get(), SOL_SOCKET, SO_SNDTIMEO, &timeout,
                    sizeof(timeout));
+      // Last resort at the top of the thread: a bug or an exception from
+      // the standard library ends this request, not the collector.
       try
       {
         Handle(connection.Get());

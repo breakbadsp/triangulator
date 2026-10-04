@@ -272,6 +272,18 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("Collector stopped: cannot create", result.stderr)
 
+    def test_http_port_in_use_stops_at_startup(self):
+        with tempfile.TemporaryDirectory() as directory, socket.socket() as taken:
+            taken.bind(("127.0.0.1", 0))
+            taken.listen()
+            http_port = taken.getsockname()[1]
+            config = Path(directory) / "collector.toml"
+            config.write_text(f'udp_host="127.0.0.1"\nudp_port={free_port(socket.SOCK_DGRAM)}\n'
+                              f'http_host="127.0.0.1"\nhttp_port={http_port}\ndata_dir="{directory}/data"\n')
+            result = subprocess.run([*CPP_COLLECTOR, str(config)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(f"Collector stopped: bind 127.0.0.1:{http_port}: Address already in use", result.stderr)
+
     def test_storage_write_failure_stops_the_collector(self):
         # Day files that aren't SQLite databases make the first write fail.
         # The collector must stop with the SQLite error instead of dropping

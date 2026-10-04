@@ -119,12 +119,26 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     return Stopped(flushed.error());
   }
   Monitor monitor{config, WallNow()};
-  auto receiver = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
+  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
+  if (!bound)
+  {
+    return Stopped(bound.error());
+  }
+  const triangulator::FileDescriptor receiver = std::move(*bound);
   const int buffer_size = 4 * 1024 * 1024;
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
                sizeof(buffer_size));
   SharedState state;
-  DashboardServer server{config, state};
+  auto listener = Listen(config.http_host_, config.http_port_);
+  if (!listener)
+  {
+    return Stopped(listener.error());
+  }
+  DashboardServer server{config, state, std::move(*listener)};
+  if (auto started = server.Start(); !started)
+  {
+    return Stopped(started.error());
+  }
 
   struct sigaction action{};
   action.sa_handler = HandleStopSignal;
