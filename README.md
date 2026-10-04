@@ -1,187 +1,165 @@
 # Triangulator
 
-Linux thread monitoring using `/proc`: a single-threaded C++23 sampler sends UDP to a
-Python collector with a live dashboard, daily SQLite history and sustained alerts.
-Implements [the v1 design](docs/thread-monitor-design.md).
+Linux thread monitoring using `/proc`: a C++23 sampler sends UDP to a Python
+collector with a live dashboard, daily SQLite history and sustained alerts.
+Design: [docs/thread-monitor-design.md](docs/thread-monitor-design.md).
 
-## Build and run
+## Quick start
 
-Requires Linux, a C++23 compiler and standard library supporting `std::expected`,
-`std::format` and `std::byteswap` (GCC/libstdc++ 13 or newer), Make and Python 3.11+.
-No third-party packages. The build uses `CXX`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`
-and `LDLIBS`; C++23 is selected explicitly for every C++ target.
-
-```sh
-make
-make check
-```
-
-The sampler uses move-only RAII ownership for file descriptors, sockets and
-directory handles; `std::expected` for configuration errors; `std::variant` for
-target selection; and `std::chrono` for sampling deadlines. `/proc` parsers use
-`std::string_view`, `std::from_chars` and `std::optional` without allocating.
-Wire encoding uses fixed `std::array` buffers, bounded `std::span` views and
-explicit little-endian conversion in the documented wire format (version 2).
-The thread cache reserves its bounded capacity once and reuses descriptors across
-ticks. At startup the sampler raises its soft open-file limit to the hard limit
-and keeps four `/proc` files open per thread only while that budget allows (32
-descriptors are reserved); further threads reopen their files every tick. Running
-out of descriptors skips a tick instead of reporting the target absent.
-Only the signal flags are shared with signal handlers; runtime state belongs to
-the sampler object. POSIX calls remain at the Linux I/O and timing boundaries.
-
-1. Copy `config/sampler.toml` and `config/collector.toml` to your deployment
-   configuration directory. Set the target PID **or** exact process name, the
-   collector's numeric management-network IP and the sampler's source IP.
-2. Set collector `clock_ticks` to the output of `getconf CLK_TCK` **on the
-   target host**. The wire header does not carry the clock frequency.
-3. Configure a real webhook and/or SMTP destination in `[alerts]` and a writable
-   `data_dir`. Webhooks receive a JSON event containing `ts`, `rule`, `group`,
-   `tid`, `name`, `session`, `detail`, `severity` and `status`
-   (`opened`, `reminder`, `resolved`). SMTP credentials come from the environment
-   variable named by `password_env`; STARTTLS defaults to enabled.
-4. Start the collector and then run the sampler as the target UID:
+Two programs: the **sampler** runs next to the process you want to watch and sends
+its threads' stats over UDP; the **collector** receives them and serves the dashboard.
+To try it on one machine:
 
 ```sh
-python3 -B -m triangulator /etc/triangulator/collector.toml --check-config
-python3 -B -m triangulator /etc/triangulator/collector.toml
-./build/triangulator-sampler /etc/triangulator/sampler.toml
+make                                    # build the sampler
+cp config/sampler.toml  my-sampler.toml
+cp config/collector.toml my-collector.toml
 ```
 
-Open `http://127.0.0.1:9401` on the collector host. The dashboard shows thread
-groups, latest inferred state, a ten-second state mix, CPU usage, open/recent
-alerts, monitor health and selectable per-thread rollup history. The HTTP listener
-defaults to loopback; use an SSH tunnel or an authenticated reverse proxy for
-remote access. Neither UDP nor the HTTP API provides authentication.
+Edit the copies:
 
-**Alert settings** (the dashboard's *Alert settings* button) turn each rule on or
-off and change its thresholds: CPU warning/critical percentages and how long CPU
-must stay above them, run delay, kernel-wait, sampler-silence and target-absence
-durations, packet loss and the reminder interval. Changes apply immediately and
-are saved to `alert-settings.json` in `data_dir`, layered over the collector TOML;
-*Reset to config file* deletes that file. Turning a rule off resolves its open
-alerts. The same ranges apply to TOML values, so for example `reminder_secs`
-must be at least 60. Delivery destinations and window sizes stay in the TOML. Writes require a
-JSON body with an `X-Triangulator: 1` header, refuse other origins, and accept only
-IP-literal, `localhost` or `http_host` host names; list reverse-proxy names in
-`http_allowed_hosts`. Anyone who can reach the dashboard can change alert
-settings, so keep it on loopback or behind an authenticating proxy.
+- `my-sampler.toml`: set `target_process` (or `target_pid`) and `collector = "127.0.0.1:9400"`.
+- `my-collector.toml`: set `sampler_ip = "127.0.0.1"`, a writable `data_dir` (for
+  example `"./data"`), and your `clock_ticks` (`getconf CLK_TCK`, usually 100).
+  Remove or replace the placeholder `webhook_url` unless you want alert delivery.
 
-The sampler accepts flat `key = value` configuration with double-quoted strings,
-booleans and `#` comments. Duplicate keys, unknown keys and malformed values are
-rejected; configuration must be smaller than 16 KiB, with lines no longer than
-1,023 bytes. It accepts numeric IPv4 or `[IPv6]:port` destinations;
-it does not perform DNS lookups. `SIGHUP` reloads configuration atomically; invalid
-configuration leaves the previous settings active. A successful reload begins a
-new session, so a change in counter mode cannot corrupt deltas. `rate_hz` accepts
-0.2–10. The collector reads full TOML at startup; restart it after configuration
-changes.
+Then start both (run the sampler as the same user as the target process) and open
+<http://127.0.0.1:9401>:
+
+```sh
+scripts/start.sh collector my-collector.toml
+scripts/start.sh sampler my-sampler.toml
+scripts/stop.sh sampler; scripts/stop.sh collector   # when done
+```
+
+Logs are in `.run/`. To deploy with systemd, see [Production setup](#production-setup).
+
+## Requirements and build
+
+Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
+Make and Python 3.11+. No third-party packages.
+
+```sh
+make          # build/triangulator-sampler
+make check    # C++ and Python tests
+```
+
+## Configuration
+
+- **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
+  booleans and `#` comments. Unknown or duplicate keys and malformed values are
+  rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
+  `rate_hz` accepts 0.2–10. `SIGHUP` reloads the file; an invalid file leaves the old
+  settings active, and a successful reload starts a new session.
+- **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
+  after changes. Validate with
+  `python3 -B -m triangulator config/collector.toml --check-config`.
+  - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
+    format does not carry it.
+  - `[alerts]` takes a `webhook_url` and/or SMTP settings. Webhooks receive JSON
+    with `ts`, `rule`, `group`, `tid`, `name`, `session`, `detail`, `severity` and
+    `status` (`opened`, `reminder`, `resolved`). The SMTP password comes from the
+    environment variable named by `password_env`; STARTTLS is on by default.
+
+## Dashboard
+
+Shows thread groups, latest state and wait channel, a ten-second state mix, CPU,
+run delay, I/O, open and recent alerts, monitor health, and per-thread history.
+
+The HTTP listener defaults to loopback. Neither UDP nor HTTP is authenticated, so
+use an SSH tunnel or an authenticating reverse proxy for remote access.
+
+**Alert settings** turn each rule on or off and change its thresholds (CPU
+warn/critical percentages and sustain time, run delay, kernel wait, sampler
+silence, target absence, packet loss, reminder interval). Changes apply
+immediately and are saved to `alert-settings.json` in `data_dir`, layered over the
+TOML. *Reset to config file* deletes that file. Turning a rule off resolves its
+open alerts. Delivery destinations and window sizes stay in the TOML.
+
+Anyone who can reach the dashboard can change alert settings. Writes need a JSON
+body with an `X-Triangulator: 1` header and an IP-literal, `localhost` or
+`http_host` host name; list reverse-proxy names in `http_allowed_hosts`.
+
+Read-only APIs: `/api/live` and
+`/api/history?session=SESSION&tid=TID&start=UNIX_SECONDS&end=UNIX_SECONDS`
+(at most 2,000 rollups; narrow the interval if `truncated` is true).
 
 ## Production setup
 
-Review and customize the example units in `deploy/` before installation. They
-are templates, with placeholder target user and collector IP. Install the sampler
-binary under `/usr/local/bin`, the Python `triangulator/` directory under
-`/opt/triangulator`, and configuration under `/etc/triangulator`. Keep all sampler
-code/configuration root-owned and non-writable by the target UID. The collector
-unit creates `/var/lib/triangulator` using `StateDirectory`.
+The units in `deploy/` are templates with a placeholder target user and collector
+IP; edit them first. Install the sampler binary in `/usr/local/bin`, `triangulator/`
+in `/opt/triangulator`, and configuration in `/etc/triangulator`. Keep sampler code
+and configuration root-owned and not writable by the target user. The collector unit
+creates `/var/lib/triangulator`.
 
-The sampler unit sets niceness 19, a 5% CPU quota, 32 MiB memory limit, a
-descriptor limit sufficient for the wire-format thread limit, read-only system
-access, no capabilities, syscall restrictions and an outbound IP allowlist.
-Tune the quota after
-measuring the real thread count and sampling rate; overruns skip deadlines.
-The sampler creates no listening socket, sends no signals to the target, and
-does not write files. Runtime messages go to stderr, captured by journald in the
-unit, with a one-minute warning rate limit.
+```sh
+python3 -B -m triangulator /etc/triangulator/collector.toml
+./build/triangulator-sampler /etc/triangulator/sampler.toml   # as the target user
+```
 
-Before deployment, perform the staging/host checks in design section 12:
+The sampler unit runs at niceness 19 with a 5% CPU quota, a 32 MiB memory limit,
+no capabilities and an outbound IP allowlist. Tune the quota after measuring your
+real thread count and rate; overruns skip deadlines. The sampler opens no listening
+socket, sends no signals to the target and writes no files. Messages go to stderr
+(journald), with a one-minute warning rate limit.
 
-- Run the sampler as the target UID. It needs no capabilities: `stat`,
-  `schedstat`, `io` and `wchan` are readable by the same user under any Yama
-  `ptrace_scope`. The sampler warns if every sleeping thread's wait
-  channel reads as hidden.
-- Verify scheduler statistics under load. If unavailable or unusably zero,
-  explicitly set sampler `status_fallback = true`. Zeros alone cannot reliably
-  distinguish an idle process from disabled accounting, so this is an operator
-  choice. Fallback counters are identified in each packet.
-- Confirm that thread prefixes fit the 15-byte Linux thread-name limit, and check
-  the wait-channel names your kernel reports (`cat /proc/PID/task/*/wchan`);
-  names the collector does not recognise show as `other` with the raw name.
+Checklist before going live (design section 12):
+
+- Run the sampler as the target user. It needs no privileges: `stat`, `schedstat`,
+  `io` and `wchan` are readable by the same user under any Yama `ptrace_scope`.
+  It warns if every sleeping thread's wait channel is hidden.
+- Check scheduler statistics under load. If they are missing or all zero, set
+  `status_fallback = true` in the sampler config. Zeros alone cannot tell an idle
+  process from disabled accounting, so this is your call. Run-delay percentage is
+  unavailable in fallback mode.
+- Check thread-name prefixes fit Linux's 15-byte limit and the wait-channel names
+  your kernel reports (`cat /proc/PID/task/*/wchan`). Unknown names show as `other`.
 - Restrict UDP by firewall or WireGuard and route it on the management network.
-  Set `sampler_ip`; if omitted, the collector pins the first valid sender IP.
-- Test the alert destination, disk budget and optional `deadman_url`.
+  Set `sampler_ip`; otherwise the collector pins the first sender it sees.
+- Test the alert destination, the disk budget and the optional `deadman_url`
+  (an external endpoint that alerts you if the collector stops).
 
-These repository checks cannot validate production kernel wait-channel names,
-network routing or the performance budget on your target host.
+## How it behaves
 
-## Data and alert behavior
-
-- The 48-byte header and 112-byte records (wire version 2) are encoded explicitly
-  little-endian. A datagram contains at most 10 threads (1,168 bytes). The 8-bit
-  chunk count limits a tick to 2,550 threads; excess threads are omitted with a
-  warning.
-- Chunks are deduplicated and reordered for up to two sample intervals, capped
-  at two seconds. Partial ticks remain useful. Later arrivals are counted as
-  late; missing chunks never imply a thread exit. A complete tick can establish
-  an exit. Threads not seen for `max(10 seconds, 3 intervals)` expire even if
-  ticks remain incomplete. Exit resolution events identify this uncertainty.
-- Packet loss estimates missing chunks plus sequence gaps over the last minute.
-  The expected chunk count for a completely missing tick is estimated from the
-  next received tick, so changing thread counts can affect the estimate.
-- CPU and scheduler deltas use sampler monotonic time, not network arrival time.
-  Counter regressions, sampler sessions and counter-mode changes reset baselines.
-  Collector `clock_ticks` must match the target. Wall clocks should be synchronized
-  for history; offsets over one day fall back to collector arrival time.
-- CPU alerts are checked at every sample. CPU is measured over the trailing
-  second, and an alert opens once a thread stays above `cpu_warn_pct` or
-  `cpu_crit_pct` continuously for `cpu_sustain_secs` (default 5), counted from
-  the first sample that measured it above. A burst shorter than that never
-  alerts; a real one is reported up to about a second later. It resolves after
-  the same duration below the threshold. A sampling gap or a threshold change
-  restarts the duration.
-- Starvation uses configurable 5–10 second windows with at least half the
-  expected samples, three qualifying windows to open and two clear windows to
-  resolve. Kernel-wait (`D`) alerts use a duration threshold. Sampling gaps break
-  continuous-wait evidence.
-- Waits never alert: futex (lock or condition), socket, poll and pipe waits are
-  shown on the dashboard as block types with their wait channel, and can be
-  filtered there.
-- Raw live samples expire after ten minutes and are additionally capped by
-  `max_live_samples` (default one million, shortened per-thread retention when
-  needed). A disappeared thread is removed from live memory; its persisted
-  rollups remain available. History is keyed by session and TID, with a generation
-  column distinguishing detected TID reuse.
-- SQLite uses UTC day files in WAL mode. Rollups include state sample counts,
-  coverage/validity, CPU, run delay, timeslice deltas, read/write byte rates and
-  major-fault deltas. Day files written by earlier versions gain the new columns
-  when opened. With fallback counters,
-  run-delay percentage is unavailable and timeslices mean voluntary switches.
-  `no_access` is preserved as its own count. `store_raw` additionally persists
-  decoded records. Data is committed every half second. Retention removes whole
-  day files (including WAL/SHM sidecars), keeping today and the preceding
-  `retention_days - 1` days.
-- Open and recent alerts are restored from retained SQLite files on collector
-  restart. Sample windows start fresh; thread alerts reconcile when data resumes.
-- Alert delivery runs outside the UDP loop, retries each channel three times,
-  and uses a bounded queue. Delivery failures/dropped notifications appear in
-  monitor diagnostics; alert events remain in SQLite. Reminders default to
-  30 minutes. This is best-effort delivery, not a durable notification outbox.
-  Configure the external dead-man endpoint to alert if the collector stops.
-
-Read-only APIs: `/api/live` and
-`/api/history?session=SESSION&tid=TID&start=UNIX_SECONDS&end=UNIX_SECONDS`.
-History returns at most 2,000 rollups; narrow the interval if `truncated` is true.
-Existing daily SQLite files can also be queried directly for historical sessions
-and alert events.
+- **Wire format:** 48-byte header and 112-byte records (version 2), little-endian,
+  at most 10 threads per datagram. A tick holds at most 2,550 threads; the rest are
+  dropped with a warning.
+- **Loss and reordering:** chunks are deduplicated and reordered for up to two
+  sample intervals (max two seconds). Partial ticks are still used, and a missing
+  chunk never implies a thread exit. Threads unseen for `max(10 s, 3 intervals)`
+  expire. Packet loss is estimated over the last minute.
+- **Time:** CPU and scheduler deltas use the sampler's monotonic clock. Counter
+  regressions, new sessions and counter-mode changes reset baselines. History needs
+  synchronized wall clocks; offsets over one day fall back to arrival time.
+- **File descriptors:** the sampler raises its soft open-file limit to the hard
+  limit and keeps four `/proc` files open per thread while the budget allows (32
+  are reserved); extra threads reopen their files each tick. Running out of
+  descriptors skips a tick rather than reporting the target absent.
+- **CPU alerts:** CPU is measured over the trailing second. An alert opens when a
+  thread stays above `cpu_warn_pct` or `cpu_crit_pct` for `cpu_sustain_secs`
+  (default 5) and resolves after the same time below. Shorter bursts never alert,
+  and a sampling gap or threshold change restarts the timer.
+- **Other alerts:** starvation uses 5–10 s windows (three bad windows to open, two
+  clear to resolve); kernel wait (`D` state) uses a duration. Ordinary waits
+  (futex, socket, poll, pipe) never alert; they appear as block types you can filter.
+- **Storage:** live samples expire after ten minutes and are capped by
+  `max_live_samples` (default one million). History is one SQLite file per UTC
+  day (WAL mode) with per-thread rollups, committed every half second.
+  `store_raw = true` also saves decoded records. Retention deletes whole day files,
+  keeping today and the previous `retention_days - 1`. Old day files gain new
+  columns when opened.
+- **Restart:** open and recent alerts are restored from SQLite; sample windows start
+  fresh.
+- **Delivery:** alerts are sent outside the UDP loop with three retries per channel
+  and a bounded queue. This is best effort, not a durable outbox; failures show in
+  monitor diagnostics and every event stays in SQLite. Reminders default to 30
+  minutes.
 
 ## Layout
 
-- `sampler/main.cpp`: sampling loop, absolute deadlines, UDP sending and reload.
-- `sampler/io.hpp`, `config.hpp`, `parsing.hpp`, `proc.hpp`, `protocol.hpp`:
-  RAII resources, typed configuration, `/proc` parsing/cache and wire encoding.
-- `triangulator/`: protocol, collector, interpretation, alerts, SQLite, delivery,
-  HTTP API and dashboard.
-- `config/`, `deploy/`: configuration and systemd examples.
-- `tests/`: C++ parser/resource/wire tests and Python protocol, alert,
-  loss/reordering, retention and real `/proc` integration checks.
+- `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
+  parsing and cache, wire encoding, RAII resources).
+- `triangulator/`: Python collector, alerts, SQLite, delivery, HTTP API, dashboard.
+- `config/`, `deploy/`: example configuration and systemd units.
+- `scripts/`: `start.sh` and `stop.sh`.
+- `tests/`: C++ and Python tests, including a real `/proc` integration check.
