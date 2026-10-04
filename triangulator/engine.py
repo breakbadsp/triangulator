@@ -297,6 +297,13 @@ class Monitor:
 
     def apply_alert_settings(self, alerts, now):
         """Replace thresholds and enabled rules in place; both engines share the dict."""
+        # A run proves "above/below the old threshold", which says nothing about a
+        # new threshold, so a changed threshold must collect fresh evidence.
+        changed = [rule for rule, key in (("cpu_warn", "cpu_warn_pct"), ("cpu_critical", "cpu_crit_pct"))
+                   if self.config["alerts"].get(key) != alerts.get(key)]
+        for thread in self.threads.values():
+            for rule in changed:
+                thread.cpu_runs.pop(rule, None)
         self.config["alerts"].clear()
         self.config["alerts"].update(alerts)
         self.alerts.close_disabled(now)
@@ -306,8 +313,12 @@ class Monitor:
 
         CPU is measured against the newest sample at least one second older, so
         clock-tick resolution stays near 1% at any sampling rate. A run of
-        above- or below-threshold readings starts at that reference sample; a
-        sampling gap clears the runs and the usable history (see process).
+        above- or below-threshold readings starts at the first sample that
+        measured it, not at that measurement's reference: a reading over one
+        second can cross the threshold although only part of that second was
+        busy, and crediting the whole second would let a burst shorter than
+        cpu_sustain_secs open an alert. A sampling gap clears the runs and the
+        usable history (see process).
         """
         reference = next((item for item in reversed(thread.raw)
                           if item.monotonic <= sample.monotonic - 1.0), None)
@@ -325,7 +336,7 @@ class Monitor:
             above = cpu > threshold
             run = thread.cpu_runs.get(rule)
             if run is None or run[0] != above:
-                run = thread.cpu_runs[rule] = (above, reference.monotonic)
+                run = thread.cpu_runs[rule] = (above, sample.monotonic)
             duration = sample.monotonic - run[1]
             condition = above if duration >= sustain else None
             if condition is None:

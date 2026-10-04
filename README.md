@@ -21,8 +21,12 @@ directory handles; `std::expected` for configuration errors; `std::variant` for
 target selection; and `std::chrono` for sampling deadlines. `/proc` parsers use
 `std::string_view`, `std::from_chars` and `std::optional` without allocating.
 Wire encoding uses fixed `std::array` buffers, bounded `std::span` views and
-explicit little-endian conversion, preserving the v1 binary format. The thread
-cache reserves its bounded capacity once and reuses descriptors across ticks.
+explicit little-endian conversion in the documented wire format (version 2).
+The thread cache reserves its bounded capacity once and reuses descriptors across
+ticks. At startup the sampler raises its soft open-file limit to the hard limit
+and keeps four `/proc` files open per thread only while that budget allows (32
+descriptors are reserved); further threads reopen their files every tick. Running
+out of descriptors skips a tick instead of reporting the target absent.
 Only the signal flags are shared with signal handlers; runtime state belongs to
 the sampler object. POSIX calls remain at the Linux I/O and timing boundaries.
 
@@ -131,9 +135,11 @@ network routing or the performance budget on your target host.
   for history; offsets over one day fall back to collector arrival time.
 - CPU alerts are checked at every sample. CPU is measured over the trailing
   second, and an alert opens once a thread stays above `cpu_warn_pct` or
-  `cpu_crit_pct` continuously for `cpu_sustain_secs` (default 5). It resolves
-  after the same duration below the threshold. A sampling gap restarts the
-  duration.
+  `cpu_crit_pct` continuously for `cpu_sustain_secs` (default 5), counted from
+  the first sample that measured it above. A burst shorter than that never
+  alerts; a real one is reported up to about a second later. It resolves after
+  the same duration below the threshold. A sampling gap or a threshold change
+  restarts the duration.
 - Starvation uses configurable 5–10 second windows with at least half the
   expected samples, three qualifying windows to open and two clear windows to
   resolve. Kernel-wait (`D`) alerts use a duration threshold. Sampling gaps break

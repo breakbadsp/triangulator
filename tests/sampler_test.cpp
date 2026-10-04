@@ -113,13 +113,37 @@ void test_raii() {
 
 }
 
+std::size_t open_descriptors() {
+    std::size_t count = 0;
+    const Directory directory{::opendir("/proc/self/fd")};
+    while (::readdir(directory.get())) ++count;
+    return count;
+}
+
+void test_descriptor_budget() {
+    require(ThreadCache{10}.max_kept() == 0, "a tiny limit keeps no descriptors open");
+    require(ThreadCache{ThreadCache::reserved_descriptors + 2 * Thread::descriptors_per_thread}.max_kept() == 2,
+            "budget is the limit minus the reserve, divided per thread");
+    RateLimitedLogger logger;
+    const int pid = ::getpid();
+    Thread transient{pid, false};
+    const auto before = open_descriptors();
+    require(transient.sample(pid, false, logger).has_value(), "transient thread samples");
+    require(open_descriptors() == before, "a thread over the budget holds no descriptors between ticks");
+    Thread kept{pid, true};
+    require(kept.sample(pid, false, logger).has_value(), "kept thread samples");
+    require(open_descriptors() == before + Thread::descriptors_per_thread, "a thread within the budget keeps its files open");
+    require(raise_descriptor_limit() >= 64, "descriptor limit is readable");
+}
+
 int main() {
     try {
         test_parsing();
         test_config();
         test_wire();
         test_raii();
-        std::puts("C++ sampler tests passed (parsing, configuration, wire compatibility, RAII)");
+        test_descriptor_budget();
+        std::puts("C++ sampler tests passed (parsing, configuration, wire compatibility, RAII, descriptor budget)");
     } catch (const std::exception& error) {
         std::fprintf(stderr, "%s\n", error.what());
         return 1;

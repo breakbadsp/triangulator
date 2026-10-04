@@ -139,19 +139,43 @@ class MonitorTests(unittest.TestCase):
     def opened(self, rule):
         return [event for event in self.events if event["rule"] == rule and event["status"] == "opened"]
 
-    def test_hot_thread_opens_after_five_seconds_and_resolves_after_five_cool_seconds(self):
-        for sequence in range(5):
+    def test_hot_thread_opens_after_five_observed_seconds_and_resolves_after_five_cool_seconds(self):
+        # Sample 1 is the first to measure CPU (over seconds 0..1), so the hot run starts there.
+        for sequence in range(6):
             self.feed(sequence, [record(state="R", wchan="", utime=sequence * 95)])
         self.assertFalse(self.opened("cpu_critical"))
-        self.feed(5, [record(state="R", wchan="", utime=5 * 95)])
+        self.feed(6, [record(state="R", wchan="", utime=6 * 95)])
         self.assertEqual(len(self.opened("cpu_critical")), 1)
         self.assertEqual(len(self.opened("cpu_warn")), 1)
-        self.assertEqual(self.opened("cpu_critical")[0]["ts"], 1700000005)
-        for sequence in range(6, 10):
-            self.feed(sequence, [record(utime=5 * 95, timeslices=10 + sequence)])
+        self.assertEqual(self.opened("cpu_critical")[0]["ts"], 1700000006)
+        for sequence in range(7, 12):
+            self.feed(sequence, [record(utime=6 * 95, timeslices=10 + sequence)])
         self.assertIn(("cpu_critical", "worker", 42), self.monitor.alerts.open)
-        self.feed(10, [record(utime=5 * 95, timeslices=20)])
+        self.feed(12, [record(utime=6 * 95, timeslices=22)])
         self.assertNotIn(("cpu_critical", "worker", 42), self.monitor.alerts.open)
+
+    def feed_at_10hz(self, start, samples):
+        """Feed (seconds, utime) pairs as 10 Hz samples; sequence numbers continue from start."""
+        for offset, (seconds, utime) in enumerate(samples):
+            self.feed(start + offset, [record(state="R", utime=utime)], interval_ms=100,
+                      monotonic_ns=round((1000 + seconds) * 1e9), wall_ns=round((1700000000 + seconds) * 1e9))
+
+    def burst(self, burst_start, burst_end, until):
+        """utime for a thread at 100% from burst_start to burst_end seconds, idle otherwise, sampled at 10 Hz."""
+        samples = []
+        for step in range(round(until * 10) + 1):
+            seconds = step / 10
+            busy = min(max(seconds, burst_start), burst_end) - burst_start
+            samples.append((seconds, round(busy * 100)))
+        return samples
+
+    def test_burst_shorter_than_sustain_does_not_alert_at_10hz(self):
+        self.feed_at_10hz(0, self.burst(1.0, 5.5, until=8))
+        self.assertFalse(self.opened("cpu_warn"))
+
+    def test_burst_longer_than_sustain_alerts_at_10hz(self):
+        self.feed_at_10hz(0, self.burst(1.0, 7.5, until=9))
+        self.assertEqual(len(self.opened("cpu_warn")), 1)
 
     def test_short_cpu_spike_and_moderate_cpu_do_not_alert(self):
         for sequence in range(4):
@@ -178,6 +202,20 @@ class MonitorTests(unittest.TestCase):
             self.feed(sequence, [record(state="R", utime=sequence * 100)])
         self.assertEqual(len(self.opened("cpu_warn")), 2)
 
+    def test_raising_threshold_discards_evidence_from_old_threshold(self):
+        alerts = dict(self.config["alerts"])
+        validate_alerts(alerts)
+        self.monitor.apply_alert_settings(merge_settings(alerts, {"cpu_sustain_secs": 20, "cpu_crit_pct": 99.5}), 1700000000)
+        for sequence in range(21):  # 60% CPU for 20 measured seconds, just short of opening
+            self.feed(sequence, [record(state="R", utime=sequence * 60)])
+        self.assertFalse(self.opened("cpu_warn"))
+        self.monitor.apply_alert_settings(merge_settings(self.config["alerts"], {"cpu_warn_pct": 80}), 1700000020)
+        self.feed(21, [record(state="R", utime=20 * 60 + 100)])
+        self.assertFalse(self.opened("cpu_warn"), "one second over 80% must not count as 20")
+        for sequence in range(22, 42):
+            self.feed(sequence, [record(state="R", utime=20 * 60 + (sequence - 20) * 100)])
+        self.assertEqual(len(self.opened("cpu_warn")), 1, "20 seconds over the new threshold still alert")
+
     def test_futex_and_socket_waits_never_alert(self):
         for sequence in range(40):
             self.feed(sequence, [record(), record(tid=43, wchan="__skb_wait_for_more_packets", comm="io-1")])
@@ -187,8 +225,8 @@ class MonitorTests(unittest.TestCase):
         for sequence in list(range(4)) + list(range(7, 11)):
             self.feed(sequence, [record(state="R", utime=sequence * 100)])
         self.assertFalse(self.opened("cpu_critical"))
-        self.feed(11, [record(state="R", utime=1100)])
-        self.feed(12, [record(state="R", utime=1200)])
+        for sequence in range(11, 14):
+            self.feed(sequence, [record(state="R", utime=sequence * 100)])
         self.assertEqual(len(self.opened("cpu_critical")), 1)
 
     def test_kernel_and_starvation(self):
@@ -426,6 +464,50 @@ class SamplerTests(unittest.TestCase):
                 if sampler is not None:
                     sampler.terminate()
                     sampler.communicate(timeout=3)
+                target.terminate()
+                target.communicate(timeout=3)
+
+
+class DescriptorLimitTests(unittest.TestCase):
+    def test_low_descriptor_limit_keeps_every_thread_and_one_session(self):
+        """Caching 4 descriptors per thread must not exhaust RLIMIT_NOFILE and make a live target look absent."""
+        import resource
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(3)
+            target = subprocess.Popen([sys.executable, str(root / "tests/sampler_target.py")],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            sampler = None
+            try:
+                name = target.stdout.readline().strip()
+                config = Path(directory) / "sampler.toml"
+                config.write_text(f'target_process="{name}"\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                # 26 threads x 4 descriptors = 104 cached descriptors, more than the limit.
+                sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(config)], stderr=subprocess.PIPE,
+                                           text=True, preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_NOFILE, (96, 96)))
+                ticks, sessions, absent = {}, set(), 0
+                for _ in range(200):
+                    if len([tick for tick in ticks.values() if len(tick) == 3]) >= 15:
+                        break
+                    value = decode(receiver.recv(1200))
+                    sessions.add(value.session)
+                    if value.flags & 1:
+                        absent += 1
+                        continue
+                    ticks.setdefault(value.sequence, {})[value.chunk] = value.records
+                complete = [tick for tick in ticks.values() if len(tick) == 3]
+                self.assertEqual(absent, 0, "a live target was reported absent")
+                self.assertGreaterEqual(len(complete), 15, "too few complete ticks")
+                self.assertEqual(len(sessions), 1, "the session was reset")
+                for tick in complete:
+                    self.assertEqual(sum(len(records) for records in tick.values()), 26)
+            finally:
+                if sampler is not None:
+                    sampler.terminate()
+                    sampler.communicate(timeout=3)
+                target.stdin.write("release\n")
+                target.stdin.flush()
                 target.terminate()
                 target.communicate(timeout=3)
 

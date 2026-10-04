@@ -39,7 +39,8 @@ void install_signal_handlers() {
 
 class Sampler {
 public:
-    explicit Sampler(RuntimeConfig config) : config_(std::move(config)) {}
+    Sampler(RuntimeConfig config, std::size_t descriptor_limit)
+        : config_(std::move(config)), threads_(descriptor_limit) {}
 
     void run(const char* config_path) {
         auto deadline = clock_now(CLOCK_MONOTONIC);
@@ -54,29 +55,15 @@ public:
                     logger_.warn(std::format("invalid SIGHUP config; keeping previous configuration: {}", next.error()));
                 }
             }
-            const auto target = find_target(config_.settings.target);
-            if (target != previous_target_) {
-                reset_session();
-                previous_target_ = target;
+            const auto lookup = find_target(config_.settings.target);
+            if (lookup) {
+                sample_tick(*lookup);
+            } else {
+                // Not the same as "target absent": keep the session and the
+                // thread cache, send nothing and retry at the next deadline.
+                logger_.warn(std::format("target lookup failed: {}; tick skipped, session kept",
+                                         std::generic_category().message(lookup.error())));
             }
-            const auto monotonic = clock_now(CLOCK_MONOTONIC);
-            const auto wall = clock_now(CLOCK_REALTIME);
-            const auto pid = target ? target->pid : 0;
-            std::size_t count = 0;
-            std::size_t sleeping_without_wchan = 0;
-            if (target) {
-                threads_.rescan(pid, logger_);
-                for (auto& thread : threads_.threads()) {
-                    if (auto sample = thread.sample(pid, config_.settings.status_fallback, logger_)) {
-                        records_[count++] = sample->record;
-                        sleeping_without_wchan += static_cast<std::size_t>(sample->wchan_hidden);
-                    }
-                }
-                if (count && count == sleeping_without_wchan) {
-                    logger_.warn("wchan hidden for every sleeping thread; run the sampler as the target's UID");
-                }
-            }
-            send_tick(pid, monotonic, wall, std::span{records_}.first(count));
             const auto interval = config_.settings.interval();
             const auto now = clock_now(CLOCK_MONOTONIC);
             deadline += interval;
@@ -86,6 +73,31 @@ public:
     }
 
 private:
+    void sample_tick(const std::optional<TargetIdentity>& target) {
+        if (target != previous_target_) {
+            reset_session();
+            previous_target_ = target;
+        }
+        const auto monotonic = clock_now(CLOCK_MONOTONIC);
+        const auto wall = clock_now(CLOCK_REALTIME);
+        const auto pid = target ? target->pid : 0;
+        std::size_t count = 0;
+        std::size_t sleeping_without_wchan = 0;
+        if (target) {
+            threads_.rescan(pid, logger_);
+            for (auto& thread : threads_.threads()) {
+                if (auto sample = thread.sample(pid, config_.settings.status_fallback, logger_)) {
+                    records_[count++] = sample->record;
+                    sleeping_without_wchan += static_cast<std::size_t>(sample->wchan_hidden);
+                }
+            }
+            if (count && count == sleeping_without_wchan) {
+                logger_.warn("wchan hidden for every sleeping thread; run the sampler as the target's UID");
+            }
+        }
+        send_tick(pid, monotonic, wall, std::span{records_}.first(count));
+    }
+
     void reset_session() {
         threads_.clear();
         session_ = new_session();
@@ -153,7 +165,7 @@ int main(int argc, char** argv) {
             return 2;
         }
         triangulator::install_signal_handlers();
-        triangulator::Sampler sampler{std::move(*config)};
+        triangulator::Sampler sampler{std::move(*config), triangulator::raise_descriptor_limit()};
         sampler.run(argv[1]);
     } catch (const std::exception& error) {
         std::fprintf(stderr, "triangulator: %s\n", error.what());

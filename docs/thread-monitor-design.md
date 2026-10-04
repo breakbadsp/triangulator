@@ -51,6 +51,7 @@ Out of scope for v1: privileged data (`/proc/<tid>/syscall`, `stack`), "slow but
 
 - Single thread. Loop on absolute deadlines (`clock_nanosleep` with `TIMER_ABSTIME`). If a tick overruns, skip to the next future deadline; never catch up in a burst.
 - Per thread, keep `/proc/<pid>/task/<tid>/{stat,schedstat,io,wchan}` open and read with `pread`. Rescan `task/` each tick for new and exited threads; close descriptors for exited threads.
+- **Descriptor budget:** four descriptors per thread can exceed a shell's default `RLIMIT_NOFILE` (often 1024). At startup the sampler raises its soft limit to the hard limit, reserves 32 descriptors, and keeps files open only for as many threads as the rest allows; other threads open, read and close their files each tick. If an `open` still fails with `EMFILE`/`ENFILE` while looking up the target, the tick is skipped and the session kept, because running out of descriptors is not the target disappearing.
 - Parse `stat` from the last `)`, because `comm` (field 2) can contain spaces and parentheses.
 - Send with non-blocking `sendto`. On `EAGAIN` or `ENOBUFS`, drop the datagram.
 - Send over the management network, not the data-path NIC.
@@ -176,7 +177,7 @@ Starvation deltas are computed over 5 s windows (configurable, 5 to 10 s). A win
 
 | Case | Signal | Alert when |
 |---|---|---|
-| **Too much CPU** | Delta(`utime`+`stime`) / delta t, measured at every sample over the trailing second | Above 50% (warn) or 90% (critical, spin or runaway) continuously for 5 s (`cpu_sustain_secs`); resolves after 5 s below. A sampling gap restarts the duration. |
+| **Too much CPU** | Delta(`utime`+`stime`) / delta t, measured at every sample over the trailing second | Above 50% (warn) or 90% (critical, spin or runaway) continuously for 5 s (`cpu_sustain_secs`), counted from the first sample that measured it above, so a shorter burst never qualifies; resolves after 5 s below. A sampling gap or a threshold change restarts the duration. |
 | **Starved** | Delta run delay / delta t | Above 20% of the window |
 | **Stuck in kernel** | State `D` in every sample | For more than 5 s |
 
