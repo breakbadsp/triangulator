@@ -167,8 +167,14 @@ Checklist before going live (design section 12):
 `collector/` is a C++ port of the Python collector. It reads the same config file,
 stores the same SQLite rows, applies the same alert rules and serves the same
 dashboard and API: `build/triangulator-collector config/local/collector.toml`.
-Email delivery is not ported yet: a config with `[alerts.smtp]` starts with a
-warning and the C++ collector ignores the table (webhooks work).
+Email delivery is deliberately not part of it: a config with `[alerts.smtp]`
+starts with a warning and the table is ignored (webhooks work).
+
+**Rule:** latency- and performance-critical code (receiving datagrams, the alert
+engine, storage, the dashboard API) belongs in C++ or Rust. Email and other
+notifications, reports and richer dashboard data can be added in other languages
+as separate programs that read the SQLite files or the HTTP API. They must stay
+off the UDP stream and out of the collector's main loop.
 `make check` runs the collector end-to-end tests against both, plus a parity test
 that sends identical datagrams to each and requires identical rollups and alerts.
 
