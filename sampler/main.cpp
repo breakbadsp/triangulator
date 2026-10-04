@@ -63,17 +63,17 @@ public:
             const auto wall = clock_now(CLOCK_REALTIME);
             const auto pid = target ? target->pid : 0;
             std::size_t count = 0;
-            std::size_t inaccessible = 0;
+            std::size_t sleeping_without_wchan = 0;
             if (target) {
                 threads_.rescan(pid, logger_);
                 for (auto& thread : threads_.threads()) {
                     if (auto sample = thread.sample(pid, config_.settings.status_fallback, logger_)) {
                         records_[count++] = sample->record;
-                        inaccessible += static_cast<std::size_t>(sample->syscall_unreadable);
+                        sleeping_without_wchan += static_cast<std::size_t>(sample->wchan_hidden);
                     }
                 }
-                if (count && count == inaccessible) {
-                    logger_.warn("syscall unreadable for every thread; check target UID/Yama ptrace permissions and CAP_SYS_PTRACE");
+                if (count && count == sleeping_without_wchan) {
+                    logger_.warn("wchan hidden for every sleeping thread; run the sampler as the target's UID");
                 }
             }
             send_tick(pid, monotonic, wall, std::span{records_}.first(count));

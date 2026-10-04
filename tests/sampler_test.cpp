@@ -13,23 +13,26 @@ void require(bool condition, std::string_view message) {
 
 void test_parsing() {
     std::string stat = "42 (worker ) ( name) S";
-    for (int field = 4; field <= 22; ++field) {
-        stat += std::format(" {}", field == 14 ? 100 : field == 15 ? 50 : field == 22 ? 12345 : 0);
+    for (int field = 4; field <= 52; ++field) {
+        stat += std::format(" {}", field == 12 ? 7 : field == 14 ? 100 : field == 15 ? 50 : field == 22 ? 12345 : field == 39 ? 3 : 0);
     }
     const auto parsed = parse_stat(stat);
     require(parsed.has_value(), "stat with parentheses must parse");
     require(std::string_view{parsed->name.data()} == "worker ) ( name", "comm must use last closing parenthesis");
     require(parsed->utime == 100 && parsed->stime == 50 && parsed->starttime == 12345, "stat fields must retain their numbering");
+    require(parsed->major_faults == 7 && parsed->processor == 3, "major faults and last CPU");
     require(!parse_stat("42 (bad) S 0"), "truncated stat must fail");
     require(!parse_number<std::uint64_t>("-1"), "negative counters must fail");
     require(!parse_number<std::uint64_t>("18446744073709551616"), "counter overflow must fail");
     require(!parse_number<int>("12garbage"), "partially parsed numbers must fail");
-    require(parse_syscall("running\n").number == -2, "running syscall sentinel");
-    require(parse_syscall("-1 0x0 0x0\n").number == -1, "not-in-syscall sentinel");
-    require(parse_syscall("denied").unreadable(), "invalid syscall is unreadable");
-    const auto syscall = parse_syscall(std::format("{} 0x123 0x189 0x0 0x1234 0x0", SYS_futex));
-    require(syscall.number == SYS_futex && syscall.futex_op == 393 && syscall.timeout_set, "futex flags and timeout pointer");
-    require(parse_syscall(std::format("{} 0x123 0x80", SYS_futex)).unreadable(), "incomplete futex must not look like a lock wait");
+    require(std::string_view{parse_wchan("futex_do_wait").data()} == "futex_do_wait", "plain wchan");
+    require(std::string_view{parse_wchan("poll_schedule_timeout.constprop.0").data()} == "poll_schedule_timeout",
+            "compiler suffix is dropped");
+    require(parse_wchan("0").front() == '\0', "running or hidden wchan is empty");
+    require(parse_wchan(std::string(40, 'x')).back() == 'x', "long wchan is truncated without overflow");
+    const auto io = parse_io("rchar: 11\nwchar: 22\nsyscr: 3\nsyscw: 4\nread_bytes: 0\n");
+    require(io && io->read_bytes == 11 && io->write_bytes == 22, "io counters");
+    require(!parse_io("rchar: 11\n"), "both io counters are required");
     const auto schedstat = parse_schedstat("123 456 789\n");
     require(schedstat && schedstat->run_delay == 456 && schedstat->timeslices == 789, "scheduler counters");
     const auto status = parse_status("Name:\tworker\nvoluntary_ctxt_switches:\t12\nnonvoluntary_ctxt_switches:\t34\n");
@@ -65,20 +68,26 @@ void test_config() {
 void require_hex(std::span<const std::byte> bytes, std::string_view expected) {
     require(bytes.size() * 2 == expected.size(), "golden packet length");
     for (std::size_t index = 0; index < bytes.size(); ++index) {
-        require(std::to_integer<unsigned>(bytes[index]) == parse_hex(expected.substr(index * 2, 2)), "wire bytes must match v1 golden packet");
+        require(std::to_integer<unsigned>(bytes[index]) == parse_hex(expected.substr(index * 2, 2)), "wire bytes must match v2 golden packet");
     }
 }
 
 void test_wire() {
-    ThreadStat stat{.state = 'S', .utime = 0x0102030405060708ULL, .stime = 9};
+    ThreadStat stat{.state = 'S', .major_faults = 5, .utime = 0x0102030405060708ULL, .stime = 9, .processor = 0x0102};
     std::ranges::copy(std::string_view{"worker"}, stat.name.begin());
-    const auto record = wire::encode_record(0x01020304, stat, {.number = 202, .futex_op = 393, .timeout_set = true}, {10, 11});
-    require_hex(record, "040302015301ca0089010000080706050403020109000000000000000a000000000000000b00000000000000776f726b657200000000000000000000");
+    const auto record = wire::encode_record(0x01020304, stat, {10, 11}, IoCounters{12, 13}, parse_wchan("futex_do_wait"));
+    require_hex(record,
+        "04030201530002010807060504030201090000000000000"
+        "00a000000000000000b0000000000000005000000000000000c000000000000000d00000000000000"
+        "776f726b657200000000000000000000"
+        "66757465785f646f5f7761697400000000000000000000000000000000000000");
+    const auto missing_io = wire::encode_record(1, stat, {10, 11}, std::nullopt, WaitChannel{});
+    require(missing_io[5] == std::byte{1}, "unreadable io is flagged");
     std::array<std::byte, wire::header_size> header{};
     wire::encode_header(header, {.flags = wire::Flags::status_fallback, .chunk = 1, .chunks = 3,
         .session = 0x0102030405060708ULL, .sequence = 0x090a0b0c, .records = 1, .monotonic_ns = 12,
         .wall_ns = 13, .interval_ms = 1000, .pid = 0x01020304});
-    require_hex(header, "544d4f4e0102010308070605040302010c0b0a09010000000c000000000000000d00000000000000e803000004030201");
+    require_hex(header, "544d4f4e0202010308070605040302010c0b0a09010000000c000000000000000d00000000000000e803000004030201");
 }
 
 void test_raii() {

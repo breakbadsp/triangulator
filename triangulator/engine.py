@@ -2,7 +2,7 @@ import collections
 import dataclasses
 import math
 
-from .protocol import STATUS_FALLBACK, TARGET_ABSENT, classify
+from .protocol import IO_UNAVAILABLE, STATUS_FALLBACK, TARGET_ABSENT, classify
 
 
 class AlertEngine:
@@ -197,7 +197,7 @@ class Monitor:
         for record in records:
             seen.add(record.tid)
             sample = Sample(monotonic, wall, self.interval, bool(packet.flags & STATUS_FALLBACK),
-                            record, classify(record, self.config["arch"]))
+                            record, classify(record))
             group = self.group_for(record.comm)
             thread = self.threads.get(record.tid)
             if thread is not None:
@@ -279,11 +279,16 @@ class Monitor:
         slices_delta = last.record.timeslices - first.record.timeslices
         cpu = cpu_delta / self.config["clock_ticks"] / elapsed * 100 if valid else None
         delay = delay_delta / 1e9 / elapsed * 100 if valid and not last.fallback else None
+        read_rate = (last.record.read_bytes - first.record.read_bytes) / elapsed if valid else None
+        write_rate = (last.record.write_bytes - first.record.write_bytes) / elapsed if valid else None
+        faults_delta = last.record.major_faults - first.record.major_faults
         counts = dict(collections.Counter(sample.state for sample in samples))
         row = {"ts": last.wall - (last.monotonic % window_s), "session": str(self.session),
                "tid": tid, "name": last.record.comm, "group": thread.group["name"],
                "cpu_pct": cpu, "run_delay_pct": delay, "sample_counts": counts,
-               "timeslices_delta": slices_delta if valid else None, "samples": len(samples),
+               "timeslices_delta": slices_delta if valid else None, "read_bps": read_rate,
+               "write_bps": write_rate, "major_faults_delta": faults_delta if valid else None,
+               "samples": len(samples),
                "expected_samples": expected, "valid": valid, "generation": thread.generation}
         self.storage.rollup(row)
         thread.last_rollup = row
@@ -306,8 +311,8 @@ class Monitor:
         contiguous = all(right.monotonic - left.monotonic <= max(left.interval, right.interval) * 1.5
                          for left, right in zip([first] + samples, samples))
         frozen = cpu_delta == 0 and slices_delta == 0 and (not last.fallback or delay_delta == 0)
-        all_blocked = (all(sample.state in {"lock", "condition"} for sample in samples)
-                       and len({(sample.record.syscall, sample.record.futex_op) for sample in samples}) == 1
+        all_blocked = (all(sample.state == "futex" for sample in samples)
+                       and len({sample.record.wchan for sample in samples}) == 1
                        and frozen and not thread.group.get("allow_untimed_wait", False))
         all_kernel = counts.get("kernel", 0) == len(samples)
         for rule, active, attribute, duration in (
@@ -343,8 +348,8 @@ class Monitor:
             "sampler_silent": (silent, "No fresh sampler datagrams"),
             "target_absent": (not silent and self.absent_since is not None and now - self.absent_since >= thresholds["target_absent_secs"], "Sampler reports target absent"),
             "packet_loss": (loss_pct > thresholds["packet_loss_pct"], f"Estimated packet loss {loss_pct:.1f}% over 60s"),
-            "access_lost": (not silent and bool(self.threads) and sum(thread.latest.record.syscall == -3 for thread in self.threads.values()) > len(self.threads) / 2,
-                            "Most threads have unreadable syscall data"),
+            "access_lost": (not silent and bool(self.threads) and sum(thread.latest.state == "no_access" for thread in self.threads.values()) > len(self.threads) / 2,
+                            "Most threads have a hidden wait channel"),
         }
         for rule, (condition, detail) in conditions.items():
             self.alerts.evaluate(rule, "monitor", 0, condition, now, metadata, detail, immediate=True)
@@ -366,11 +371,20 @@ class Monitor:
             counts = dict(collections.Counter(item.state for item in recent))
             first = recent[0] if recent else sample
             elapsed = sample.monotonic - first.monotonic
-            cpu = ((sample.record.utime + sample.record.stime - first.record.utime - first.record.stime)
+            current, previous = sample.record, first.record
+
+            def rate(name, scale=1.0):
+                return (getattr(current, name) - getattr(previous, name)) / scale / elapsed if elapsed > 0 else None
+
+            cpu = ((current.utime + current.stime - previous.utime - previous.stime)
                    / self.config["clock_ticks"] / elapsed * 100) if elapsed > 0 else None
-            threads.append({"tid": tid, "name": sample.record.comm, "group": thread.group["name"],
-                            "state": sample.state, "cpu_pct": cpu, "state_mix": counts,
-                            "syscall": sample.record.syscall, "futex_op": sample.record.futex_op,
+            threads.append({"tid": tid, "name": current.comm, "group": thread.group["name"],
+                            "state": sample.state, "wchan": current.wchan, "cpu": current.processor,
+                            "cpu_pct": cpu, "state_mix": counts,
+                            "run_delay_pct": None if sample.fallback or elapsed <= 0 else rate("run_delay", 1e9) * 100,
+                            "switches_per_s": rate("timeslices"), "major_faults_per_s": rate("major_faults"),
+                            "read_bps": None if current.flags & IO_UNAVAILABLE else rate("read_bytes"),
+                            "write_bps": None if current.flags & IO_UNAVAILABLE else rate("write_bytes"),
                             "last_sample": sample.wall, "stale": now - sample.wall > max(10, self.interval * 3),
                             "generation": thread.generation})
         return {"threads": threads, "groups": dict(collections.Counter(item["group"] for item in threads)),

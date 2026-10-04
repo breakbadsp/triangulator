@@ -4,10 +4,8 @@
 #include <array>
 #include <charconv>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <string_view>
-#include <sys/syscall.h>
 
 namespace triangulator {
 
@@ -46,9 +44,11 @@ template <typename Number>
 struct ThreadStat {
     std::array<char, 16> name{};
     char state{};
+    std::uint64_t major_faults{};
     std::uint64_t utime{};
     std::uint64_t stime{};
     std::uint64_t starttime{};
+    std::uint16_t processor{};
 };
 
 [[nodiscard]] inline std::optional<ThreadStat> parse_stat(std::string_view text) {
@@ -59,52 +59,65 @@ struct ThreadStat {
     ThreadStat result;
     std::ranges::copy(text.substr(first + 1, std::min(last - first - 1, std::size_t{15})), result.name.begin());
     auto fields = text.substr(last + 2);
-    for (int field = 3; field <= 22; ++field) {
+    for (int field = 3; field <= 39; ++field) {
         const auto token = next_token(fields);
         if (token.empty()) return std::nullopt;
         if (field == 3) {
             if (token.size() != 1) return std::nullopt;
             result.state = token.front();
         }
-        if (field == 14 || field == 15 || field == 22) {
+        if (field == 12 || field == 14 || field == 15 || field == 22) {
             const auto value = parse_number<std::uint64_t>(token);
             if (!value) return std::nullopt;
+            if (field == 12) result.major_faults = *value;
             if (field == 14) result.utime = *value;
             if (field == 15) result.stime = *value;
             if (field == 22) result.starttime = *value;
+        }
+        if (field == 39) {
+            const auto value = parse_number<std::uint16_t>(token);
+            if (!value) return std::nullopt;
+            result.processor = *value;
         }
     }
     return result;
 }
 
-enum class SyscallSentinel : std::int16_t { not_in_syscall = -1, running = -2, unreadable = -3 };
+// Kernel function a sleeping thread waits in. "0" means running, or no access.
+// Compiler suffixes such as ".constprop.0" or ".isra.0" are dropped.
+using WaitChannel = std::array<char, 32>;
 
-struct Syscall {
-    std::int16_t number = static_cast<std::int16_t>(SyscallSentinel::unreadable);
-    std::uint32_t futex_op{};
-    bool timeout_set{};
+[[nodiscard]] inline WaitChannel parse_wchan(std::string_view text) {
+    WaitChannel result{};
+    text = trim(text);
+    text = text.substr(0, text.find('.'));
+    if (text == "0") return result;
+    std::ranges::copy(text.substr(0, result.size()), result.begin());
+    return result;
+}
 
-    [[nodiscard]] bool unreadable() const noexcept {
-        return number == static_cast<std::int16_t>(SyscallSentinel::unreadable);
-    }
+struct IoCounters {
+    std::uint64_t read_bytes{};
+    std::uint64_t write_bytes{};
 };
 
-[[nodiscard]] inline Syscall parse_syscall(std::string_view text) {
-    const auto token = next_token(text);
-    if (token == "running") return {.number = static_cast<std::int16_t>(SyscallSentinel::running)};
-    const auto number = parse_number<std::int16_t>(token);
-    if (!number || *number < -1) return {};
-    Syscall result{.number = *number};
-    if (*number == SYS_futex) {
-        const auto address = parse_hex(next_token(text));
-        const auto operation = parse_hex(next_token(text));
-        const auto value = parse_hex(next_token(text));
-        const auto timeout = parse_hex(next_token(text));
-        if (!address || !operation || !value || !timeout || *operation > std::numeric_limits<std::uint32_t>::max()) return {};
-        result.futex_op = static_cast<std::uint32_t>(*operation);
-        result.timeout_set = *timeout != 0;
+// rchar and wchar from /proc/<pid>/task/<tid>/io: bytes moved by read- and
+// write-family syscalls, including sockets and pipes.
+[[nodiscard]] inline std::optional<IoCounters> parse_io(std::string_view text) {
+    std::optional<std::uint64_t> read;
+    std::optional<std::uint64_t> written;
+    while (!text.empty()) {
+        const auto end = text.find('\n');
+        const auto line = text.substr(0, end);
+        text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
+        const auto separator = line.find(':');
+        if (separator == std::string_view::npos) continue;
+        const auto key = line.substr(0, separator);
+        if (key == "rchar") read = parse_number<std::uint64_t>(trim(line.substr(separator + 1)));
+        if (key == "wchar") written = parse_number<std::uint64_t>(trim(line.substr(separator + 1)));
     }
-    return result;
+    if (!read || !written) return std::nullopt;
+    return IoCounters{*read, *written};
 }
 
 struct SchedulerCounters {

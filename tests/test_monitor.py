@@ -2,6 +2,7 @@ import http.server
 import json
 import signal
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -14,12 +15,13 @@ from pathlib import Path
 from triangulator.config import DEFAULT_ALERTS
 from triangulator.engine import Monitor
 from triangulator.protocol import HEADER, RECORD, Packet, Record, classify, decode
-from triangulator.storage import Storage, history
+from triangulator.storage import SCHEMA, Storage, history
 
 
 def record(**values):
-    return Record(**{**dict(tid=42, state="S", flags=0, syscall=202, futex_op=128,
-                           utime=0, stime=0, run_delay=0, timeslices=10, comm="worker-1"), **values})
+    return Record(**{**dict(tid=42, state="S", flags=0, processor=0, utime=0, stime=0, run_delay=0,
+                           timeslices=10, major_faults=0, read_bytes=0, write_bytes=0, comm="worker-1",
+                           wchan="futex_do_wait"), **values})
 
 
 def packet(sequence, records=None, **values):
@@ -30,40 +32,44 @@ def packet(sequence, records=None, **values):
 
 
 def encode(value):
-    header = HEADER.pack(b"TMON", 1, value.flags, value.chunk, value.chunks, value.session,
+    header = HEADER.pack(b"TMON", 2, value.flags, value.chunk, value.chunks, value.session,
                          value.sequence, len(value.records), value.monotonic_ns, value.wall_ns,
                          value.interval_ms, value.pid)
-    body = b"".join(RECORD.pack(item.tid, ord(item.state), item.flags, item.syscall, item.futex_op,
-                               item.utime, item.stime, item.run_delay, item.timeslices,
-                               item.comm.encode().ljust(16, b"\0")) for item in value.records)
+    body = b"".join(RECORD.pack(item.tid, ord(item.state), item.flags, item.processor, item.utime, item.stime,
+                               item.run_delay, item.timeslices, item.major_faults, item.read_bytes,
+                               item.write_bytes, item.comm.encode().ljust(16, b"\0"),
+                               item.wchan.encode().ljust(32, b"\0")) for item in value.records)
     return header + body
 
 
 class ProtocolTests(unittest.TestCase):
     def test_exact_wire_sizes_and_round_trip(self):
         self.assertEqual(HEADER.size, 48)
-        self.assertEqual(RECORD.size, 60)
-        value = packet(123, [record(comm="name ) ( space", syscall=-3)], session=2**64 - 1)
+        self.assertEqual(RECORD.size, 112)
+        value = packet(123, [record(comm="name ) ( space", wchan="", flags=1, read_bytes=2**64 - 1)],
+                       session=2**64 - 1)
         self.assertEqual(decode(encode(value)), value)
 
     def test_reject_invalid_datagrams(self):
         for data in (b"", encode(packet(0))[:-1], encode(packet(0)) + b"x",
                      encode(packet(0, chunks=0)), encode(packet(0, flags=1)),
-                     encode(packet(0, [record(), record()])), encode(packet(0, interval_ms=0))):
+                     encode(packet(0, [record(), record()])), encode(packet(0, interval_ms=0)),
+                     encode(packet(0, [record(flags=2)])), encode(packet(0, [record(tid=index) for index in range(1, 12)]))):
             with self.subTest(data=data):
                 with self.assertRaises(ValueError):
                     decode(data)
 
-    def test_classification_precedence_and_architecture(self):
-        cases = [(record(state="D", flags=1), "kernel"), (record(state="R"), "running"),
-                 (record(syscall=-2), "running"), (record(flags=1), "idle"),
-                 (record(futex_op=128 | 256), "lock"), (record(futex_op=137), "condition"),
-                 (record(futex_op=6), "other"), (record(syscall=0), "socket"),
-                 (record(syscall=-3), "no_access")]
+    def test_classification_from_state_and_wait_channel(self):
+        cases = [(record(state="D"), "kernel"), (record(state="R", wchan=""), "running"),
+                 (record(state="t"), "stopped"), (record(), "futex"), (record(wchan="futex_wait_queue"), "futex"),
+                 (record(wchan="do_epoll_wait"), "poll"), (record(wchan="poll_schedule_timeout"), "poll"),
+                 (record(wchan="__skb_wait_for_more_packets"), "socket"),
+                 (record(wchan="unix_stream_read_generic"), "socket"), (record(wchan="anon_pipe_read"), "pipe"),
+                 (record(wchan="hrtimer_nanosleep"), "sleep"), (record(wchan="do_wait"), "other"),
+                 (record(wchan=""), "no_access")]
         for sample, expected in cases:
-            self.assertEqual(classify(sample, "x86_64"), expected)
-        self.assertEqual(classify(record(syscall=98), "aarch64"), "lock")
-        self.assertEqual(classify(record(syscall=63), "aarch64"), "socket")
+            with self.subTest(wchan=sample.wchan, state=sample.state):
+                self.assertEqual(classify(sample), expected)
 
 
 class MonitorTests(unittest.TestCase):
@@ -71,7 +77,7 @@ class MonitorTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.storage = Storage(self.directory.name)
         self.events = []
-        self.config = dict(arch="x86_64", clock_ticks=100, max_live_samples=10000,
+        self.config = dict(clock_ticks=100, max_live_samples=10000,
                            group=[dict(name="worker", prefix="worker-")], alerts=dict(DEFAULT_ALERTS))
         self.monitor = Monitor(self.config, self.storage, self.events.append, 1700000000)
 
@@ -90,10 +96,10 @@ class MonitorTests(unittest.TestCase):
 
     def test_hot_thread_opens_and_resolves_after_sustained_windows(self):
         for sequence in range(16):
-            self.feed(sequence, [record(state="R", syscall=-2, utime=sequence * 95)])
+            self.feed(sequence, [record(state="R", wchan="", utime=sequence * 95)])
         self.assertEqual(len(self.opened("cpu_critical")), 1)
         for sequence in range(16, 31):
-            self.feed(sequence, [record(flags=1, utime=15 * 95, timeslices=sequence)])
+            self.feed(sequence, [record(utime=15 * 95, timeslices=sequence)])
         self.assertTrue(any(event["rule"] == "cpu_critical" and event["status"] == "resolved" for event in self.events))
 
     def test_blocked_duration_and_timed_idle_exemption(self):
@@ -102,13 +108,13 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(len(self.opened("blocked")), 1)
         self.assertGreater(self.opened("blocked")[0]["ts"] - 1700000000, 15)
         for sequence in range(21, 41):
-            self.feed(sequence, [record(flags=1, timeslices=sequence)])
+            self.feed(sequence, [record(timeslices=sequence)])
         self.assertNotIn(("blocked", "worker", 42), self.monitor.alerts.open)
 
     def test_allow_untimed_wait_and_socket_wait_are_normal(self):
         self.config["group"][0]["allow_untimed_wait"] = True
         for sequence in range(40):
-            self.feed(sequence, [record(), record(tid=43, syscall=0, comm="io-1")])
+            self.feed(sequence, [record(), record(tid=43, wchan="__skb_wait_for_more_packets", comm="io-1")])
         self.assertFalse(self.opened("blocked"))
 
     def test_missing_samples_break_blocked_duration(self):
@@ -159,7 +165,7 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(len(self.opened("target_absent")), 1)
         self.monitor.health(1700000011)
         self.assertEqual(len(self.opened("sampler_silent")), 1)
-        self.feed(12, [record(syscall=-3)])
+        self.feed(12, [record(wchan="")])
         self.monitor.health(1700000012)
         self.assertEqual(len(self.opened("access_lost")), 1)
 
@@ -171,9 +177,37 @@ class MonitorTests(unittest.TestCase):
         self.storage.flush(1700000011)
         rows = history(self.directory.name, "1", 42, 1700000000, 1700000100)
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0]["sample_counts"], {"lock": 5})
+        self.assertEqual(rows[0]["sample_counts"], {"futex": 5})
         self.storage.flush(1700000000 + 10 * 86400)
         self.assertEqual(list(Path(self.directory.name).glob("*.sqlite3")), [])
+
+    def test_io_fault_and_switch_rates_in_rollup_and_snapshot(self):
+        for sequence in range(11):
+            self.feed(sequence, [record(wchan="do_epoll_wait", read_bytes=sequence * 4096,
+                                        write_bytes=sequence * 100, major_faults=sequence, timeslices=sequence * 3)])
+        row = self.monitor.threads[42].last_rollup
+        self.assertAlmostEqual(row["read_bps"], 4096)
+        self.assertAlmostEqual(row["write_bps"], 100)
+        self.assertEqual(row["sample_counts"], {"poll": 5})
+        live = self.monitor.snapshot(1700000010)["threads"][0]
+        self.assertEqual(live["wchan"], "do_epoll_wait")
+        self.assertAlmostEqual(live["read_bps"], 4096)
+        self.assertAlmostEqual(live["switches_per_s"], 3)
+        self.assertAlmostEqual(live["major_faults_per_s"], 1)
+        self.feed(11, [record(flags=1, read_bytes=0)], session=2)
+        self.feed(12, [record(flags=1, read_bytes=0)], session=2)
+        self.assertIsNone(self.monitor.snapshot(1700000012)["threads"][0]["read_bps"])
+
+    def test_existing_day_file_gains_new_rollup_columns(self):
+        path = Path(self.directory.name) / "2023-11-14.sqlite3"
+        old = sqlite3.connect(path)
+        old.executescript(SCHEMA.split("read_bps")[0].rstrip(", \n") + ", PRIMARY KEY(ts, session, tid, generation));")
+        old.close()
+        for sequence in range(11):
+            self.feed(sequence)
+        self.storage.flush(1700000011)
+        rows = history(self.directory.name, "1", 42, 1700000000, 1700000100)
+        self.assertEqual(rows[0]["read_bps"], 0)
 
     def test_alert_recovery_does_not_renotify_open_event(self):
         for sequence in range(21):
@@ -219,6 +253,8 @@ class SamplerTests(unittest.TestCase):
                 first = decode(receiver.recv(1200))
                 self.assertEqual(first.pid, target.pid)
                 self.assertEqual(first.records[0].comm, "sleep")
+                self.assertEqual(classify(first.records[0]), "sleep", first.records[0].wchan)
+                self.assertFalse(first.records[0].flags & 1, "per-thread io must be readable as the same UID")
                 self.assertEqual(first.interval_ms, 100)
                 config.write_text(f'target_pid = {target.pid}\nrate_hz = 99\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler.send_signal(signal.SIGHUP)
@@ -270,10 +306,10 @@ class SamplerTests(unittest.TestCase):
                 for _ in range(20):
                     datagram = receiver.recv(1200)
                     value = decode(datagram)
-                    self.assertLessEqual(len(datagram), 1188)
-                    self.assertEqual(value.chunks, 2)
+                    self.assertLessEqual(len(datagram), 1168)
+                    self.assertEqual(value.chunks, 3)
                     chunks.setdefault(value.sequence, {})[value.chunk] = value.records
-                    if len(chunks[value.sequence]) == 2:
+                    if len(chunks[value.sequence]) == 3:
                         records = [item for chunk in chunks[value.sequence].values() for item in chunk]
                         break
                 else:

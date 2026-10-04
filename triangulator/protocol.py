@@ -2,9 +2,12 @@ import dataclasses
 import struct
 
 HEADER = struct.Struct("<4sBBBBQI H2x QQII")
-RECORD = struct.Struct("<IBBhIQQQQ16s")
+RECORD = struct.Struct("<IBBHQQQQQQQ16s32s")
+VERSION = 2
+RECORDS_PER_PACKET = 10
 TARGET_ABSENT = 1
 STATUS_FALLBACK = 2
+IO_UNAVAILABLE = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -12,17 +15,21 @@ class Record:
     tid: int
     state: str
     flags: int
-    syscall: int
-    futex_op: int
+    processor: int
     utime: int
     stime: int
     run_delay: int
     timeslices: int
+    major_faults: int
+    read_bytes: int
+    write_bytes: int
     comm: str
+    wchan: str
 
     @property
     def counters(self):
-        return self.utime, self.stime, self.run_delay, self.timeslices
+        return (self.utime, self.stime, self.run_delay, self.timeslices, self.major_faults,
+                self.read_bytes, self.write_bytes)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -49,9 +56,9 @@ def decode(data: bytes) -> Packet:
         raise ValueError("short header")
     (magic, version, flags, chunk, chunks, session, sequence, count,
      monotonic, wall, interval, pid) = HEADER.unpack_from(data)
-    if magic != b"TMON" or version != 1 or flags & ~3:
+    if magic != b"TMON" or version != VERSION or flags & ~3:
         raise ValueError("unsupported protocol")
-    if not chunks or chunk >= chunks or count > 19 or len(data) != HEADER.size + count * RECORD.size:
+    if not chunks or chunk >= chunks or count > RECORDS_PER_PACKET or len(data) != HEADER.size + count * RECORD.size:
         raise ValueError("invalid packet length or chunk")
     if not 100 <= interval <= 5000 or not monotonic or not wall:
         raise ValueError("invalid sample clock")
@@ -62,34 +69,39 @@ def decode(data: bytes) -> Packet:
     records = []
     for offset in range(HEADER.size, len(data), RECORD.size):
         values = list(RECORD.unpack_from(data, offset))
-        if not values[0] or not 32 <= values[1] < 127 or values[2] & ~1 or values[3] < -3:
+        if not values[0] or not 32 <= values[1] < 127 or values[2] & ~IO_UNAVAILABLE:
             raise ValueError("invalid thread record")
         values[1] = chr(values[1])
-        values[-1] = values[-1].split(b"\0", 1)[0].decode("utf-8", "replace")
+        values[-2], values[-1] = (value.split(b"\0", 1)[0].decode("utf-8", "replace") for value in values[-2:])
         records.append(Record(*values))
     if len({record.tid for record in records}) != len(records):
         raise ValueError("duplicate thread")
     return Packet(flags, chunk, chunks, session, sequence, monotonic, wall, interval, pid, tuple(records))
 
 
-def classify(record: Record, arch: str) -> str:
-    futex, sockets = {
-        "x86_64": (202, {0, 45, 47, 7, 271, 232, 281, 441}),
-        "aarch64": (98, {63, 207, 212, 73, 22, 441}),
-    }[arch]
+# Kernel wait-channel names (/proc/<tid>/wchan) mapped to coarse states. Names
+# vary across kernel versions, so matching is by substring; unknown names show
+# as "other" with the raw wchan alongside.
+WCHAN_STATES = (
+    ("futex", "futex"),
+    ("epoll", "poll"), ("poll", "poll"), ("select", "poll"),
+    ("skb", "socket"), ("sk_wait", "socket"), ("sock", "socket"), ("unix_stream", "socket"),
+    ("inet_csk", "socket"), ("tcp_", "socket"), ("udp_", "socket"),
+    ("pipe", "pipe"), ("eventfd", "pipe"),
+    ("nanosleep", "sleep"),
+)
+
+
+def classify(record: Record) -> str:
     if record.state == "D":
         return "kernel"
-    if record.state == "R" or record.syscall == -2:
+    if record.state == "R":
         return "running"
-    if record.syscall == futex:
-        if record.flags & 1:
-            return "idle"
-        if record.futex_op & 127 == 0:
-            return "lock"
-        if record.futex_op & 127 == 9:
-            return "condition"
-    if record.syscall in sockets:
-        return "socket"
-    if record.syscall == -3:
+    if record.state in "tT":
+        return "stopped"
+    if not record.wchan:
         return "no_access"
+    for needle, state in WCHAN_STATES:
+        if needle in record.wchan:
+            return state
     return "other"

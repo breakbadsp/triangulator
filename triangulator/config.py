@@ -15,13 +15,11 @@ DEFAULT_ALERTS = {
 def load(path):
     with open(path, "rb") as source:
         config = tomllib.load(source)
-    config = {"arch": "x86_64", "clock_ticks": 100, "retention_days": 7,
+    config = {"clock_ticks": 100, "retention_days": 7,
               "store_raw": False, "data_dir": "data", "udp_host": "0.0.0.0",
               "udp_port": 9400, "http_host": "127.0.0.1", "http_port": 9401,
               "group": [], "max_live_samples": 1_000_000, **config}
     config["alerts"] = {**DEFAULT_ALERTS, **config.get("alerts", {})}
-    if config["arch"] not in {"x86_64", "aarch64"}:
-        raise ValueError("arch must be x86_64 or aarch64")
     for key in ("clock_ticks", "retention_days", "max_live_samples", "udp_port", "http_port"):
         if type(config[key]) is not int or config[key] <= 0:
             raise ValueError(f"{key} must be a positive integer")

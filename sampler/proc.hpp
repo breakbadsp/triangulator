@@ -50,7 +50,7 @@ public:
 
     struct Sample {
         wire::Record record;
-        bool syscall_unreadable;
+        bool wchan_hidden;
     };
 
     [[nodiscard]] std::optional<Sample> sample(int pid, bool fallback, RateLimitedLogger& logger) {
@@ -58,20 +58,13 @@ public:
         auto contents = read_file(stat_, pid, "stat", buffer);
         if (!contents) {
             stat_.reset();
-            schedstat_.reset();
-            syscall_.reset();
-            status_.reset();
+            reset_counter_descriptors();
             contents = read_file(stat_, pid, "stat", buffer);
         }
         const auto stat = contents.and_then(parse_stat);
         if (!stat) return std::nullopt;
-        if (starttime_ && *starttime_ != stat->starttime) {
-            schedstat_.reset();
-            syscall_.reset();
-            status_.reset();
-        }
+        if (starttime_ && *starttime_ != stat->starttime) reset_counter_descriptors();
         starttime_ = stat->starttime;
-        const auto syscall = read_file(syscall_, pid, "syscall", buffer).transform(parse_syscall).value_or(Syscall{});
         const auto counters = fallback
             ? read_file(status_, pid, "status", buffer).and_then(parse_status)
             : read_file(schedstat_, pid, "schedstat", buffer).and_then(parse_schedstat);
@@ -80,10 +73,20 @@ public:
                                  : "schedstat unreadable; validate host support or configure status_fallback = true");
             return std::nullopt;
         }
-        return Sample{wire::encode_record(tid_, *stat, syscall, *counters), syscall.unreadable()};
+        const auto io = read_file(io_, pid, "io", buffer).and_then(parse_io);
+        const auto wchan = read_file(wchan_, pid, "wchan", buffer).transform(parse_wchan).value_or(WaitChannel{});
+        const bool sleeping = stat->state == 'S' || stat->state == 'D';
+        return Sample{wire::encode_record(tid_, *stat, *counters, io, wchan), sleeping && wchan.front() == '\0'};
     }
 
 private:
+    void reset_counter_descriptors() noexcept {
+        schedstat_.reset();
+        status_.reset();
+        io_.reset();
+        wchan_.reset();
+    }
+
     [[nodiscard]] std::optional<std::string_view> read_file(FileDescriptor& descriptor, int pid,
                                                            std::string_view name, std::span<char> buffer) const {
         if (!descriptor) descriptor = open_readonly(std::format("/proc/{}/task/{}/{}", pid, tid_, name).c_str());
@@ -93,8 +96,9 @@ private:
     int tid_;
     FileDescriptor stat_;
     FileDescriptor schedstat_;
-    FileDescriptor syscall_;
     FileDescriptor status_;
+    FileDescriptor io_;
+    FileDescriptor wchan_;
     std::optional<std::uint64_t> starttime_;
 };
 
@@ -123,7 +127,7 @@ public:
             const auto slot = slot_for(*tid);
             if (!lookup[slot]) {
                 if (threads_.size() == wire::max_threads) {
-                    logger.warn("thread limit (4845) exceeded; excess threads omitted");
+                    logger.warn("thread limit (2550) exceeded; excess threads omitted");
                     continue;
                 }
                 threads_.emplace_back(*tid);

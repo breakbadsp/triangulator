@@ -29,9 +29,8 @@ the sampler object. POSIX calls remain at the Linux I/O and timing boundaries.
 1. Copy `config/sampler.toml` and `config/collector.toml` to your deployment
    configuration directory. Set the target PID **or** exact process name, the
    collector's numeric management-network IP and the sampler's source IP.
-2. Set collector `arch` to the **target** ABI (`x86_64` or `aarch64`), and
-   `clock_ticks` to the output of `getconf CLK_TCK` **on the target host**.
-   The v1 wire header does not carry architecture or clock frequency.
+2. Set collector `clock_ticks` to the output of `getconf CLK_TCK` **on the
+   target host**. The wire header does not carry the clock frequency.
 3. Configure a real webhook and/or SMTP destination in `[alerts]` and a writable
    `data_dir`. Webhooks receive a JSON event containing `ts`, `rule`, `group`,
    `tid`, `name`, `session`, `detail`, `severity` and `status`
@@ -72,7 +71,8 @@ unit creates `/var/lib/triangulator` using `StateDirectory`.
 
 The sampler unit sets niceness 19, a 5% CPU quota, 32 MiB memory limit, a
 descriptor limit sufficient for the wire-format thread limit, read-only system
-access, syscall restrictions and an outbound IP allowlist. Tune the quota after
+access, no capabilities, syscall restrictions and an outbound IP allowlist.
+Tune the quota after
 measuring the real thread count and sampling rate; overruns skip deadlines.
 The sampler creates no listening socket, sends no signals to the target, and
 does not write files. Runtime messages go to stderr, captured by journald in the
@@ -80,28 +80,30 @@ unit, with a one-minute warning rate limit.
 
 Before deployment, perform the staging/host checks in design section 12:
 
-- Test `/proc/PID/task/TID/syscall` access as the target UID. If host policy
-  requires it, install `deploy/ptrace.conf.example` as a service drop-in granting
-  only `CAP_SYS_PTRACE`. The default unit grants no capabilities.
+- Run the sampler as the target UID. It needs no capabilities: `stat`,
+  `schedstat`, `io` and `wchan` are readable by the same user under any Yama
+  `ptrace_scope`. The sampler warns if every sleeping thread's wait
+  channel reads as hidden.
 - Verify scheduler statistics under load. If unavailable or unusably zero,
   explicitly set sampler `status_fallback = true`. Zeros alone cannot reliably
   distinguish an idle process from disabled accounting, so this is an operator
   choice. Fallback counters are identified in each packet.
-- Confirm futex interpretation against your libc and that thread prefixes fit
-  the 15-byte Linux thread-name limit. Only native x86_64/aarch64 targets are
-  supported; compat/32-bit target syscall ABIs are not supported.
+- Confirm that thread prefixes fit the 15-byte Linux thread-name limit, and check
+  the wait-channel names your kernel reports (`cat /proc/PID/task/*/wchan`);
+  names the collector does not recognise show as `other` with the raw name.
 - Restrict UDP by firewall or WireGuard and route it on the management network.
   Set `sampler_ip`; if omitted, the collector pins the first valid sender IP.
 - Test the alert destination, disk budget and optional `deadman_url`.
 
-These repository checks cannot validate production ptrace policy, libc behavior,
+These repository checks cannot validate production kernel wait-channel names,
 network routing or the performance budget on your target host.
 
 ## Data and alert behavior
 
-- The 48-byte header and 60-byte records are encoded explicitly little-endian.
-  A datagram contains at most 19 threads (1,188 bytes). The 8-bit chunk count
-  limits v1 to 4,845 threads per tick; excess threads are omitted with a warning.
+- The 48-byte header and 112-byte records (wire version 2) are encoded explicitly
+  little-endian. A datagram contains at most 10 threads (1,168 bytes). The 8-bit
+  chunk count limits a tick to 2,550 threads; excess threads are omitted with a
+  warning.
 - Chunks are deduplicated and reordered for up to two sample intervals, capped
   at two seconds. Partial ticks remain useful. Later arrivals are counted as
   late; missing chunks never imply a thread exit. A complete tick can establish
@@ -119,16 +121,21 @@ network routing or the performance budget on your target host.
   by default. Blocked/kernel alerts use duration thresholds and two clear
   windows. Sampling gaps break continuous-wait evidence. Detection occurs at
   window completion, plus the reorder grace period.
-- A blocked wait requires unchanged CPU and scheduling counters and the same
-  untimed futex operation throughout the window. `allow_untimed_wait` exempts a
-  group. Idle socket reads and timed futex waits do not trigger blocked alerts.
+- A blocked wait requires a futex wait channel in every sample, with unchanged
+  CPU and scheduling counters, for `blocked_secs`. Without privileged syscall
+  data, lock, condition and timed waits look alike; a timed wait still wakes on
+  each timeout, so its rising timeslice count clears the condition unless its
+  timeout exceeds `blocked_secs`. `allow_untimed_wait` exempts a group. Socket,
+  poll and pipe waits do not trigger blocked alerts.
 - Raw live samples expire after ten minutes and are additionally capped by
   `max_live_samples` (default one million, shortened per-thread retention when
   needed). A disappeared thread is removed from live memory; its persisted
   rollups remain available. History is keyed by session and TID, with a generation
   column distinguishing detected TID reuse.
 - SQLite uses UTC day files in WAL mode. Rollups include state sample counts,
-  coverage/validity, CPU, run delay and timeslice deltas. With fallback counters,
+  coverage/validity, CPU, run delay, timeslice deltas, read/write byte rates and
+  major-fault deltas. Day files written by earlier versions gain the new columns
+  when opened. With fallback counters,
   run-delay percentage is unavailable and timeslices mean voluntary switches.
   `no_access` is preserved as its own count. `store_raw` additionally persists
   decoded records. Data is committed every half second. Retention removes whole
