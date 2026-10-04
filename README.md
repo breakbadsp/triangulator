@@ -1,7 +1,8 @@
 # Triangulator
 
-Linux thread monitoring using `/proc`: a C++23 sampler sends UDP to a Python
-collector with a live dashboard, daily SQLite history and sustained alerts.
+Linux thread monitoring using `/proc`: a C++23 sampler sends UDP to a C++
+collector with a live dashboard and daily SQLite history. The Python collector
+in `triangulator/` is kept as a backup and, for now, is the one that alerts.
 Start with the [architecture diagrams](docs/architecture.md); see the
 [full design](docs/thread-monitor-design.md) for details.
 
@@ -31,6 +32,15 @@ scripts/stop.sh       # stop both
 scripts/start.sh      # rebuild if needed and start both
 ```
 
+The collector started is the C++ one (`build/triangulator-collector`), which does
+**no alerting**. To use the Python collector instead, for example to get alerts,
+stop the collector and start it with `TRIANGULATOR_COLLECTOR=python`:
+
+```sh
+scripts/stop.sh collector
+TRIANGULATOR_COLLECTOR=python scripts/start.sh collector config/local/collector.toml
+```
+
 Logs are in `.run/`; local configs are ignored by git. For separate hosts or custom
 config paths, the optional `scripts/start.sh collector path/to/collector.toml` and
 `scripts/start.sh sampler path/to/sampler.toml` commands remain available, along
@@ -40,8 +50,9 @@ systemd, see [Production setup](#production-setup).
 ## Requirements and build
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-Make and Python 3.11+. No third-party packages. The optional C++ collector
-also needs GCC 15+ (for `#embed`) and the libsqlite3 development files.
+Make and Python 3.11+, plus libsqlite3 development files for the collector, which
+needs GCC 15+ (for `#embed`). Python is used by the backup collector, the scripts
+and the tests; it needs no third-party packages.
 
 ```sh
 make          # build/triangulator-sampler and build/triangulator-collector
@@ -59,7 +70,10 @@ make format-check # verify C++ formatting
   settings active, and a successful reload starts a new session.
 - **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
   after changes. Validate with
-  `python3 -B -m triangulator config/collector.toml --check-config`.
+  `build/triangulator-collector config/collector.toml --check-config` (or
+  `python3 -B -m triangulator config/collector.toml --check-config` for the
+  Python collector). Alert settings below apply to the Python collector only;
+  the C++ collector ignores them with a warning.
   - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
     format does not carry it.
   - `[alerts]` takes a `webhook_url` and/or SMTP settings. Webhooks receive JSON
@@ -94,13 +108,17 @@ Read-only APIs: `/api/live` and
 ## Production setup
 
 The units in `deploy/` are templates with a placeholder target user and collector
-IP; edit them first. Install the sampler binary in `/usr/local/bin`, `triangulator/`
-in `/opt/triangulator`, and configuration in `/etc/triangulator`. Keep sampler code
+IP; edit them first. Install the sampler and collector binaries in `/usr/local/bin`
+and configuration in `/etc/triangulator`. `triangulator-collector.service` runs
+the C++ collector. `triangulator-collector-python.service` is the Python backup
+(install `triangulator/` in `/opt/triangulator`). The two units conflict, so
+starting one stops the other. Keep sampler code
 and configuration root-owned and not writable by the target user. The collector unit
 creates `/var/lib/triangulator`.
 
 ```sh
-python3 -B -m triangulator /etc/triangulator/collector.toml
+triangulator-collector /etc/triangulator/collector.toml
+# backup with alerting: python3 -B -m triangulator /etc/triangulator/collector.toml
 ./build/triangulator-sampler /etc/triangulator/sampler.toml   # as the target user
 ```
 
@@ -142,6 +160,9 @@ Checklist before going live (design section 12):
   limit and keeps four `/proc` files open per thread while the budget allows (32
   are reserved); extra threads reopen their files each tick. Running out of
   descriptors skips a tick rather than reporting the target absent.
+- **Alerts** (Python collector only; the C++ default collector does no alerting):
+  the CPU alerts, other alerts, restart and delivery items below describe the
+  Python collector.
 - **CPU alerts:** CPU is measured over the trailing second. An alert opens when a
   thread stays above `cpu_warn_pct` or `cpu_crit_pct` for `cpu_sustain_secs`
   (default 5) and resolves after the same time below. Shorter bursts never alert,
@@ -164,7 +185,8 @@ Checklist before going live (design section 12):
 
 ## C++ collector
 
-`collector/` is the C++ core collector. It reads the same config file as the
+`collector/` is the C++ core collector and the default (`scripts/start.sh`,
+`deploy/triangulator-collector.service`). It reads the same config file as the
 Python collector, stores the same SQLite rollups and serves the same dashboard,
 `/api/live` and `/api/history`: `build/triangulator-collector config/local/collector.toml`.
 
@@ -172,8 +194,8 @@ It does **no alerting**: no alert rules, no dashboard alert settings, and no
 webhook, dead-man or email delivery. Those config keys are accepted and ignored
 with a startup warning (only `[alerts] window_s`, the rollup window, is used), and
 the dashboard hides its alert parts. Alerting is a separate module that reads the
-rollups from SQLite or the HTTP API; until it exists, use the Python collector
-for alerts.
+rollups from SQLite or the HTTP API; until it exists, use the Python backup
+collector for alerts (see [Quick start](#quick-start)).
 
 **Rule:** latency- and performance-critical code (receiving datagrams, building
 per-thread state and rollups, storage, the dashboard API) belongs in C++ or Rust.
@@ -203,8 +225,10 @@ generator. Results are in [docs/collector-comparison.md](docs/collector-comparis
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, wire encoding, RAII resources).
-- `triangulator/`: Python collector, alerts, SQLite, delivery, HTTP API, dashboard.
-- `collector/`: C++ core collector, without alerting (shares the sampler's wire-format header).
+- `collector/`: C++ core collector, the default, without alerting (shares the
+  sampler's wire-format header).
+- `triangulator/`: Python backup collector with alerts and delivery, and the
+  dashboard page both collectors serve.
 - `config/`, `deploy/`: example configuration and systemd units.
 - `scripts/`: `start.sh`, `stop.sh` and `compare.py` (Python vs C++ collector).
 - `tests/`: C++ and Python tests, including a real `/proc` integration check.

@@ -12,8 +12,23 @@ namespace triangulator::collector
 enum class LogLevel
 {
   Info = 0,
+  Warning,
   Error
 };
+
+[[nodiscard]] inline std::string_view LevelName(LogLevel p_level) noexcept
+{
+  switch (p_level)
+  {
+    case LogLevel::Info:
+      return "INFO";
+    case LogLevel::Warning:
+      return "WARNING";
+    case LogLevel::Error:
+      return "ERROR";
+  }
+  return "ERROR";
+}
 
 // Writes "2026-10-04 12:00:00,123 INFO message" to stderr, the format the
 // Python collector's logging setup produces.
@@ -27,10 +42,9 @@ inline void Log(LogLevel p_level, std::string_view p_message)
   const auto local = now.get_local_time();
   const auto milliseconds =
       (local.time_since_epoch() % std::chrono::seconds{1}).count();
-  const auto line =
-      std::format("{:%Y-%m-%d %H:%M:%S},{:03} {} {}\n",
-                  std::chrono::floor<std::chrono::seconds>(local), milliseconds,
-                  p_level == LogLevel::Info ? "INFO" : "ERROR", p_message);
+  const auto line = std::format("{:%Y-%m-%d %H:%M:%S},{:03} {} {}\n",
+                                std::chrono::floor<std::chrono::seconds>(local),
+                                milliseconds, LevelName(p_level), p_message);
   std::lock_guard lock{mutex};
   std::fputs(line.c_str(), stderr);
   std::fflush(stderr);
