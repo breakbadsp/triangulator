@@ -13,7 +13,12 @@ struct TargetIdentity {
     bool operator==(const TargetIdentity&) const = default;
 };
 
-[[nodiscard]] inline std::optional<TargetIdentity> find_target(const TargetSelector& selector) {
+// Value: the target, or nullopt when it is absent. Error: errno when the lookup
+// itself failed for lack of file descriptors, so the caller must not treat the
+// target as gone.
+using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
+
+[[nodiscard]] inline TargetLookup find_target(const TargetSelector& selector) {
     int pid = 0;
     std::array<char, 4096> buffer{};
     if (const auto* selected = std::get_if<TargetPid>(&selector)) {
@@ -21,11 +26,15 @@ struct TargetIdentity {
     } else {
         const auto& name = std::get<TargetName>(selector).value;
         const Directory directory{::opendir("/proc")};
-        if (!directory) return std::nullopt;
+        if (!directory) {
+            if (descriptors_exhausted(errno)) return std::unexpected(errno);
+            return std::nullopt;
+        }
         while (const auto* entry = ::readdir(directory.get())) {
             const auto candidate = parse_number<int>(entry->d_name);
             if (!candidate || *candidate <= 0) continue;
             const auto descriptor = open_readonly(std::format("/proc/{}/comm", *candidate).c_str());
+            if (!descriptor && descriptors_exhausted(errno)) return std::unexpected(errno);
             auto comm = read_at_start(descriptor, buffer);
             if (!comm) continue;
             if (comm->ends_with('\n')) comm->remove_suffix(1);
@@ -36,6 +45,7 @@ struct TargetIdentity {
     }
     if (!pid) return std::nullopt;
     const auto descriptor = open_readonly(std::format("/proc/{}/stat", pid).c_str());
+    if (!descriptor && descriptors_exhausted(errno)) return std::unexpected(errno);
     const auto contents = read_at_start(descriptor, buffer);
     const auto stat = contents.and_then(parse_stat);
     if (!stat || stat->state == 'Z' || stat->state == 'X') return std::nullopt;
@@ -44,13 +54,20 @@ struct TargetIdentity {
 
 class Thread {
 public:
-    explicit Thread(int tid) : tid_(tid) {}
+    // Files read per thread each tick: stat, schedstat or status, io, wchan.
+    static constexpr std::size_t descriptors_per_thread = 4;
+
+    // keep_descriptors: hold the /proc files open between ticks (cheap pread
+    // per tick). Otherwise every read opens and closes the file, so this thread
+    // costs no descriptors between ticks.
+    Thread(int tid, bool keep_descriptors) : tid_(tid), keep_descriptors_(keep_descriptors) {}
     [[nodiscard]] int tid() const noexcept { return tid_; }
+    [[nodiscard]] bool keeps_descriptors() const noexcept { return keep_descriptors_; }
     bool seen = false;
 
     struct Sample {
         wire::Record record;
-        bool syscall_unreadable;
+        bool wchan_hidden;
     };
 
     [[nodiscard]] std::optional<Sample> sample(int pid, bool fallback, RateLimitedLogger& logger) {
@@ -58,20 +75,13 @@ public:
         auto contents = read_file(stat_, pid, "stat", buffer);
         if (!contents) {
             stat_.reset();
-            schedstat_.reset();
-            syscall_.reset();
-            status_.reset();
+            reset_counter_descriptors();
             contents = read_file(stat_, pid, "stat", buffer);
         }
         const auto stat = contents.and_then(parse_stat);
         if (!stat) return std::nullopt;
-        if (starttime_ && *starttime_ != stat->starttime) {
-            schedstat_.reset();
-            syscall_.reset();
-            status_.reset();
-        }
+        if (starttime_ && *starttime_ != stat->starttime) reset_counter_descriptors();
         starttime_ = stat->starttime;
-        const auto syscall = read_file(syscall_, pid, "syscall", buffer).transform(parse_syscall).value_or(Syscall{});
         const auto counters = fallback
             ? read_file(status_, pid, "status", buffer).and_then(parse_status)
             : read_file(schedstat_, pid, "schedstat", buffer).and_then(parse_schedstat);
@@ -80,28 +90,52 @@ public:
                                  : "schedstat unreadable; validate host support or configure status_fallback = true");
             return std::nullopt;
         }
-        return Sample{wire::encode_record(tid_, *stat, syscall, *counters), syscall.unreadable()};
+        const auto io = read_file(io_, pid, "io", buffer).and_then(parse_io);
+        const auto wchan = read_file(wchan_, pid, "wchan", buffer).transform(parse_wchan).value_or(WaitChannel{});
+        const bool sleeping = stat->state == 'S' || stat->state == 'D';
+        return Sample{wire::encode_record(tid_, *stat, *counters, io, wchan), sleeping && wchan.front() == '\0'};
     }
 
 private:
+    void reset_counter_descriptors() noexcept {
+        schedstat_.reset();
+        status_.reset();
+        io_.reset();
+        wchan_.reset();
+    }
+
     [[nodiscard]] std::optional<std::string_view> read_file(FileDescriptor& descriptor, int pid,
                                                            std::string_view name, std::span<char> buffer) const {
-        if (!descriptor) descriptor = open_readonly(std::format("/proc/{}/task/{}/{}", pid, tid_, name).c_str());
-        return read_at_start(descriptor, buffer);
+        if (descriptor) return read_at_start(descriptor, buffer);
+        auto opened = open_readonly(std::format("/proc/{}/task/{}/{}", pid, tid_, name).c_str());
+        const auto contents = read_at_start(opened, buffer);
+        if (keep_descriptors_) descriptor = std::move(opened);
+        return contents;
     }
 
     int tid_;
+    bool keep_descriptors_;
     FileDescriptor stat_;
     FileDescriptor schedstat_;
-    FileDescriptor syscall_;
     FileDescriptor status_;
+    FileDescriptor io_;
+    FileDescriptor wchan_;
     std::optional<std::uint64_t> starttime_;
 };
 
 class ThreadCache {
 public:
-    ThreadCache() { threads_.reserve(wire::max_threads); }
-    void clear() noexcept { threads_.clear(); }
+    // Descriptors left for everything else: stdio, the UDP socket, the /proc
+    // and task/ directory scans, the target lookup and per-tick reopens.
+    static constexpr std::size_t reserved_descriptors = 32;
+
+    explicit ThreadCache(std::size_t descriptor_limit)
+        : max_kept_(descriptor_limit > reserved_descriptors
+                        ? (descriptor_limit - reserved_descriptors) / Thread::descriptors_per_thread : 0) {
+        threads_.reserve(wire::max_threads);
+    }
+    void clear() noexcept { threads_.clear(); kept_ = 0; }
+    [[nodiscard]] std::size_t max_kept() const noexcept { return max_kept_; }
     [[nodiscard]] std::span<Thread> threads() noexcept { return threads_; }
 
     void rescan(int pid, RateLimitedLogger& logger) {
@@ -116,25 +150,39 @@ public:
             lookup[slot_for(threads_[index].tid())] = index + 1;
         }
         const Directory directory{::opendir(std::format("/proc/{}/task", pid).c_str())};
-        if (!directory) { clear(); return; }
+        if (!directory) {
+            // Out of descriptors: keep the cache as it is and try again next tick.
+            if (!descriptors_exhausted(errno)) clear();
+            return;
+        }
         while (const auto* entry = ::readdir(directory.get())) {
             const auto tid = parse_number<int>(entry->d_name);
             if (!tid || *tid <= 0) continue;
             const auto slot = slot_for(*tid);
             if (!lookup[slot]) {
                 if (threads_.size() == wire::max_threads) {
-                    logger.warn("thread limit (4845) exceeded; excess threads omitted");
+                    logger.warn("thread limit (2550) exceeded; excess threads omitted");
                     continue;
                 }
-                threads_.emplace_back(*tid);
+                const bool keep = kept_ < max_kept_;
+                if (!keep) logger.warn(std::format("descriptor limit allows keeping files open for {} threads; "
+                                                   "others reopen their /proc files every tick", max_kept_));
+                kept_ += static_cast<std::size_t>(keep);
+                threads_.emplace_back(*tid, keep);
                 lookup[slot] = threads_.size();
             }
             threads_[lookup[slot] - 1].seen = true;
         }
-        std::erase_if(threads_, [](const Thread& thread) { return !thread.seen; });
+        std::erase_if(threads_, [this](const Thread& thread) {
+            if (thread.seen) return false;
+            kept_ -= static_cast<std::size_t>(thread.keeps_descriptors());
+            return true;
+        });
     }
 
 private:
+    std::size_t max_kept_;
+    std::size_t kept_ = 0;
     std::vector<Thread> threads_;
 };
 

@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS thread_rollup (
  name TEXT NOT NULL, group_name TEXT NOT NULL, cpu_pct REAL,
  run_delay_pct REAL, sample_counts TEXT NOT NULL, timeslices_delta INTEGER,
  samples INTEGER NOT NULL, expected_samples REAL NOT NULL, valid INTEGER NOT NULL,
- generation INTEGER NOT NULL, PRIMARY KEY(ts, session, tid, generation)
+ generation INTEGER NOT NULL, read_bps REAL, write_bps REAL, major_faults_delta INTEGER,
+ PRIMARY KEY(ts, session, tid, generation)
 );
 CREATE INDEX IF NOT EXISTS rollup_thread ON thread_rollup(session, tid, ts);
 CREATE TABLE IF NOT EXISTS alert_event (
@@ -22,6 +23,11 @@ CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );
 """
+# Columns added after the first release; older day files gain them on open.
+ADDED_ROLLUP_COLUMNS = {"read_bps": "REAL", "write_bps": "REAL", "major_faults_delta": "INTEGER"}
+ROLLUP_COLUMNS = ("ts", "session", "tid", "name", "group_name", "cpu_pct", "run_delay_pct",
+                  "sample_counts", "timeslices_delta", "samples", "expected_samples", "valid",
+                  "generation", *ADDED_ROLLUP_COLUMNS)
 
 
 class Storage:
@@ -39,16 +45,19 @@ class Storage:
             connection = sqlite3.connect(self.directory / f"{day}.sqlite3")
             connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(SCHEMA)
+            existing = {row[1] for row in connection.execute("PRAGMA table_info(thread_rollup)")}
+            for column, kind in ADDED_ROLLUP_COLUMNS.items():
+                if column not in existing:
+                    connection.execute(f"ALTER TABLE thread_rollup ADD COLUMN {column} {kind}")
             self.connections[day] = connection
         return self.connections[day]
 
     def rollup(self, row):
+        values = dict(row, group_name=row["group"], sample_counts=json.dumps(row["sample_counts"]),
+                      valid=int(row["valid"]))
         self.connection(row["ts"]).execute(
-            "INSERT OR REPLACE INTO thread_rollup VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (row["ts"], row["session"], row["tid"], row["name"], row["group"],
-             row["cpu_pct"], row["run_delay_pct"], json.dumps(row["sample_counts"]),
-             row["timeslices_delta"], row["samples"], row["expected_samples"],
-             int(row["valid"]), row["generation"]))
+            f"INSERT OR REPLACE INTO thread_rollup({','.join(ROLLUP_COLUMNS)}) VALUES ({','.join('?' * len(ROLLUP_COLUMNS))})",
+            tuple(values[column] for column in ROLLUP_COLUMNS))
 
     def event(self, event):
         self.connection(event["ts"]).execute(

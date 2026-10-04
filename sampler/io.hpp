@@ -8,8 +8,10 @@
 #include <fcntl.h>
 #include <memory>
 #include <optional>
+#include <limits>
 #include <span>
 #include <string_view>
+#include <sys/resource.h>
 #include <system_error>
 #include <time.h>
 #include <unistd.h>
@@ -59,6 +61,28 @@ using Directory = std::unique_ptr<DIR, DirectoryCloser>;
     } while (length < 0 && errno == EINTR);
     if (length <= 0 || static_cast<std::size_t>(length) == buffer.size()) return std::nullopt;
     return std::string_view{buffer.data(), static_cast<std::size_t>(length)};
+}
+
+// open() failed because this process or the whole system ran out of file
+// descriptors. That is our resource problem, not a sign the file is gone.
+[[nodiscard]] inline bool descriptors_exhausted(int error) noexcept {
+    return error == EMFILE || error == ENFILE;
+}
+
+// Raises the soft RLIMIT_NOFILE to the hard limit (allowed without privileges)
+// and returns the soft limit now in effect.
+[[nodiscard]] inline std::size_t raise_descriptor_limit() noexcept {
+    rlimit limit{};
+    if (::getrlimit(RLIMIT_NOFILE, &limit) != 0) return 1024;
+    if (limit.rlim_cur < limit.rlim_max) {
+        rlimit raised = limit;
+        raised.rlim_cur = limit.rlim_max;
+        if (::setrlimit(RLIMIT_NOFILE, &raised) == 0) limit = raised;
+    }
+    if (limit.rlim_cur == RLIM_INFINITY || limit.rlim_cur > std::numeric_limits<std::size_t>::max()) {
+        return std::numeric_limits<std::size_t>::max();
+    }
+    return static_cast<std::size_t>(limit.rlim_cur);
 }
 
 using Nanoseconds = std::chrono::nanoseconds;

@@ -2,17 +2,42 @@ import collections
 import dataclasses
 import math
 
+from .config import RULE_NAMES
 from .protocol import STATUS_FALLBACK, TARGET_ABSENT, classify
 
 
+def counters_regressed(current, previous):
+    """True when a cumulative counter went backwards: the tid now belongs to a new thread."""
+    if any(now < before for now, before in zip(current.counters, previous.counters)):
+        return True
+    io_now, io_before = current.io_counters, previous.io_counters
+    return io_now is not None and io_before is not None and any(
+        now < before for now, before in zip(io_now, io_before))
+
+
+def io_rate(current, previous, index, elapsed):
+    """Bytes per second between two samples, or None if either lacks I/O data."""
+    if elapsed <= 0 or current.io_counters is None or previous.io_counters is None:
+        return None
+    return (current.io_counters[index] - previous.io_counters[index]) / elapsed
+
+
 class AlertEngine:
-    def __init__(self, config, storage, deliver):
+    def __init__(self, config, storage, deliver, now):
         self.config = config
         self.storage = storage
         self.deliver = deliver
         recent, self.open = storage.recover_alerts()
         self.streaks = {}
         self.recent = collections.deque(recent, maxlen=500)
+        for key in [key for key in self.open
+                    if key[0] not in RULE_NAMES or not config.get("enabled", {}).get(key[0], True)]:
+            # Alerts from removed or disabled rules are closed quietly, without notification.
+            event = self.open.pop(key)
+            detail = "Alert rule disabled" if key[0] in RULE_NAMES else "Alert rule removed"
+            closed = dict(event, status="resolved", ts=now, detail=detail)
+            self.storage.event(closed)
+            self.recent.append(closed)
 
     def event(self, key, metadata, status, now, detail, severity):
         event = dict(metadata, rule=key[0], group=key[1], tid=key[2], status=status,
@@ -22,9 +47,19 @@ class AlertEngine:
         self.deliver(event)
         return event
 
+    def close_disabled(self, now):
+        for key in [key for key in self.open if not self.config.get("enabled", {}).get(key[0], True)]:
+            event = self.open.pop(key)
+            self.event(key, {"name": event["name"], "session": event["session"]},
+                       "resolved", now, "Alert rule disabled", event["severity"])
+        for key in [key for key in self.streaks if not self.config.get("enabled", {}).get(key[0], True)]:
+            del self.streaks[key]
+
     def evaluate(self, rule, group, tid, condition, now, metadata, detail,
                  severity="warning", immediate=False):
         key = rule, group, tid
+        if not self.config.get("enabled", {}).get(rule, True):
+            return
         if condition is None:
             self.streaks.pop(key, None)
             return
@@ -74,15 +109,16 @@ class ThreadState:
         self.baseline = None
         self.bucket = None
         self.last_rollup = None
-        self.blocked_since = None
         self.kernel_since = None
+        self.cpu_runs = {}
+        self.contiguous_since = sample.monotonic
 
 
 class Monitor:
     def __init__(self, config, storage, deliver, now):
         self.config = config
         self.storage = storage
-        self.alerts = AlertEngine(config["alerts"], storage, deliver)
+        self.alerts = AlertEngine(config["alerts"], storage, deliver, now)
         self.started = now
         self.last_seen = None
         self.last_tick_seen = None
@@ -197,11 +233,11 @@ class Monitor:
         for record in records:
             seen.add(record.tid)
             sample = Sample(monotonic, wall, self.interval, bool(packet.flags & STATUS_FALLBACK),
-                            record, classify(record, self.config["arch"]))
+                            record, classify(record))
             group = self.group_for(record.comm)
             thread = self.threads.get(record.tid)
             if thread is not None:
-                reset = (any(current < old for current, old in zip(record.counters, thread.latest.record.counters))
+                reset = (counters_regressed(record, thread.latest.record)
                          or thread.latest.fallback != sample.fallback or thread.group != group)
                 if reset:
                     self.finish_window(record.tid, thread)
@@ -220,11 +256,13 @@ class Monitor:
                     self.invalidate(record.tid, thread)
                     thread.baseline = None
             if thread.raw and monotonic - thread.latest.monotonic > self.interval * 1.5:
-                thread.blocked_since = None
                 thread.kernel_since = None
+                thread.cpu_runs.clear()
+                thread.contiguous_since = monotonic
             thread.bucket = bucket
             thread.latest = sample
             thread.raw.append(sample)
+            self.check_cpu(record.tid, thread, sample)
             self.raw_count += 1
             thread.window.append(sample)
             self.storage.raw(wall, str(self.session), dataclasses.asdict(record))
@@ -257,10 +295,60 @@ class Monitor:
                     thread.raw.popleft()
                     self.raw_count -= 1
 
+    def apply_alert_settings(self, alerts, now):
+        """Replace thresholds and enabled rules in place; both engines share the dict."""
+        # A run proves "above/below the old threshold", which says nothing about a
+        # new threshold, so a changed threshold must collect fresh evidence.
+        changed = [rule for rule, key in (("cpu_warn", "cpu_warn_pct"), ("cpu_critical", "cpu_crit_pct"))
+                   if self.config["alerts"].get(key) != alerts.get(key)]
+        for thread in self.threads.values():
+            for rule in changed:
+                thread.cpu_runs.pop(rule, None)
+        self.config["alerts"].clear()
+        self.config["alerts"].update(alerts)
+        self.alerts.close_disabled(now)
+
+    def check_cpu(self, tid, thread, sample):
+        """Open a CPU alert once a thread stays above the threshold for cpu_sustain_secs.
+
+        CPU is measured against the newest sample at least one second older, so
+        clock-tick resolution stays near 1% at any sampling rate. A run of
+        above- or below-threshold readings starts at the first sample that
+        measured it, not at that measurement's reference: a reading over one
+        second can cross the threshold although only part of that second was
+        busy, and crediting the whole second would let a burst shorter than
+        cpu_sustain_secs open an alert. A sampling gap clears the runs and the
+        usable history (see process).
+        """
+        reference = next((item for item in reversed(thread.raw)
+                          if item.monotonic <= sample.monotonic - 1.0), None)
+        if reference is None or reference.monotonic < thread.contiguous_since:
+            return
+        elapsed = sample.monotonic - reference.monotonic
+        ticks = (sample.record.utime + sample.record.stime
+                 - reference.record.utime - reference.record.stime)
+        cpu = ticks / self.config["clock_ticks"] / elapsed * 100
+        thresholds = self.config["alerts"]
+        sustain = thresholds["cpu_sustain_secs"]
+        metadata = {"name": sample.record.comm, "session": str(self.session)}
+        for rule, threshold, severity in (("cpu_warn", thresholds["cpu_warn_pct"], "warning"),
+                                          ("cpu_critical", thresholds["cpu_crit_pct"], "critical")):
+            above = cpu > threshold
+            run = thread.cpu_runs.get(rule)
+            if run is None or run[0] != above:
+                run = thread.cpu_runs[rule] = (above, sample.monotonic)
+            duration = sample.monotonic - run[1]
+            condition = above if duration >= sustain else None
+            if condition is None:
+                continue
+            detail = (f"CPU {cpu:.1f}% for {duration:.0f}s (over {threshold:g}%)" if above
+                      else f"CPU {cpu:.1f}%, below {threshold:g}% for {duration:.0f}s")
+            self.alerts.evaluate(rule, thread.group["name"], tid, condition, sample.wall, metadata,
+                                 detail, severity, immediate=True)
+
     def invalidate(self, tid, thread):
-        thread.blocked_since = None
         thread.kernel_since = None
-        for rule in ("cpu_warn", "cpu_critical", "starved", "blocked", "kernel_wait"):
+        for rule in ("starved", "kernel_wait"):
             self.alerts.streaks.pop((rule, thread.group["name"], tid), None)
 
     def finish_window(self, tid, thread):
@@ -279,11 +367,16 @@ class Monitor:
         slices_delta = last.record.timeslices - first.record.timeslices
         cpu = cpu_delta / self.config["clock_ticks"] / elapsed * 100 if valid else None
         delay = delay_delta / 1e9 / elapsed * 100 if valid and not last.fallback else None
+        read_rate = io_rate(last.record, first.record, 0, elapsed) if valid else None
+        write_rate = io_rate(last.record, first.record, 1, elapsed) if valid else None
+        faults_delta = last.record.major_faults - first.record.major_faults
         counts = dict(collections.Counter(sample.state for sample in samples))
         row = {"ts": last.wall - (last.monotonic % window_s), "session": str(self.session),
                "tid": tid, "name": last.record.comm, "group": thread.group["name"],
                "cpu_pct": cpu, "run_delay_pct": delay, "sample_counts": counts,
-               "timeslices_delta": slices_delta if valid else None, "samples": len(samples),
+               "timeslices_delta": slices_delta if valid else None, "read_bps": read_rate,
+               "write_bps": write_rate, "major_faults_delta": faults_delta if valid else None,
+               "samples": len(samples),
                "expected_samples": expected, "valid": valid, "generation": thread.generation}
         self.storage.rollup(row)
         thread.last_rollup = row
@@ -295,8 +388,6 @@ class Monitor:
         metadata = {"name": last.record.comm, "session": str(self.session)}
         thresholds = self.config["alerts"]
         conditions = {
-            "cpu_warn": (cpu > thresholds["cpu_warn_pct"], f"CPU {cpu:.1f}%", "warning"),
-            "cpu_critical": (cpu > thresholds["cpu_crit_pct"], f"CPU {cpu:.1f}%", "critical"),
             "starved": ((sum(sample.record.state == "R" for sample in samples) > len(samples) / 2 and cpu < 10 and delay_delta > 0)
                         if last.fallback else delay > thresholds["starve_run_delay_pct"],
                         "Runnable with little CPU" if last.fallback else f"Run delay {delay:.1f}%", "warning"),
@@ -305,13 +396,8 @@ class Monitor:
             self.alerts.evaluate(rule, thread.group["name"], tid, condition, last.wall, metadata, detail, severity)
         contiguous = all(right.monotonic - left.monotonic <= max(left.interval, right.interval) * 1.5
                          for left, right in zip([first] + samples, samples))
-        frozen = cpu_delta == 0 and slices_delta == 0 and (not last.fallback or delay_delta == 0)
-        all_blocked = (all(sample.state in {"lock", "condition"} for sample in samples)
-                       and len({(sample.record.syscall, sample.record.futex_op) for sample in samples}) == 1
-                       and frozen and not thread.group.get("allow_untimed_wait", False))
         all_kernel = counts.get("kernel", 0) == len(samples)
         for rule, active, attribute, duration in (
-            ("blocked", all_blocked, "blocked_since", thresholds["blocked_secs"]),
             ("kernel_wait", all_kernel, "kernel_since", thresholds["kernel_wait_secs"]),
         ):
             since = getattr(thread, attribute)
@@ -343,8 +429,8 @@ class Monitor:
             "sampler_silent": (silent, "No fresh sampler datagrams"),
             "target_absent": (not silent and self.absent_since is not None and now - self.absent_since >= thresholds["target_absent_secs"], "Sampler reports target absent"),
             "packet_loss": (loss_pct > thresholds["packet_loss_pct"], f"Estimated packet loss {loss_pct:.1f}% over 60s"),
-            "access_lost": (not silent and bool(self.threads) and sum(thread.latest.record.syscall == -3 for thread in self.threads.values()) > len(self.threads) / 2,
-                            "Most threads have unreadable syscall data"),
+            "access_lost": (not silent and bool(self.threads) and sum(thread.latest.state == "no_access" for thread in self.threads.values()) > len(self.threads) / 2,
+                            "Most threads have a hidden wait channel"),
         }
         for rule, (condition, detail) in conditions.items():
             self.alerts.evaluate(rule, "monitor", 0, condition, now, metadata, detail, immediate=True)
@@ -366,11 +452,20 @@ class Monitor:
             counts = dict(collections.Counter(item.state for item in recent))
             first = recent[0] if recent else sample
             elapsed = sample.monotonic - first.monotonic
-            cpu = ((sample.record.utime + sample.record.stime - first.record.utime - first.record.stime)
+            current, previous = sample.record, first.record
+
+            def rate(name, scale=1.0):
+                return (getattr(current, name) - getattr(previous, name)) / scale / elapsed if elapsed > 0 else None
+
+            cpu = ((current.utime + current.stime - previous.utime - previous.stime)
                    / self.config["clock_ticks"] / elapsed * 100) if elapsed > 0 else None
-            threads.append({"tid": tid, "name": sample.record.comm, "group": thread.group["name"],
-                            "state": sample.state, "cpu_pct": cpu, "state_mix": counts,
-                            "syscall": sample.record.syscall, "futex_op": sample.record.futex_op,
+            threads.append({"tid": tid, "name": current.comm, "group": thread.group["name"],
+                            "state": sample.state, "wchan": current.wchan, "cpu": current.processor,
+                            "cpu_pct": cpu, "state_mix": counts,
+                            "run_delay_pct": None if sample.fallback or elapsed <= 0 else rate("run_delay", 1e9) * 100,
+                            "switches_per_s": rate("timeslices"), "major_faults_per_s": rate("major_faults"),
+                            "read_bps": io_rate(current, previous, 0, elapsed),
+                            "write_bps": io_rate(current, previous, 1, elapsed),
                             "last_sample": sample.wall, "stale": now - sample.wall > max(10, self.interval * 3),
                             "generation": thread.generation})
         return {"threads": threads, "groups": dict(collections.Counter(item["group"] for item in threads)),
