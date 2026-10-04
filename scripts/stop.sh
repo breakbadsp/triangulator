@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Usage: scripts/stop.sh <sampler|collector>
+# Usage: scripts/stop.sh (stop both)
+# Optional: scripts/stop.sh <sampler|collector>
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ $# -eq 0 ]]; then
+    "$root/scripts/stop.sh" sampler
+    "$root/scripts/stop.sh" collector
+    exit 0
+fi
 app="${1:-}"
 case "$app" in
     sampler|collector) ;;
-    *) echo "usage: $0 <sampler|collector>" >&2; exit 2 ;;
+    *) echo "usage: $0 [sampler|collector]" >&2; exit 2 ;;
 esac
 
 pidfile="$root/.run/$app.pid"

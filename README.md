@@ -8,31 +8,33 @@ Design: [docs/thread-monitor-design.md](docs/thread-monitor-design.md).
 
 Two programs: the **sampler** runs next to the process you want to watch and sends
 its threads' stats over UDP; the **collector** receives them and serves the dashboard.
-To try it on one machine:
+To build and start everything on one machine:
 
 ```sh
-make                                    # build the sampler
-cp config/sampler.toml  my-sampler.toml
-cp config/collector.toml my-collector.toml
+scripts/start.sh
 ```
 
-Edit the copies:
+The script creates `config/local/sampler.toml` and `config/local/collector.toml`
+on first use, builds the sampler, validates the collector config, and starts both
+programs. The local configs use loopback addresses, save history in `data/`, detect
+the host's clock ticks, and leave webhook delivery disabled. Existing local configs
+are preserved; running the script again leaves already-running services alone.
 
-- `my-sampler.toml`: set `target_process` (or `target_pid`) and `collector = "127.0.0.1:9400"`.
-- `my-collector.toml`: set `sampler_ip = "127.0.0.1"`, a writable `data_dir` (for
-  example `"./data"`), and your `clock_ticks` (`getconf CLK_TCK`, usually 100).
-  Remove or replace the placeholder `webhook_url` unless you want alert delivery.
-
-Then start both (run the sampler as the same user as the target process) and open
-<http://127.0.0.1:9401>:
+Set `target_process` (or `target_pid`) in `config/local/sampler.toml` to the process
+you want to monitor, then restart to apply your configuration. Until you select a
+running target, the dashboard reports the example target as absent. Run the scripts
+as the same user as the target process. Open <http://127.0.0.1:9401>.
 
 ```sh
-scripts/start.sh collector my-collector.toml
-scripts/start.sh sampler my-sampler.toml
-scripts/stop.sh sampler; scripts/stop.sh collector   # when done
+scripts/stop.sh       # stop both
+scripts/start.sh      # rebuild if needed and start both
 ```
 
-Logs are in `.run/`. To deploy with systemd, see [Production setup](#production-setup).
+Logs are in `.run/`; local configs are ignored by git. For separate hosts or custom
+config paths, the optional `scripts/start.sh collector path/to/collector.toml` and
+`scripts/start.sh sampler path/to/sampler.toml` commands remain available, along
+with `scripts/stop.sh collector` and `scripts/stop.sh sampler`. To deploy with
+systemd, see [Production setup](#production-setup).
 
 ## Requirements and build
 
@@ -62,6 +64,7 @@ make format-check # verify C++ formatting
     with `ts`, `rule`, `group`, `tid`, `name`, `session`, `detail`, `severity` and
     `status` (`opened`, `reminder`, `resolved`). The SMTP password comes from the
     environment variable named by `password_env`; STARTTLS is on by default.
+    Without a delivery destination, alerts still appear in the dashboard and SQLite.
 
 ## Dashboard
 

@@ -132,8 +132,6 @@ def load(path):
             raise ValueError(f"invalid {key}")
     validate_alerts(config["alerts"])
     alerts = config["alerts"]
-    if not alerts.get("webhook_url") and not alerts.get("smtp"):
-        raise ValueError("configure alerts.webhook_url and/or alerts.smtp")
     for url in (alerts.get("webhook_url"), config.get("deadman_url")):
         if url and (urlparse(url).scheme not in {"http", "https"} or not urlparse(url).netloc):
             raise ValueError("delivery URLs must be HTTP(S)")

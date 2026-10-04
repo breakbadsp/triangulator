@@ -97,6 +97,14 @@ class AlertSettingsTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_delivery_destinations_are_optional(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "collector.toml"
+            path.write_text(f'data_dir = "{directory}"\n')
+            config = load(path)
+            self.assertFalse(config["alerts"].get("webhook_url"))
+            self.assertFalse(config["alerts"].get("smtp"))
+
     def load_toml(self, text="", alerts=""):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "collector.toml"
