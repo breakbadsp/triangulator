@@ -183,7 +183,8 @@ dashboard latency and whether they agree on threads and alerts. Both dashboards
 stay available (Python on port 9511, C++ on 9512). The comparison configs leave
 out alert delivery, so alerts are not sent twice. Files go to `.run/compare/`.
 `--duration 180` stops after three minutes and prints a summary table;
-`--synthetic-threads 1000` replaces the sampler with a load generator.
+`--synthetic-threads 1000` replaces the sampler with a load generator. Results
+so far are in [docs/collector-comparison.md](docs/collector-comparison.md).
 
 ## Layout
 
