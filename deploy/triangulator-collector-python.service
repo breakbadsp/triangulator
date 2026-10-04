@@ -1,0 +1,28 @@
+[Unit]
+Description=Triangulator collector and dashboard (Python backup, with alerting)
+# Backup for triangulator-collector.service (C++). Same config, ports and
+# data directory, so only one of the two can run.
+Conflicts=triangulator-collector.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/triangulator
+ExecStart=/usr/bin/python3 -B -m triangulator /etc/triangulator/collector.toml
+Environment=PYTHONDONTWRITEBYTECODE=1
+StateDirectory=triangulator
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

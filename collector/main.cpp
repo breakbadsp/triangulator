@@ -75,7 +75,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   }
   if (config.alerting_ignored_)
   {
-    Log(LogLevel::Error,
+    Log(LogLevel::Warning,
         "Alerting is not part of the C++ collector; alert thresholds, "
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }

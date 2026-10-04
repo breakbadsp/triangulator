@@ -1,14 +1,15 @@
 [Unit]
-Description=Triangulator collector and dashboard
+Description=Triangulator collector and dashboard (C++, no alerting)
+# Only one collector can own the UDP and HTTP ports. For alerts, run the
+# Python collector instead: triangulator-collector-python.service.
+Conflicts=triangulator-collector-python.service
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 DynamicUser=yes
-WorkingDirectory=/opt/triangulator
-ExecStart=/usr/bin/python3 -B -m triangulator /etc/triangulator/collector.toml
-Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/local/bin/triangulator-collector /etc/triangulator/collector.toml
 StateDirectory=triangulator
 Restart=on-failure
 RestartSec=5
