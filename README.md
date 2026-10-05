@@ -236,3 +236,7 @@ next to the collector; `/api/socket-io?pid=PID` exposes the report.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
