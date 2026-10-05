@@ -14,6 +14,18 @@ from pathlib import Path
 from wire import classify, decode
 
 
+def wait_until_asleep(pid, timeout=5):
+    # A process started a moment ago may still be running or loading its
+    # program. Wait until it sleeps in nanosleep, so a test that classifies
+    # its first sample doesn't race its startup.
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if "nanosleep" in Path(f"/proc/{pid}/wchan").read_text():
+            return
+        time.sleep(0.01)
+    raise AssertionError(f"process {pid} did not reach nanosleep within {timeout} s")
+
+
 class SamplerTests(unittest.TestCase):
     def test_real_proc_wire_format_reload_and_absent_heartbeat(self):
         binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
@@ -21,6 +33,7 @@ class SamplerTests(unittest.TestCase):
             receiver.bind(("127.0.0.1", 0))
             receiver.settimeout(3)
             target = subprocess.Popen(["sleep", "20"])
+            wait_until_asleep(target.pid)
             config = Path(directory) / "sampler.toml"
             config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             sampler = subprocess.Popen([str(binary), str(config)], stderr=subprocess.PIPE, text=True)
