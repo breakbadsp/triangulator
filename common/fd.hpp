@@ -8,7 +8,7 @@ namespace triangulator
 {
 
 // Owns a POSIX file descriptor and closes it on destruction.
-class FileDescriptor
+class FileDescriptor final
 {
  public:
   FileDescriptor() = default;

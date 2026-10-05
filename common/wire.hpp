@@ -46,26 +46,26 @@ constexpr Flags operator|(Flags p_left, Flags p_right) noexcept
                             std::to_underlying(p_right));
 }
 
-template <std::unsigned_integral Number>
-void WriteLittleEndian(std::span<std::byte, sizeof(Number)> p_destination,
-                       Number p_value)
+template <std::unsigned_integral TNumber>
+void WriteLittleEndian(std::span<std::byte, sizeof(TNumber)> p_destination,
+                       TNumber p_value)
 {
   if constexpr (std::endian::native == std::endian::big)
   {
     p_value = std::byteswap(p_value);
   }
   const auto bytes =
-      std::bit_cast<std::array<std::byte, sizeof(Number)>>(p_value);
+      std::bit_cast<std::array<std::byte, sizeof(TNumber)>>(p_value);
   std::ranges::copy(bytes, p_destination.begin());
 }
 
-template <std::unsigned_integral Number>
-[[nodiscard]] Number ReadLittleEndian(std::span<const std::byte> p_bytes,
-                                      std::size_t p_offset)
+template <std::unsigned_integral TNumber>
+[[nodiscard]] TNumber ReadLittleEndian(std::span<const std::byte> p_bytes,
+                                       std::size_t p_offset)
 {
-  std::array<std::byte, sizeof(Number)> bytes{};
-  std::memcpy(bytes.data(), p_bytes.data() + p_offset, sizeof(Number));
-  auto value = std::bit_cast<Number>(bytes);
+  std::array<std::byte, sizeof(TNumber)> bytes{};
+  std::memcpy(bytes.data(), p_bytes.data() + p_offset, sizeof(TNumber));
+  auto value = std::bit_cast<TNumber>(bytes);
   if constexpr (std::endian::native == std::endian::big)
   {
     value = std::byteswap(value);

@@ -3,8 +3,11 @@
 
 #include "../common/wire.hpp"
 
+#include <array>
+#include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -22,6 +25,8 @@ void Require(bool p_condition, std::string_view p_message)
   }
 }
 
+// Encodes a record with distinct values (and the largest 64-bit value) and
+// checks that decoding the bytes returns every field unchanged.
 void TestRecordRoundTrip()
 {
   wire::Record record{.tid_ = 0x01020304,
@@ -55,6 +60,7 @@ void TestRecordRoundTrip()
           "record names survive a round trip");
 }
 
+// Same as the record test, for the header.
 void TestHeaderRoundTrip()
 {
   const wire::Header header{
@@ -81,6 +87,8 @@ void TestHeaderRoundTrip()
           "header fields survive a round trip");
 }
 
+// Damages a valid header one way at a time (too short, wrong magic, wrong
+// version) and checks that DecodeHeader refuses each.
 void TestHeaderRejectsOtherData()
 {
   std::array<std::byte, wire::kHeaderSize> bytes{};

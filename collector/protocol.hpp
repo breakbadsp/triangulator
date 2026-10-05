@@ -82,8 +82,8 @@ struct Packet
 };
 
 // The text before the first NUL, with invalid UTF-8 replaced.
-template <std::size_t Size>
-[[nodiscard]] std::string ReadName(const std::array<char, Size>& p_field)
+template <std::size_t TSize>
+[[nodiscard]] std::string ReadName(const std::array<char, TSize>& p_field)
 {
   const std::string_view field{p_field.data(), p_field.size()};
   return SanitizeUtf8(field.substr(0, field.find('\0')));
@@ -108,7 +108,7 @@ template <std::size_t Size>
   packet.interval_ms_ = header->interval_ms_;
   packet.pid_ = header->pid_;
   const auto count = header->records_;
-  if ((packet.flags_ & ~3) != 0)
+  if ((packet.flags_ & ~(kTargetAbsent | kStatusFallback)) != 0)
   {
     return std::unexpected("unsupported protocol");
   }
