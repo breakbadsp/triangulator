@@ -1,4 +1,6 @@
-"""Decoder for the sampler's wire format, so the tests can read real sampler datagrams."""
+"""Decoder for the sampler's wire format, so the tests can read real sampler datagrams.
+
+This mirrors the layout in common/wire.hpp; change both together."""
 import dataclasses
 import struct
 
