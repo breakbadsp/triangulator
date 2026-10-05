@@ -153,6 +153,22 @@ void Reporting()
   // Values above JS's exact integer range survive as decimal strings.
   result = Report({{0, Sample(0, 9007199254740993ULL)}}, 100, false);
   assert(Metric(result, "input", "total").AsString() == "9007199254740993");
+  // Totals that would overflow uint64 make the report unavailable; they
+  // don't throw.
+  auto overflow = Sample(0, std::numeric_limits<U64>::max());
+  auto extra = overflow.records_[1];
+  extra.index_ = 3;
+  extra.key_.socket_id_ += 1;
+  extra.count_ = 4;
+  overflow.header_.count_ = 4;
+  for (auto& [index, item] : overflow.records_)
+  {
+    item.count_ = 4;
+  }
+  overflow.Add(extra, 100);
+  assert(overflow.Complete());
+  result = Report({{0, overflow}}, 100, false);
+  assert(!Get(result, "available").AsBool());
   // Mixed headers and reordered packets cannot create a false complete tick.
   auto mixed = Sample(0, 1);
   auto different = mixed.records_[1];

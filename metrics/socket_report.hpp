@@ -67,19 +67,24 @@ struct Snapshot
 
 using Group = std::tuple<U32, U64, U32>;  // tid, thread birth, socket kind
 using Groups = std::map<Group, Values>;
-inline void Add(Values& p_destination, const Values& p_source)
+// Adds p_source to p_destination, or returns false (and leaves a partial
+// sum) when a total would exceed uint64.
+[[nodiscard]] inline bool Add(Values& p_destination, const Values& p_source)
 {
   for (std::size_t index = 0; index < p_destination.size(); ++index)
   {
     if (p_source[index] >
         std::numeric_limits<U64>::max() - p_destination[index])
     {
-      throw std::overflow_error("socket counter sum exceeds uint64");
+      return false;
     }
     p_destination[index] += p_source[index];
   }
+  return true;
 }
-inline Groups Aggregate(const Snapshot& p_snapshot)
+// Per-group and process totals of one snapshot, or nullopt when a sum
+// overflows (only possible with corrupt or forged counters).
+[[nodiscard]] inline std::optional<Groups> Aggregate(const Snapshot& p_snapshot)
 {
   Groups groups;
   groups[Group{}] = {};
@@ -92,10 +97,13 @@ inline Groups Aggregate(const Snapshot& p_snapshot)
     const auto& counters = record.counters_;
     const Values values{counters.input_, counters.output_, counters.receives_,
                         counters.sends_, counters.messages_};
-    Add(groups[Group{}], values);
-    Add(groups[{record.key_.tid_, record.key_.thread_start_,
-                record.key_.kind_}],
-        values);
+    if (!Add(groups[Group{}], values) ||
+        !Add(groups[{record.key_.tid_, record.key_.thread_start_,
+                     record.key_.kind_}],
+             values))
+    {
+      return std::nullopt;
+    }
   }
   return groups;
 }
@@ -147,7 +155,13 @@ inline Json Report(const std::map<U64, Snapshot>& p_snapshots, double p_now,
   const bool stale = p_now - latest->received_ > 3;
   const double duration =
       static_cast<double>(header.monotonic_ns_ - header.started_ns_) / 1e9;
-  const auto groups = Aggregate(*latest);
+  const auto aggregated = Aggregate(*latest);
+  if (!aggregated)
+  {
+    return JsonObject{{"available", false},
+                      {"reason", "Socket counters are out of range"}};
+  }
+  const auto& groups = *aggregated;
   std::map<Group, Rates> rates;
   JsonArray history;
   const Snapshot* previous = nullptr;
@@ -166,7 +180,14 @@ inline Json Report(const std::map<U64, Snapshot>& p_snapshots, double p_now,
       previous = nullptr;
       continue;
     }
-    const auto after = Aggregate(snapshot);
+    const auto summed = Aggregate(snapshot);
+    if (!summed)
+    {
+      ++gaps;
+      previous = nullptr;
+      continue;
+    }
+    const auto& after = *summed;
     const auto& current = snapshot.header_;
     bool valid = previous &&
                  current.sequence_ == previous->header_.sequence_ + 1 &&

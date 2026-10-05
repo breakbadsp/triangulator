@@ -36,12 +36,11 @@ struct LinkCloser
 };
 using Link = std::unique_ptr<bpf_link, LinkCloser>;
 
-void Require(bool p_ok, const char* p_message)
+// Reports a failure that ends the sampler; Run() returns the exit code.
+[[nodiscard]] int Fail(const char* p_message)
 {
-  if (!p_ok)
-  {
-    throw std::runtime_error(p_message);
-  }
+  std::fprintf(stderr, "socket sampler: %s\n", p_message);
+  return 1;
 }
 
 int Run(int p_argc, char** p_argv)
@@ -59,32 +58,54 @@ int Run(int p_argc, char** p_argv)
     return 2;
   }
   const auto pid = ParseNumber<int>(p_argv[1]);
-  Require(pid && *pid > 0, "PID must be positive");
+  if (!pid || *pid <= 0)
+  {
+    return Fail("PID must be positive");
+  }
   auto target = FindTarget(TargetPid{*pid});
-  Require(target && target->has_value(), "target process is not readable");
+  if (!target || !target->has_value())
+  {
+    return Fail("target process is not readable");
+  }
   auto endpoint = MakeEndpoint(p_argv[2]);
-  Require(endpoint.has_value(), "invalid collector endpoint");
+  if (!endpoint)
+  {
+    return Fail("invalid collector endpoint");
+  }
   const auto ticks = ::sysconf(_SC_CLK_TCK);
-  Require(ticks > 0 && 1000000000 % ticks == 0,
-          "unsupported clock tick frequency");
+  if (ticks <= 0 || 1000000000 % ticks != 0)
+  {
+    return Fail("unsupported clock tick frequency");
+  }
   std::unique_ptr<bpf_object, ObjectCloser> object{
       bpf_object__open_file(p_argv[3], nullptr)};
-  Require(object && !libbpf_get_error(object.get()), "cannot open BPF object");
+  if (!object || libbpf_get_error(object.get()) != 0)
+  {
+    return Fail("cannot open BPF object");
+  }
   auto* marker = bpf_object__find_program_by_name(object.get(), "Message");
-  Require(marker, "missing marker program");
+  if (marker == nullptr)
+  {
+    return Fail("missing marker program");
+  }
   if (p_argc != 6)
   {
     bpf_program__set_autoload(marker, false);
   }
-  Require(bpf_object__load(object.get()) == 0,
-          "cannot load socket probes; need BTF and CAP_BPF/CAP_PERFMON (or "
-          "root). No permissions were changed");
+  if (bpf_object__load(object.get()) != 0)
+  {
+    return Fail(
+        "cannot load socket probes; need BTF and CAP_BPF/CAP_PERFMON (or "
+        "root). No permissions were changed");
+  }
   const int config_fd = bpf_object__find_map_fd_by_name(object.get(), "config");
   const int counters_fd =
       bpf_object__find_map_fd_by_name(object.get(), "counters");
   const int losses_fd = bpf_object__find_map_fd_by_name(object.get(), "losses");
-  Require(config_fd >= 0 && counters_fd >= 0 && losses_fd >= 0,
-          "missing BPF map");
+  if (config_fd < 0 || counters_fd < 0 || losses_fd < 0)
+  {
+    return Fail("missing BPF map");
+  }
   // Keep the PID filter disabled until every probe has attached.
   std::vector<Link> links;
   bpf_program* program = nullptr;
@@ -109,16 +130,21 @@ int Run(int p_argc, char** p_argv)
     {
       link = bpf_program__attach(program);
     }
-    Require(link && !libbpf_get_error(link),
-            "cannot attach all probes; unsupported kernel/marker or "
-            "insufficient permissions");
+    if (link == nullptr || libbpf_get_error(link) != 0)
+    {
+      return Fail(
+          "cannot attach all probes; unsupported kernel/marker or "
+          "insufficient permissions");
+    }
     links.emplace_back(link);
   }
   Observation observation;
-  Require(::getrandom(&observation.observer_, sizeof(observation.observer_),
-                      0) == sizeof(observation.observer_) &&
-              observation.observer_,
-          "cannot generate observer ID");
+  if (::getrandom(&observation.observer_, sizeof(observation.observer_), 0) !=
+          sizeof(observation.observer_) ||
+      observation.observer_ == 0)
+  {
+    return Fail("cannot generate observer ID");
+  }
   observation.pid_ = static_cast<U32>(*pid);
   observation.process_start_ = (**target).starttime_;
   observation.started_ns_ = static_cast<U64>(ClockNow(CLOCK_MONOTONIC).count());
@@ -126,8 +152,10 @@ int Run(int p_argc, char** p_argv)
   const U32 zero = 0;
   const TraceConfig settings{observation.pid_, 0, observation.process_start_,
                              static_cast<U64>(ticks)};
-  Require(bpf_map_update_elem(config_fd, &zero, &settings, BPF_ANY) == 0,
-          "cannot enable PID filter");
+  if (bpf_map_update_elem(config_fd, &zero, &settings, BPF_ANY) != 0)
+  {
+    return Fail("cannot enable PID filter");
+  }
   std::signal(SIGINT, Stop);
   std::signal(SIGTERM, Stop);
   std::fprintf(stderr,
@@ -155,14 +183,24 @@ int Run(int p_argc, char** p_argv)
       first = false;
       key = next;
       Counters counters{};
-      Require(bpf_map_lookup_elem(counters_fd, &key, &counters) == 0,
-              "cannot read counters");
+      if (bpf_map_lookup_elem(counters_fd, &key, &counters) != 0)
+      {
+        return Fail("cannot read counters");
+      }
       rows.emplace_back(key, counters);
-      Require(rows.size() <= kMaxSocketCounters, "counter map exceeded bound");
+      if (rows.size() > kMaxSocketCounters)
+      {
+        return Fail("counter map exceeded bound");
+      }
     }
-    Require(errno == ENOENT, "cannot enumerate counters");
-    Require(bpf_map_lookup_elem(losses_fd, &zero, &observation.losses_) == 0,
-            "cannot read coverage");
+    if (errno != ENOENT)
+    {
+      return Fail("cannot enumerate counters");
+    }
+    if (bpf_map_lookup_elem(losses_fd, &zero, &observation.losses_) != 0)
+    {
+      return Fail("cannot read coverage");
+    }
     observation.monotonic_ns_ =
         static_cast<U64>(ClockNow(CLOCK_MONOTONIC).count());
     observation.wall_ns_ = static_cast<U64>(ClockNow(CLOCK_REALTIME).count());
