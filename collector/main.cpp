@@ -88,6 +88,42 @@ int Stopped(std::string_view p_reason)
   return 1;
 }
 
+// Saves what was collected when an exception (a bug, or one from the
+// standard library) leaves Run() on its way to main's last-resort handler.
+// Without it the open transaction would roll back, losing the rows since
+// the last flush and every unfinished window. A normal return shuts down
+// explicitly instead, so storage errors can be reported; this does nothing
+// then. Errors here are ignored: the exception is what gets reported.
+class SaveOnUnwind
+{
+ public:
+  SaveOnUnwind(DashboardServer& p_server, Monitor& p_monitor,
+               Storage& p_storage) noexcept
+      : server_(p_server), monitor_(p_monitor), storage_(p_storage)
+  {
+  }
+  SaveOnUnwind(const SaveOnUnwind&) = delete;
+  SaveOnUnwind& operator=(const SaveOnUnwind&) = delete;
+
+  ~SaveOnUnwind()
+  {
+    if (std::uncaught_exceptions() <= exceptions_)
+    {
+      return;
+    }
+    server_.Stop();
+    monitor_.Close();
+    static_cast<void>(WriteRows(monitor_, storage_));
+    static_cast<void>(storage_.Close());
+  }
+
+ private:
+  DashboardServer& server_;
+  Monitor& monitor_;
+  Storage& storage_;
+  int exceptions_ = std::uncaught_exceptions();
+};
+
 int Run(const std::filesystem::path& p_config_path, bool p_check_config)
 {
   auto loaded = LoadConfig(p_config_path);
@@ -152,6 +188,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
                   config.udp_port_, config.http_host_, config.http_port_));
   std::array<std::byte, 1201> buffer{};
+  const SaveOnUnwind save_on_unwind{server, monitor, storage};
   // The first storage failure. It stops the loop: rows that can't be saved
   // shouldn't be dropped silently.
   SqliteResult storage_ok;
