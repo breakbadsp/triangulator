@@ -3,7 +3,7 @@
 # Runs in the foreground; Ctrl+C stops observation and sends a final snapshot.
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 usage() {
     echo "usage: $0 [--sudo] [--collector IP:PORT] [--marker BINARY SYMBOL] <process-name|pid>"
 }
@@ -29,55 +29,11 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$target" ]] || { usage >&2; exit 2; }
 
-pid="$(python3 - "$target" <<'PY'
-from pathlib import Path
-import sys
-
-target = sys.argv[1]
-try:
-    if target.isascii() and target.isdecimal():
-        pid = int(target)
-        if not 0 < pid <= 2147483647 or not Path(f"/proc/{pid}/stat").exists():
-            raise ValueError("target PID is invalid or is not running")
-    else:
-        if not 1 <= len(target.encode()) <= 15:
-            raise ValueError("process name must contain 1..15 bytes")
-        matches = []
-        for entry in Path('/proc').iterdir():
-            if not entry.name.isdecimal():
-                continue
-            try:
-                if (entry / 'comm').read_bytes().removesuffix(b'\n') == target.encode():
-                    matches.append(int(entry.name))
-            except OSError:
-                continue
-        if not matches:
-            raise ValueError(f"no running process named {target}")
-        if len(matches) != 1:
-            raise ValueError(f"multiple processes named {target}; pass a PID from: {sorted(matches)}")
-        pid = matches[0]
-    print(pid)
-except (OSError, ValueError) as error:
-    print(f"watch-sockets: {error}", file=sys.stderr)
-    sys.exit(1)
-PY
-)"
-
+control="$root/scripts/sampler_control.py"
+pid="$(python3 "$control" resolve-pid "$target")"
+# Default to the running sampler's collector, so both reach the same dashboard.
 if [[ -z "$collector" ]]; then
-    collector="$(python3 - "$root/config/local/sampler.toml" <<'PY'
-import sys
-import tomllib
-try:
-    with open(sys.argv[1], 'rb') as config:
-        endpoint = tomllib.load(config)['collector']
-    if not isinstance(endpoint, str) or not endpoint:
-        raise ValueError('collector must be a nonempty string')
-    print(endpoint)
-except (OSError, ValueError, KeyError) as error:
-    print(f'watch-sockets: cannot read local collector endpoint: {error}; pass --collector IP:PORT', file=sys.stderr)
-    sys.exit(1)
-PY
-)"
+    collector="$(python3 "$control" collector)"
 fi
 if [[ ${#marker[@]} -gt 0 ]]; then
     [[ -r "${marker[0]}" && -n "${marker[1]}" ]] || {
@@ -105,4 +61,6 @@ echo "View the dashboard's Socket I/O & message processing panel."
 if [[ ${#marker[@]} -eq 0 ]]; then
     echo "Message counts need --marker BINARY SYMBOL; socket bytes work without a marker."
 fi
-"${command[@]}" 2>&1 | tee -a "$root/.run/socket-sampler.log"
+# Ctrl+C reaches the whole pipeline. tee -i ignores it and keeps copying
+# until the observer exits, so shutdown output and errors are not lost.
+"${command[@]}" 2>&1 | tee -ia "$root/.run/socket-sampler.log"

@@ -227,8 +227,10 @@ The wrapper builds the optional source (clang with BPF support and libbpf
 development files are required), resolves the target, and runs in the foreground.
 `--sudo` elevates only the observer; omit it when tracing privileges are already
 available. Ctrl+C stops it. Logs are appended to `.run/socket-sampler.log`.
-The collector endpoint defaults to `config/local/sampler.toml`; override it with
-`--collector IP:PORT` for custom configs or a remote collector. The dashboard's
+The target must be a process ID (not a thread ID) or a unique process name. The
+collector endpoint defaults to the running sampler's, so both reach the same
+dashboard, or to `config/local/sampler.toml` when the sampler isn't running;
+override it with `--collector IP:PORT` for a remote collector. The dashboard's
 Socket I/O & message processing panel follows the normal sampler's target PID,
 so use `scripts/set-target.sh` to select the same PID. Choose Received, Sent, or
 Messages processed in that panel.
