@@ -220,7 +220,9 @@ extern "C" __attribute__((section("fentry/sk_free"), used)) int Release(
   kDelete(&sockets, &address);
   return 0;
 }
-extern "C" __attribute__((section("uprobe"), used)) int Message(U64*)
+extern "C" __attribute__((section("uprobe"), used)) int Message(U64* p_context)
 {
+  // BTF requires named parameters even when the probe ignores its context.
+  (void)p_context;
   return Count(nullptr, 0, 0, false, true);
 }

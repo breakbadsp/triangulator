@@ -22,10 +22,28 @@ programs. The local configs use loopback addresses, save history in `data/`, det
 the host's clock ticks, and leave webhook delivery disabled. Existing local configs
 are preserved; running the script again leaves already-running services alone.
 
-Set `target_process` (or `target_pid`) in `config/local/sampler.toml` to the process
-you want to monitor, then restart to apply your configuration. Until you select a
-running target, the dashboard reports the example target as absent. Run the scripts
+Select a target by process name or PID without restarting the sampler:
+
+```sh
+scripts/set-target.sh ghostty
+scripts/set-target.sh 1234
+```
+
+The script updates the config used by the running sampler and sends `SIGHUP` to
+reload it. Numeric arguments select a PID; other arguments select an exact Linux
+process name (up to 15 bytes). Start the sampler with `scripts/start.sh` first.
+Until you select a running target, the dashboard reports the target as absent. Run the scripts
 as the same user as the target process. Open <http://127.0.0.1:9401>.
+
+Change the thread sampling frequency without restarting:
+
+```sh
+scripts/set-rate.sh 5       # 5 Hz: one sample every 200 ms
+```
+
+The accepted range is 0.2–10 Hz. This updates the running sampler's config and
+requests a reload, starting a new session. Higher frequencies increase sampling
+overhead. The separate socket observer's one-second reporting interval is unchanged.
 
 ```sh
 scripts/stop.sh       # stop both
@@ -185,6 +203,28 @@ explicit application marker called once after successful processing. Setup and
 measurement limits are in [the socket design guide](docs/socket-ingress-design.md).
 Reporting runs in the separate `triangulator-socket-report` executable installed
 next to the collector; `/api/socket-io?pid=PID` exposes the report.
+
+With the collector running, start observation on the target host:
+
+```sh
+scripts/set-target.sh ghostty
+scripts/watch-sockets.sh --sudo ghostty
+# Or use a PID, optionally with an application completion marker:
+scripts/watch-sockets.sh --sudo --marker /absolute/path/to/application TriangulatorMessageProcessed 1234
+```
+
+The wrapper builds the optional source (clang with BPF support and libbpf
+development files are required), resolves the target, and runs in the foreground.
+`--sudo` elevates only the observer; omit it when tracing privileges are already
+available. Ctrl+C stops it. Logs are appended to `.run/socket-sampler.log`.
+The collector endpoint defaults to `config/local/sampler.toml`; override it with
+`--collector IP:PORT` for custom configs or a remote collector. The dashboard's
+Socket I/O & message processing panel follows the normal sampler's target PID,
+so use `scripts/set-target.sh` to select the same PID. Choose Received, Sent, or
+Messages processed in that panel.
+Message counts remain unavailable without an application completion marker;
+socket traffic alone cannot tell when a message has finished processing.
+Restart the wrapper when switching targets or when the target process restarts.
 
 ## Layout
 
