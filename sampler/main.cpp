@@ -5,6 +5,7 @@
 #include <expected>
 #include <format>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #include "proc.hpp"
@@ -269,19 +270,29 @@ class Sampler
 
 int main(int p_argc, char** p_argv)
 {
-  if (p_argc != 2)
+  // --check-config validates CONFIG with the same parser a SIGHUP reload
+  // uses, then exits without sampling or sending anything.
+  const bool check_config =
+      p_argc == 3 && std::string_view{p_argv[1]} == "--check-config";
+  if (p_argc != 2 && !check_config)
   {
-    std::fprintf(stderr, "usage: %s CONFIG\n", p_argv[0]);
+    std::fprintf(stderr, "usage: %s [--check-config] CONFIG\n", p_argv[0]);
     return 2;
   }
+  const char* config_path = p_argv[p_argc - 1];
   try
   {
-    auto config = triangulator::LoadConfig(p_argv[1]);
+    auto config = triangulator::LoadConfig(config_path);
     if (!config)
     {
       std::fprintf(stderr, "invalid sampler config: %s\n",
                    config.error().c_str());
       return 2;
+    }
+    if (check_config)
+    {
+      std::puts("Sampler configuration is valid");
+      return 0;
     }
     if (auto installed = triangulator::InstallSignalHandlers(); !installed)
     {
@@ -291,7 +302,7 @@ int main(int p_argc, char** p_argv)
     }
     triangulator::Sampler sampler{std::move(*config),
                                   triangulator::RaiseDescriptorLimit()};
-    if (auto ran = sampler.Run(p_argv[1]); !ran)
+    if (auto ran = sampler.Run(config_path); !ran)
     {
       std::fprintf(stderr, "triangulator: %s\n", ran.error().c_str());
       return 1;

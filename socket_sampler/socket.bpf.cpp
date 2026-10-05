@@ -220,7 +220,9 @@ extern "C" __attribute__((section("fentry/sk_free"), used)) int Release(
   kDelete(&sockets, &address);
   return 0;
 }
-extern "C" __attribute__((section("uprobe"), used)) int Message(U64*)
+// BTF rejects unnamed parameters, so the unused context keeps its name.
+extern "C" __attribute__((section("uprobe"), used)) int Message(
+    [[maybe_unused]] U64* p_context)
 {
   return Count(nullptr, 0, 0, false, true);
 }
