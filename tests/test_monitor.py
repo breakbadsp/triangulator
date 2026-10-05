@@ -242,6 +242,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 status, page = fetch("/")
                 self.assertEqual(status, 200)
                 self.assertIn(b"showAlerting", page)
+                # The process overview is computed in the page from /api/live;
+                # check the served binary carries it, not just the source file.
+                self.assertIn(b'id="overview"', page)
+                self.assertIn(b"function loadAverages", page)
+                self.assertIn(b'data-activity="idle"', page)
                 self.assertEqual(fetch("/api/alert-settings")[0], 404)
                 self.assertEqual(fetch("/api/alert-settings", "POST")[0], 501)
                 self.assertEqual(fetch("/api/history?session=1")[0], 400)
