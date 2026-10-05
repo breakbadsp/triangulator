@@ -377,6 +377,23 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(fetch("/api/alert-settings")[0], 404)
                 self.assertEqual(fetch("/api/alert-settings", "POST")[0], 501)
                 self.assertEqual(fetch("/api/history?session=1")[0], 400)
+                # Replay works with store_raw=false and keeps the process view
+                # from the selected moment while live samples continue.
+                bounds = json.loads(fetch("/api/replay")[1])
+                self.assertIsNotNone(bounds["first"])
+                self.assertEqual(bounds["interval_s"], 1)
+                snapshot = json.loads(fetch(f'/api/replay?at={bounds["last"]}')[1])["snapshot"]
+                self.assertEqual(snapshot["health"]["pid"], target.pid)
+                self.assertEqual(snapshot["health"]["session"], session)
+                self.assertEqual(snapshot["threads"][0]["state"], "sleep")
+                self.assertIn("wchan", snapshot["threads"][0])
+                time.sleep(1.2)
+                replayed = json.loads(fetch(f'/api/replay?at={snapshot["recorded_at"]}')[1])["snapshot"]
+                self.assertEqual(replayed, snapshot)
+                for query in ("at=nan", "at=inf", "at=-1", "at=9999999999999", "at=1&direction=bad", "direction=next"):
+                    self.assertEqual(fetch("/api/replay?" + query)[0], 400)
+                self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
+                self.assertIn(b'id="replay-time"', page)
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:

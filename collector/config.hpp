@@ -36,6 +36,8 @@ struct Config
   std::int64_t clock_ticks_ = 100;
   std::int64_t retention_days_ = 7;
   bool store_raw_ = false;
+  // Dashboard recording cadence; zero disables recording.
+  double replay_interval_s_ = 1;
   std::string data_dir_ = "data";
   std::string udp_host_ = "0.0.0.0";
   std::int64_t udp_port_ = 9400;
@@ -169,6 +171,17 @@ namespace detail
       return std::unexpected("store_raw must be true or false");
     }
     config.store_raw_ = store_raw->AsBool();
+  }
+
+  if (const auto* interval = root.Find("replay_interval_s"))
+  {
+    if (!interval->IsNumber() || !std::isfinite(interval->AsNumber()) ||
+        !(interval->AsNumber() == 0 ||
+          (0.5 <= interval->AsNumber() && interval->AsNumber() <= 60)))
+    {
+      return std::unexpected("replay_interval_s must be 0 or 0.5..60");
+    }
+    config.replay_interval_s_ = interval->AsNumber();
   }
 
   if (const auto* alerts = root.Find("alerts"))

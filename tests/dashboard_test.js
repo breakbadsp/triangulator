@@ -9,10 +9,11 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), {resourceFetch} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
+      get firstChild() {return this.children[0];}, parentElement: {},
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
       append(...items) {this.children.push(...items);},
@@ -45,6 +46,7 @@ function dashboard(storage = new Map(), {resourceFetch} = {}) {
     fetch(url) {
       requests.push(url);
       if (resourceFetch && url.startsWith('/api/resources?')) return resourceFetch(url);
+      const response = respond(url); if (response !== undefined) return response;
       return url.startsWith('/api/history?')
         ? Promise.resolve({ok: true, json: async () => ({rows: []})})
         : new Promise(() => {});
@@ -385,4 +387,94 @@ test('memory, CPU quota, process count and interface rules', () => {
   // No limits (all null) and a healthy cgroup add nothing.
   const quiet = resources({cgroup_limits: {memory: {current: 5e8, max: null}, cpu: {quota_us: null, throttled_pct: null}, pids: {current: 3, max: null}}});
   assert.equal(findingsOf(app, quiet).length, 0);
+});
+
+function frame(time, session = 'old-session', tid = 9) {
+  return {recorded_at: time, health: {session, pid: tid, last_seen: time, sample_interval_ms: 1000},
+    groups: {workers: 1}, threads: [{tid, name: 'old-worker', generation: 1, group: 'workers',
+      last_sample: time, state: 'futex', wchan: 'futex_wait', cpu: 3, cpu_pct: 25,
+      run_delay_pct: 0, switches_per_s: 2, read_bps: 0, write_bps: 0}]};
+}
+const jsonResponse = data => Promise.resolve({ok: true, json: async () => data});
+
+test('historical inspection freezes the process and restores saved live trends', async () => {
+  const saved = frame(1000);
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 900, last: 1100, interval_s: 1, snapshot: saved}) : undefined);
+  tick(app, 2000, 100);
+  tick(app, 2001, 0);
+  app.run('latestLive=live');
+  const before = app.run('JSON.stringify(buffer)');
+  await app.run('inspectTime(1000)');
+  assert.equal(app.run('replayAt'), 1000);
+  assert.equal(app.run('live.health.session'), 'old-session');
+  assert.equal(app.run('buffer.length'), 1);
+  assert.equal(app.elements.get('socket-panel').hidden, true);
+  assert.equal(app.elements.get('hero-load').textContent, '—');
+  assert.equal(app.elements.get('hero-cpu').textContent, '0.25 cores');
+  app.run('openThread(live.threads[0])');
+  const query = new URLSearchParams(app.requests.at(-1).split('?')[1]);
+  assert.equal(query.get('session'), 'old-session');
+  assert.equal(query.get('tid'), '9');
+  assert.equal(Number(query.get('end')), 1000);
+  app.run('saveBuffer()');
+  assert.equal(JSON.parse(app.storage.get('triangulator:buffer')).session, 'session-1');
+  app.run('returnLive()');
+  assert.equal(app.run('replayAt'), null);
+  assert.equal(app.run('selected'), null);
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.equal(app.run('JSON.stringify(buffer)'), before);
+  assert.equal(app.elements.get('socket-panel').hidden, false);
+});
+
+test('late replay replies cannot overwrite a newer selection or a return to live', async () => {
+  const pending = [];
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? new Promise(resolve => pending.push(resolve)) : undefined);
+  tick(app, 2000, 0);
+  app.run('latestLive=live');
+  const older = app.run('inspectTime(900)');
+  const newer = app.run('inspectTime(1000)');
+  pending[1]({ok: true, json: async () => ({first: 900, last: 1000, snapshot: frame(1000)})});
+  await newer;
+  pending[0]({ok: true, json: async () => ({first: 900, last: 1000, snapshot: frame(900)})});
+  await older;
+  assert.equal(app.run('replayAt'), 1000);
+  const abandoned = app.run('inspectTime(900)');
+  app.run('returnLive()');
+  pending[2]({ok: true, json: async () => ({first: 900, last: 1000, snapshot: frame(900)})});
+  await abandoned;
+  assert.equal(app.run('replayAt'), null);
+  assert.equal(app.run('live.health.session'), 'session-1');
+});
+
+test('missing recordings and gaps are explicit and never replace a successful view', async () => {
+  let snapshot = frame(1000);
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 1000, last: 1000, interval_s: 1, snapshot}) : undefined);
+  tick(app, 2000, 0);
+  await app.run('inspectTime(1500)');
+  assert.match(app.elements.get('replay-note').textContent, /recording gap/);
+  snapshot = null;
+  await app.run('inspectTime(900)');
+  assert.equal(app.run('replayAt'), 1000);
+  assert.match(app.elements.get('replay-note').textContent, /No process snapshot/);
+  await app.run('inspectTime(NaN)');
+  assert.match(app.elements.get('replay-note').textContent, /valid time/);
+});
+
+
+test('slow live polling cannot overwrite the historical process view', async () => {
+  let resolveLive;
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 1000, last: 1000, snapshot: frame(1000)})
+    : url === '/api/live' ? new Promise(resolve => {resolveLive = resolve;}) : undefined);
+  await app.run('inspectTime(1000)');
+  resolveLive({ok: true, json: async () => frame(2000, 'current-session', 10)});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.run('live.health.session'), 'old-session');
+  assert.equal(app.run('latestLive.health.session'), 'current-session');
+  assert.equal(app.run('replayAt'), 1000);
+  app.run('returnLive()');
+  assert.equal(app.run('live.health.session'), 'current-session');
 });

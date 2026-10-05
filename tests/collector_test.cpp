@@ -22,6 +22,7 @@
 
 #include "../collector/engine.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/replay.hpp"
 
 namespace
 {
@@ -603,6 +604,96 @@ void TestSequenceWrapIsNotPacketLoss()
               0, "the sequence number wrapping to 0 is not loss");
 }
 
+// Replay preserves complete views across midnight and sampler sessions, uses
+// strict stepping, and reports missing history rather than inventing a state.
+void TestReplaySnapshots()
+{
+  TempDirectory directory;
+  auto storage = Storage::Create(directory.Path(), 7);
+  Require(storage.has_value(), "snapshot storage opens");
+  constexpr double kMidnight = 1'700'006'400;
+  const auto save = [&](double p_timestamp, std::string_view p_session,
+                        std::string_view p_state)
+  {
+    Json snapshot =
+        JsonObject{{"recorded_at", p_timestamp},
+                   {"health", JsonObject{{"session", p_session}, {"pid", 42}}},
+                   {"threads", JsonArray{JsonObject{{"tid", 42},
+                                                    {"generation", 1},
+                                                    {"state", p_state},
+                                                    {"wchan", "futex_wait"},
+                                                    {"cpu", 3},
+                                                    {"cpu_pct", 25.0}}}}};
+    Require(storage->Snapshot(p_timestamp, DumpJson(snapshot)).has_value(),
+            "complete snapshot is stored");
+  };
+  save(kMidnight - 1, "18446744073709551615", "futex");
+  save(kMidnight + 1, "2", "running");
+  save(kMidnight + 3, "2", "sleep");
+  Require(storage->Close().has_value(), "recordings survive closing storage");
+  const auto bounds = Replay(directory.Path(), {});
+  Require(bounds.has_value(), "replay bounds load");
+  RequireNear(Field(*bounds, "first").AsNumber(), kMidnight - 1,
+              "bounds include yesterday");
+  RequireNear(Field(*bounds, "last").AsNumber(), kMidnight + 3,
+              "bounds include today");
+  const auto exact = Replay(directory.Path(), {kMidnight + 1, "at"});
+  Require(exact.has_value(), "exact replay loads");
+  const auto& snapshot = Field(*exact, "snapshot");
+  Require(Field(Field(snapshot, "health"), "session").AsString() == "2",
+          "process session comes from the recording");
+  Require(Field(Field(snapshot, "threads").AsArray()[0], "state").AsString() ==
+              "running",
+          "recorded thread state is preserved");
+  const auto between = Replay(directory.Path(), {kMidnight, "at"});
+  Require(between.has_value(), "between-frame replay loads");
+  Require(Field(Field(Field(*between, "snapshot"), "health"), "session")
+                  .AsString() == "18446744073709551615",
+          "previous frame retains an old session without numeric rounding");
+  const auto previous = Replay(directory.Path(), {kMidnight + 1, "previous"});
+  const auto next = Replay(directory.Path(), {kMidnight - 1, "next"});
+  Require(previous.has_value() && next.has_value(), "stepping loads");
+  RequireNear(Field(Field(*previous, "snapshot"), "recorded_at").AsNumber(),
+              kMidnight - 1, "previous crosses UTC midnight");
+  RequireNear(Field(Field(*next, "snapshot"), "recorded_at").AsNumber(),
+              kMidnight + 1, "next excludes the current frame");
+  for (const ReplayQuery query :
+       {ReplayQuery{kMidnight - 2, "at"}, ReplayQuery{kMidnight + 3, "next"}})
+  {
+    const auto empty = Replay(directory.Path(), query);
+    Require(empty && Field(*empty, "snapshot").IsNull(),
+            "missing recordings stay missing");
+  }
+  auto old = OpenDatabase(directory.Path() / "2023-11-13.sqlite3", false);
+  Require(old && Execute(old->get(), "CREATE TABLE thread_rollup(ts REAL)"),
+          "an old rollup-only file is created");
+  Require(Replay(directory.Path(), {}).has_value(),
+          "rollup-only files remain compatible");
+  Require(Execute(old->get(), "DROP TABLE thread_rollup").has_value(),
+          "test database remains writable");
+  Require(storage->Flush(kMidnight + 8 * 86400).has_value(), "retention runs");
+  const auto pruned = Replay(directory.Path(), {});
+  Require(pruned && Field(*pruned, "first").IsNull(),
+          "day retention also deletes replay recordings");
+}
+
+// Invalid recording intervals fail configuration validation before startup.
+void TestReplayConfig()
+{
+  for (const std::string_view text :
+       {"replay_interval_s=0", "replay_interval_s=0.5", "replay_interval_s=1",
+        "replay_interval_s=60"})
+  {
+    Require(ParseConfig(text).has_value(), "supported recording cadence");
+  }
+  for (const std::string_view text :
+       {"replay_interval_s=-1", "replay_interval_s=0.1", "replay_interval_s=61",
+        "replay_interval_s=true", "replay_interval_s=nan"})
+  {
+    Require(!ParseConfig(text), "invalid recording cadence is rejected");
+  }
+}
+
 // Storage failures come back as values, not exceptions: a data directory
 // that can't be created, a day file that isn't a database, and History
 // skipping a file it can't read.
@@ -636,6 +727,8 @@ void TestStorageReportsErrors()
   Require(
       History(directory.Path(), "1", 42, 1'700'000'000, 1'700'000'100).empty(),
       "History skips a day file it can't read");
+  Require(!Replay(directory.Path(), {}),
+          "Replay reports an unreadable day file instead of hiding history");
 }
 
 // ---------- Resource samples ----------
@@ -1119,6 +1212,8 @@ int main()
     TestMemoryCgroupAndInterfaceRates();
     TestExistingDayFileGainsNewResourceColumns();
     TestResourceStorageAndHistory();
+    TestReplaySnapshots();
+    TestReplayConfig();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples)");

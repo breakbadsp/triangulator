@@ -28,6 +28,7 @@
 #include "config.hpp"
 #include "json.hpp"
 #include "log.hpp"
+#include "replay.hpp"
 #include "socket_report.hpp"
 #include "storage.hpp"
 #include "target_control.hpp"
@@ -599,6 +600,10 @@ class DashboardServer
       const auto report = socket_reports_.Request(*pid, observer);
       Respond(p_connection, 200, *report, "application/json");
     }
+    else if (p_request.path_ == "/api/replay")
+    {
+      Replay(p_connection, p_request);
+    }
     else if (p_request.path_ == "/api/history")
     {
       History(p_connection, p_request);
@@ -675,6 +680,30 @@ class DashboardServer
                            {"bucket_s", bucket},
                            {"truncated", history.truncated_},
                            {"read_error", history.read_error_}});
+  void Replay(int p_connection, const Request& p_request)
+  {
+    const auto at_text = QueryValue(p_request.query_, "at");
+    const auto at = at_text ? PythonFloat(*at_text) : std::nullopt;
+    const auto direction =
+        QueryValue(p_request.query_, "direction").value_or("at");
+    if ((at_text &&
+         (!at || !std::isfinite(*at) || *at < 0 || *at > 253402214400.0)) ||
+        (direction != "at" && direction != "previous" && direction != "next") ||
+        (!at && direction != "at"))
+    {
+      Respond(p_connection, 400,
+              R"({"error":"valid at timestamp and direction are required"})",
+              "application/json");
+      return;
+    }
+    auto replay = collector::Replay(config_.data_dir_, {at, direction});
+    if (!replay)
+    {
+      RespondJson(p_connection, 503, JsonObject{{"error", replay.error()}});
+      return;
+    }
+    replay->Set("interval_s", config_.replay_interval_s_);
+    RespondJson(p_connection, 200, *replay);
   }
 
   void History(int p_connection, const Request& p_request)
