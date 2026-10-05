@@ -177,14 +177,17 @@ describes what is there and what is missing, including each rule's condition.
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
-  parsing and cache, wire encoding, RAII resources).
-- `collector/`: C++ core collector, without alerting (shares the sampler's
-  wire-format header), and the dashboard page it serves (`dashboard.html`).
+  parsing and cache, RAII resources).
+- `common/`: code both programs use: the datagram format (`wire.hpp`, encode
+  and decode) and the `FileDescriptor` wrapper (`fd.hpp`). It depends only on
+  the standard library, so neither program depends on the other's directory.
+- `collector/`: C++ core collector, without alerting, and the dashboard page it
+  serves (`dashboard.html`).
   [collector/README.md](collector/README.md) lists what it does.
 - `alerting/`: Python alerting code kept for the future alerting module; not
   wired up (see [alerting/README.md](alerting/README.md)).
 - `config/`, `deploy/`: example configuration and systemd units.
 - `scripts/`: `start.sh` and `stop.sh`.
-- `tests/`: C++ tests (sampler, collector) and Python tests (alerting, and
+- `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).

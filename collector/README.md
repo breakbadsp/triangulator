@@ -26,8 +26,8 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Listens on UDP (IPv4 or IPv6) with a 4 MB receive buffer.
 - Accepts datagrams only from the sampler's IP: `sampler_ip` from the config,
   or else the first sender it hears from.
-- Decodes and checks every datagram, using the sampler's own wire-format
-  definitions (`sampler/protocol.hpp`). Malformed datagrams are counted as bad
+- Decodes and checks every datagram, using the wire-format definitions
+  shared with the sampler (`common/wire.hpp`). Malformed datagrams are counted as bad
   packets and dropped.
 
 **3. Rebuilding each tick** (`engine.hpp`, `Monitor`)
@@ -95,7 +95,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `config.hpp` | Loading and checking the config file |
 | `toml.hpp` | TOML reader (the subset collector configs use) |
 | `json.hpp` | JSON values, parser and writer |
-| `protocol.hpp` | Datagram decoding and thread-state classification |
+| `protocol.hpp` | Datagram checks (on top of `common/wire.hpp`) and thread-state classification |
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live` and `/api/history` endpoints |

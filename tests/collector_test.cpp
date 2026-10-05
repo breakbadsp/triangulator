@@ -82,8 +82,8 @@ Packet MakePacket(std::uint32_t p_sequence)
   return MakePacket(p_sequence, {MakeRecord()});
 }
 
-// The datagram the sampler would send for p_packet, using the sampler's own
-// encoder for the header.
+// The datagram the sampler would send for p_packet, using the shared wire
+// encoders.
 std::vector<std::byte> Encode(const Packet& p_packet)
 {
   std::vector<std::byte> data(kHeaderSize +
@@ -98,22 +98,22 @@ std::vector<std::byte> Encode(const Packet& p_packet)
   std::size_t offset = kHeaderSize;
   for (const auto& record : p_packet.records_)
   {
-    const auto buffer = std::span{data}.subspan(offset, kRecordSize);
-    wire::WriteLittleEndian(buffer.subspan<0, 4>(), record.tid_);
-    buffer[4] = static_cast<std::byte>(record.state_);
-    buffer[5] = static_cast<std::byte>(record.flags_);
-    wire::WriteLittleEndian(buffer.subspan<6, 2>(), record.processor_);
-    wire::WriteLittleEndian(buffer.subspan<8, 8>(), record.utime_);
-    wire::WriteLittleEndian(buffer.subspan<16, 8>(), record.stime_);
-    wire::WriteLittleEndian(buffer.subspan<24, 8>(), record.run_delay_);
-    wire::WriteLittleEndian(buffer.subspan<32, 8>(), record.timeslices_);
-    wire::WriteLittleEndian(buffer.subspan<40, 8>(), record.major_faults_);
-    wire::WriteLittleEndian(buffer.subspan<48, 8>(), record.read_bytes_);
-    wire::WriteLittleEndian(buffer.subspan<56, 8>(), record.write_bytes_);
-    std::ranges::copy(std::as_bytes(std::span{record.comm_}),
-                      buffer.subspan(64, 16).begin());
-    std::ranges::copy(std::as_bytes(std::span{record.wchan_}),
-                      buffer.subspan(80, 32).begin());
+    wire::Record wire_record{
+        .tid_ = record.tid_,
+        .state_ = record.state_,
+        .flags_ = static_cast<wire::RecordFlags>(record.flags_),
+        .processor_ = record.processor_,
+        .utime_ = record.utime_,
+        .stime_ = record.stime_,
+        .run_delay_ = record.run_delay_,
+        .timeslices_ = record.timeslices_,
+        .major_faults_ = record.major_faults_,
+        .read_bytes_ = record.read_bytes_,
+        .write_bytes_ = record.write_bytes_};
+    std::ranges::copy(record.comm_, wire_record.comm_.begin());
+    std::ranges::copy(record.wchan_, wire_record.wchan_.begin());
+    wire::EncodeRecord(std::span{data}.subspan(offset).first<kRecordSize>(),
+                       wire_record);
     offset += kRecordSize;
   }
   return data;

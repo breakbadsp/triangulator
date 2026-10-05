@@ -128,7 +128,7 @@ void TestWire()
                   .processor_ = 0x0102};
   std::ranges::copy(std::string_view{"worker"}, stat.name_.begin());
   const auto record =
-      wire::EncodeRecord(0x01020304, stat, {10, 11}, IoCounters{12, 13},
+      wire::EncodeSample(0x01020304, stat, {10, 11}, IoCounters{12, 13},
                          ParseWchan("futex_do_wait"));
   RequireHex(
       record,
@@ -138,7 +138,7 @@ void TestWire()
       "776f726b657200000000000000000000"
       "66757465785f646f5f7761697400000000000000000000000000000000000000");
   const auto missing_io =
-      wire::EncodeRecord(1, stat, {10, 11}, std::nullopt, WaitChannel{});
+      wire::EncodeSample(1, stat, {10, 11}, std::nullopt, WaitChannel{});
   Require(missing_io[5] == std::byte{1}, "unreadable io is flagged");
   std::array<std::byte, wire::kHeaderSize> header{};
   wire::EncodeHeader(header, {.flags_ = wire::Flags::StatusFallback,
