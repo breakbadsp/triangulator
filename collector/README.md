@@ -27,7 +27,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Accepts datagrams only from the sampler's IP: `sampler_ip` from the config,
   or else the first sender it hears from.
 - Decodes and checks every datagram, using the sampler's own wire-format
-  definitions (`sampler/protocol.hpp`). Malformed datagrams are counted as bad
+  definitions (`common/wire.hpp`). Malformed datagrams are counted as bad
   packets and dropped.
 
 **3. Rebuilding each tick** (`engine.hpp`, `Monitor`)

@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-#include "../sampler/io.hpp"
+#include "../common/fd.hpp"
 #include "config.hpp"
 #include "json.hpp"
 #include "log.hpp"

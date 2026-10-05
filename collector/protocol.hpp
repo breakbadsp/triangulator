@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "../sampler/protocol.hpp"
+#include "../common/wire.hpp"
 #include "json.hpp"
 
 namespace triangulator::collector
@@ -23,6 +23,7 @@ namespace triangulator::collector
 using wire::kHeaderSize;
 using wire::kRecordSize;
 using wire::kRecordsPerPacket;
+using wire::ReadLittleEndian;
 inline constexpr std::uint8_t kTargetAbsent =
     std::to_underlying(wire::Flags::TargetAbsent);
 inline constexpr std::uint8_t kStatusFallback =
@@ -80,20 +81,6 @@ struct Packet
            interval_ms_ == p_other.interval_ms_ && pid_ == p_other.pid_;
   }
 };
-
-template <std::unsigned_integral Number>
-[[nodiscard]] Number ReadLittleEndian(std::span<const std::byte> p_bytes,
-                                      std::size_t p_offset)
-{
-  std::array<std::byte, sizeof(Number)> bytes{};
-  std::memcpy(bytes.data(), p_bytes.data() + p_offset, sizeof(Number));
-  auto value = std::bit_cast<Number>(bytes);
-  if constexpr (std::endian::native == std::endian::big)
-  {
-    value = std::byteswap(value);
-  }
-  return value;
-}
 
 // The text before the first NUL, with invalid UTF-8 replaced.
 [[nodiscard]] inline std::string ReadName(std::span<const std::byte> p_bytes,
