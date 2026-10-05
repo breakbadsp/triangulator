@@ -76,6 +76,36 @@ class SamplerTests(unittest.TestCase):
                     target.terminate()
                 target.wait(timeout=3)
 
+    def test_check_config_uses_the_sampler_parser_and_does_not_sample(self):
+        binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(0.5)
+            port = receiver.getsockname()[1]
+            config = Path(directory) / "sampler.toml"
+
+            def check(text):
+                config.write_text(text)
+                return subprocess.run([str(binary), "--check-config", str(config)],
+                                      capture_output=True, text=True, timeout=5)
+
+            # Valid for the sampler, though not TOML: unquoted values and a backslash.
+            checked = check(f"target_process = a\\q\nrate_hz = 5\ncollector = 127.0.0.1:{port}\n")
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+            self.assertIn("valid", checked.stdout)
+            with self.assertRaises(TimeoutError):
+                receiver.recv(1200)
+            for text, error in (
+                    (f'target_pid = 1\nrate_hz = 99\ncollector = "127.0.0.1:{port}"\n', "rate_hz"),
+                    (f'target_pid = 1\ntarget_process = "x"\ncollector = "127.0.0.1:{port}"\n', "exactly one"),
+                    (f'target_pid = 1\ncollector = "127.0.0.1:{port}"\n' + "#" * 16384 + "\n", "16 KiB")):
+                checked = check(text)
+                self.assertEqual(checked.returncode, 2, text[:80])
+                self.assertIn(error, checked.stderr)
+            usage = subprocess.run([str(binary), "--check", str(config)], capture_output=True, text=True, timeout=5)
+            self.assertEqual(usage.returncode, 2)
+            self.assertIn("usage", usage.stderr)
+
     def test_named_target_chunking_thread_names_and_descriptor_cleanup(self):
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
