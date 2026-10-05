@@ -32,8 +32,9 @@
 namespace triangulator::collector
 {
 
+// dashboard.html, as bytes the Makefile writes to build/dashboard_html.inc.
 inline constexpr unsigned char kDashboardHtml[] = {
-#embed "dashboard.html"
+#include "dashboard_html.inc"
 };
 
 [[nodiscard]] inline double WallNow()

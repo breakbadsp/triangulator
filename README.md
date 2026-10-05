@@ -44,9 +44,9 @@ systemd, see [Production setup](#production-setup).
 ## Requirements and build
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-Make and Python 3.11+, plus libsqlite3 development files for the collector, which
-needs GCC 15+ (for `#embed`). Python is used by `scripts/start.sh`, the tests and
-the alerting module; it needs no third-party packages.
+Make and Python 3.11+, plus libsqlite3 development files for the collector.
+Python is used by `scripts/start.sh`, the tests and the alerting module; it
+needs no third-party packages.
 
 ```sh
 make          # build/triangulator-sampler and build/triangulator-collector
