@@ -29,11 +29,14 @@ scripts/set-target.sh ghostty
 scripts/set-target.sh 1234
 ```
 
-The script updates the config used by the running sampler and sends `SIGHUP` to
-reload it. Numeric arguments select a PID; other arguments select an exact Linux
-process name (up to 15 bytes). Start the sampler with `scripts/start.sh` first.
-Until you select a running target, the dashboard reports the target as absent. Run the scripts
-as the same user as the target process. Open <http://127.0.0.1:9401>.
+The script edits the target line of the running sampler's config in place and
+sends `SIGHUP` to reload it. Numeric arguments select a running process ID (not a
+thread ID); other arguments select an exact Linux process name (up to 15 bytes).
+A name that matches several processes is refused with their PIDs, because the
+sampler treats an ambiguous name as an absent target. A name with no running
+process is accepted, and the dashboard reports the target as absent until it starts.
+Start the sampler with `scripts/start.sh` first. Run the scripts as the same user
+as the target process. Open <http://127.0.0.1:9401>.
 
 Change the thread sampling frequency without restarting:
 
@@ -44,6 +47,12 @@ scripts/set-rate.sh 5       # 5 Hz: one sample every 200 ms
 The accepted range is 0.2–10 Hz. This updates the running sampler's config and
 requests a reload, starting a new session. Higher frequencies increase sampling
 overhead. The separate socket observer's one-second reporting interval is unchanged.
+
+Both scripts check the edited file with the running sampler binary
+(`triangulator-sampler --check-config`) before replacing it, so a change the
+sampler would reject leaves the config untouched. They refuse to edit the tracked
+examples in `config/`: start the sampler with `config/local/sampler.toml`, which
+`scripts/start.sh` does by default.
 
 ```sh
 scripts/stop.sh       # stop both
@@ -79,7 +88,8 @@ make format-check # verify C++ formatting
   booleans and `#` comments. Unknown or duplicate keys and malformed values are
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
   `rate_hz` accepts 0.2–10. `SIGHUP` reloads the file; an invalid file leaves the old
-  settings active, and a successful reload starts a new session.
+  settings active, and a successful reload starts a new session. Validate with
+  `build/triangulator-sampler --check-config config/sampler.toml`.
 - **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
   after changes. Validate with
   `build/triangulator-collector config/collector.toml --check-config`. The
