@@ -156,7 +156,7 @@ class Sampler
   }
 
   void SendTick(int p_pid, Nanoseconds p_monotonic, Nanoseconds p_wall,
-                std::span<const wire::Record> p_records)
+                std::span<const wire::RecordBytes> p_records)
   {
     const auto chunks = std::max(
         std::size_t{1}, (p_records.size() + wire::kRecordsPerPacket - 1) /
@@ -226,7 +226,7 @@ class Sampler
 
   RuntimeConfig config_;
   ThreadCache threads_;
-  std::array<wire::Record, wire::kMaxThreads> records_{};
+  std::array<wire::RecordBytes, wire::kMaxThreads> records_{};
   RateLimitedLogger logger_;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = NewSession();

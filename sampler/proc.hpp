@@ -117,7 +117,7 @@ class Thread
 
   struct Sample
   {
-    wire::Record record_;
+    wire::RecordBytes record_;
     bool wchan_hidden_;
   };
 
@@ -159,7 +159,7 @@ class Thread
                            .transform(ParseWchan)
                            .value_or(WaitChannel{});
     const bool sleeping = stat->state_ == 'S' || stat->state_ == 'D';
-    return Sample{wire::EncodeRecord(tid_, *stat, *counters, io, wchan),
+    return Sample{wire::EncodeSample(tid_, *stat, *counters, io, wchan),
                   sleeping && wchan.front() == '\0'};
   }
 

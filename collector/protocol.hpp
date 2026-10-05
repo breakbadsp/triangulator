@@ -23,7 +23,6 @@ namespace triangulator::collector
 using wire::kHeaderSize;
 using wire::kRecordSize;
 using wire::kRecordsPerPacket;
-using wire::ReadLittleEndian;
 inline constexpr std::uint8_t kTargetAbsent =
     std::to_underlying(wire::Flags::TargetAbsent);
 inline constexpr std::uint8_t kStatusFallback =
@@ -83,36 +82,33 @@ struct Packet
 };
 
 // The text before the first NUL, with invalid UTF-8 replaced.
-[[nodiscard]] inline std::string ReadName(std::span<const std::byte> p_bytes,
-                                          std::size_t p_offset,
-                                          std::size_t p_size)
+template <std::size_t Size>
+[[nodiscard]] std::string ReadName(const std::array<char, Size>& p_field)
 {
-  const std::string_view field{
-      reinterpret_cast<const char*>(p_bytes.data() + p_offset), p_size};
+  const std::string_view field{p_field.data(), p_field.size()};
   return SanitizeUtf8(field.substr(0, field.find('\0')));
 }
 
 [[nodiscard]] inline std::expected<Packet, std::string_view> Decode(
     std::span<const std::byte> p_data)
 {
-  if (p_data.size() < kHeaderSize)
+  const auto header = wire::DecodeHeader(p_data);
+  if (!header)
   {
-    return std::unexpected("short header");
+    return std::unexpected(header.error());
   }
   Packet packet;
-  const auto version = std::to_integer<std::uint8_t>(p_data[4]);
-  packet.flags_ = std::to_integer<std::uint8_t>(p_data[5]);
-  packet.chunk_ = std::to_integer<std::uint8_t>(p_data[6]);
-  packet.chunks_ = std::to_integer<std::uint8_t>(p_data[7]);
-  packet.session_ = ReadLittleEndian<std::uint64_t>(p_data, 8);
-  packet.sequence_ = ReadLittleEndian<std::uint32_t>(p_data, 16);
-  const auto count = ReadLittleEndian<std::uint16_t>(p_data, 20);
-  packet.monotonic_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 24);
-  packet.wall_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 32);
-  packet.interval_ms_ = ReadLittleEndian<std::uint32_t>(p_data, 40);
-  packet.pid_ = ReadLittleEndian<std::uint32_t>(p_data, 44);
-  if (std::memcmp(p_data.data(), "TMON", 4) != 0 || version != wire::kVersion ||
-      (packet.flags_ & ~3) != 0)
+  packet.flags_ = std::to_underlying(header->flags_);
+  packet.chunk_ = header->chunk_;
+  packet.chunks_ = header->chunks_;
+  packet.session_ = header->session_;
+  packet.sequence_ = header->sequence_;
+  packet.monotonic_ns_ = header->monotonic_ns_;
+  packet.wall_ns_ = header->wall_ns_;
+  packet.interval_ms_ = header->interval_ms_;
+  packet.pid_ = header->pid_;
+  const auto count = header->records_;
+  if ((packet.flags_ & ~3) != 0)
   {
     return std::unexpected("unsupported protocol");
   }
@@ -140,26 +136,28 @@ struct Packet
   for (std::size_t offset = kHeaderSize; offset < p_data.size();
        offset += kRecordSize)
   {
+    const auto wire_record =
+        wire::DecodeRecord(p_data.subspan(offset).first<kRecordSize>());
     Record record;
-    record.tid_ = ReadLittleEndian<std::uint32_t>(p_data, offset);
-    const auto state = std::to_integer<std::uint8_t>(p_data[offset + 4]);
-    record.flags_ = std::to_integer<std::uint8_t>(p_data[offset + 5]);
+    record.tid_ = wire_record.tid_;
+    record.flags_ = std::to_underlying(wire_record.flags_);
+    const auto state = static_cast<std::uint8_t>(wire_record.state_);
     if (record.tid_ == 0 || state < 32 || state >= 127 ||
         (record.flags_ & ~kIoUnavailable) != 0)
     {
       return std::unexpected("invalid thread record");
     }
-    record.state_ = static_cast<char>(state);
-    record.processor_ = ReadLittleEndian<std::uint16_t>(p_data, offset + 6);
-    record.utime_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 8);
-    record.stime_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 16);
-    record.run_delay_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 24);
-    record.timeslices_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 32);
-    record.major_faults_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 40);
-    record.read_bytes_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 48);
-    record.write_bytes_ = ReadLittleEndian<std::uint64_t>(p_data, offset + 56);
-    record.comm_ = ReadName(p_data, offset + 64, 16);
-    record.wchan_ = ReadName(p_data, offset + 80, 32);
+    record.state_ = wire_record.state_;
+    record.processor_ = wire_record.processor_;
+    record.utime_ = wire_record.utime_;
+    record.stime_ = wire_record.stime_;
+    record.run_delay_ = wire_record.run_delay_;
+    record.timeslices_ = wire_record.timeslices_;
+    record.major_faults_ = wire_record.major_faults_;
+    record.read_bytes_ = wire_record.read_bytes_;
+    record.write_bytes_ = wire_record.write_bytes_;
+    record.comm_ = ReadName(wire_record.comm_);
+    record.wchan_ = ReadName(wire_record.wchan_);
     for (const auto& previous : packet.records_)
     {
       if (previous.tid_ == record.tid_)
