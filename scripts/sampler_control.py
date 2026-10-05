@@ -145,12 +145,15 @@ def replace_setting(text, pattern, setting):
 
 
 def running_sampler(root):
-    """(pid, config path) of the sampler that scripts/start.sh started."""
+    """(pid, config path), or None if the sampler is absent or stopped.
+
+    Inspection errors propagate so callers cannot mistake them for absence.
+    """
     pidfile = root / ".run/sampler.pid"
     try:
         pid_text = pidfile.read_text().strip()
     except FileNotFoundError:
-        raise ControlError("the sampler is not running; start it with scripts/start.sh") from None
+        return None
     pid = parse_pid(pid_text)
     if pid is None:
         raise ControlError(f"invalid {pidfile}; restart the sampler with {RESTART_HINT}")
@@ -158,7 +161,7 @@ def running_sampler(root):
     try:
         executable = os.readlink(proc / "exe").removesuffix(" (deleted)")
     except FileNotFoundError:
-        raise ControlError(f"the sampler (PID {pid}) is not running; start it with scripts/start.sh") from None
+        return None
     except PermissionError:
         raise ControlError(f"cannot inspect sampler PID {pid}; run this as the sampler's user") from None
     # The kernel reports a fully resolved path; resolve ours too, so a repo
@@ -180,7 +183,10 @@ def update_config(root, pattern, setting):
     # Serialise concurrent runs, so one edit can't overwrite another.
     with open(root / ".run/sampler-control.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        pid, config = running_sampler(root)
+        sampler = running_sampler(root)
+        if sampler is None:
+            raise ControlError("the sampler is not running; start it with scripts/start.sh")
+        pid, config = sampler
         examples = (root / "config").resolve()
         if config.is_relative_to(examples) and not config.is_relative_to(examples / "local"):
             raise ControlError(
@@ -198,13 +204,8 @@ def update_config(root, pattern, setting):
             checked = subprocess.run([f"/proc/{pid}/exe", "--check-config", str(temporary)],
                                      capture_output=True, text=True, timeout=10)
             if checked.returncode != 0:
-                error = checked.stderr.strip()
-                if not error.startswith("invalid sampler config: "):
-                    # A sampler built before --check-config prints its usage.
-                    raise ControlError(f"the running sampler cannot check configs ({error}); "
-                                       f"rebuild and restart it: {RESTART_HINT}")
-                error = error.removeprefix("invalid sampler config: ")
-                raise ControlError(f"the sampler would reject the new config ({error}); {config} is unchanged")
+                raise ControlError(f"sampler config validation failed: {checked.stderr.strip()}; "
+                                   f"{config} is unchanged")
             os.replace(temporary, config)
             temporary = None
         finally:
@@ -219,8 +220,10 @@ def update_config(root, pattern, setting):
 
 def set_target(root, target):
     running = True
-    if parse_pid(target) is not None:
-        setting = f"target_pid = {resolve_pid(target)}"
+    pid = parse_pid(target)
+    if pid is not None:
+        require_process(pid)
+        setting = f"target_pid = {pid}"
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
@@ -246,14 +249,12 @@ def set_rate(root, text):
 
 
 def collector(root):
-    """The running sampler's collector, else the one in config/local."""
+    """Use config/local only when the sampler is absent or stopped."""
     try:
-        _, config = running_sampler(root)
-    except (ControlError, OSError):
-        config = root / "config/local/sampler.toml"
-    try:
+        sampler = running_sampler(root)
+        config = sampler[1] if sampler is not None else root / "config/local/sampler.toml"
         endpoint = read_setting(config.read_text(), "collector")
-    except OSError as error:
+    except (ControlError, OSError) as error:
         raise ControlError(f"cannot read the collector endpoint: {error}; pass --collector IP:PORT") from None
     if not endpoint:
         raise ControlError(f"no collector in {config}; pass --collector IP:PORT")

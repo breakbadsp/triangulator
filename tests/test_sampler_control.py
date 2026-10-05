@@ -217,12 +217,48 @@ class ScriptTests(unittest.TestCase):
         custom = self.real / "custom.toml"
         custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
         command = [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"]
+        found = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        self.assertEqual(found.returncode, 0, found.stderr)
+        self.assertEqual(found.stdout, "10.0.0.5:9400\n", found.stderr)
         sampler = self.start_sampler(custom)
         found = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        self.assertEqual(found.returncode, 0, found.stderr)
         self.assertEqual(found.stdout, f"127.0.0.1:{self.port}\n", found.stderr)
         stop(sampler)
         found = subprocess.run(command, capture_output=True, text=True, timeout=5)
+        self.assertEqual(found.returncode, 0, found.stderr)
         self.assertEqual(found.stdout, "10.0.0.5:9400\n", found.stderr)
+
+    def test_collector_does_not_fall_back_when_running_config_disappears(self):
+        # A live sampler keeps its loaded endpoint even after its file is removed.
+        (self.real / "config/local/sampler.toml").write_text(
+            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
+        custom = self.real / "custom.toml"
+        custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
+        sampler = self.start_sampler(custom)
+        self.receive_until(lambda value: value.pid == self.target.pid)
+        custom.unlink()
+
+        found = subprocess.run(
+            [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
+            capture_output=True, text=True, timeout=5)
+        self.assertIsNone(sampler.poll())
+        self.assertEqual(found.returncode, 1)
+        self.assertEqual(found.stdout, "")
+        self.assertIn(str(custom), found.stderr)
+        self.assertIn("pass --collector IP:PORT", found.stderr)
+
+    def test_collector_does_not_fall_back_when_pidfile_points_to_another_program(self):
+        (self.real / "config/local/sampler.toml").write_text(
+            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
+        (self.real / ".run/sampler.pid").write_text(f"{self.target.pid}\n")
+        found = subprocess.run(
+            [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
+            capture_output=True, text=True, timeout=5)
+        self.assertEqual(found.returncode, 1)
+        self.assertEqual(found.stdout, "")
+        self.assertIn("not this repo's sampler", found.stderr)
+        self.assertIn("pass --collector IP:PORT", found.stderr)
 
 
 if __name__ == "__main__":
