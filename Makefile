@@ -20,10 +20,19 @@ build/triangulator-sampler: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
 # The collector embeds collector/dashboard.html, so the binary serves the
-# page without reading files at run time.
-build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) collector/dashboard.html Makefile
+# page without reading files at run time. od writes the page's bytes as a
+# comma-separated list that collector/http.hpp includes. (C++26 #embed does
+# the same but needs GCC 15 or Clang 19; this works with any C++23 compiler.)
+build/dashboard_html.inc: collector/dashboard.html Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+	od -An -v -tu1 $< > $@.od
+	sed 's/^ *//; s/ *$$//; s/  */,/g; s/$$/,/' $@.od > $@.tmp
+	mv $@.tmp $@
+	rm -f $@.od
+
+build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) build/dashboard_html.inc Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) -Ibuild $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
 build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) Makefile
 	mkdir -p build

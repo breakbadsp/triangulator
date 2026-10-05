@@ -99,7 +99,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live` and `/api/history` endpoints |
-| `dashboard.html` | The dashboard page, built into the binary with `#embed` |
+| `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
 | `log.hpp` | Timestamped log lines on stderr |
 
 ## Why it is C++
