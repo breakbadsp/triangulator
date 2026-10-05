@@ -225,9 +225,11 @@ allowed only in these places:
    allocation, and so on. Use the non-throwing overload when one exists.
    Otherwise catch at the narrowest boundary and convert to
    `std::expected`. Let `std::bad_alloc` terminate the program.
-2. **The last-resort handler in `main`.** One `catch (const std::exception&)`
-   logs the error and returns a non-zero exit code. It catches bugs. It is
-   not the error-handling design.
+2. **The last-resort handler in `main` and at the top of a thread's
+   function.** One `catch (const std::exception&)` logs the error. In
+   `main` it returns a non-zero exit code. In a thread it ends the current
+   unit of work, such as one HTTP request (`DashboardServer::Serve`). It
+   catches bugs. It is not the error-handling design.
 3. **Test helpers.** In `tests/*.cpp` a failed check may throw to abort the
    current test case.
 
@@ -243,12 +245,6 @@ Exceptions are never used:
 We don't build with `-fno-exceptions`. The standard library still throws
 (allocation, `std::thread`, some `std::filesystem` calls), and the cases
 above need the mechanism.
-
-Some existing code predates this rule: the `SqliteError` and
-`std::system_error` throws in `collector/storage.hpp`,
-`collector/http.hpp`, `sampler/io.hpp` and `sampler/main.cpp`. When you
-change one of these functions, convert it to `std::expected` in the same
-change. Don't mix the conversion with unrelated edits.
 
 ### `noexcept`
 

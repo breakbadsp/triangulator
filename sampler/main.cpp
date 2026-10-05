@@ -1,6 +1,11 @@
 #include <sys/random.h>
 
+#include <cassert>
 #include <csignal>
+#include <expected>
+#include <format>
+#include <string>
+#include <system_error>
 
 #include "proc.hpp"
 
@@ -24,7 +29,7 @@ extern "C" void OnSignal(int p_number)
   }
 }
 
-void InstallSignalHandlers()
+[[nodiscard]] std::expected<void, std::error_code> InstallSignalHandlers()
 {
   struct sigaction action{};
   action.sa_handler = OnSignal;
@@ -33,12 +38,15 @@ void InstallSignalHandlers()
   {
     if (::sigaction(number, &action, nullptr) != 0)
     {
-      throw std::system_error(errno, std::generic_category(), "sigaction");
+      return std::unexpected(std::error_code{errno, std::generic_category()});
     }
   }
+  return {};
 }
 
-[[nodiscard]] std::uint64_t NewSession()
+// A random session id. getrandom can fail (for example ENOSYS on a kernel
+// older than 3.17).
+[[nodiscard]] std::expected<std::uint64_t, std::error_code> NewSession()
 {
   std::uint64_t session{};
   auto bytes = std::as_writable_bytes(std::span{&session, 1});
@@ -51,8 +59,8 @@ void InstallSignalHandlers()
     }
     if (length <= 0)
     {
-      throw std::system_error(length == 0 ? EIO : errno,
-                              std::generic_category(), "getrandom");
+      return std::unexpected(
+          std::error_code{length == 0 ? EIO : errno, std::generic_category()});
     }
     bytes = bytes.subspan(static_cast<std::size_t>(length));
   }
@@ -67,8 +75,14 @@ class Sampler
   {
   }
 
-  void Run(const char* p_config_path)
+  // Samples until SIGINT/SIGTERM. Returns an error only when no new session
+  // id can be made.
+  [[nodiscard]] std::expected<void, std::string> Run(const char* p_config_path)
   {
+    if (auto reset = ResetSession(); !reset)
+    {
+      return reset;
+    }
     auto deadline = ClockNow(CLOCK_MONOTONIC);
     while (!stop_requested)
     {
@@ -79,7 +93,10 @@ class Sampler
         if (next)
         {
           config_ = std::move(*next);
-          ResetSession();
+          if (auto reset = ResetSession(); !reset)
+          {
+            return reset;
+          }
         }
         else
         {
@@ -91,7 +108,10 @@ class Sampler
       const auto lookup = FindTarget(config_.settings_.target_);
       if (lookup)
       {
-        SampleTick(*lookup);
+        if (auto sampled = SampleTick(*lookup); !sampled)
+        {
+          return sampled;
+        }
       }
       else
       {
@@ -110,14 +130,19 @@ class Sampler
       }
       SleepUntil(deadline);
     }
+    return {};
   }
 
  private:
-  void SampleTick(const std::optional<TargetIdentity>& p_target)
+  [[nodiscard]] std::expected<void, std::string> SampleTick(
+      const std::optional<TargetIdentity>& p_target)
   {
     if (p_target != previous_target_)
     {
-      ResetSession();
+      if (auto reset = ResetSession(); !reset)
+      {
+        return reset;
+      }
       previous_target_ = p_target;
     }
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
@@ -146,13 +171,21 @@ class Sampler
       }
     }
     SendTick(pid, monotonic, wall, std::span{records_}.first(count));
+    return {};
   }
 
-  void ResetSession()
+  [[nodiscard]] std::expected<void, std::string> ResetSession()
   {
+    const auto session = NewSession();
+    if (!session)
+    {
+      return std::unexpected(
+          std::format("getrandom: {}", session.error().message()));
+    }
     threads_.Clear();
-    session_ = NewSession();
+    session_ = *session;
     sequence_ = 0;
+    return {};
   }
 
   void SendTick(int p_pid, Nanoseconds p_monotonic, Nanoseconds p_wall,
@@ -216,11 +249,9 @@ class Sampler
       {
         break;
       }
-      if (error != EINTR)
-      {
-        throw std::system_error(error, std::generic_category(),
-                                "clock_nanosleep");
-      }
+      // EINVAL (a bad deadline) is the only other failure for this clock,
+      // and the deadline is ours, so it would be a bug.
+      assert(error == EINTR);
     }
   }
 
@@ -229,7 +260,7 @@ class Sampler
   std::array<wire::RecordBytes, wire::kMaxThreads> records_{};
   RateLimitedLogger logger_;
   std::optional<TargetIdentity> previous_target_;
-  std::uint64_t session_ = NewSession();
+  std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
   std::uint32_t sequence_ = 0;
 };
 
@@ -252,13 +283,23 @@ int main(int p_argc, char** p_argv)
                    config.error().c_str());
       return 2;
     }
-    triangulator::InstallSignalHandlers();
+    if (auto installed = triangulator::InstallSignalHandlers(); !installed)
+    {
+      std::fprintf(stderr, "triangulator: sigaction: %s\n",
+                   installed.error().message().c_str());
+      return 1;
+    }
     triangulator::Sampler sampler{std::move(*config),
                                   triangulator::RaiseDescriptorLimit()};
-    sampler.Run(p_argv[1]);
+    if (auto ran = sampler.Run(p_argv[1]); !ran)
+    {
+      std::fprintf(stderr, "triangulator: %s\n", ran.error().c_str());
+      return 1;
+    }
   }
   catch (const std::exception& error)
   {
+    // Last resort for a bug or an exception from the standard library.
     std::fprintf(stderr, "triangulator: %s\n", error.what());
     return 1;
   }

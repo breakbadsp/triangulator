@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <cassert>
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -15,7 +16,6 @@
 #include <optional>
 #include <span>
 #include <string_view>
-#include <system_error>
 #include <utility>
 
 #include "../common/fd.hpp"
@@ -92,13 +92,13 @@ using Directory = std::unique_ptr<DIR, DirectoryCloser>;
 using Nanoseconds = std::chrono::nanoseconds;
 using namespace std::chrono_literals;
 
-[[nodiscard]] inline Nanoseconds ClockNow(clockid_t p_clock)
+// clock_gettime fails only for an unknown clock id or a bad pointer. We
+// pass constants and a local, so a failure is a bug, not an operating error.
+[[nodiscard]] inline Nanoseconds ClockNow(clockid_t p_clock) noexcept
 {
   timespec value{};
-  if (::clock_gettime(p_clock, &value) != 0)
-  {
-    throw std::system_error(errno, std::generic_category(), "clock_gettime");
-  }
+  [[maybe_unused]] const int result = ::clock_gettime(p_clock, &value);
+  assert(result == 0);
   return std::chrono::seconds{value.tv_sec} + Nanoseconds{value.tv_nsec};
 }
 
