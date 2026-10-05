@@ -1,4 +1,4 @@
-target_process = "mybackend"
+target_process = "ghostty"
 # target_pid = 1234
 rate_hz = 1.0
 collector = "10.0.0.5:9400"

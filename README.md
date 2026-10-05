@@ -30,7 +30,14 @@ as the same user as the target process. Open <http://127.0.0.1:9401>.
 ```sh
 scripts/stop.sh       # stop both
 scripts/start.sh      # rebuild if needed and start both
+scripts/restart.sh    # rebuild and restart the collector (also: sampler, all)
 ```
+
+`scripts/restart.sh` reuses the config the running program was started with.
+It rebuilds and checks the collector config before stopping anything, so a
+build or config error leaves the old collector running. It finds the program
+even without a pidfile. It will not touch a copy started by another user
+(for example with `sudo`); stop that one yourself first.
 
 The collector (`build/triangulator-collector`) does **no alerting**; see
 [Alerting](#alerting).
@@ -72,10 +79,34 @@ make format-check # verify C++ formatting
 
 ## Dashboard
 
-Shows thread groups, latest state and wait channel, a ten-second state mix, CPU,
-run delay, I/O, monitor health, and per-thread history. The page also has alert
-sections and alert settings; it hides them because the collector's `/api/live` has
-no alert fields.
+The page opens on a **process overview**, built in the browser from `/api/live`
+(nothing extra is sampled or stored):
+
+- **Process load**: 1-, 5- and 15-minute load averages for the target alone,
+  computed like `/proc/loadavg`. Load is CPU in use plus demand waiting for a
+  CPU (run delay) plus threads in uninterruptible kernel wait. The chart splits
+  load into those parts.
+- **Assessment**: rules of thumb that point at likely problems: a thread
+  saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
+  threads, thread churn, sampler silence and packet loss.
+- **Shape of the process**: active versus idle threads, context switches, I/O,
+  thread states over time, CPU by thread family, the busiest wait channels,
+  and CPU by the core each thread last ran on.
+- **Thread map**: one tile per thread, colored by its current state and
+  labelled with its CPU % of one core. Idle threads are faded and blank. The
+  Now / 1 min / 5 min / 15 min switch shows CPU over the last ~10 s or the
+  average over that window; over a window, a tile is faded only if the thread
+  was idle for all of it.
+
+The browser tab keeps these trends for up to 15 minutes, and they survive a
+reload of that tab. The thread table shows active threads by default. Idle
+threads (no CPU, context switches or I/O in the last ~10 s) are listed apart,
+with how long each has been idle, instead of a row of zeros. Click a thread for
+a drawer with its live CPU and stored history (CPU, run delay, state mix,
+I/O). A light/dark switch is in the top bar.
+
+The page also has alert sections and alert settings. It hides them because the
+collector's `/api/live` has no alert fields.
 
 The HTTP listener defaults to loopback. Neither UDP nor HTTP is authenticated, so
 use an SSH tunnel or an authenticating reverse proxy for remote access.

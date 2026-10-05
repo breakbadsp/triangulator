@@ -4,93 +4,906 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Triangulator · Thread monitor</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10151e;color:#e4eaf3}body{max-width:1400px;margin:auto;padding:28px}h1{font-size:28px;margin-bottom:4px}h2{font-size:18px;margin-top:30px}.muted{color:#a1afc5}.cards{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}.card{background:#1b2534;border:1px solid #35435a;border-radius:10px;padding:16px;min-width:150px}.value{font-size:24px;margin-top:8px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:11px;border-bottom:1px solid #303b4d}th{color:#a1afc5;position:sticky;top:0;background:#10151e}button,input,select{font:inherit;background:#1b2534;color:inherit;border:1px solid #536680;border-radius:5px;padding:7px}button{cursor:pointer}button:hover{background:#304462}.bad{color:#ff9292}.good{color:#74dab6}.mix{display:flex;width:160px;height:12px;border-radius:3px;overflow:hidden}.running{background:#59a6ff}.socket{background:#5ad7c2}.poll{background:#7b82db}.futex{background:#ffb866}.pipe{background:#ee91dc}.sleep{background:#9aa5ff}.stopped{background:#d4d46a}.kernel{background:#ff6565}.other{background:#718096}.no_access{background:#a3a3a3}.pill{padding:3px 7px;border-radius:4px;color:#10151e;white-space:nowrap}.scroll{overflow:auto;max-height:70vh}.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px}.dot{display:inline-block;width:9px;height:9px;margin-right:4px;border-radius:2px}#timeline{display:flex;min-height:38px;gap:1px;margin:16px 0}#timeline>div{min-width:3px;flex:1}#history{display:none}details{margin:20px 0}a{color:#59a6ff}label{margin-right:12px}.wchan{display:block;margin-top:4px;font-size:12px;color:#a1afc5;font-family:ui-monospace,monospace}.num{text-align:right;font-variant-numeric:tabular-nums}#error{min-height:20px}.filters{background:#161f2c;border:1px solid #303b4d;border-radius:10px;padding:14px 16px;margin:0 0 16px}.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 12px}.chips-title{font-size:12px;color:#a1afc5;text-transform:uppercase;letter-spacing:.05em}.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:13px}.chip[aria-pressed=true]{background:#304462;border-color:#8fb3ff;box-shadow:0 0 0 1px #8fb3ff}.chip .count{color:#a1afc5;font-variant-numeric:tabular-nums}.chip.mono{font-family:ui-monospace,monospace;font-size:12px}a.card{color:inherit;text-decoration:none}header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}#settings{display:none;background:#161f2c;border:1px solid #303b4d;border-radius:10px;padding:6px 16px 16px;margin:0 0 16px}#settings.open{display:block}#settings td{vertical-align:top}#settings input[type=number]{width:90px}#settings .setting{display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;white-space:nowrap}#settings .rule-name{font-weight:600}#settings .hint{font-size:12px;color:#a1afc5}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}button.primary{background:#2d5bd7;border-color:#2d5bd7}button.primary:hover{background:#3a69e6}
+/* Colors are roles, not hex in the markup. The eight state colors are the
+   validated categorical palette, in its fixed order; light and dark each
+   have their own steps. "other" and "no access" are neutral grays. */
+:root{color-scheme:light;--page:#f4f5f7;--surface:#ffffff;--surface-2:#f7f8fa;--raised:#eef1f5;--ink:#0b0b0b;--ink-2:#4a4f58;--muted:#7a808a;--grid:#e4e6ea;--axis:#c7cbd2;--line:rgba(11,11,11,.09);--accent:#2a78d6;--accent-ink:#1c5cab;--accent-wash:rgba(42,120,214,.12);--series-1:#2a78d6;--series-2:#eb6834;--good:#0ca30c;--warning:#fab219;--serious:#ec835a;--critical:#d03b3b;--good-ink:#006300;--bad-ink:#b42424;--s-running:#2a78d6;--s-futex:#eb6834;--s-poll:#1baf7a;--s-socket:#eda100;--s-pipe:#e87ba4;--s-sleep:#008300;--s-stopped:#4a3aa7;--s-kernel:#e34948;--s-other:#9aa0a8;--s-no_access:#c4c8ce;--t-running:#fff;--t-futex:#111;--t-poll:#111;--t-socket:#111;--t-pipe:#111;--t-sleep:#fff;--t-stopped:#fff;--t-kernel:#111;--t-other:#111;--t-no_access:#111;--shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px -12px rgba(16,24,40,.12)}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme=light])){color-scheme:dark;--page:#0b0e14;--surface:#141922;--surface-2:#10141c;--raised:#1c2330;--ink:#f3f5f8;--ink-2:#c3c8d1;--muted:#8a919c;--grid:#232a36;--axis:#343d4c;--line:rgba(255,255,255,.08);--accent:#3987e5;--accent-ink:#86b6ef;--accent-wash:rgba(57,135,229,.16);--series-1:#3987e5;--series-2:#d95926;--good-ink:#3ccf3c;--bad-ink:#ff8a8a;--s-running:#3987e5;--s-futex:#d95926;--s-poll:#199e70;--s-socket:#c98500;--s-pipe:#d55181;--s-sleep:#008300;--s-stopped:#9085e9;--s-kernel:#e66767;--s-other:#6b7380;--s-no_access:#4a515c;--t-running:#111;--t-futex:#111;--t-poll:#111;--t-socket:#111;--t-pipe:#111;--t-sleep:#fff;--t-stopped:#111;--t-kernel:#111;--t-other:#fff;--t-no_access:#fff;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -16px rgba(0,0,0,.6)}}
+:root[data-theme=dark]{color-scheme:dark;--page:#0b0e14;--surface:#141922;--surface-2:#10141c;--raised:#1c2330;--ink:#f3f5f8;--ink-2:#c3c8d1;--muted:#8a919c;--grid:#232a36;--axis:#343d4c;--line:rgba(255,255,255,.08);--accent:#3987e5;--accent-ink:#86b6ef;--accent-wash:rgba(57,135,229,.16);--series-1:#3987e5;--series-2:#d95926;--good-ink:#3ccf3c;--bad-ink:#ff8a8a;--s-running:#3987e5;--s-futex:#d95926;--s-poll:#199e70;--s-socket:#c98500;--s-pipe:#d55181;--s-sleep:#008300;--s-stopped:#9085e9;--s-kernel:#e66767;--s-other:#6b7380;--s-no_access:#4a515c;--t-running:#111;--t-futex:#111;--t-poll:#111;--t-socket:#111;--t-pipe:#111;--t-sleep:#fff;--t-stopped:#111;--t-kernel:#111;--t-other:#fff;--t-no_access:#fff;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -16px rgba(0,0,0,.6)}
+*{box-sizing:border-box}
+html{background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;scroll-padding-top:80px}
+body{margin:0}
+a{color:var(--accent-ink)}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+h1,h2,h3{margin:0;font-weight:600}
+h2{font-size:15px}
+h3{font-size:13px}
+[hidden]{display:none!important}
+.muted{color:var(--muted)}
+.ink2{color:var(--ink-2)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.good{color:var(--good-ink)}
+.bad{color:var(--bad-ink)}
+button,input,select{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+input,select{background:var(--surface-2)}
+button{cursor:pointer}
+button:hover{background:var(--raised)}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
-.socket-panel{margin:24px 0 30px;padding:22px;background:linear-gradient(135deg,#182638,#141d2b);border:1px solid #344c67;border-radius:14px}.socket-panel h2{margin:0}.socket-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.socket-badge{font-size:12px;padding:5px 9px;border-radius:20px;background:#26374b;color:#b9cbe2}.socket-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:18px 0}.socket-controls button[aria-pressed=true]{background:#2b617b;border-color:#66d4df}.socket-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}.socket-cards .card{min-width:0;background:#172332}.socket-cards .value{font-size:25px;font-variant-numeric:tabular-nums}.socket-chart{width:100%;height:130px;display:block;color:#6dd7df}.socket-chart-wrap{border:1px solid #304259;background:#111c2a;border-radius:8px;padding:14px}.socket-chart-caption{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#a1afc5}.socket-note{font-size:13px;line-height:1.6;color:#aebed2;max-width:1000px}.socket-empty{padding:18px 0;line-height:1.7;max-width:900px}.socket-panel td small{display:block;color:#a1afc5;font-size:11px}.socket-panel .scroll{max-height:380px}.socket-panel th{background:#172332}.socket-panel code{overflow-wrap:anywhere}.socket-warning{color:#ffd398}.socket-panel details{font-size:13px;line-height:1.6}.socket-panel summary{cursor:pointer}@media(max-width:640px){body{padding:14px}.socket-panel{padding:16px}.socket-controls label{width:100%}.socket-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--page) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:1480px;margin:auto;padding:10px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;font-size:16px;letter-spacing:-.01em}
+.brand svg{width:24px;height:24px}
+.target{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.target strong{font-size:14px}
+.status-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.status-dot.live{background:var(--good);box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent);animation:pulse 2s infinite}
+.status-dot.critical{background:var(--critical)}
+.status-dot.warning{background:var(--warning)}
+@keyframes pulse{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.status-dot.live{animation:none}}
+nav.tabs{display:flex;gap:2px;margin-left:auto}
+nav.tabs a{color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:8px}
+nav.tabs a:hover{background:var(--raised);color:var(--ink)}
+.icon-btn{padding:6px 9px;line-height:1}
+.banner{max-width:1480px;margin:12px auto 0;padding:10px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--critical) 45%,transparent);background:color-mix(in srgb,var(--critical) 10%,var(--surface));display:flex;gap:10px;align-items:center}
+.banner:empty{display:none}
+
+main{max-width:1480px;margin:auto;padding:20px 24px 60px}
+section.block{margin-top:30px}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.section-head h2{font-size:18px;letter-spacing:-.01em}
+.section-head p{margin:3px 0 0;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.card-head>div:first-child{flex:1 1 240px}
+.card-head p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.grid{display:grid;gap:14px}
+.g-hero{grid-template-columns:minmax(0,1.75fr) minmax(320px,1fr)}
+.g-2-1{grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr)}
+.g-1-1{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:14px}
+@media (max-width:1050px){.g-hero,.g-2-1,.g-1-1{grid-template-columns:minmax(0,1fr)}nav.tabs{margin-left:0}}
+
+/* Segmented control */
+.seg{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface-2)}
+.seg button{border:0;background:none;padding:4px 10px;border-radius:7px;color:var(--ink-2);white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+/* Hero + tiles */
+.hero-row{display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap;margin-bottom:6px}
+.hero{font-size:48px;font-weight:600;line-height:1;letter-spacing:-.02em}
+.hero-unit{font-size:20px;color:var(--muted);font-weight:500}
+.hero-side{display:flex;gap:22px;flex-wrap:wrap;padding-bottom:4px}
+.kv .k{font-size:12px;color:var(--muted)}
+.kv .v{font-size:16px;font-weight:600}
+.tile{display:flex;flex-direction:column;gap:2px;padding:14px 16px 10px}
+.tile .label{font-size:12px;color:var(--muted)}
+.tile .value{font-size:24px;font-weight:600;letter-spacing:-.01em}
+.tile .sub{font-size:12px;color:var(--ink-2);min-height:17px}
+.tile svg{width:100%;height:30px;display:block;margin-top:6px}
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%}
+.chart-empty{display:grid;place-items:center;color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:10px}
+.axis-label{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--ink-2);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.sw.line{height:2px;width:14px;border-radius:1px}
+.sw.running,.running{background:var(--s-running)}.sw.futex,.futex{background:var(--s-futex)}.sw.poll,.poll{background:var(--s-poll)}.sw.socket,.socket{background:var(--s-socket)}.sw.pipe,.pipe{background:var(--s-pipe)}.sw.sleep,.sleep{background:var(--s-sleep)}.sw.stopped,.stopped{background:var(--s-stopped)}.sw.kernel,.kernel{background:var(--s-kernel)}.sw.other,.other{background:var(--s-other)}.sw.no_access,.no_access{background:var(--s-no_access)}
+
+/* Assessment */
+.findings{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.finding{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+.finding[data-action]{cursor:pointer}
+.finding[data-action]:hover{background:var(--raised)}
+.finding .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.finding .t{font-weight:600}
+.finding .d{font-size:12px;color:var(--ink-2);margin-top:1px}
+.lvl-good .ic{background:var(--good)}.lvl-info .ic{background:var(--muted)}.lvl-warning .ic{background:var(--warning);color:#2a1d00}.lvl-serious .ic{background:var(--serious);color:#2a1100}.lvl-critical .ic{background:var(--critical)}
+.verdict{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.verdict .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
+.verdict .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
+.profile{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.55}
+
+/* Bar lists */
+.bars{display:flex;flex-direction:column;gap:3px}
+.bar-row{display:grid;grid-template-columns:minmax(90px,38%) 1fr auto;align-items:center;gap:10px;padding:4px 6px;border-radius:7px;font-size:13px;border:0;background:none;text-align:left;width:100%}
+.bar-row:hover{background:var(--raised)}
+.bar-row[aria-pressed=true]{background:var(--accent-wash)}
+.bar-row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-row .track{height:10px;border-radius:0 4px 4px 0;background:transparent;position:relative}
+.bar-row .fill{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;background:var(--series-1);min-width:2px}
+.bar-row .val{font-variant-numeric:tabular-nums;color:var(--ink-2);min-width:62px;text-align:right}
+.bar-row .val small{color:var(--muted);margin-left:4px}
+
+/* Thread map */
+.mosaic{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:60px}
+/* A tile per thread: fill = state, number = CPU % of one core. The number's
+   color is picked per state and theme for contrast against the fill. */
+.cell{width:50px;height:28px;border-radius:6px;display:grid;place-items:center;cursor:pointer;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cell.idle{opacity:.4}
+.cell.stale{opacity:.25}
+.cell:hover{outline:2px solid var(--ink);outline-offset:1px}
+.mosaic.dense{gap:3px}
+.mosaic.dense .cell{min-width:0;width:12px;height:12px;padding:0;border-radius:3px;font-size:0}
+
+/* Cores */
+.cores{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:18px}
+.core{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:20px;gap:4px;font-size:11px;color:var(--muted)}
+.core .col{width:100%;max-width:24px;border-radius:4px 4px 0 0;background:var(--series-1);min-height:2px}
+.core .cap{color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.core-base{border-top:1px solid var(--axis);margin-top:0}
+
+/* Health list */
+.health-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;margin:0}
+.health-list div{display:flex;flex-direction:column}
+.health-list dt{font-size:12px;color:var(--muted)}
+.health-list dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+
+/* Threads */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.toolbar label{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.toolbar input[type=search]{min-width:240px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
+.chips-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;background:var(--surface-2)}
+.chip[aria-pressed=true]{background:var(--accent-wash);border-color:var(--accent);color:var(--ink)}
+.chip .count{color:var(--muted);font-variant-numeric:tabular-nums}
+.chip.mono{font-family:ui-monospace,monospace;font-size:11.5px}
+.table-wrap{overflow:auto;max-height:72vh;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface);color:var(--muted);font-weight:500;font-size:12px;z-index:1}
+th[data-sort]{cursor:pointer}
+th[data-sort]:hover{color:var(--ink)}
+th[aria-sort=descending]{color:var(--ink)}
+th[aria-sort=descending]::after{content:" ↓"}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover{background:var(--raised)}
+tbody tr.selected{background:var(--accent-wash)}
+td small{display:block;color:var(--muted);font-size:11px}
+.pill{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.wchan{display:block;font-size:11px;color:var(--muted);font-family:ui-monospace,monospace;margin-top:2px}
+.mix{display:flex;width:120px;height:10px;border-radius:3px;overflow:hidden;gap:1px;background:var(--surface)}
+.mix span{min-width:1px}
+.spark{width:86px;height:22px;display:block}
+.cpu-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+
+/* Drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(620px,100vw);background:var(--page);border-left:1px solid var(--line);box-shadow:-24px 0 48px -24px rgba(0,0,0,.35);z-index:40;transform:translateX(102%);transition:transform .22s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+@media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+.drawer-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start;background:var(--surface)}
+.drawer-head h2{font-size:18px}
+.drawer-body{overflow:auto;padding:16px 20px 40px;display:flex;flex-direction:column;gap:14px}
+.mini-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.mini-tiles>div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.mini-tiles .k{font-size:11px;color:var(--muted)}
+.mini-tiles .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.range{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.range input{font-size:12px;padding:5px 8px}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:39;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.open{opacity:1;pointer-events:auto}
+
+/* Tooltip */
+#tip{position:fixed;z-index:60;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px 10px;font-size:12px;min-width:140px;max-width:320px;opacity:0;transition:opacity .08s}
+#tip.show{opacity:1}
+#tip .tt{color:var(--muted);margin-bottom:4px}
+#tip .tr{display:flex;align-items:center;gap:8px;white-space:nowrap}
+#tip .tr strong{font-variant-numeric:tabular-nums;min-width:52px}
+#tip .tr span:last-child{color:var(--ink-2)}
+
+/* Socket panel */
+.socket-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.socket-badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.socket-warning{border-color:var(--warning)}
+.socket-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.socket-controls label{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.socket-note{font-size:13px;line-height:1.6;color:var(--ink-2);max-width:1000px}
+.socket-empty{padding:6px 0;line-height:1.7;max-width:900px;color:var(--ink-2)}
+.socket-chart-caption{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
+#socket-panel details,.notes details{font-size:13px;line-height:1.6;color:var(--ink-2);margin-top:12px}
+summary{cursor:pointer;color:var(--ink)}
+#settings{margin-top:16px}
+#settings td{vertical-align:top;white-space:normal}
+#settings input[type=number]{width:90px}
+#settings .setting{display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;white-space:nowrap}
+#settings .rule-name{font-weight:600}
+#settings .hint{font-size:12px;color:var(--muted)}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
+kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
+@media (max-width:640px){main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
 </style>
 </head>
 <body>
-<header><div><h1>Triangulator</h1><div class="muted">Approximate thread activity, sustained problems, and monitor health</div></div><button id="settings-toggle" aria-expanded="false" aria-controls="settings" style="margin-top:28px">Alert settings</button></header>
-<p id="error" class="bad" role="status"></p><div id="health" class="cards"></div>
-<section id="settings" aria-label="Alert settings"><h2>Alert settings</h2><p class="muted" style="margin-top:-6px">Rules run in the collector; changes apply immediately and are saved in the collector's data directory. Turning a rule off resolves its open alerts.</p><div class="scroll"><table><thead><tr><th>On</th><th>Rule</th><th>Settings</th></tr></thead><tbody id="settings-rows"></tbody></table></div><div class="actions"><button id="settings-save" class="primary">Save changes</button><button id="settings-reset">Reset to config file</button><span id="settings-status" role="status" class="muted"></span></div></section>
-<section id="socket-panel" class="socket-panel" aria-labelledby="socket-title">
+<header class="topbar">
+<div class="topbar-inner">
+<div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
+<div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div></div>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
+<button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
+</div>
+</header>
+<div id="error" class="banner" role="status"></div>
+
+<main>
+<section id="settings" class="card" aria-label="Alert settings" hidden><h2>Alert settings</h2><p class="muted">Rules run in the alerting module; changes apply immediately and are saved in its data directory. Turning a rule off resolves its open alerts.</p><div class="table-wrap"><table><thead><tr><th>On</th><th>Rule</th><th>Settings</th></tr></thead><tbody id="settings-rows"></tbody></table></div><div class="actions"><button id="settings-save" class="primary">Save changes</button><button id="settings-reset">Reset to config file</button><span id="settings-status" role="status" class="muted"></span></div></section>
+
+<!-- Whole-process view. Everything here is summed from /api/live in the
+     browser and kept for the last 15 minutes; nothing new is sent by the
+     sampler or stored by the collector. -->
+<section id="overview" class="block" style="margin-top:8px">
+<div class="section-head"><div><h2>Process overview</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
+<div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
+
+<div class="grid g-hero">
+<div class="card">
+<div class="card-head"><div><h3>Process load</h3><p>The system load average, for this process only: threads on a CPU, plus threads waiting for one, plus threads stuck in uninterruptible kernel wait. 1.00 is one core's worth of demand.</p></div></div>
+<div class="hero-row"><div><span id="hero-load" class="hero">—</span><div class="muted" style="font-size:12px">1-minute load</div></div>
+<div class="hero-side"><div class="kv"><div class="k">5 min</div><div id="hero-load5" class="v">—</div></div><div class="kv"><div class="k" id="hero-load15-label">15 min</div><div id="hero-load15" class="v">—</div></div><div class="kv"><div class="k">On CPU now</div><div id="hero-cpu" class="v">—</div></div><div class="kv"><div class="k">Waiting for CPU</div><div id="hero-wait" class="v">—</div></div><div class="kv"><div class="k">Busiest thread</div><div id="hero-top" class="v">—</div></div></div></div>
+<div id="chart-load" class="chart"></div><div id="load-legend" class="legend"></div>
+</div>
+<div class="card">
+<div class="card-head"><h3>Assessment</h3><span id="assess-time" class="muted" style="font-size:12px"></span></div>
+<div class="verdict"><span id="verdict" class="badge">Waiting for data</span></div>
+<p id="profile" class="profile"></p>
+<ul id="findings" class="findings"></ul>
+</div>
+</div>
+
+<div id="tiles" class="tiles" style="margin-top:14px"></div>
+
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>What the threads are doing</h3><p>Thread count by latest state, stacked. Hover to read a moment.</p></div></div><div id="chart-states" class="chart"></div><div id="states-legend" class="legend"></div></div>
+<div class="card"><div class="card-head"><div><h3>Where threads wait</h3><p>Kernel wait channels right now. Click to filter the thread table.</p></div></div><div id="wchan-bars" class="bars"></div></div>
+</div>
+
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Thread map</h3><p id="mosaic-sub">One tile per thread. Click a tile for details.</p></div><div class="seg" role="group" aria-label="Thread map time window"><button data-map-window="0" aria-pressed="true" title="Real time: CPU over the last ~10 seconds">Now</button><button data-map-window="60" aria-pressed="false" title="Average CPU over the last minute">1 min</button><button data-map-window="300" aria-pressed="false" title="Average CPU over the last 5 minutes">5 min</button><button data-map-window="900" aria-pressed="false" title="Average CPU over the last 15 minutes">15 min</button></div></div><div id="mosaic" class="mosaic"></div><div id="mosaic-legend"></div></div>
+<div class="card"><div class="card-head"><div><h3>Where the CPU goes</h3><p id="family-sub">Process CPU by thread family (name without its number).</p></div><select id="family-mode" aria-label="Group CPU by"><option value="family">Name family</option><option value="group">Config group</option><option value="thread">Thread</option></select></div><div id="family-bars" class="bars"></div></div>
+</div>
+
+<div class="grid g-1-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Core placement</h3><p>CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.</p></div></div><div id="cores" class="cores"></div><div class="core-base"></div><div id="cores-scale" class="muted" style="font-size:12px;margin-top:6px"></div></div>
+<div class="card" id="monitor"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
+</div>
+</section>
+
+<section id="threads-section" class="block">
+<div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
+<div class="toolbar">
+<div class="seg" role="group" aria-label="Which threads to show"><button data-activity="active" aria-pressed="true">Active <span id="n-active" class="muted"></span></button><button data-activity="idle" aria-pressed="false">Idle <span id="n-idle" class="muted"></span></button><button data-activity="all" aria-pressed="false">All <span id="n-all" class="muted"></span></button></div>
+<input id="search" type="search" placeholder="Thread name, TID or wait channel" aria-label="Find thread">
+<label>Group <select id="group"><option value="">All groups</option></select></label>
+<label>Sort <select id="sort"><option value="cpu_pct">CPU</option><option value="run_delay_pct">Run delay</option><option value="switches_per_s">Switches/s</option><option value="io">I/O</option><option value="major_faults_per_s">Major faults/s</option><option value="tid">TID</option><option value="name">Name</option></select></label>
+<button id="clear-filters">Clear filters</button>
+</div>
+<div id="threads-live">
+<div class="chips-title">State / block type</div><div id="state-chips" class="chips"></div>
+<div class="chips-title">Wait channel <span style="text-transform:none;letter-spacing:0">(kernel function the thread is blocked in)</span></div><div id="wchan-chips" class="chips"></div>
+<p id="idle-summary" class="muted" style="margin:0 0 8px;font-size:13px"></p>
+<div class="table-wrap"><table><thead><tr><th data-sort="name" title="Thread name (comm) and thread ID">Thread</th><th title="Thread group from the collector config">Group</th><th title="Most recent scheduler state and the kernel function it is waiting in (wchan)">State / wait channel</th><th title="Thread states over the last ~10 seconds">Last ~10 s</th><th data-sort="cpu_pct" class="num" title="CPU time used, as a share of one core; the line shows the last two minutes">CPU</th><th data-sort="run_delay_pct" class="num" title="Time spent runnable but waiting for a CPU">Run delay</th><th data-sort="switches_per_s" class="num" title="Context switches per second">Switches/s</th><th data-sort="io" class="num" title="Bytes read per second">Read/s</th><th data-sort="io" class="num" title="Bytes written per second">Write/s</th><th data-sort="major_faults_per_s" class="num" title="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" title="CPU core the thread last ran on">Core</th></tr></thead><tbody id="threads"></tbody></table></div>
+</div>
+<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
+</section>
+
+<section id="socket-panel" class="block card" aria-labelledby="socket-title">
 <div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
 <p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
 <div id="socket-empty" class="socket-empty" hidden></div>
 <div id="socket-content" hidden>
 <div class="socket-controls" role="group" aria-label="Socket metric">
-<button data-socket-metric="input" aria-pressed="true">↓ Received</button><button data-socket-metric="output" aria-pressed="false">↑ Sent</button><button data-socket-metric="messages" aria-pressed="false">✓ Messages processed</button>
+<div class="seg"><button data-socket-metric="input" aria-pressed="true">↓ Received</button><button data-socket-metric="output" aria-pressed="false">↑ Sent</button><button data-socket-metric="messages" aria-pressed="false">✓ Messages processed</button></div>
 <label>Socket kind <select id="socket-kind"><option value="">All kinds</option></select></label>
 <label>Thread <input id="socket-search" placeholder="Name or TID" aria-label="Find socket thread"></label>
 </div>
 <p id="socket-metric-note" class="socket-note"></p>
-<div id="socket-cards" class="socket-cards"></div>
-<div class="socket-chart-wrap"><svg id="socket-chart" class="socket-chart" viewBox="0 0 1000 130" preserveAspectRatio="none" role="img" aria-label="Recent process-wide rate history"></svg><div class="socket-chart-caption"><span>Recent process rate · gaps mean unknown</span><span id="socket-chart-scale"></span></div></div>
-<h3 style="font-size:15px;margin-top:24px">By thread and socket kind <span id="socket-row-count" class="muted"></span></h3>
+<div id="socket-cards" class="tiles" style="margin:12px 0"></div>
+<div id="socket-chart" class="chart" role="img" aria-label="Recent process-wide rate history"></div>
+<div class="socket-chart-caption"><span>Recent process rate · gaps mean unknown</span><span id="socket-chart-scale"></span></div>
+<h3 style="margin-top:20px">By thread and socket kind <span id="socket-row-count" class="muted"></span></h3>
 <p class="socket-note">Includes retired threads. Filters apply to this breakdown; cards and chart show the whole process.</p>
-<div class="scroll"><table><thead><tr><th>Thread / TID</th><th>Socket kind</th><th class="num">Total</th><th class="num">Now /s</th><th class="num">Average /s</th><th class="num">Recent min /s</th><th class="num">Recent max /s</th></tr></thead><tbody id="socket-rows"></tbody></table></div>
+<div class="table-wrap" style="max-height:380px"><table><thead><tr><th>Thread / TID</th><th>Socket kind</th><th class="num">Total</th><th class="num">Now /s</th><th class="num">Average /s</th><th class="num">Recent min /s</th><th class="num">Recent max /s</th></tr></thead><tbody id="socket-rows"></tbody></table></div>
 <p id="socket-coverage" class="socket-note"></p>
 </div>
 <details><summary>What is measured · setup</summary><p>Received and sent bytes are the successful byte counts reported by observed kernel socket operations. Sent means accepted by the socket, not delivered to the peer. Peeks, failed operations and UDP are excluded. A receive operation can contain part of one message or many messages.</p><p>Messages processed counts calls to an explicit application completion marker, one call per successfully processed message. It is never inferred from read calls or bytes.</p><p>Start the optional source on the target host: <code>build/triangulator-socket-sampler PID COLLECTOR-IP:PORT build/socket.bpf.o</code>. Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion counts. The source needs kernel BTF, socket length tracepoints and BPF tracing privileges. The normal sampler continues without extra privileges. See <code>docs/socket-ingress-design.md</code> for coverage and setup.</p></details>
 </section>
-<section class="filters" aria-label="Thread filters">
-<div class="chips-title">State / block type</div><div id="state-chips" class="chips"></div>
-<div class="chips-title">Wait channel <span class="muted" style="text-transform:none;letter-spacing:0">(kernel function the thread is blocked in)</span></div><div id="wchan-chips" class="chips"></div>
-<p style="margin:0"><label>Group <select id="group"><option value="">All groups</option></select></label><label>Find <input id="search" placeholder="Thread name, TID or wait channel"></label><label>Sort <select id="sort"><option value="tid">TID</option><option value="cpu_pct">CPU</option><option value="run_delay_pct">Run delay</option><option value="switches_per_s">Switches/s</option><option value="io">I/O</option><option value="major_faults_per_s">Major faults/s</option></select></label><button id="clear-filters">Clear filters</button></p>
-</section>
-<h2>Current threads <span id="count" class="muted"></span></h2>
-<div class="scroll"><table><thead><tr><th title="Thread ID">TID</th><th title="Thread name (comm)">Name</th><th title="Process the thread belongs to">Group</th><th title="Most recent scheduler state and the kernel function it is waiting in (wchan)">Latest state / wait channel</th><th title="Thread states over the last ~10 seconds">Last ~10 seconds</th><th class="num" title="CPU time used, as a share of one core">CPU</th><th class="num" title="Time spent runnable but waiting for a CPU">Run delay</th><th class="num" title="Context switches per second">Switches/s</th><th class="num" title="Bytes read per second">Read/s</th><th class="num" title="Bytes written per second">Write/s</th><th class="num" title="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" title="CPU core the thread last ran on">Core</th><th></th></tr></thead><tbody id="threads"></tbody></table></div>
-<h2 id="alerts-title">Open alerts</h2><div id="alerts"></div>
-<section id="history"><h2 id="history-title"></h2><p><label>From <input id="from" type="datetime-local" step="1"></label><label>To <input id="to" type="datetime-local" step="1"></label><button id="load-history">Load history</button></p><div id="legend" class="chips"></div><div id="timeline"></div><p id="history-note" class="muted"></p><div class="scroll"><table><thead><tr><th title="Start of the time bucket">Time</th><th title="Thread name (comm)">Name</th><th title="CPU time used, as a share of one core">CPU</th><th title="Time spent runnable but waiting for a CPU">Run delay</th><th title="Bytes read per second">Read/s</th><th title="Bytes written per second">Write/s</th><th title="Number of samples in this bucket">Samples</th><th title="Share of samples in each thread state">State mix</th></tr></thead><tbody id="history-rows"></tbody></table></div></section>
-<details><summary>Recent alert events</summary><div id="recent"></div></details>
-<details><summary>Monitor diagnostics</summary><pre id="diagnostics"></pre></details>
-<p class="muted">States come from the thread's scheduler state and kernel wait channel (<code>/proc/&lt;tid&gt;/wchan</code>), readable without extra privileges; futex waits cannot be split into lock, condition or timed idle. CPU alerts open after a thread stays above the threshold for the configured duration (default 5 seconds). Thread-table read/write rates mix read- and write-family syscall traffic and do not cover every receive API. Use the socket panel for explicitly observed socket operations. Timelines show sampled state mixes, not exact execution. CPU is per thread, relative to one core.</p>
+
+<div class="notes">
+<details hidden><summary>Recent alert events</summary><div id="recent"></div></details>
+<details><summary>Monitor diagnostics (raw health JSON)</summary><pre id="diagnostics"></pre></details>
+<details><summary>How to read this page</summary>
+<p>States come from the thread's scheduler state and kernel wait channel (<code>/proc/&lt;tid&gt;/wchan</code>), readable without extra privileges; futex waits cannot be split into lock, condition or timed idle. CPU is per thread, relative to one core, so a process can exceed 100%. Thread-table read/write rates mix read- and write-family syscall traffic and do not cover every receive API; use the socket panel for explicitly observed socket operations.</p>
+<p>The process overview is computed in this browser tab from the live feed and kept for up to 15 minutes (it survives a reload of this tab, not a new tab). Per-thread history beyond that comes from the collector's 5-second summaries in SQLite. The assessment uses fixed rules of thumb: a thread at or above 90% of a core, run delay over a quarter of CPU time, any thread in uninterruptible kernel wait, any major page fault, stopped threads, sampler silence and packet loss over 1%. Treat it as a pointer to where to look, not a diagnosis.</p>
+</details>
+</div>
+</main>
+
+<div id="scrim" class="scrim"></div>
+<aside id="drawer" class="drawer" aria-label="Thread details" aria-hidden="true">
+<div class="drawer-head"><div style="flex:1;min-width:0"><h2 id="history-title">Thread</h2><div id="drawer-meta" class="muted"></div></div><button id="drawer-close" class="icon-btn" aria-label="Close thread details">✕</button></div>
+<div class="drawer-body">
+<div id="drawer-state"></div>
+<div id="drawer-tiles" class="mini-tiles"></div>
+<div class="card"><div class="card-head"><div><h3>Live CPU</h3><p>Last two minutes from the live feed.</p></div></div><div id="drawer-live" class="chart"></div></div>
+<div class="card" id="history">
+<div class="card-head"><div><h3>History</h3><p>5-second summaries stored by the collector.</p></div></div>
+<div class="range"><div class="seg" role="group" aria-label="History range"><button data-range="900" aria-pressed="false">15 min</button><button data-range="3600" aria-pressed="true">1 h</button><button data-range="21600" aria-pressed="false">6 h</button><button data-range="86400" aria-pressed="false">24 h</button></div>
+<input id="from" type="datetime-local" step="1" aria-label="From"><input id="to" type="datetime-local" step="1" aria-label="To"><button id="load-history">Load</button></div>
+<p id="history-note" class="muted" style="font-size:12px"></p>
+<h3 style="margin-top:6px">CPU</h3><div id="history-cpu" class="chart"></div>
+<h3 style="margin-top:12px">Run delay</h3><div id="history-delay" class="chart"></div>
+<h3 style="margin-top:12px">State mix</h3><div id="history-states" class="chart"></div><div id="legend" class="legend"></div>
+<h3 style="margin-top:12px">I/O</h3><div id="history-io" class="chart"></div><div class="legend"><span><i class="sw line" style="background:var(--series-1)"></i>Read/s</span><span><i class="sw line" style="background:var(--series-2)"></i>Write/s</span></div>
+<details style="margin-top:12px"><summary>Table view</summary><div class="table-wrap" style="max-height:340px;margin-top:8px"><table><thead><tr><th title="Start of the time bucket">Time</th><th class="num" title="CPU time used, as a share of one core">CPU</th><th class="num" title="Time spent runnable but waiting for a CPU">Run delay</th><th class="num" title="Bytes read per second">Read/s</th><th class="num" title="Bytes written per second">Write/s</th><th title="Number of samples in this bucket">Samples</th><th title="Share of samples in each thread state">State mix</th></tr></thead><tbody id="history-rows"></tbody></table></div></details>
+</div>
+</div>
+</aside>
+<div id="tip" role="tooltip"></div>
+
 <script>
-const labels={running:'Running',futex:'Futex wait',poll:'Poll / epoll',socket:'Socket wait',pipe:'Pipe / eventfd',sleep:'Sleep',kernel:'Kernel wait (D)',stopped:'Stopped',other:'Other',no_access:'No access'};
+'use strict';
+// State order is the palette order, so stacked neighbors stay distinct.
+const STATES=['running','futex','poll','socket','pipe','sleep','stopped','kernel','other','no_access'];
+const labels={running:'Running',futex:'Futex wait',poll:'Poll / epoll',socket:'Socket wait',pipe:'Pipe / eventfd',sleep:'Sleep',stopped:'Stopped',kernel:'Kernel wait (D)',other:'Other',no_access:'No access'};
+const BUFFER_SECS=900;
 const element=id=>document.getElementById(id);
 const node=(tag,text,className)=>{const result=document.createElement(tag);if(text!==undefined)result.textContent=text;if(className)result.className=className;return result};
-const pct=value=>value===null||value===undefined?'—':value.toFixed(1)+'%';
-const number=(value,digits=1)=>value===null||value===undefined?'—':value.toFixed(digits);
-const bytes=value=>{if(value===null||value===undefined)return '—';const units=['B','KB','MB','GB'];let index=0;while(Math.abs(value)>=1024&&index<units.length-1){value/=1024;index++}return value.toFixed(index?1:0)+' '+units[index]};
-const sortKeys={tid:thread=>-thread.tid,io:thread=>(thread.read_bps||0)+(thread.write_bps||0)};
+const SVG_NS='http://www.w3.org/2000/svg';
+const svgNode=(tag,attrs={})=>{const result=document.createElementNS(SVG_NS,tag);for(const [key,value] of Object.entries(attrs))result.setAttribute(key,value);return result};
+const isNum=value=>typeof value==='number'&&Number.isFinite(value);
+const pct=value=>!isNum(value)?'—':(Math.abs(value)>=100?value.toFixed(0):value.toFixed(1))+'%';
+const compact=new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1});
+const number=(value,digits=1)=>!isNum(value)?'—':Math.abs(value)>=10000?compact.format(value):value.toFixed(digits);
+const bytes=value=>{if(!isNum(value))return '—';if(value>0&&value<1)return '<1 B';const units=['B','KB','MB','GB','TB'];let index=0;while(Math.abs(value)>=1024&&index<units.length-1){value/=1024;index++}return value.toFixed(index?1:0)+' '+units[index]};
+const perSec=value=>isNum(value)?bytes(value)+'/s':'—';
 const date=value=>new Date(value*1000).toLocaleString();
-let live={},selected=null,stateFilter='',wchanFilter='';
-function mix(counts){const bar=node('div',undefined,'mix');const total=Object.values(counts).reduce((sum,value)=>sum+value,0);for(const [state,count] of Object.entries(counts)){const part=node('span',undefined,state);part.style.width=(100*count/total)+'%';part.title=(labels[state]||state)+': '+count+' samples';bar.append(part)}return bar}
-function events(target,items){const container=element(target);container.replaceChildren();if(!items.length){container.append(node('p','No '+(target==='alerts'?'open alerts':'recent events')+'.','muted'));return}for(const item of items){const row=node('p');row.append(node('strong',item.rule+' · '+item.status+' ','bad'),node('span',item.group+' / '+item.name+' ('+item.tid+') — '+item.detail+' · '+date(item.ts)));container.append(row)}}
-function matches(thread,ignoreState,ignoreWchan){const group=element('group').value;const search=element('search').value.toLowerCase();if(group&&thread.group!==group)return false;if(search&&!`${thread.name} ${thread.tid} ${thread.wchan}`.toLowerCase().includes(search))return false;if(!ignoreState&&stateFilter&&thread.state!==stateFilter)return false;if(!ignoreWchan&&wchanFilter&&(thread.wchan||'—')!==wchanFilter)return false;return true}
-function chip(label,count,pressed,onclick,className,dot){const button=node('button',undefined,'chip'+(className?' '+className:''));button.setAttribute('aria-pressed',String(pressed));if(dot)button.append(node('span',undefined,'dot '+dot));button.append(node('span',label),node('span',String(count),'count'));button.onclick=onclick;return button}
-function tally(threads,key){const counts=new Map();for(const thread of threads){const value=key(thread);counts.set(value,(counts.get(value)||0)+1)}return [...counts].sort((left,right)=>right[1]-left[1]||String(left[0]).localeCompare(String(right[0])))}
-function renderChips(){const threads=live.threads||[];const states=element('state-chips');states.replaceChildren();const stateBase=threads.filter(thread=>matches(thread,true,false));states.append(chip('All',stateBase.length,!stateFilter,()=>{stateFilter='';renderThreads()}));const present=new Map(tally(stateBase,thread=>thread.state));if(stateFilter&&!present.has(stateFilter))present.set(stateFilter,0);for(const state of Object.keys(labels)){if(!present.has(state))continue;states.append(chip(labels[state],present.get(state),stateFilter===state,()=>{stateFilter=stateFilter===state?'':state;wchanFilter='';renderThreads()},'',state))}const wchans=element('wchan-chips');wchans.replaceChildren();const wchanBase=threads.filter(thread=>matches(thread,false,true));wchans.append(chip('All',wchanBase.length,!wchanFilter,()=>{wchanFilter='';renderThreads()}));const channels=tally(wchanBase,thread=>thread.wchan||'—');if(wchanFilter&&!channels.some(([name])=>name===wchanFilter))channels.push([wchanFilter,0]);for(const [name,count] of channels)wchans.append(chip(name,count,wchanFilter===name,()=>{wchanFilter=wchanFilter===name?'':name;renderThreads()},'mono'))}
-function renderThreads(){renderChips();const body=element('threads');body.replaceChildren();const order=element('sort').value;const key=sortKeys[order]||(thread=>thread[order]??-1);const all=live.threads||[];const threads=all.filter(thread=>matches(thread)).sort((left,right)=>key(right)-key(left));element('count').textContent=threads.length===all.length?`(${all.length})`:`(${threads.length} of ${all.length})`;for(const thread of threads){const row=node('tr');row.append(node('td',thread.tid),node('td',thread.name),node('td',thread.group));const state=node('td');state.append(node('span',(labels[thread.state]||thread.state)+(thread.stale?' · stale':''),'pill '+thread.state));if(thread.wchan)state.append(node('span',thread.wchan,'wchan'));const states=node('td');states.append(mix(thread.state_mix));const action=node('td');const button=node('button','History');button.onclick=()=>openHistory(thread);action.append(button);row.append(state,states,node('td',pct(thread.cpu_pct),'num'),node('td',pct(thread.run_delay_pct),'num'),node('td',number(thread.switches_per_s),'num'),node('td',bytes(thread.read_bps),'num'),node('td',bytes(thread.write_bps),'num'),node('td',number(thread.major_faults_per_s),'num'),node('td',thread.cpu,'num'),action);body.append(row)}}
-let socketData=null,socketMetric='input';
-const socketTitles={input:'Received bytes',output:'Sent bytes',messages:'Messages processed'};
-function socketValue(value,rate=false){if(value===null||value===undefined)return '—';const n=Number(value);return socketMetric==='messages'?new Intl.NumberFormat(undefined,{maximumFractionDigits:rate?1:0}).format(n)+(rate?' /s':''):bytes(n)+(rate?' /s':'')}
-function renderSocketChart(){const svg=element('socket-chart');svg.replaceChildren();const points=socketData.history||[];const values=points.map(p=>p[socketMetric]);const max=Math.max(1,...values.filter(v=>v!==null));const make=(tag,attrs)=>{const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);return e};svg.append(make('line',{x1:0,x2:1000,y1:118,y2:118,stroke:'#34475f'}));let segment=[];const flush=()=>{if(segment.length>1)svg.append(make('polyline',{points:segment.join(' '),fill:'none',stroke:'currentColor','stroke-width':2,'vector-effect':'non-scaling-stroke'}));segment=[]};const first=points[0]?.ts||0,last=points.at(-1)?.ts||first;points.forEach((p,i)=>{if(i&&p.ts-points[i-1].ts>1.5)flush();if(p[socketMetric]===null){flush();return}const x=last>first?1000*(p.ts-first)/(last-first):500,y=118-105*p[socketMetric]/max;segment.push(x+','+y);svg.append(make('circle',{cx:x,cy:y,r:2,fill:'currentColor'}))});flush();element('socket-chart-scale').textContent=values.some(v=>v!==null)?'Scale: 0 – '+socketValue(max,true):'No covered rate windows yet'}
-function renderSocket(){const data=socketData;if(!data)return;const available=data.available;element('socket-content').hidden=!available;element('socket-empty').hidden=available;if(!available){element('socket-status').textContent='Not available';element('socket-empty').textContent=data.reason||'Socket observer not connected';element('socket-scope').textContent='Socket traffic and message completion require the optional observer. Expand setup below to connect it.';return}
-const status=data.refresh_error?'Report refresh failed · cached':data.stopped?'Observation ended':data.stale?'Observer silent':data.lower_bound?'Incomplete · lower-bound totals':'Observing supported paths';element('socket-status').textContent=status;element('socket-status').classList.toggle('socket-warning',data.stale||data.lower_bound);element('socket-scope').textContent='PID '+data.pid+' · observed for '+number(data.duration)+' seconds · totals since this observer started · observer '+data.observer;
-for(const button of document.querySelectorAll('[data-socket-metric]'))button.setAttribute('aria-pressed',String(button.dataset.socketMetric===socketMetric));
-element('socket-kind').disabled=socketMetric==='messages';const kind=element('socket-kind'),chosen=kind.value;kind.replaceChildren(node('option','All kinds'));kind.firstChild.value='';const kinds=new Map((data.rows||[]).filter(r=>r.kind_id!==6).map(r=>[String(r.kind_id),r.kind]));for(const [id,label]of kinds){const option=node('option',label);option.value=id;kind.append(option)}kind.value=kinds.has(chosen)?chosen:'';
-const unconfigured=socketMetric==='messages'&&!data.messages_enabled;const totals=data.totals[socketMetric];element('socket-metric-note').textContent=unconfigured?'Message completion is not configured. Add a completion marker to count messages after the application finishes processing them.':socketMetric==='messages'?'One marker call = one completed application message. Counts reflect the marker contract defined by your application.':socketMetric==='input'?'Bytes reported by successful receive operations. Peeks do not count. A read is not a processed message.':'Bytes accepted by successful send operations, including partial writes. Acceptance does not prove peer delivery.';
-const cards=element('socket-cards');cards.replaceChildren();for(const [title,value,isRate]of [[socketTitles[socketMetric],totals.total,false],['Current rate',totals.current,true],['Average since start',totals.average,true],['Recent minimum',totals.minimum,true],['Recent maximum',totals.maximum,true]]){const card=node('div',undefined,'card');card.append(node('div',title,'muted'),node('div',socketValue(value,isRate),'value'));if(value!==null)card.title=String(value)+(isRate?' per second':'');cards.append(card)}
-renderSocketChart();const search=element('socket-search').value.toLowerCase();const rows=(data.rows||[]).filter(r=>(socketMetric==='messages'?r.kind_id===6:r.kind_id!==6)&&(!kind.value||socketMetric==='messages'||String(r.kind_id)===kind.value)&&(!search||`${r.tid} ${r.name||''}`.toLowerCase().includes(search))).sort((a,b)=>Number(b.metrics[socketMetric].total)-Number(a.metrics[socketMetric].total));element('socket-row-count').textContent='('+rows.length+')';const body=element('socket-rows');body.replaceChildren();for(const item of rows){const row=node('tr'),thread=node('td');thread.append(node('span',item.name||'Thread'),node('small','TID '+item.tid));thread.title='Thread generation '+item.thread_start;const m=item.metrics[socketMetric];row.append(thread,node('td',item.kind));for(const [v,rate]of [[m.total,false],[m.current,true],[m.average,true],[m.minimum,true],[m.maximum,true]]){const cell=node('td',socketValue(v,rate),'num');if(v!==null)cell.title=String(v);row.append(cell)}body.append(row)}if(!rows.length){const row=node('tr'),cell=node('td',unconfigured?'Completion marker not configured.':search||kind.value?'No matching threads.':'No observed activity yet.');cell.colSpan=7;row.append(cell);body.append(row)}
-let coverage=data.coverage+' Average covers the monitoring period; min/max cover '+data.rate_windows+' valid nominal 1-second windows in the most recent 60 intervals. Idle covered windows count as zero.';if(data.gaps)coverage+=' '+data.gaps+' recent gaps were excluded.';if(data.lower_bound)coverage+=' '+data.losses+' counter updates were lost: totals are lower bounds and averages are unavailable.';if(data.stale&&!data.stopped)coverage+=' Observer is silent; totals may be stale.';if(data.refresh_error)coverage+=' Report refresh failed; displayed totals and history are cached.';if(data.truncated||data.read_error)coverage+=' Report is incomplete because observations were limited or unreadable.';element('socket-coverage').textContent=coverage;
+const clock=value=>new Date(value*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const duration=seconds=>seconds<90?Math.max(1,Math.round(seconds))+' s':seconds<5400?Math.round(seconds/60)+' min':(seconds/3600).toFixed(1)+' h';
+const ago=seconds=>!isNum(seconds)?'never':seconds<2?'just now':seconds<90?Math.round(seconds)+' s ago':seconds<5400?Math.round(seconds/60)+' min ago':Math.round(seconds/3600)+' h ago';
+const stateColor=state=>`var(--s-${STATES.includes(state)?state:'other'})`;
+// "DOM Worker#3", "pool-7" and "gdrv0" share a family with their siblings.
+const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
+
+let live={},windowSecs=300,activity='active',stateFilter='',wchanFilter='',selected=null,socketData=null,socketMetric='input',settingsInfo=null;
+// Rolling whole-process series: one point per new sample tick.
+let buffer=[],bufferSession=null,lastTick=0,previousThreads=null,loadState=null;
+const threadCpu=new Map();
+// Per-thread CPU every 10 s for 15 min, for the thread map's averages. Each
+// live cpu_pct already covers the last ~10 s, so one value per 10 s covers
+// the whole window: [generation, t0, v0, t1, v1, ...].
+const threadAvg=new Map();
+const AVG_STEP=10;
+let mapWindow=0,avgSince=0;
+// When each thread was first seen and last did anything, in this tab.
+const threadSeen=new Map();
+// A thread is idle when it used no CPU, switched no context and moved no
+// bytes in the last ~10 s. Kernel (D) and stopped threads are never idle:
+// they are blocked, which is worth seeing.
+const isIdle=thread=>!(thread.cpu_pct>0||thread.switches_per_s>0||thread.read_bps>0||thread.write_bps>0||thread.major_faults_per_s>0||thread.state==='running'||(thread.state_mix||{}).running||thread.state==='kernel'||thread.state==='stopped');
+function idleFor(thread){const seen=threadSeen.get(thread.tid);if(!seen)return '';const tick=lastTick||thread.last_sample;
+  return seen.active!==null?'idle for '+duration(tick-seen.active):'idle for over '+duration(tick-seen.first)}
+// Load as the kernel defines it, for this process: cores of CPU used, plus
+// cores of demand that waited for a CPU, plus threads in uninterruptible wait.
+// null when the point's rates are unknown (see ingest).
+const loadOf=point=>point.cpu===null?null:(point.cpu+(point.rd||0))/100+(point.s.kernel||0);
+// Exponentially damped 1, 5 and 15 minute averages, like /proc/loadavg.
+// Update once per tick, independently of chart retention and redraws.
+function updateLoadAverage(point){const value=loadOf(point);
+  if(value===null){point.l1=null;return}
+  const averages=loadState?loadState.averages.map((average,index)=>{const step=Math.min(point.t-loadState.t,30),decay=Math.exp(-step/[60,300,900][index]);return average*decay+value*(1-decay)}):[value,value,value];
+  loadState={averages,t:point.t};point.l1=averages[0]}
+
+// ---------- Tooltip ----------
+const tip=element('tip');
+function showTip(event,title,rows){tip.replaceChildren();if(title)tip.append(node('div',title,'tt'));for(const row of rows){const line=node('div',undefined,'tr');if(row.color){const key=node('i',undefined,'sw line');key.style.background=row.color;line.append(key)}line.append(node('strong',row.value),node('span',row.label||''));tip.append(line)}
+  tip.classList.add('show');const box=tip.getBoundingClientRect();let x=event.clientX+14,y=event.clientY+14;if(x+box.width>innerWidth-8)x=event.clientX-box.width-14;if(y+box.height>innerHeight-8)y=event.clientY-box.height-14;tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
+function hideTip(){tip.classList.remove('show')}
+
+// ---------- Charts ----------
+function niceMax(value){if(!(value>0))return 1;const power=10**Math.floor(Math.log10(value));for(const step of [1,2,2.5,5,10])if(value<=step*power)return step*power;return 10*power}
+function medianStep(points){const steps=[];for(let index=1;index<points.length;index++)steps.push(points[index].t-points[index-1].t);steps.sort((a,b)=>a-b);return steps[Math.floor(steps.length/2)]||1}
+
+// A time-series chart drawn at the host's pixel width. series: [{label,
+// color, get(point)}]. Stacked charts fill bands; others draw a 2px line
+// over a 12% wash. Gaps over three sample steps break the line.
+function timeChart(host,{points,series,stacked=false,overlay=null,format=number,height=160,minMax=0,from,to,empty='Collecting data…'}){
+  host.replaceChildren();
+  const width=Math.max(240,host.clientWidth||600);
+  if(points.length<2){const box=node('div',empty,'chart-empty');box.style.height=height+'px';host.append(box);return}
+  const pad={l:52,r:14,t:10,b:22},plotW=width-pad.l-pad.r,plotH=height-pad.t-pad.b;
+  const t0=from??points[0].t,t1=to??points.at(-1).t;
+  const x=t=>pad.l+(t1>t0?(t-t0)/(t1-t0):.5)*plotW;
+  let max=minMax;
+  for(const point of points){if(stacked){let sum=0;for(const item of series)sum+=item.get(point)||0;max=Math.max(max,sum)}else for(const item of series){const value=item.get(point);if(isNum(value))max=Math.max(max,value)}if(overlay&&isNum(overlay.get(point)))max=Math.max(max,overlay.get(point))}
+  const top=niceMax(max),y=value=>pad.t+(1-value/top)*plotH;
+  const svg=svgNode('svg',{width,height,viewBox:`0 0 ${width} ${height}`});
+  for(const fraction of [0,.5,1]){const value=top*fraction,py=y(value);svg.append(svgNode('line',{x1:pad.l,x2:width-pad.r,y1:py,y2:py,stroke:fraction?'var(--grid)':'var(--axis)','stroke-width':1}));const label=svgNode('text',{x:pad.l-8,y:py+4,'text-anchor':'end',class:'axis-label'});label.textContent=format(value);svg.append(label)}
+  for(const [t,anchor] of [[t0,'start'],[(t0+t1)/2,'middle'],[t1,'end']]){const label=svgNode('text',{x:x(t),y:height-5,'text-anchor':anchor,class:'axis-label'});label.textContent=clock(t);svg.append(label)}
+  const gap=medianStep(points)*3.5;
+  const segments=[];let current=[];
+  const unknown=point=>stacked&&series.every(item=>!isNum(item.get(point)));
+  points.forEach((point,index)=>{if(unknown(point)||(index&&point.t-points[index-1].t>gap)){segments.push(current);current=[]}if(!unknown(point))current.push(point)});segments.push(current);
+  if(stacked){
+    for(const segment of segments){if(segment.length<2)continue;const base=segment.map(()=>0);
+      for(const item of series){const upper=segment.map((point,index)=>base[index]+(item.get(point)||0));
+        if(upper.some((value,index)=>value>base[index])){const path=segment.map((point,index)=>`${x(point.t)},${y(upper[index])}`).concat(segment.map((point,index)=>`${x(point.t)},${y(base[index])}`).reverse());
+          svg.append(svgNode('polygon',{points:path.join(' '),fill:item.color,stroke:'var(--surface)','stroke-width':1,'stroke-linejoin':'round'}))}
+        upper.forEach((value,index)=>base[index]=value)}}
+    if(overlay)for(const segment of segments){const run=segment.filter(point=>isNum(overlay.get(point)));if(run.length>1)svg.append(svgNode('polyline',{points:run.map(point=>`${x(point.t)},${y(overlay.get(point))}`).join(' '),fill:'none',stroke:overlay.color,'stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'}))}
+  }else{
+    for(const item of series)for(const segment of segments){let run=[];const flush=()=>{if(run.length>1){const line=run.map(point=>`${x(point.t)},${y(item.get(point))}`).join(' ');
+        if(series.length===1)svg.append(svgNode('polygon',{points:`${x(run[0].t)},${y(0)} ${line} ${x(run.at(-1).t)},${y(0)}`,fill:item.color,'fill-opacity':.12}));
+        svg.append(svgNode('polyline',{points:line,fill:'none',stroke:item.color,'stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'}))}
+        else if(run.length===1)svg.append(svgNode('circle',{cx:x(run[0].t),cy:y(item.get(run[0])),r:2.5,fill:item.color}));run=[]};
+      for(const point of segment){if(isNum(item.get(point)))run.push(point);else flush()}flush()}
+  }
+  // Hover layer: a crosshair snaps to the nearest sample; one tooltip lists every series.
+  const cross=svgNode('line',{y1:pad.t,y2:pad.t+plotH,stroke:'var(--muted)','stroke-width':1,visibility:'hidden'});
+  const dots=svgNode('g',{visibility:'hidden'});
+  const hit=svgNode('rect',{x:pad.l,y:0,width:plotW,height,fill:'transparent'});
+  svg.append(cross,dots,hit);
+  const show=(event,px)=>{const t=t0+(px-pad.l)/plotW*(t1-t0);let best=0;for(let index=1;index<points.length;index++)if(Math.abs(points[index].t-t)<Math.abs(points[best].t-t))best=index;
+    const point=points[best],cx=x(point.t);cross.setAttribute('x1',cx);cross.setAttribute('x2',cx);cross.setAttribute('visibility','visible');dots.replaceChildren();
+    let sum=0;const rows=series.map(item=>{const value=item.get(point);let cy=null;if(stacked){sum+=value||0;cy=y(sum)}else if(isNum(value))cy=y(value);if(cy!==null&&(!stacked||value))dots.append(svgNode('circle',{cx,cy,r:4,fill:item.color,stroke:'var(--surface)','stroke-width':2}));return{color:item.color,value:item.format?item.format(value):format(value),label:item.label}});
+    dots.setAttribute('visibility','visible');const shown=stacked?rows.reverse().filter((row,index)=>series.at(-1-index).get(point)):rows;
+    if(overlay&&isNum(overlay.get(point))){const oy=y(overlay.get(point));dots.append(svgNode('circle',{cx,cy:oy,r:4,fill:overlay.color,stroke:'var(--surface)','stroke-width':2}));shown.unshift({color:overlay.color,value:format(overlay.get(point)),label:overlay.label})}
+    showTip(event,clock(point.t),shown)};
+  hit.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect();host._hover={x:event.clientX-box.left,event};show(event,host._hover.x)});
+  hit.addEventListener('pointerleave',()=>{host._hover=null;cross.setAttribute('visibility','hidden');dots.setAttribute('visibility','hidden');hideTip()});
+  host.append(svg);
+  if(host._hover)show(host._hover.event,host._hover.x);
 }
-async function refreshSocket(){try{const pid=live.health?.pid||0;const response=await fetch('/api/socket-io?pid='+pid);if(response.status===404){socketData={available:false,reason:'This collector does not support socket observations. Use the C++ collector.'}}else{if(!response.ok)throw Error('Socket report unavailable');socketData=await response.json()}renderSocket()}catch(error){element('socket-status').textContent='Report unavailable · stale';element('socket-scope').textContent='Unable to refresh socket observations. Previously displayed values may be stale.'}finally{setTimeout(refreshSocket,3000)}}
-for(const button of document.querySelectorAll('[data-socket-metric]'))button.onclick=()=>{socketMetric=button.dataset.socketMetric;renderSocket()};element('socket-kind').onchange=renderSocket;element('socket-search').oninput=renderSocket;
-let settingsInfo=null;
-async function toggleSettings(){const panel=element('settings');const open=!panel.classList.contains('open');panel.classList.toggle('open',open);element('settings-toggle').setAttribute('aria-expanded',String(open));if(open)await loadSettings()}
+function sparkline(values,color,{min=0,width=100,height=30,className}={}){
+  const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,preserveAspectRatio:'none'});if(className)svg.setAttribute('class',className);
+  const numbers=values.filter(isNum);if(numbers.length<2)return svg;
+  const max=Math.max(min,...numbers)||1,step=width/(values.length-1);
+  const points=values.map((value,index)=>isNum(value)?`${(index*step).toFixed(1)},${(height-2-(value/max)*(height-4)).toFixed(1)}`:null).filter(Boolean);
+  svg.append(svgNode('polygon',{points:`0,${height} ${points.join(' ')} ${width},${height}`,fill:color,'fill-opacity':.12}),svgNode('polyline',{points:points.join(' '),fill:'none',stroke:color,'stroke-width':1.6,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
+  return svg}
+function barList(host,items,{format,onClick,pressed,mono,empty='Nothing to show.'}){
+  host.replaceChildren();if(!items.length){host.append(node('p',empty,'muted'));return}
+  const max=Math.max(...items.map(item=>item.value))||1;
+  for(const item of items){const row=node(onClick?'button':'div',undefined,'bar-row');if(onClick){row.onclick=()=>onClick(item);row.setAttribute('aria-pressed',String(pressed===item.key))}
+    const name=node('span',item.label,'name'+(mono?' mono':''));name.title=item.label;
+    const track=node('span',undefined,'track'),fill=node('span',undefined,'fill');fill.style.width=(100*item.value/max)+'%';track.append(fill);
+    const value=node('span',format(item.value),'val');if(item.sub)value.append(node('small',item.sub));
+    row.append(name,track,value);row.addEventListener('pointermove',event=>showTip(event,item.label,item.tip||[{value:format(item.value),label:item.sub||''}]));row.addEventListener('pointerleave',hideTip);host.append(row)}}
+
+// ---------- Rolling process buffer ----------
+function loadBuffer(session){bufferSession=session;buffer=[];lastTick=0;previousThreads=null;loadState=null;threadCpu.clear();threadSeen.clear();threadAvg.clear();avgSince=0;
+  try{const saved=JSON.parse(sessionStorage.getItem('triangulator:threads')||'null');if(saved&&saved.session===session){avgSince=saved.since;for(const [tid,series] of saved.avg)threadAvg.set(tid,series);for(const [tid,seen] of saved.seen)threadSeen.set(tid,seen)}}catch{}
+  try{const saved=JSON.parse(sessionStorage.getItem('triangulator:buffer')||'null');if(saved&&saved.session===session){buffer=saved.points;lastTick=buffer.at(-1)?.t||0;
+    const state=saved.loadState;
+    if(state&&isNum(state.t)&&state.t<=lastTick&&Array.isArray(state.averages)&&state.averages.length===3&&state.averages.every(isNum))loadState=state;
+    // Older tabs saved only chart points; seed their averages once on restore.
+    else for(const point of buffer)updateLoadAverage(point)}}catch{}}
+function saveBuffer(){try{sessionStorage.setItem('triangulator:buffer',JSON.stringify({session:bufferSession,points:buffer,loadState}))}catch{}
+  try{sessionStorage.setItem('triangulator:threads',JSON.stringify({session:bufferSession,since:avgSince,avg:[...threadAvg],seen:[...threadSeen]}))}catch{sessionStorage.removeItem('triangulator:threads')}}
+function ingest(){
+  const health=live.health,threads=live.threads||[];
+  if(health.session!==bufferSession)loadBuffer(health.session);
+  let tick=0;for(const thread of threads)tick=Math.max(tick,thread.last_sample||0);
+  if(!threads.length||tick<=lastTick)return;
+  lastTick=tick;
+  const point={t:tick,cpu:0,rd:null,sw:0,rb:0,wb:0,mf:0,n:threads.length,busy:0,active:0,s:{},born:0,died:0};
+  const ids=new Set();
+  for(const thread of threads){if(isNum(thread.cpu_pct)){point.cpu+=thread.cpu_pct;if(thread.cpu_pct>=1)point.busy++}
+    if(isNum(thread.run_delay_pct))point.rd=(point.rd||0)+thread.run_delay_pct;
+    point.sw+=thread.switches_per_s||0;point.rb+=thread.read_bps||0;point.wb+=thread.write_bps||0;point.mf+=thread.major_faults_per_s||0;
+    const state=STATES.includes(thread.state)?thread.state:'other';point.s[state]=(point.s[state]||0)+1;
+    ids.add(thread.tid+':'+thread.generation);
+    const seen=threadSeen.get(thread.tid);if(!seen||seen.generation!==thread.generation)threadSeen.set(thread.tid,{first:tick,active:null,generation:thread.generation});
+    if(!isIdle(thread)){point.active++;threadSeen.get(thread.tid).active=tick}
+    let series=threadAvg.get(thread.tid);if(!series||series[0]!==thread.generation){series=[thread.generation];threadAvg.set(thread.tid,series)}
+    if(isNum(thread.cpu_pct)&&(series.length<3||tick-series.at(-2)>=AVG_STEP-.5)){series.push(tick,+thread.cpu_pct.toFixed(2));while(series.length>3&&series[1]<tick-BUFFER_SECS)series.splice(1,2)}
+    const history=threadCpu.get(thread.tid)||[];history.push({t:tick,v:thread.cpu_pct});while(history.length&&history[0].t<tick-120)history.shift();threadCpu.set(thread.tid,history)}
+  // After a sampler pause of 10 s or more, the collector has one sample per
+  // thread in its window and sends null rates. Summing those as 0 would
+  // record a fake idle moment, so mark the point's rates unknown instead.
+  if(!threads.some(thread=>isNum(thread.cpu_pct)))Object.assign(point,{cpu:null,rd:null,sw:null,rb:null,wb:null,mf:null,busy:null,active:null});
+  if(previousThreads){for(const id of ids)if(!previousThreads.has(id))point.born++;for(const id of previousThreads)if(!ids.has(id))point.died++}
+  previousThreads=ids;
+  const present=new Set(threads.map(thread=>thread.tid));
+  for(const tid of threadCpu.keys())if(!present.has(tid)&&threadCpu.get(tid).at(-1).t<tick-120)threadCpu.delete(tid);
+  for(const tid of threadSeen.keys())if(!present.has(tid))threadSeen.delete(tid);
+  for(const tid of threadAvg.keys())if(!present.has(tid))threadAvg.delete(tid);
+  if(!avgSince)avgSince=tick;
+  updateLoadAverage(point);buffer.push(point);while(buffer.length&&buffer[0].t<tick-BUFFER_SECS)buffer.shift();
+  if(buffer.length%5===0)saveBuffer();
+}
+const windowPoints=()=>{const end=buffer.at(-1)?.t||0;return buffer.filter(point=>point.t>=end-windowSecs)};
+
+// ---------- Overview ----------
+const threadLabel=thread=>`${thread.name} (${thread.tid})`;
+function assess(threads,points){
+  const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
+  if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(Date.now()/1000-(health.last_seen||0))}. Everything below may be stale.`);
+  if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
+  if((health.packet_loss_pct||0)>1)add('warning',`Packet loss ${pct(health.packet_loss_pct)}`,'Some samples were lost between sampler and collector over the last minute; rates may be noisy.');
+  const kernel=threads.filter(thread=>thread.state==='kernel');
+  if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
+    add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
+  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=90).sort((a,b)=>b.cpu_pct-a.cpu_pct);
+  for(const thread of hot.slice(0,2))add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+  const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
+  if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
+  else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
+  const faults=threads.reduce((sum,thread)=>sum+(thread.major_faults_per_s||0),0);
+  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid})}
+  const stopped=threads.filter(thread=>thread.state==='stopped');
+  if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
+  const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
+  if(born+died>=10)add('info','High thread churn',`${born} threads started and ${died} ended in the last minute. Short-lived threads cost creation time; consider a pool.`);
+  const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
+  const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
+  if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
+  return findings}
+function profile(threads){
+  if(!threads.length)return '';
+  const counts={};for(const thread of threads)counts[thread.state]=(counts[thread.state]||0)+1;
+  const waiting=threads.length-(counts.running||0),top=Object.entries(counts).filter(([state])=>state!=='running').sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const busy=threads.filter(thread=>(thread.cpu_pct||0)>=1).length;
+  let text=`${waiting} of ${threads.length} threads are waiting`+(top.length?': '+top.map(([state,count])=>`${count} ${(labels[state]||state).toLowerCase()}`).join(', '):'')+'. ';
+  text+=busy?`${busy} thread${busy>1?'s are':' is'} busy (≥1% CPU).`:'No thread is using noticeable CPU.';
+  if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers; many idle futex waiters are normal for thread pools.';
+  return text}
+function renderAssessment(threads){
+  const findings=assess(threads,buffer);const order=['critical','serious','warning','info','good'];const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
+  const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
+  element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
+  const list=element('findings');list.replaceChildren();
+  const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
+  for(const item of findings.slice(0,7)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.title=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    list.append(row)}}
+function renderTiles(threads,points){
+  const last=points.at(-1)||{},series=key=>points.map(point=>point[key]);
+  const window60=buffer.filter(point=>point.t>=(buffer.at(-1)?.t||0)-60);
+  const born=window60.reduce((sum,point)=>sum+point.born,0),died=window60.reduce((sum,point)=>sum+point.died,0);
+  const idle=threads.filter(isIdle).length;
+  const tiles=[
+    ['Active threads',`${threads.length-idle}`,`of ${threads.length} · ${idle} idle for 10 s+`,series('active')],
+    ['Context switches',number(last.sw,0)+'/s',threads.length-idle?`${number((last.sw||0)/(threads.length-idle))}/s per active thread`:'',series('sw')],
+    ['Disk & syscall I/O',perSec((last.rb||0)+(last.wb||0)),`read ${perSec(last.rb)} · write ${perSec(last.wb)}`,points.map(point=>point.rb===null?null:point.rb+point.wb)]];
+  // Signals that are usually zero only get a tile when they happened.
+  if(points.some(point=>point.mf>0))tiles.push(['Major faults',number(last.mf)+'/s','reads from disk to fill memory',series('mf')]);
+  if(buffer.some(point=>point.born||point.died))tiles.push(['Thread churn',`+${born} / −${died}`,'started / ended, last minute',points.map(point=>point.born+point.died)]);
+  if(socketData?.available){const totals=socketData.totals||{},history=socketData.history||[];
+    tiles.push(['Socket received',perSec(totals.input?.current),'observed socket bytes',history.map(point=>point.input)],['Socket sent',perSec(totals.output?.current),'accepted by sockets',history.map(point=>point.output)]);
+    if(socketData.messages_enabled)tiles.push(['Messages',number(totals.messages?.current)+'/s','completed by the app',history.map(point=>point.messages)])}
+  const host=element('tiles');host.replaceChildren();
+  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',String(value),'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
+const LOAD_BANDS=[{label:'On CPU',color:'var(--series-1)',get:point=>point.cpu===null?null:point.cpu/100},{label:'Waiting for CPU',color:'var(--series-2)',get:point=>point.cpu===null?null:(point.rd||0)/100},{label:'Blocked in kernel (D)',color:'var(--s-kernel)',get:point=>point.cpu===null?null:point.s.kernel||0}];
+function renderOverview(){
+  const threads=live.threads||[],averages=loadState?.averages,points=windowPoints();
+  const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
+  const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best?.cpu_pct||-1)?thread:best,null);
+  const span=buffer.length?buffer.at(-1).t-buffer[0].t:0,load=value=>averages?value.toFixed(2):'—';
+  element('hero-load').textContent=load(averages?.[0]);element('hero-load5').textContent=load(averages?.[1]);element('hero-load15').textContent=load(averages?.[2]);
+  element('hero-load15-label').textContent=span<840&&averages?`15 min (${duration(span)} of data)`:'15 min';
+  element('hero-cpu').textContent=threads.length?(cpu/100).toFixed(2)+' cores':'—';
+  // Under 1% of a core the ratio is noise, so don't report one.
+  element('hero-wait').textContent=cpu+delay>=1?pct(100*delay/(cpu+delay))+' of demand':threads.length?'negligible':'—';
+  element('hero-top').textContent=top&&top.cpu_pct?`${top.name} · ${pct(top.cpu_pct)}`:'all idle';
+  const range={from:points.length?Math.max(points[0].t,points.at(-1).t-windowSecs):undefined};
+  const bands=LOAD_BANDS.filter(band=>band.label!=='Blocked in kernel (D)'||points.some(point=>point.s.kernel));
+  timeChart(element('chart-load'),{points,stacked:true,series:bands,overlay:{label:'1-min load average',color:'var(--ink-2)',get:point=>point.l1},format:value=>isNum(value)?String(+value.toFixed(2)):'—',height:210,minMax:.05,...range});
+  const legend=element('load-legend');legend.replaceChildren();
+  const now=points.at(-1);
+  for(const band of bands){const item=node('span');const swatch=node('i',undefined,'sw');swatch.style.background=band.color;item.append(swatch,band.label,node('b',now&&isNum(band.get(now))?band.get(now).toFixed(2):'—'));legend.append(item)}
+  const average=node('span');const key=node('i',undefined,'sw line');key.style.background='var(--ink-2)';average.append(key,'1-min average');legend.append(average);
+  // Fallback mode has CPU but no run delay; a tick with no rates at all is a stall, not fallback.
+  if(threads.some(thread=>isNum(thread.cpu_pct))&&!threads.some(thread=>isNum(thread.run_delay_pct)))legend.append(node('span','Waiting for CPU is unavailable in status-fallback mode.','muted'));
+  const stackStates=STATES.filter(state=>state!=='no_access');
+  timeChart(element('chart-states'),{points,stacked:true,format:value=>number(value,0),height:200,...range,series:stackStates.map(state=>({label:state==='other'?'Other / no access':labels[state],color:stateColor(state),get:point=>(point.s[state]||0)+(state==='other'?point.s.no_access||0:0)}))});
+  const counts=now?.s||{},stateLegend=element('states-legend');stateLegend.replaceChildren();
+  for(const state of stackStates){const count=(counts[state]||0)+(state==='other'?counts.no_access||0:0);if(!count&&!points.some(point=>point.s[state]))continue;const item=node('span');item.append(node('i',undefined,'sw '+state),state==='other'?'Other / no access':labels[state],node('b',String(count)));stateLegend.append(item)}
+  // Live panels hold still under the pointer, so clicks and tooltips land.
+  const steady=id=>element(id).matches(':hover');
+  renderAssessment(threads);renderTiles(threads,points);renderCores(threads);
+  if(!steady('mosaic'))renderMosaic(threads);if(!steady('family-bars'))renderFamilies(threads);if(!steady('wchan-bars'))renderWchans(threads);
+  element('overview-sub').textContent=threads.length?`How ${targetName()} is behaving, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab since '+clock(buffer[0].t)+'.':''}`:'Waiting for the sampler to report the target process.'}
+// Tiles carry a number only when they fit and the thread used CPU; idle
+// threads stay blank and faded rather than printing 0%.
+const MOSAIC_DENSE=300;
+const cpuLabel=value=>value>=9.95?value.toFixed(0)+'%':value>=.05?value.toFixed(1)+'%':'<0.1%';
+// Average CPU of one thread over the last p_window seconds, or null.
+function averageCpu(tid,window){const series=threadAvg.get(tid);if(!series)return null;let sum=0,count=0;
+  for(let index=1;index<series.length;index+=2)if(series[index]>lastTick-window){sum+=series[index+1];count++}
+  return count?sum/count:null}
+// How the map sees a thread in the chosen window: its CPU and whether it was
+// idle for all of it. Blocked threads (D, stopped) are never idle.
+function mapView(thread){
+  if(!mapWindow)return{cpu:thread.cpu_pct,idle:isIdle(thread)};
+  const seen=threadSeen.get(thread.tid),blocked=thread.state==='kernel'||thread.state==='stopped';
+  const active=seen&&seen.active!==null&&lastTick-seen.active<mapWindow;
+  return{cpu:averageCpu(thread.tid,mapWindow),idle:!blocked&&!active&&isIdle(thread)}}
+const windowName=()=>({60:'1 min',300:'5 min',900:'15 min'})[mapWindow];
+function renderMosaic(threads){
+  const host=element('mosaic'),dense=threads.length>MOSAIC_DENSE;host.replaceChildren();host.classList.toggle('dense',dense);
+  const views=new Map(threads.map(thread=>[thread.tid,mapView(thread)]));
+  const sorted=[...threads].sort((a,b)=>STATES.indexOf(a.state)-STATES.indexOf(b.state)||(views.get(b.tid).cpu||0)-(views.get(a.tid).cpu||0)||a.tid-b.tid);
+  for(const thread of sorted){const view=views.get(thread.tid),state=STATES.includes(thread.state)?thread.state:'other';
+    const cell=node('div',undefined,'cell'+(thread.stale?' stale':view.idle?' idle':''));cell.dataset.tid=thread.tid;
+    cell.style.background=stateColor(state);cell.style.color=`var(--t-${state})`;
+    if(!view.idle&&!dense&&isNum(view.cpu))cell.textContent=cpuLabel(view.cpu);
+    cell.setAttribute('aria-label',`${thread.name}: ${labels[state]}, ${view.idle?'idle':isNum(view.cpu)?pct(view.cpu)+' CPU':'no data yet'}`);
+    if(selected&&selected.tid===thread.tid)cell.style.outline='2px solid var(--ink)';host.append(cell)}
+  if(!threads.length)host.append(node('p','No threads reported yet.','muted'));
+  const legend=element('mosaic-legend');legend.replaceChildren();const box=node('div',undefined,'legend');
+  for(const state of STATES){const count=threads.filter(thread=>thread.state===state).length;if(!count)continue;const item=node('span');item.append(node('i',undefined,'sw '+state),labels[state],node('b',String(count)));box.append(item)}
+  const span=lastTick&&avgSince?lastTick-avgSince:0;
+  const note=!mapWindow?'Number = CPU % of one core, last ~10 s · faded = idle':`Number = average CPU % of one core, last ${windowName()} · faded = idle all that time · color = state now`;
+  box.append(node('span',dense?'Hover a square for its CPU · faded = idle':note,'muted'));
+  if(mapWindow&&span<mapWindow-AVG_STEP)box.append(node('span',`Only ${duration(span)} of data in this tab so far.`,'bad'));
+  legend.append(box);
+  element('mosaic-sub').textContent=`One tile per thread (${threads.length}), grouped by current state, busiest ${mapWindow?'over '+windowName():'now'} first. Click a tile for details.`}
+for(const button of document.querySelectorAll('[data-map-window]'))button.onclick=()=>{mapWindow=Number(button.dataset.mapWindow);for(const other of document.querySelectorAll('[data-map-window]'))other.setAttribute('aria-pressed',String(other===button));renderMosaic(live.threads||[])};
+element('mosaic').addEventListener('pointermove',event=>{const tid=Number(event.target.dataset?.tid);if(!tid)return hideTip();const thread=(live.threads||[]).find(item=>item.tid===tid);if(!thread)return;
+  const rows=[{color:stateColor(thread.state),value:labels[thread.state]||thread.state,label:thread.wchan||''}];
+  if(isIdle(thread))rows.push({value:'idle',label:idleFor(thread)});else rows.push({value:pct(thread.cpu_pct),label:'CPU now'},{value:pct(thread.run_delay_pct),label:'waiting for CPU'},{value:number(thread.switches_per_s),label:'switches/s'});
+  for(const window of [60,300,900]){const average=averageCpu(thread.tid,window);if(isNum(average))rows.push({value:pct(average),label:`average, ${({60:'1 min',300:'5 min',900:'15 min'})[window]}`})}
+  showTip(event,threadLabel(thread),rows)});
+element('mosaic').addEventListener('pointerleave',hideTip);
+element('mosaic').addEventListener('click',event=>{const tid=Number(event.target.dataset?.tid);const thread=(live.threads||[]).find(item=>item.tid===tid);if(thread)openThread(thread)});
+function renderFamilies(threads){
+  const mode=element('family-mode').value,keyOf=mode==='group'?thread=>thread.group:mode==='thread'?thread=>threadLabel(thread):thread=>family(thread.name);
+  const totals=new Map();for(const thread of threads){const key=keyOf(thread),entry=totals.get(key)||{cpu:0,count:0};entry.cpu+=thread.cpu_pct||0;entry.count++;totals.set(key,entry)}
+  const all=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
+  let items=[...totals].map(([key,entry])=>({key,label:key,value:entry.cpu,count:entry.count})).sort((a,b)=>b.value-a.value||b.count-a.count);
+  if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:'',label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0),count:rest.reduce((sum,item)=>sum+item.count,0)})}
+  for(const item of items){item.sub=mode==='thread'?'':`×${item.count}`;item.tip=[{value:pct(item.value),label:'of one core'},{value:all?pct(100*item.value/all):'—',label:'of process CPU'},{value:String(item.count),label:item.count===1?'thread':'threads'}]}
+  barList(element('family-bars'),items,{format:pct,empty:'No threads reported yet.',onClick:mode==='thread'?null:item=>{if(!item.key)return;element('search').value=mode==='family'?item.key:'';if(mode==='group')element('group').value=item.key;setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}});
+  element('family-sub').textContent=mode==='group'?'Process CPU by thread group from the collector config.':mode==='thread'?'Process CPU by individual thread.':'Process CPU by thread family (name without its number).'}
+function renderWchans(threads){
+  const counts=new Map();for(const thread of threads){if(thread.state==='running')continue;const key=thread.wchan||'—';counts.set(key,(counts.get(key)||0)+1)}
+  let items=[...counts].map(([key,value])=>({key,label:key,value})).sort((a,b)=>b.value-a.value);
+  if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:null,label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0)})}
+  for(const item of items)item.tip=[{value:String(item.value),label:item.value===1?'thread waiting here':'threads waiting here'}];
+  barList(element('wchan-bars'),items,{format:value=>String(value),mono:true,pressed:wchanFilter,empty:'No waiting threads.',onClick:item=>{if(item.key===null)return;wchanFilter=wchanFilter===item.key?'':item.key;stateFilter='';setActivity(wchanFilter?'all':activity);renderWchans(live.threads||[]);if(wchanFilter)element('threads-section').scrollIntoView({behavior:'smooth'})}})}
+function renderCores(threads){
+  const host=element('cores');host.replaceChildren();if(!threads.length){host.append(node('p','No threads reported yet.','muted'));return}
+  const cores=new Map();let maxCore=0;for(const thread of threads){if(!isNum(thread.cpu))continue;maxCore=Math.max(maxCore,thread.cpu);const entry=cores.get(thread.cpu)||{cpu:0,count:0,top:null};entry.cpu+=thread.cpu_pct||0;entry.count++;if(!entry.top||(thread.cpu_pct||0)>(entry.top.cpu_pct||0))entry.top=thread;cores.set(thread.cpu,entry)}
+  // Scale to the busiest core (at least 5% of a core) so light load stays visible.
+  const top=niceMax(Math.max(5,...[...cores.values()].map(entry=>entry.cpu)));
+  element('cores-scale').textContent=`Bar height: 0 – ${pct(top)} of one core. Cores with none of this process's threads show no bar.`;
+  for(let core=0;core<=maxCore;core++){const entry=cores.get(core)||{cpu:0,count:0},column=node('div',undefined,'core'),bar=node('div',undefined,'col');bar.style.height=`calc(${100*entry.cpu/top}% - 34px)`;
+    column.append(node('span',entry.cpu>=.05?pct(entry.cpu):'','cap'),bar,node('span','#'+core));
+    column.addEventListener('pointermove',event=>showTip(event,'Core '+core,[{value:pct(entry.cpu),label:'CPU from this process'},{value:String(entry.count),label:'threads last ran here'},...(entry.top&&entry.top.cpu_pct?[{value:pct(entry.top.cpu_pct),label:'top: '+entry.top.name}]:[])]));column.addEventListener('pointerleave',hideTip);host.append(column)}}
+function renderHealth(){
+  const health=live.health,host=element('health');host.replaceChildren();
+  const rows=[['Sampler',health.sampler_silent?'Silent':health.last_seen?'Connected':'Waiting'],['Last data',ago(Date.now()/1000-(health.last_seen||0))],['Sample interval',health.sample_interval_ms+' ms'],['Packet loss (1 min)',pct(health.packet_loss_pct)],['Bad · duplicate · late',`${health.bad_packets} · ${health.duplicates} · ${health.late_packets}`],['Raw samples held',number(health.raw_samples,0)],['Sampler address',health.sampler_ip||'—'],['Session',health.session||'—']];
+  for(const [key,value] of rows){const item=node('div');item.append(node('dt',key),node('dd',value));host.append(item)}
+  element('diagnostics').textContent=JSON.stringify(health,null,2)}
+
+// ---------- Threads table ----------
+const sortKeys={tid:thread=>-thread.tid,io:thread=>(thread.read_bps||0)+(thread.write_bps||0)};
+function matches(thread,ignoreState,ignoreWchan,ignoreActivity){const group=element('group').value;const search=element('search').value.toLowerCase();
+  if(!ignoreActivity&&activity!=='all'&&isIdle(thread)!==(activity==='idle'))return false;
+  if(group&&thread.group!==group)return false;
+  if(search&&!`${thread.name} ${thread.tid} ${thread.wchan}`.toLowerCase().includes(search))return false;
+  if(!ignoreState&&stateFilter&&thread.state!==stateFilter)return false;
+  if(!ignoreWchan&&wchanFilter&&(thread.wchan||'—')!==wchanFilter)return false;
+  return true}
+function chip(label,count,pressed,onclick,className,dot){const button=node('button',undefined,'chip'+(className?' '+className:''));button.setAttribute('aria-pressed',String(pressed));if(dot)button.append(node('span',undefined,'sw '+dot));button.append(node('span',label),node('span',String(count),'count'));button.onclick=onclick;return button}
+function tally(threads,key){const counts=new Map();for(const thread of threads){const value=key(thread);counts.set(value,(counts.get(value)||0)+1)}return [...counts].sort((left,right)=>right[1]-left[1]||String(left[0]).localeCompare(String(right[0])))}
+function renderChips(){const threads=live.threads||[];
+  const states=element('state-chips');states.replaceChildren();
+  const stateBase=threads.filter(thread=>matches(thread,true,false));
+  states.append(chip('All',stateBase.length,!stateFilter,()=>{stateFilter='';renderThreads()}));
+  const present=new Map(tally(stateBase,thread=>thread.state));if(stateFilter&&!present.has(stateFilter))present.set(stateFilter,0);
+  for(const state of STATES){if(!present.has(state))continue;states.append(chip(labels[state],present.get(state),stateFilter===state,()=>{stateFilter=stateFilter===state?'':state;wchanFilter='';renderThreads()},'',state))}
+  const wchans=element('wchan-chips');wchans.replaceChildren();
+  const wchanBase=threads.filter(thread=>matches(thread,false,true));
+  wchans.append(chip('All',wchanBase.length,!wchanFilter,()=>{wchanFilter='';renderThreads()}));
+  const channels=tally(wchanBase,thread=>thread.wchan||'—');if(wchanFilter&&!channels.some(([name])=>name===wchanFilter))channels.push([wchanFilter,0]);
+  for(const [name,count] of channels)wchans.append(chip(name,count,wchanFilter===name,()=>{wchanFilter=wchanFilter===name?'':name;renderThreads()},'mono'))}
+function mix(counts){const bar=node('div',undefined,'mix');const total=Object.values(counts||{}).reduce((sum,value)=>sum+value,0);
+  for(const state of STATES){const count=(counts||{})[state];if(!count)continue;const part=node('span',undefined,state);part.style.width=(100*count/total)+'%';part.title=labels[state]+': '+count+' samples';bar.append(part)}return bar}
+function statePill(thread){const pill=node('span',undefined,'pill');const key=node('i');key.style.background=stateColor(thread.state);pill.append(key,(labels[thread.state]||thread.state)+(thread.stale?' · stale':''));return pill}
+function setActivity(value){activity=value;for(const button of document.querySelectorAll('[data-activity]'))button.setAttribute('aria-pressed',String(button.dataset.activity===value));renderThreads()}
+for(const button of document.querySelectorAll('[data-activity]'))button.onclick=()=>setActivity(button.dataset.activity);
+function renderThreads(){renderChips();
+  const body=element('threads');body.replaceChildren();
+  const order=element('sort').value;
+  const key=order==='name'?null:sortKeys[order]||(thread=>thread[order]??-1);
+  const all=live.threads||[];
+  const base=all.filter(thread=>matches(thread,false,false,true)),idleCount=base.filter(isIdle).length;
+  element('n-active').textContent=base.length-idleCount;element('n-idle').textContent=idleCount;element('n-all').textContent=base.length;
+  const summary=element('idle-summary');summary.replaceChildren();
+  if(activity==='active'&&idleCount){const waits=tally(base.filter(isIdle),thread=>labels[thread.state]||thread.state).map(([state,count])=>`${count} ${state.toLowerCase()}`).join(', ');
+    const show=node('button','Show them');show.style.cssText='padding:2px 8px;margin-left:6px;font-size:12px';show.onclick=()=>setActivity('idle');summary.append(`${idleCount} idle thread${idleCount>1?'s':''} hidden (${waits}).`,show)}
+  const threads=all.filter(thread=>matches(thread)).sort(key?(left,right)=>key(right)-key(left)||left.tid-right.tid:(left,right)=>left.name.localeCompare(right.name)||left.tid-right.tid);
+  element('count').textContent=threads.length===all.length?`(${all.length})`:`(${threads.length} of ${all.length})`;
+  for(const header of document.querySelectorAll('th[data-sort]'))header.setAttribute('aria-sort',header.dataset.sort===order?'descending':'none');
+  for(const thread of threads){const row=node('tr',undefined,'clickable'+(selected?.tid===thread.tid?' selected':''));row.dataset.tid=thread.tid;row.tabIndex=0;
+    const name=node('td');name.append(node('span',thread.name),node('small','TID '+thread.tid));
+    const state=node('td');state.append(statePill(thread));if(thread.wchan)state.append(node('span',thread.wchan,'wchan'));
+    const states=node('td');states.append(mix(thread.state_mix));
+    row.append(name,node('td',thread.group),state,states);
+    // An idle thread's rates are all zero: say how long it has been idle instead.
+    if(isIdle(thread)){const quiet=node('td',idleFor(thread)||'idle','muted');quiet.colSpan=6;row.append(quiet,node('td',thread.cpu,'num'))}
+    else{const cpu=node('td',undefined,'num'),cpuCell=node('div',undefined,'cpu-cell');cpuCell.append(sparkline((threadCpu.get(thread.tid)||[]).map(point=>point.v),'var(--series-1)',{min:5,className:'spark'}),node('span',pct(thread.cpu_pct)));cpu.append(cpuCell);
+      const quiet=(value,text)=>node('td',value>0?text:'·','num'+(value>0?'':' muted'));
+      row.append(cpu,quiet(thread.run_delay_pct,pct(thread.run_delay_pct)),quiet(thread.switches_per_s,number(thread.switches_per_s)),quiet(thread.read_bps,bytes(thread.read_bps)),quiet(thread.write_bps,bytes(thread.write_bps)),quiet(thread.major_faults_per_s,number(thread.major_faults_per_s)),node('td',thread.cpu,'num'))}
+    body.append(row)}
+  if(!threads.length){const row=node('tr'),cell=node('td',!all.length?'No threads reported yet.':activity==='active'&&!stateFilter&&!wchanFilter&&!element('search').value?'Every thread is idle right now.':'No threads match these filters.','muted');cell.colSpan=11;row.append(cell);body.append(row)}}
+element('threads').addEventListener('click',event=>{const row=event.target.closest('tr[data-tid]');if(!row)return;const thread=(live.threads||[]).find(item=>item.tid===Number(row.dataset.tid));if(thread)openThread(thread)});
+element('threads').addEventListener('keydown',event=>{if(event.key==='Enter')event.target.closest('tr[data-tid]')?.click()});
+for(const header of document.querySelectorAll('th[data-sort]'))header.onclick=()=>{element('sort').value=header.dataset.sort;renderThreads()};
+
+// ---------- Thread drawer ----------
+function localInput(timestamp){const offset=new Date(timestamp).getTimezoneOffset()*60000;return new Date(timestamp-offset).toISOString().slice(0,19)}
+let historyRange=3600;
+function openThread(thread){
+  selected={session:live.health.session,tid:thread.tid,name:thread.name};
+  history.replaceState(null,'','#thread='+thread.tid);
+  element('history-title').textContent=thread.name;
+  element('drawer').classList.add('open');element('drawer').setAttribute('aria-hidden','false');element('scrim').classList.add('open');
+  setRange(historyRange);renderDrawerLive();renderThreads();renderMosaic(live.threads||[]);element('drawer-close').focus()}
+function closeThread(){selected=null;element('drawer').classList.remove('open');element('drawer').setAttribute('aria-hidden','true');element('scrim').classList.remove('open');history.replaceState(null,'',location.pathname);hideTip();renderThreads();renderMosaic(live.threads||[])}
+function renderDrawerLive(){
+  if(!selected)return;const thread=(live.threads||[]).find(item=>item.tid===selected.tid);
+  element('drawer-meta').textContent=`TID ${selected.tid}`+(thread?` · group ${thread.group} · family ${family(thread.name)}`:'');
+  const state=element('drawer-state');state.replaceChildren();
+  if(!thread){state.append(node('p','This thread is no longer reported; it may have exited. Its stored history is still available below.','muted'));element('drawer-tiles').replaceChildren();}
+  else{const line=node('div');line.append(statePill(thread));if(thread.wchan)line.append(node('span',' in ','muted'),node('code',thread.wchan));line.append(node('span',' · last 10 s: ','muted'));line.append(mix(thread.state_mix));line.lastChild.style.display='inline-flex';line.lastChild.style.verticalAlign='middle';state.append(line);
+    const tiles=element('drawer-tiles');tiles.replaceChildren();
+    // Only metrics with something in them; an idle thread gets its idle time.
+    const metrics=[['CPU',thread.cpu_pct,pct],['Run delay',thread.run_delay_pct,pct],['Switches/s',thread.switches_per_s,number],['Read/s',thread.read_bps,bytes],['Write/s',thread.write_bps,bytes],['Maj. faults/s',thread.major_faults_per_s,number]].filter(([,value])=>value>0).map(([key,value,format])=>[key,format(value)]);
+    if(isIdle(thread))metrics.push(['Activity',idleFor(thread)||'idle']);
+    for(const [key,value] of [...metrics,['Last core','#'+thread.cpu],['Last sample',clock(thread.last_sample)]]){const tile=node('div');tile.append(node('div',key,'k'),node('div',value,'v'));tiles.append(tile)}}
+  const points=(threadCpu.get(selected.tid)||[]).map(point=>({t:point.t,v:point.v}));
+  timeChart(element('drawer-live'),{points,series:[{label:'CPU',color:'var(--series-1)',get:point=>point.v}],format:pct,height:120,minMax:5})}
+function setRange(seconds){historyRange=seconds;for(const button of document.querySelectorAll('[data-range]'))button.setAttribute('aria-pressed',String(Number(button.dataset.range)===seconds));
+  // Zero denotes a custom interval; keep its inputs when opening another thread.
+  if(seconds>0){const now=Date.now();element('from').value=localInput(now-seconds*1000);element('to').value=localInput(now)}loadHistory()}
+async function loadHistory(){if(!selected)return;
+  const note=element('history-note');note.textContent='Loading…';
+  try{const start=new Date(element('from').value).getTime()/1000,end=new Date(element('to').value).getTime()/1000;
+    const query=new URLSearchParams({session:selected.session,tid:selected.tid,start,end});
+    const response=await fetch('/api/history?'+query);
+    if(!response.ok)throw Error('Unable to load history: check the time range.');
+    const data=await response.json();
+    const points=data.rows.map(item=>{const counts=item.sample_counts||{},total=Object.values(counts).reduce((sum,value)=>sum+value,0)||1,shares={};for(const [state,count] of Object.entries(counts))shares[state]=100*count/total;return{t:item.ts,cpu:item.cpu_pct,rd:item.run_delay_pct,rb:item.read_bps,wb:item.write_bps,s:shares,valid:item.valid}});
+    const range={from:start,to:Math.min(end,Date.now()/1000)},empty='No stored summaries in this range yet.';
+    timeChart(element('history-cpu'),{points,series:[{label:'CPU',color:'var(--series-1)',get:point=>point.cpu}],format:pct,height:130,minMax:5,empty});
+    timeChart(element('history-delay'),{points,series:[{label:'Run delay',color:'var(--series-2)',get:point=>point.rd}],format:pct,height:100,minMax:1,empty});
+    timeChart(element('history-states'),{points,stacked:true,format:value=>value.toFixed(0)+'%',height:120,empty,series:STATES.map(state=>({label:labels[state],color:stateColor(state),get:point=>point.s[state]||0}))});
+    timeChart(element('history-io'),{points,series:[{label:'Read/s',color:'var(--series-1)',get:point=>point.rb},{label:'Write/s',color:'var(--series-2)',get:point=>point.wb}],format:perSec,height:110,minMax:1,empty});
+    const legend=element('legend');legend.replaceChildren();const seen=new Set(points.flatMap(point=>Object.keys(point.s)));
+    for(const state of STATES){if(!seen.has(state))continue;const item=node('span');item.append(node('i',undefined,'sw '+state),labels[state]);legend.append(item)}
+    const rows=element('history-rows');rows.replaceChildren();
+    for(const item of data.rows){const row=node('tr'),state=node('td');state.append(mix(item.sample_counts));
+      row.append(node('td',date(item.ts)),node('td',pct(item.cpu_pct),'num'),node('td',pct(item.run_delay_pct),'num'),node('td',bytes(item.read_bps),'num'),node('td',bytes(item.write_bps),'num'),node('td',item.samples+'/'+item.expected_samples.toFixed(1)+(item.valid?'':' · insufficient')),state);rows.append(row)}
+    note.textContent=data.truncated?'First 2,000 summaries shown; narrow the range.':`${data.rows.length} summaries from ${element('from').value.replace('T',' ')} to ${element('to').value.replace('T',' ')}.`}
+  catch(error){note.textContent=error.message}}
+for(const button of document.querySelectorAll('[data-range]'))button.onclick=()=>setRange(Number(button.dataset.range));
+element('load-history').onclick=()=>{historyRange=0;for(const button of document.querySelectorAll('[data-range]'))button.setAttribute('aria-pressed','false');loadHistory()};
+element('drawer-close').onclick=closeThread;element('scrim').onclick=closeThread;
+
+// ---------- Socket panel ----------
+const socketTitles={input:'Received bytes',output:'Sent bytes',messages:'Messages processed'};
+function socketValue(value,rate=false){if(value===null||value===undefined)return '—';const n=Number(value);
+  return socketMetric==='messages'?new Intl.NumberFormat(undefined,{maximumFractionDigits:rate?1:0}).format(n)+(rate?' /s':''):bytes(n)+(rate?' /s':'')}
+function renderSocketChart(){const points=(socketData.history||[]).map(point=>({t:point.ts,v:point[socketMetric]}));const values=points.map(point=>point.v).filter(isNum);
+  timeChart(element('socket-chart'),{points,series:[{label:socketTitles[socketMetric]+' /s',color:'var(--series-1)',get:point=>point.v}],format:value=>socketValue(value,true),height:150,empty:'No covered rate windows yet'});
+  element('socket-chart-scale').textContent=values.length?'Peak: '+socketValue(Math.max(...values),true):'No covered rate windows yet'}
+function renderSocket(){const data=socketData;if(!data)return;const available=data.available;
+  element('socket-content').hidden=!available;element('socket-empty').hidden=available;
+  if(!available){element('socket-status').textContent='Not available';element('socket-empty').textContent=data.reason||'Socket observer not connected';element('socket-scope').textContent='Socket traffic and message completion require the optional observer. Expand setup below to connect it.';return}
+  const status=data.refresh_error?'Report refresh failed · cached':data.stopped?'Observation ended':data.stale?'Observer silent':data.lower_bound?'Incomplete · lower-bound totals':'Observing supported paths';
+  element('socket-status').textContent=status;element('socket-status').classList.toggle('socket-warning',Boolean(data.stale||data.lower_bound));
+  element('socket-scope').textContent='PID '+data.pid+' · observed for '+number(data.duration)+' seconds · totals since this observer started · observer '+data.observer;
+  for(const button of document.querySelectorAll('[data-socket-metric]'))button.setAttribute('aria-pressed',String(button.dataset.socketMetric===socketMetric));
+  element('socket-kind').disabled=socketMetric==='messages';
+  const kind=element('socket-kind'),chosen=kind.value;kind.replaceChildren(node('option','All kinds'));kind.firstChild.value='';
+  const kinds=new Map((data.rows||[]).filter(r=>r.kind_id!==6).map(r=>[String(r.kind_id),r.kind]));
+  for(const [id,label] of kinds){const option=node('option',label);option.value=id;kind.append(option)}
+  kind.value=kinds.has(chosen)?chosen:'';
+  const unconfigured=socketMetric==='messages'&&!data.messages_enabled;const totals=data.totals[socketMetric];
+  element('socket-metric-note').textContent=unconfigured?'Message completion is not configured. Add a completion marker to count messages after the application finishes processing them.':socketMetric==='messages'?'One marker call = one completed application message. Counts reflect the marker contract defined by your application.':socketMetric==='input'?'Bytes reported by successful receive operations. Peeks do not count. A read is not a processed message.':'Bytes accepted by successful send operations, including partial writes. Acceptance does not prove peer delivery.';
+  const cards=element('socket-cards');cards.replaceChildren();
+  for(const [title,value,isRate] of [[socketTitles[socketMetric],totals.total,false],['Current rate',totals.current,true],['Average since start',totals.average,true],['Recent minimum',totals.minimum,true],['Recent maximum',totals.maximum,true]]){const card=node('div',undefined,'card tile');card.append(node('div',title,'label'),node('div',socketValue(value,isRate),'value'));if(value!==null)card.title=String(value)+(isRate?' per second':'');cards.append(card)}
+  renderSocketChart();
+  const search=element('socket-search').value.toLowerCase();
+  const rows=(data.rows||[]).filter(r=>(socketMetric==='messages'?r.kind_id===6:r.kind_id!==6)&&(!kind.value||socketMetric==='messages'||String(r.kind_id)===kind.value)&&(!search||`${r.tid} ${r.name||''}`.toLowerCase().includes(search))).sort((a,b)=>Number(b.metrics[socketMetric].total)-Number(a.metrics[socketMetric].total));
+  element('socket-row-count').textContent='('+rows.length+')';
+  const body=element('socket-rows');body.replaceChildren();
+  for(const item of rows){const row=node('tr'),thread=node('td');thread.append(node('span',item.name||'Thread'),node('small','TID '+item.tid));thread.title='Thread generation '+item.thread_start;
+    const m=item.metrics[socketMetric];row.append(thread,node('td',item.kind));
+    for(const [v,rate] of [[m.total,false],[m.current,true],[m.average,true],[m.minimum,true],[m.maximum,true]]){const cell=node('td',socketValue(v,rate),'num');if(v!==null)cell.title=String(v);row.append(cell)}
+    body.append(row)}
+  if(!rows.length){const row=node('tr'),cell=node('td',unconfigured?'Completion marker not configured.':search||kind.value?'No matching threads.':'No observed activity yet.');cell.colSpan=7;row.append(cell);body.append(row)}
+  let coverage=data.coverage+' Average covers the monitoring period; min/max cover '+data.rate_windows+' valid nominal 1-second windows in the most recent 60 intervals. Idle covered windows count as zero.';
+  if(data.gaps)coverage+=' '+data.gaps+' recent gaps were excluded.';
+  if(data.lower_bound)coverage+=' '+data.losses+' counter updates were lost: totals are lower bounds and averages are unavailable.';
+  if(data.stale&&!data.stopped)coverage+=' Observer is silent; totals may be stale.';
+  if(data.refresh_error)coverage+=' Report refresh failed; displayed totals and history are cached.';
+  if(data.truncated||data.read_error)coverage+=' Report is incomplete because observations were limited or unreadable.';
+  element('socket-coverage').textContent=coverage}
+async function refreshSocket(){try{const pid=live.health?.pid||0;
+    const response=await fetch('/api/socket-io?pid='+pid);
+    if(response.status===404){socketData={available:false,reason:'This collector does not support socket observations. Use the C++ collector.'}}
+    else{if(!response.ok)throw Error('Socket report unavailable');socketData=await response.json()}
+    renderSocket()}
+  catch(error){element('socket-status').textContent='Report unavailable · stale';element('socket-scope').textContent='Unable to refresh socket observations. Previously displayed values may be stale.'}
+  finally{setTimeout(refreshSocket,3000)}}
+for(const button of document.querySelectorAll('[data-socket-metric]'))button.onclick=()=>{socketMetric=button.dataset.socketMetric;renderSocket()};
+element('socket-kind').onchange=renderSocket;element('socket-search').oninput=renderSocket;
+
+// ---------- Alerting (only when a collector sends alert fields) ----------
+function events(target,items){const container=element(target);container.replaceChildren();
+  if(!items.length){container.append(node('p','No '+(target==='alerts'?'open alerts':'recent events')+'.','muted'));return}
+  for(const item of items){const row=node('p');row.append(node('strong',item.rule+' · '+item.status+' ','bad'),node('span',item.group+' / '+item.name+' ('+item.tid+') — '+item.detail+' · '+date(item.ts)));container.append(row)}}
+async function toggleSettings(){const panel=element('settings');const open=panel.hidden;panel.hidden=!open;element('settings-toggle').setAttribute('aria-expanded',String(open));if(open)await loadSettings()}
 async function loadSettings(){try{const response=await fetch('/api/alert-settings');if(!response.ok)throw Error('Unable to load alert settings');renderSettings(await response.json());element('settings-status').textContent=''}catch(error){element('settings-status').textContent=error.message}}
-function settingInput(key){const meta=settingsInfo.settings[key];const label=node('label',undefined,'setting');const input=node('input');Object.assign(input,{type:'number',min:meta.min,max:meta.max,step:'any',value:settingsInfo.values[key],required:true});input.dataset.key=key;input.oninput=()=>{for(const other of document.querySelectorAll(`#settings input[data-key="${key}"]`))if(other!==input)other.value=input.value};label.append(node('span',meta.label),input,node('span',meta.unit),node('span','default '+settingsInfo.defaults[key],'hint'));return label}
-function renderSettings(info){settingsInfo=info;const body=element('settings-rows');body.replaceChildren();for(const rule of info.rules){const row=node('tr');const toggle=node('td');const box=node('input');box.type='checkbox';box.checked=info.values.enabled[rule.rule];box.dataset.rule=rule.rule;box.setAttribute('aria-label','Enable '+rule.label);toggle.append(box);const name=node('td');name.append(node('div',rule.label,'rule-name'),node('div',rule.description,'hint'));const settings=node('td');for(const key of rule.settings)settings.append(settingInput(key));if(!rule.settings.length)settings.append(node('span','No settings','hint'));row.append(toggle,name,settings);body.append(row)}const general=node('tr');const settings=node('td');settings.append(settingInput('reminder_secs'));general.append(node('td'),node('td',undefined),settings);general.children[1].append(node('div','Reminders','rule-name'),node('div','How often open alerts are re-sent.','hint'));body.append(general);element('settings-reset').disabled=!info.saved}
+function settingInput(key){const meta=settingsInfo.settings[key];const label=node('label',undefined,'setting');const input=node('input');
+  Object.assign(input,{type:'number',min:meta.min,max:meta.max,step:'any',value:settingsInfo.values[key],required:true});input.dataset.key=key;
+  input.oninput=()=>{for(const other of document.querySelectorAll(`#settings input[data-key="${key}"]`))if(other!==input)other.value=input.value};
+  label.append(node('span',meta.label),input,node('span',meta.unit),node('span','default '+settingsInfo.defaults[key],'hint'));return label}
+function renderSettings(info){settingsInfo=info;const body=element('settings-rows');body.replaceChildren();
+  for(const rule of info.rules){const row=node('tr');const toggle=node('td');const box=node('input');box.type='checkbox';box.checked=info.values.enabled[rule.rule];box.dataset.rule=rule.rule;box.setAttribute('aria-label','Enable '+rule.label);toggle.append(box);
+    const name=node('td');name.append(node('div',rule.label,'rule-name'),node('div',rule.description,'hint'));const settings=node('td');for(const key of rule.settings)settings.append(settingInput(key));if(!rule.settings.length)settings.append(node('span','No settings','hint'));row.append(toggle,name,settings);body.append(row)}
+  const general=node('tr');const settings=node('td');settings.append(settingInput('reminder_secs'));general.append(node('td'),node('td',undefined),settings);general.children[1].append(node('div','Reminders','rule-name'),node('div','How often open alerts are re-sent.','hint'));body.append(general);
+  element('settings-reset').disabled=!info.saved}
 function collectSettings(){const changes={enabled:{}};for(const box of document.querySelectorAll('#settings input[data-rule]'))changes.enabled[box.dataset.rule]=box.checked;for(const input of document.querySelectorAll('#settings input[data-key]'))changes[input.dataset.key]=Number(input.value);return changes}
-async function saveSettings(body){const status=element('settings-status');status.className='muted';status.textContent='Saving…';try{const response=await fetch('/api/alert-settings',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||'Save failed');renderSettings(data);status.className='good';status.textContent=body.reset?'Reset to config file values.':'Saved and applied.'}catch(error){status.className='bad';status.textContent=error.message}}
-function localInput(timestamp){const date=new Date(timestamp);return new Date(timestamp-date.getTimezoneOffset()*60000).toISOString().slice(0,19)}
-function openHistory(thread){element('legend').replaceChildren(...Object.entries(labels).map(([state,label])=>{const item=node('span',undefined,'muted');item.append(node('span',undefined,'dot '+state),label);return item}));selected={session:live.health.session,tid:thread.tid};element('history').style.display='block';element('history-title').textContent=`History · ${thread.name} (${thread.tid})`;element('from').value=localInput(Date.now()-3600000);element('to').value=localInput(Date.now());loadHistory();element('history').scrollIntoView({behavior:'smooth'})}
-async function loadHistory(){if(!selected)return;try{const query=new URLSearchParams({...selected,start:new Date(element('from').value).getTime()/1000,end:new Date(element('to').value).getTime()/1000});const response=await fetch('/api/history?'+query);if(!response.ok)throw Error('Unable to load history: check the time range.');const data=await response.json();const timeline=element('timeline'),rows=element('history-rows');timeline.replaceChildren();rows.replaceChildren();for(const item of data.rows){const counts=item.sample_counts;const dominant=Object.keys(counts).sort((left,right)=>counts[right]-counts[left])[0]||'other';const block=node('div',undefined,item.valid?dominant:'other');block.title=date(item.ts)+' · '+pct(item.cpu_pct)+' CPU · '+JSON.stringify(counts);timeline.append(block);const row=node('tr');const state=node('td');state.append(mix(counts));row.append(node('td',date(item.ts)),node('td',item.name),node('td',pct(item.cpu_pct)),node('td',pct(item.run_delay_pct)),node('td',bytes(item.read_bps)),node('td',bytes(item.write_bps)),node('td',item.samples+'/'+item.expected_samples.toFixed(1)+(item.valid?'':' · insufficient')),state);rows.append(row)}element('history-note').textContent=data.truncated?'First 2,000 rollups shown; narrow the range.':data.rows.length+' rollups. Each block shows the dominant sampled state; hover for details.'}catch(error){element('history-note').textContent=error.message}}
+async function saveSettings(body){const status=element('settings-status');status.className='muted';status.textContent='Saving…';
+  try{const response=await fetch('/api/alert-settings',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||'Save failed');renderSettings(data);status.className='good';status.textContent=body.reset?'Reset to config file values.':'Saved and applied.'}
+  catch(error){status.className='bad';status.textContent=error.message}}
 // A collector without alerting (the C++ core) sends no "alerts" list; hide the alert parts of the page.
-function showAlerting(on){for(const id of ['settings-toggle','alerts-title','alerts'])element(id).hidden=!on;element('recent').parentElement.hidden=!on;if(!on)element('settings').classList.remove('open')}
-async function refresh(){try{const response=await fetch('/api/live');if(!response.ok)throw Error('Collector HTTP error');live=await response.json();if(!live.health)return;const health=live.health;const alerting=Array.isArray(live.alerts);showAlerting(alerting);const cards=element('health');cards.replaceChildren();const values=[['Sampler',health.sampler_silent?'Silent':health.last_seen?'Connected':'Waiting'],['Target',health.target_absent===null?'Unknown':health.target_absent?'Absent':((live.threads||[]).find(t=>t.tid===health.pid)?.name||'')+' (PID '+health.pid+')'],['Packet loss',pct(health.packet_loss_pct)],['Threads',(live.threads||[]).length],['Interval',health.sample_interval_ms+' ms'],['Open alerts',(live.alerts||[]).length]];for(const [title,value] of values){if(title==='Open alerts'&&!alerting)continue;const card=node(title==='Open alerts'?'a':'div',undefined,'card');if(title==='Open alerts'){card.href='#alerts-title';if(value)card.classList.add('bad')}card.append(node('div',title,'muted'),node('div',value,'value'));cards.append(card)}const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';for(const [name,count]of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}group.value=chosen;renderThreads();events('alerts',live.alerts||[]);events('recent',live.recent_alerts||[]);element('diagnostics').textContent=JSON.stringify(health,null,2);element('error').textContent=health.sampler_silent?'Sampler is silent. Displayed thread data may be stale.':''}catch(error){element('error').textContent='Collector unavailable. Displayed data is stale.'}finally{setTimeout(refresh,1000)}}
-element('group').onchange=renderThreads;element('sort').onchange=renderThreads;element('search').oninput=renderThreads;element('load-history').onclick=loadHistory;element('settings-toggle').onclick=toggleSettings;element('settings-save').onclick=()=>saveSettings(collectSettings());element('settings-reset').onclick=()=>{if(confirm('Discard dashboard changes and use the thresholds from the collector config file?'))saveSettings({reset:true})};element('clear-filters').onclick=()=>{stateFilter='';wchanFilter='';element('group').value='';element('search').value='';renderThreads()};refresh();refreshSocket();if(location.hash==='#settings')toggleSettings();
+function showAlerting(on){for(const id of ['settings-toggle','alerts-title','alerts'])element(id).hidden=!on;element('recent').parentElement.hidden=!on;if(!on)element('settings').hidden=true}
+
+// ---------- Main loop ----------
+function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
+function renderTop(){const health=live.health,dot=element('live-dot');
+  const state=health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
+  dot.className='status-dot '+state[0];dot.title=state[1];
+  element('target-name').textContent=health.target_absent===null?'No target yet':targetName();
+  element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(health.last_seen?' · '+ago(Date.now()/1000-health.last_seen):'');
+  document.title=(health.pid?targetName()+' · ':'')+'Triangulator';
+  element('error').textContent=health.sampler_silent?'⚠ Sampler is silent. Displayed thread data may be stale.':''}
+async function refresh(){try{const response=await fetch('/api/live');if(!response.ok)throw Error('Collector HTTP error');
+    live=await response.json();if(!live.health)return;
+    const alerting=Array.isArray(live.alerts);showAlerting(alerting);
+    ingest();
+    const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
+    for(const [name,count] of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}
+    group.value=chosen;
+    renderTop();renderOverview();renderHealth();if(!element('threads-live').matches(':hover'))renderThreads();renderDrawerLive();
+    events('alerts',live.alerts||[]);events('recent',live.recent_alerts||[]);
+    if(!selected&&location.hash.startsWith('#thread=')){const thread=(live.threads||[]).find(item=>item.tid===Number(location.hash.slice(8)));if(thread)openThread(thread)}}
+  catch(error){element('error').textContent='⚠ Collector unavailable. Displayed data is stale.';element('live-dot').className='status-dot critical'}
+  finally{setTimeout(refresh,1000)}}
+
+for(const button of document.querySelectorAll('[data-window]'))button.onclick=()=>{windowSecs=Number(button.dataset.window);for(const other of document.querySelectorAll('[data-window]'))other.setAttribute('aria-pressed',String(other===button));if(live.health)renderOverview()};
+element('family-mode').onchange=()=>renderFamilies(live.threads||[]);
+element('group').onchange=renderThreads;element('sort').onchange=renderThreads;element('search').oninput=renderThreads;
+element('settings-toggle').onclick=toggleSettings;
+element('settings-save').onclick=()=>saveSettings(collectSettings());
+element('settings-reset').onclick=()=>{if(confirm('Discard dashboard changes and use the thresholds from the collector config file?'))saveSettings({reset:true})};
+element('clear-filters').onclick=()=>{stateFilter='';wchanFilter='';element('group').value='';element('search').value='';setActivity('active');renderWchans(live.threads||[])};
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&selected)closeThread();else if(event.key==='/'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){event.preventDefault();element('search').focus();element('search').scrollIntoView({block:'center',behavior:'smooth'})}});
+const themes=['auto','light','dark'];
+function applyTheme(theme){if(theme==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;element('theme').title='Theme: '+(theme==='auto'?'follow system':theme);element('theme').textContent={auto:'◐',light:'☀',dark:'☾'}[theme];try{localStorage.setItem('triangulator:theme',theme)}catch{}}
+element('theme').onclick=()=>{let current='auto';try{current=localStorage.getItem('triangulator:theme')||'auto'}catch{}applyTheme(themes[(themes.indexOf(current)+1)%themes.length]);if(live.health)renderOverview()};
+try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTheme('auto')}
+let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
+addEventListener('pagehide',saveBuffer);
+refresh();
+refreshSocket();
+if(location.hash==='#settings')toggleSettings();
 </script>
 </body>
 </html>
