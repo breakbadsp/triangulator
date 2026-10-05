@@ -203,6 +203,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   auto sampler_ip = config.sampler_ip_;
   auto socket_sampler_ip = config.sampler_ip_;
   auto next_refresh = std::chrono::steady_clock::time_point{};
+  auto next_snapshot = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
                   config.udp_port_, config.http_host_, config.http_port_));
@@ -295,8 +296,24 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       live.Set("health", std::move(health));
       resources.Drain(now);
       live.Set("resources", resources.Snapshot(now));
-      state.SetLive(DumpJson(live));
-      storage_ok = WriteRows(monitor, resources, storage);
+      live.Set("recorded_at", now);
+      live.Set("recording_interval_s", config.replay_interval_s_);
+      auto body = DumpJson(live);
+      const auto steady_now = std::chrono::steady_clock::now();
+      if (config.replay_interval_s_ > 0 && steady_now >= next_snapshot &&
+          live.Find("health")->Find("session")->IsString())
+      {
+        storage_ok = storage.Snapshot(now, body);
+        next_snapshot =
+            steady_now +
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>{config.replay_interval_s_});
+      }
+      state.SetLive(std::move(body));
+      if (storage_ok)
+      {
+        storage_ok = WriteRows(monitor, resources, storage);
+      }
       if (storage_ok)
       {
         storage_ok = storage.Flush(now);

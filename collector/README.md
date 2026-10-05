@@ -72,6 +72,8 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Writes the thread summaries, plus raw samples if `store_raw = true`, and
   the resource samples (`resource_sample`; older day files gain the table). The
   `alert_event` table exists but stays empty.
+- Saves complete dashboard snapshots at `replay_interval_s` (default 1 s),
+  independently of raw sample storage.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
 **6. Dashboard and API** (`http.hpp`)
@@ -95,6 +97,8 @@ build/triangulator-collector config/local/collector.toml --check-config
   sampler sends to this collector's loopback UDP endpoint. Errors leave the
   config unchanged unless the reload signal fails after saving (reported as
   such). The sampler and collector must run as the same user.
+- `GET /api/replay`: oldest/newest recorded process view; add `at=…` for a
+  view at or before a timestamp, or `direction=previous|next` to step.
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
@@ -124,8 +128,9 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
 | `storage.hpp` | SQLite day files, retention, history queries |
-| `http.hpp` | Dashboard server and the `/api/live`, `/api/history` and `/api/resources` endpoints |
+| `http.hpp` | Dashboard server and the `/api/live`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
+| `replay.hpp` | Read-only process snapshot queries across UTC day files |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
 | `log.hpp` | Timestamped log lines on stderr |
 
@@ -152,3 +157,50 @@ raw records. The dashboard shows received/sent bytes and, when an application
 completion marker is configured, messages processed. See
 [the socket design and setup guide](../docs/socket-ingress-design.md) for build
 instructions, permissions, the marker contract, and explicit coverage limits.
+
+
+## Historical process inspection
+
+The dashboard's **Inspect a moment** controls freeze the process overview and
+thread table at one recorded view. Recordings include the process PID/session,
+thread membership and generations, scheduler state classification, wait channel,
+last core, ten-second state mix and rates, group counts and monitor health.
+They survive collector restarts and sampler session changes. Missing history is
+reported explicitly; old rollup-only databases are never treated as exact views.
+
+`replay_interval_s` defaults to `1`. It accepts `0.5`–`60` seconds, or `0` to
+disable recording. Actual times are limited by the collector's ~0.5-second
+publish cadence and scheduling; lowering it does not recover samples between
+publications. Selecting a time returns the nearest earlier recording, never a
+future frame or an interpolated state. Low sampler rates and packet loss also
+limit the observation's precision. Snapshots continue to record silence or a
+missing target after a sampler session has been established. No snapshots are
+written before the first session. History begins when this version is deployed;
+old summaries cannot recover exited threads, wait channels or core placement.
+
+The existing daily WAL files gain a `process_snapshot(ts, snapshot)` table.
+Recording reuses the serialized live response, writes a prepared statement in
+the existing transaction, and commits with the normal flush. Indexed lookups on
+the HTTP thread read at most one full process view; historical queries do not
+run in the receive loop. Day-file retention deletes snapshots with rollups.
+A query checks at most 3,660 day files and returns an error for unreadable files
+rather than silently hiding lost history.
+
+The API returns `first`, `last`, `snapshot` and `interval_s`. Without `at`,
+`snapshot` is null and only the bounds are read. With `at=UNIX_SECONDS`, the
+snapshot has its own `recorded_at` and `recording_interval_s`; its health/session
+belongs to that recording. `direction=previous` uses `< at`, `next` uses `> at`.
+No matching recording returns `snapshot: null`. Invalid arguments return 400;
+read failures return 503. The thread drawer uses the archived session and anchors
+preset history ranges at the selected recording. Live trends are kept separate
+and restored on return; historical load averages and socket reports are unavailable.
+
+Budget disk space for full JSON views: storage scales with thread count and
+recording frequency, including silent periods. A local 30-second run with
+1,000 synthetic threads at 10 Hz produced ~327 KB per view: roughly 28 GB/day
+at one view per second, before SQLite overhead. Use a longer recording interval
+or disable recording for large processes when that cost is unsuitable.
+In that short run, recording disabled/enabled used 2.17%/2.67% of one CPU core,
+with peak PSS ~74/~78 MiB. Both retained all 1,000 threads with 0% estimated
+packet loss; replay HTTP p95 was ~9.5 ms. These are local smoke measurements,
+not a steady-state capacity guarantee.

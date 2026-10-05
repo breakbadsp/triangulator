@@ -212,6 +212,24 @@ bytes; namespace drop and error counters; and the target's fullest sockets,
 each explained ("the app is not reading fast enough", "the peer is not
 reading"). Its findings join the assessment. See
 [docs/resource-monitoring.md](docs/resource-monitoring.md) for how to read it.
+Use **Inspect a moment** to select a local date and time and freeze the whole
+process view at the latest recording at or before that time. **Previous** and
+**Next** step through recordings, including older sampler sessions; **Live**
+returns to the current process. The recorded view includes all threads, their
+states, wait channels, core placement, CPU, run delay, switches, I/O and health.
+Click a thread to open its summary history ending at the recorded time.
+
+The collector saves complete views approximately once per second by default,
+independently of `store_raw`. Set `replay_interval_s` in the collector config
+(0.5–60 seconds, or `0` to disable recording). Recordings start after upgrading
+and restarting the collector and use the existing `retention_days` setting.
+Older rollups remain readable but cannot reconstruct a complete process view.
+State means the latest sampled observation; rates still cover the preceding
+~10 seconds. The selected recording's timestamp and any recording gap are
+shown explicitly. Live trend charts, load averages and socket totals are hidden
+or unavailable during inspection; thread rollup charts remain available.
+Complete snapshots use substantially more disk space than rollups; see the
+[recording and storage notes](collector/README.md#historical-process-inspection).
 
 The browser tab keeps these trends for up to 15 minutes, and they survive a
 reload of that tab. The thread table shows active threads by default. Idle
@@ -234,6 +252,10 @@ Local target control adds `GET /api/target` and `POST /api/target` with JSON
 requests get 501.
 `GET /api/resources?start=UNIX_SECONDS&end=UNIX_SECONDS` returns stored
 resource samples in at most about 1,000 buckets (default the last 15 minutes).
+`/api/replay` returns recording bounds; `/api/replay?at=UNIX_SECONDS` returns
+those bounds and the latest recorded process view at or before that timestamp.
+Add `direction=previous` or `direction=next` to step strictly before or after it.
+A missing recording returns `snapshot: null`; unreadable storage returns 503.
 
 ## Production setup
 
