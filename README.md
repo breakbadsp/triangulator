@@ -93,11 +93,12 @@ systemd, see [Production setup](#production-setup).
 ## Requirements and build
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-Make and Python 3.11+, plus libsqlite3 development files for the collector.
-Python is used by `scripts/start.sh`, the tests, optional local dashboard target
-control and the alerting module; it needs no third-party packages. Binary-only
-deployments without `scripts/sampler_control.py` serve monitoring without Python;
-the dashboard hides target control there.
+Make, the compiler's static C/C++ runtime libraries, and libsqlite3 development
+files for the collector. Python 3.11+ is needed only for tests, the optional
+sampler control scripts and alerting; it needs no third-party packages.
+The basic startup script uses Bash, sed and getconf.
+Binary-only deployments without `scripts/sampler_control.py` serve monitoring
+without Python; the dashboard hides target control there.
 
 ```sh
 make          # sampler, collector and read-only socket report helper
@@ -105,6 +106,61 @@ make check    # C++ and Python tests
 make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
 ```
+
+The sampler links fully statically by default. The collector and socket report
+helper embed libstdc++ and libgcc, leaving libc and SQLite as shared libraries.
+Builds do not download anything. To build all three programs fully statically:
+
+```sh
+make release                       # requires the system's static SQLite library
+make check STATIC=1                 # test those same release binaries
+```
+
+If your distribution does not ship `libsqlite3.a`, provide `sqlite3.c` and
+`sqlite3.h` from the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
+in the same directory:
+
+```sh
+make release SQLITE_SOURCE=/path/to/sqlite3.c
+make check STATIC=1 SQLITE_SOURCE=/path/to/sqlite3.c
+```
+
+This compiles SQLite directly into the collector and report helper, with dynamic
+extension loading disabled. A C compiler is needed for that option. `release`
+uses readelf to reject a dynamic loader or shared-library dependencies and fails
+if static libraries are missing. Use numeric `udp_host` and `http_host` addresses
+in static releases; glibc hostname resolution can require runtime NSS modules.
+The optional eBPF source remains a separate build (`make socket-sampler`) and
+needs libbpf; it is not included in `release`.
+
+Link options are tracked, so changing between normal and release builds rebuilds
+the binaries. `SAMPLER_LDFLAGS` and `RUNTIME_LDFLAGS` can override the defaults
+for development toolchains (for example, `make SAMPLER_LDFLAGS= RUNTIME_LDFLAGS=`).
+
+### Deployment dependencies
+
+Goal: deploying Triangulator means copying binaries, with nothing to install.
+
+- **Sampler: zero dependencies.** It runs on production hosts, so it must be
+  a fully static binary that needs only the Linux kernel: no shared libraries,
+  no interpreter and no packages. Never add a library it would need at run
+  time.
+- **Collector, dashboard and helpers: as few as possible.** They may run on a
+  separate host, so a dependency is tolerated there when it is truly needed,
+  but prefer compiling a dependency in (for example SQLite's single-file
+  source) over requiring a package. The dashboard is built into the collector
+  binary and loads nothing from the network. Optional local dashboard target
+  control reuses the Python development script; deployed binaries without that
+  script continue to serve monitoring without Python.
+- **Build-time only** dependencies (compiler, kernel headers, Python for tests)
+  are fine; they never reach the deployed host. Optional Python helpers need
+  Python wherever they run.
+
+`make release` produces binaries with no shared-library dependencies. Copy the
+collector and socket report helper together so the dashboard can find the helper
+next to the collector. The sampler can be deployed on its own, with its config.
+Static linking does not remove CPU architecture or Linux kernel requirements.
+Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
 
 ## Configuration
 

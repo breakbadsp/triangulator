@@ -94,8 +94,10 @@ void TestConfig()
   {
     Require(!ParseConfig(invalid), "invalid config must be rejected");
   }
-  for (const auto invalid : {"localhost:9400", "127.0.0.1:65536", "127.0.0.1:0",
-                             "[::1:9400", "127.0.0.1:no"})
+  for (const auto invalid :
+       {"localhost:9400", "127.0.0.1:65536", "127.0.0.1:0", "[::1:9400",
+        "127.0.0.1:no", "::1:9400", "[127.0.0.1]:9400", "127.1:9400",
+        "0x7f000001:9400"})
   {
     Require(!MakeEndpoint(invalid),
             "invalid/non-numeric endpoint must be rejected");
@@ -106,6 +108,19 @@ void TestConfig()
           "UDP socket must be nonblocking");
   Require((::fcntl(endpoint->socket_.Get(), F_GETFD) & FD_CLOEXEC) != 0,
           "UDP socket must be close-on-exec");
+  const auto* address =
+      reinterpret_cast<const sockaddr_in*>(&endpoint->address_);
+  Require(address->sin_family == AF_INET &&
+              ::ntohs(address->sin_port) == 9400 &&
+              ::ntohl(address->sin_addr.s_addr) == 0x7f000001,
+          "IPv4 endpoint must preserve the address and network-order port");
+  const auto ipv6 = MakeEndpoint("[::1]:9400");
+  Require(ipv6.has_value(), "bracketed numeric IPv6 endpoint must work");
+  const auto* address6 = reinterpret_cast<const sockaddr_in6*>(&ipv6->address_);
+  Require(address6->sin6_family == AF_INET6 &&
+              ::ntohs(address6->sin6_port) == 9400 &&
+              IN6_IS_ADDR_LOOPBACK(&address6->sin6_addr),
+          "IPv6 endpoint must preserve the address and network-order port");
 }
 
 void RequireHex(std::span<const std::byte> p_bytes, std::string_view p_expected)
