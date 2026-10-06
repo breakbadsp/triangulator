@@ -159,6 +159,32 @@ def replace_setting(text, pattern, setting):
     return "".join(output)
 
 
+def start_time(pid):
+    """When process pid started, in seconds since the epoch.
+
+    Field 22 of /proc/PID/stat is the start time in clock ticks since boot,
+    and /proc/stat's btime is the boot time. btime is rounded down, so the
+    result is never later than the real start time.
+    """
+    stat = Path(f"/proc/{pid}/stat").read_bytes()
+    # comm (field 2) may contain spaces and parentheses; it ends at the last ')'.
+    ticks = int(stat[stat.rindex(b")") + 2:].split()[19])
+    boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
+                if line.startswith("btime "))
+    return boot + ticks / os.sysconf("SC_CLK_TCK")
+
+
+def check_config(pid, path):
+    """Why the sampler with this pid would reject path, or None if it accepts it.
+
+    /proc/PID/exe is the binary that sampler runs, even if build/ was rebuilt
+    since, so the check uses exactly the code that reloads the file.
+    """
+    checked = subprocess.run([f"/proc/{pid}/exe", "--check-config", str(path)],
+                             capture_output=True, text=True, errors="backslashreplace", timeout=10)
+    return None if checked.returncode == 0 else checked.stderr.strip()
+
+
 def running_sampler(root):
     """(pid, config path), or None if the sampler is absent or stopped.
 
@@ -174,6 +200,11 @@ def running_sampler(root):
         raise ControlError(f"invalid {pidfile}; restart the sampler with {RESTART_HINT}")
     proc = Path(f"/proc/{pid}")
     try:
+        # scripts/start.sh writes the pidfile just after starting the sampler.
+        # A process that started later reuses the PID of a sampler that died
+        # without removing its pidfile, so the sampler is not running.
+        if start_time(pid) > pidfile.stat().st_mtime + 1:
+            return None
         executable = os.readlink(proc / "exe").removesuffix(" (deleted)")
     except FileNotFoundError:
         return None
@@ -216,12 +247,9 @@ def update_config(root, pattern, setting):
                 temporary = Path(output.name)
                 os.fchmod(output.fileno(), config.stat().st_mode & 0o777)
                 output.write(updated)
-            # The running binary checks the file, even if build/ was rebuilt since.
-            checked = subprocess.run([f"/proc/{pid}/exe", "--check-config", str(temporary)],
-                                     capture_output=True, text=True, errors="backslashreplace", timeout=10)
-            if checked.returncode != 0:
-                raise ControlError(f"sampler config validation failed: {checked.stderr.strip()}; "
-                                   f"{config} is unchanged")
+            error = check_config(pid, temporary)
+            if error is not None:
+                raise ControlError(f"sampler config validation failed: {error}; {config} is unchanged")
             os.replace(temporary, config)
             temporary = None
         finally:
@@ -269,8 +297,14 @@ def collector(root):
     try:
         sampler = running_sampler(root)
         config = sampler[1] if sampler is not None else root / "config/local/sampler.toml"
+        # An invalid file is not what the sampler loaded: a reload of it was
+        # refused, so the sampler may still send to an earlier collector.
+        error = check_config(sampler[0], config) if sampler is not None else None
+        if error is not None:
+            raise ControlError(f"the running sampler's {config} is invalid ({error}), so the sampler "
+                               "may still use an earlier collector")
         endpoint = read_setting(read_text(config), "collector")
-    except (ControlError, OSError) as error:
+    except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         raise ControlError(f"cannot read the collector endpoint: {error}; pass --collector IP:PORT") from None
     if not endpoint:
         raise ControlError(f"no collector in {config}; pass --collector IP:PORT")

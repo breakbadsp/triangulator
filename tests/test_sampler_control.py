@@ -293,6 +293,42 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("not this repo's sampler", found.stderr)
         self.assertIn("pass --collector IP:PORT", found.stderr)
 
+    def test_pidfile_older_than_its_process_is_stale(self):
+        # A sampler that died without removing its pidfile: its PID now
+        # belongs to a process that started after the pidfile was written.
+        (self.real / "config/local/sampler.toml").write_text(
+            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
+        pidfile = self.real / ".run/sampler.pid"
+        command = [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"]
+        boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
+                    if line.startswith("btime "))
+        # A process of this user (else "not this repo's sampler"), and PID 1,
+        # which belongs to root (else "cannot inspect").
+        for pid, written in ((self.target.pid, time.time() - 3600), (1, boot - 3600)):
+            pidfile.write_text(f"{pid}\n")
+            os.utime(pidfile, (written, written))
+            changed = self.run_script("set-rate.sh", "5")
+            self.assertEqual(changed.returncode, 1)
+            self.assertIn("the sampler is not running", changed.stderr)
+            found = subprocess.run(command, capture_output=True, text=True, timeout=5)
+            self.assertEqual(found.stdout, "10.0.0.5:9400\n", found.stderr)
+        self.assertIsNone(self.target.poll(), "the other program must not be signalled")
+
+    def test_collector_is_refused_when_the_running_config_is_invalid(self):
+        custom = self.real / "custom.toml"
+        custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
+        sampler = self.start_sampler(custom)
+        self.receive_until(lambda value: value.pid == self.target.pid)
+        # A new collector plus an error: a reload keeps the old settings.
+        custom.write_text(f"target_pid = {self.target.pid}\nrate_hz = 99\ncollector = 10.0.0.9:9400\n")
+        found = subprocess.run([sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
+                               capture_output=True, text=True, timeout=5)
+        self.assertIsNone(sampler.poll())
+        self.assertEqual(found.returncode, 1)
+        self.assertEqual(found.stdout, "")
+        self.assertIn("rate_hz must be between 0.2 and 10", found.stderr)
+        self.assertIn("pass --collector IP:PORT", found.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

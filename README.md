@@ -231,8 +231,11 @@ The target must be a process ID (not a thread ID) or a unique process name. The
 collector endpoint defaults to the running sampler's, so both reach the same
 dashboard, or to `config/local/sampler.toml` when the sampler isn't running;
 override it with `--collector IP:PORT` for a remote collector. If the running
-sampler or its config cannot be inspected, the wrapper requires an explicit
-`--collector` instead of falling back to the local config. The dashboard's
+sampler or its config cannot be inspected, or that config is invalid (so the
+sampler may still use an earlier collector), the wrapper requires an explicit
+`--collector` instead of falling back to the local config. A pidfile left by a
+sampler that died, whose PID now belongs to a newer process, counts as not
+running. The dashboard's
 Socket I/O & message processing panel follows the normal sampler's target PID,
 so use `scripts/set-target.sh` to select the same PID. Choose Received, Sent, or
 Messages processed in that panel.
