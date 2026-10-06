@@ -203,3 +203,117 @@ test('a preset replaces a custom range and stays positive on reopen', () => {
   assert.equal(Number(params.get('end')) - Number(params.get('start')), 900);
   assert.equal(app.ranges[0].attrs['aria-pressed'], 'true');
 });
+
+// A resource sample as /api/live sends it, with everything healthy.
+function resources(overrides = {}) {
+  const stall = (some, full = 0) => ({some: {pct: some, avg10: some}, full: {pct: full, avg10: full}});
+  return {available: true, stale: false, updated: Date.now() / 1000, sequence: 3, interval_s: 5,
+    pressure: {cgroup: {cpu: stall(1), memory: stall(0), io: stall(0)}, host: {cpu: stall(2), memory: stall(0), io: stall(0)}},
+    fds: {open: 10, soft_limit: 1024, hard_limit: 4096, sockets: 2},
+    io: {read_bps: 0, write_bps: 0},
+    sockets: {tcp: {sockets: 2}, tcp_states: {close_wait: 0}, top: [], matched: 2, unmatched: 0, complete: true},
+    network: {tcp_out_segs: {delta: 1000, per_s: 200, total: 9}, tcp_retrans_segs: {delta: 0, per_s: 0, total: 1}},
+    sockstat: {tcp_mem: 10}, limits: {tcp_mem: [100, 200, 300]}, flags: {}, ...overrides};
+}
+const findingsOf = (app, sample) => app.run(`assessResources(${JSON.stringify(sample)})`);
+
+test('healthy resources add no findings and missing ones add none', () => {
+  const app = dashboard();
+  // Arrays from the page's context: compare lengths, not identity.
+  assert.equal(findingsOf(app, resources()).length, 0);
+  assert.equal(findingsOf(app, {available: false, reason: 'none yet'}).length, 0);
+  assert.equal(app.run('assessResources(undefined).length'), 0);
+});
+
+test('pressure, descriptor and TCP memory rules use the cgroup when it reports', () => {
+  const app = dashboard();
+  const sample = resources();
+  sample.pressure.cgroup.io = {some: {pct: 40}, full: {pct: 12}};
+  sample.pressure.host.memory = {some: {pct: 50}, full: {pct: 50}};  // host only: ignored
+  sample.fds.open = 1000;
+  sample.network.tcp_memory_pressures = {delta: 1, per_s: .2, total: 3};
+  const findings = findingsOf(app, sample);
+  const titles = findings.map(item => `${item.level}: ${item.title}`);
+  assert.ok(titles.includes('serious: I/O is stalling all work 12.0% of the time'), titles.join('\n'));
+  assert.ok(titles.includes('critical: 97.7% of file descriptors in use'), titles.join('\n'));
+  assert.ok(titles.includes('serious: TCP is under memory pressure'), titles.join('\n'));
+  assert.ok(!titles.some(title => title.includes('memory')&&title.includes('thrashing')), 'host memory is not the cgroup');
+  // A first sample has no interval yet: the kernel's 10 s average stands in.
+  const first = resources();
+  first.pressure.cgroup.memory = {some: {pct: null, avg10: 8}, full: {pct: null, avg10: 0}};
+  assert.equal(findingsOf(app, first)[0].title, 'Tasks wait for memory 8.0% of the time');
+});
+
+test('socket rules name the slow reader, the slow peer and overflowing listeners', () => {
+  const app = dashboard();
+  const sample = resources();
+  sample.sockets.top = [
+    {fd: 3, kind: 'tcp4', state: 'LISTEN', listener: true, local: '0.0.0.0:8080', rx_queue: 5, tx_queue: 4, accept_fill_pct: 125},
+    {fd: 5, kind: 'tcp4', state: 'ESTAB', listener: false, local: '10.0.0.1:8080', remote: '10.0.0.9:5000',
+      rx_queue: 120000, tx_queue: 0, rx_fill_pct: 95, tx_fill_pct: 0, drops: 9, drops_delta: 3, tcp: {retrans: 0}},
+    {fd: 6, kind: 'tcp4', state: 'ESTAB', listener: false, local: '10.0.0.1:41000', remote: '10.0.0.7:5432',
+      rx_queue: 0, tx_queue: 500000, rx_fill_pct: 0, tx_fill_pct: 40, tcp: {peer_window: 0, probes: 2, retrans: 1}}];
+  sample.sockets.tcp_states.close_wait = 12;
+  sample.network.listen_overflows = {delta: 4, per_s: .8, total: 9};
+  sample.network.listen_drops = {delta: 4, per_s: .8, total: 9};
+  sample.network.udp_rcvbuf_errors = {delta: 7, per_s: 1.4, total: 70};
+  sample.network.tcp_retrans_segs = {delta: 50, per_s: 10, total: 60};
+  const titles = findingsOf(app, sample).map(item => `${item.level}: ${item.title}`);
+  for (const expected of [
+    'serious: 4 incoming connections dropped',
+    'serious: The app is not keeping up reading 10.0.0.1:8080 → 10.0.0.9:5000',
+    'warning: 10.0.0.7:5432 is not taking data',
+    'serious: 7 UDP datagrams dropped: receive buffers full',
+    'warning: 5.0% of TCP segments retransmitted',
+    'warning: 12 connections in CLOSE-WAIT']) {
+    assert.ok(titles.includes(expected), `${expected}\n--\n${titles.join('\n')}`);
+  }
+  const notes = app.run(`socketNotes(${JSON.stringify(sample.sockets.top[2])}).map(note=>note[0])`);
+  assert.ok(notes.includes('Peer window is zero: the peer is not reading'), notes.join('\n'));
+  assert.ok(notes.includes('Zero-window probing (2)'), notes.join('\n'));
+});
+
+test('hidden or unreachable sockets are explained, not reported as zero', () => {
+  const app = dashboard();
+  const hidden = findingsOf(app, resources({flags: {descriptors_hidden: true}}));
+  assert.equal(hidden.at(-1).title, 'Socket details hidden');
+  const other = findingsOf(app, resources({flags: {other_network_namespace: true}}));
+  assert.equal(other.at(-1).title, 'Socket queues unavailable');
+  const stale = findingsOf(app, resources({stale: true, updated: Date.now() / 1000 - 120}));
+  assert.equal(stale[0].title, 'Resource samples are stale');
+});
+
+test('resource assessment joins the overview assessment', () => {
+  const app = dashboard();
+  const sample = resources();
+  sample.fds.open = 1000;
+  app.run(`live={health:{session:'s'},threads:[],resources:${JSON.stringify(sample)}}`);
+  const titles = app.run('assess([],[]).map(item=>item.title)');
+  assert.ok(titles.includes('97.7% of file descriptors in use'), titles.join('\n'));
+  app.run(`live.resources=${JSON.stringify(resources())}`);
+  assert.equal(app.run('assess([],[])[0].detail'),
+    'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.');
+});
+
+test('memory, CPU quota, process count and interface rules', () => {
+  const app = dashboard();
+  const sample = resources({
+    memory: {rss: 900e6, peak: 950e6, swap: 0},
+    cgroup_limits: {memory: {current: 950e6, max: 1e9, oom_kill_delta: 0, max_events_delta: 0},
+      cpu: {quota_us: 50000, period_us: 100000, throttled_pct: 30}, pids: {current: 95, max: 100}}});
+  sample.network.if_rx_dropped = {delta: 4}; sample.network.if_tx_dropped = {delta: 0};
+  sample.network.if_rx_errors = {delta: 1}; sample.network.if_tx_errors = {delta: 0};
+  let titles = findingsOf(app, sample).map(item => `${item.level}: ${item.title}`);
+  for (const expected of ['warning: Cgroup memory is 95.0% of its limit', 'serious: CPU quota throttled 30.0% of periods',
+    'warning: 95 of 100 processes and threads in use', 'warning: Network interfaces dropped 4 and reported 1 errors']) {
+    assert.ok(titles.includes(expected), `${expected}\n--\n${titles.join('\n')}`);
+  }
+  sample.cgroup_limits.memory.max_events_delta = 3;
+  titles = findingsOf(app, sample).map(item => item.title);
+  assert.ok(titles.includes('Memory limit reached') && !titles.some(title => title.startsWith('Cgroup memory is')));
+  sample.cgroup_limits.memory.oom_kill_delta = 1;
+  assert.equal(findingsOf(app, sample)[0].title, '1 process killed by the OOM killer');
+  // No limits (all null) and a healthy cgroup add nothing.
+  const quiet = resources({cgroup_limits: {memory: {current: 5e8, max: null}, cpu: {quota_us: null, throttled_pct: null}, pids: {current: 3, max: null}}});
+  assert.equal(findingsOf(app, quiet).length, 0);
+});
