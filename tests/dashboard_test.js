@@ -9,7 +9,7 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map()) {
+function dashboard(storage = new Map(), {resourceFetch} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
@@ -22,21 +22,29 @@ function dashboard(storage = new Map()) {
   const ranges = [900, 3600, 21600, 86400].map(seconds => {
     const button = element(); button.dataset.range = String(seconds); return button;
   });
+  const resourceRanges = [900, 3600, 21600, 86400].map(seconds => {
+    const button = element(); button.dataset.resRange = String(seconds); return button;
+  });
+  const timers = new Map();
+  let timerId = 0;
   const requests = [];
   const context = vm.createContext({
     document: {getElementById(id) {
       if (!elements.has(id)) elements.set(id, element());
       return elements.get(id);
-    }, createElement: element, documentElement: {dataset: {}},
-    querySelectorAll(selector) {return selector === '[data-range]' ? ranges : [];},
+    }, createElement: element, createElementNS: element, documentElement: {dataset: {}},
+    querySelectorAll(selector) {return selector === '[data-range]' ? ranges : selector === '[data-res-range]' ? resourceRanges : [];},
     addEventListener() {}},
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
     localStorage: {getItem() {return null;}, setItem() {}},
     history: {replaceState() {}}, location: {hash: '', pathname: '/'},
-    addEventListener() {}, setTimeout() {}, clearTimeout() {}, URLSearchParams,
+    addEventListener() {},
+    setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay}); return id;},
+    clearTimeout(id) {timers.delete(id);}, URLSearchParams,
     fetch(url) {
       requests.push(url);
+      if (resourceFetch && url.startsWith('/api/resources?')) return resourceFetch(url);
       return url.startsWith('/api/history?')
         ? Promise.resolve({ok: true, json: async () => ({rows: []})})
         : new Promise(() => {});
@@ -48,7 +56,7 @@ function dashboard(storage = new Map()) {
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
   `, context);
-  return {run: source => vm.runInContext(source, context), elements, ranges, requests, storage,
+  return {run: source => vm.runInContext(source, context), elements, ranges, resourceRanges, timers, requests, storage,
     setFetch: callback => {context.fetch = callback;}};
 }
 
@@ -281,6 +289,67 @@ test('hidden or unreachable sockets are explained, not reported as zero', () => 
   assert.equal(other.at(-1).title, 'Socket queues unavailable');
   const stale = findingsOf(app, resources({stale: true, updated: Date.now() / 1000 - 120}));
   assert.equal(stale[0].title, 'Resource samples are stale');
+});
+
+test('socket queue tiles preserve unavailable values and measured zeroes', () => {
+  const app = dashboard();
+  const queues = (rx, tx) => ({rx_queue: rx, tx_queue: tx});
+  const tile = sockets => {
+    app.run(`renderResourceTiles(${JSON.stringify(resources({sockets}))},[])`);
+    return app.elements.get('resource-tiles').children.find(item => item.children[0].textContent === 'Queued in sockets');
+  };
+  for (const sockets of [{}, {tcp: queues(null, null), udp: queues(null, null), unix: queues(null, null)},
+    {tcp: queues(10, 20), udp: queues(null, null), unix: queues(0, 0)}]) {
+    const item = tile(sockets);
+    assert.equal(item.children[1].textContent, '—');
+    assert.equal(item.children[2].textContent, 'unread — · unsent —');
+  }
+  const empty = tile({tcp: queues(0, 0), udp: queues(0, 0), unix: queues(0, 0)});
+  assert.equal(empty.children[1].textContent, '0 B');
+  assert.equal(empty.children[2].textContent, 'unread 0 B · unsent 0 B');
+  const full = tile({tcp: queues(10, 20), udp: queues(30, 40), unix: queues(50, 60)});
+  assert.equal(full.children[1].textContent, '210 B');
+  assert.equal(full.children[2].textContent, 'unread 90 B · unsent 120 B');
+  const partial = tile({tcp: queues(10, null), udp: queues(0, 0), unix: queues(0, 0)});
+  assert.equal(partial.children[1].textContent, '—');
+  assert.equal(partial.children[2].textContent, 'unread 10 B · unsent —');
+});
+
+test('resource range changes keep one polling loop, including overlapping requests and failures', async () => {
+  const response = {ok: true, json: async () => ({rows: []})};
+  const app = dashboard(new Map(), {resourceFetch: async () => response});
+  await new Promise(setImmediate);
+  assert.equal(app.timers.size, 1);
+  const pending = [];
+  const requests = [];
+  app.setFetch(url => {
+    requests.push(url);
+    return new Promise(resolve => pending.push(resolve));
+  });
+  app.resourceRanges[1].onclick();
+  app.resourceRanges[2].onclick();
+  assert.equal(app.timers.size, 1, 'range refreshes leave the existing poll timer alone');
+  for (const [index, url] of requests.entries()) {
+    const params = new URLSearchParams(url.split('?')[1]);
+    assert.equal(Number(params.get('end')) - Number(params.get('start')), [3600, 21600][index]);
+  }
+  const firePoll = async () => {
+    assert.equal(app.timers.size, 1);
+    const [id, timer] = [...app.timers][0];
+    assert.equal(timer.delay, 5000);
+    app.timers.delete(id);
+    await timer.callback();
+    assert.equal(app.timers.size, 1);
+  };
+  app.setFetch(async () => response);
+  await firePoll();
+  pending.forEach(resolve => resolve(response));
+  await new Promise(setImmediate);
+  assert.equal(app.timers.size, 1, 'overlapping range responses do not create more timers');
+  app.setFetch(async () => {throw Error('Connection lost');});
+  await firePoll();
+  app.setFetch(async () => response);
+  await firePoll();
 });
 
 test('resource assessment joins the overview assessment', () => {

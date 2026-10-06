@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <format>
 #include <map>
 #include <optional>
@@ -131,6 +132,7 @@ class ResourceMonitor
   // Grace for the parts of one sample to arrive before it is used anyway.
   static constexpr double kGraceSeconds = 2;
   static constexpr std::size_t kMaxPending = 8;
+  static constexpr std::size_t kMaxRetiredSessions = 128;
   // Sockets stored per row: the fullest, and only those with something to
   // show, so an idle process stores almost nothing.
   static constexpr std::size_t kStoredSockets = 8;
@@ -140,6 +142,27 @@ class ResourceMonitor
   void Accept(resource_wire::Part p_part, double p_received)
   {
     const auto& header = p_part.header_;
+    if (!session_ || header.session_ != *session_)
+    {
+      if (std::ranges::find(retired_sessions_, header.session_) !=
+          retired_sessions_.end())
+      {
+        ++late_;
+        return;
+      }
+      if (session_)
+      {
+        // Finish the old target before using any parts from the new one.
+        // Remember even sessions that only sent an incomplete sample.
+        Drain(p_received, true);
+        retired_sessions_.push_back(*session_);
+        if (retired_sessions_.size() > kMaxRetiredSessions)
+        {
+          retired_sessions_.pop_front();
+        }
+      }
+      session_ = header.session_;
+    }
     const Key key{header.session_, header.sequence_};
     if (latest_ && latest_->header_.session_ == header.session_ &&
         header.sequence_ <= latest_->header_.sequence_)
@@ -247,6 +270,8 @@ class ResourceMonitor
   };
 
   std::map<Key, Assembly> pending_;
+  std::optional<std::uint64_t> session_;
+  std::deque<std::uint64_t> retired_sessions_;
   std::optional<ResourceSample> latest_;
   std::optional<ResourceSample> previous_;
   std::vector<ResourceRow> rows_;
