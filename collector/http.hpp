@@ -679,6 +679,8 @@ class DashboardServer
                            {"bucket_s", bucket},
                            {"truncated", history.truncated_},
                            {"read_error", history.read_error_}});
+  }
+
   void Replay(int p_connection, const Request& p_request)
   {
     const auto at_text = QueryValue(p_request.query_, "at");

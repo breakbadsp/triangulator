@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "../collector/engine.hpp"
-#include "../collector/resources.hpp"
 #include "../collector/replay.hpp"
+#include "../collector/resources.hpp"
 
 namespace
 {
