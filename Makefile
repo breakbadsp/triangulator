@@ -28,7 +28,7 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
-CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp \
+CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
@@ -82,6 +82,12 @@ build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) 
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
+# Static, so --wrap also counts allocations made inside libc and libstdc++.
+build/allocation-test: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/build_options Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) \
+		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc $(LDLIBS) -o $@
+
 build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) build/build_options Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
@@ -90,9 +96,10 @@ build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/wire-test build/sampler-test build/collector-test build/socket-metrics-test
+check: all build/wire-test build/sampler-test build/allocation-test build/collector-test build/socket-metrics-test
 	./build/wire-test
 	./build/sampler-test
+	./build/allocation-test
 	./build/collector-test
 	./build/socket-metrics-test
 	python3 -m unittest discover -s tests -v
