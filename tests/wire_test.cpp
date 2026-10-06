@@ -1,5 +1,6 @@
-// Tests for common/wire.hpp alone: encoding then decoding gives back the same
-// values, and the header decoder rejects data that is not this format.
+// Tests for common/wire.hpp and common/resource_wire.hpp alone: encoding then
+// decoding gives back the same values, and the decoders reject data that is
+// not their format.
 
 #include "../common/wire.hpp"
 
@@ -11,6 +12,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include "../common/resource_wire.hpp"
 
 namespace
 {
@@ -103,6 +107,181 @@ void TestHeaderRejectsOtherData()
   Require(!wire::DecodeHeader(bad_version), "wrong version is rejected");
 }
 
+resource_wire::Header ResourceHeader(std::uint8_t p_parts)
+{
+  return resource_wire::Header{
+      .parts_ = p_parts,
+      .session_ = std::numeric_limits<std::uint64_t>::max(),
+      .sequence_ = 0x01020304,
+      .monotonic_ns_ = 11,
+      .wall_ns_ = 12,
+      .interval_ms_ = 5000,
+      .pid_ = 0x05060708,
+      .process_start_ = 13,
+      .flags_ = resource_wire::Flags::DescriptorsHidden |
+                resource_wire::Flags::SocketsTruncated};
+}
+
+// Every summary value, the unavailable marker and the cgroup path survive;
+// the parts of one sample share their header.
+void TestResourceSummaryRoundTrip()
+{
+  auto values = resource_wire::EmptySummary();
+  for (std::size_t index = 0; index < values.size(); index += 2)
+  {
+    values[index] = index * 1000;
+  }
+  std::array<std::byte, resource_wire::kMaxPartSize> bytes{};
+  const auto length = resource_wire::EncodeSummary(
+      bytes, ResourceHeader(2), values, "/system.slice/app.service");
+  Require(length == resource_wire::kSummaryPartSize, "summary length");
+  const auto decoded = resource_wire::Decode(std::span{bytes}.first(length));
+  Require(decoded.has_value(), "an encoded summary decodes");
+  Require(decoded->header_.kind_ == resource_wire::PartKind::Summary &&
+              decoded->header_.part_ == 0 && decoded->header_.parts_ == 2 &&
+              decoded->header_.SameSample(ResourceHeader(2)),
+          "summary header survives a round trip");
+  Require(decoded->values_ == values, "summary values survive a round trip");
+  Require(
+      std::string_view{decoded->cgroup_.data()} == "/system.slice/app.service",
+      "cgroup path survives a round trip");
+  Require(
+      values[resource_wire::Field("fd_open")] == resource_wire::kUnavailable ||
+          values[resource_wire::Field("fd_open")] ==
+              resource_wire::Field("fd_open") * 1000,
+      "field names index the wire order");
+  // A long cgroup path is cut, never left without its terminating NUL.
+  const auto long_length = resource_wire::EncodeSummary(
+      bytes, ResourceHeader(1), values, std::string(300, 'x'));
+  const auto cut = resource_wire::Decode(std::span{bytes}.first(long_length));
+  Require(cut && std::string_view{cut->cgroup_.data()}.size() ==
+                     resource_wire::kCgroupSize - 1,
+          "a long cgroup path is truncated");
+}
+
+void TestResourceSocketsRoundTrip()
+{
+  std::vector<resource_wire::Socket> sockets(8);
+  for (std::size_t index = 0; index < sockets.size(); ++index)
+  {
+    auto& socket = sockets[index];
+    socket.kind_ = index % 2 ? resource_wire::SocketKind::Tcp6
+                             : resource_wire::SocketKind::UnixStream;
+    socket.state_ = 1;
+    socket.flags_ = 15;
+    socket.fd_ = static_cast<std::uint32_t>(index + 3);
+    socket.inode_ = std::numeric_limits<std::uint64_t>::max() - index;
+    if (index % 2)
+    {
+      socket.local_address_.fill(0xab);
+      socket.remote_address_.fill(0xcd);
+    }
+    else
+    {
+      std::ranges::copy(std::string_view{"/run/app.sock"},
+                        socket.unix_path_.begin());
+    }
+    socket.local_port_ = 443;
+    socket.remote_port_ = 65535;
+    socket.rx_queue_ = 1;
+    socket.tx_queue_ = 2;
+    socket.rmem_alloc_ = 3;
+    socket.rcvbuf_ = 4;
+    socket.wmem_alloc_ = 5;
+    socket.wmem_queued_ = 6;
+    socket.sndbuf_ = 7;
+    socket.drops_ = 8;
+    socket.rtt_us_ = 9;
+    socket.rttvar_us_ = 10;
+    socket.total_retrans_ = 11;
+    socket.unacked_ = 12;
+    socket.lost_ = 13;
+    socket.notsent_bytes_ = 14;
+    socket.peer_window_ = 15;
+    socket.retransmits_ = 16;
+    socket.probes_ = 17;
+    socket.backoff_ = 18;
+    socket.ca_state_ = 19;
+    socket.last_data_recv_ms_ = 20;
+    socket.last_data_sent_ms_ = 21;
+    socket.busy_us_ = 22;
+    socket.rwnd_limited_us_ = std::numeric_limits<std::uint64_t>::max();
+    socket.sndbuf_limited_us_ = 24;
+  }
+  const auto parts = resource_wire::PartCount(sockets.size());
+  Require(parts == 3, "eight sockets take two socket parts");
+  std::vector<resource_wire::Socket> decoded;
+  for (std::uint8_t part = 1; part < parts; ++part)
+  {
+    std::array<std::byte, resource_wire::kMaxPartSize> bytes{};
+    const auto length = resource_wire::EncodeSockets(
+        bytes, ResourceHeader(parts), sockets, part);
+    const auto value = resource_wire::Decode(std::span{bytes}.first(length));
+    Require(value.has_value(), "an encoded socket part decodes");
+    Require(value->header_.part_ == part &&
+                value->header_.kind_ == resource_wire::PartKind::Sockets,
+            "socket part numbering");
+    std::ranges::copy(value->sockets_, std::back_inserter(decoded));
+  }
+  Require(decoded == sockets, "socket rows survive a round trip");
+  Require(resource_wire::PartCount(0) == 1 &&
+              resource_wire::PartCount(1000) == resource_wire::kMaxParts,
+          "a sample has a summary part and at most kMaxSockets rows");
+}
+
+// Damages valid parts one way at a time and checks Decode refuses each.
+void TestResourceRejectsOtherData()
+{
+  std::array<std::byte, resource_wire::kMaxPartSize> bytes{};
+  const auto length = resource_wire::EncodeSummary(
+      bytes, ResourceHeader(1), resource_wire::EmptySummary(), "/");
+  const auto valid = std::span{bytes}.first(length);
+  Require(resource_wire::Decode(valid).has_value(), "the base part is valid");
+  const auto rejects =
+      [&](std::size_t p_offset, std::byte p_value, std::string_view p_message)
+  {
+    auto copy = bytes;
+    copy[p_offset] = p_value;
+    Require(!resource_wire::Decode(std::span{copy}.first(length)), p_message);
+  };
+  rejects(0, std::byte{'X'}, "wrong magic is rejected");
+  rejects(4, std::byte{2}, "wrong version is rejected");
+  rejects(5, std::byte{9}, "unknown part kind is rejected");
+  rejects(6, std::byte{1}, "a part number past the count is rejected");
+  rejects(7, std::byte{0}, "a zero part count is rejected");
+  rejects(7, std::byte{6}, "too many parts are rejected");
+  rejects(22, std::byte{1}, "reserved header bytes must be zero");
+  rejects(59, std::byte{0x80}, "unknown flags are rejected");
+  rejects(41, std::byte{0}, "an interval under a second is rejected");
+  auto no_pid = bytes;
+  std::ranges::fill(std::span{no_pid}.subspan(44, 4), std::byte{0});
+  Require(!resource_wire::Decode(std::span{no_pid}.first(length)),
+          "pid zero is rejected");
+  rejects(length - 1, std::byte{'x'}, "an unterminated cgroup is rejected");
+  Require(!resource_wire::Decode(valid.first(length - 1)),
+          "a short summary is rejected");
+  Require(!wire::DecodeHeader(valid), "a resource part is not a thread tick");
+
+  std::vector<resource_wire::Socket> sockets(1);
+  sockets[0].kind_ = resource_wire::SocketKind::Tcp4;
+  const auto socket_length =
+      resource_wire::EncodeSockets(bytes, ResourceHeader(2), sockets, 1);
+  Require(
+      resource_wire::Decode(std::span{bytes}.first(socket_length)).has_value(),
+      "the base socket part is valid");
+  for (const auto& [offset, value] :
+       {std::pair{std::size_t{64}, std::byte{0}},
+        std::pair{std::size_t{64}, std::byte{8}},
+        std::pair{std::size_t{66}, std::byte{16}},
+        std::pair{std::size_t{64 + 124}, std::byte{1}}})
+  {
+    auto copy = bytes;
+    copy[offset] = value;
+    Require(!resource_wire::Decode(std::span{copy}.first(socket_length)),
+            "an invalid socket row is rejected");
+  }
+}
+
 }  // namespace
 
 int main()
@@ -112,7 +291,10 @@ int main()
     TestRecordRoundTrip();
     TestHeaderRoundTrip();
     TestHeaderRejectsOtherData();
-    std::puts("wire tests passed (record and header round trips, rejection)");
+    TestResourceSummaryRoundTrip();
+    TestResourceSocketsRoundTrip();
+    TestResourceRejectsOtherData();
+    std::puts("wire tests passed (thread and resource round trips, rejection)");
   }
   catch (const std::exception& error)
   {
