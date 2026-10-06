@@ -2,9 +2,16 @@
 
 ## Result
 
-The sampler allocates heap memory after initialization. It does not meet the
-TigerStyle memory rule. TigerStyle requires all memory to be allocated at startup
-and prohibits dynamic allocation after initialization.
+The sampler now meets the TigerStyle memory rule. TigerStyle requires all
+memory to be allocated at startup and prohibits dynamic allocation after
+initialization. `tests/allocation_test.cpp` counts **0 heap allocations**
+after startup, for three ticks of target lookup, thread sampling and resource
+sampling. `make check` runs this test.
+
+Before the changes, the sampler allocated heap memory after initialization.
+The sections from "Measurement method" to "Existing fixed storage" record that
+review at revision `4965f92`. The section "Selected changes" gives the approach
+that was selected for each allocation source.
 
 Source: [TigerStyle, Safety](https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md).
 
@@ -151,20 +158,62 @@ encoding do not require heap allocation.
 `ThreadCache` reserves storage for all 2,550 supported threads at construction.
 New thread entries therefore do not require vector growth within that limit.
 
-## Proposed changes
+## Selected changes
 
-1. Replace temporary path strings with bounded character buffers.
-2. Replace per-tick `opendir` allocation with reusable directory-read storage.
-3. Allocate bounded socket inode storage at startup.
-4. Retain socket map entries or use a fixed table that does not allocate nodes.
-5. Allocate socket diagnostic receive storage at startup.
-6. Use bounded reusable storage for cgroup text and socket output.
-7. Set an explicit bound for collected sockets before vector growth.
-8. Construct warning text in bounded storage after the logging time check.
-9. Define whether configuration reloads must also meet the startup-only rule.
-10. Add allocation measurements for startup, steady sampling, thread changes,
-    socket changes, reloads, and errors before changing the implementation.
+The goals were zero allocations after startup and simple, readable code. Each
+source had more than one possible fix. This table gives the selected fix and
+the reason for it.
 
-Each implementation change must include before-and-after measurements, as
-required by the project's C++ coding standards. This pull request records the
-review only. It makes no sampler implementation changes.
+| Source | Selected fix | Reason |
+| --- | --- | --- |
+| `opendir` buffer | `Directory` in `sampler/io.hpp` reads entries with `getdents64` into an 8 KiB member array. | A memory resource cannot stop libc from calling `malloc`. Only a replacement of `opendir` removes this allocation. The `Next()` loop has the same shape as the old `readdir` loop. |
+| `std::format` paths and keys | `FixedString` in `sampler/io.hpp` formats with `std::format_to_n` into a 4,096-byte array (`PATH_MAX`). Text that does not fit becomes empty, so `open` fails. | Call sites keep the same format strings. The buffer is on the stack. |
+| Warning text | `RateLimitedLogger::Warn` takes a format string and arguments. It formats into a 512-byte array only after the time check. `std::strerror` replaces `std::generic_category().message`. | Suppressed warnings cost no formatting. No error text is a `std::string`. |
+| `socket_fds_` map | A `std::vector<SocketFd>` that is reserved for `kMaxDescriptorLinks` entries at startup. Each sample sorts it and removes duplicate inodes. Lookups use binary search. | `clear()` keeps the capacity, and the scan never adds more than `kMaxDescriptorLinks` entries. This is simpler than a custom hash table. |
+| `matched_` growth and the copy into the sample | `FullestSockets` keeps the 24 fullest sockets in a fixed array, as a heap. Totals are added per socket as the dump arrives. | Memory stays bounded for any number of sockets. The old vector could hold up to 65,536 sockets. |
+| Sample-owned `cgroup_` and `sockets_` | `ResourceSample` holds a `std::string_view` and a `std::span`. They view the probe's storage until the next `Sample()`. | No copy and no allocation. The packet encoders already accept views. |
+| `SocketDiag` receive buffer | `ResourceProbe` allocates 64 KiB at construction and gives a span to `SocketDiag::Open`. | A reopen after an error does not allocate again. |
+| Configuration reload | Allowed to allocate. | A reload on `SIGHUP` is a new start on operator request, like startup. The ticks after it do not allocate. |
+
+### Rejected approaches
+
+- **Monotonic `std::pmr` arena that is reset each tick.** It does not control
+  allocations inside libc, such as `opendir`. On overflow it throws
+  `std::bad_alloc`, but the project returns `std::expected`. Data that lives
+  across ticks, such as the socket table, cannot use it. After the fixes above,
+  no per-tick data was left that needed it.
+- **Fixed array of 65,536 matched sockets.** It needs more than 10 MiB.
+  `FullestSockets` keeps only the 24 sockets that are sent.
+- **Custom open-addressing hash table for socket inodes.** A sorted vector
+  with binary search gives the same result with less code.
+
+### Startup allocations
+
+These allocations occur once, at construction:
+
+- `ThreadCache`: storage for 2,550 threads, 122,400 bytes.
+- `ResourceProbe`: the socket table, 65,536 entries of 16 bytes (1 MiB).
+- `ResourceProbe`: the socket diagnostic receive buffer, 64 KiB.
+
+The kernel gives physical pages only when the sampler writes to them. A
+target with few descriptors therefore uses little of the 1 MiB socket table.
+
+### Allocation test
+
+`build/allocation-test` is linked statically with
+`-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc`. The wrappers count every
+call, including calls from `libstdc++` and from libc functions. The test opens
+48 UNIX socket descriptors, so the probe also cuts sockets. It then runs three
+ticks of:
+
+- Target lookup by PID and by process name.
+- A thread scan and thread samples, with kept descriptors and with reopened
+  `/proc` files.
+- A resource sample.
+- A formatted warning.
+
+The test fails if any allocation occurs. A temporary `std::vector` added to
+the loop made the test report 3 allocations and fail.
+
+The test does not cover packet transmission in `sampler/main.cpp`, which uses
+fixed arrays, or the reload and fatal error paths.
