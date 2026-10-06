@@ -304,6 +304,58 @@ using Statement = std::unique_ptr<sqlite3_stmt, StatementFinalizer>;
   return statement;
 }
 
+// Read column names before an update or a read of an older day file.
+[[nodiscard]] inline std::expected<std::vector<std::string>, std::string>
+TableColumns(sqlite3* p_database, std::string_view p_table)
+{
+  auto info =
+      Prepare(p_database, std::format("PRAGMA table_info({})", p_table));
+  if (!info)
+  {
+    return std::unexpected(std::move(info.error()));
+  }
+  std::vector<std::string> columns;
+  int status = SQLITE_ROW;
+  while ((status = ::sqlite3_step(info->get())) == SQLITE_ROW)
+  {
+    columns.emplace_back(
+        reinterpret_cast<const char*>(::sqlite3_column_text(info->get(), 1)));
+  }
+  if (auto checked = Check(p_database, status); !checked)
+  {
+    return std::unexpected(std::move(checked.error()));
+  }
+  return columns;
+}
+
+// New measurements have no value in old rows. Add nullable columns so that
+// existing data stays available when the collector opens the file again.
+[[nodiscard]] inline SqliteResult UpdateResourceColumns(sqlite3* p_database)
+{
+  auto existing = TableColumns(p_database, "resource_sample");
+  if (!existing)
+  {
+    return std::unexpected(std::move(existing.error()));
+  }
+  for (const auto& column : kResourceColumns)
+  {
+    if (column.type_.find("NOT NULL") != std::string_view::npos ||
+        std::ranges::find(*existing, column.name_) != existing->end())
+    {
+      continue;
+    }
+    if (auto added =
+            Execute(p_database,
+                    std::format("ALTER TABLE resource_sample ADD COLUMN {} {}",
+                                column.name_, column.type_));
+        !added)
+    {
+      return added;
+    }
+  }
+  return {};
+}
+
 // Binds values to parameters 1, 2, ... in order.
 class Binder
 {
@@ -740,6 +792,10 @@ class Storage
         return std::unexpected(std::move(executed.error()));
       }
     }
+    if (auto updated = UpdateResourceColumns(database); !updated)
+    {
+      return std::unexpected(std::move(updated.error()));
+    }
     std::vector<std::string> existing;
     {
       auto info = Prepare(database, "PRAGMA table_info(thread_rollup)");
@@ -899,20 +955,13 @@ struct ResourceHistoryResult
     double p_bucket_s, std::size_t p_limit = 200'000)
 {
   std::vector<std::size_t> columns;
-  std::string select;
   for (std::size_t index = 0; index < kResourceColumns.size(); ++index)
   {
     if (kResourceColumns[index].combine_ != Combine::None)
     {
-      select += std::format("{}{}", select.empty() ? "" : ",",
-                            kResourceColumns[index].name_);
       columns.push_back(index);
     }
   }
-  const auto sql = std::format(
-      "SELECT {} FROM resource_sample WHERE ts>=? AND ts<=? ORDER BY ts "
-      "LIMIT ?",
-      select);
   ResourceHistoryResult result;
   std::optional<std::int64_t> bucket;
   std::vector<std::optional<double>> combined(columns.size());
@@ -955,6 +1004,28 @@ struct ResourceHistoryResult
       continue;
     }
     ::sqlite3_busy_timeout(database->get(), 2000);
+    auto existing = TableColumns(database->get(), "resource_sample");
+    if (!existing)
+    {
+      result.read_error_ = true;
+      continue;
+    }
+    // History reads old files without changing them. Missing measurements
+    // are NULL, as they are in rows from before the schema update.
+    std::string select;
+    for (const auto index : columns)
+    {
+      const auto name = kResourceColumns[index].name_;
+      const bool present =
+          std::ranges::find(*existing, name) != existing->end();
+      select += std::format(
+          "{}{}", select.empty() ? "" : ",",
+          present ? std::string{name} : std::format("NULL AS {}", name));
+    }
+    const auto sql = std::format(
+        "SELECT {} FROM resource_sample WHERE ts>=? AND ts<=? ORDER BY ts "
+        "LIMIT ?",
+        select);
     auto statement = Prepare(database->get(), sql);
     if (!statement)
     {
