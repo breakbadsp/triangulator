@@ -15,10 +15,9 @@
 #include <cerrno>
 #include <cstring>
 #include <optional>
-#include <string>
+#include <span>
 #include <string_view>
 #include <tuple>
-#include <unordered_map>
 #include <vector>
 
 #include "io.hpp"
@@ -30,13 +29,15 @@ namespace triangulator
 
 using resource_wire::Field;
 
+// cgroup_ and sockets_ view the probe's storage. They stay valid until the
+// probe's next Sample().
 struct ResourceSample
 {
   resource_wire::SummaryValues summary_ = resource_wire::EmptySummary();
   resource_wire::Flags flags_ = resource_wire::Flags::None;
-  std::string cgroup_;
+  std::string_view cgroup_;
   // The target's fullest sockets first, at most kMaxSockets.
-  std::vector<resource_wire::Socket> sockets_;
+  std::span<const resource_wire::Socket> sockets_;
 };
 
 // How full a socket's buffers are, 0 (empty) to 1 (at its limit): the
@@ -61,30 +62,72 @@ struct ResourceSample
   return std::max(received, sent);
 }
 
-// Keeps the kMaxSockets sockets most worth a look, fullest first: buffer
-// fullness, then queued bytes, then drops. Returns whether any were cut.
-inline bool KeepFullest(std::vector<resource_wire::Socket>& p_sockets)
+// Keeps the kMaxSockets sockets most worth a look: buffer fullness, then
+// queued bytes, then drops. The storage is fixed. It is a heap whose front
+// is the least full socket kept, so a fuller socket replaces that one.
+class FullestSockets
 {
-  const auto key = [](const resource_wire::Socket& p_socket)
+ public:
+  void Clear() noexcept
   {
-    return std::tuple{Fullness(p_socket),
-                      std::uint64_t{p_socket.rx_queue_} + p_socket.tx_queue_,
-                      p_socket.drops_, p_socket.total_retrans_};
-  };
-  const auto fuller = [&](const resource_wire::Socket& p_left,
-                          const resource_wire::Socket& p_right)
+    size_ = 0;
+    truncated_ = false;
+  }
+
+  void Add(const resource_wire::Socket& p_socket)
   {
+    if (size_ < sockets_.size())
+    {
+      sockets_[size_++] = p_socket;
+      std::ranges::push_heap(Kept(), Fuller);
+      return;
+    }
+    truncated_ = true;
+    if (Fuller(p_socket, sockets_.front()))
+    {
+      std::ranges::pop_heap(sockets_, Fuller);
+      sockets_.back() = p_socket;
+      std::ranges::push_heap(sockets_, Fuller);
+    }
+  }
+
+  // The kept sockets, fullest first. Add nothing after this until Clear().
+  [[nodiscard]] std::span<const resource_wire::Socket> Sorted()
+  {
+    std::ranges::sort(Kept(), Fuller);
+    return Kept();
+  }
+
+  // Whether sockets were cut because more than kMaxSockets were added.
+  [[nodiscard]] bool Truncated() const noexcept
+  {
+    return truncated_;
+  }
+
+ private:
+  [[nodiscard]] std::span<resource_wire::Socket> Kept() noexcept
+  {
+    return std::span{sockets_}.first(size_);
+  }
+
+  [[nodiscard]] static bool Fuller(const resource_wire::Socket& p_left,
+                                   const resource_wire::Socket& p_right)
+  {
+    const auto key = [](const resource_wire::Socket& p_socket)
+    {
+      return std::tuple{Fullness(p_socket),
+                        std::uint64_t{p_socket.rx_queue_} + p_socket.tx_queue_,
+                        p_socket.drops_, p_socket.total_retrans_};
+    };
     const auto left = key(p_left);
     const auto right = key(p_right);
     return left != right ? left > right : p_left.fd_ < p_right.fd_;
-  };
-  const auto kept = std::min(p_sockets.size(), resource_wire::kMaxSockets);
-  std::ranges::partial_sort(
-      p_sockets, p_sockets.begin() + static_cast<long>(kept), fuller);
-  const bool truncated = p_sockets.size() > kept;
-  p_sockets.resize(kept);
-  return truncated;
-}
+  }
+
+  std::array<resource_wire::Socket, resource_wire::kMaxSockets> sockets_{};
+  std::size_t size_ = 0;
+  bool truncated_ = false;
+};
 
 class ResourceProbe
 {
@@ -92,7 +135,15 @@ class ResourceProbe
   // Descriptor links read per sample. A process with more descriptors is
   // still counted, but sockets past this many are not matched.
   static constexpr std::size_t kMaxDescriptorLinks = 65536;
+  static constexpr std::size_t kDiagBufferSize = 65536;
 
+  // All of the probe's heap storage is allocated here, at startup.
+  ResourceProbe() : diag_buffer_(kDiagBufferSize)
+  {
+    socket_fds_.reserve(kMaxDescriptorLinks);
+  }
+
+  // The result views the probe's storage until the next call.
   [[nodiscard]] ResourceSample Sample(int p_pid)
   {
     ResourceSample sample;
@@ -127,6 +178,15 @@ class ResourceProbe
   static_assert(Field("cgroup_io_full_total") == kCgroupPressure + 11);
   static constexpr std::array<std::string_view, 3> kPressureResources{
       "cpu", "memory", "io"};
+  static constexpr std::size_t kTcpStates = Field("tcp_established");
+  static_assert(Field("tcp_closing") == kTcpStates + 9);
+
+  // A socket descriptor of the target, found by the socket's inode.
+  struct SocketFd
+  {
+    std::uint64_t inode_;
+    std::uint32_t fd_;
+  };
 
   // Contents of p_path, valid until the next read, or nullopt.
   [[nodiscard]] std::optional<std::string_view> Read(const char* p_path)
@@ -167,7 +227,14 @@ class ResourceProbe
     {
       return;
     }
-    p_sample.cgroup_ = *path;
+    // Copy the path: it views buffer_, which the next Read() overwrites. A
+    // path too long for FixedString becomes empty, and is skipped.
+    cgroup_ = FixedString{"{}", *path};
+    p_sample.cgroup_ = cgroup_.View();
+    if (p_sample.cgroup_.empty())
+    {
+      return;
+    }
     for (std::size_t index = 0; index < kPressureResources.size(); ++index)
     {
       if (const auto text =
@@ -232,10 +299,21 @@ class ResourceProbe
                 ParseNumber<std::uint64_t>(target.substr(8, target.size() - 9)))
         {
           ++sockets;
-          socket_fds_.emplace(*inode, *fd);
+          // Within capacity: at most kMaxDescriptorLinks links are read.
+          socket_fds_.push_back({*inode, *fd});
         }
       }
     }
+    // Sort for binary search by inode. A socket open on several
+    // descriptors keeps the lowest one.
+    std::ranges::sort(socket_fds_, {},
+                      [](const SocketFd& p_entry)
+                      {
+                        return std::pair{p_entry.inode_, p_entry.fd_};
+                      });
+    const auto duplicates =
+        std::ranges::unique(socket_fds_, {}, &SocketFd::inode_);
+    socket_fds_.erase(duplicates.begin(), duplicates.end());
     summary[Field("fd_open")] = open;
     if (links_hidden_)
     {
@@ -366,18 +444,21 @@ class ResourceProbe
 
   void ReadSockets(ResourceSample& p_sample)
   {
-    auto& summary = p_sample.summary_;
     if (links_hidden_ ||
-        summary[Field("fd_sockets")] == resource_wire::kUnavailable)
+        p_sample.summary_[Field("fd_sockets")] == resource_wire::kUnavailable)
     {
       return;
     }
-    matched_.clear();
+    // Count into a copy, so a failed dump leaves the totals unavailable.
+    auto totals = p_sample.summary_;
+    ClearSocketTotals(totals);
+    std::uint64_t matched = 0;
+    fullest_.Clear();
     if (!socket_fds_.empty())
     {
       if (!diag_)
       {
-        auto opened = SocketDiag::Open();
+        auto opened = SocketDiag::Open(diag_buffer_);
         if (!opened)
         {
           Fail(p_sample, "open", opened.error());
@@ -385,13 +466,16 @@ class ResourceProbe
         }
         diag_.emplace(std::move(*opened));
       }
-      const auto keep = [this](resource_wire::Socket p_socket)
+      const auto keep = [&](resource_wire::Socket p_socket)
       {
-        const auto found = socket_fds_.find(p_socket.inode_);
-        if (found != socket_fds_.end())
+        const auto found = std::ranges::lower_bound(
+            socket_fds_, p_socket.inode_, {}, &SocketFd::inode_);
+        if (found != socket_fds_.end() && found->inode_ == p_socket.inode_)
         {
-          p_socket.fd_ = found->second;
-          matched_.push_back(p_socket);
+          p_socket.fd_ = found->fd_;
+          ++matched;
+          CountSocket(totals, p_socket);
+          fullest_.Add(p_socket);
         }
       };
       for (const auto& [family, protocol] :
@@ -419,12 +503,16 @@ class ResourceProbe
         return;
       }
     }
-    Summarize(summary);
-    if (KeepFullest(matched_))
+    totals[Field("sockets_matched")] = matched;
+    totals[Field("sockets_unmatched")] =
+        socket_fds_.size() -
+        std::min<std::uint64_t>(socket_fds_.size(), matched);
+    p_sample.summary_ = totals;
+    p_sample.sockets_ = fullest_.Sorted();
+    if (fullest_.Truncated())
     {
       p_sample.flags_ = p_sample.flags_ | Flags::SocketsTruncated;
     }
-    p_sample.sockets_ = matched_;
   }
 
   void Fail(ResourceSample& p_sample, std::string_view p_step, int p_error)
@@ -435,16 +523,9 @@ class ResourceProbe
                  std::strerror(p_error));
   }
 
-  // Totals and TCP state counts over every matched socket.
-  void Summarize(resource_wire::SummaryValues& p_summary) const
+  // Socket totals and TCP state counts start at zero.
+  static void ClearSocketTotals(resource_wire::SummaryValues& p_summary)
   {
-    using resource_wire::SocketKind;
-    // Each kind's fields start with its socket count; UDP has no listeners.
-    static_assert(Field("tcp_drops") == Field("tcp_sockets") + 4);
-    static_assert(Field("udp_drops") == Field("udp_sockets") + 3);
-    static_assert(Field("unix_drops") == Field("unix_sockets") + 4);
-    constexpr std::array<std::size_t, 3> kFirst{
-        Field("tcp_sockets"), Field("udp_sockets"), Field("unix_sockets")};
     for (const auto field :
          {Field("tcp_sockets"), Field("tcp_listeners"), Field("tcp_rx_queue"),
           Field("tcp_tx_queue"), Field("tcp_drops"), Field("udp_sockets"),
@@ -454,46 +535,51 @@ class ResourceProbe
     {
       p_summary[field] = 0;
     }
-    constexpr std::size_t kStates = Field("tcp_established");
-    static_assert(Field("tcp_closing") == kStates + 9);
-    for (std::size_t field = kStates; field <= kStates + 9; ++field)
+    for (std::size_t field = kTcpStates; field <= kTcpStates + 9; ++field)
     {
       p_summary[field] = 0;
     }
-    for (const auto& socket : matched_)
+  }
+
+  // Adds one matched socket to the totals and TCP state counts.
+  static void CountSocket(resource_wire::SummaryValues& p_summary,
+                          const resource_wire::Socket& p_socket)
+  {
+    using resource_wire::SocketKind;
+    // Each kind's fields start with its socket count; UDP has no listeners.
+    static_assert(Field("tcp_drops") == Field("tcp_sockets") + 4);
+    static_assert(Field("udp_drops") == Field("udp_sockets") + 3);
+    static_assert(Field("unix_drops") == Field("unix_sockets") + 4);
+    constexpr std::array<std::size_t, 3> kFirst{
+        Field("tcp_sockets"), Field("udp_sockets"), Field("unix_sockets")};
+    const bool tcp = p_socket.kind_ == SocketKind::Tcp4 ||
+                     p_socket.kind_ == SocketKind::Tcp6;
+    const bool udp = p_socket.kind_ == SocketKind::Udp4 ||
+                     p_socket.kind_ == SocketKind::Udp6;
+    const auto first = kFirst[tcp ? 0 : udp ? 1 : 2];
+    const bool listener =
+        p_socket.state_ == std::to_underlying(SocketState::Listen);
+    // UDP has no listeners field: its fields after "sockets" are queues.
+    ++p_summary[first];
+    const auto queues = udp ? first + 1 : first + 2;
+    if (listener && !udp)
     {
-      const bool tcp =
-          socket.kind_ == SocketKind::Tcp4 || socket.kind_ == SocketKind::Tcp6;
-      const bool udp =
-          socket.kind_ == SocketKind::Udp4 || socket.kind_ == SocketKind::Udp6;
-      const auto first = kFirst[tcp ? 0 : udp ? 1 : 2];
-      const bool listener =
-          socket.state_ == std::to_underlying(SocketState::Listen);
-      // UDP has no listeners field: its fields after "sockets" are queues.
-      ++p_summary[first];
-      const auto queues = udp ? first + 1 : first + 2;
-      if (listener && !udp)
-      {
-        ++p_summary[first + 1];
-      }
-      else
-      {
-        p_summary[queues] += socket.rx_queue_;
-        p_summary[queues + 1] += socket.tx_queue_;
-      }
-      p_summary[queues + 2] += socket.drops_;
-      // States 1..11 without TIME_WAIT (6), which no descriptor owns.
-      if (tcp && socket.state_ >= 1 && socket.state_ <= 11 &&
-          socket.state_ != std::to_underlying(SocketState::TimeWait))
-      {
-        const auto offset =
-            socket.state_ < 6 ? socket.state_ - 1 : socket.state_ - 2;
-        ++p_summary[kStates + static_cast<std::size_t>(offset)];
-      }
+      ++p_summary[first + 1];
     }
-    p_summary[Field("sockets_matched")] = matched_.size();
-    p_summary[Field("sockets_unmatched")] =
-        socket_fds_.size() - std::min(socket_fds_.size(), matched_.size());
+    else
+    {
+      p_summary[queues] += p_socket.rx_queue_;
+      p_summary[queues + 1] += p_socket.tx_queue_;
+    }
+    p_summary[queues + 2] += p_socket.drops_;
+    // States 1..11 without TIME_WAIT (6), which no descriptor owns.
+    if (tcp && p_socket.state_ >= 1 && p_socket.state_ <= 11 &&
+        p_socket.state_ != std::to_underlying(SocketState::TimeWait))
+    {
+      const auto offset =
+          p_socket.state_ < 6 ? p_socket.state_ - 1 : p_socket.state_ - 2;
+      ++p_summary[kTcpStates + static_cast<std::size_t>(offset)];
+    }
   }
 
   // Socket memory sysctls. tcp_mem and udp_mem are host-wide; the others
@@ -637,10 +723,13 @@ class ResourceProbe
   }
 
   std::array<char, 32768> buffer_{};
+  FixedString cgroup_{""};
+  std::vector<std::byte> diag_buffer_;
   std::optional<SocketDiag> diag_;
   RateLimitedLogger logger_;
-  std::unordered_map<std::uint64_t, std::uint32_t> socket_fds_;
-  std::vector<resource_wire::Socket> matched_;
+  // Sorted by inode. Capacity is reserved at startup and never exceeded.
+  std::vector<SocketFd> socket_fds_;
+  FullestSockets fullest_;
   bool links_hidden_ = false;
 };
 

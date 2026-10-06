@@ -363,19 +363,22 @@ void TestSocketRanking()
   auto sender = SyntheticSocket(2, 0);
   sender.wmem_queued_ = 900;
   Require(Fullness(sender) == 0.9, "a nearly full send buffer");
-  std::vector<resource_wire::Socket> sockets;
+  FullestSockets fullest;
   for (std::uint32_t fd = 10; fd < 40; ++fd)
   {
-    sockets.push_back(SyntheticSocket(fd, fd));
+    fullest.Add(SyntheticSocket(fd, fd));
   }
-  sockets.push_back(sender);
-  Require(KeepFullest(sockets), "more than kMaxSockets are cut");
+  fullest.Add(sender);
+  const auto sockets = fullest.Sorted();
+  Require(fullest.Truncated(), "more than kMaxSockets are cut");
   Require(sockets.size() == resource_wire::kMaxSockets &&
               sockets.front().fd_ == 2 && sockets[1].fd_ == 39 &&
               sockets.back().fd_ == 17,
           "the fullest sockets are kept, fullest first");
-  std::vector<resource_wire::Socket> few{SyntheticSocket(1, 0)};
-  Require(!KeepFullest(few) && few.size() == 1, "few sockets are all kept");
+  fullest.Clear();
+  fullest.Add(SyntheticSocket(1, 0));
+  Require(!fullest.Truncated() && fullest.Sorted().size() == 1,
+          "few sockets are all kept");
 }
 
 const resource_wire::Socket* FindSocket(const ResourceSample& p_sample,
