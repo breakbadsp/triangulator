@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -16,14 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import sampler_control  # noqa: E402
 
-NAMED = "import sys, time; open('/proc/self/comm', 'w').write(sys.argv[1]); time.sleep(60)"
+NAMED = "import os, sys, time; open('/proc/self/comm', 'wb').write(os.fsencode(sys.argv[1])); time.sleep(60)"
 
 
 def start_named(name):
     """A process whose comm is name, so name lookups see only test processes."""
-    process = subprocess.Popen([sys.executable, "-c", NAMED, name])
+    process = subprocess.Popen([sys.executable, "-c", NAMED, os.fsencode(name)])
     deadline = time.monotonic() + 5
-    while Path(f"/proc/{process.pid}/comm").read_text().strip() != name:
+    while Path(f"/proc/{process.pid}/comm").read_bytes().rstrip(b"\n") != os.fsencode(name):
         if time.monotonic() > deadline:
             raise AssertionError(f"process {process.pid} did not rename itself")
         time.sleep(0.01)
@@ -39,7 +38,7 @@ def stop(*processes):
 
 class ConfigTextTests(unittest.TestCase):
     def test_replace_setting_keeps_position_comments_and_line_endings(self):
-        pattern = re.compile(r"\s*target_(?:process|pid)\s*=")
+        pattern = sampler_control.TARGET_LINE
         text = '# target\r\ntarget_process = "old"\r\n# target_pid = 1234\r\nrate_hz = 1\r\n'
         self.assertEqual(sampler_control.replace_setting(text, pattern, "target_pid = 7"),
                          '# target\r\ntarget_pid = 7\r\n# target_pid = 1234\r\nrate_hz = 1\r\n')
@@ -48,6 +47,15 @@ class ConfigTextTests(unittest.TestCase):
                                                          "target_pid = 3"), "target_pid = 3\nx = 2\n")
         self.assertEqual(sampler_control.replace_setting("rate_hz = 1", pattern, "target_pid = 3"),
                          "rate_hz = 1\ntarget_pid = 3\n")
+
+    def test_lines_split_only_at_newline_like_the_sampler(self):
+        # \f, \v and \x85 don't end a line for the sampler, so the text after
+        # them is still part of the comment, not a setting.
+        for separator in ("\f", "\v", "\x85", "\u2028"):
+            text = f"# old{separator}rate_hz = 2\nrate_hz = 10\n"
+            self.assertEqual(sampler_control.replace_setting(text, sampler_control.RATE_LINE, "rate_hz = 5.0"),
+                             f"# old{separator}rate_hz = 2\nrate_hz = 5.0\n")
+        self.assertIsNone(sampler_control.RATE_LINE.match("\frate_hz = 1"))
 
     def test_read_setting_follows_the_sampler_rules(self):
         text = '# collector = "1.1.1.1:1"\ncollector = "127.0.0.1:9#00" # note\ntarget_process = a\\q\n'
@@ -158,6 +166,31 @@ class ScriptTests(unittest.TestCase):
         self.assertIn('\ntarget_process = "a\\q"\n# target_process', config.read_text())
         self.assertNotIn("target_pid", config.read_text())
         self.receive_until(lambda value: value.flags & 1)
+
+    def test_bytes_and_line_endings_are_kept(self):
+        config = self.real / "config/local/sampler.toml"
+        # A latin-1 comment, CRLF endings and a form feed inside a comment.
+        original = (b"# caf\xe9\r\ntarget_pid = %d\r\nrate_hz = 10\r\n# old\x0crate_hz = 2\r\n"
+                    b"collector = 127.0.0.1:%d\r\n" % (self.target.pid, self.port))
+        config.write_bytes(original)
+        self.start_sampler(config)
+        self.receive_until(lambda value: value.pid == self.target.pid)
+        changed = self.run_script("set-rate.sh", "5")
+        self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.assertEqual(config.read_bytes(), original.replace(b"rate_hz = 10\r", b"rate_hz = 5.0\r"))
+        self.receive_until(lambda value: value.interval_ms == 200)
+
+        # The sampler compares names as bytes, so a non-UTF-8 name must be
+        # written as the same bytes.
+        name = os.fsdecode(b"tc\xe9%d" % os.getpid())
+        named = start_named(name)
+        self.addCleanup(stop, named)
+        self.assertEqual(sampler_control.resolve_pid(str(named.pid)), named.pid)
+        changed = subprocess.run([self.link / "scripts/set-target.sh", os.fsencode(name)],
+                                 capture_output=True, timeout=15)
+        self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.assertIn(b'\ntarget_process = "' + os.fsencode(name) + b'"\r\n', config.read_bytes())
+        self.receive_until(lambda value: value.pid == named.pid)
 
     def test_rejected_changes_leave_the_config_unchanged(self):
         config = self.real / "config/local/sampler.toml"

@@ -22,6 +22,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 RESTART_HINT = "scripts/stop.sh sampler && scripts/start.sh"
+# The sampler splits lines only at \n and trims only " \t\r\n", so these
+# don't use splitlines() or \s, which also match \f, \v, \x85 and others.
+TARGET_LINE = re.compile(r"[ \t\r]*target_(?:process|pid)[ \t\r]*=")
+RATE_LINE = re.compile(r"[ \t\r]*rate_hz[ \t\r]*=")
 
 
 class ControlError(Exception):
@@ -38,6 +42,17 @@ def parse_pid(text):
     return pid
 
 
+def read_text(path):
+    """Read a file the way the sampler does: as bytes, in any encoding.
+
+    surrogateescape keeps invalid UTF-8 (a latin-1 comment, a non-UTF-8
+    process name) as is, so writing the text back restores the same bytes.
+    Decoding bytes also skips read_text()'s newline translation, which would
+    turn \r\n and a lone \r into \n.
+    """
+    return path.read_bytes().decode("utf-8", "surrogateescape")
+
+
 def require_process(pid):
     """Fail unless pid is a live process, not a thread ID or a zombie.
 
@@ -45,7 +60,7 @@ def require_process(pid):
     only Tgid tells a process from one of its threads.
     """
     try:
-        status = Path(f"/proc/{pid}/status").read_text()
+        status = read_text(Path(f"/proc/{pid}/status"))
     except FileNotFoundError:
         raise ControlError(f"no running process with PID {pid}") from None
     fields = dict(line.split(":", 1) for line in status.splitlines() if ":" in line)
@@ -131,7 +146,7 @@ def replace_setting(text, pattern, setting):
     """
     output = []
     placed = False
-    for line in text.splitlines(keepends=True):
+    for line in re.findall(r"[^\n]*\n|[^\n]+", text):
         if not pattern.match(line):
             output.append(line)
         elif not placed:
@@ -192,17 +207,18 @@ def update_config(root, pattern, setting):
             raise ControlError(
                 f"the sampler is using {config}, a tracked example file; refusing to edit it. "
                 f"Restart it with config/local/sampler.toml: {RESTART_HINT}")
-        updated = replace_setting(config.read_text(), pattern, setting)
+        updated = replace_setting(read_text(config), pattern, setting)
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(
-                    mode="w", dir=config.parent, prefix=f".{config.name}.", delete=False) as output:
+                    mode="w", encoding="utf-8", errors="surrogateescape", newline="",
+                    dir=config.parent, prefix=f".{config.name}.", delete=False) as output:
                 temporary = Path(output.name)
                 os.fchmod(output.fileno(), config.stat().st_mode & 0o777)
                 output.write(updated)
             # The running binary checks the file, even if build/ was rebuilt since.
             checked = subprocess.run([f"/proc/{pid}/exe", "--check-config", str(temporary)],
-                                     capture_output=True, text=True, timeout=10)
+                                     capture_output=True, text=True, errors="backslashreplace", timeout=10)
             if checked.returncode != 0:
                 raise ControlError(f"sampler config validation failed: {checked.stderr.strip()}; "
                                    f"{config} is unchanged")
@@ -227,7 +243,7 @@ def set_target(root, target):
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
-    sampler, config = update_config(root, re.compile(r"\s*target_(?:process|pid)\s*="), setting)
+    sampler, config = update_config(root, TARGET_LINE, setting)
     print(f"Updated {config}: {setting}")
     print(f"Requested reload of sampler {sampler}; check the dashboard and .run/sampler.log.")
     if not running:
@@ -242,7 +258,7 @@ def set_rate(root, text):
     if not math.isfinite(rate) or not 0.2 <= rate <= 10:
         raise ControlError("sampling frequency must be a number between 0.2 and 10 Hz")
     setting = f"rate_hz = {rate}"
-    sampler, config = update_config(root, re.compile(r"\s*rate_hz\s*="), setting)
+    sampler, config = update_config(root, RATE_LINE, setting)
     print(f"Updated {config}: {setting} ({1000 / rate:g} ms between thread samples)")
     print(f"Requested reload of sampler {sampler}; a successful reload starts a new session.")
     print("Socket observation still reports once per second.")
@@ -253,7 +269,7 @@ def collector(root):
     try:
         sampler = running_sampler(root)
         config = sampler[1] if sampler is not None else root / "config/local/sampler.toml"
-        endpoint = read_setting(config.read_text(), "collector")
+        endpoint = read_setting(read_text(config), "collector")
     except (ControlError, OSError) as error:
         raise ControlError(f"cannot read the collector endpoint: {error}; pass --collector IP:PORT") from None
     if not endpoint:
@@ -263,6 +279,10 @@ def collector(root):
 
 
 def main(argv):
+    # Names and paths may hold undecodable bytes; printing them must not fail
+    # after the config has been replaced.
+    sys.stdout.reconfigure(errors="backslashreplace")
+    sys.stderr.reconfigure(errors="backslashreplace")
     commands = {
         "set-target": lambda target: set_target(ROOT, target),
         "set-rate": lambda rate: set_rate(ROOT, rate),
