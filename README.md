@@ -6,7 +6,11 @@ module (`alerting/`) that is not wired up yet, so for now nothing sends alerts.
 Start with the [architecture diagrams](docs/architecture.md); see the
 [full design](docs/thread-monitor-design.md) for details.
 
-For current resource coverage and proposed Linux metrics, see
+The sampler also reports what the threads share: pressure stalls (PSI) for the
+host and the target's cgroup, descriptor headroom, storage I/O, the target's
+socket queues and buffers, and its network namespace's drops and overflows. See
+[Pressure, limits and socket buffers](docs/resource-monitoring.md). For coverage
+and proposed Linux metrics, see
 [Linux monitoring coverage and priorities](docs/linux-monitoring.md) and the
 [prioritized monitoring TODO](TODO.md).
 
@@ -111,7 +115,9 @@ make format-check # verify C++ formatting
 - **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
   booleans and `#` comments. Unknown or duplicate keys and malformed values are
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
-  `rate_hz` accepts 0.2–10. `SIGHUP` reloads the file; an invalid file leaves the old
+  `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
+  at most 60) sets how often resource samples are sent; they are never more
+  frequent than thread ticks. `SIGHUP` reloads the file; an invalid file leaves the old
   settings active, and a successful reload starts a new session. Validate with
   `build/triangulator-sampler --check-config config/sampler.toml`.
 - **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
@@ -143,6 +149,14 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   average over that window; over a window, a tile is faded only if the thread
   was idle for all of it.
 
+Below it, **Pressure, limits & sockets** shows the latest resource sample and
+its stored history (15 minutes to 24 hours): pressure stall shares for CPU,
+memory and I/O; open descriptors against the limit; the target's queued socket
+bytes; namespace drop and error counters; and the target's fullest sockets,
+each explained ("the app is not reading fast enough", "the peer is not
+reading"). Its findings join the assessment. See
+[docs/resource-monitoring.md](docs/resource-monitoring.md) for how to read it.
+
 The browser tab keeps these trends for up to 15 minutes, and they survive a
 reload of that tab. The thread table shows active threads by default. Idle
 threads (no CPU, context switches or I/O in the last ~10 s) are listed apart,
@@ -162,6 +176,8 @@ The monitoring API is read-only: `/api/live` and
 Local target control adds `GET /api/target` and `POST /api/target` with JSON
 `{"target":"NAME_OR_PID"}` and the `X-Triangulator: 1` header. Other non-`GET`
 requests get 501.
+`GET /api/resources?start=UNIX_SECONDS&end=UNIX_SECONDS` returns stored
+resource samples in at most about 1,000 buckets (default the last 15 minutes).
 
 ## Production setup
 
@@ -188,7 +204,10 @@ Checklist before going live (design section 12):
 
 - Run the sampler as the target user. It needs no privileges: `stat`, `schedstat`,
   `io` and `wchan` are readable by the same user under any Yama `ptrace_scope`.
-  It warns if every sleeping thread's wait channel is hidden.
+  It warns if every sleeping thread's wait channel is hidden. Resource samples
+  also need the target's descriptor links (same user, dumpable process) and the
+  target's network namespace to list its sockets; the dashboard says when either
+  is missing.
 - Check scheduler statistics under load. If they are missing or all zero, set
   `status_fallback = true` in the sampler config. Zeros alone cannot tell an idle
   process from disabled accounting, so this is your call. Run-delay percentage is
@@ -217,6 +236,11 @@ Checklist before going live (design section 12):
   limit and keeps four `/proc` files open per thread while the budget allows (32
   are reserved); extra threads reopen their files each tick. Running out of
   descriptors skips a tick rather than reporting the target absent.
+- **Resource samples:** a summary datagram (version 1, `TRES`) and up to four
+  datagrams of socket rows per sample, sharing the thread session. Parts are
+  reassembled for up to two seconds; rates use the previous sample of the same
+  session and process. Values the sampler could not read stay unavailable,
+  never zero. One `resource_sample` row per sample is stored.
 - **Storage:** live samples expire after ten minutes and are capped by
   `max_live_samples` (default one million). History is one SQLite file per UTC
   day (WAL mode) with per-thread rollups, committed every half second.
@@ -294,9 +318,11 @@ Restart the wrapper when switching targets or when the target process restarts.
 ## Layout
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
-  parsing and cache, RAII resources).
-- `common/`: code both programs use: the datagram format (`wire.hpp`, encode
-  and decode) and the `FileDescriptor` wrapper (`fd.hpp`). It depends only on
+  parsing and cache, RAII resources, and the resource probe: `resources.hpp`,
+  `resource_parsing.hpp`, `socket_diag.hpp`).
+- `common/`: code both programs use: the datagram formats (`wire.hpp` for
+  threads, `resource_wire.hpp` for resource samples) and the `FileDescriptor`
+  wrapper (`fd.hpp`). It depends only on
   the standard library, so neither program depends on the other's directory.
 - `collector/`: C++ core collector, without alerting, and the dashboard page it
   serves (`dashboard.html`).

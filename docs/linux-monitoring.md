@@ -28,15 +28,27 @@ whole host. The implemented sources are in `sampler/parsing.hpp` and
 - **Monitor health:** sampler last seen/silence, target present/absent, session
   changes, packet counters, estimated UDP loss, and stale thread data.
 - **History:** per-thread SQLite rollups and optional raw scheduler records.
+- **Resource samples** (every `resource_interval_s`, default 5 s, no
+  privileges): host and cgroup v2 pressure stall information for CPU, memory
+  and I/O; open descriptors against the soft and hard limits; process-wide
+  `/proc/PID/io` (block-layer and syscall bytes, syscall counts); the target's
+  own sockets through sock_diag (receive/send queues, buffer sizes and use,
+  drops, TCP RTT, retransmissions, peer window and window-limited time, TCP
+  state counts, listener backlogs); process memory (RSS split, peak, swap);
+  the target's cgroup memory, OOM-kill, CPU-throttling and pids figures;
+  interface errors and drops; its network namespace's TCP/UDP drop,
+  overflow, retransmission and memory counters and sockstat; and socket
+  memory sysctls. Details and limits are in
+  [resource-monitoring.md](resource-monitoring.md).
 - **Optional socket source:** eBPF observations of received/sent bytes and
   operations, process totals/rates, and thread/socket-kind breakdowns for TCP
   IPv4/IPv6 and Unix stream/datagram/seqpacket. UDP is excluded. Application
   messages completed require an explicit completion marker. Coverage and loss
   limits are documented in [socket-ingress-design.md](socket-ingress-design.md).
 
-**Not implemented:** host resource monitoring, process memory/FD usage, cgroup
-limits and pressure, disk capacity/device statistics, network health, or active
-alert delivery. `alerting/` contains starting code but is not connected.
+**Not implemented:** host CPU/memory context (`/proc/stat`, `meminfo`,
+`vmstat`), PSS, ancestor cgroup limits and cgroup v1, disk capacity and device
+statistics, per-interface statistics, or active alert delivery. `alerting/` contains starting code but is not connected.
 
 ## Most important additions
 
@@ -54,7 +66,8 @@ errors, and application latency.
    memory shared by threads must be recorded once per process. See the
    [status manual](https://man7.org/linux/man-pages/man5/proc_pid_status.5.html)
    and [proc documentation](https://docs.kernel.org/filesystems/proc.html).
-2. **Host resource pressure.** Read `/proc/pressure/{cpu,memory,io}`: `some`,
+2. **Host resource pressure.** *Done, with cgroup pressure, in resource
+   samples.* Read `/proc/pressure/{cpu,memory,io}`: `some`,
    supported `full`, rolling averages and cumulative stall time. PSI tells us
    whether resource contention is stalling work. Mark unsupported fields as
    unavailable; system CPU `full` is not a meaningful signal. See
@@ -73,7 +86,8 @@ errors, and application latency.
    Load includes uninterruptible tasks; iowait is not a precise measure of
    application I/O delay. See the
    [proc documentation](https://docs.kernel.org/filesystems/proc.html).
-5. **File-descriptor headroom.** Count `/proc/PID/fd` entries and compare with
+5. **File-descriptor headroom.** *Done in resource samples, apart from the
+   system-wide `file-nr`.* Count `/proc/PID/fd` entries and compare with
    the soft open-file limit in `/proc/PID/limits`. Track count and growth;
    `FDSize` is allocated table capacity, not the open FD count. Add system
    file-handle context from `/proc/sys/fs/file-nr`. See the
@@ -92,7 +106,8 @@ errors, and application latency.
 
 ### P1: disk and network bottlenecks
 
-8. **Storage I/O.** Collect process `/proc/PID/io` `read_bytes`, `write_bytes`,
+8. **Storage I/O.** *Process `/proc/PID/io` is done in resource samples;
+   device statistics are not.* Collect process `/proc/PID/io` `read_bytes`, `write_bytes`,
    `cancelled_write_bytes`, `syscr` and `syscw` separately from existing
    `rchar`/`wchar`. Collect device `/proc/diskstats` for throughput, IOPS,
    average request time, in-flight requests and weighted queue time. Label
@@ -101,7 +116,9 @@ errors, and application latency.
    establish saturation on parallel devices. See the
    [process I/O manual](https://man7.org/linux/man-pages/man5/proc_pid_io.5.html)
    and [device I/O statistics](https://docs.kernel.org/admin-guide/iostats.html).
-9. **Network health.** Collect interface bytes/packets/errors/drops using
+9. **Network health.** *Namespace TCP/UDP counters and per-socket queue,
+   buffer and TCP diagnostics are done in resource samples; interface
+   statistics are not.* Collect interface bytes/packets/errors/drops using
    rtnetlink or `/proc/net/dev`; add TCP retransmissions, connection failures,
    UDP errors and listen overflows from `/proc/net/{snmp,netstat}`. Inspect
    queues and TCP RTT/retransmission state through socket diagnostics netlink
