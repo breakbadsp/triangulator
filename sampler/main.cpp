@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <csignal>
+#include <cstring>
 #include <expected>
 #include <format>
 #include <string>
@@ -91,6 +92,8 @@ class Sampler
       if (reload_requested)
       {
         reload_requested = 0;
+        // A reload is a new start on operator request. Like startup, it
+        // may allocate; the sampling ticks after it do not.
         auto next = LoadConfig(p_config_path);
         if (next)
         {
@@ -102,9 +105,9 @@ class Sampler
         }
         else
         {
-          logger_.Warn(std::format(
+          logger_.Warn(
               "invalid SIGHUP config; keeping previous configuration: {}",
-              next.error()));
+              next.error());
         }
       }
       const auto lookup = FindTarget(config_.settings_.target_);
@@ -119,9 +122,8 @@ class Sampler
       {
         // Not the same as "target absent": keep the session and the
         // thread cache, send nothing and retry at the next deadline.
-        logger_.Warn(
-            std::format("target lookup failed: {}; tick skipped, session kept",
-                        std::generic_category().message(lookup.error())));
+        logger_.Warn("target lookup failed: {}; tick skipped, session kept",
+                     std::strerror(lookup.error()));
       }
       const auto interval = config_.settings_.Interval();
       const auto now = ClockNow(CLOCK_MONOTONIC);

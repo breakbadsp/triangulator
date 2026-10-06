@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
-#include <format>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -129,9 +129,9 @@ class ResourceProbe
       "cpu", "memory", "io"};
 
   // Contents of p_path, valid until the next read, or nullopt.
-  [[nodiscard]] std::optional<std::string_view> Read(const std::string& p_path)
+  [[nodiscard]] std::optional<std::string_view> Read(const char* p_path)
   {
-    return ReadAtStart(OpenReadonly(p_path.c_str()), buffer_);
+    return ReadAtStart(OpenReadonly(p_path), buffer_);
   }
 
   void StorePressure(std::size_t p_first, std::string_view p_text,
@@ -155,12 +155,13 @@ class ResourceProbe
     for (std::size_t index = 0; index < kPressureResources.size(); ++index)
     {
       if (const auto text =
-              Read(std::format("/proc/pressure/{}", kPressureResources[index])))
+              Read(FixedString{"/proc/pressure/{}", kPressureResources[index]}
+                       .CStr()))
       {
         StorePressure(kHostPressure + index * 4, *text, p_sample.summary_);
       }
     }
-    const auto cgroups = Read(std::format("/proc/{}/cgroup", p_pid));
+    const auto cgroups = Read(FixedString{"/proc/{}/cgroup", p_pid}.CStr());
     const auto path = cgroups.and_then(ParseCgroupPath);
     if (!path)
     {
@@ -170,8 +171,9 @@ class ResourceProbe
     for (std::size_t index = 0; index < kPressureResources.size(); ++index)
     {
       if (const auto text =
-              Read(std::format("/sys/fs/cgroup{}/{}.pressure", p_sample.cgroup_,
-                               kPressureResources[index])))
+              Read(FixedString{"/sys/fs/cgroup{}/{}.pressure", p_sample.cgroup_,
+                               kPressureResources[index]}
+                       .CStr()))
       {
         StorePressure(kCgroupPressure + index * 4, *text, p_sample.summary_);
       }
@@ -184,27 +186,25 @@ class ResourceProbe
     auto& summary = p_sample.summary_;
     socket_fds_.clear();
     links_hidden_ = false;
-    if (const auto limits = Read(std::format("/proc/{}/limits", p_pid))
+    if (const auto limits = Read(FixedString{"/proc/{}/limits", p_pid}.CStr())
                                 .and_then(ParseDescriptorLimits))
     {
       summary[Field("fd_soft_limit")] = limits->soft_;
       summary[Field("fd_hard_limit")] = limits->hard_;
     }
-    const Directory directory{
-        ::opendir(std::format("/proc/{}/fd", p_pid).c_str())};
+    Directory directory{FixedString{"/proc/{}/fd", p_pid}.CStr()};
     if (!directory)
     {
       links_hidden_ = true;
       p_sample.flags_ = p_sample.flags_ | Flags::DescriptorsHidden;
       return;
     }
-    const int directory_fd = ::dirfd(directory.get());
     std::uint64_t open = 0;
     std::uint64_t sockets = 0;
     std::array<char, 64> link{};
-    while (const auto* entry = ::readdir(directory.get()))
+    while (const auto entry = directory.Next())
     {
-      const auto fd = ParseNumber<std::uint32_t>(entry->d_name);
+      const auto fd = ParseNumber<std::uint32_t>(*entry);
       if (!fd)
       {
         continue;
@@ -214,8 +214,9 @@ class ResourceProbe
       {
         continue;
       }
+      // entry views a NUL-terminated name, so data() is a C string.
       const auto length =
-          ::readlinkat(directory_fd, entry->d_name, link.data(), link.size());
+          ::readlinkat(directory.Fd(), entry->data(), link.data(), link.size());
       if (length < 0)
       {
         // EACCES/EPERM: not dumpable or another user. ENOENT: closed since
@@ -251,7 +252,7 @@ class ResourceProbe
 
   void ReadProcessMemory(int p_pid, ResourceSample& p_sample)
   {
-    const auto text = Read(std::format("/proc/{}/status", p_pid));
+    const auto text = Read(FixedString{"/proc/{}/status", p_pid}.CStr());
     if (!text)
     {
       return;
@@ -278,10 +279,13 @@ class ResourceProbe
       return;
     }
     auto& summary = p_sample.summary_;
+    const auto path = [&](std::string_view p_file)
+    {
+      return FixedString{"/sys/fs/cgroup{}/{}", p_sample.cgroup_, p_file};
+    };
     const auto number = [&](std::string_view p_file, std::size_t p_field)
     {
-      if (const auto text = Read(
-              std::format("/sys/fs/cgroup{}/{}", p_sample.cgroup_, p_file)))
+      if (const auto text = Read(path(p_file).CStr()))
       {
         summary[p_field] =
             ParseCgroupNumber(*text).value_or(resource_wire::kUnavailable);
@@ -292,21 +296,20 @@ class ResourceProbe
     number("memory.high", Field("cgroup_memory_high"));
     number("pids.current", Field("cgroup_pids_current"));
     number("pids.max", Field("cgroup_pids_max"));
-    const auto base = std::format("/sys/fs/cgroup{}/", p_sample.cgroup_);
-    if (const auto text = Read(base + "memory.events"))
+    if (const auto text = Read(path("memory.events").CStr()))
     {
       summary[Field("cgroup_memory_max_events")] =
           FindKeyValue(*text, "max").value_or(resource_wire::kUnavailable);
       summary[Field("cgroup_memory_oom_kill")] =
           FindKeyValue(*text, "oom_kill").value_or(resource_wire::kUnavailable);
     }
-    if (const auto text = Read(base + "cpu.max").and_then(ParseCpuMax))
+    if (const auto text = Read(path("cpu.max").CStr()).and_then(ParseCpuMax))
     {
       summary[Field("cgroup_cpu_period_us")] = text->period_us_;
       summary[Field("cgroup_cpu_quota_us")] =
           text->quota_us_.value_or(resource_wire::kUnavailable);
     }
-    if (const auto text = Read(base + "cpu.stat"))
+    if (const auto text = Read(path("cpu.stat").CStr()))
     {
       for (const auto& [key, field] :
            {std::pair{"nr_periods", Field("cgroup_cpu_nr_periods")},
@@ -321,7 +324,7 @@ class ResourceProbe
 
   void ReadProcessIo(int p_pid, ResourceSample& p_sample)
   {
-    const auto text = Read(std::format("/proc/{}/io", p_pid));
+    const auto text = Read(FixedString{"/proc/{}/io", p_pid}.CStr());
     if (!text)
     {
       return;
@@ -350,7 +353,7 @@ class ResourceProbe
     const auto own_length =
         ::readlink("/proc/self/ns/net", own.data(), own.size());
     const auto target_length =
-        ::readlink(std::format("/proc/{}/ns/net", p_pid).c_str(), target.data(),
+        ::readlink(FixedString{"/proc/{}/ns/net", p_pid}.CStr(), target.data(),
                    target.size());
     if (own_length <= 0 || target_length <= 0)
     {
@@ -428,8 +431,8 @@ class ResourceProbe
   {
     diag_.reset();  // reopen next time, in case the socket is the problem
     p_sample.flags_ = p_sample.flags_ | Flags::SocketDiagFailed;
-    logger_.Warn(std::format("sock_diag {} failed: {}; socket queues omitted",
-                             p_step, std::generic_category().message(p_error)));
+    logger_.Warn("sock_diag {} failed: {}; socket queues omitted", p_step,
+                 std::strerror(p_error));
   }
 
   // Totals and TCP state counts over every matched socket.
@@ -569,7 +572,7 @@ class ResourceProbe
         {"TcpExt", "TCPReqQFullDrop", Field("net_tcp_req_q_full_drop")},
         {"TcpExt", "SyncookiesSent", Field("net_syncookies_sent")},
     }};
-    if (const auto text = Read(std::format("/proc/{}/net/snmp", p_pid)))
+    if (const auto text = Read(FixedString{"/proc/{}/net/snmp", p_pid}.CStr()))
     {
       for (const auto& counter : kSnmp)
       {
@@ -580,7 +583,7 @@ class ResourceProbe
     }
     // IPv6 UDP counters are separate; add them to IPv4's. A host without
     // IPv6 has no file, and IPv4 alone is the whole count.
-    if (const auto text = Read(std::format("/proc/{}/net/snmp6", p_pid)))
+    if (const auto text = Read(FixedString{"/proc/{}/net/snmp6", p_pid}.CStr()))
     {
       for (const auto& counter : kSnmp)
       {
@@ -589,7 +592,7 @@ class ResourceProbe
           continue;
         }
         const auto ipv6 =
-            FindKeyValue(*text, std::format("Udp6{}", counter.name_));
+            FindKeyValue(*text, FixedString{"Udp6{}", counter.name_}.View());
         auto& value = summary[counter.field_];
         if (ipv6 && value != resource_wire::kUnavailable)
         {
@@ -597,7 +600,8 @@ class ResourceProbe
         }
       }
     }
-    if (const auto text = Read(std::format("/proc/{}/net/netstat", p_pid)))
+    if (const auto text =
+            Read(FixedString{"/proc/{}/net/netstat", p_pid}.CStr()))
     {
       for (const auto& counter : kNetstat)
       {
@@ -606,15 +610,16 @@ class ResourceProbe
                 .value_or(resource_wire::kUnavailable);
       }
     }
-    if (const auto text =
-            Read(std::format("/proc/{}/net/dev", p_pid)).and_then(ParseNetDev))
+    if (const auto text = Read(FixedString{"/proc/{}/net/dev", p_pid}.CStr())
+                              .and_then(ParseNetDev))
     {
       summary[Field("net_if_rx_errors")] = text->rx_errors_;
       summary[Field("net_if_rx_dropped")] = text->rx_dropped_;
       summary[Field("net_if_tx_errors")] = text->tx_errors_;
       summary[Field("net_if_tx_dropped")] = text->tx_dropped_;
     }
-    if (const auto text = Read(std::format("/proc/{}/net/sockstat", p_pid)))
+    if (const auto text =
+            Read(FixedString{"/proc/{}/net/sockstat", p_pid}.CStr()))
     {
       for (const auto& [protocol, name, field] :
            {std::tuple{"TCP", "inuse", Field("sockstat_tcp_inuse")},

@@ -516,8 +516,8 @@ void TestResourceProbe()
 std::size_t OpenDescriptors()
 {
   std::size_t count = 0;
-  const Directory directory{::opendir("/proc/self/fd")};
-  while (::readdir(directory.get()))
+  Directory directory{"/proc/self/fd"};
+  while (directory.Next())
   {
     ++count;
   }
