@@ -1,7 +1,13 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/ioctl.h>
+
+#include <limits>
 #include <stdexcept>
 #include <type_traits>
 
 #include "../sampler/proc.hpp"
+#include "../sampler/resources.hpp"
 
 namespace
 {
@@ -81,6 +87,11 @@ void TestConfig()
   Require(config->Interval() == 5s && config->IntervalMs() == 5000,
           "rate converted to chrono duration");
   Require(config->status_fallback_, "fallback flag");
+  Require(config->resource_interval_s_ == 5, "resource samples default to 5 s");
+  const auto resources_off = ParseConfig(
+      "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
+  Require(resources_off && resources_off->resource_interval_s_ == 0,
+          "resource samples can be turned off");
   for (const auto invalid : {
            "target_pid=1\ntarget_process=foo\ncollector=127.0.0.1:9400",
            "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=nan",
@@ -90,6 +101,9 @@ void TestConfig()
            "target_pid=1\ncollector=\"127.0.0.1:9400",
            "target_pid=-1\ncollector=127.0.0.1:9400",
            "target_pid=1\ncollector=127.0.0.1:9400\nunknown=true",
+           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=61",
+           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=-1",
+           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=2.5",
        })
   {
     Require(!ParseConfig(invalid), "invalid config must be rejected");
@@ -182,6 +196,306 @@ void TestRaii()
           "destructor closes descriptor");
 }
 
+void TestResourceParsing()
+{
+  const auto pressure = ParsePressure(
+      "some avg10=1.51 avg60=2.41 avg300=1.57 total=520879556\n"
+      "full avg10=0.00 avg60=0.00 avg300=0.00 total=12\n");
+  Require(pressure.some_ && pressure.some_->avg10_hundredths_ == 151 &&
+              pressure.some_->total_us_ == 520879556,
+          "PSI some line");
+  Require(pressure.full_ && pressure.full_->avg10_hundredths_ == 0 &&
+              pressure.full_->total_us_ == 12,
+          "PSI full line");
+  const auto old_cpu =
+      ParsePressure("some avg10=0.50 avg60=0.10 avg300=0.00 total=7\n");
+  Require(old_cpu.some_ && !old_cpu.full_,
+          "CPU without a full line (before Linux 5.13)");
+  Require(!ParsePressure("some avg10=x total=1\nfull total=2\n").some_,
+          "a malformed PSI line is unavailable, not zero");
+
+  const auto limits = ParseDescriptorLimits(
+      "Limit                     Soft Limit           Hard Limit           "
+      "Units\nMax processes             63426                63426         "
+      "       processes\nMax open files            1024                 "
+      "524288               files\n");
+  Require(limits && limits->soft_ == 1024 && limits->hard_ == 524288,
+          "descriptor limits");
+  const auto unlimited = ParseDescriptorLimits(
+      "Max open files            unlimited            unlimited            "
+      "files\n");
+  Require(unlimited && unlimited->soft_ == resource_wire::kUnavailable,
+          "an unlimited limit has no headroom to report");
+  Require(!ParseDescriptorLimits("Max processes 1 1 processes\n"),
+          "missing row");
+
+  const std::string_view io =
+      "rchar: 11\nwchar: 22\nsyscr: 3\nsyscw: 4\nread_bytes: 5\n"
+      "write_bytes: 6\ncancelled_write_bytes: 7\n";
+  Require(FindKeyValue(io, "write_bytes") == 6 &&
+              FindKeyValue(io, "cancelled_write_bytes") == 7,
+          "process io keys");
+  Require(!FindKeyValue("read_bytes_extra: 1\n", "read_bytes"),
+          "a longer key is not the key");
+  Require(FindKeyValue("Udp6InErrors                     \t42\n",
+                       "Udp6InErrors") == 42,
+          "snmp6 key and value separated by blanks");
+
+  const std::string_view snmp =
+      "Tcp: RtoAlgorithm MaxConn ActiveOpens RetransSegs\n"
+      "Tcp: 1 -1 607048 4246\n"
+      "Udp: InDatagrams RcvbufErrors\nUdp: 9 1297\n";
+  const std::string_view netstat =
+      "TcpExt: SyncookiesSent ListenOverflows ListenDrops\n"
+      "TcpExt: 0 12 13\n"
+      "IpExt: InNoRoutes\nIpExt: 5\n";
+  Require(FindTableCounter(snmp, "Tcp", "RetransSegs") == 4246 &&
+              FindTableCounter(snmp, "Udp", "RcvbufErrors") == 1297,
+          "snmp counters");
+  Require(!FindTableCounter(snmp, "Tcp", "MaxConn"),
+          "a signed value is not a counter");
+  Require(FindTableCounter(netstat, "TcpExt", "ListenOverflows") == 12,
+          "netstat counters");
+  Require(!FindTableCounter(netstat, "Tcp", "ListenOverflows"),
+          "TcpExt is not the Tcp section");
+  Require(!FindTableCounter(netstat, "TcpExt", "TCPRcvQDrop"),
+          "a counter this kernel lacks is unavailable");
+
+  const std::string_view sockstat =
+      "sockets: used 1214\nTCP: inuse 23 orphan 0 tw 773 alloc 49 mem 151\n"
+      "UDP: inuse 12 mem 263\n";
+  Require(FindSockstat(sockstat, "TCP", "mem") == 151 &&
+              FindSockstat(sockstat, "UDP", "mem") == 263 &&
+              FindSockstat(sockstat, "TCP", "tw") == 773,
+          "sockstat values");
+  Require(!FindSockstat(sockstat, "UDPLITE", "mem"), "missing protocol");
+
+  Require(ParseCgroupPath("12:cpu:/x\n0::/system.slice/app.service\n") ==
+              "/system.slice/app.service",
+          "cgroup v2 path");
+  Require(!ParseCgroupPath("12:cpu,cpuacct:/x\n"), "cgroup v1 only");
+  const auto triple = ParseTriple("187146\t249531\t374292\n");
+  Require(triple && (*triple)[2] == 374292, "tcp_mem triple");
+  Require(!ParseTriple("1 2\n"), "short triple");
+}
+
+void TestMemoryCgroupAndInterfaceParsing()
+{
+  const std::string_view status =
+      "Name:\tworker\nVmPeak:\t 9000 kB\nVmHWM:\t 2048 kB\nVmRSS:\t 1024 kB\n"
+      "RssAnon:\t 512 kB\nRssFile:\t 400 kB\nRssShmem:\t 112 kB\n"
+      "VmSwap:\t 0 kB\n";
+  Require(FindKilobytes(status, "VmRSS") == 1024 * 1024 &&
+              FindKilobytes(status, "VmHWM") == 2048 * 1024 &&
+              FindKilobytes(status, "VmSwap") == 0,
+          "status memory lines are in bytes");
+  Require(!FindKilobytes("VmRSS:\t12 MB\n", "VmRSS"),
+          "a line that is not in kB is unavailable");
+  Require(!FindKilobytes("Name:\tx\n", "VmRSS"),
+          "a kernel thread has no VmRSS");
+  Require(!FindKilobytes("VmRSSX:\t1 kB\n", "VmRSS"),
+          "a longer key is not the key");
+  Require(ParseCgroupNumber("1073741824\n") == 1073741824, "cgroup number");
+  Require(!ParseCgroupNumber("max\n"), "no limit has no headroom");
+  const auto quota = ParseCpuMax("50000 100000\n");
+  Require(quota && quota->quota_us_ == 50000 && quota->period_us_ == 100000,
+          "cpu.max quota");
+  const auto unlimited = ParseCpuMax("max 100000\n");
+  Require(unlimited && !unlimited->quota_us_ && unlimited->period_us_ == 100000,
+          "cpu.max without a quota");
+  Require(!ParseCpuMax("max\n") && !ParseCpuMax("50000 0\n"),
+          "malformed cpu.max");
+  Require(
+      FindKeyValue("low 0\nhigh 0\nmax 7\noom 2\noom_kill 1\n", "max") == 7 &&
+          FindKeyValue("low 0\nhigh 0\nmax 7\noom 2\noom_kill 1\n",
+                       "oom_kill") == 1,
+      "memory.events counters");
+
+  const auto devices = ParseNetDev(
+      "Inter-|   Receive                                                |  "
+      "Transmit\n face |bytes    packets errs drop fifo frame compressed "
+      "multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+      "    lo: 100 1 9 9 0 0 0 0 100 1 9 9 0 0 0 0\n"
+      "  eth0: 2000 20 1 2 0 0 0 0 3000 30 3 4 0 0 0 0\n"
+      "  eth1: 1 1 10 20 0 0 0 0 1 1 30 40 0 0 0 0\n");
+  Require(devices && devices->rx_errors_ == 11 && devices->rx_dropped_ == 22 &&
+              devices->tx_errors_ == 33 && devices->tx_dropped_ == 44,
+          "interface counters skip lo and add the rest");
+  Require(!ParseNetDev("    lo: 1 1 0 0 0 0 0 0 1 1 0 0 0 0 0 0\n"),
+          "only lo has no interface counters");
+  Require(!ParseNetDev("eth0: 1 2 3\n"), "a short line is unavailable");
+}
+
+resource_wire::Socket SyntheticSocket(std::uint32_t p_fd, std::uint32_t p_used)
+{
+  resource_wire::Socket socket;
+  socket.kind_ = resource_wire::SocketKind::Tcp4;
+  socket.state_ = 1;
+  socket.fd_ = p_fd;
+  socket.rcvbuf_ = 1000;
+  socket.sndbuf_ = 1000;
+  socket.rmem_alloc_ = p_used;
+  return socket;
+}
+
+void TestSocketRanking()
+{
+  auto listener = SyntheticSocket(1, 0);
+  listener.state_ = std::to_underlying(SocketState::Listen);
+  listener.rx_queue_ = 3;  // pending connections
+  listener.tx_queue_ = 2;  // backlog
+  Require(Fullness(listener) == 1.5, "an overflowing accept queue");
+  auto sender = SyntheticSocket(2, 0);
+  sender.wmem_queued_ = 900;
+  Require(Fullness(sender) == 0.9, "a nearly full send buffer");
+  std::vector<resource_wire::Socket> sockets;
+  for (std::uint32_t fd = 10; fd < 40; ++fd)
+  {
+    sockets.push_back(SyntheticSocket(fd, fd));
+  }
+  sockets.push_back(sender);
+  Require(KeepFullest(sockets), "more than kMaxSockets are cut");
+  Require(sockets.size() == resource_wire::kMaxSockets &&
+              sockets.front().fd_ == 2 && sockets[1].fd_ == 39 &&
+              sockets.back().fd_ == 17,
+          "the fullest sockets are kept, fullest first");
+  std::vector<resource_wire::Socket> few{SyntheticSocket(1, 0)};
+  Require(!KeepFullest(few) && few.size() == 1, "few sockets are all kept");
+}
+
+const resource_wire::Socket* FindSocket(const ResourceSample& p_sample,
+                                        int p_fd)
+{
+  for (const auto& socket : p_sample.sockets_)
+  {
+    if (socket.fd_ == static_cast<std::uint32_t>(p_fd))
+    {
+      return &socket;
+    }
+  }
+  return nullptr;
+}
+
+// Samples this test process with sockets in known states: a TCP listener, an
+// accepted connection with unread data, a UDP socket and a unix pair with
+// unread data.
+void TestResourceProbe()
+{
+  FileDescriptor listener{::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0)};
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  socklen_t length = sizeof(address);
+  Require(
+      ::bind(listener.Get(), reinterpret_cast<sockaddr*>(&address), length) ==
+              0 &&
+          ::listen(listener.Get(), 4) == 0 &&
+          ::getsockname(listener.Get(), reinterpret_cast<sockaddr*>(&address),
+                        &length) == 0,
+      "listen on loopback");
+  FileDescriptor client{::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0)};
+  Require(::connect(client.Get(), reinterpret_cast<sockaddr*>(&address),
+                    length) == 0,
+          "connect");
+  FileDescriptor server{
+      ::accept4(listener.Get(), nullptr, nullptr, SOCK_CLOEXEC)};
+  const std::string payload(1000, 'x');
+  Require(::send(client.Get(), payload.data(), payload.size(), 0) == 1000,
+          "send");
+  // Bound: sock_diag lists only UDP sockets in the kernel's UDP table.
+  FileDescriptor udp{::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0)};
+  sockaddr_in udp_address{};
+  udp_address.sin_family = AF_INET;
+  udp_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  Require(::bind(udp.Get(), reinterpret_cast<sockaddr*>(&udp_address),
+                 sizeof(udp_address)) == 0,
+          "bind UDP");
+  int pair[2]{};
+  Require(::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair) == 0,
+          "socketpair");
+  FileDescriptor unix_writer{pair[0]};
+  FileDescriptor unix_reader{pair[1]};
+  Require(::write(unix_writer.Get(), payload.data(), 300) == 300, "unix write");
+  // Wait for loopback delivery, which is asynchronous.
+  for (int attempt = 0; attempt < 100; ++attempt)
+  {
+    int queued = 0;
+    if (::ioctl(server.Get(), FIONREAD, &queued) == 0 && queued == 1000)
+    {
+      break;
+    }
+    ::usleep(10000);
+  }
+
+  ResourceProbe probe;
+  const auto sample = probe.Sample(::getpid());
+  const auto& summary = sample.summary_;
+  Require(sample.flags_ == resource_wire::Flags::None,
+          "nothing hidden from the sampler's own user");
+  Require(summary[Field("fd_open")] >= 6 && summary[Field("fd_sockets")] >= 6 &&
+              summary[Field("fd_soft_limit")] != resource_wire::kUnavailable,
+          "descriptor counts and limit");
+  Require(summary[Field("tcp_sockets")] >= 3 &&
+              summary[Field("tcp_listeners")] >= 1 &&
+              summary[Field("tcp_rx_queue")] >= 1000 &&
+              summary[Field("tcp_established")] >= 2 &&
+              summary[Field("tcp_listen")] >= 1 &&
+              summary[Field("udp_sockets")] >= 1 &&
+              summary[Field("unix_sockets")] >= 2 &&
+              summary[Field("unix_rx_queue")] >= 300,
+          "socket totals");
+  Require(summary[Field("sockets_matched")] >= 6 &&
+              summary[Field("sockets_matched")] +
+                      summary[Field("sockets_unmatched")] ==
+                  summary[Field("fd_sockets")],
+          "every socket descriptor is matched or counted as unmatched");
+  const auto* accepted = FindSocket(sample, server.Get());
+  Require(accepted != nullptr && accepted->rx_queue_ == 1000 &&
+              accepted->rcvbuf_ > 0 && accepted->rmem_alloc_ > 0 &&
+              accepted->local_port_ == ntohs(address.sin_port) &&
+              resource_wire::HasFlag(accepted->flags_,
+                                     resource_wire::SocketFlags::TcpInfo),
+          "the accepted socket's unread bytes and buffer");
+  const auto* listening = FindSocket(sample, listener.Get());
+  Require(listening != nullptr &&
+              listening->state_ == std::to_underlying(SocketState::Listen) &&
+              listening->tx_queue_ == 4,
+          "the listener's backlog");
+  const auto* reader = FindSocket(sample, unix_reader.Get());
+  Require(reader != nullptr &&
+              reader->kind_ == resource_wire::SocketKind::UnixStream &&
+              reader->rx_queue_ == 300,
+          "the unix reader's unread bytes");
+  Require(
+      summary[Field("io_rchar")] != resource_wire::kUnavailable &&
+          summary[Field("net_tcp_active_opens")] !=
+              resource_wire::kUnavailable &&
+          summary[Field("sockstat_tcp_inuse")] != resource_wire::kUnavailable,
+      "process io and namespace counters");
+  const auto rss = summary[Field("rss_bytes")];
+  Require(rss != resource_wire::kUnavailable && rss > 0 &&
+              summary[Field("rss_peak_bytes")] >= rss &&
+              summary[Field("rss_anon_bytes")] <= rss,
+          "process memory: peak is at least the current size");
+  Require(summary[Field("net_if_rx_dropped")] == resource_wire::kUnavailable ||
+              summary[Field("net_if_rx_dropped")] <
+                  std::numeric_limits<std::uint64_t>::max() / 2,
+          "interface counters are counters or unavailable");
+  if (!sample.cgroup_.empty())
+  {
+    // Present on cgroup v2 hosts; the values themselves vary by host.
+    Require(summary[Field("cgroup_memory_current")] !=
+                    resource_wire::kUnavailable ||
+                summary[Field("cgroup_pids_current")] !=
+                    resource_wire::kUnavailable,
+            "cgroup memory or pids is readable for our own cgroup");
+  }
+  // PSI is optional (CONFIG_PSI, psi=0); when present it must be sane.
+  const auto some = summary[Field("host_io_some_avg10")];
+  Require(some == resource_wire::kUnavailable || some <= 10000,
+          "PSI avg10 is a percentage in hundredths");
+}
+
 }  // namespace
 
 std::size_t OpenDescriptors()
@@ -228,9 +542,13 @@ int main()
     TestWire();
     TestRaii();
     TestDescriptorBudget();
+    TestResourceParsing();
+    TestMemoryCgroupAndInterfaceParsing();
+    TestSocketRanking();
+    TestResourceProbe();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
-        "RAII, descriptor budget)");
+        "RAII, descriptor budget, resource parsing and probe)");
   }
   catch (const std::exception& error)
   {

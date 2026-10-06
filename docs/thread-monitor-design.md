@@ -132,7 +132,7 @@ Every file the sampler reads needs only ptrace *read* access, which a process ru
 - `CapabilityBoundingSet=` (empty)
 - `SystemCallFilter=@system-service` and `SystemCallFilter=~@debug` (blocks `ptrace` and `process_vm_*`)
 - `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`
-- `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX` (UNIX is for journald)
+- `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK` (UNIX is for journald; NETLINK is for the resource samples' sock_diag requests)
 - `IPAddressDeny=any`, `IPAddressAllow=<collector ip>`
 - `Restart=on-failure`
 - Binary and config owned by root, not writable by the app UID.

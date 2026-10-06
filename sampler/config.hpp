@@ -31,6 +31,9 @@ struct Config
   double rate_hz_ = 1.0;
   std::string collector_;
   bool status_fallback_ = false;
+  // Seconds between resource samples (pressure, descriptors, sockets); 0
+  // turns them off.
+  int resource_interval_s_ = 5;
 
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {
@@ -49,7 +52,7 @@ struct Config
 {
   Config config;
   bool target_set = false;
-  std::array<std::string_view, 5> keys{};
+  std::array<std::string_view, 6> keys{};
   std::size_t key_count = 0;
   while (!p_contents.empty())
   {
@@ -157,6 +160,16 @@ struct Config
         return std::unexpected("status_fallback must be true or false");
       }
       config.status_fallback_ = value == "true";
+    }
+    else if (key == "resource_interval_s")
+    {
+      const auto seconds = ParseNumber<int>(value);
+      if (!seconds || *seconds < 0 || *seconds > 60)
+      {
+        return std::unexpected(
+            "resource_interval_s must be 0 (off) or 1..60 seconds");
+      }
+      config.resource_interval_s_ = *seconds;
     }
     else
     {
