@@ -54,9 +54,6 @@ CREATE INDEX IF NOT EXISTS socket_heartbeat_pid
  ON socket_observation(pid, received) WHERE part=0;
 CREATE INDEX IF NOT EXISTS socket_heartbeat_received
  ON socket_observation(received) WHERE part=0;
-CREATE TABLE IF NOT EXISTS process_snapshot (
- ts REAL PRIMARY KEY NOT NULL, snapshot TEXT NOT NULL
-);
 CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );
@@ -568,23 +565,6 @@ class Storage
     return Run(file.database_.get(), file.rollup_.get());
   }
 
-  [[nodiscard]] SqliteResult Snapshot(double p_timestamp,
-                                      std::string_view p_snapshot)
-  {
-    auto connection = Connection(p_timestamp);
-    if (!connection)
-    {
-      return std::unexpected(std::move(connection.error()));
-    }
-    DayFile& file = connection->get();
-    if (auto begun = Begin(file); !begun)
-    {
-      return begun;
-    }
-    Binder{file.snapshot_.get()}.Add(p_timestamp).Add(p_snapshot);
-    return Run(file.database_.get(), file.snapshot_.get());
-  }
-
   [[nodiscard]] SqliteResult Raw(const RawRow& p_row)
   {
     auto connection = Connection(p_row.ts_);
@@ -731,7 +711,6 @@ class Storage
     Statement raw_;
     Statement socket_;
     Statement resource_;
-    Statement snapshot_;
     bool in_transaction_ = false;
   };
 
@@ -875,13 +854,6 @@ class Storage
       return std::unexpected(std::move(resource.error()));
     }
     file.resource_ = std::move(*resource);
-    auto snapshot = Prepare(
-        database, "INSERT OR REPLACE INTO process_snapshot VALUES (?,?)");
-    if (!snapshot)
-    {
-      return std::unexpected(std::move(snapshot.error()));
-    }
-    file.snapshot_ = std::move(*snapshot);
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }

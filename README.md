@@ -219,10 +219,10 @@ returns to the current process. The recorded view includes all threads, their
 states, wait channels, core placement, CPU, run delay, switches, I/O and health.
 Click a thread to open its summary history ending at the recorded time.
 
-The collector saves complete views approximately once per second by default,
-independently of `store_raw`. Set `replay_interval_s` in the collector config
-(0.5–60 seconds, or `0` to disable recording). Recordings start after upgrading
-and restarting the collector and use the existing `retention_days` setting.
+Recording is off by default. Set `replay_interval_s` in the collector config
+(0.5–60 seconds; `0`, the default, disables it) to save complete views,
+independently of `store_raw`. They go to `data_dir/replay/` and use the
+existing `retention_days` setting.
 Older rollups remain readable but cannot reconstruct a complete process view.
 State means the latest sampled observation; rates still cover the preceding
 ~10 seconds. The selected recording's timestamp and any recording gap are
@@ -255,7 +255,7 @@ resource samples in at most about 1,000 buckets (default the last 15 minutes).
 `/api/replay` returns recording bounds; `/api/replay?at=UNIX_SECONDS` returns
 those bounds and the latest recorded process view at or before that timestamp.
 Add `direction=previous` or `direction=next` to step strictly before or after it.
-A missing recording returns `snapshot: null`; unreadable storage returns 503.
+A missing recording returns `snapshot: null`; unreadable day files are skipped.
 
 ## Production setup
 

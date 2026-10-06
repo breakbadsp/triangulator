@@ -53,11 +53,10 @@ inline constexpr unsigned char kDashboardHtml[] = {
 class SharedState
 {
  public:
-  void SetLive(std::string p_live)
+  void SetLive(std::shared_ptr<const std::string> p_live)
   {
-    auto live = std::make_shared<const std::string>(std::move(p_live));
     std::lock_guard lock{mutex_};
-    live_ = std::move(live);
+    live_ = std::move(p_live);
   }
   [[nodiscard]] std::shared_ptr<const std::string> Live()
   {
@@ -696,14 +695,17 @@ class DashboardServer
               "application/json");
       return;
     }
-    auto replay = collector::Replay(config_.data_dir_, {at, direction});
-    if (!replay)
-    {
-      RespondJson(p_connection, 503, JsonObject{{"error", replay.error()}});
-      return;
-    }
-    replay->Set("interval_s", config_.replay_interval_s_);
-    RespondJson(p_connection, 200, *replay);
+    const auto replay = collector::Replay(config_.data_dir_, {at, direction});
+    // The stored view is sent as written; parsing and re-encoding a
+    // multi-megabyte view would hold up every other dashboard request.
+    Respond(
+        p_connection, 200,
+        std::format(R"({{"first":{},"last":{},"interval_s":{},)"
+                    R"("snapshot":{}}})",
+                    DumpJson(Json(replay.first_)), DumpJson(Json(replay.last_)),
+                    DumpJson(Json(config_.replay_interval_s_)),
+                    replay.snapshot_.value_or("null")),
+        "application/json");
   }
 
   void History(int p_connection, const Request& p_request)

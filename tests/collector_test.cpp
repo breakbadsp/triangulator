@@ -13,6 +13,7 @@
 #include <format>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -604,13 +605,22 @@ void TestSequenceWrapIsNotPacketLoss()
               0, "the sequence number wrapping to 0 is not loss");
 }
 
+// Parses the stored view a replay query returned.
+Json ReplaySnapshot(const ReplayResult& p_result)
+{
+  Require(p_result.snapshot_.has_value(), "a recording is found");
+  auto snapshot = ParseJson(*p_result.snapshot_);
+  Require(snapshot.has_value(), "the stored view is JSON");
+  return std::move(*snapshot);
+}
+
 // Replay preserves complete views across midnight and sampler sessions, uses
 // strict stepping, and reports missing history rather than inventing a state.
 void TestReplaySnapshots()
 {
   TempDirectory directory;
-  auto storage = Storage::Create(directory.Path(), 7);
-  Require(storage.has_value(), "snapshot storage opens");
+  auto writer = ReplayWriter::Create(ReplayDirectory(directory.Path()), 7);
+  Require(writer.has_value(), "the replay directory is created");
   constexpr double kMidnight = 1'700'006'400;
   const auto save = [&](double p_timestamp, std::string_view p_session,
                         std::string_view p_state)
@@ -624,57 +634,114 @@ void TestReplaySnapshots()
                                                     {"wchan", "futex_wait"},
                                                     {"cpu", 3},
                                                     {"cpu_pct", 25.0}}}}};
-    Require(storage->Snapshot(p_timestamp, DumpJson(snapshot)).has_value(),
+    Require(writer->Write(p_timestamp, DumpJson(snapshot)).has_value(),
             "complete snapshot is stored");
   };
   save(kMidnight - 1, "18446744073709551615", "futex");
   save(kMidnight + 1, "2", "running");
   save(kMidnight + 3, "2", "sleep");
-  Require(storage->Close().has_value(), "recordings survive closing storage");
   const auto bounds = Replay(directory.Path(), {});
-  Require(bounds.has_value(), "replay bounds load");
-  RequireNear(Field(*bounds, "first").AsNumber(), kMidnight - 1,
-              "bounds include yesterday");
-  RequireNear(Field(*bounds, "last").AsNumber(), kMidnight + 3,
-              "bounds include today");
-  const auto exact = Replay(directory.Path(), {kMidnight + 1, "at"});
-  Require(exact.has_value(), "exact replay loads");
-  const auto& snapshot = Field(*exact, "snapshot");
-  Require(Field(Field(snapshot, "health"), "session").AsString() == "2",
+  Require(bounds.first_ && bounds.last_ && !bounds.snapshot_,
+          "bounds load without a snapshot");
+  RequireNear(*bounds.first_, kMidnight - 1, "bounds include yesterday");
+  RequireNear(*bounds.last_, kMidnight + 3, "bounds include today");
+  const auto exact = ReplaySnapshot(Replay(directory.Path(), {kMidnight + 1}));
+  Require(Field(Field(exact, "health"), "session").AsString() == "2",
           "process session comes from the recording");
-  Require(Field(Field(snapshot, "threads").AsArray()[0], "state").AsString() ==
+  Require(Field(Field(exact, "threads").AsArray()[0], "state").AsString() ==
               "running",
           "recorded thread state is preserved");
-  const auto between = Replay(directory.Path(), {kMidnight, "at"});
-  Require(between.has_value(), "between-frame replay loads");
-  Require(Field(Field(Field(*between, "snapshot"), "health"), "session")
-                  .AsString() == "18446744073709551615",
+  const auto between = ReplaySnapshot(Replay(directory.Path(), {kMidnight}));
+  Require(Field(Field(between, "health"), "session").AsString() ==
+              "18446744073709551615",
           "previous frame retains an old session without numeric rounding");
-  const auto previous = Replay(directory.Path(), {kMidnight + 1, "previous"});
-  const auto next = Replay(directory.Path(), {kMidnight - 1, "next"});
-  Require(previous.has_value() && next.has_value(), "stepping loads");
-  RequireNear(Field(Field(*previous, "snapshot"), "recorded_at").AsNumber(),
+  RequireNear(Field(ReplaySnapshot(
+                        Replay(directory.Path(), {kMidnight + 1, "previous"})),
+                    "recorded_at")
+                  .AsNumber(),
               kMidnight - 1, "previous crosses UTC midnight");
-  RequireNear(Field(Field(*next, "snapshot"), "recorded_at").AsNumber(),
-              kMidnight + 1, "next excludes the current frame");
+  RequireNear(
+      Field(ReplaySnapshot(Replay(directory.Path(), {kMidnight - 1, "next"})),
+            "recorded_at")
+          .AsNumber(),
+      kMidnight + 1, "next excludes the current frame");
   for (const ReplayQuery query :
        {ReplayQuery{kMidnight - 2, "at"}, ReplayQuery{kMidnight + 3, "next"}})
   {
-    const auto empty = Replay(directory.Path(), query);
-    Require(empty && Field(*empty, "snapshot").IsNull(),
+    Require(!Replay(directory.Path(), query).snapshot_,
             "missing recordings stay missing");
   }
-  auto old = OpenDatabase(directory.Path() / "2023-11-13.sqlite3", false);
-  Require(old && Execute(old->get(), "CREATE TABLE thread_rollup(ts REAL)"),
-          "an old rollup-only file is created");
-  Require(Replay(directory.Path(), {}).has_value(),
-          "rollup-only files remain compatible");
-  Require(Execute(old->get(), "DROP TABLE thread_rollup").has_value(),
-          "test database remains writable");
-  Require(storage->Flush(kMidnight + 8 * 86400).has_value(), "retention runs");
-  const auto pruned = Replay(directory.Path(), {});
-  Require(pruned && Field(*pruned, "first").IsNull(),
-          "day retention also deletes replay recordings");
+  // A new day prunes recordings older than the retention period.
+  save(kMidnight + 8 * 86400, "3", "sleep");
+  Require(*Replay(directory.Path(), {}).first_ == kMidnight + 8 * 86400,
+          "day retention deletes old recordings");
+}
+
+// A damaged or half-created replay file is skipped: the others still answer.
+void TestReplaySkipsUnreadableFiles()
+{
+  TempDirectory directory;
+  auto writer = ReplayWriter::Create(ReplayDirectory(directory.Path()), 7);
+  Require(writer.has_value(), "the replay directory is created");
+  constexpr double kDay = 1'700'006'400;  // 2023-11-15 UTC
+  Require(writer->Write(kDay + 10, R"({"recorded_at":1})").has_value() &&
+              writer->Write(kDay + 86400 + 10, R"({"recorded_at":2})"),
+          "two days are recorded");
+  {
+    std::ofstream garbage{ReplayDirectory(directory.Path()) /
+                          "2023-11-14.sqlite3"};
+    for (int line = 0; line < 100; ++line)
+    {
+      garbage << "not a database";
+    }
+  }
+  auto empty = OpenDatabase(
+      ReplayDirectory(directory.Path()) / "2023-11-17.sqlite3", false);
+  Require(empty.has_value(), "a file without the table is created");
+  const auto bounds = Replay(directory.Path(), {});
+  Require(bounds.first_ && *bounds.first_ == kDay + 10,
+          "the oldest readable file gives the first bound");
+  Require(bounds.last_ && *bounds.last_ == kDay + 86400 + 10,
+          "the newest readable file gives the last bound");
+  Require(Replay(directory.Path(), {kDay + 3 * 86400}).snapshot_ ==
+              R"({"recorded_at":2})",
+          "the search continues past an unreadable day");
+  Require(Replay(directory.Path(), {kDay - 86400, "next"}).snapshot_ ==
+              R"({"recorded_at":1})",
+          "next skips the damaged older file");
+}
+
+// The recorder writes on its own thread; failures are logged, not fatal,
+// and a disabled recorder writes nothing.
+void TestSnapshotRecorder()
+{
+  TempDirectory directory;
+  const auto view =
+      std::make_shared<const std::string>(R"({"recorded_at":1700006410})");
+  {
+    SnapshotRecorder disabled{directory.Path(), 7, 0};
+    Require(disabled.Start().has_value(), "a disabled recorder starts");
+    disabled.Offer(1'700'006'410, view);
+  }
+  Require(!std::filesystem::exists(ReplayDirectory(directory.Path())),
+          "a disabled recorder creates nothing");
+  const auto blocker = directory.Path() / "file";
+  std::ofstream{blocker} << "";
+  {
+    SnapshotRecorder failing{blocker / "data", 7, 1};
+    Require(failing.Start().has_value(), "the recorder starts");
+    failing.Offer(1'700'006'410, view);
+    failing.Stop();
+  }
+  SnapshotRecorder recorder{directory.Path(), 7, 60};
+  Require(recorder.Start().has_value(), "the recorder starts");
+  recorder.Offer(1'700'006'410, view);
+  recorder.Offer(1'700'006'411, view);
+  recorder.Stop();
+  const auto bounds = Replay(directory.Path(), {});
+  Require(bounds.first_ && *bounds.first_ == 1'700'006'410 &&
+              *bounds.last_ == 1'700'006'410,
+          "stopping writes the waiting view, one per interval");
 }
 
 // Invalid recording intervals fail configuration validation before startup.
@@ -727,8 +794,6 @@ void TestStorageReportsErrors()
   Require(
       History(directory.Path(), "1", 42, 1'700'000'000, 1'700'000'100).empty(),
       "History skips a day file it can't read");
-  Require(!Replay(directory.Path(), {}),
-          "Replay reports an unreadable day file instead of hiding history");
 }
 
 // ---------- Resource samples ----------
@@ -1213,6 +1278,8 @@ int main()
     TestExistingDayFileGainsNewResourceColumns();
     TestResourceStorageAndHistory();
     TestReplaySnapshots();
+    TestReplaySkipsUnreadableFiles();
+    TestSnapshotRecorder();
     TestReplayConfig();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
