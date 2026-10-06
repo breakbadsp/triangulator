@@ -26,3 +26,19 @@
   return `std::expected` / `std::optional`; exceptions only where that doc
   allows them.
 - Each commit must build and pass `make check` on its own.
+
+## Git workflow
+
+- Create both a new Git worktree and a new branch for every new change,
+  including documentation changes. Make the changes in that worktree;
+  never make new changes directly on `master` or in the primary checkout.
+- Use a descriptive branch name that explains the change, for example
+  `feat/process-memory-monitoring`, `fix/resource-session-ordering`, or
+  `docs/require-descriptive-branches-and-prs`.
+- As soon as a change is complete and the required checks pass, commit it,
+  push the branch, and open a pull request targeting `master`. Do not wait
+  for a separate request to raise the PR.
+- Once the PR is confirmed merged into `master`, remove its worktree with
+  `git worktree remove` from another checkout. Preserve any uncommitted or
+  untracked work before removal; never force removal or remove the primary
+  checkout.
