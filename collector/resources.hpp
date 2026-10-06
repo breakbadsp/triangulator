@@ -9,20 +9,20 @@
 #include <arpa/inet.h>
 
 #include <algorithm>
+#include <bitset>
 #include <cmath>
 #include <cstdint>
-#include <deque>
 #include <format>
-#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "../common/resource_wire.hpp"
+#include "bounded.hpp"
 #include "json.hpp"
 #include "storage.hpp"
+#include "text.hpp"
 
 namespace triangulator::collector
 {
@@ -50,10 +50,13 @@ using resource_wire::Field;
   return index < kNames.size() ? kNames[index] : "?";
 }
 
-// "10.0.0.1:443" or "[::1]:443"; an IPv4-mapped IPv6 address shows as IPv4.
-[[nodiscard]] inline std::string FormatEndpoint(
-    resource_wire::SocketKind p_kind,
-    const std::array<std::uint8_t, 16>& p_address, std::uint16_t p_port)
+// Appends "10.0.0.1:443" or "[::1]:443"; an IPv4-mapped IPv6 address shows
+// as IPv4. The longest result is 53 bytes.
+template <std::size_t TCapacity>
+void AppendEndpoint(FixedText<TCapacity>& p_out,
+                    resource_wire::SocketKind p_kind,
+                    const std::array<std::uint8_t, 16>& p_address,
+                    std::uint16_t p_port)
 {
   std::array<char, INET6_ADDRSTRLEN> text{};
   const bool ipv6 = p_kind == resource_wire::SocketKind::Tcp6 ||
@@ -66,11 +69,27 @@ using resource_wire::Field;
   {
     ::inet_ntop(AF_INET, p_address.data() + (mapped ? 12 : 0), text.data(),
                 static_cast<socklen_t>(text.size()));
-    return std::format("{}:{}", text.data(), p_port);
+    p_out.Append(text.data());
   }
-  ::inet_ntop(AF_INET6, p_address.data(), text.data(),
-              static_cast<socklen_t>(text.size()));
-  return std::format("[{}]:{}", text.data(), p_port);
+  else
+  {
+    ::inet_ntop(AF_INET6, p_address.data(), text.data(),
+                static_cast<socklen_t>(text.size()));
+    p_out.Append("[");
+    p_out.Append(text.data());
+    p_out.Append("]");
+  }
+  p_out.Append(":");
+  AppendUnsigned(p_out, p_port);
+}
+
+[[nodiscard]] inline std::string FormatEndpoint(
+    resource_wire::SocketKind p_kind,
+    const std::array<std::uint8_t, 16>& p_address, std::uint16_t p_port)
+{
+  FixedText<64> text;
+  AppendEndpoint(text, p_kind, p_address, p_port);
+  return std::string{text.View()};
 }
 
 // Percentage p_part of p_whole, or nullopt when p_whole is zero.
@@ -118,12 +137,18 @@ struct ResourceSample
 {
   resource_wire::Header header_;
   resource_wire::SummaryValues values_{};
-  std::string cgroup_;
-  std::vector<resource_wire::Socket> sockets_;
+  FixedText<resource_wire::kCgroupSize> cgroup_;
+  std::array<resource_wire::Socket, resource_wire::kMaxSockets> socket_rows_{};
+  std::size_t socket_count_ = 0;
   bool sockets_complete_ = true;
   double received_{};
   double wall_{};
   double monotonic_{};
+
+  [[nodiscard]] std::span<const resource_wire::Socket> Sockets() const noexcept
+  {
+    return std::span{socket_rows_}.first(socket_count_);
+  }
 };
 
 class ResourceMonitor
@@ -137,15 +162,18 @@ class ResourceMonitor
   // show, so an idle process stores almost nothing.
   static constexpr std::size_t kStoredSockets = 8;
 
+  explicit ResourceMonitor(RowSink& p_sink) : sink_(p_sink)
+  {
+  }
+
   std::int64_t bad_parts_ = 0;
 
-  void Accept(resource_wire::Part p_part, double p_received)
+  void Accept(const resource_wire::Part& p_part, double p_received)
   {
     const auto& header = p_part.header_;
     if (!session_ || header.session_ != *session_)
     {
-      if (std::ranges::find(retired_sessions_, header.session_) !=
-          retired_sessions_.end())
+      if (IsRetired(header.session_))
       {
         ++late_;
         return;
@@ -155,34 +183,28 @@ class ResourceMonitor
         // Finish the old target before using any parts from the new one.
         // Remember even sessions that only sent an incomplete sample.
         Drain(p_received, true);
-        retired_sessions_.push_back(*session_);
-        if (retired_sessions_.size() > kMaxRetiredSessions)
-        {
-          retired_sessions_.pop_front();
-        }
+        retired_sessions_.PushBack(*session_);
       }
       session_ = header.session_;
     }
-    const Key key{header.session_, header.sequence_};
     if (latest_ && latest_->header_.session_ == header.session_ &&
         header.sequence_ <= latest_->header_.sequence_)
     {
       ++late_;
       return;
     }
-    auto found = pending_.find(key);
-    if (found == pending_.end())
+    Assembly* found = Find(header.session_, header.sequence_);
+    if (found == nullptr)
     {
-      if (pending_.size() >= kMaxPending)
+      if (Active() >= kMaxPending)
       {
-        Finish(pending_.begin());
+        Finish(*Smallest(nullptr));
       }
-      Assembly assembly;
-      assembly.header_ = header;
-      assembly.received_ = p_received;
-      found = pending_.emplace(key, std::move(assembly)).first;
+      found = FindFree();
+      assert(found != nullptr);
+      found->Start(header, p_received);
     }
-    auto& assembly = found->second;
+    auto& assembly = *found;
     if (!header.SameSample(assembly.header_))
     {
       ++bad_parts_;
@@ -195,18 +217,29 @@ class ResourceMonitor
         return;  // duplicate
       }
       assembly.summary_ = p_part.values_;
-      assembly.cgroup_ = std::string{p_part.cgroup_.data()};
+      assembly.cgroup_ = std::string_view{
+          p_part.cgroup_.data(),
+          std::char_traits<char>::length(p_part.cgroup_.data())};
     }
-    else if (!assembly.sockets_
-                  .emplace(header.part_, std::move(p_part.sockets_))
-                  .second)
+    else
     {
-      return;  // duplicate
+      if (assembly.parts_seen_.test(header.part_))
+      {
+        return;  // duplicate
+      }
+      assembly.parts_seen_.set(header.part_);
+      const auto first =
+          (header.part_ - std::size_t{1}) * resource_wire::kSocketsPerPart;
+      std::ranges::copy(
+          p_part.Sockets(),
+          assembly.sockets_.begin() + static_cast<std::ptrdiff_t>(first));
+      assembly.part_rows_[header.part_] =
+          static_cast<std::uint8_t>(p_part.socket_count_);
     }
     if (assembly.summary_ &&
-        assembly.sockets_.size() + 1 == assembly.header_.parts_)
+        assembly.parts_seen_.count() + 1 == assembly.header_.parts_)
     {
-      Finish(found);
+      Finish(assembly);
     }
   }
 
@@ -214,14 +247,16 @@ class ResourceMonitor
   // in sequence order.
   void Drain(double p_now, bool p_force = false)
   {
-    for (auto iterator = pending_.begin(); iterator != pending_.end();)
+    const Assembly* after = nullptr;
+    Key after_key{};
+    while (Assembly* next = Smallest(after != nullptr ? &after_key : nullptr))
     {
-      const auto next = std::next(iterator);
-      if (p_force || p_now - iterator->second.received_ >= kGraceSeconds)
+      after_key = {next->header_.session_, next->header_.sequence_};
+      after = next;
+      if (p_force || p_now - next->received_ >= kGraceSeconds)
       {
-        Finish(iterator);
+        Finish(*next);
       }
-      iterator = next;
     }
   }
 
@@ -249,35 +284,118 @@ class ResourceMonitor
     return result;
   }
 
-  [[nodiscard]] const std::vector<ResourceRow>& PendingRows() const noexcept
-  {
-    return rows_;
-  }
-  void ClearRows() noexcept
-  {
-    rows_.clear();
-  }
+  // Memory is fixed at construction: Accept() and Drain() allocate nothing.
+  // Snapshot() builds JSON and does allocate.
 
  private:
   using Key = std::pair<std::uint64_t, std::uint32_t>;
+
+  // A sample whose parts are still arriving. Socket rows from part N go to
+  // sockets_ at (N - 1) * kSocketsPerPart, so Finish() can join them in part
+  // order.
   struct Assembly
   {
+    bool active_ = false;
     resource_wire::Header header_;
     double received_{};
     std::optional<resource_wire::SummaryValues> summary_;
-    std::string cgroup_;
-    std::map<std::uint8_t, std::vector<resource_wire::Socket>> sockets_;
+    FixedText<resource_wire::kCgroupSize> cgroup_;
+    std::bitset<resource_wire::kMaxParts> parts_seen_;
+    std::array<std::uint8_t, resource_wire::kMaxParts> part_rows_{};
+    std::array<resource_wire::Socket,
+               resource_wire::kMaxParts * resource_wire::kSocketsPerPart>
+        sockets_{};
+
+    void Start(const resource_wire::Header& p_header, double p_received)
+    {
+      active_ = true;
+      header_ = p_header;
+      received_ = p_received;
+      summary_.reset();
+      cgroup_.Clear();
+      parts_seen_.reset();
+      part_rows_.fill(0);
+    }
   };
 
-  std::map<Key, Assembly> pending_;
+  RowSink& sink_;
+  std::array<Assembly, kMaxPending> pending_;
   std::optional<std::uint64_t> session_;
-  std::deque<std::uint64_t> retired_sessions_;
+  Ring<std::uint64_t, kMaxRetiredSessions> retired_sessions_;
   std::optional<ResourceSample> latest_;
   std::optional<ResourceSample> previous_;
-  std::vector<ResourceRow> rows_;
   std::int64_t samples_ = 0;
   std::int64_t incomplete_ = 0;
   std::int64_t late_ = 0;
+
+  [[nodiscard]] bool IsRetired(std::uint64_t p_session) const noexcept
+  {
+    for (std::size_t index = 0; index < retired_sessions_.Size(); ++index)
+    {
+      if (retired_sessions_[index] == p_session)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  [[nodiscard]] Assembly* Find(std::uint64_t p_session,
+                               std::uint32_t p_sequence) noexcept
+  {
+    for (auto& assembly : pending_)
+    {
+      if (assembly.active_ && assembly.header_.session_ == p_session &&
+          assembly.header_.sequence_ == p_sequence)
+      {
+        return &assembly;
+      }
+    }
+    return nullptr;
+  }
+
+  [[nodiscard]] Assembly* FindFree() noexcept
+  {
+    for (auto& assembly : pending_)
+    {
+      if (!assembly.active_)
+      {
+        return &assembly;
+      }
+    }
+    return nullptr;
+  }
+
+  [[nodiscard]] std::size_t Active() const noexcept
+  {
+    return static_cast<std::size_t>(
+        std::ranges::count_if(pending_,
+                              [](const Assembly& p_assembly)
+                              {
+                                return p_assembly.active_;
+                              }));
+  }
+
+  // The active assembly with the smallest (session, sequence) key above
+  // p_after, or above nothing when p_after is null.
+  [[nodiscard]] Assembly* Smallest(const Key* p_after) noexcept
+  {
+    Assembly* best = nullptr;
+    for (auto& assembly : pending_)
+    {
+      const Key key{assembly.header_.session_, assembly.header_.sequence_};
+      if (!assembly.active_ || (p_after != nullptr && !(*p_after < key)))
+      {
+        continue;
+      }
+      if (best == nullptr ||
+          key < Key{best->header_.session_, best->header_.sequence_})
+      {
+        best = &assembly;
+      }
+    }
+    return best;
+  }
 
   [[nodiscard]] Json Stats() const
   {
@@ -307,43 +425,47 @@ class ResourceMonitor
     return &*previous_;
   }
 
-  void Finish(std::map<Key, Assembly>::iterator p_found)
+  void Finish(Assembly& p_assembly)
   {
-    auto assembly = std::move(p_found->second);
-    pending_.erase(p_found);
-    if (!assembly.summary_)
+    p_assembly.active_ = false;
+    const auto& header = p_assembly.header_;
+    if (!p_assembly.summary_)
     {
       ++incomplete_;
       return;
     }
-    if (latest_ && latest_->header_.session_ == assembly.header_.session_ &&
-        assembly.header_.sequence_ <= latest_->header_.sequence_)
+    if (latest_ && latest_->header_.session_ == header.session_ &&
+        header.sequence_ <= latest_->header_.sequence_)
     {
       ++late_;
       return;
     }
-    ResourceSample sample;
-    sample.header_ = assembly.header_;
-    sample.values_ = *assembly.summary_;
-    sample.cgroup_ = std::move(assembly.cgroup_);
+    previous_ = std::move(latest_);
+    ResourceSample& sample = latest_.emplace();
+    sample.header_ = header;
+    sample.values_ = *p_assembly.summary_;
+    sample.cgroup_ = p_assembly.cgroup_;
     sample.sockets_complete_ =
-        assembly.sockets_.size() + 1 == assembly.header_.parts_;
-    for (auto& [part, sockets] : assembly.sockets_)
+        p_assembly.parts_seen_.count() + 1 == header.parts_;
+    for (std::size_t part = 1; part < resource_wire::kMaxParts; ++part)
     {
-      std::ranges::move(sockets, std::back_inserter(sample.sockets_));
+      const auto first = (part - 1) * resource_wire::kSocketsPerPart;
+      for (std::size_t row = 0; row < p_assembly.part_rows_[part]; ++row)
+      {
+        sample.socket_rows_[sample.socket_count_++] =
+            p_assembly.sockets_[first + row];
+      }
     }
-    sample.received_ = assembly.received_;
-    sample.monotonic_ = static_cast<double>(sample.header_.monotonic_ns_) / 1e9;
-    sample.wall_ = static_cast<double>(sample.header_.wall_ns_) / 1e9;
+    sample.received_ = p_assembly.received_;
+    sample.monotonic_ = static_cast<double>(header.monotonic_ns_) / 1e9;
+    sample.wall_ = static_cast<double>(header.wall_ns_) / 1e9;
     if (std::fabs(sample.wall_ - sample.received_) > 86400)
     {
       sample.wall_ = sample.received_;
     }
     incomplete_ += sample.sockets_complete_ ? 0 : 1;
     ++samples_;
-    previous_ = std::move(latest_);
-    latest_ = std::move(sample);
-    rows_.push_back(Row(*latest_, Previous()));
+    sink_.Resource(Row(sample, Previous()));
   }
 
   [[nodiscard]] static std::optional<std::uint64_t> Value(
@@ -457,6 +579,25 @@ class ResourceMonitor
     return result;
   }
 
+  // The same socket in the previous sample, or null.
+  [[nodiscard]] static const resource_wire::Socket* SocketBefore(
+      const resource_wire::Socket& p_socket, const ResourceSample* p_previous)
+  {
+    if (p_previous == nullptr)
+    {
+      return nullptr;
+    }
+    const auto sockets = p_previous->Sockets();
+    const auto found =
+        std::ranges::find_if(sockets,
+                             [&](const resource_wire::Socket& p_other)
+                             {
+                               return p_other.inode_ == p_socket.inode_ &&
+                                      p_other.kind_ == p_socket.kind_;
+                             });
+    return found != sockets.end() ? &*found : nullptr;
+  }
+
   // One socket for the live view; p_previous gives per-socket growth.
   [[nodiscard]] static Json SocketJson(const resource_wire::Socket& p_socket,
                                        const ResourceSample* p_previous,
@@ -464,21 +605,7 @@ class ResourceMonitor
   {
     using resource_wire::SocketFlags;
     const auto fill = Fill(p_socket);
-    const resource_wire::Socket* before = nullptr;
-    if (p_previous != nullptr)
-    {
-      const auto found =
-          std::ranges::find_if(p_previous->sockets_,
-                               [&](const resource_wire::Socket& p_other)
-                               {
-                                 return p_other.inode_ == p_socket.inode_ &&
-                                        p_other.kind_ == p_socket.kind_;
-                               });
-      if (found != p_previous->sockets_.end())
-      {
-        before = &*found;
-      }
-    }
+    const resource_wire::Socket* before = SocketBefore(p_socket, p_previous);
     const auto grew =
         [&](std::uint64_t p_now,
             std::uint64_t p_before) -> std::optional<std::uint64_t>
@@ -586,7 +713,8 @@ class ResourceMonitor
         {"pid", header.pid_},
         {"interval_s", header.interval_ms_ / 1000.0},
         {"elapsed_s", p_previous ? Json(elapsed) : Json{}},
-        {"cgroup", p_sample.cgroup_.empty() ? Json{} : Json(p_sample.cgroup_)},
+        {"cgroup",
+         p_sample.cgroup_.Empty() ? Json{} : Json(p_sample.cgroup_.View())},
         {"flags",
          JsonObject{{"other_network_namespace",
                      HasFlag(header.flags_, Flags::OtherNetworkNamespace)},
@@ -654,7 +782,7 @@ class ResourceMonitor
     sockets.Set("unmatched", value(Field("sockets_unmatched")));
     sockets.Set("complete", p_sample.sockets_complete_);
     JsonArray top;
-    for (const auto& socket : p_sample.sockets_)
+    for (const auto& socket : p_sample.Sockets())
     {
       top.push_back(SocketJson(socket, p_previous, elapsed));
     }
@@ -768,7 +896,7 @@ class ResourceMonitor
     };
     const auto& header = p_sample.header_;
     set(ResourceColumnIndex("ts"), p_sample.wall_);
-    set(ResourceColumnIndex("session"), std::to_string(header.session_));
+    AppendUnsigned(row.session_, header.session_);
     set(ResourceColumnIndex("sequence"), std::int64_t{header.sequence_});
     set(ResourceColumnIndex("pid"), std::int64_t{header.pid_});
     set(ResourceColumnIndex("elapsed_s"),
@@ -869,7 +997,7 @@ class ResourceMonitor
         p_best = p_value;
       }
     };
-    for (const auto& socket : p_sample.sockets_)
+    for (const auto& socket : p_sample.Sockets())
     {
       const auto fill = Fill(socket);
       higher(receive, fill.receive_);
@@ -911,82 +1039,180 @@ class ResourceMonitor
     }
     set(ResourceColumnIndex("flags"),
         std::int64_t{std::to_underlying(header.flags_)});
-    set(ResourceColumnIndex("cgroup"), p_sample.cgroup_);
-    set(ResourceColumnIndex("sockets"), StoredSockets(p_sample, p_previous));
+    row.cgroup_ = p_sample.cgroup_;
+    AppendStoredSockets(row.sockets_, p_sample, p_previous);
     set(ResourceColumnIndex("sockets_complete"),
         std::int64_t{p_sample.sockets_complete_ ? 1 : 0});
     return row;
   }
 
-  // Compact JSON of the sockets worth keeping: queued data, a buffer at
-  // least a tenth full, or new drops or retransmissions. Only the fields an
-  // incident review needs, rounded, to keep rows small.
-  [[nodiscard]] static std::string StoredSockets(
-      const ResourceSample& p_sample, const ResourceSample* p_previous)
+  // Appends the compact JSON of the sockets worth keeping: queued data, a
+  // buffer at least a tenth full, or new drops or retransmissions. Only the
+  // fields an incident review needs, rounded, to keep rows small. At most
+  // kStoredSockets sockets, and only as many as fit in p_out.
+  static void AppendStoredSockets(StoredSocketsText& p_out,
+                                  const ResourceSample& p_sample,
+                                  const ResourceSample* p_previous)
   {
+    using resource_wire::HasFlag;
+    using resource_wire::SocketFlags;
     const double elapsed = p_previous ? Elapsed(p_sample, *p_previous) : 0;
-    const auto rounded = [](const Json* p_value) -> Json
+    const auto rounded = [](double p_value)
     {
-      if (p_value == nullptr || !p_value->IsNumber())
-      {
-        return Json{};
-      }
-      return std::round(p_value->AsNumber() * 10) / 10;
+      return std::round(p_value * 10) / 10;
     };
-    const auto positive = [](const Json* p_value)
+    p_out.Clear();
+    p_out.Append("[");
+    std::size_t kept = 0;
+    for (const auto& socket : p_sample.Sockets())
     {
-      return p_value != nullptr && p_value->IsInt() && p_value->AsInt() > 0;
-    };
-    JsonArray kept;
-    for (const auto& socket : p_sample.sockets_)
-    {
-      if (kept.size() == kStoredSockets)
+      if (kept == kStoredSockets)
       {
         break;
       }
-      const auto json = SocketJson(socket, p_previous, elapsed);
+      const auto* before = SocketBefore(socket, p_previous);
+      const auto grew =
+          [&](std::uint64_t p_now,
+              std::uint64_t p_before) -> std::optional<std::uint64_t>
+      {
+        if (before == nullptr || p_now < p_before)
+        {
+          return std::nullopt;
+        }
+        return p_now - p_before;
+      };
+      const bool memory = HasFlag(socket.flags_, SocketFlags::Memory);
+      const bool tcp_info = HasFlag(socket.flags_, SocketFlags::TcpInfo);
+      const auto drops = memory
+                             ? grew(socket.drops_, before ? before->drops_ : 0)
+                             : std::nullopt;
+      const auto retrans = tcp_info ? grew(socket.total_retrans_,
+                                           before ? before->total_retrans_ : 0)
+                                    : std::nullopt;
       const auto fill = Fill(socket);
-      const auto* tcp = json.Find("tcp");
-      const auto* retrans =
-          tcp != nullptr ? tcp->Find("retrans_delta") : nullptr;
       const bool listener = socket.state_ == 10;
       const bool busy =
           socket.rx_queue_ > 0 || (socket.tx_queue_ > 0 && !listener) ||
           std::max({fill.receive_.value_or(0), fill.send_.value_or(0),
                     fill.accept_.value_or(0)}) >= 10 ||
-          positive(json.Find("drops_delta")) || positive(retrans);
+          (drops && *drops > 0) || (retrans && *retrans > 0);
       if (!busy)
       {
         continue;
       }
-      Json stored = JsonObject{{"fd", socket.fd_},
-                               {"kind", *json.Find("kind")},
-                               {"state", *json.Find("state")}};
-      for (const auto key :
-           {"path", "local", "remote", "rx_queue", "tx_queue", "drops_delta"})
+      const auto start = p_out.View().size();
+      bool fitted = true;
+      const auto text = [&](std::string_view p_text)
       {
-        if (const auto* value = json.Find(key); value && !value->IsNull())
+        fitted &= p_out.Append(p_text);
+      };
+      const auto number = [&](std::string_view p_key, std::uint64_t p_value)
+      {
+        text(p_key);
+        fitted &= AppendUnsigned(p_out, p_value);
+      };
+      const auto real = [&](std::string_view p_key, double p_value)
+      {
+        text(p_key);
+        fitted &= AppendDouble(p_out, rounded(p_value));
+      };
+      const auto optional_integer =
+          [&](std::string_view p_key, std::optional<std::uint64_t> p_value)
+      {
+        text(p_key);
+        if (p_value)
         {
-          stored.Set(key, *value);
+          fitted &= AppendUnsigned(p_out, *p_value);
+        }
+        else
+        {
+          text("null");
+        }
+      };
+      text(kept > 0 ? ",{\"fd\":" : "{\"fd\":");
+      fitted &= AppendUnsigned(p_out, socket.fd_);
+      text(",\"kind\":");
+      fitted &= AppendJsonString(p_out, SocketKindName(socket.kind_));
+      text(",\"state\":");
+      fitted &= AppendJsonString(p_out, SocketStateName(socket.state_));
+      if (resource_wire::IsUnix(socket.kind_))
+      {
+        FixedText<SanitizedSize(32)> path;
+        ReadNameInto(socket.unix_path_, path);
+        text(",\"path\":");
+        fitted &= AppendJsonString(p_out, path.View());
+      }
+      else
+      {
+        FixedText<64> endpoint;
+        AppendEndpoint(endpoint, socket.kind_, socket.local_address_,
+                       socket.local_port_);
+        text(",\"local\":");
+        fitted &= AppendJsonString(p_out, endpoint.View());
+        if (socket.remote_port_ != 0)
+        {
+          endpoint.Clear();
+          AppendEndpoint(endpoint, socket.kind_, socket.remote_address_,
+                         socket.remote_port_);
+          text(",\"remote\":");
+          fitted &= AppendJsonString(p_out, endpoint.View());
         }
       }
-      for (const auto key : {"rx_fill_pct", "tx_fill_pct", "accept_fill_pct"})
+      number(",\"rx_queue\":", socket.rx_queue_);
+      number(",\"tx_queue\":", socket.tx_queue_);
+      if (drops)
       {
-        if (const auto value = rounded(json.Find(key)); !value.IsNull())
+        number(",\"drops_delta\":", *drops);
+      }
+      if (fill.receive_)
+      {
+        real(",\"rx_fill_pct\":", *fill.receive_);
+      }
+      if (fill.send_)
+      {
+        real(",\"tx_fill_pct\":", *fill.send_);
+      }
+      if (fill.accept_)
+      {
+        real(",\"accept_fill_pct\":", *fill.accept_);
+      }
+      if (tcp_info && !listener)
+      {
+        real(",\"rtt_ms\":", socket.rtt_us_ / 1000.0);
+        optional_integer(",\"retrans_delta\":", retrans);
+        if (HasFlag(socket.flags_, SocketFlags::PeerWindow))
         {
-          stored.Set(key, value);
+          number(",\"peer_window\":", socket.peer_window_);
+        }
+        else
+        {
+          text(",\"peer_window\":null");
+        }
+        text(",\"rwnd_limited_pct\":");
+        const auto growth = grew(socket.rwnd_limited_us_,
+                                 before ? before->rwnd_limited_us_ : 0);
+        if (growth && elapsed > 0 &&
+            HasFlag(socket.flags_, SocketFlags::TcpLimited))
+        {
+          fitted &= AppendDouble(
+              p_out, rounded(std::min(
+                         100.0, static_cast<double>(*growth) / 1e4 / elapsed)));
+        }
+        else
+        {
+          text("null");
         }
       }
-      if (tcp != nullptr && !listener)
+      text("}");
+      if (!fitted)
       {
-        stored.Set("rtt_ms", rounded(tcp->Find("rtt_ms")));
-        stored.Set("retrans_delta", retrans ? *retrans : Json{});
-        stored.Set("peer_window", *tcp->Find("peer_window"));
-        stored.Set("rwnd_limited_pct", rounded(tcp->Find("rwnd_limited_pct")));
+        // This socket does not fit; leave it and the rest out.
+        p_out.Truncate(start);
+        break;
       }
-      kept.push_back(std::move(stored));
+      ++kept;
     }
-    return DumpJson(Json{std::move(kept)});
+    p_out.Append("]");
   }
 };
 

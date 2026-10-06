@@ -221,7 +221,7 @@ void TestResourceSocketsRoundTrip()
     Require(value->header_.part_ == part &&
                 value->header_.kind_ == resource_wire::PartKind::Sockets,
             "socket part numbering");
-    std::ranges::copy(value->sockets_, std::back_inserter(decoded));
+    std::ranges::copy(value->Sockets(), std::back_inserter(decoded));
   }
   Require(decoded == sockets, "socket rows survive a round trip");
   Require(resource_wire::PartCount(0) == 1 &&
