@@ -47,6 +47,28 @@ These are planned additions; optional socket monitoring is already implemented.
   disk/GPU health.
 - [ ] Separate service/log/dependency health helpers.
 
+## Deployment dependencies
+
+Goal: deploy by copying binaries. See
+[Deployment dependencies](README.md#deployment-dependencies).
+
+- [x] Sampler: zero runtime dependencies. Link it fully statically (glibc,
+  libstdc++, libgcc) and replace `getaddrinfo` with `inet_pton`, since only
+  numeric addresses are accepted, so static glibc needs no NSS libraries at
+  run time.
+- [x] `make release`: build the three normal deployable binaries statically and
+  reject dynamic loaders and dependencies with `readelf`.
+- [ ] Define the oldest supported kernel and validate release binaries there.
+- [x] Run `make check STATIC=1`'s end-to-end tests against the release binaries.
+- [x] Collector and `triangulator-socket-report`: compile in SQLite from its
+  single-file amalgamation (public domain) instead of linking
+  `libsqlite3.so`, and link statically where it works (`SQLITE_SOURCE=...`).
+- [ ] Optional eBPF socket sampler: link libbpf, libelf, zlib and zstd
+  statically if their static libraries are available; otherwise document the
+  packages it needs.
+- [ ] Document the kernel features each source needs (PSI, sock_diag modules,
+  BTF for eBPF) and what the dashboard shows when one is missing.
+
 ## Required before adding new resource sources
 
 - [ ] Define scope, identity, units, missing-data behavior, sampling budget,

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <netdb.h>
+#include <arpa/inet.h>
 #include <sys/socket.h>
 
 #include <cmath>
+#include <cstring>
 #include <expected>
 #include <format>
 #include <string>
@@ -190,14 +191,6 @@ struct Endpoint
   socklen_t address_length_{};
 };
 
-struct AddressInfoCloser
-{
-  void operator()(addrinfo* p_address) const noexcept
-  {
-    ::freeaddrinfo(p_address);
-  }
-};
-
 [[nodiscard]] inline std::expected<Endpoint, std::string> MakeEndpoint(
     std::string_view p_collector)
 {
@@ -213,7 +206,8 @@ struct AddressInfoCloser
   {
     return std::unexpected("collector port must be 1..65535");
   }
-  if (host.starts_with('['))
+  const bool ipv6 = host.starts_with('[');
+  if (ipv6)
   {
     if (!host.ends_with(']'))
     {
@@ -221,33 +215,41 @@ struct AddressInfoCloser
     }
     host = host.substr(1, host.size() - 2);
   }
-  addrinfo hints{};
-  hints.ai_flags = AI_NUMERICHOST | AI_NUMERICSERV;
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_DGRAM;
-  addrinfo* raw_address = nullptr;
-  const auto error =
-      ::getaddrinfo(std::string{host}.c_str(), std::string{port}.c_str(),
-                    &hints, &raw_address);
-  if (error != 0)
-  {
-    return std::unexpected(std::format("collector requires a numeric IP: {}",
-                                       ::gai_strerror(error)));
-  }
-  const std::unique_ptr<addrinfo, AddressInfoCloser> address{raw_address};
+  // Numeric addresses need no resolver or glibc NSS modules in a static build.
   Endpoint endpoint;
-  endpoint.socket_ = FileDescriptor{::socket(
-      address->ai_family, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)};
+  const int family = ipv6 ? AF_INET6 : AF_INET;
+  const auto host_text = std::string{host};
+  int parsed = 0;
+  if (ipv6)
+  {
+    sockaddr_in6 address{};
+    address.sin6_family = AF_INET6;
+    address.sin6_port = ::htons(static_cast<std::uint16_t>(*port_number));
+    parsed = ::inet_pton(AF_INET6, host_text.c_str(), &address.sin6_addr);
+    std::memcpy(&endpoint.address_, &address, sizeof(address));
+    endpoint.address_length_ = sizeof(address);
+  }
+  else
+  {
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = ::htons(static_cast<std::uint16_t>(*port_number));
+    parsed = ::inet_pton(AF_INET, host_text.c_str(), &address.sin_addr);
+    std::memcpy(&endpoint.address_, &address, sizeof(address));
+    endpoint.address_length_ = sizeof(address);
+  }
+  if (parsed != 1)
+  {
+    return std::unexpected(
+        "collector requires a numeric IPv4 or [IPv6] address");
+  }
+  endpoint.socket_ = FileDescriptor{
+      ::socket(family, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)};
   if (!endpoint.socket_)
   {
     return std::unexpected(
         std::format("socket: {}", std::generic_category().message(errno)));
   }
-  std::ranges::copy(
-      std::span{reinterpret_cast<const std::byte*>(address->ai_addr),
-                address->ai_addrlen},
-      reinterpret_cast<std::byte*>(&endpoint.address_));
-  endpoint.address_length_ = address->ai_addrlen;
   return endpoint;
 }
 

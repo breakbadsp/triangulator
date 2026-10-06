@@ -3,11 +3,29 @@ CXXFLAGS ?= -O2 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS ?=
 LDFLAGS ?=
 LDLIBS ?=
+READELF ?= readelf
+# The production-host sampler always needs only the kernel. Other programs
+# embed the C++ runtime; STATIC=1 also embeds libc and SQLite.
+STATIC ?= 0
+SAMPLER_LDFLAGS ?= -static
+RUNTIME_LDFLAGS ?= -static-libstdc++ -static-libgcc
+ifeq ($(STATIC),1)
+RUNTIME_LDFLAGS := -static
+endif
+# Optional local SQLite amalgamation: no download or vendored source required.
+SQLITE_SOURCE ?=
+SQLITE_CFLAGS ?= -O2
 CLANG_FORMAT ?= clang-format
 SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COMMON_HEADERS := $(wildcard common/*.hpp)
 COLLECTOR_HEADERS := $(wildcard collector/*.hpp)
 COLLECTOR_LIBS ?= -lsqlite3
+ifneq ($(strip $(SQLITE_SOURCE)),)
+override CPPFLAGS += -I$(dir $(SQLITE_SOURCE))
+SQLITE_OBJECT := build/sqlite3.o
+SQLITE_HEADER := $(dir $(SQLITE_SOURCE))sqlite3.h
+COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
+endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
 CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp \
@@ -16,12 +34,34 @@ CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampl
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
 	$(METRICS_HEADERS) metrics/main.cpp
 
-.PHONY: all check clean format format-check
+.PHONY: all check clean format format-check release FORCE
 all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report
 
-build/triangulator-sampler: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) Makefile
+# Rebuild when link mode, compiler or flags change, including after release.
+build:
+	mkdir -p $@
+
+build/build_options: FORCE | build
+	@$(file >build/build_options.tmp,$(CXX) $(CC) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) $(SAMPLER_LDFLAGS) $(RUNTIME_LDFLAGS) $(COLLECTOR_LIBS) $(SQLITE_SOURCE) $(SQLITE_CFLAGS)) true
+	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+
+build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/build_options Makefile
+	$(CC) $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@
+
+release:
+	$(MAKE) all STATIC=1
+	@for binary in build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report; do \
+		$(READELF) -lW "$$binary" > build/release_segments.tmp || exit 1; \
+		$(READELF) -dW "$$binary" > build/release_dynamic.tmp || exit 1; \
+		if grep -Eq 'INTERP|NEEDED' build/release_segments.tmp build/release_dynamic.tmp; then \
+			echo "release binary has dynamic dependencies: $$binary" >&2; exit 1; \
+		fi; \
+	done
+	@rm -f build/release_segments.tmp build/release_dynamic.tmp
+
+build/triangulator-sampler: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/build_options Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
 
 # The collector embeds collector/dashboard.html, so the binary serves the
 # page without reading files at run time. od writes the page's bytes as a
@@ -34,19 +74,19 @@ build/dashboard_html.inc: collector/dashboard.html Makefile
 	mv $@.tmp $@
 	rm -f $@.od
 
-build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) sampler/parsing.hpp build/dashboard_html.inc Makefile
+build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) sampler/parsing.hpp build/dashboard_html.inc $(SQLITE_OBJECT) build/build_options Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) -Ibuild $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+	$(CXX) $(CPPFLAGS) -Ibuild $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) Makefile
-	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
-
-build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) Makefile
+build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/build_options Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
-build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) Makefile
+build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) build/build_options Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+
+build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/build_options Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
@@ -79,7 +119,7 @@ build/triangulator-socket-sampler: socket_sampler/main.cpp $(SOCKET_HEADERS) $(S
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -lbpf -o $@
 
-build/socket-metrics-test: tests/socket_metrics_test.cpp $(SOCKET_HEADERS) $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) Makefile
+build/socket-metrics-test: tests/socket_metrics_test.cpp $(SOCKET_HEADERS) $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/build_options Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
@@ -91,6 +131,6 @@ build/socket-target: tests/socket_target.cpp $(COMMON_HEADERS) Makefile
 check-socket-kernel: all socket-sampler build/socket-target
 	TRIANGULATOR_BPF_TESTS=1 python3 -m unittest discover -s tests -p test_socket_kernel.py -v
 
-build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) Makefile
+build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/build_options Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@

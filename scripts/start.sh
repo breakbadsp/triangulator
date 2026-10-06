@@ -12,32 +12,25 @@ collector_bin="$root/build/triangulator-collector"
 
 if [[ $# -eq 0 ]]; then
     cd "$root"
-    python3 - "$root" <<'PY'
-import os
-from pathlib import Path
-import sys
-
-root = Path(sys.argv[1])
-local = root / "config/local"
-local.mkdir(parents=True, exist_ok=True)
-for app in ("sampler", "collector"):
-    path = local / f"{app}.toml"
-    if path.exists():
-        continue
-    text = (root / "config" / f"{app}.toml").read_text()
-    if app == "sampler":
-        text = text.replace('collector = "10.0.0.5:9400"', 'collector = "127.0.0.1:9400"')
-    else:
-        text = text.replace('udp_host = "0.0.0.0"', 'udp_host = "127.0.0.1"')
-        text = text.replace('sampler_ip = "10.0.0.10"', 'sampler_ip = "127.0.0.1"')
-        text = text.replace('data_dir = "/var/lib/triangulator"', 'data_dir = "./data"')
-        text = text.replace('clock_ticks = 100', f'clock_ticks = {os.sysconf("SC_CLK_TCK")}')
-        text = text.replace('webhook_url = "https://your-alert-service.example/triangulator"',
-                            '# webhook_url = "https://your-alert-service.example/triangulator"')
-    with path.open("x") as config_file:
-        config_file.write(text)
-    print(f"Created {path}")
-PY
+    mkdir -p "$root/config/local"
+    for app in sampler collector; do
+        config="$root/config/local/$app.toml"
+        [[ -e "$config" ]] && continue
+        if [[ "$app" == sampler ]]; then
+            (set -o noclobber; sed 's/collector = "10.0.0.5:9400"/collector = "127.0.0.1:9400"/' \
+                "$root/config/sampler.toml" >"$config")
+        else
+            clock_ticks="$(getconf CLK_TCK)"
+            (set -o noclobber; sed \
+                -e 's/udp_host = "0.0.0.0"/udp_host = "127.0.0.1"/' \
+                -e 's/sampler_ip = "10.0.0.10"/sampler_ip = "127.0.0.1"/' \
+                -e 's|data_dir = "/var/lib/triangulator"|data_dir = "./data"|' \
+                -e "s/clock_ticks = 100/clock_ticks = $clock_ticks/" \
+                -e 's|^webhook_url = "https://your-alert-service.example/triangulator"|# &|' \
+                "$root/config/collector.toml" >"$config")
+        fi
+        echo "Created $config"
+    done
     echo "Set target_process (or target_pid) in $root/config/local/sampler.toml to select the process to monitor."
     make -C "$root"
     "$collector_bin" "$root/config/local/collector.toml" --check-config
