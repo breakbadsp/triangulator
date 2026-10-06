@@ -72,8 +72,6 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Writes the thread summaries, plus raw samples if `store_raw = true`, and
   the resource samples (`resource_sample`; older day files gain the table). The
   `alert_event` table exists but stays empty.
-- Saves complete dashboard snapshots at `replay_interval_s` (default 1 s),
-  independently of raw sample storage.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
 **6. Dashboard and API** (`http.hpp`)
@@ -102,7 +100,17 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
-**7. Shutdown** (`main.cpp`)
+**7. Recording** (`replay.hpp`, off unless `replay_interval_s` is set)
+- Saves the `/api/live` view every `replay_interval_s` seconds to separate day
+  files in `data_dir/replay/`, on its own thread. The receive loop only hands
+  over the view it already built.
+- A failed write (a full disk, say) is logged and retried with the next view;
+  it never stops the collector.
+- An exception to "richer dashboard data is a separate program" in
+  `AGENTS.md`: recording lives in the collector because it reuses the view the
+  collector already builds. It is off by default and runs off the receive loop.
+
+**8. Shutdown** (`main.cpp`)
 - On SIGINT or SIGTERM, it processes ticks still waiting for missing pieces,
   writes the last partial summaries, commits SQLite and exits.
 
@@ -130,7 +138,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
-| `replay.hpp` | Read-only process snapshot queries across UTC day files |
+| `replay.hpp` | Recording thread for dashboard views, and the `/api/replay` queries |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
 | `log.hpp` | Timestamped log lines on stderr |
 
@@ -168,8 +176,8 @@ last core, ten-second state mix and rates, group counts and monitor health.
 They survive collector restarts and sampler session changes. Missing history is
 reported explicitly; old rollup-only databases are never treated as exact views.
 
-`replay_interval_s` defaults to `1`. It accepts `0.5`–`60` seconds, or `0` to
-disable recording. Actual times are limited by the collector's ~0.5-second
+`replay_interval_s` defaults to `0` (off). It accepts `0.5`–`60` seconds, or
+`0` to disable recording. Actual times are limited by the collector's ~0.5-second
 publish cadence and scheduling; lowering it does not recover samples between
 publications. Selecting a time returns the nearest earlier recording, never a
 future frame or an interpolated state. Low sampler rates and packet loss also
@@ -178,20 +186,24 @@ missing target after a sampler session has been established. No snapshots are
 written before the first session. History begins when this version is deployed;
 old summaries cannot recover exited threads, wait channels or core placement.
 
-The existing daily WAL files gain a `process_snapshot(ts, snapshot)` table.
-Recording reuses the serialized live response, writes a prepared statement in
-the existing transaction, and commits with the normal flush. Indexed lookups on
-the HTTP thread read at most one full process view; historical queries do not
-run in the receive loop. Day-file retention deletes snapshots with rollups.
-A query checks at most 3,660 day files and returns an error for unreadable files
-rather than silently hiding lost history.
+Recordings go to their own daily WAL files, `data_dir/replay/YYYY-MM-DD.sqlite3`,
+with one table, `process_snapshot(ts, snapshot)`. The receive loop hands the
+serialized live response to a recording thread and moves on; if that thread
+falls behind, the newest view replaces the one still waiting. The recording
+thread deletes replay files older than `retention_days`. A failed write is
+logged once, retried with the next view, and logged again when it recovers;
+it does not stop the collector or the rollups.
+
+A query reads the day file of the requested time first and stops at the first
+match, and reads the bounds from the oldest and newest files. The stored view
+is returned as written, without parsing it again. A file that can't be read
+(damaged, or deleted by retention during the query) is skipped.
 
 The API returns `first`, `last`, `snapshot` and `interval_s`. Without `at`,
 `snapshot` is null and only the bounds are read. With `at=UNIX_SECONDS`, the
 snapshot has its own `recorded_at` and `recording_interval_s`; its health/session
 belongs to that recording. `direction=previous` uses `< at`, `next` uses `> at`.
-No matching recording returns `snapshot: null`. Invalid arguments return 400;
-read failures return 503. The thread drawer uses the archived session and anchors
+No matching recording returns `snapshot: null`. Invalid arguments return 400. The thread drawer uses the archived session and anchors
 preset history ranges at the selected recording. Live trends are kept separate
 and restored on return; historical load averages and socket reports are unavailable.
 
@@ -200,7 +212,8 @@ recording frequency, including silent periods. A local 30-second run with
 1,000 synthetic threads at 10 Hz produced ~327 KB per view: roughly 28 GB/day
 at one view per second, before SQLite overhead. Use a longer recording interval
 or disable recording for large processes when that cost is unsuitable.
-In that short run, recording disabled/enabled used 2.17%/2.67% of one CPU core,
-with peak PSS ~74/~78 MiB. Both retained all 1,000 threads with 0% estimated
-packet loss; replay HTTP p95 was ~9.5 ms. These are local smoke measurements,
-not a steady-state capacity guarantee.
+In that short run, with an earlier version that wrote recordings from the
+receive loop, recording disabled/enabled used 2.17%/2.67% of one CPU core, with
+peak PSS ~74/~78 MiB. Both retained all 1,000 threads with 0% estimated packet
+loss; replay HTTP p95 was ~9.5 ms. These are local smoke measurements, not a
+steady-state capacity guarantee.

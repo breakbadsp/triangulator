@@ -306,7 +306,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             # Alert settings are accepted and ignored: they are for the alerting module.
             collector_config.write_text(
                 f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
-                f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\n'
+                f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nreplay_interval_s=1\n'
                 '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n')
             invalid = Path(directory) / "invalid.toml"
             invalid.write_text("[alerts]\nwindow_s=4\n")

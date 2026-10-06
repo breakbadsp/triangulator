@@ -36,8 +36,8 @@ struct Config
   std::int64_t clock_ticks_ = 100;
   std::int64_t retention_days_ = 7;
   bool store_raw_ = false;
-  // Dashboard recording cadence; zero disables recording.
-  double replay_interval_s_ = 1;
+  // Dashboard recording cadence; zero (the default) disables recording.
+  double replay_interval_s_ = 0;
   std::string data_dir_ = "data";
   std::string udp_host_ = "0.0.0.0";
   std::int64_t udp_port_ = 9400;
