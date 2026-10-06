@@ -27,7 +27,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 - Accepts datagrams only from the sampler's IP: `sampler_ip` from the config,
   or else the first sender it hears from.
 - Decodes and checks every datagram, using the wire-format definitions
-  shared with the sampler (`common/wire.hpp`). Malformed datagrams are counted as bad
+  shared with the sampler (`common/wire.hpp`, `common/resource_wire.hpp`). Malformed datagrams are counted as bad
   packets and dropped.
 
 **3. Rebuilding each tick** (`engine.hpp`, `Monitor`)
@@ -54,11 +54,23 @@ build/triangulator-collector config/local/collector.toml --check-config
   CPU %, run delay %, context switches, read and write bytes per second, major
   page faults, and how many samples the thread spent in each state.
 
+**4b. Resource samples** (`resources.hpp`, `ResourceMonitor`)
+- Puts each resource sample (`common/resource_wire.hpp`: a summary datagram
+  and up to four socket datagrams) back together, waiting up to two seconds for
+  missing parts.
+- Turns cumulative counters into rates over the interval since the previous
+  sample of the same session and process: pressure stall shares, storage I/O,
+  network drop and error counters, and per-socket drops, retransmissions and
+  window-limited time. Counters that went backwards give no rate.
+- Keeps the latest sample for `/api/live` and writes one `resource_sample`
+  row per sample. Like the thread side, it evaluates no alert rules.
+
 **5. Storage** (`storage.hpp`)
 - One SQLite file per UTC day, in WAL mode, with the same tables the retired
   Python collector wrote, so old files stay readable. Any other tool can read
   them.
-- Writes the thread summaries, plus raw samples if `store_raw = true`. The
+- Writes the thread summaries, plus raw samples if `store_raw = true`, and
+  the resource samples (`resource_sample`; older day files gain the table). The
   `alert_event` table exists but stays empty.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
@@ -67,9 +79,13 @@ build/triangulator-collector config/local/collector.toml --check-config
   binary).
 - `GET /api/live`: current threads, group counts and monitor health (sampler
   connected or silent, target, packet loss, packet counters, sample interval).
-  Rebuilt every 0.5 seconds.
+  Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
+  sample: pressure, descriptors, I/O, socket queues, namespace counters.
 - `GET /api/history?session=…&tid=…&start=…&end=…`: one thread's summary rows
   for a time range, read from SQLite (at most 2,000).
+- `GET /api/resources?start=…&end=…`: stored resource samples for a time
+  range (default the last 15 minutes), combined into at most about 1,000
+  buckets: gauges keep their peak, counter growth adds up.
 - `GET /api/target`: the local sampler's configured process name or PID.
   `POST /api/target` with JSON `{"target":"NAME_OR_PID"}` and
   `X-Triangulator: 1` validates, saves and requests a sampler reload. The
@@ -106,8 +122,9 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `json.hpp` | JSON values, parser and writer |
 | `protocol.hpp` | Datagram checks (on top of `common/wire.hpp`) and thread-state classification |
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
+| `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
 | `storage.hpp` | SQLite day files, retention, history queries |
-| `http.hpp` | Dashboard server and the `/api/live` and `/api/history` endpoints |
+| `http.hpp` | Dashboard server and the `/api/live`, `/api/history` and `/api/resources` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
 | `log.hpp` | Timestamped log lines on stderr |

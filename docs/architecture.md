@@ -55,6 +55,7 @@ flowchart TD
     pack["Encode raw cumulative counters<br/>Session + tick + timestamps<br/>Up to 10 threads per datagram"]
     absent["Encode header-only heartbeat<br/>target_absent flag"]
     send["Non-blocking UDP send<br/>No disk buffering or retransmission"]
+    resources["Every resource_interval_s (5 s)<br/>PSI · fds · io · sock_diag queues<br/>namespace drop counters"]
     sleep["Wait for the next deadline<br/>Skip missed deadlines after an overrun"]
 
     config -.->|"Startup / valid SIGHUP reload"| tick
@@ -63,6 +64,7 @@ flowchart TD
     lookup -->|"No / ambiguous name"| absent
     read --> pack
     pack --> send
+    read -.->|"Slower"| resources --> send
     absent --> send
     send --> sleep
     sleep --> tick
@@ -71,7 +73,7 @@ flowchart TD
     classDef compute fill:#ecfdf5,stroke:#059669,color:#064e3b
     classDef control fill:#fffbeb,stroke:#d97706,color:#78350f
     class config,read source
-    class pack,absent,send compute
+    class pack,absent,send,resources compute
     class tick,lookup,sleep control
 ```
 
@@ -80,7 +82,11 @@ starts on sampler startup, a valid config reload, or a target identity change
 (PID + start time). If target lookup fails because of a resource error, the tick
 is skipped. A missing target heartbeat means **sampler alive, target absent**;
 no packets means **sampler silence**. Optional `status` reads replace scheduler
-counters when `status_fallback` is enabled.
+counters when `status_fallback` is enabled. Every `resource_interval_s` seconds
+the sampler also sends a resource sample in its own `TRES` format: pressure
+stalls for the host and the target's cgroup, descriptors, storage I/O, the
+target's socket queues and buffers (sock_diag) and its network namespace's
+counters. See [resource-monitoring.md](resource-monitoring.md).
 
 ## Collector: raw samples to useful signals
 
@@ -98,6 +104,9 @@ flowchart TD
     udp --> merge --> process
     process --> live --> snapshot
     process --> rollup --> db
+    udp -.->|"TRES resource samples"| resource["Resource samples<br/>Reassemble parts · rates per interval"]
+    resource --> snapshot
+    resource --> db
     udp -.->|"Last seen and packet counts"| health --> snapshot
 
     classDef source fill:#eff6ff,stroke:#2563eb,color:#172554
@@ -105,7 +114,7 @@ flowchart TD
     classDef store fill:#fffbeb,stroke:#d97706,color:#78350f
     classDef view fill:#f5f3ff,stroke:#7c3aed,color:#3b0764
     class udp source
-    class merge,process,rollup,health compute
+    class merge,process,rollup,health,resource compute
     class live,db store
     class snapshot view
 ```
