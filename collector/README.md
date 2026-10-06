@@ -70,7 +70,16 @@ build/triangulator-collector config/local/collector.toml --check-config
   Rebuilt every 0.5 seconds.
 - `GET /api/history?session=…&tid=…&start=…&end=…`: one thread's summary rows
   for a time range, read from SQLite (at most 2,000).
-- Any other method than `GET` gets 501.
+- `GET /api/target`: the local sampler's configured process name or PID.
+  `POST /api/target` with JSON `{"target":"NAME_OR_PID"}` and
+  `X-Triangulator: 1` validates, saves and requests a sampler reload. The
+  dashboard exposes this through **Change target**. This optional control uses
+  `scripts/sampler_control.py` and Python 3, requires a loopback HTTP listener
+  and a local sampler started from the same checkout, and checks that the
+  sampler sends to this collector's loopback UDP endpoint. Errors leave the
+  config unchanged unless the reload signal fails after saving (reported as
+  such). The sampler and collector must run as the same user.
+- Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
 **7. Shutdown** (`main.cpp`)
@@ -99,6 +108,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live` and `/api/history` endpoints |
+| `target_control.hpp` | Bounded bridge to the optional local sampler control script |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
 | `log.hpp` | Timestamped log lines on stderr |
 

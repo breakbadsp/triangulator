@@ -11,6 +11,8 @@ reloads it. resolve-pid and collector print values for watch-sockets.sh.
 """
 
 import fcntl
+import ipaddress
+import json
 import math
 import os
 from pathlib import Path
@@ -177,7 +179,7 @@ def running_sampler(root):
     return pid, config.resolve(strict=True)
 
 
-def update_config(root, pattern, setting):
+def update_config(root, pattern, setting, collector_endpoint=None):
     """Write setting into the running sampler's config and request a reload."""
     (root / ".run").mkdir(exist_ok=True)
     # Serialise concurrent runs, so one edit can't overwrite another.
@@ -187,6 +189,8 @@ def update_config(root, pattern, setting):
         if sampler is None:
             raise ControlError("the sampler is not running; start it with scripts/start.sh")
         pid, config = sampler
+        if collector_endpoint is not None:
+            require_local_collector(config, collector_endpoint)
         examples = (root / "config").resolve()
         if config.is_relative_to(examples) and not config.is_relative_to(examples / "local"):
             raise ControlError(
@@ -218,7 +222,7 @@ def update_config(root, pattern, setting):
         return pid, config
 
 
-def set_target(root, target):
+def set_target(root, target, collector_endpoint=None):
     running = True
     pid = parse_pid(target)
     if pid is not None:
@@ -227,11 +231,55 @@ def set_target(root, target):
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
-    sampler, config = update_config(root, re.compile(r"\s*target_(?:process|pid)\s*="), setting)
+    sampler, config = update_config(root, re.compile(r"\s*target_(?:process|pid)\s*="), setting,
+                                    collector_endpoint)
+    message = "Reload requested. The dashboard will update when the sampler reports."
+    if not running:
+        message = f"Waiting for a process named {target} to start."
+    if collector_endpoint is not None:
+        return {"enabled": True, "target": target, "message": message}
     print(f"Updated {config}: {setting}")
     print(f"Requested reload of sampler {sampler}; check the dashboard and .run/sampler.log.")
     if not running:
         print(f"No process named {target} is running yet; the dashboard shows the target as absent until one starts.")
+
+
+def require_local_collector(config, expected):
+    """The dashboard must control only a sampler sending to this collector."""
+    endpoint = read_setting(config.read_text(), "collector") or ""
+    host, separator, configured_port = endpoint.rpartition(":")
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+        bind_host, port = expected
+        listener = ipaddress.ip_address(bind_host)
+        # The collector's IPv6 wildcard socket also receives IPv4 datagrams.
+        local = address.is_loopback and (address.version == listener.version or
+                                         (listener.version == 6 and listener.is_unspecified))
+        local = local and (listener.is_unspecified or address == listener)
+        matching_port = int(configured_port) == int(port)
+    except ValueError:
+        local = matching_port = False
+    if not separator or not local or not matching_port:
+        raise ControlError("the local sampler sends to a different collector; use scripts/set-target.sh on its host")
+
+
+def dashboard_target(root, host, port, target=None):
+    """JSON interface for the local dashboard; reuse the CLI's validated edit."""
+    try:
+        if target is not None:
+            result = set_target(root, target, (host, port))
+        else:
+            sampler = running_sampler(root)
+            if sampler is None:
+                raise ControlError("the sampler is not running; start it with scripts/start.sh")
+            config = sampler[1]
+            require_local_collector(config, (host, port))
+            text = config.read_text()
+            result = {"enabled": True,
+                      "target": read_setting(text, "target_pid") or read_setting(text, "target_process")}
+    except (ControlError, OSError, subprocess.TimeoutExpired) as error:
+        result = {"enabled": True, "error": str(error)}
+    print(json.dumps(result))
 
 
 def set_rate(root, text):
@@ -263,6 +311,9 @@ def collector(root):
 
 
 def main(argv):
+    if len(argv) in (4, 5) and argv[1] == "dashboard-target":
+        dashboard_target(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
+        return 0
     commands = {
         "set-target": lambda target: set_target(ROOT, target),
         "set-rate": lambda rate: set_rate(ROOT, rate),

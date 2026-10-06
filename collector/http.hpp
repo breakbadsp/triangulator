@@ -30,6 +30,7 @@
 #include "log.hpp"
 #include "socket_report.hpp"
 #include "storage.hpp"
+#include "target_control.hpp"
 
 namespace triangulator::collector
 {
@@ -190,6 +191,16 @@ struct Request
   std::string method_;
   std::string path_;
   std::string query_;
+  std::string body_;
+  bool dashboard_write_ = false;
+  std::string origin_;
+  std::string host_;
+};
+
+enum class RequestError
+{
+  Empty = 0,
+  Invalid,
 };
 
 // errno as text, read at once so a later call can't overwrite it.
@@ -347,7 +358,8 @@ class DashboardServer
     }
   }
 
-  static std::optional<Request> ReadRequest(int p_connection)
+  [[nodiscard]] static std::expected<Request, RequestError> ReadRequest(
+      int p_connection)
   {
     std::string data;
     std::array<char, 4096> buffer{};
@@ -356,12 +368,15 @@ class DashboardServer
     {
       if (data.size() > 65536)
       {
-        return std::nullopt;
+        return std::unexpected(RequestError::Invalid);
       }
       const auto length = ::recv(p_connection, buffer.data(), buffer.size(), 0);
       if (length <= 0)
       {
-        return std::nullopt;
+        // Browsers may open a speculative connection without sending a
+        // request. Preserve the original silent close in that case.
+        return std::unexpected(data.empty() ? RequestError::Empty
+                                            : RequestError::Invalid);
       }
       data.append(buffer.data(), static_cast<std::size_t>(length));
     }
@@ -371,9 +386,9 @@ class DashboardServer
     const auto request_line = head.substr(0, line_end);
     const auto first_space = request_line.find(' ');
     const auto second_space = request_line.find(' ', first_space + 1);
-    if (first_space == std::string_view::npos)
+    if (first_space == std::string_view::npos || first_space == 0)
     {
-      return std::nullopt;
+      return std::unexpected(RequestError::Invalid);
     }
     request.method_ = request_line.substr(0, first_space);
     const auto target = request_line.substr(
@@ -387,6 +402,69 @@ class DashboardServer
       path = path.substr(0, question);
     }
     request.path_ = path;
+    std::size_t body_bytes = 0;
+    bool length_seen = false;
+    auto headers = line_end == std::string_view::npos
+                       ? std::string_view{}
+                       : head.substr(line_end + 2);
+    while (!headers.empty())
+    {
+      const auto end = headers.find("\r\n");
+      const auto line = headers.substr(0, end);
+      headers = end == std::string_view::npos ? std::string_view{}
+                                              : headers.substr(end + 2);
+      const auto colon = line.find(':');
+      if (colon == std::string_view::npos)
+      {
+        return std::unexpected(RequestError::Invalid);
+      }
+      std::string name{line.substr(0, colon)};
+      for (auto& character : name)
+      {
+        character = static_cast<char>(
+            std::tolower(static_cast<unsigned char>(character)));
+      }
+      const auto value = TrimSpace(line.substr(colon + 1));
+      if (name == "content-length")
+      {
+        const auto size = triangulator::ParseNumber<std::size_t>(value);
+        if (length_seen || !size || *size > 1024)
+        {
+          return std::unexpected(RequestError::Invalid);
+        }
+        length_seen = true;
+        body_bytes = *size;
+      }
+      else if (name == "transfer-encoding")
+      {
+        return std::unexpected(RequestError::Invalid);
+      }
+      else if (name == "x-triangulator")
+      {
+        request.dashboard_write_ = value == "1";
+      }
+      else if (name == "origin")
+      {
+        request.origin_ = value;
+      }
+      else if (name == "host")
+      {
+        request.host_ = value;
+      }
+    }
+    const auto body_start = header_end + 4;
+    while (data.size() - body_start < body_bytes)
+    {
+      const auto length = ::recv(
+          p_connection, buffer.data(),
+          std::min(buffer.size(), body_bytes - (data.size() - body_start)), 0);
+      if (length <= 0)
+      {
+        return std::unexpected(RequestError::Invalid);
+      }
+      data.append(buffer.data(), static_cast<std::size_t>(length));
+    }
+    request.body_ = data.substr(body_start, body_bytes);
     return request;
   }
 
@@ -448,11 +526,39 @@ class DashboardServer
     auto request = ReadRequest(p_connection);
     if (!request)
     {
+      if (request.error() == RequestError::Invalid)
+      {
+        RespondJson(p_connection, 400,
+                    JsonObject{{"error", "invalid HTTP request"}});
+      }
       return;
     }
     if (request->method_ == "GET")
     {
       Get(p_connection, *request);
+    }
+    else if (request->method_ == "POST" && request->path_ == "/api/target")
+    {
+      if (!request->dashboard_write_ ||
+          (!request->origin_.empty() &&
+           request->origin_ != "http://" + request->host_ &&
+           request->origin_ != "https://" + request->host_))
+      {
+        RespondJson(p_connection, 403,
+                    JsonObject{{"error", "dashboard request required"}});
+        return;
+      }
+      const auto body = ParseJson(request->body_);
+      const auto* target = body ? body->Find("target") : nullptr;
+      if (target == nullptr || !target->IsString() ||
+          target->AsString().empty() || target->AsString().size() > 64 ||
+          target->AsString().find('\0') != std::string::npos)
+      {
+        RespondJson(p_connection, 400,
+                    JsonObject{{"error", "enter a process name or PID"}});
+        return;
+      }
+      Target(p_connection, target->AsString());
     }
     else
     {
@@ -472,6 +578,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/live")
     {
       Respond(p_connection, 200, *state_.Live(), "application/json");
+    }
+    else if (p_request.path_ == "/api/target")
+    {
+      Target(p_connection, std::nullopt);
     }
     else if (p_request.path_ == "/api/socket-io")
     {
@@ -497,6 +607,41 @@ class DashboardServer
     {
       Respond(p_connection, 404, "Not found", "text/plain");
     }
+  }
+
+  void Target(int p_connection, const std::optional<std::string>& p_target)
+  {
+    // Local development control only. Remote deployments keep their existing
+    // sampler-side administration, with no new runtime dependency.
+    const auto loopback = [](const std::string& p_host)
+    {
+      const auto ip = NormalizeIp(p_host);
+      return ip && (ip->starts_with("127.") || *ip == "::1");
+    };
+    if (!loopback(config_.http_host_) ||
+        (config_.sampler_ip_ && !loopback(*config_.sampler_ip_)))
+    {
+      RespondJson(p_connection, p_target ? 403 : 200,
+                  JsonObject{{"enabled", false},
+                             {"error",
+                              "target control is available for a local sampler "
+                              "on a loopback dashboard"}});
+      return;
+    }
+    auto result =
+        RunTargetControl(config_.udp_host_, config_.udp_port_, p_target);
+    if (!result)
+    {
+      RespondJson(p_connection, 503, JsonObject{{"error", result.error()}});
+      return;
+    }
+    const auto* enabled = result->Find("enabled");
+    const bool available =
+        enabled != nullptr && enabled->IsBool() && enabled->AsBool();
+    const int code = result->Find("error")    ? (p_target ? 400 : 200)
+                     : p_target && !available ? 403
+                                              : 200;
+    RespondJson(p_connection, code, *result);
   }
 
   void History(int p_connection, const Request& p_request)

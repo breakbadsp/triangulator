@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import shutil
 import socket
@@ -8,6 +9,8 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from wire import decode
@@ -128,6 +131,221 @@ class ScriptTests(unittest.TestCase):
             if predicate(value):
                 return value
         self.fail("the sampler did not apply the reload")
+
+    def start_dashboard(self, http_host="127.0.0.1", udp_host="127.0.0.1"):
+        shutil.copy2(ROOT / "build/triangulator-collector", self.real / "build")
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+        config = self.real / "config/local/collector.toml"
+        # The integration tests receive through the collector instead.
+        self.receiver.close()
+        config.write_text(f'udp_host = "{udp_host}"\nudp_port = {self.port}\n'
+                          f'http_host = "{http_host}"\nhttp_port = {port}\n'
+                          f'data_dir = "{self.real / "data"}"\n')
+        collector = subprocess.Popen([str(self.real / "build/triangulator-collector"), str(config)],
+                                     stderr=subprocess.DEVNULL)
+        self.addCleanup(stop, collector)
+        self.dashboard = f"http://127.0.0.1:{port}"
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                self.api("/api/live")
+                return
+            except OSError:
+                self.assertIsNone(collector.poll(), "collector exited")
+                time.sleep(0.02)
+        self.fail("dashboard did not start")
+
+    def api(self, path, body=None, headers=None):
+        request = urllib.request.Request(self.dashboard + path,
+                                         data=json.dumps(body).encode() if body is not None else None,
+                                         headers=headers or {})
+        try:
+            response = urllib.request.urlopen(request, timeout=15)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            return response.status, json.load(response)
+
+    def wait_live(self, predicate):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            _, live = self.api("/api/live")
+            if predicate(live.get("health", {})):
+                return live["health"]
+            time.sleep(0.05)
+        self.fail("dashboard did not report the new target")
+
+    def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
+        # IPv4 samples and target control both work through an IPv6 wildcard listener.
+        self.start_dashboard(udp_host="::")
+        config = self.real / "config/local/sampler.toml"
+        config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertEqual(data, {"enabled": True, "target": str(self.target.pid)})
+        other = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(stop, other)
+        status, data = self.api("/api/target", {"target": str(other.pid)}, {"X-Triangulator": "1"})
+        self.assertEqual(status, 200, data)
+        self.wait_live(lambda health: health.get("pid") == other.pid)
+
+    def test_dashboard_changes_pid_name_and_absent_target(self):
+        self.start_dashboard()
+        config = self.real / "config/local/sampler.toml"
+        config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        initial = self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertEqual(data, {"enabled": True, "target": str(self.target.pid)})
+        headers = {"Content-Type": "application/json", "X-Triangulator": "1"}
+        original = config.read_text()
+        for target in ("0", str(2**31 - 1), 'a"b', "too-long-process-name", "a\u0000b"):
+            status, data = self.api("/api/target", {"target": target}, headers)
+            self.assertEqual(status, 400, data)
+            self.assertIn("error", data)
+            self.assertEqual(config.read_text(), original)
+
+        name = f"ui-{os.getpid()}"
+        other = start_named(name)
+        self.addCleanup(stop, other)
+        duplicate = start_named(name)
+        self.addCleanup(stop, duplicate)
+        status, data = self.api("/api/target", {"target": name}, headers)
+        self.assertEqual(status, 400)
+        self.assertIn("multiple processes", data["error"])
+        self.assertEqual(config.read_text(), original)
+        stop(duplicate)
+        status, data = self.api("/api/target", {"target": name}, headers)
+        self.assertEqual(status, 200, data)
+        self.assertEqual(data["target"], name)
+        changed = self.wait_live(lambda health: health.get("pid") == other.pid)
+        self.assertNotEqual(changed["session"], initial["session"])
+        self.assertIn(f'target_process = "{name}"', config.read_text())
+
+        status, data = self.api("/api/target", {"target": str(self.target.pid)}, headers)
+        self.assertEqual(status, 200, data)
+        self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        status, data = self.api("/api/target", {"target": "ui-absent-name"}, headers)
+        self.assertEqual(status, 200, data)
+        self.assertIn("Waiting", data["message"])
+        self.wait_live(lambda health: health.get("target_absent") is True)
+
+    def test_dashboard_named_target_follows_restart_and_survives_reopening(self):
+        self.start_dashboard()
+        config = self.real / "config/local/sampler.toml"
+        config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
+        sampler = self.start_sampler(config)
+        name = f"uir-{os.getpid()}"
+        first = start_named(name)
+        self.addCleanup(stop, first)
+        status, data = self.api("/api/target", {"target": name}, {"X-Triangulator": "1"})
+        self.assertEqual(status, 200, data)
+        self.wait_live(lambda health: health.get("pid") == first.pid)
+        stop(first)
+        self.wait_live(lambda health: health.get("target_absent") is True)
+        second = start_named(name)
+        self.addCleanup(stop, second)
+        self.assertNotEqual(first.pid, second.pid)
+        self.wait_live(lambda health: health.get("pid") == second.pid)
+        # Reopening the form (including after a page reload) reads the selector
+        # from disk, rather than replacing the name with the current PID.
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["target"], name)
+        self.assertIn(f'target_process = "{name}"', config.read_text())
+        stop(sampler)
+        original = config.read_text()
+        status, data = self.api("/api/target", {"target": str(self.target.pid)},
+                                {"X-Triangulator": "1"})
+        self.assertEqual(status, 400)
+        self.assertIn("not running", data["error"])
+        self.assertEqual(config.read_text(), original)
+
+    def test_dashboard_control_is_hidden_without_the_optional_helper(self):
+        self.start_dashboard()
+        (self.real / "scripts/sampler_control.py").unlink()
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        status, _ = self.api("/api/target", {"target": "x"}, {"X-Triangulator": "1"})
+        self.assertEqual(status, 403)
+
+    def test_dashboard_requires_local_same_origin_write_and_live_sampler(self):
+        self.start_dashboard()
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertTrue(data["enabled"])
+        self.assertIn("not running", data["error"])
+        config = self.real / "config/local/sampler.toml"
+        original = f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n'
+        config.write_text(original)
+        self.start_sampler(config)
+        for headers in ({}, {"X-Triangulator": "1", "Origin": "https://other.example"}):
+            status, _ = self.api("/api/target", {"target": "ui-absent-name"}, headers)
+            self.assertEqual(status, 403)
+            self.assertEqual(config.read_text(), original)
+        headers = {"X-Triangulator": "1", "Origin": self.dashboard}
+        for body in ({}, {"target": 123}, {"target": ""}, {"target": "x" * 65}):
+            status, _ = self.api("/api/target", body, headers)
+            self.assertEqual(status, 400)
+            self.assertEqual(config.read_text(), original)
+        # A pidfile can exist for a sampler sending to another collector.
+        config.write_text(original.replace(str(self.port), str(self.port + 1)))
+        status, data = self.api("/api/target", {"target": "ui-absent-name"}, headers)
+        self.assertEqual(status, 400)
+        self.assertIn("different collector", data["error"])
+        self.assertEqual(config.read_text(), original.replace(str(self.port), str(self.port + 1)))
+
+    def test_dashboard_control_is_disabled_on_public_listener(self):
+        self.start_dashboard(http_host="0.0.0.0")
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        status, _ = self.api("/api/target", {"target": "x"}, {"X-Triangulator": "1"})
+        self.assertEqual(status, 403)
+
+    def test_dashboard_reads_split_body_and_rejects_oversized_requests(self):
+        self.start_dashboard()
+        config = self.real / "config/local/sampler.toml"
+        config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        port = int(self.dashboard.rsplit(":", 1)[1])
+        # A speculative browser connection sends no request; close it silently.
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+            connection.shutdown(socket.SHUT_WR)
+            self.assertEqual(connection.recv(4096), b"")
+
+        def raw_request(headers, body=b""):
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+                connection.sendall(b"POST /api/target HTTP/1.0\r\nX-Triangulator: 1\r\n" +
+                                   headers + b"\r\n\r\n")
+                if body:
+                    # Separate network writes exercise the HTTP body reader.
+                    time.sleep(0.02)
+                    connection.sendall(body[:4])
+                    time.sleep(0.02)
+                    connection.sendall(body[4:])
+                response = b""
+                while chunk := connection.recv(4096):
+                    response += chunk
+            status = int(response.split(b" ", 2)[1])
+            return status, json.loads(response.split(b"\r\n\r\n", 1)[1])
+
+        original = config.read_text()
+        for headers in (b"Content-Length: 1025", b"Content-Length: -1",
+                        b"Content-Length: 3\r\nContent-Length: 3", b"Transfer-Encoding: chunked"):
+            status, _ = raw_request(headers)
+            self.assertEqual(status, 400)
+            self.assertEqual(config.read_text(), original)
+        body = json.dumps({"target": "ui-split-body"}).encode()
+        status, data = raw_request(f"Content-Length: {len(body)}".encode(), body)
+        self.assertEqual(status, 200, data)
+        self.assertIn('target_process = "ui-split-body"', config.read_text())
 
     def test_rate_and_target_reload_in_place(self):
         config = self.real / "config/local/sampler.toml"
