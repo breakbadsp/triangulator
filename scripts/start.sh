@@ -17,18 +17,21 @@ if [[ $# -eq 0 ]]; then
         config="$root/config/local/$app.toml"
         [[ -e "$config" ]] && continue
         if [[ "$app" == sampler ]]; then
-            (set -o noclobber; sed 's/collector = "10.0.0.5:9400"/collector = "127.0.0.1:9400"/' \
-                "$root/config/sampler.toml" >"$config")
+            sed 's/collector = "10.0.0.5:9400"/collector = "127.0.0.1:9400"/' \
+                "$root/config/sampler.toml" >"$config.tmp"
         else
             clock_ticks="$(getconf CLK_TCK)"
-            (set -o noclobber; sed \
+            sed \
                 -e 's/udp_host = "0.0.0.0"/udp_host = "127.0.0.1"/' \
                 -e 's/sampler_ip = "10.0.0.10"/sampler_ip = "127.0.0.1"/' \
                 -e 's|data_dir = "/var/lib/triangulator"|data_dir = "./data"|' \
                 -e "s/clock_ticks = 100/clock_ticks = $clock_ticks/" \
                 -e 's|^webhook_url = "https://your-alert-service.example/triangulator"|# &|' \
-                "$root/config/collector.toml" >"$config")
+                "$root/config/collector.toml" >"$config.tmp"
         fi
+        # Move into place only after sed succeeded, so a failure leaves no
+        # partial file that the next run would treat as existing.
+        mv -n "$config.tmp" "$config"
         echo "Created $config"
     done
     echo "Set target_process (or target_pid) in $root/config/local/sampler.toml to select the process to monitor."
