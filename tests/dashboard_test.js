@@ -320,7 +320,7 @@ test('socket queue tiles preserve unavailable values and measured zeroes', () =>
 
 test('resource range changes keep one polling loop, including overlapping requests and failures', async () => {
   const response = {ok: true, json: async () => ({rows: []})};
-  const app = dashboard(new Map(), {resourceFetch: async () => response});
+  const app = dashboard(new Map(), undefined, {resourceFetch: async () => response});
   await new Promise(setImmediate);
   assert.equal(app.timers.size, 1);
   const pending = [];
