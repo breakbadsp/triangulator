@@ -6,6 +6,10 @@ module (`alerting/`) that is not wired up yet, so for now nothing sends alerts.
 Start with the [architecture diagrams](docs/architecture.md); see the
 [full design](docs/thread-monitor-design.md) for details.
 
+For current resource coverage and proposed Linux metrics, see
+[Linux monitoring coverage and priorities](docs/linux-monitoring.md) and the
+[prioritized monitoring TODO](TODO.md).
+
 ## Quick start
 
 Two programs: the **sampler** runs next to the process you want to watch and sends
