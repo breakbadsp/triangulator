@@ -50,7 +50,10 @@ fi
 # Compile as the invoking user; only the observer needs tracing privileges.
 make -C "$root" socket-sampler
 mkdir -p "$root/.run"
-command=("$root/build/triangulator-socket-sampler" "$pid" "$collector" "$root/build/socket.bpf.o" "${marker[@]}")
+# ${marker[@]+...} expands an empty array to nothing; plain "${marker[@]}"
+# aborts under set -u on bash before 4.4 (e.g. RHEL/CentOS 7).
+command=("$root/build/triangulator-socket-sampler" "$pid" "$collector" "$root/build/socket.bpf.o"
+         ${marker[@]+"${marker[@]}"})
 if [[ "$elevate" == true ]]; then
     command=(sudo -- "${command[@]}")
 fi
