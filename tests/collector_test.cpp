@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "../collector/engine.hpp"
+#include "../collector/resources.hpp"
 
 namespace
 {
@@ -637,6 +638,354 @@ void TestStorageReportsErrors()
       "History skips a day file it can't read");
 }
 
+// ---------- Resource samples ----------
+
+// A resource sample header taken p_sequence * 5 s after the start.
+resource_wire::Header ResourceHeader(std::uint32_t p_sequence,
+                                     std::uint8_t p_parts = 1,
+                                     std::uint64_t p_session = 1)
+{
+  return resource_wire::Header{
+      .parts_ = p_parts,
+      .session_ = p_session,
+      .sequence_ = p_sequence,
+      .monotonic_ns_ = (1000 + std::uint64_t{p_sequence} * 5) * 1'000'000'000,
+      .wall_ns_ =
+          (1'700'000'000 + std::uint64_t{p_sequence} * 5) * 1'000'000'000,
+      .interval_ms_ = 5000,
+      .pid_ = 123,
+      .process_start_ = 77};
+}
+
+// Encodes and decodes, as the collector receives them.
+resource_wire::Part Summary(const resource_wire::Header& p_header,
+                            const resource_wire::SummaryValues& p_values)
+{
+  std::array<std::byte, resource_wire::kMaxPartSize> bytes{};
+  const auto length =
+      resource_wire::EncodeSummary(bytes, p_header, p_values, "/app.slice");
+  auto part = resource_wire::Decode(std::span{bytes}.first(length));
+  Require(part.has_value(), "a test summary decodes");
+  return std::move(*part);
+}
+
+resource_wire::Part Sockets(const resource_wire::Header& p_header,
+                            std::span<const resource_wire::Socket> p_sockets,
+                            std::uint8_t p_part = 1)
+{
+  std::array<std::byte, resource_wire::kMaxPartSize> bytes{};
+  const auto length =
+      resource_wire::EncodeSockets(bytes, p_header, p_sockets, p_part);
+  auto part = resource_wire::Decode(std::span{bytes}.first(length));
+  Require(part.has_value(), "a test socket part decodes");
+  return std::move(*part);
+}
+
+// Summary values that grow with p_sequence: every PSI total by 1 s of stall
+// per 5 s sample (20%), storage reads by 5,000 bytes per sample, listen
+// overflows by 3.
+resource_wire::SummaryValues GrowingValues(std::uint64_t p_sequence)
+{
+  auto values = resource_wire::EmptySummary();
+  for (std::size_t field = resource_wire::Field("host_cpu_some_total");
+       field <= resource_wire::Field("cgroup_io_full_total"); field += 2)
+  {
+    values[field] = 5'000'000 + p_sequence * 1'000'000;
+    values[field - 1] = 2000;  // avg10 20.00%
+  }
+  values[resource_wire::Field("io_read_bytes")] = p_sequence * 5000;
+  values[resource_wire::Field("io_write_bytes")] = 0;
+  values[resource_wire::Field("net_listen_overflows")] = 10 + p_sequence * 3;
+  values[resource_wire::Field("fd_open")] = 900;
+  values[resource_wire::Field("fd_soft_limit")] = 1024;
+  values[resource_wire::Field("tcp_sockets")] = 2;
+  return values;
+}
+
+resource_wire::Socket TcpSocket(std::uint64_t p_inode, std::uint32_t p_used)
+{
+  resource_wire::Socket socket;
+  socket.kind_ = resource_wire::SocketKind::Tcp6;
+  socket.state_ = 1;
+  socket.flags_ = 15;
+  socket.fd_ = 7;
+  socket.inode_ = p_inode;
+  // ::ffff:10.0.0.5, an IPv4 client on a dual-stack socket.
+  socket.remote_address_ = {0, 0, 0,    0,    0,  0, 0, 0,
+                            0, 0, 0xff, 0xff, 10, 0, 0, 5};
+  socket.local_address_[15] = 1;  // ::1
+  socket.local_port_ = 8080;
+  socket.remote_port_ = 40000;
+  socket.rx_queue_ = p_used;
+  socket.rcvbuf_ = 1000;
+  socket.rmem_alloc_ = p_used;
+  socket.sndbuf_ = 1000;
+  return socket;
+}
+
+const Json& ResourceField(const Json& p_live, std::string_view p_path)
+{
+  const Json* value = &p_live;
+  while (!p_path.empty())
+  {
+    const auto dot = p_path.find('.');
+    value = &Field(*value, p_path.substr(0, dot));
+    p_path = dot == std::string_view::npos ? std::string_view{}
+                                           : p_path.substr(dot + 1);
+  }
+  return *value;
+}
+
+void TestResourceRatesAndSockets()
+{
+  ResourceMonitor monitor;
+  Require(!Field(monitor.Snapshot(0), "available").AsBool(), "no sample yet");
+  auto first = TcpSocket(5, 100);
+  first.rwnd_limited_us_ = 1'000'000;
+  first.total_retrans_ = 4;
+  monitor.Accept(Summary(ResourceHeader(0, 2), GrowingValues(0)), 1);
+  Require(monitor.PendingRows().empty(), "a sample waits for its socket part");
+  monitor.Accept(Sockets(ResourceHeader(0, 2), std::span{&first, 1}), 1);
+  Require(monitor.PendingRows().size() == 1, "a complete sample is used");
+  auto second = TcpSocket(5, 950);
+  second.rwnd_limited_us_ = 3'500'000;  // limited for 2.5 of 5 s
+  second.total_retrans_ = 6;
+  monitor.Accept(Sockets(ResourceHeader(1, 2), std::span{&second, 1}), 6);
+  monitor.Accept(Summary(ResourceHeader(1, 2), GrowingValues(1)), 6);
+  const auto live = monitor.Snapshot(6);
+  Require(Field(live, "available").AsBool() && !Field(live, "stale").AsBool(),
+          "the latest sample is live");
+  RequireNear(Field(live, "elapsed_s").AsNumber(), 5, "elapsed");
+  RequireNear(ResourceField(live, "pressure.host.io.some.pct").AsNumber(), 20,
+              "PSI stall share over the interval");
+  RequireNear(
+      ResourceField(live, "pressure.cgroup.memory.full.avg10").AsNumber(), 20,
+      "PSI avg10 in percent");
+  RequireNear(ResourceField(live, "io.read_bps").AsNumber(), 1000,
+              "storage read rate");
+  Require(ResourceField(live, "io.rchar_bps").IsNull(),
+          "an unavailable counter has no rate");
+  Require(ResourceField(live, "network.listen_overflows.delta").AsInt() == 3,
+          "namespace counter growth");
+  RequireNear(ResourceField(live, "network.listen_overflows.per_s").AsNumber(),
+              0.6, "namespace counter rate");
+  Require(ResourceField(live, "fds.open").AsInt() == 900, "descriptor count");
+  const auto& top = ResourceField(live, "sockets.top").AsArray();
+  Require(top.size() == 1, "one socket");
+  RequireNear(Field(top[0], "rx_fill_pct").AsNumber(), 95, "receive fill");
+  Require(Field(top[0], "local").AsString() == "[::1]:8080" &&
+              Field(top[0], "remote").AsString() == "10.0.0.5:40000",
+          std::format("endpoints, got {}", DumpJson(top[0])));
+  RequireNear(ResourceField(top[0], "tcp.rwnd_limited_pct").AsNumber(), 50,
+              "share of the interval limited by the peer's window");
+  Require(ResourceField(top[0], "tcp.retrans_delta").AsInt() == 2,
+          "per-socket retransmissions in the interval");
+
+  const auto& rows = monitor.PendingRows();
+  Require(rows.size() == 2, "one row per sample");
+  const auto& row = rows[1];
+  const auto real = [&](std::string_view p_column)
+  {
+    return std::get<double>(row[std::ranges::find(kResourceColumns, p_column,
+                                                  &ResourceColumn::name_) -
+                                kResourceColumns.begin()]);
+  };
+  RequireNear(real("host_io_some_pct"), 20, "stored stall share");
+  RequireNear(real("read_bps"), 1000, "stored read rate");
+  RequireNear(real("max_rx_fill_pct"), 95, "stored fullest socket");
+  Require(std::get<std::int64_t>(
+              row[ResourceColumnIndex("listen_overflows_delta")]) == 3,
+          "stored counter growth");
+  Require(std::holds_alternative<std::monostate>(
+              rows[0][ResourceColumnIndex("elapsed_s")]),
+          "the first sample has no interval");
+  const auto stored =
+      ParseJson(std::get<std::string>(row[ResourceColumnIndex("sockets")]));
+  Require(stored && stored->AsArray().size() == 1,
+          "a busy socket is stored with the row");
+  Require(std::get<std::string>(rows[0][ResourceColumnIndex("cgroup")]) ==
+              "/app.slice",
+          "cgroup path is stored");
+}
+
+void TestResourceResetsLossAndOrder()
+{
+  ResourceMonitor monitor;
+  monitor.Accept(Summary(ResourceHeader(0), GrowingValues(5)), 1);
+  // Counters went backwards (a namespace or host restart): no rates.
+  monitor.Accept(Summary(ResourceHeader(1), GrowingValues(0)), 6);
+  auto live = monitor.Snapshot(6);
+  Require(ResourceField(live, "network.listen_overflows.delta").IsNull() &&
+              ResourceField(live, "pressure.host.cpu.some.pct").IsNull(),
+          "a counter that went backwards has no rate");
+  // A late part of an older sample is ignored.
+  monitor.Accept(Summary(ResourceHeader(0), GrowingValues(0)), 7);
+  Require(ResourceField(monitor.Snapshot(7), "stats.late").AsInt() == 1,
+          "an older sample is late");
+  // A lost socket part: the summary is used after the grace period.
+  monitor.Accept(Summary(ResourceHeader(2, 2), GrowingValues(1)), 11);
+  monitor.Drain(12);
+  Require(Field(monitor.Snapshot(12), "sequence").AsInt() == 1,
+          "waiting for the socket part");
+  monitor.Drain(11 + ResourceMonitor::kGraceSeconds);
+  live = monitor.Snapshot(13);
+  Require(Field(live, "sequence").AsInt() == 2 &&
+              !ResourceField(live, "sockets.complete").AsBool() &&
+              ResourceField(live, "stats.incomplete").AsInt() == 1,
+          "a partial sample is used and marked");
+  // A part that disagrees with its sample's header is refused.
+  auto other = ResourceHeader(3, 2);
+  monitor.Accept(Summary(other, GrowingValues(2)), 16);
+  other.wall_ns_ += 1;
+  const auto socket = TcpSocket(1, 1);
+  monitor.Accept(Sockets(other, std::span{&socket, 1}), 16);
+  Require(monitor.bad_parts_ == 1, "a mismatched part is refused");
+  // A new session starts without rates.
+  monitor.Accept(Summary(ResourceHeader(0, 1, 2), GrowingValues(9)), 20);
+  live = monitor.Snapshot(20);
+  Require(Field(live, "session").AsString() == "2" &&
+              Field(live, "elapsed_s").IsNull(),
+          "a new session has no interval");
+  Require(Field(monitor.Snapshot(60), "stale").AsBool(),
+          "a silent resource stream is stale");
+}
+
+// Memory, cgroup limits and interface counters: signed RSS growth, the share
+// of CPU periods throttled, OOM kills and interface drops over the interval,
+// and "no limit" staying unavailable.
+void TestMemoryCgroupAndInterfaceRates()
+{
+  const auto values = [](std::uint64_t p_step)
+  {
+    auto summary = resource_wire::EmptySummary();
+    summary[resource_wire::Field("rss_bytes")] = 900'000 - p_step * 50'000;
+    summary[resource_wire::Field("swap_bytes")] = 0;
+    summary[resource_wire::Field("cgroup_memory_current")] = 800'000;
+    summary[resource_wire::Field("cgroup_memory_max")] = 1'000'000;
+    summary[resource_wire::Field("cgroup_memory_oom_kill")] = p_step * 2;
+    summary[resource_wire::Field("cgroup_memory_max_events")] = 5 + p_step * 7;
+    summary[resource_wire::Field("cgroup_cpu_nr_periods")] = 100 + p_step * 50;
+    summary[resource_wire::Field("cgroup_cpu_nr_throttled")] = 10 + p_step * 20;
+    summary[resource_wire::Field("net_if_rx_errors")] = 1 + p_step;
+    summary[resource_wire::Field("net_if_rx_dropped")] = 10 + p_step * 3;
+    summary[resource_wire::Field("net_if_tx_errors")] = 2;
+    summary[resource_wire::Field("net_if_tx_dropped")] = 20 + p_step * 4;
+    return summary;
+  };
+  ResourceMonitor monitor;
+  monitor.Accept(Summary(ResourceHeader(0), values(0)), 1);
+  Require(
+      Field(monitor.Snapshot(1), "memory").Find("rss_growth_per_s")->IsNull(),
+      "no growth before a second sample");
+  monitor.Accept(Summary(ResourceHeader(1), values(1)), 6);
+  const auto live = monitor.Snapshot(6);
+  RequireNear(ResourceField(live, "memory.rss_growth_per_s").AsNumber(),
+              -10'000, "a shrinking RSS has negative growth");
+  Require(ResourceField(live, "memory.rss").AsInt() == 850'000 &&
+              ResourceField(live, "memory.swap").AsInt() == 0 &&
+              ResourceField(live, "memory.peak").IsNull(),
+          "memory values; an unreported one is null");
+  RequireNear(ResourceField(live, "cgroup_limits.cpu.throttled_pct").AsNumber(),
+              40, "20 of 50 periods throttled");
+  Require(
+      ResourceField(live, "cgroup_limits.memory.oom_kill_delta").AsInt() == 2 &&
+          ResourceField(live, "cgroup_limits.memory.max_events_delta")
+                  .AsInt() == 7,
+      "OOM kills and limit hits in the interval");
+  Require(
+      ResourceField(live, "cgroup_limits.memory.max").AsInt() == 1'000'000 &&
+          ResourceField(live, "cgroup_limits.memory.high").IsNull() &&
+          ResourceField(live, "cgroup_limits.cpu.quota_us").IsNull(),
+      "an unlimited or unreadable limit is null, not zero");
+  Require(ResourceField(live, "network.if_rx_dropped.delta").AsInt() == 3 &&
+              ResourceField(live, "network.if_tx_errors.delta").AsInt() == 0,
+          "interface counters are in the network object");
+  const auto& row = monitor.PendingRows()[1];
+  const auto integer = [&](std::string_view p_column)
+  {
+    return std::get<std::int64_t>(
+        row[std::ranges::find(kResourceColumns, p_column,
+                              &ResourceColumn::name_) -
+            kResourceColumns.begin()]);
+  };
+  Require(integer("rss_bytes") == 850'000 &&
+              integer("cgroup_memory_max") == 1'000'000 &&
+              integer("cgroup_memory_oom_kill_delta") == 2 &&
+              integer("if_errors_delta") == 1 &&
+              integer("if_dropped_delta") == 7,
+          "stored memory, OOM and interface growth (errors and drops summed)");
+  RequireNear(
+      std::get<double>(row[ResourceColumnIndex("cgroup_cpu_throttled_pct")]),
+      40, "stored throttled share");
+  Require(std::holds_alternative<std::monostate>(
+              row[ResourceColumnIndex("cgroup_pids_current")]),
+          "an unreported value is stored as NULL");
+  // A counter reset (the cgroup was recreated) gives no OOM growth.
+  monitor.Accept(Summary(ResourceHeader(2), values(0)), 11);
+  Require(
+      ResourceField(monitor.Snapshot(11), "cgroup_limits.memory.oom_kill_delta")
+          .IsNull(),
+      "counters that went backwards have no growth");
+}
+
+// Rows reach SQLite, older day files gain the table, and history buckets
+// keep peaks (Max) and add up growth (Sum).
+void TestResourceStorageAndHistory()
+{
+  TempDirectory directory;
+  {
+    auto old = OpenDatabase(directory.Path() / "2023-11-14.sqlite3", false);
+    Require(old.has_value() &&
+                Execute(old->get(),
+                        "CREATE TABLE raw_sample (ts REAL NOT NULL, session "
+                        "TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT "
+                        "NULL)")
+                    .has_value(),
+            "a day file from before resource samples");
+  }
+  Require(ResourceHistory(directory.Path(), 1'699'999'000, 1'700'001'000, 60)
+              .rows_.empty(),
+          "no rows yet");
+  Require(!ResourceHistory(directory.Path(), 1'699'999'000, 1'700'001'000, 60)
+               .read_error_,
+          "a day file without the table is not an error");
+  ResourceMonitor monitor;
+  for (std::uint32_t sequence = 0; sequence < 13; ++sequence)
+  {
+    auto values = GrowingValues(sequence);
+    values[resource_wire::Field("fd_open")] = 900 + sequence;
+    monitor.Accept(Summary(ResourceHeader(sequence), values),
+                   1'700'000'000 + sequence * 5.0);
+  }
+  auto storage = Storage::Create(directory.Path(), 7);
+  Require(storage.has_value(), "storage opens");
+  for (const auto& row : monitor.PendingRows())
+  {
+    Require(storage->Resource(row).has_value(), "a resource row is written");
+  }
+  Require(storage->Flush(1'700'000'100).has_value(), "rows commit");
+  // Buckets align to multiples of their size since the epoch, so the same
+  // query always draws the same boundaries.
+  const auto history =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20);
+  Require(!history.truncated_ && !history.read_error_, "complete history");
+  // 13 samples at 0, 5, ..., 60 s: buckets [0,20) [20,40) [40,60) [60,80).
+  Require(history.rows_.size() == 4, "four 20-second buckets");
+  const auto& second = history.rows_[1];
+  Require(Field(second, "samples").AsInt() == 4, "four samples per bucket");
+  Require(Field(second, "fd_open").AsInt() == 907, "a bucket keeps the peak");
+  Require(Field(second, "listen_overflows_delta").AsInt() == 12,
+          "a bucket adds up counter growth");
+  RequireNear(Field(second, "elapsed_s").AsNumber(), 20,
+              "a bucket adds up elapsed time");
+  RequireNear(Field(second, "ts").AsNumber(), 1'700'000'020,
+              "a bucket starts at its earliest sample");
+  const auto limited =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20, 4);
+  Require(limited.truncated_ && limited.rows_.size() == 1,
+          "history reads a bounded number of samples");
+}
+
 }  // namespace
 
 int main()
@@ -657,9 +1006,13 @@ int main()
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestStorageReportsErrors();
+    TestResourceRatesAndSockets();
+    TestResourceResetsLossAndOrder();
+    TestMemoryCgroupAndInterfaceRates();
+    TestResourceStorageAndHistory();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
-        "sessions, rollups, storage, health)");
+        "sessions, rollups, storage, health, resource samples)");
   }
   catch (const std::exception& error)
   {

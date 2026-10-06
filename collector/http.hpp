@@ -603,6 +603,10 @@ class DashboardServer
     {
       History(p_connection, p_request);
     }
+    else if (p_request.path_ == "/api/resources")
+    {
+      Resources(p_connection, p_request);
+    }
     else
     {
       Respond(p_connection, 404, "Not found", "text/plain");
@@ -642,6 +646,35 @@ class DashboardServer
                      : p_target && !available ? 403
                                               : 200;
     RespondJson(p_connection, code, *result);
+  }
+
+  // Stored resource samples between start and end (default: the last 15
+  // minutes), combined into at most about 1,000 buckets.
+  void Resources(int p_connection, const Request& p_request)
+  {
+    const auto end_text = QueryValue(p_request.query_, "end");
+    const auto end = end_text ? PythonFloat(*end_text) : WallNow();
+    const auto start_text = QueryValue(p_request.query_, "start");
+    const auto start = start_text ? PythonFloat(*start_text)
+                       : end      ? std::optional{*end - 900}
+                                  : std::nullopt;
+    if (!start || !end || !std::isfinite(*start) || !std::isfinite(*end) ||
+        !(0 <= *start && *start <= *end && *end <= 253402214400.0) ||
+        *end - *start > static_cast<double>(config_.retention_days_) * 86400)
+    {
+      Respond(p_connection, 400,
+              R"({"error":"a valid time range is required"})",
+              "application/json");
+      return;
+    }
+    const double bucket = std::max(1.0, std::ceil((*end - *start) / 1000));
+    auto history =
+        collector::ResourceHistory(config_.data_dir_, *start, *end, bucket);
+    RespondJson(p_connection, 200,
+                JsonObject{{"rows", std::move(history.rows_)},
+                           {"bucket_s", bucket},
+                           {"truncated", history.truncated_},
+                           {"read_error", history.read_error_}});
   }
 
   void History(int p_connection, const Request& p_request)

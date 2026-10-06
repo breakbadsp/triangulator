@@ -18,6 +18,7 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "../socket_sampler/protocol.hpp"
@@ -94,6 +95,136 @@ struct RawRow
   std::string session_;
   std::shared_ptr<const Record> record_;
 };
+
+// How a resource column combines rows into one history bucket: the
+// highest value (gauges, where the peak is what an incident review needs),
+// the sum (per-interval deltas and their elapsed time), the earliest
+// (timestamps), or not at all (identities and text).
+enum class Combine
+{
+  None = 0,
+  Max,
+  Sum,
+  Min
+};
+
+struct ResourceColumn
+{
+  std::string_view name_;
+  std::string_view type_;
+  Combine combine_;
+};
+
+// The resource_sample table, one row per resource sample. Percentages are
+// over the interval since the previous sample (elapsed_s); "_delta" columns
+// are how much a namespace counter grew in that interval. The schema, the
+// insert statement and history buckets all come from this list.
+inline constexpr std::array<ResourceColumn, 61> kResourceColumns{{
+    {"ts", "REAL NOT NULL", Combine::Min},
+    {"session", "TEXT NOT NULL", Combine::None},
+    {"sequence", "INTEGER NOT NULL", Combine::None},
+    {"pid", "INTEGER NOT NULL", Combine::Max},
+    {"elapsed_s", "REAL", Combine::Sum},
+    {"host_cpu_some_pct", "REAL", Combine::Max},
+    {"host_cpu_full_pct", "REAL", Combine::Max},
+    {"host_memory_some_pct", "REAL", Combine::Max},
+    {"host_memory_full_pct", "REAL", Combine::Max},
+    {"host_io_some_pct", "REAL", Combine::Max},
+    {"host_io_full_pct", "REAL", Combine::Max},
+    {"cgroup_cpu_some_pct", "REAL", Combine::Max},
+    {"cgroup_cpu_full_pct", "REAL", Combine::Max},
+    {"cgroup_memory_some_pct", "REAL", Combine::Max},
+    {"cgroup_memory_full_pct", "REAL", Combine::Max},
+    {"cgroup_io_some_pct", "REAL", Combine::Max},
+    {"cgroup_io_full_pct", "REAL", Combine::Max},
+    {"fd_open", "INTEGER", Combine::Max},
+    {"fd_soft_limit", "INTEGER", Combine::Max},
+    {"fd_sockets", "INTEGER", Combine::Max},
+    {"read_bps", "REAL", Combine::Max},
+    {"write_bps", "REAL", Combine::Max},
+    {"tcp_sockets", "INTEGER", Combine::Max},
+    {"udp_sockets", "INTEGER", Combine::Max},
+    {"unix_sockets", "INTEGER", Combine::Max},
+    {"rx_queue_bytes", "INTEGER", Combine::Max},
+    {"tx_queue_bytes", "INTEGER", Combine::Max},
+    {"socket_drops", "INTEGER", Combine::Max},
+    {"max_rx_fill_pct", "REAL", Combine::Max},
+    {"max_tx_fill_pct", "REAL", Combine::Max},
+    {"max_accept_fill_pct", "REAL", Combine::Max},
+    {"tcp_established", "INTEGER", Combine::Max},
+    {"tcp_close_wait", "INTEGER", Combine::Max},
+    {"tcp_retrans_segs_delta", "INTEGER", Combine::Sum},
+    {"tcp_timeouts_delta", "INTEGER", Combine::Sum},
+    {"tcp_estab_resets_delta", "INTEGER", Combine::Sum},
+    {"listen_overflows_delta", "INTEGER", Combine::Sum},
+    {"listen_drops_delta", "INTEGER", Combine::Sum},
+    {"tcp_backlog_drop_delta", "INTEGER", Combine::Sum},
+    {"tcp_rcvq_drop_delta", "INTEGER", Combine::Sum},
+    {"tcp_zero_window_drop_delta", "INTEGER", Combine::Sum},
+    {"tcp_abort_on_memory_delta", "INTEGER", Combine::Sum},
+    {"tcp_memory_pressures_delta", "INTEGER", Combine::Sum},
+    {"udp_rcvbuf_errors_delta", "INTEGER", Combine::Sum},
+    {"udp_sndbuf_errors_delta", "INTEGER", Combine::Sum},
+    {"udp_in_errors_delta", "INTEGER", Combine::Sum},
+    {"sockstat_tcp_mem", "INTEGER", Combine::Max},
+    {"rss_bytes", "INTEGER", Combine::Max},
+    {"swap_bytes", "INTEGER", Combine::Max},
+    {"cgroup_memory_current", "INTEGER", Combine::Max},
+    {"cgroup_memory_max", "INTEGER", Combine::Max},
+    {"cgroup_memory_max_events_delta", "INTEGER", Combine::Sum},
+    {"cgroup_memory_oom_kill_delta", "INTEGER", Combine::Sum},
+    {"cgroup_cpu_throttled_pct", "REAL", Combine::Max},
+    {"cgroup_pids_current", "INTEGER", Combine::Max},
+    {"if_errors_delta", "INTEGER", Combine::Sum},
+    {"if_dropped_delta", "INTEGER", Combine::Sum},
+    {"flags", "INTEGER NOT NULL", Combine::None},
+    {"cgroup", "TEXT NOT NULL", Combine::None},
+    {"sockets", "TEXT NOT NULL", Combine::None},
+    {"sockets_complete", "INTEGER NOT NULL", Combine::None},
+}};
+
+// Index of a resource column. consteval, so a misspelt name fails to compile.
+consteval std::size_t ResourceColumnIndex(std::string_view p_name)
+{
+  for (std::size_t index = 0; index < kResourceColumns.size(); ++index)
+  {
+    if (kResourceColumns[index].name_ == p_name)
+    {
+      return index;
+    }
+  }
+  throw "unknown resource column";
+}
+
+// A value for one SQLite column: NULL, integer, real or text.
+using SqlValue =
+    std::variant<std::monostate, std::int64_t, double, std::string>;
+using ResourceRow = std::array<SqlValue, kResourceColumns.size()>;
+
+[[nodiscard]] inline std::string ResourceTableSql()
+{
+  std::string sql = "CREATE TABLE IF NOT EXISTS resource_sample (";
+  for (const auto& column : kResourceColumns)
+  {
+    sql += std::format("{} {}, ", column.name_, column.type_);
+  }
+  sql +=
+      "PRIMARY KEY(session, sequence));\n"
+      "CREATE INDEX IF NOT EXISTS resource_time ON resource_sample(ts);";
+  return sql;
+}
+
+[[nodiscard]] inline std::string ResourceInsertSql()
+{
+  std::string sql = "INSERT OR REPLACE INTO resource_sample(";
+  std::string values;
+  for (const auto& column : kResourceColumns)
+  {
+    sql += std::format("{}{}", values.empty() ? "" : ",", column.name_);
+    values += values.empty() ? "?" : ",?";
+  }
+  return sql + ") VALUES (" + values + ")";
+}
 
 // Every SQLite helper reports failure as SQLite's error message.
 using SqliteResult = std::expected<void, std::string>;
@@ -196,6 +327,23 @@ class Binder
   {
     ::sqlite3_bind_text(statement_, ++index_, p_value.data(),
                         static_cast<int>(p_value.size()), SQLITE_TRANSIENT);
+    return *this;
+  }
+  Binder& Add(const SqlValue& p_value)
+  {
+    if (const auto* integer = std::get_if<std::int64_t>(&p_value))
+    {
+      return Add(*integer);
+    }
+    if (const auto* real = std::get_if<double>(&p_value))
+    {
+      return Add(*real);
+    }
+    if (const auto* text = std::get_if<std::string>(&p_value))
+    {
+      return Add(std::string_view{*text});
+    }
+    ::sqlite3_bind_null(statement_, ++index_);
     return *this;
   }
   template <typename Value>
@@ -422,6 +570,27 @@ class Storage
     return Run(file.database_.get(), statement);
   }
 
+  [[nodiscard]] SqliteResult Resource(const ResourceRow& p_row)
+  {
+    const auto* ts = std::get_if<double>(&p_row[0]);
+    auto connection = Connection(ts != nullptr ? *ts : 0);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
+    Binder binder{file.resource_.get()};
+    for (const auto& value : p_row)
+    {
+      binder.Add(value);
+    }
+    return Run(file.database_.get(), file.resource_.get());
+  }
+
   // Commits pending rows, closes files for past days and, once a day,
   // deletes day files older than the retention period.
   [[nodiscard]] SqliteResult Flush(double p_now)
@@ -489,6 +658,7 @@ class Storage
     Statement rollup_;
     Statement raw_;
     Statement socket_;
+    Statement resource_;
     bool in_transaction_ = false;
   };
 
@@ -559,8 +729,11 @@ class Storage
     // Allow that short read to finish during initialization only. Normal
     // ingestion retains its nonblocking lock policy once WAL is established.
     ::sqlite3_busy_timeout(database, 1000);
+    // Older day files gain the resource table here.
+    const auto resource_table = ResourceTableSql();
     for (const std::string_view sql :
-         {std::string_view{"PRAGMA journal_mode=WAL"}, kSchema})
+         {std::string_view{"PRAGMA journal_mode=WAL"}, kSchema,
+          std::string_view{resource_table}})
     {
       if (auto executed = Execute(database, sql); !executed)
       {
@@ -619,6 +792,12 @@ class Storage
       return std::unexpected(std::move(socket.error()));
     }
     file.socket_ = std::move(*socket);
+    auto resource = Prepare(database, ResourceInsertSql());
+    if (!resource)
+    {
+      return std::unexpected(std::move(resource.error()));
+    }
+    file.resource_ = std::move(*resource);
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }
@@ -700,6 +879,142 @@ class Storage
       break;
     }
   }
+  return result;
+}
+
+struct ResourceHistoryResult
+{
+  JsonArray rows_;
+  // More than p_limit samples were in range; the newest are missing.
+  bool truncated_ = false;
+  bool read_error_ = false;
+};
+
+// Resource samples between p_start and p_end combined into p_bucket_s
+// buckets as kResourceColumns says, oldest first, with "samples" per bucket.
+// At most p_limit samples are read. Day files that cannot be read, or that
+// predate the resource table, are skipped.
+[[nodiscard]] inline ResourceHistoryResult ResourceHistory(
+    const std::filesystem::path& p_directory, double p_start, double p_end,
+    double p_bucket_s, std::size_t p_limit = 200'000)
+{
+  std::vector<std::size_t> columns;
+  std::string select;
+  for (std::size_t index = 0; index < kResourceColumns.size(); ++index)
+  {
+    if (kResourceColumns[index].combine_ != Combine::None)
+    {
+      select += std::format("{}{}", select.empty() ? "" : ",",
+                            kResourceColumns[index].name_);
+      columns.push_back(index);
+    }
+  }
+  const auto sql = std::format(
+      "SELECT {} FROM resource_sample WHERE ts>=? AND ts<=? ORDER BY ts "
+      "LIMIT ?",
+      select);
+  ResourceHistoryResult result;
+  std::optional<std::int64_t> bucket;
+  std::vector<std::optional<double>> combined(columns.size());
+  std::int64_t samples = 0;
+  std::size_t read = 0;
+  const auto finish = [&]
+  {
+    if (!bucket)
+    {
+      return;
+    }
+    Json row{JsonObject{}};
+    for (std::size_t slot = 0; slot < columns.size(); ++slot)
+    {
+      const auto& column = kResourceColumns[columns[slot]];
+      const auto& value = combined[slot];
+      row.Set(column.name_, !value ? Json{}
+                            : column.type_.starts_with("INTEGER")
+                                ? Json(std::llround(*value))
+                                : Json(*value));
+    }
+    row.Set("samples", samples);
+    result.rows_.push_back(std::move(row));
+    std::ranges::fill(combined, std::nullopt);
+    samples = 0;
+  };
+  const auto first = DayName(UtcDay(p_start));
+  const auto last = DayName(UtcDay(p_end));
+  for (const auto& path : DayFiles(p_directory))
+  {
+    const auto stem = path.stem().string();
+    if (stem < first || stem > last || read >= p_limit)
+    {
+      continue;
+    }
+    auto database = OpenDatabase(path, true);
+    if (!database)
+    {
+      result.read_error_ = true;
+      continue;
+    }
+    ::sqlite3_busy_timeout(database->get(), 2000);
+    auto statement = Prepare(database->get(), sql);
+    if (!statement)
+    {
+      // A day file from before resource samples has no table: nothing to
+      // read, not an error.
+      result.read_error_ =
+          result.read_error_ ||
+          statement.error().find("no such table") == std::string::npos;
+      continue;
+    }
+    auto* query = statement->get();
+    Binder{query}.Add(p_start).Add(p_end).Add(
+        static_cast<std::int64_t>(p_limit - read + 1));
+    int status = SQLITE_ROW;
+    while ((status = ::sqlite3_step(query)) == SQLITE_ROW)
+    {
+      if (++read > p_limit)
+      {
+        result.truncated_ = true;
+        break;
+      }
+      const auto key = static_cast<std::int64_t>(
+          std::floor(::sqlite3_column_double(query, 0) / p_bucket_s));
+      if (bucket != key)
+      {
+        finish();
+        bucket = key;
+      }
+      ++samples;
+      for (std::size_t slot = 0; slot < columns.size(); ++slot)
+      {
+        if (::sqlite3_column_type(query, static_cast<int>(slot)) == SQLITE_NULL)
+        {
+          continue;
+        }
+        const double value =
+            ::sqlite3_column_double(query, static_cast<int>(slot));
+        auto& target = combined[slot];
+        switch (kResourceColumns[columns[slot]].combine_)
+        {
+          case Combine::Max:
+            target = target ? std::max(*target, value) : value;
+            break;
+          case Combine::Min:
+            target = target ? std::min(*target, value) : value;
+            break;
+          case Combine::Sum:
+            target = target.value_or(0) + value;
+            break;
+          case Combine::None:
+            break;
+        }
+      }
+    }
+    if (status != SQLITE_ROW && status != SQLITE_DONE)
+    {
+      result.read_error_ = true;
+    }
+  }
+  finish();
   return result;
 }
 

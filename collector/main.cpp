@@ -24,6 +24,7 @@
 #include "json.hpp"
 #include "log.hpp"
 #include "protocol.hpp"
+#include "resources.hpp"
 #include "storage.hpp"
 
 namespace
@@ -61,10 +62,20 @@ void HandleStopSignal(int)
   return buffer.data();
 }
 
-// Writes the rows the monitor produced since the last call. On failure the
+// Writes the rows the monitors produced since the last call. On failure the
 // rows stay pending and the error is returned.
-[[nodiscard]] SqliteResult WriteRows(Monitor& p_monitor, Storage& p_storage)
+[[nodiscard]] SqliteResult WriteRows(Monitor& p_monitor,
+                                     ResourceMonitor& p_resources,
+                                     Storage& p_storage)
 {
+  for (const auto& row : p_resources.PendingRows())
+  {
+    if (auto written = p_storage.Resource(row); !written)
+    {
+      return written;
+    }
+  }
+  p_resources.ClearRows();
   for (const auto& row : p_monitor.PendingRollups())
   {
     if (auto written = p_storage.Rollup(row); !written)
@@ -99,8 +110,11 @@ class SaveOnUnwind
 {
  public:
   SaveOnUnwind(DashboardServer& p_server, Monitor& p_monitor,
-               Storage& p_storage) noexcept
-      : server_(p_server), monitor_(p_monitor), storage_(p_storage)
+               ResourceMonitor& p_resources, Storage& p_storage) noexcept
+      : server_(p_server),
+        monitor_(p_monitor),
+        resources_(p_resources),
+        storage_(p_storage)
   {
   }
   SaveOnUnwind(const SaveOnUnwind&) = delete;
@@ -114,13 +128,15 @@ class SaveOnUnwind
     }
     server_.Stop();
     monitor_.Close();
-    static_cast<void>(WriteRows(monitor_, storage_));
+    resources_.Drain(0, true);
+    static_cast<void>(WriteRows(monitor_, resources_, storage_));
     static_cast<void>(storage_.Close());
   }
 
  private:
   DashboardServer& server_;
   Monitor& monitor_;
+  ResourceMonitor& resources_;
   Storage& storage_;
   int exceptions_ = std::uncaught_exceptions();
 };
@@ -156,6 +172,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     return Stopped(flushed.error());
   }
   Monitor monitor{config, WallNow()};
+  ResourceMonitor resources;
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -189,8 +206,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
                   config.udp_port_, config.http_host_, config.http_port_));
-  std::array<std::byte, 1201> buffer{};
-  const SaveOnUnwind save_on_unwind{server, monitor, storage};
+  // One byte more than the largest datagram (resource_wire::kMaxPartSize,
+  // 1400).
+  std::array<std::byte, 1501> buffer{};
+  const SaveOnUnwind save_on_unwind{server, monitor, resources, storage};
   // The first storage failure. It stops the loop: rows that can't be saved
   // shouldn't be dropped silently.
   SqliteResult storage_ok;
@@ -227,6 +246,27 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           }
         }
       }
+      else if (data.size() >= 4 && std::memcmp(data.data(), "TRES", 4) == 0)
+      {
+        if (!sampler_ip || peer_ip == *sampler_ip)
+        {
+          if (auto part = triangulator::resource_wire::Decode(data))
+          {
+            if (!sampler_ip)
+            {
+              sampler_ip = peer_ip;
+              Log(LogLevel::Info,
+                  std::format("Pinned sampler source to {}", peer_ip));
+            }
+            resources.Accept(std::move(*part), now);
+            storage_ok = WriteRows(monitor, resources, storage);
+          }
+          else
+          {
+            ++resources.bad_parts_;
+          }
+        }
+      }
       else if (!sampler_ip || peer_ip == *sampler_ip)
       {
         auto packet = Decode(data);
@@ -243,7 +283,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                 std::format("Pinned sampler source to {}", peer_ip));
           }
           monitor.Accept(std::move(*packet), now);
-          storage_ok = WriteRows(monitor, storage);
+          storage_ok = WriteRows(monitor, resources, storage);
         }
       }
     }
@@ -253,8 +293,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       health.Set("sampler_ip", Json(sampler_ip));
       auto live = monitor.Snapshot(now);
       live.Set("health", std::move(health));
+      resources.Drain(now);
+      live.Set("resources", resources.Snapshot(now));
       state.SetLive(DumpJson(live));
-      storage_ok = WriteRows(monitor, storage);
+      storage_ok = WriteRows(monitor, resources, storage);
       if (storage_ok)
       {
         storage_ok = storage.Flush(now);
@@ -265,9 +307,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   }
   server.Stop();
   monitor.Close();
+  resources.Drain(0, true);
   if (storage_ok)
   {
-    storage_ok = WriteRows(monitor, storage);
+    storage_ok = WriteRows(monitor, resources, storage);
   }
   // Close even after a failure, so rows from other day files still commit.
   const auto closed = storage.Close();
