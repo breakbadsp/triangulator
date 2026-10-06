@@ -974,6 +974,67 @@ void TestMemoryCgroupAndInterfaceRates()
       "counters that went backwards have no growth");
 }
 
+// An old resource table keeps its rows and gains missing measurements.
+// History must also read a previous day without changing that file.
+void TestExistingDayFileGainsNewResourceColumns()
+{
+  TempDirectory directory;
+  const auto path = directory.Path() / "2023-11-14.sqlite3";
+  {
+    auto old = OpenDatabase(path, false);
+    Require(old.has_value(), "the old resource day file opens");
+    auto schema = ResourceTableSql();
+    const auto first = schema.find("rss_bytes INTEGER, ");
+    const auto last = schema.find("flags INTEGER NOT NULL, ");
+    Require(first != std::string::npos && last > first,
+            "the new measurements are in the schema");
+    schema.erase(first, last - first);
+    Require(Execute(old->get(), schema).has_value(),
+            "the old resource table is created");
+    Require(Execute(old->get(),
+                    "INSERT INTO resource_sample "
+                    "(ts,session,sequence,pid,fd_open,flags,cgroup,sockets,"
+                    "sockets_complete) VALUES "
+                    "(1700000000,'1',0,123,17,0,'','[]',1)")
+                .has_value(),
+            "an old resource row is stored");
+  }
+  const auto before =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 1);
+  Require(!before.read_error_ && before.rows_.size() == 1,
+          "old resource history stays readable");
+  Require(Field(before.rows_[0], "fd_open").AsInt() == 17 &&
+              Field(before.rows_[0], "rss_bytes").IsNull(),
+          "old values stay available and missing measurements are null");
+  {
+    auto old = OpenDatabase(path, true);
+    Require(old.has_value(), "the old resource day file reopens");
+    const auto columns = TableColumns(old->get(), "resource_sample");
+    Require(columns.has_value() && columns->size() == 51,
+            "history does not change the old schema");
+  }
+  ResourceMonitor monitor;
+  auto values = resource_wire::EmptySummary();
+  values[resource_wire::Field("rss_bytes")] = 123'456;
+  monitor.Accept(Summary(ResourceHeader(1), values), 1'700'000'005);
+  for (int attempt = 0; attempt < 2; ++attempt)
+  {
+    auto storage = Storage::Create(directory.Path(), 7);
+    Require(storage.has_value(), "storage opens the old directory");
+    Require(storage->Resource(monitor.PendingRows()[0]).has_value(),
+            "a new resource row is written to the old file");
+    Require(storage->Close().has_value(), "resource rows commit");
+  }
+  const auto after =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 1);
+  Require(!after.read_error_ && after.rows_.size() == 2,
+          "old and new rows remain after the schema update and reopen");
+  Require(Field(after.rows_[0], "fd_open").AsInt() == 17 &&
+              Field(after.rows_[0], "rss_bytes").IsNull() &&
+              Field(after.rows_[1], "rss_bytes").AsInt() == 123'456,
+          "the schema update preserves old data and stores new measurements");
+}
+
 // Rows reach SQLite, older day files gain the table, and history buckets
 // keep peaks (Max) and add up growth (Sum).
 void TestResourceStorageAndHistory()
@@ -1056,6 +1117,7 @@ int main()
     TestResourceResetsLossAndOrder();
     TestResourceRetiredSessions();
     TestMemoryCgroupAndInterfaceRates();
+    TestExistingDayFileGainsNewResourceColumns();
     TestResourceStorageAndHistory();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
