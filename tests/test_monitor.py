@@ -313,9 +313,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             checked = subprocess.run([*CPP_COLLECTOR, str(invalid), "--check-config"], capture_output=True, text=True)
             self.assertEqual(checked.returncode, 2)
             self.assertIn("window_s must be 5..10", checked.stderr)
-            target = subprocess.Popen(["sleep", "30"])
+            target = subprocess.Popen(["sleep", "30"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL)
             sampler_config = Path(directory) / "sampler.toml"
-            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
+            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
+                                      'resource_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(collector_config)], cwd=ROOT,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(sampler_config)],
@@ -334,7 +336,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
 
             try:
                 deadline = time.monotonic() + 10
-                rows, live = [], {}
+                rows, resource_rows, live = [], [], {}
                 while time.monotonic() < deadline:
                     if collector.poll() is not None:
                         self.fail(collector.communicate()[1])
@@ -343,12 +345,23 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                         if live.get("threads"):
                             session = live["health"]["session"]
                             rows = json.loads(fetch(f"/api/history?session={session}&tid={target.pid}")[1])["rows"]
-                            if rows:
+                            resource_rows = json.loads(fetch("/api/resources")[1])["rows"]
+                            if rows and len(resource_rows) >= 2 and live["resources"].get("elapsed_s"):
                                 break
                     except (OSError, KeyError, ValueError):
                         pass
                     time.sleep(0.1)
                 self.assertTrue(rows, "collector did not persist a live thread rollup")
+                resources = live["resources"]
+                self.assertTrue(resources["available"])
+                self.assertEqual(resources["pid"], target.pid)
+                self.assertEqual(resources["session"], live["health"]["session"])
+                self.assertEqual(resources["fds"]["sockets"], 0)
+                self.assertIsNotNone(resources["io"]["rchar_bps"])
+                self.assertIn("listen_overflows", resources["network"])
+                self.assertGreaterEqual(len(resource_rows), 2, "resource samples were not stored")
+                self.assertIn("host_io_some_pct", resource_rows[-1])
+                self.assertEqual(fetch("/api/resources?start=10&end=5")[0], 400)
                 self.assertEqual(live["threads"][0]["name"], "sleep")
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertNotIn("alerts", live)
@@ -373,9 +386,12 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 target.wait(timeout=8)
             self.assertIn("Alerting is not part of the C++ collector", stderr)
             self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
+            stored = 0
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
+                    stored += connection.execute("SELECT COUNT(*) FROM resource_sample").fetchone()[0]
+            self.assertGreaterEqual(stored, 2)
 
 
     def test_unusable_data_dir_stops_at_startup(self):
@@ -418,9 +434,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             config = Path(directory) / "collector.toml"
             config.write_text(f'udp_host="127.0.0.1"\nudp_port={udp_port}\n'
                               f'http_port={free_port(socket.SOCK_STREAM)}\ndata_dir="{data}"\nstore_raw=true\n')
-            target = subprocess.Popen(["sleep", "30"])
+            target = subprocess.Popen(["sleep", "30"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL)
             sampler_config = Path(directory) / "sampler.toml"
-            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n')
+            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
+                                      'resource_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(config)], stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE, text=True)
             sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(sampler_config)],
