@@ -77,7 +77,9 @@ Packet MakePacket(std::uint32_t p_sequence, std::vector<Record> p_records)
   packet.wall_ns_ = (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000;
   packet.interval_ms_ = 1000;
   packet.pid_ = 123;
-  packet.records_ = std::move(p_records);
+  Require(p_records.size() <= kRecordsPerPacket, "a datagram has few records");
+  std::ranges::copy(p_records, packet.records_.begin());
+  packet.count_ = p_records.size();
   return packet;
 }
 
@@ -88,19 +90,19 @@ Packet MakePacket(std::uint32_t p_sequence)
 
 // The datagram the sampler would send for p_packet, using the shared wire
 // encoders.
-std::vector<std::byte> Encode(const Packet& p_packet)
+std::vector<std::byte> Encode(const Packet& p_packet,
+                              std::span<const Record> p_records)
 {
-  std::vector<std::byte> data(kHeaderSize +
-                              p_packet.records_.size() * kRecordSize);
+  std::vector<std::byte> data(kHeaderSize + p_records.size() * kRecordSize);
   wire::EncodeHeader(
       std::span{data}.first<kHeaderSize>(),
       wire::Header{static_cast<wire::Flags>(p_packet.flags_), p_packet.chunk_,
                    p_packet.chunks_, p_packet.session_, p_packet.sequence_,
-                   static_cast<std::uint16_t>(p_packet.records_.size()),
+                   static_cast<std::uint16_t>(p_records.size()),
                    p_packet.monotonic_ns_, p_packet.wall_ns_,
                    p_packet.interval_ms_, p_packet.pid_});
   std::size_t offset = kHeaderSize;
-  for (const auto& record : p_packet.records_)
+  for (const auto& record : p_records)
   {
     wire::Record wire_record{
         .tid_ = record.tid_,
@@ -114,13 +116,18 @@ std::vector<std::byte> Encode(const Packet& p_packet)
         .major_faults_ = record.major_faults_,
         .read_bytes_ = record.read_bytes_,
         .write_bytes_ = record.write_bytes_};
-    std::ranges::copy(record.comm_, wire_record.comm_.begin());
-    std::ranges::copy(record.wchan_, wire_record.wchan_.begin());
+    std::ranges::copy(record.comm_.View(), wire_record.comm_.begin());
+    std::ranges::copy(record.wchan_.View(), wire_record.wchan_.begin());
     wire::EncodeRecord(std::span{data}.subspan(offset).first<kRecordSize>(),
                        wire_record);
     offset += kRecordSize;
   }
   return data;
+}
+
+std::vector<std::byte> Encode(const Packet& p_packet)
+{
+  return Encode(p_packet, p_packet.Records());
 }
 
 void TestDecodeRoundTrip()
@@ -139,9 +146,11 @@ void TestDecodeRoundTrip()
               decoded->wall_ns_ == packet.wall_ns_ &&
               decoded->interval_ms_ == 1000 && decoded->pid_ == 123,
           "header fields survive a round trip");
-  Require(decoded->records_.size() == 1 &&
-              DumpJson(RecordJson(decoded->records_[0])) ==
-                  DumpJson(RecordJson(record)),
+  RecordJsonText decoded_text;
+  RecordJsonText record_text;
+  AppendRecordJson(decoded_text, decoded->records_[0]);
+  AppendRecordJson(record_text, record);
+  Require(decoded->count_ == 1 && decoded_text == record_text,
           "record fields survive a round trip");
 }
 
@@ -161,12 +170,14 @@ void TestDecodeRejectsInvalidDatagrams()
   zero_interval.interval_ms_ = 0;
   auto bad_record_flags = MakePacket(0);
   bad_record_flags.records_[0].flags_ = 2;
-  auto too_many = MakePacket(0, {});
+  std::vector<Record> too_many;
   for (std::uint32_t tid = 1; tid <= 11; ++tid)
   {
-    too_many.records_.push_back(MakeRecord());
-    too_many.records_.back().tid_ = tid;
+    too_many.push_back(MakeRecord());
+    too_many.back().tid_ = tid;
   }
+  auto huge_tid = MakePacket(0);
+  huge_tid.records_[0].tid_ = kMaxTid + 1;
   const std::vector<std::pair<std::string_view, std::vector<std::byte>>> cases{
       {"empty", {}},
       {"truncated", truncated},
@@ -176,7 +187,8 @@ void TestDecodeRejectsInvalidDatagrams()
       {"duplicate tid", Encode(duplicate_tid)},
       {"zero interval", Encode(zero_interval)},
       {"unknown record flag", Encode(bad_record_flags)},
-      {"11 records", Encode(too_many)}};
+      {"11 records", Encode(MakePacket(0, {}), too_many)},
+      {"thread id above the Linux limit", Encode(huge_tid)}};
   for (const auto& [name, data] : cases)
   {
     Require(!Decode(data).has_value(),
@@ -211,7 +223,7 @@ void TestClassification()
   {
     Require(Classify(record) == expected,
             std::format("state {} wchan '{}' is {}, not {}", record.state_,
-                        record.wchan_, expected, Classify(record)));
+                        record.wchan_.View(), expected, Classify(record)));
   }
 }
 
@@ -247,12 +259,30 @@ class TempDirectory
 // A Monitor whose rows go to a temporary directory, with one "worker" group.
 // As in the real collector, the config is shared by reference, so tests may
 // change it after construction.
+// A RowSink that keeps the resource rows it receives.
+struct RowCollector final : RowSink
+{
+  std::vector<ResourceRow> resource_;
+
+  void Rollup(const RollupRow&) override
+  {
+  }
+  void Raw(const RawRow&) override
+  {
+  }
+  void Resource(const ResourceRow& p_row) override
+  {
+    resource_.push_back(p_row);
+  }
+};
+
 struct MonitorFixture
 {
   TempDirectory directory_;
   Config config_ = MakeConfig();
   Storage storage_ = MakeStorage(directory_.Path());
-  Monitor monitor_{config_, 1'700'000'000};
+  StorageSink sink_{storage_};
+  Monitor monitor_{config_, 1'700'000'000, sink_};
 
   static Storage MakeStorage(const std::filesystem::path& p_directory)
   {
@@ -279,18 +309,10 @@ struct MonitorFixture
     WriteRows();
   }
 
-  // Writes the rows the monitor produced, as the collector's main loop does.
+  // Checks that every row the monitor produced so far was written.
   void WriteRows()
   {
-    for (const auto& row : monitor_.PendingRollups())
-    {
-      Require(storage_.Rollup(row).has_value(), "a rollup row is written");
-    }
-    for (const auto& row : monitor_.PendingRaw())
-    {
-      Require(storage_.Raw(row).has_value(), "a raw row is written");
-    }
-    monitor_.ClearRows();
+    Require(sink_.Status().has_value(), "rows are written");
   }
 
   void Feed(std::uint32_t p_sequence, Record p_record)
@@ -896,15 +918,16 @@ const Json& ResourceField(const Json& p_live, std::string_view p_path)
 
 void TestResourceRatesAndSockets()
 {
-  ResourceMonitor monitor;
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
   Require(!Field(monitor.Snapshot(0), "available").AsBool(), "no sample yet");
   auto first = TcpSocket(5, 100);
   first.rwnd_limited_us_ = 1'000'000;
   first.total_retrans_ = 4;
   monitor.Accept(Summary(ResourceHeader(0, 2), GrowingValues(0)), 1);
-  Require(monitor.PendingRows().empty(), "a sample waits for its socket part");
+  Require(sink.resource_.empty(), "a sample waits for its socket part");
   monitor.Accept(Sockets(ResourceHeader(0, 2), std::span{&first, 1}), 1);
-  Require(monitor.PendingRows().size() == 1, "a complete sample is used");
+  Require(sink.resource_.size() == 1, "a complete sample is used");
   auto second = TcpSocket(5, 950);
   second.rwnd_limited_us_ = 3'500'000;  // limited for 2.5 of 5 s
   second.total_retrans_ = 6;
@@ -939,7 +962,7 @@ void TestResourceRatesAndSockets()
   Require(ResourceField(top[0], "tcp.retrans_delta").AsInt() == 2,
           "per-socket retransmissions in the interval");
 
-  const auto& rows = monitor.PendingRows();
+  const auto& rows = sink.resource_;
   Require(rows.size() == 2, "one row per sample");
   const auto& row = rows[1];
   const auto real = [&](std::string_view p_column)
@@ -957,18 +980,16 @@ void TestResourceRatesAndSockets()
   Require(std::holds_alternative<std::monostate>(
               rows[0][ResourceColumnIndex("elapsed_s")]),
           "the first sample has no interval");
-  const auto stored =
-      ParseJson(std::get<std::string>(row[ResourceColumnIndex("sockets")]));
+  const auto stored = ParseJson(std::string{row.sockets_.View()});
   Require(stored && stored->AsArray().size() == 1,
           "a busy socket is stored with the row");
-  Require(std::get<std::string>(rows[0][ResourceColumnIndex("cgroup")]) ==
-              "/app.slice",
-          "cgroup path is stored");
+  Require(rows[0].cgroup_.View() == "/app.slice", "cgroup path is stored");
 }
 
 void TestResourceResetsLossAndOrder()
 {
-  ResourceMonitor monitor;
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
   monitor.Accept(Summary(ResourceHeader(0), GrowingValues(5)), 1);
   // Counters went backwards (a namespace or host restart): no rates.
   monitor.Accept(Summary(ResourceHeader(1), GrowingValues(0)), 6);
@@ -1016,7 +1037,8 @@ void TestResourceRetiredSessions()
   {
     for (const bool complete_old : {false, true})
     {
-      ResourceMonitor monitor;
+      RowCollector sink;
+      ResourceMonitor monitor{sink};
       auto old_header = ResourceHeader(0);
       old_header.pid_ = 111;
       if (prior_sample)
@@ -1029,7 +1051,7 @@ void TestResourceRetiredSessions()
       auto new_header = ResourceHeader(0, 1, 2);
       new_header.pid_ = 222;
       monitor.Accept(Summary(new_header, GrowingValues(2)), 2);
-      const auto row_count = monitor.PendingRows().size();
+      const auto row_count = sink.resource_.size();
       if (complete_old)
       {
         const auto socket = TcpSocket(5, 100);
@@ -1046,7 +1068,7 @@ void TestResourceRetiredSessions()
                   Field(live, "pid").AsInt() == 222 &&
                   Field(live, "elapsed_s").IsNull(),
               "retired sessions cannot replace the current target or rates");
-      Require(monitor.PendingRows().size() == row_count,
+      Require(sink.resource_.size() == row_count,
               "retired packets do not create new stored samples");
       Require(ResourceField(live, "stats.late").AsInt() > 0,
               "retired packets are counted as late");
@@ -1076,7 +1098,8 @@ void TestMemoryCgroupAndInterfaceRates()
     summary[resource_wire::Field("net_if_tx_dropped")] = 20 + p_step * 4;
     return summary;
   };
-  ResourceMonitor monitor;
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
   monitor.Accept(Summary(ResourceHeader(0), values(0)), 1);
   Require(
       Field(monitor.Snapshot(1), "memory").Find("rss_growth_per_s")->IsNull(),
@@ -1104,7 +1127,7 @@ void TestMemoryCgroupAndInterfaceRates()
   Require(ResourceField(live, "network.if_rx_dropped.delta").AsInt() == 3 &&
               ResourceField(live, "network.if_tx_errors.delta").AsInt() == 0,
           "interface counters are in the network object");
-  const auto& row = monitor.PendingRows()[1];
+  const auto& row = sink.resource_[1];
   const auto integer = [&](std::string_view p_column)
   {
     return std::get<std::int64_t>(
@@ -1171,7 +1194,8 @@ void TestExistingDayFileGainsNewResourceColumns()
     Require(columns.has_value() && columns->size() == 51,
             "history does not change the old schema");
   }
-  ResourceMonitor monitor;
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
   auto values = resource_wire::EmptySummary();
   values[resource_wire::Field("rss_bytes")] = 123'456;
   monitor.Accept(Summary(ResourceHeader(1), values), 1'700'000'005);
@@ -1179,7 +1203,7 @@ void TestExistingDayFileGainsNewResourceColumns()
   {
     auto storage = Storage::Create(directory.Path(), 7);
     Require(storage.has_value(), "storage opens the old directory");
-    Require(storage->Resource(monitor.PendingRows()[0]).has_value(),
+    Require(storage->Resource(sink.resource_[0]).has_value(),
             "a new resource row is written to the old file");
     Require(storage->Close().has_value(), "resource rows commit");
   }
@@ -1214,7 +1238,8 @@ void TestResourceStorageAndHistory()
   Require(!ResourceHistory(directory.Path(), 1'699'999'000, 1'700'001'000, 60)
                .read_error_,
           "a day file without the table is not an error");
-  ResourceMonitor monitor;
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
   for (std::uint32_t sequence = 0; sequence < 13; ++sequence)
   {
     auto values = GrowingValues(sequence);
@@ -1224,7 +1249,7 @@ void TestResourceStorageAndHistory()
   }
   auto storage = Storage::Create(directory.Path(), 7);
   Require(storage.has_value(), "storage opens");
-  for (const auto& row : monitor.PendingRows())
+  for (const auto& row : sink.resource_)
   {
     Require(storage->Resource(row).has_value(), "a resource row is written");
   }

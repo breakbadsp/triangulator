@@ -407,7 +407,14 @@ struct Part
   Header header_;
   SummaryValues values_{};
   std::array<char, kCgroupSize> cgroup_{};
-  std::vector<Socket> sockets_;
+  // The socket rows of this part: sockets_[0 .. socket_count_).
+  std::array<Socket, kSocketsPerPart> sockets_{};
+  std::size_t socket_count_ = 0;
+
+  [[nodiscard]] std::span<const Socket> Sockets() const noexcept
+  {
+    return std::span{sockets_}.first(socket_count_);
+  }
 };
 
 [[nodiscard]] inline bool AllZero(std::span<const std::byte> p_bytes) noexcept
@@ -549,7 +556,6 @@ struct Part
     return std::unexpected("invalid resource socket part");
   }
   header.kind_ = PartKind::Sockets;
-  part.sockets_.reserve(header.count_);
   for (std::size_t row = 0; row < header.count_; ++row)
   {
     auto socket = DecodeSocket(std::span<const std::byte, kSocketSize>{
@@ -558,7 +564,7 @@ struct Part
     {
       return std::unexpected(socket.error());
     }
-    part.sockets_.push_back(*socket);
+    part.sockets_[part.socket_count_++] = *socket;
   }
   return part;
 }
