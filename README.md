@@ -3,126 +3,35 @@
 </p>
 
 <p align="center">
+  <a href="#how-it-works">How it works</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#see-it-work">Tour</a> ·
-  <a href="#how-it-works">Architecture</a> ·
+  <a href="#time-travel">Replay</a> ·
   <a href="#performance">Performance</a> ·
-  <a href="#requirements-and-build">Build</a> ·
-  <a href="#production-setup">Deploy</a> ·
+  <a href="#deploy-by-copying">Deploy</a> ·
   <a href="docs/thread-monitor-design.md">Design</a>
 </p>
 
-Triangulator shows what each thread of one Linux process does, second by second.
-A small **sampler** reads `/proc`. A **collector** turns the samples into live
-metrics and daily SQLite history. A **dashboard** in the browser shows both.
-You can also freeze the whole process at an earlier time and inspect it.
-
-## Why use it
-
-- **See every thread.** Each thread has its CPU use, run delay, state, wait
-  channel, context switches, I/O and page faults. A thread map shows the whole
-  process on one screen.
-- **Know why a thread waits.** The kernel wait channel tells you if a thread
-  sleeps on a futex, on a poll, on a pipe or in an uninterruptible disk wait.
-- **Read the shared limits.** Pressure stall (PSI), descriptor headroom,
-  storage I/O, socket queues and network drops show what the threads share. See
-  [Pressure, limits and socket buffers](docs/resource-monitoring.md).
-- **Go back in time.** Turn on recording (`replay_interval_s`). Then **Inspect a
-  moment** freezes the process view at any recorded time. Step through the
-  recordings to find what happened.
-- **Run it without root.** The sampler runs as the target user. It needs no
-  capabilities and no `ptrace`.
-- **Deploy it by copying files.** The sampler is one static binary with no
-  dependencies. The dashboard is inside the collector binary and loads nothing
-  from the network.
-- **Stay fast.** The sampler uses little CPU and about 2 MB of memory. In the
-  tests, the collector kept the dashboard API under 2 ms at the 95th
-  percentile. See [Performance](#performance).
-
-Alerting is a separate module (`alerting/`) that is not wired up yet. For now,
-nothing sends alerts. For coverage and proposed Linux metrics, see
-[Linux monitoring coverage and priorities](docs/linux-monitoring.md) and the
-[prioritized monitoring TODO](TODO.md).
-
-## See it work
-
-This tour shows the live dashboard on a demo process with 41 threads. The tour
-scrolls from the process load, to the thread map, to the shared limits and to
-the thread table.
-
-<p align="center">
-  <img src="docs/assets/dashboard-tour.gif" alt="Animated tour of the Triangulator dashboard: process load, thread map, resource pressure and thread table" width="880">
-</p>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/readme-overview.png" alt="Process overview: load, assessment, thread states and wait channels"><br><sub><b>Process overview.</b> Load, assessment, thread states and wait channels.</sub></td>
-    <td width="50%"><img src="docs/screenshots/readme-thread-map.png" alt="Thread map, CPU by thread family, core placement and monitor health"><br><sub><b>Thread map.</b> One tile per thread. CPU by thread family and by core.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/readme-resources.png" alt="Pressure stalls, limits and headroom, socket queues and network drops"><br><sub><b>Pressure, limits and sockets.</b> What the threads share, and how close they are to a limit.</sub></td>
-    <td width="50%"><img src="docs/screenshots/readme-threads.png" alt="Thread table with state, wait channel, CPU, run delay and sparklines"><br><sub><b>Thread table.</b> State, wait channel, CPU, run delay and a sparkline for each thread.</sub></td>
-  </tr>
-</table>
-
-The [dashboard section](#dashboard) lists every panel. The
-[historical inspection notes](collector/README.md#historical-process-inspection)
-describe the replay view.
-
 ## How it works
-
-The animation shows how one sample moves from the target process to the browser.
 
 <p align="center">
   <img src="docs/assets/architecture.svg" alt="Animated architecture: the sampler reads /proc and sends UDP datagrams to the collector. The collector writes SQLite day files and serves the dashboard over HTTP. A separate alerting module is not wired up yet." width="100%">
 </p>
 
-1. The **sampler** wakes on a fixed deadline. It reads `stat`, `schedstat`, `io`
-   and `wchan` for each thread of the target. It sends raw counters in UDP
-   datagrams and keeps no state on disk.
-2. The **collector** puts the datagrams in order, removes duplicates and
-   calculates rates from the counters. It builds a live snapshot every half
-   second and a rollup for each thread every five seconds.
-3. **SQLite** stores the rollups, one file for each UTC day.
-4. The **HTTP server** serves the dashboard and a read-only JSON API from the
-   same process.
-5. **Alerting** will be a separate module. It will read the SQLite files and
-   never touch the UDP stream. See [Alerting](#alerting).
-
-For more detail, see the [architecture diagrams](docs/architecture.md) and the
-[full design](docs/thread-monitor-design.md).
-
-## Performance
-
 <p align="center">
-  <img src="docs/assets/performance.svg" alt="Charts: at 1,000 threads and 10 Hz the C++ collector used 4.08 percent of one core against 32.2 for Python, and its dashboard p95 latency was 0.89 ms against 78.8 ms." width="100%">
+  <img src="docs/assets/features.svg" alt="Animated cards: thread states change, wait timelines scroll, pressure meters rise and fall" width="100%">
 </p>
-
-The charts compare the C++ collector with the Python collector that it
-replaced. Both collectors received the same datagrams and stored identical
-rollups. The numbers come from [docs/collector-comparison.md](docs/collector-comparison.md).
-
-| What we measured | Result |
-|---|---|
-| CPU use, same work, 1,000 threads at 10 Hz | C++ 4.08% of one core, Python 32.2% |
-| CPU use, same work, 2,500 threads at 10 Hz | C++ 12.3%, Python 71.7% |
-| CPU use today, no alerting, 1,000 threads at 10 Hz | **2.18%** of one core, that is 100,000 thread samples each second |
-| Memory (PSS), 1,000 threads at 10 Hz | C++ 244 MB, Python 558 MB |
-| Dashboard API p95, 1,000 threads at 10 Hz | C++ 0.89 ms, Python 78.8 ms |
-| Lost packets | 0 in every run, up to 2,500 datagrams each second |
-
-A fresh run on the same CPU (Intel Core i5-9500) used a demo process with 41
-threads and a sampling rate of 5 Hz. The sampler used **1.2% of one core** and
-**1.9 MB** of memory in one thread. The collector used **0.10% of one core** and
-28 MB, with replay recording every 2 seconds. A `/api/live` response was 18 KB.
-
-These are single runs of two to three minutes on one desktop computer. Read
-[the limits of the comparison](docs/collector-comparison.md#limits-of-this-comparison)
-before you rely on them. To test your own workload, set `rate_hz` in `config/local/sampler.toml` and
-watch the CPU use of the sampler and the collector with `top`.
 
 ## Quick start
 
+<p align="center">
+  <img src="docs/assets/quickstart.svg" alt="Terminal animation: scripts/start.sh, then scripts/set-target.sh ghostty" width="100%">
+</p>
+
+Then open <http://127.0.0.1:9401>.
+
+<details>
+<summary>Read more</summary>
 Two programs: the **sampler** runs next to the process you want to watch and sends
 its threads' stats over UDP; the **collector** receives them and serves the dashboard.
 To build and start everything on one machine:
@@ -201,7 +110,65 @@ config paths, the optional `scripts/start.sh collector path/to/collector.toml` a
 with `scripts/stop.sh collector` and `scripts/stop.sh sampler`. To deploy with
 systemd, see [Production setup](#production-setup).
 
+</details>
+
+## See it work
+
+<p align="center">
+  <img src="docs/assets/dashboard-tour.gif" alt="Animated tour of the Triangulator dashboard" width="880">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme-overview.png" alt="Process overview"></td>
+    <td width="50%"><img src="docs/screenshots/readme-thread-map.png" alt="Thread map"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme-resources.png" alt="Pressure, limits and sockets"></td>
+    <td width="50%"><img src="docs/screenshots/readme-threads.png" alt="Thread table"></td>
+  </tr>
+</table>
+
+## Time travel
+
+<p align="center">
+  <img src="docs/assets/replay.svg" alt="A scrubber moves along a CPU timeline. The thread tiles freeze to the recorded state at each position." width="100%">
+</p>
+
+Turn on `replay_interval_s`, then use **Inspect a moment**. See the
+[recording notes](collector/README.md#historical-process-inspection).
+
+## Performance
+
+<p align="center">
+  <img src="docs/assets/performance.svg" alt="Charts: at 1,000 threads and 10 Hz the C++ collector used 4.08 percent of one core against 32.2 for Python, and its dashboard p95 latency was 0.89 ms against 78.8 ms." width="100%">
+</p>
+
+Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
+
+## Loss and reordering
+
+<p align="center">
+  <img src="docs/assets/resilience.svg" alt="Datagrams arrive out of order and one is lost. The collector puts them in order and still builds the tick." width="100%">
+</p>
+
+## Deploy by copying
+
+<p align="center">
+  <img src="docs/assets/deploy.svg" alt="Two binaries are copied to two hosts. Each host needs zero dependencies." width="100%">
+</p>
+
+Alerting is a separate module that is not wired up yet
+([details](#alerting)). More metrics:
+[coverage](docs/linux-monitoring.md), [resource monitoring](docs/resource-monitoring.md),
+[TODO](TODO.md). Also see the [architecture diagrams](docs/architecture.md).
+
+# Reference
+
 ## Requirements and build
+
+<details>
+<summary>Read more</summary>
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
 Make, the compiler's static C/C++ runtime libraries, and libsqlite3 development
@@ -273,7 +240,12 @@ next to the collector. The sampler can be deployed on its own, with its config.
 Static linking does not remove CPU architecture or Linux kernel requirements.
 Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
 
+</details>
+
 ## Configuration
+
+<details>
+<summary>Read more</summary>
 
 - **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
   booleans and `#` comments. Unknown or duplicate keys and malformed values are
@@ -291,7 +263,12 @@ Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
   - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
     format does not carry it.
 
+</details>
+
 ## Dashboard
+
+<details>
+<summary>Read more</summary>
 
 The page opens on a **process overview**, built in the browser from `/api/live`
 (nothing extra is sampled or stored):
@@ -364,7 +341,12 @@ those bounds and the latest recorded process view at or before that timestamp.
 Add `direction=previous` or `direction=next` to step strictly before or after it.
 A missing recording returns `snapshot: null`; unreadable day files are skipped.
 
+</details>
+
 ## Production setup
+
+<details>
+<summary>Read more</summary>
 
 The units in `deploy/` are templates with a placeholder target user and collector
 IP; edit them first. Install the sampler, collector and `triangulator-socket-report`
@@ -405,7 +387,12 @@ Checklist before going live (design section 12):
   even if the collector stops, so watch the collector and sampler units by other
   means.
 
+</details>
+
 ## How it behaves
+
+<details>
+<summary>Read more</summary>
 
 - **Wire format:** 48-byte header and 112-byte records (version 2), little-endian,
   at most 10 threads per datagram. A tick holds at most 2,550 threads; the rest are
@@ -433,7 +420,12 @@ Checklist before going live (design section 12):
   keeping today and the previous `retention_days - 1`. Old day files gain new
   columns when opened.
 
+</details>
+
 ## Collector
+
+<details>
+<summary>Read more</summary>
 
 `collector/` is the core collector, written in C++ (`scripts/start.sh`,
 `deploy/triangulator-collector.service`):
@@ -451,7 +443,12 @@ The collector replaced an earlier Python collector, which was removed after the
 C++ one was shown to store identical rollups for several times less CPU and
 memory: see [docs/collector-comparison.md](docs/collector-comparison.md).
 
+</details>
+
 ## Alerting
+
+<details>
+<summary>Read more</summary>
 
 Nothing sends alerts at the moment. The collector has no alert rules, no dashboard
 alert settings and no webhook, dead-man or email delivery. Alerting will be a
@@ -463,7 +460,12 @@ remind, resolve), the alert event log and webhook/email delivery. It is not
 connected to the collector and does not run. [alerting/README.md](alerting/README.md)
 describes what is there and what is missing, including each rule's condition.
 
+</details>
+
 ## Socket I/O and messages processed
+
+<details>
+<summary>Read more</summary>
 
 The C++ dashboard includes received/sent socket bytes, monitoring-period totals
 and averages, recent minimum/maximum rates, and a breakdown by thread and socket
@@ -500,7 +502,12 @@ Message counts remain unavailable without an application completion marker;
 socket traffic alone cannot tell when a message has finished processing.
 Restart the wrapper when switching targets or when the target process restarts.
 
+</details>
+
 ## Layout
+
+<details>
+<summary>Read more</summary>
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, RAII resources, and the resource probe: `resources.hpp`,
@@ -521,6 +528,8 @@ Restart the wrapper when switching targets or when the target process restarts.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).
+
+</details>
 
 ## License
 
