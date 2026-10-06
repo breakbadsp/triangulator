@@ -54,6 +54,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   });
   vm.runInContext(script, context);
   vm.runInContext(`
+    realRenderTiles=renderTiles;
     timeChart=()=>{}; renderAssessment=()=>{}; renderTiles=()=>{};
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
@@ -477,4 +478,41 @@ test('slow live polling cannot overwrite the historical process view', async () 
   assert.equal(app.run('replayAt'), 1000);
   app.run('returnLive()');
   assert.equal(app.run('live.health.session'), 'current-session');
+});
+
+test('a recorded view shows no live socket totals', async () => {
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 1000, last: 1000, snapshot: frame(1000)}) : undefined);
+  tick(app, 2000, 0);
+  app.run('socketData={available:true,totals:{input:{current:5},output:{current:6}},history:[]}');
+  app.run('sparkline=()=>({})');
+  const labels = () => app.run('realRenderTiles(live.threads,[]);element("tiles").children')
+    .map(tile => tile.children[0].textContent);
+  assert.ok(labels().includes('Socket received'));
+  await app.run('inspectTime(1000)');
+  assert.ok(!labels().includes('Socket received'));
+  assert.ok(!labels().includes('Socket sent'));
+});
+
+test('recordings ahead of the browser clock can still be inspected', async () => {
+  const ahead = Math.floor(Date.now() / 1000) + 30;
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: ahead, last: ahead, snapshot: frame(ahead)}) : undefined);
+  tick(app, 2000, 0);
+  await app.run(`inspectTime(${ahead})`);
+  assert.equal(app.run('replayAt'), ahead);
+  await app.run('inspectTime(-1)');
+  assert.match(app.elements.get('replay-note').textContent, /valid time/);
+});
+
+test('returning to live restores the chosen thread map window', async () => {
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 900, last: 1000, snapshot: frame(1000)}) : undefined);
+  tick(app, 2000, 0);
+  app.run('latestLive=live;setMapWindow(300)');
+  await app.run('inspectTime(1000)');
+  assert.equal(app.run('mapWindow'), 0);
+  await app.run('inspectTime(1000,"previous")');
+  await app.run('returnLive()');
+  assert.equal(app.run('mapWindow'), 300);
 });

@@ -442,7 +442,7 @@ const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
 
 let live={},windowSecs=300,activity='active',stateFilter='',wchanFilter='',selected=null,socketData=null,socketMetric='input',settingsInfo=null;
 // Rolling whole-process series: one point per new sample tick.
-let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null;
+let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null,liveMapWindow=0;
 const viewNow=()=>replayAt??Date.now()/1000;
 let buffer=[],bufferSession=null,lastTick=0,previousThreads=null,loadState=null;
 const threadCpu=new Map();
@@ -651,7 +651,8 @@ function renderTiles(threads,points){
   // Signals that are usually zero only get a tile when they happened.
   if(points.some(point=>point.mf>0))tiles.push(['Major faults',number(last.mf)+'/s','reads from disk to fill memory',series('mf')]);
   if(buffer.some(point=>point.born||point.died))tiles.push(['Thread churn',`+${born} / −${died}`,'started / ended, last minute',points.map(point=>point.born+point.died)]);
-  if(socketData?.available){const totals=socketData.totals||{},history=socketData.history||[];
+  // Socket totals are live only; a recorded view has none.
+  if(replayAt===null&&socketData?.available){const totals=socketData.totals||{},history=socketData.history||[];
     tiles.push(['Socket received',perSec(totals.input?.current),'observed socket bytes',history.map(point=>point.input)],['Socket sent',perSec(totals.output?.current),'accepted by sockets',history.map(point=>point.output)]);
     if(socketData.messages_enabled)tiles.push(['Messages',number(totals.messages?.current)+'/s','completed by the app',history.map(point=>point.messages)])}
   const host=element('tiles');host.replaceChildren();
@@ -722,7 +723,8 @@ function renderMosaic(threads){
   if(mapWindow&&span<mapWindow-AVG_STEP)box.append(node('span',`Only ${duration(span)} of data in this tab so far.`,'bad'));
   legend.append(box);
   element('mosaic-sub').textContent=`One tile per thread (${threads.length}), grouped by current state, busiest ${mapWindow?'over '+windowName():'now'} first. Click a tile for details.`}
-for(const button of document.querySelectorAll('[data-map-window]'))button.onclick=()=>{mapWindow=Number(button.dataset.mapWindow);for(const other of document.querySelectorAll('[data-map-window]'))other.setAttribute('aria-pressed',String(other===button));renderMosaic(live.threads||[])};
+function setMapWindow(seconds){mapWindow=seconds;for(const button of document.querySelectorAll('[data-map-window]'))button.setAttribute('aria-pressed',String(Number(button.dataset.mapWindow)===seconds))}
+for(const button of document.querySelectorAll('[data-map-window]'))button.onclick=()=>{setMapWindow(Number(button.dataset.mapWindow));renderMosaic(live.threads||[])};
 element('mosaic').addEventListener('pointermove',event=>{const tid=Number(event.target.dataset?.tid);if(!tid)return hideTip();const thread=(live.threads||[]).find(item=>item.tid===tid);if(!thread)return;
   const rows=[{color:stateColor(thread.state),value:labels[thread.state]||thread.state,label:thread.wchan||''}];
   if(isIdle(thread))rows.push({value:'idle',label:idleFor(thread)});else rows.push({value:pct(thread.cpu_pct),label:'CPU now'},{value:pct(thread.run_delay_pct),label:'waiting for CPU'},{value:number(thread.switches_per_s),label:'switches/s'});
@@ -1194,18 +1196,18 @@ function setReplayBounds(data){replayBounds=data;
 }
 async function loadReplayBounds(){try{const response=await fetch('/api/replay');if(!response.ok)return;setReplayBounds(await response.json());replayControls()}catch{}}
 async function inspectTime(at,direction='at'){
-  if(!isNum(at)||at<0||at>Date.now()/1000){element('replay-note').textContent='Choose a valid time in the past.';return}
+  // No upper bound: recordings carry the collector's clock, which may be ahead of this browser's.
+  if(!isNum(at)||at<0){element('replay-note').textContent='Choose a valid time.';return}
   const request=++replayRequest;element('replay-note').textContent='Loading recorded process view…';
   try{const response=await fetch('/api/replay?'+new URLSearchParams({at,direction}));const data=await response.json();
     if(request!==replayRequest)return;
     if(!response.ok)throw Error(data.error||'Unable to read recordings.');
     setReplayBounds(data);
     if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No process snapshot at or before this time. Choose a time within the available recordings.':'No more recorded snapshots in this direction.';replayControls();return}
-    if(replayAt===null)saveBuffer();
+    if(replayAt===null){saveBuffer();liveMapWindow=mapWindow}
     if(selected)closeThread();
     replayAt=data.snapshot.recorded_at;live=data.snapshot;
-    loadBuffer(live.health.session);ingest();mapWindow=0;
-    for(const button of document.querySelectorAll('[data-map-window]'))button.setAttribute('aria-pressed',String(button.dataset.mapWindow==='0'));
+    loadBuffer(live.health.session);ingest();setMapWindow(0);
     const inputMs=Math.ceil(replayAt*1000);element('replay-time').value=localInput(inputMs)+'.'+String(inputMs%1000).padStart(3,'0');
     const gap=Math.max(0,at-replayAt);
     element('replay-note').textContent=`Historical view · recorded ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
@@ -1216,7 +1218,7 @@ async function returnLive(){const request=++replayRequest;
   if(replayAt===null){element('replay-note').textContent='Live view. Choose a time to inspect a recording.';return}
   if(!latestLive?.health){try{const response=await fetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
   if(request!==replayRequest)return;
-  if(selected)closeThread();replayAt=null;live=latestLive;loadBuffer(live.health.session);ingest();renderReplayView();
+  if(selected)closeThread();replayAt=null;live=latestLive;loadBuffer(live.health.session);ingest();setMapWindow(liveMapWindow);renderReplayView();
   element('replay-note').textContent='Live view. Choose a time to inspect a recording.';replayControls();
 }
 
