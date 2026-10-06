@@ -213,6 +213,26 @@ td small{display:block;color:var(--muted);font-size:11px}
 .socket-chart-caption{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 #socket-panel details,.notes details{font-size:13px;line-height:1.6;color:var(--ink-2);margin-top:12px}
 summary{cursor:pointer;color:var(--ink)}
+/* Resources */
+.meter{display:grid;grid-template-columns:minmax(110px,34%) 1fr auto;gap:10px;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line)}
+.meter:last-child{border-bottom:0}
+.meter .track{height:8px;border-radius:4px;background:var(--raised);position:relative;overflow:hidden}
+.meter .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--accent);min-width:2px}
+.meter .fill.warning{background:var(--warning)}.meter .fill.critical{background:var(--critical)}
+.meter .val{font-variant-numeric:tabular-nums;color:var(--ink-2);text-align:right;white-space:nowrap}
+.meter small{display:block;color:var(--muted);font-size:11px}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;margin:12px 0 0}
+.facts div{display:flex;flex-direction:column}.facts dt{font-size:12px;color:var(--muted)}.facts dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.fillcell{display:flex;align-items:center;gap:8px;min-width:120px}
+.fillcell .track{flex:1;height:8px;border-radius:4px;background:var(--raised);position:relative;overflow:hidden;min-width:60px}
+.fillcell .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--accent)}
+.fillcell .fill.warning{background:var(--warning)}.fillcell .fill.critical{background:var(--critical)}
+.fillcell span{font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.note{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);margin:1px 4px 1px 0;white-space:nowrap}
+.note.bad{border-color:color-mix(in srgb,var(--critical) 45%,transparent);color:var(--bad-ink)}
+tr.zero td{color:var(--muted)}
+#netstack td:first-child{white-space:normal;min-width:220px}
+#resource-sockets td:last-child{white-space:normal;min-width:280px}
 #settings{margin-top:16px}
 #settings td{vertical-align:top;white-space:normal}
 #settings input[type=number]{width:90px}
@@ -231,7 +251,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -286,6 +306,31 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </section>
 
+<!-- What the threads share: pressure stalls, limits, socket queues and the
+     network stack. Live values come from /api/live; trends come from the
+     collector's stored resource samples (/api/resources). -->
+<section id="resources" class="block">
+<div class="section-head"><div><h2>Pressure, limits &amp; sockets</h2><p id="resources-sub">What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers.</p></div>
+<div class="seg" role="group" aria-label="Resource history range"><button data-res-range="900" aria-pressed="true">15 min</button><button data-res-range="3600" aria-pressed="false">1 h</button><button data-res-range="21600" aria-pressed="false">6 h</button><button data-res-range="86400" aria-pressed="false">24 h</button></div></div>
+<p id="resources-empty" class="socket-empty" hidden></p>
+<div id="resources-content">
+<div id="resource-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Pressure stalls (PSI)</h3><p>Share of time tasks were stalled waiting for a resource. <b>Some</b>: at least one task waited. <b>Full</b>: every non-idle task waited at once, so no work got done. Peaks per interval.</p></div><select id="pressure-scope" aria-label="Pressure scope"><option value="cgroup">Target's cgroup</option><option value="host">Whole host</option></select></div>
+<div id="chart-pressure" class="chart" role="img" aria-label="Pressure stall history"></div><div id="pressure-legend" class="legend"></div>
+<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Resource</th><th class="num" title="Target's cgroup: some, over the last sample interval">Cgroup some</th><th class="num" title="Target's cgroup: full, over the last sample interval">Cgroup full</th><th class="num" title="Whole host: some, over the last sample interval">Host some</th><th class="num" title="Whole host: full, over the last sample interval">Host full</th></tr></thead><tbody id="pressure-rows"></tbody></table></div></div>
+<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.</p></div></div><div id="limits"></div><dl id="limit-facts" class="facts"></dl></div>
+</div>
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Bytes waiting in the target's sockets</h3><p>Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.</p></div></div><div id="chart-queues" class="chart" role="img" aria-label="Socket queue history"></div><div id="queues-legend" class="legend"></div></div>
+<div class="card"><div class="card-head"><div><h3>Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th>Counter</th><th class="num" title="Per second over the last sample interval">Now</th><th class="num" title="Added up over the selected range">In range</th><th class="num" title="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
+</div>
+<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
+<div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" title="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th title="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" title="Bytes not yet sent or acknowledged">Send-Q</th><th title="Send buffer use">Send buffer</th><th class="num" title="Packets this socket dropped; + in the last interval">Drops</th><th class="num" title="Smoothed round-trip time">RTT</th><th class="num" title="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
+<p id="resource-coverage" class="socket-note"></p></div>
+</div>
+</section>
+
 <section id="threads-section" class="block">
 <div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
 <div class="toolbar">
@@ -332,6 +377,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <details><summary>How to read this page</summary>
 <p>States come from the thread's scheduler state and kernel wait channel (<code>/proc/&lt;tid&gt;/wchan</code>), readable without extra privileges; futex waits cannot be split into lock, condition or timed idle. CPU is per thread, relative to one core, so a process can exceed 100%. Thread-table read/write rates mix read- and write-family syscall traffic and do not cover every receive API; use the socket panel for explicitly observed socket operations.</p>
 <p>The process overview is computed in this browser tab from the live feed and kept for up to 15 minutes (it survives a reload of this tab, not a new tab). Per-thread history beyond that comes from the collector's 5-second summaries in SQLite. The assessment uses fixed rules of thumb: a thread at or above 90% of a core, run delay over a quarter of CPU time, any thread in uninterruptible kernel wait, any major page fault, stopped threads, sampler silence and packet loss over 1%. Treat it as a pointer to where to look, not a diagnosis.</p>
+<p>Pressure, limits and sockets come from the sampler's resource samples (every <code>resource_interval_s</code>, 5 s by default), read without privileges: pressure stall information for the host and the target's cgroup, <code>/proc/&lt;pid&gt;/fd</code>, <code>limits</code> and <code>io</code>, the target's own sockets through sock_diag (what <code>ss</code> uses), and its network namespace's counters. Their assessment rules: I/O pressure over 10% (some) or 5% (full); memory pressure over 5% or 2%; CPU pressure over 20%; descriptors over 75% of the soft limit; a buffer or accept backlog over 80% full; any accept-queue, receive-buffer or UDP drops; retransmissions over 1% of segments; TCP memory pressure; and 10 or more connections in CLOSE-WAIT. See <code>docs/resource-monitoring.md</code>.</p>
 </details>
 </div>
 </main>
@@ -555,7 +601,8 @@ function assess(threads,points){
   const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
   const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
-  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
+  for(const item of assessResources(live.resources))findings.push(item);
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
   return findings}
 function profile(threads){
   if(!threads.length)return '';
@@ -572,7 +619,8 @@ function renderAssessment(threads){
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   const list=element('findings');list.replaceChildren();
   const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
-  for(const item of findings.slice(0,7)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
+  const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
+  for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
     if(item.action){row.dataset.action='1';row.tabIndex=0;row.title=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
@@ -802,6 +850,216 @@ for(const button of document.querySelectorAll('[data-range]'))button.onclick=()=
 element('load-history').onclick=()=>{historyRange=0;for(const button of document.querySelectorAll('[data-range]'))button.setAttribute('aria-pressed','false');loadHistory()};
 element('drawer-close').onclick=closeThread;element('scrim').onclick=closeThread;
 
+// ---------- Resources ----------
+// Live values come from live.resources; trends from stored samples.
+let resourceHistory=null,resourceRange=900,pressureScope='cgroup';
+const KIND_LABELS={tcp4:'TCP',tcp6:'TCP6',udp4:'UDP',udp6:'UDP6',unix_stream:'Unix stream',unix_dgram:'Unix datagram',unix_seqpacket:'Unix seqpacket'};
+const PRESSURE_SERIES=[['cpu','CPU','var(--s-running)'],['memory','Memory','var(--s-futex)'],['io','I/O','var(--s-poll)']];
+// Namespace counters: [live key, label, what it means, history column].
+const NET_COUNTERS=[
+  ['listen_overflows','Accept queue overflows','A listener’s accept queue was full and a new connection was dropped. The app is not calling accept() fast enough, or the backlog (listen(), somaxconn) is too small.','listen_overflows_delta'],
+  ['listen_drops','Listen drops','Every dropped incoming connection attempt, overflows included.','listen_drops_delta'],
+  ['tcp_req_q_full_drop','SYN queue full','Half-open connections were dropped because the SYN queue was full.',null],
+  ['syncookies_sent','SYN cookies sent','The SYN queue overflowed and the kernel fell back to SYN cookies: a connection burst, a flood, or a slow accept loop.',null],
+  ['tcp_backlog_drop','Socket backlog drops','Packets dropped while the app held the socket lock and the socket backlog was full.','tcp_backlog_drop_delta'],
+  ['tcp_rcvq_drop','Receive queue drops','Packets dropped because a TCP receive buffer was full: a slow reader.','tcp_rcvq_drop_delta'],
+  ['tcp_zero_window_drop','Zero-window drops','Packets dropped because the receiver had advertised a zero window.','tcp_zero_window_drop_delta'],
+  ['prune_called','Receive queue pruning','The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.',null],
+  ['rcv_pruned','Packets pruned','Packets thrown away from receive queues under memory limits.',null],
+  ['ofo_pruned','Out-of-order pruned','Out-of-order packets thrown away under memory limits.',null],
+  ['tcp_retrans_segs','Retransmitted segments','Segments sent again: packet loss or congestion on some path.','tcp_retrans_segs_delta'],
+  ['tcp_timeouts','Retransmission timeouts','A retransmission timer fired: a peer went quiet or the loss was severe.','tcp_timeouts_delta'],
+  ['tcp_abort_on_timeout','Aborted after timeouts','Connections given up after repeated timeouts.',null],
+  ['tcp_estab_resets','Connections reset','Established connections reset, by the peer or locally.','tcp_estab_resets_delta'],
+  ['tcp_attempt_fails','Failed connection attempts','Outgoing connections that failed (refused or timed out).',null],
+  ['tcp_memory_pressures','TCP memory pressure','The kernel entered TCP memory pressure and started shrinking socket buffers (net.ipv4.tcp_mem).','tcp_memory_pressures_delta'],
+  ['tcp_abort_on_memory','Aborted for memory','Connections aborted because TCP memory was exhausted.','tcp_abort_on_memory_delta'],
+  ['udp_rcvbuf_errors','UDP receive buffer full','Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.','udp_rcvbuf_errors_delta'],
+  ['udp_sndbuf_errors','UDP send buffer full','Sends that failed because the send buffer was full.','udp_sndbuf_errors_delta'],
+  ['udp_in_errors','UDP input errors','Datagrams that could not be delivered, including receive-buffer drops.','udp_in_errors_delta'],
+  ['udp_mem_errors','UDP memory errors','Datagrams dropped because UDP memory (net.ipv4.udp_mem) was exhausted.',null],
+  ['udp_no_ports','UDP to closed ports','Datagrams to ports nobody listens on.',null],
+  ['if_rx_dropped','Interface receive drops','A network interface dropped incoming packets before any socket saw them (ring or queue full). Summed over the namespace’s interfaces except lo.',null],
+  ['if_tx_dropped','Interface transmit drops','A network interface dropped outgoing packets (queue full or link trouble).',null],
+  ['if_rx_errors','Interface receive errors','Bad frames, CRC or length errors on a network interface: cabling, driver or hardware.',null],
+  ['if_tx_errors','Interface transmit errors','Transmit errors on a network interface: driver or hardware.',null]];
+// Drops worth a tile: listen drops (overflows included), socket queues, UDP.
+const DROP_COLUMNS=['listen_drops_delta','tcp_backlog_drop_delta','tcp_rcvq_drop_delta','tcp_zero_window_drop_delta','udp_in_errors_delta','udp_sndbuf_errors_delta'];
+const hasCgroup=r=>PRESSURE_SERIES.some(([key])=>isNum(r?.pressure?.cgroup?.[key]?.some?.pct)||isNum(r?.pressure?.cgroup?.[key]?.some?.avg10));
+const scopeOf=r=>pressureScope==='cgroup'&&hasCgroup(r)?'cgroup':'host';
+// A stall share: over the last interval, or the kernel's 10 s average for a first sample.
+const stall=entry=>isNum(entry?.pct)?entry.pct:entry?.avg10;
+const fillLevel=value=>value>=90?'critical':value>=75?'warning':'';
+const socketName=item=>item.path!==undefined?(item.path||'unnamed'):item.remote?`${item.local} → ${item.remote}`:item.local;
+const socketLabel=item=>`${KIND_LABELS[item.kind]||item.kind} ${item.state} · fd ${item.fd}`;
+function socketNotes(item){const notes=[],tcp=item.tcp||{};
+  if(item.listener){if((item.accept_fill_pct||0)>=100)notes.push(['Accept queue full: new connections are dropped','bad']);else if((item.accept_fill_pct||0)>=50)notes.push(['Connections wait for accept()'])}
+  if((item.rx_fill_pct||0)>=80)notes.push(['Receive buffer nearly full: the app is not reading fast enough','bad']);
+  else if(item.rx_queue>0&&!item.listener)notes.push(['Unread data waiting']);
+  if(item.tx_queue>0&&tcp.peer_window===0&&!item.listener)notes.push(['Peer window is zero: the peer is not reading','bad']);
+  else if((item.tx_fill_pct||0)>=80)notes.push(['Send buffer nearly full: the peer or network is behind','bad']);
+  if((tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
+  if((tcp.sndbuf_limited_pct||0)>=20)notes.push([`Limited by its own send buffer ${pct(tcp.sndbuf_limited_pct)} of the time: raise SO_SNDBUF`]);
+  if(tcp.probes>0)notes.push([`Zero-window probing (${tcp.probes})`,'bad']);
+  if(tcp.retransmits>0)notes.push([`Retransmitting now (backoff ${tcp.backoff})`,'bad']);
+  if((item.drops_delta||0)>0)notes.push([`${item.drops_delta} dropped in the last interval`,'bad']);
+  if(item.state==='CLOSE-WAIT')notes.push(['Peer closed; the app has not closed its socket','bad']);
+  return notes}
+
+// Rules of thumb over one resource sample: [{level,title,detail}].
+function assessResources(r){const findings=[];if(!r?.available)return findings;
+  const add=(level,title,detail)=>findings.push({level,title,detail});
+  if(r.stale)add('warning','Resource samples are stale',`No resource sample since ${ago(Date.now()/1000-(r.updated||0))}; pressure and socket figures below may be out of date.`);
+  const scope=hasCgroup(r)?'cgroup':'host',where=scope==='cgroup'?'in the target’s cgroup':'on the host',p=r.pressure?.[scope]||{};
+  const io=p.io||{},memory=p.memory||{},cpu=p.cpu||{};
+  if(stall(io.full)>=5)add('serious',`I/O is stalling all work ${pct(stall(io.full))} of the time`,`Every non-idle task ${where} was waiting for I/O at once. Look at disk latency, fsync-heavy code, or a noisy neighbour on the device.`);
+  else if(stall(io.some)>=10)add('warning',`Tasks wait for I/O ${pct(stall(io.some))} of the time`,`Some tasks ${where} were stalled on I/O. Storage reads ${perSec(r.io?.read_bps)}, writes ${perSec(r.io?.write_bps)} by this process.`);
+  if(stall(memory.full)>=2)add('serious',`Memory is thrashing (${pct(stall(memory.full))} full stall)`,`All tasks ${where} were waiting on reclaim or swap at once. The workload needs more memory or a higher memory.high.`);
+  else if(stall(memory.some)>=5)add('warning',`Tasks wait for memory ${pct(stall(memory.some))} of the time`,`Reclaim, swap-in or refaults ${where}. Check memory limits and growth.`);
+  if(stall(cpu.some)>=20)add('warning',`Runnable tasks wait for CPU ${pct(stall(cpu.some))} of the time`,scope==='cgroup'?'CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.':'The host is oversubscribed.');
+  const fds=r.fds||{};
+  if(isNum(fds.open)&&isNum(fds.soft_limit)&&fds.soft_limit>0){const used=100*fds.open/fds.soft_limit;
+    if(used>=75)add(used>=90?'critical':'warning',`${pct(used)} of file descriptors in use`,`${fds.open} of ${fds.soft_limit} (soft RLIMIT_NOFILE). At the limit, accept(), open() and socket() fail with EMFILE. Look for a descriptor leak or raise LimitNOFILE.`)}
+  const network=r.network||{},grew=key=>network[key]?.delta||0;
+  const top=r.sockets?.top||[];
+  const overflowing=top.filter(item=>item.listener&&(item.accept_fill_pct||0)>=80);
+  if(grew('listen_overflows')||grew('listen_drops'))add('serious',`${grew('listen_drops')||grew('listen_overflows')} incoming connections dropped`,(overflowing.length?`Accept queue of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full. `:'')+'A listener’s accept queue overflowed in the last interval (namespace-wide counter). The app is not accepting fast enough, or the backlog is too small.');
+  else if(overflowing.length)add('warning',`Accept backlog of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full`,`${overflowing[0].rx_queue} connections wait for accept() with a backlog of ${overflowing[0].tx_queue}.`);
+  const reading=top.filter(item=>!item.listener&&(item.rx_fill_pct||0)>=80).sort((a,b)=>b.rx_fill_pct-a.rx_fill_pct);
+  if(reading.length){const item=reading[0];add((item.drops_delta||0)>0?'serious':'warning',`The app is not keeping up reading ${socketName(item)}`,`Receive buffer ${pct(item.rx_fill_pct)} full with ${bytes(item.rx_queue)} unread`+((item.drops_delta||0)>0?`; ${item.drops_delta} packet${item.drops_delta>1?'s':''} dropped.`:'.')+(reading.length>1?` ${reading.length-1} more socket${reading.length>2?'s':''} likewise.`:''))}
+  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||item.tcp?.peer_window===0)).sort((a,b)=>b.tx_queue-a.tx_queue);
+  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(item.tcp?.peer_window===0?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
+  const udp=grew('udp_rcvbuf_errors');
+  if(udp)add('serious',`${udp} UDP datagrams dropped: receive buffers full`,'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).');
+  const queued=['tcp_rcvq_drop','tcp_backlog_drop','tcp_zero_window_drop'].reduce((sum,key)=>sum+grew(key),0);
+  if(queued)add('warning',`${queued} TCP packets dropped at full socket queues`,'Receive buffers or socket backlogs were full in the last interval: a reader is too slow.');
+  const sent=grew('tcp_out_segs'),retrans=grew('tcp_retrans_segs');
+  if(sent>=100&&retrans/sent>=.01)add('warning',`${pct(100*retrans/sent)} of TCP segments retransmitted`,'Packet loss or congestion on some path; expect latency spikes. Check the sockets with retransmits below.');
+  const tcpMemory=r.sockstat?.tcp_mem,pressureAt=r.limits?.tcp_mem?.[1];
+  if(grew('tcp_memory_pressures')||(isNum(tcpMemory)&&isNum(pressureAt)&&pressureAt>0&&tcpMemory>=pressureAt))add('serious','TCP is under memory pressure','The kernel is shrinking socket buffers (net.ipv4.tcp_mem), which slows every TCP connection on the host.');
+  const closeWait=r.sockets?.tcp_states?.close_wait||0;
+  if(closeWait>=10)add('warning',`${closeWait} connections in CLOSE-WAIT`,'Peers closed these connections but the app never closed its end. Usually a missing close() on an error path: a descriptor leak.');
+  const cg=r.cgroup_limits||{},mem=cg.memory||{},quota=cg.cpu||{},pids=cg.pids||{};
+  if(mem.oom_kill_delta>0)add('critical',`${mem.oom_kill_delta} process${mem.oom_kill_delta>1?'es':''} killed by the OOM killer`,`The target’s cgroup reached its memory limit (${bytes(mem.max)}) and the kernel killed a process in it. Raise memory.max or find what grew.`);
+  else if(mem.max_events_delta>0)add('warning','Memory limit reached',`The cgroup hit memory.max ${mem.max_events_delta} time${mem.max_events_delta>1?'s':''} in the last interval, forcing reclaim before allocations could continue (${bytes(mem.current)} of ${bytes(mem.max)}).`);
+  else if(isNum(mem.current)&&isNum(mem.max)&&mem.max>0&&mem.current>=.9*mem.max)add('warning',`Cgroup memory is ${pct(100*mem.current/mem.max)} of its limit`,`${bytes(mem.current)} of ${bytes(mem.max)}. This includes reclaimable page cache; it is a problem if the process’s own memory (RSS ${bytes(r.memory?.rss)}) is most of it.`);
+  if(quota.throttled_pct>=5)add(quota.throttled_pct>=25?'serious':'warning',`CPU quota throttled ${pct(quota.throttled_pct)} of periods`,`The cgroup’s CPU quota (${number(quota.quota_us/quota.period_us,2)} cores) ran out, so runnable threads waited for the next period even if cores were idle. Raise cpu.max or reduce CPU use.`);
+  if(isNum(pids.current)&&isNum(pids.max)&&pids.max>0&&pids.current>=.9*pids.max)add('warning',`${pids.current} of ${pids.max} processes and threads in use`,'At the cgroup’s pids.max, fork() and thread creation fail with EAGAIN.');
+  const dropped=(network.if_rx_dropped?.delta||0)+(network.if_tx_dropped?.delta||0),errored=(network.if_rx_errors?.delta||0)+(network.if_tx_errors?.delta||0);
+  if(dropped>0||errored>0)add('warning',`Network interfaces dropped ${dropped} and reported ${errored} errors`,'Counted at the network card, before any socket (namespace-wide, last interval). Check interface queues, driver and cabling.');
+  const flags=r.flags||{};
+  if(flags.other_network_namespace)add('info','Socket queues unavailable','The target is in another network namespace; run the sampler inside it to list its sockets.');
+  else if(flags.descriptors_hidden)add('info','Socket details hidden','The sampler cannot read the target’s descriptor links; run it as the target’s user.');
+  else if(flags.socket_diag_failed)add('info','Socket diagnostics failed','The kernel’s sock_diag interface did not answer; socket queues are missing from this sample.');
+  return findings}
+
+function meter(label,sub,value,max,text){const row=node('div',undefined,'meter'),name=node('div',label);if(sub)name.append(node('small',sub));
+  const track=node('div',undefined,'track'),fill=node('div',undefined,'fill'),share=isNum(value)&&max>0?100*value/max:null;
+  if(share!==null){fill.style.width=Math.min(100,share)+'%';const level=fillLevel(share);if(level)fill.classList.add(level);track.append(fill)}
+  row.append(name,track,node('div',text??(share===null?'—':pct(share)),'val'));return row}
+function fillCell(value,title){const cell=node('td');if(!isNum(value)){cell.textContent='—';return cell}
+  const box=node('div',undefined,'fillcell'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');fill.style.width=Math.min(100,value)+'%';const level=fillLevel(value);if(level)fill.classList.add(level);track.append(fill);box.append(track,node('span',pct(value)));cell.append(box);if(title)cell.title=title;return cell}
+function resourcePoints(){return (resourceHistory?.rows||[]).map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}))}
+function renderResourceTiles(r,points){
+  const scope=scopeOf(r),p=r.pressure?.[scope]||{},fds=r.fds||{},io=r.io||{},kinds=r.sockets||{},net=r.network||{};
+  const queued=key=>['tcp','udp','unix'].reduce((sum,kind)=>sum+(kinds[kind]?.[key]||0),0);
+  const drops=['listen_drops','tcp_backlog_drop','tcp_rcvq_drop','tcp_zero_window_drop','udp_in_errors','udp_sndbuf_errors'].reduce((sum,key)=>isNum(net[key]?.per_s)?(sum??0)+net[key].per_s:sum,null);
+  const retrans=net.tcp_retrans_segs?.per_s,sent=net.tcp_out_segs?.per_s;
+  const tiles=[];
+  for(const [key,label] of PRESSURE_SERIES.slice().reverse())tiles.push([label+' pressure',pct(stall(p[key]?.some)),`full ${pct(stall(p[key]?.full))} · ${scope==='cgroup'?'cgroup':'host'}`,points.map(point=>point[`${scope}_${key}_some_pct`])]);
+  const memory=r.memory||{};
+  tiles.push(['Memory (RSS)',bytes(memory.rss),`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`+(isNum(memory.rss_growth_per_s)&&Math.abs(memory.rss_growth_per_s)>=1024?` · ${memory.rss_growth_per_s>0?'+':'−'}${bytes(Math.abs(memory.rss_growth_per_s))}/s`:''),points.map(point=>point.rss_bytes)]);
+  tiles.push(['Open files',isNum(fds.open)?String(fds.open):'—',isNum(fds.soft_limit)&&isNum(fds.open)?`${pct(100*fds.open/fds.soft_limit)} of limit ${fds.soft_limit} · ${fds.sockets??'?'} sockets`:'limit unknown',points.map(point=>point.fd_open)]);
+  tiles.push(['Disk I/O',isNum(io.read_bps)||isNum(io.write_bps)?perSec((io.read_bps||0)+(io.write_bps||0)):'—',`read ${perSec(io.read_bps)} · write ${perSec(io.write_bps)} (block layer)`,points.map(point=>isNum(point.read_bps)?point.read_bps+(point.write_bps||0):null)]);
+  tiles.push(['Queued in sockets',bytes(queued('rx_queue')+queued('tx_queue')),`unread ${bytes(queued('rx_queue'))} · unsent ${bytes(queued('tx_queue'))}`,points.map(point=>isNum(point.rx_queue_bytes)?point.rx_queue_bytes+(point.tx_queue_bytes||0):null)]);
+  tiles.push(['Network drops',isNum(drops)?number(drops,drops<10?2:1)+'/s':'—','connections and packets, namespace-wide',points.map(point=>{let sum=null;for(const key of DROP_COLUMNS){const value=point.per(key);if(isNum(value))sum=(sum||0)+value}return sum})]);
+  tiles.push(['TCP retransmits',isNum(retrans)?number(retrans,retrans<10?2:1)+'/s':'—',isNum(retrans)&&sent>0?`${pct(100*retrans/sent)} of segments sent`:'namespace-wide',points.map(point=>point.per('tcp_retrans_segs_delta'))]);
+  const closeWait=kinds.tcp_states?.close_wait;
+  if(closeWait>0||points.some(point=>point.tcp_close_wait>0))tiles.push(['CLOSE-WAIT',String(closeWait??'—'),'closed by the peer, not by the app',points.map(point=>point.tcp_close_wait)]);
+  const host=element('resource-tiles');host.replaceChildren();
+  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
+function renderPressure(r,points,range){
+  const scope=scopeOf(r);element('pressure-scope').value=scope;element('pressure-scope').options[0].disabled=!hasCgroup(r);
+  const series=PRESSURE_SERIES.map(([key,label,color])=>({label:label+' some',color,get:point=>point[`${scope}_${key}_some_pct`]}));
+  timeChart(element('chart-pressure'),{points,series,format:pct,height:170,minMax:5,...range,empty:'Collecting stored resource samples…'});
+  const legend=element('pressure-legend');legend.replaceChildren();
+  for(const [key,label,color] of PRESSURE_SERIES){const item=node('span'),swatch=node('i',undefined,'sw line');swatch.style.background=color;item.append(swatch,label+' some',node('b',pct(stall(r.pressure?.[scope]?.[key]?.some))));legend.append(item)}
+  const body=element('pressure-rows');body.replaceChildren();
+  for(const [key,label] of PRESSURE_SERIES){const row=node('tr');row.append(node('td',label));
+    for(const [where,kind] of [['cgroup','some'],['cgroup','full'],['host','some'],['host','full']]){const entry=r.pressure?.[where]?.[key]?.[kind];const cell=node('td',pct(stall(entry)),'num');if(entry)cell.title=`avg10 ${pct(entry.avg10)} · total ${number((entry.total_us||0)/1e6,0)} s stalled`;row.append(cell)}
+    body.append(row)}}
+function renderLimits(r){
+  const host=element('limits');host.replaceChildren();const fds=r.fds||{},limits=r.limits||{},sockstat=r.sockstat||{},page=limits.page_size||4096;
+  host.append(meter('Open files',isNum(fds.hard_limit)?`hard limit ${fds.hard_limit}`:'',fds.open,fds.soft_limit,isNum(fds.open)&&isNum(fds.soft_limit)?`${fds.open} / ${fds.soft_limit}`:'—'));
+  const cg=r.cgroup_limits||{},mem=cg.memory||{},cpu=cg.cpu||{},pids=cg.pids||{};
+  if(isNum(mem.current))host.append(isNum(mem.max)?meter('Cgroup memory',`incl. page cache${isNum(mem.high)?' · high '+bytes(mem.high):''}`,mem.current,mem.max,`${bytes(mem.current)} / ${bytes(mem.max)}`):meter('Cgroup memory','no memory.max limit',null,0,bytes(mem.current)));
+  if(isNum(cpu.quota_us)&&isNum(cpu.period_us))host.append(meter('CPU throttling',`quota ${number(cpu.quota_us/cpu.period_us,2)} cores`,cpu.throttled_pct,100,isNum(cpu.throttled_pct)?pct(cpu.throttled_pct)+' of periods':'—'));
+  if(isNum(pids.current))host.append(isNum(pids.max)?meter('Processes & threads','cgroup pids.max',pids.current,pids.max,`${pids.current} / ${pids.max}`):meter('Processes & threads','no pids.max limit',null,0,String(pids.current)));
+  const listeners=(r.sockets?.top||[]).filter(item=>item.listener).sort((a,b)=>(b.accept_fill_pct||0)-(a.accept_fill_pct||0));
+  if(listeners.length){const worst=listeners[0];host.append(meter('Accept backlog',worst.local||worst.path||'',worst.rx_queue,worst.tx_queue,`${worst.rx_queue} / ${worst.tx_queue}`))}
+  for(const [label,used,thresholds] of [['TCP memory',sockstat.tcp_mem,limits.tcp_mem],['UDP memory',sockstat.udp_mem,limits.udp_mem]]){if(!isNum(used)||!thresholds||!isNum(thresholds[1]))continue;
+    host.append(meter(label,`pressure at ${bytes(thresholds[1]*page)}, limit ${bytes(thresholds[2]*page)} · host-wide`,used,thresholds[1],bytes(used*page)))}
+  const facts=element('limit-facts');facts.replaceChildren();
+  for(const [key,value] of [['Max SO_RCVBUF (rmem_max)',bytes(limits.rmem_max)],['Max SO_SNDBUF (wmem_max)',bytes(limits.wmem_max)],['Max listen backlog (somaxconn)',limits.somaxconn??'—'],['TCP sockets in namespace',isNum(sockstat.tcp_inuse)?`${sockstat.tcp_inuse} · ${sockstat.tcp_orphan} orphaned · ${sockstat.tcp_tw} time-wait`:'—']]){const item=node('div');item.append(node('dt',key),node('dd',String(value)));facts.append(item)}}
+function renderQueues(r,points,range){
+  timeChart(element('chart-queues'),{points,series:[{label:'Receive queue (unread)',color:'var(--series-1)',get:point=>point.rx_queue_bytes},{label:'Send queue (unsent)',color:'var(--series-2)',get:point=>point.tx_queue_bytes}],format:bytes,height:150,minMax:1024,...range,empty:'Collecting stored resource samples…'});
+  const kinds=r.sockets||{},legend=element('queues-legend');legend.replaceChildren();
+  for(const [key,label,color] of [['rx_queue','Receive queue (unread)','var(--series-1)'],['tx_queue','Send queue (unsent)','var(--series-2)']]){const item=node('span'),swatch=node('i',undefined,'sw line');swatch.style.background=color;item.append(swatch,label,node('b',bytes(['tcp','udp','unix'].reduce((sum,kind)=>sum+(kinds[kind]?.[key]||0),0))));legend.append(item)}
+  const counts=['tcp','udp','unix'].map(kind=>`${kinds[kind]?.sockets??0} ${kind.toUpperCase()}`).join(' · '),states=kinds.tcp_states||{};
+  legend.append(node('span',`${counts} · ${states.established??0} established · ${states.close_wait??0} close-wait · ${states.listen??0} listening`,'muted'))}
+function renderNetstack(r,points){
+  const network=r.network||{},body=element('netstack');body.replaceChildren();let zero=0;
+  const inRange=column=>column&&points.length?points.reduce((sum,point)=>sum+(point[column]||0),0):null;
+  // Counters that grew recently first; the rest keep their reading order.
+  const entries=NET_COUNTERS.map(([key,label,help,column])=>{const entry=network[key],range=inRange(column);return{entry,label,help,range,active:(entry?.delta||0)>0||(range||0)>0}}).filter(item=>item.entry&&isNum(item.entry.total));
+  entries.sort((a,b)=>(b.entry.delta>0)-(a.entry.delta>0)||b.active-a.active);
+  for(const {entry,label,help,range,active} of entries){if(!entry.total&&!active){zero++;continue}
+    const row=node('tr');row.className=active?'':'zero';row.title=help;const name=node('td');name.append(node('span',label));name.append(node('small',help));
+    const now=node('td',isNum(entry.per_s)?number(entry.per_s,entry.per_s<10?2:1)+'/s':'—','num');if(active&&entry.per_s>0)now.classList.add('bad');
+    const ranged=node('td',range===null?'—':number(range,0),'num');if(range>0)ranged.classList.add('bad');
+    row.append(name,now,ranged,node('td',number(entry.total,0),'num'));body.append(row)}
+  if(zero){const row=node('tr','', 'zero'),cell=node('td',`${zero} other counter${zero>1?'s are':' is'} zero.`);cell.colSpan=4;row.append(cell);body.append(row)}
+  element('netstack-sub').textContent='Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.'}
+function renderResourceSockets(r){
+  const busyOnly=element('sockets-busy-only').checked,all=r.sockets?.top||[];
+  const busy=item=>item.rx_queue>0||(item.tx_queue>0&&!item.listener)||(item.drops_delta||0)>0||(item.tcp?.retrans_delta||0)>0||(item.listener&&item.rx_queue>0)||Math.max(item.rx_fill_pct||0,item.tx_fill_pct||0)>=10||item.state==='CLOSE-WAIT';
+  const rows=busyOnly?all.filter(busy):all;
+  element('resource-socket-count').textContent=`(${rows.length} of ${all.length} reported${r.flags?.sockets_truncated?', more not listed':''})`;
+  const body=element('resource-sockets');body.replaceChildren();
+  for(const item of rows){const row=node('tr'),label=node('td');label.append(node('span',socketLabel(item)));if(item.listener)label.append(node('small','listener'));
+    const peer=node('td',socketName(item),'mono');peer.title=socketName(item);
+    const recvQ=node('td',item.listener?`${item.rx_queue} pending`:bytes(item.rx_queue),'num');
+    const tcp=item.tcp;
+    const drops=node('td',isNum(item.drops)?String(item.drops)+((item.drops_delta||0)>0?` (+${item.drops_delta})`:''):'—','num');if((item.drops_delta||0)>0)drops.classList.add('bad');
+    const retrans=node('td',tcp?String(tcp.retrans)+((tcp.retrans_delta||0)>0?` (+${tcp.retrans_delta})`:''):'—','num');
+    const notes=node('td');for(const [text,kind] of socketNotes(item))notes.append(node('span',text,'note'+(kind?' '+kind:'')));
+    row.append(label,peer,recvQ,item.listener?fillCell(item.accept_fill_pct,`${item.rx_queue} waiting for accept(), backlog ${item.tx_queue}`):fillCell(item.rx_fill_pct,isNum(item.rcvbuf)?`${bytes(item.rmem_alloc)} of ${bytes(item.rcvbuf)} receive buffer`:''),node('td',item.listener?'—':bytes(item.tx_queue),'num'),item.listener?node('td','—'):fillCell(item.tx_fill_pct,isNum(item.sndbuf)?`${bytes(Math.max(item.wmem_queued||0,item.wmem_alloc||0))} of ${bytes(item.sndbuf)} send buffer`:''),drops,node('td',tcp&&!item.listener?number(tcp.rtt_ms,2)+' ms':'—','num'),retrans,notes);
+    body.append(row)}
+  if(!rows.length){const row=node('tr'),cell=node('td',all.length?'No socket has queued data, drops or retransmits right now.':'The target has no sockets the sampler could list.');cell.colSpan=10;row.append(cell);body.append(row)}
+  const matched=r.sockets?.matched,unmatched=r.sockets?.unmatched,flags=r.flags||{};
+  let text=`Sample ${r.sequence} · every ${duration(r.interval_s)} · ${isNum(matched)?matched:'?'} sockets listed`+(unmatched?`, ${unmatched} not listable (netlink, raw, packet or unbound UDP sockets)`:'')+'.';
+  if(!r.sockets?.complete)text+=' Part of this sample was lost in transit; some sockets may be missing.';
+  if(flags.other_network_namespace)text+=' The target is in another network namespace: its sockets are not visible to the sampler.';
+  if(flags.descriptors_hidden)text+=' The sampler cannot read the target’s descriptor links, so its sockets cannot be identified.';
+  if(flags.descriptor_scan_truncated)text+=' The target has too many descriptors to inspect each one.';
+  if(r.cgroup)text+=' Cgroup: '+r.cgroup+'.';
+  element('resource-coverage').textContent=text}
+function renderResources(){const r=live.resources,empty=element('resources-empty'),content=element('resources-content');
+  if(!r||!r.available){empty.hidden=false;content.hidden=true;empty.textContent=r?.reason||'This collector does not report resource samples.';return}
+  empty.hidden=true;content.hidden=false;
+  const points=resourcePoints(),now=Date.now()/1000,range={from:now-resourceRange,to:now};
+  element('resources-sub').textContent=`What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers. ${r.stale?'Stale: no sample since '+ago(now-r.updated)+'.':'Updated '+ago(now-r.updated)+'.'}`;
+  renderResourceTiles(r,points);renderPressure(r,points,range);renderLimits(r);renderQueues(r,points,range);renderNetstack(r,points);
+  if(!element('resource-sockets').matches(':hover'))renderResourceSockets(r)}
+async function refreshResources(){try{const end=Date.now()/1000;
+    const response=await fetch('/api/resources?'+new URLSearchParams({start:end-resourceRange,end}));
+    if(response.ok){resourceHistory=await response.json();if(live.health)renderResources()}}
+  catch(error){}
+  finally{setTimeout(refreshResources,5000)}}
+for(const button of document.querySelectorAll('[data-res-range]'))button.onclick=()=>{resourceRange=Number(button.dataset.resRange);for(const other of document.querySelectorAll('[data-res-range]'))other.setAttribute('aria-pressed',String(other===button));resourceHistory=null;refreshResources()};
+element('pressure-scope').onchange=()=>{pressureScope=element('pressure-scope').value;renderResources()};
+element('sockets-busy-only').onchange=()=>renderResources();
+
 // ---------- Socket panel ----------
 const socketTitles={input:'Received bytes',output:'Sent bytes',messages:'Messages processed'};
 function socketValue(value,rate=false){if(value===null||value===undefined)return '—';const n=Number(value);
@@ -911,7 +1169,7 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
     for(const [name,count] of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}
     group.value=chosen;
-    renderTop();renderOverview();renderHealth();if(!element('threads-live').matches(':hover'))renderThreads();renderDrawerLive();
+    renderTop();renderOverview();renderResources();renderHealth();if(!element('threads-live').matches(':hover'))renderThreads();renderDrawerLive();
     events('alerts',live.alerts||[]);events('recent',live.recent_alerts||[]);
     if(!selected&&location.hash.startsWith('#thread=')){const thread=(live.threads||[]).find(item=>item.tid===Number(location.hash.slice(8)));if(thread)openThread(thread)}}
   catch(error){element('error').textContent='⚠ Collector unavailable. Displayed data is stale.';element('live-dot').className='status-dot critical'}
@@ -929,10 +1187,11 @@ const themes=['auto','light','dark'];
 function applyTheme(theme){if(theme==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;element('theme').title='Theme: '+(theme==='auto'?'follow system':theme);element('theme').textContent={auto:'◐',light:'☀',dark:'☾'}[theme];try{localStorage.setItem('triangulator:theme',theme)}catch{}}
 element('theme').onclick=()=>{let current='auto';try{current=localStorage.getItem('triangulator:theme')||'auto'}catch{}applyTheme(themes[(themes.indexOf(current)+1)%themes.length]);if(live.health)renderOverview()};
 try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTheme('auto')}
-let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
+let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
 refresh();
 loadTarget();
+refreshResources();
 refreshSocket();
 if(location.hash==='#settings')toggleSettings();
 </script>
