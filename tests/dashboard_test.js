@@ -48,8 +48,57 @@ function dashboard(storage = new Map()) {
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
   `, context);
-  return {run: source => vm.runInContext(source, context), elements, ranges, requests, storage};
+  return {run: source => vm.runInContext(source, context), elements, ranges, requests, storage,
+    setFetch: callback => {context.fetch = callback;}};
 }
+
+test('target editor loads the selector and sends one validated dashboard write', async () => {
+  const app = dashboard();
+  app.setFetch(async () => ({ok: true, json: async () => ({enabled: true, target: 'worker'})}));
+  app.run("element('target-settings').hidden=true");
+  await app.run('toggleTarget()');
+  assert.equal(app.elements.get('target-toggle').hidden, false);
+  assert.equal(app.elements.get('target-toggle').attrs['aria-expanded'], 'true');
+  assert.equal(app.elements.get('target-input').value, 'worker');
+  app.elements.get('target-input').value = ' 1234 ';
+  const writes = [];
+  let finish;
+  app.setFetch((url, options) => {
+    writes.push({url, options});
+    return new Promise(resolve => {finish = resolve;});
+  });
+  const applying = app.run('saveTarget({preventDefault(){}})');
+  assert.equal(app.elements.get('target-save').disabled, true);
+  await app.run('saveTarget({preventDefault(){}})');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].url, '/api/target');
+  assert.equal(writes[0].options.method, 'POST');
+  assert.equal(writes[0].options.headers['X-Triangulator'], '1');
+  assert.deepEqual(JSON.parse(writes[0].options.body), {target: '1234'});
+  finish({ok: true, json: async () => ({target: '1234', message: 'Reload requested.'})});
+  await applying;
+  assert.equal(app.elements.get('target-save').disabled, false);
+  assert.equal(app.elements.get('target-input').disabled, false);
+  assert.equal(app.elements.get('target-status').textContent, 'Reload requested.');
+});
+
+test('target editor reports rejection and can retry; unavailable control stays hidden', async () => {
+  const app = dashboard();
+  app.setFetch(async () => ({ok: true, json: async () => ({enabled: false})}));
+  await app.run('loadTarget()');
+  assert.equal(app.elements.get('target-toggle').hidden, true);
+  app.run("element('target-input').value='worker'");
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker'})}));
+  await app.run('saveTarget({preventDefault(){}})');
+  assert.equal(app.elements.get('target-status').className, 'bad');
+  assert.equal(app.elements.get('target-status').textContent, 'multiple processes named worker');
+  assert.equal(app.elements.get('target-input').value, 'worker');
+  assert.equal(app.elements.get('target-save').disabled, false);
+  app.setFetch(async () => {throw Error('Connection lost');});
+  await app.run('saveTarget({preventDefault(){}})');
+  assert.equal(app.elements.get('target-status').textContent, 'Connection lost');
+  assert.equal(app.elements.get('target-save').disabled, false);
+});
 
 function tick(app, time, cpu, session = 'session-1', state = 'sleep', delay = 0) {
   app.run(`live={health:{session:${JSON.stringify(session)}},threads:[{

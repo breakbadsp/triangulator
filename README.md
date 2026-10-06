@@ -26,7 +26,18 @@ programs. The local configs use loopback addresses, save history in `data/`, det
 the host's clock ticks, and leave webhook delivery disabled. Existing local configs
 are preserved; running the script again leaves already-running services alone.
 
-Select a target by process name or PID without restarting the sampler:
+Open <http://127.0.0.1:9401>, click **Change target** next to the current target,
+enter a process name or PID, and click **Monitor**. The change is saved in the
+running sampler's config and applied without restarting it. Validation errors
+appear in the form; a name that is not running yet is accepted and waits for it
+to start.
+
+Dashboard target control works with the local sampler started by `scripts/start.sh`,
+a loopback HTTP listener, and Python 3 plus `scripts/sampler_control.py` in this
+checkout. The collector and sampler must run as the same user, with write access
+to the sampler's config. For remote samplers, use the script on the sampler host.
+
+You can also select a target from the command line:
 
 ```sh
 scripts/set-target.sh ghostty
@@ -83,8 +94,10 @@ systemd, see [Production setup](#production-setup).
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
 Make and Python 3.11+, plus libsqlite3 development files for the collector.
-Python is used by `scripts/start.sh`, the tests and the alerting module; it
-needs no third-party packages.
+Python is used by `scripts/start.sh`, the tests, optional local dashboard target
+control and the alerting module; it needs no third-party packages. Binary-only
+deployments without `scripts/sampler_control.py` serve monitoring without Python;
+the dashboard hides target control there.
 
 ```sh
 make          # sampler, collector and read-only socket report helper
@@ -143,9 +156,12 @@ collector's `/api/live` has no alert fields.
 The HTTP listener defaults to loopback. Neither UDP nor HTTP is authenticated, so
 use an SSH tunnel or an authenticating reverse proxy for remote access.
 
-The API is read-only (other methods than `GET` get 501): `/api/live` and
+The monitoring API is read-only: `/api/live` and
 `/api/history?session=SESSION&tid=TID&start=UNIX_SECONDS&end=UNIX_SECONDS`
 (at most 2,000 rollups; narrow the interval if `truncated` is true).
+Local target control adds `GET /api/target` and `POST /api/target` with JSON
+`{"target":"NAME_OR_PID"}` and the `X-Triangulator: 1` header. Other non-`GET`
+requests get 501.
 
 ## Production setup
 

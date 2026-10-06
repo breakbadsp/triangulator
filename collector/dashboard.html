@@ -38,6 +38,10 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .brand svg{width:24px;height:24px}
 .target{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
 .target strong{font-size:14px}
+.target button{font-size:12px;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.target-form{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.target-form input{width:240px;max-width:100%}
+button:disabled{cursor:wait;opacity:.6}
 .status-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
 .status-dot.live{background:var(--good);box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 60%,transparent);animation:pulse 2s infinite}
 .status-dot.critical{background:var(--critical)}
@@ -226,7 +230,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <header class="topbar">
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
-<div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div></div>
+<div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
 <nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
@@ -235,6 +239,11 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div id="error" class="banner" role="status"></div>
 
 <main>
+<section id="target-settings" class="card" aria-label="Change target" hidden>
+<h2>Change target</h2><p class="muted">Enter an exact process name or PID. A process name follows the process when it restarts. Changes are saved and apply without restarting the sampler.</p>
+<form id="target-form" class="target-form"><label for="target-input">Process name or PID</label><input id="target-input" name="target" placeholder="e.g. ghostty or 1234" required autocomplete="off" spellcheck="false"><button id="target-save" class="primary" type="submit">Monitor</button><button id="target-cancel" type="button">Close</button></form>
+<p id="target-status" role="status" class="muted"></p>
+</section>
 <section id="settings" class="card" aria-label="Alert settings" hidden><h2>Alert settings</h2><p class="muted">Rules run in the alerting module; changes apply immediately and are saved in its data directory. Turning a rule off resolves its open alerts.</p><div class="table-wrap"><table><thead><tr><th>On</th><th>Rule</th><th>Settings</th></tr></thead><tbody id="settings-rows"></tbody></table></div><div class="actions"><button id="settings-save" class="primary">Save changes</button><button id="settings-reset">Reset to config file</button><span id="settings-status" role="status" class="muted"></span></div></section>
 
 <!-- Whole-process view. Everything here is summed from /api/live in the
@@ -865,6 +874,27 @@ async function saveSettings(body){const status=element('settings-status');status
 // A collector without alerting (the C++ core) sends no "alerts" list; hide the alert parts of the page.
 function showAlerting(on){for(const id of ['settings-toggle','alerts-title','alerts'])element(id).hidden=!on;element('recent').parentElement.hidden=!on;if(!on)element('settings').hidden=true}
 
+// ---------- Target control ----------
+function targetStatus(message,bad=false){const status=element('target-status');status.textContent=message;status.className=bad?'bad':'muted'}
+async function loadTarget(){try{const response=await fetch('/api/target');if(!response.ok)throw Error('Target control unavailable');
+    const data=await response.json();element('target-toggle').hidden=!data.enabled;
+    if(data.target)element('target-input').value=data.target;
+    targetStatus(data.error||'',!!data.error)}
+  catch(error){targetStatus(error.message,true)}}
+async function toggleTarget(){const panel=element('target-settings'),open=panel.hidden;panel.hidden=!open;element('target-toggle').setAttribute('aria-expanded',String(open));
+  if(open){element('target-input').disabled=true;element('target-save').disabled=true;await loadTarget();element('target-input').disabled=false;element('target-save').disabled=false;element('target-input').focus()}}
+async function saveTarget(event){event.preventDefault();if(element('target-save').disabled)return;
+  const target=element('target-input').value.trim();if(!target){targetStatus('Enter a process name or PID.',true);return}
+  element('target-save').disabled=true;element('target-input').disabled=true;targetStatus('Applying…');
+  try{const response=await fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify({target})});
+    const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to change target');
+    element('target-input').value=data.target;targetStatus(data.message);element('target-status').className='good'}
+  catch(error){targetStatus(error.message,true)}
+  finally{element('target-save').disabled=false;element('target-input').disabled=false}}
+element('target-toggle').onclick=toggleTarget;
+element('target-cancel').onclick=()=>{element('target-settings').hidden=true;element('target-toggle').setAttribute('aria-expanded','false');element('target-toggle').focus()};
+element('target-form').onsubmit=saveTarget;
+
 // ---------- Main loop ----------
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
@@ -902,6 +932,7 @@ try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTh
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
 refresh();
+loadTarget();
 refreshSocket();
 if(location.hash==='#settings')toggleSettings();
 </script>
