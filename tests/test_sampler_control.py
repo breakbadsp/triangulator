@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from wire import decode
+from wire import decode, receive_tick
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -127,7 +127,7 @@ class ScriptTests(unittest.TestCase):
 
     def receive_until(self, predicate):
         for _ in range(30):
-            value = decode(self.receiver.recv(1200))
+            value = decode(receive_tick(self.receiver))
             if predicate(value):
                 return value
         self.fail("the sampler did not apply the reload")

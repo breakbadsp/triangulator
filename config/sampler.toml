@@ -3,3 +3,6 @@ target_process = "ghostty"
 rate_hz = 1.0
 collector = "10.0.0.5:9400"
 status_fallback = false
+# Seconds between resource samples: pressure, descriptors, socket queues and
+# network drops (0 = off, 1..60). Never more often than thread ticks.
+resource_interval_s = 5

@@ -9,6 +9,7 @@
 #include <system_error>
 
 #include "proc.hpp"
+#include "resources.hpp"
 
 namespace triangulator
 {
@@ -172,7 +173,73 @@ class Sampler
       }
     }
     SendTick(pid, monotonic, wall, std::span{records_}.first(count));
+    // Resource samples ride on thread ticks. Half a tick of slack keeps
+    // wake-up jitter from pushing one to the following tick.
+    const auto resource_interval = ResourceInterval();
+    if (p_target && resource_interval > Nanoseconds{0} &&
+        monotonic + config_.settings_.Interval() / 2 >= next_resources_)
+    {
+      SendResources(*p_target);
+      next_resources_ = next_resources_ == Nanoseconds{0} ||
+                                monotonic - next_resources_ >= resource_interval
+                            ? monotonic + resource_interval
+                            : next_resources_ + resource_interval;
+    }
     return {};
+  }
+
+  // Time between resource samples: the configured interval, but never less
+  // than one thread tick. Zero when they are off.
+  [[nodiscard]] Nanoseconds ResourceInterval() const noexcept
+  {
+    const auto seconds = config_.settings_.resource_interval_s_;
+    if (seconds == 0)
+    {
+      return Nanoseconds{0};
+    }
+    return std::max<Nanoseconds>(std::chrono::seconds{seconds},
+                                 config_.settings_.Interval());
+  }
+
+  // Sends one resource sample: the summary, then the fullest sockets. It
+  // shares the thread ticks' session, so the collector can match the two.
+  void SendResources(const TargetIdentity& p_target)
+  {
+    const auto monotonic = ClockNow(CLOCK_MONOTONIC);
+    const auto wall = ClockNow(CLOCK_REALTIME);
+    const auto sample = resources_.Sample(p_target.pid_);
+    const resource_wire::Header header{
+        .parts_ = resource_wire::PartCount(sample.sockets_.size()),
+        .session_ = session_,
+        .sequence_ = resource_sequence_++,
+        .monotonic_ns_ = static_cast<std::uint64_t>(monotonic.count()),
+        .wall_ns_ = static_cast<std::uint64_t>(wall.count()),
+        .interval_ms_ = static_cast<std::uint32_t>(
+            std::chrono::round<std::chrono::milliseconds>(ResourceInterval())
+                .count()),
+        .pid_ = static_cast<std::uint32_t>(p_target.pid_),
+        .process_start_ = p_target.starttime_,
+        .flags_ = sample.flags_,
+    };
+    const auto send = [this](std::size_t p_length)
+    {
+      const auto& endpoint = config_.endpoint_;
+      if (::sendto(endpoint.socket_.Get(), resource_packet_.data(), p_length,
+                   MSG_DONTWAIT,
+                   reinterpret_cast<const sockaddr*>(&endpoint.address_),
+                   endpoint.address_length_) < 0 &&
+          errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOBUFS)
+      {
+        logger_.Warn("UDP send failed; resource sample dropped");
+      }
+    };
+    send(resource_wire::EncodeSummary(resource_packet_, header, sample.summary_,
+                                      sample.cgroup_));
+    for (std::uint8_t part = 1; part < header.parts_; ++part)
+    {
+      send(resource_wire::EncodeSockets(resource_packet_, header,
+                                        sample.sockets_, part));
+    }
   }
 
   [[nodiscard]] std::expected<void, std::string> ResetSession()
@@ -186,6 +253,8 @@ class Sampler
     threads_.Clear();
     session_ = *session;
     sequence_ = 0;
+    resource_sequence_ = 0;
+    next_resources_ = Nanoseconds{0};  // a new session samples at once
     return {};
   }
 
@@ -263,6 +332,10 @@ class Sampler
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
   std::uint32_t sequence_ = 0;
+  ResourceProbe resources_;
+  std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
+  std::uint32_t resource_sequence_ = 0;
+  Nanoseconds next_resources_{0};
 };
 
 }  // namespace

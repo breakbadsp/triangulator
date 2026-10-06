@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from wire import classify, decode
+from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_resource, receive_tick
 
 
 def wait_until_asleep(pid, timeout=5):
@@ -39,7 +39,7 @@ class SamplerTests(unittest.TestCase):
             config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             sampler = subprocess.Popen([str(binary), str(config)], stderr=subprocess.PIPE, text=True)
             try:
-                first = decode(receiver.recv(1200))
+                first = decode(receive_tick(receiver))
                 self.assertEqual(first.pid, target.pid)
                 self.assertEqual(first.records[0].comm, "sleep")
                 self.assertEqual(classify(first.records[0]), "sleep", first.records[0].wchan)
@@ -48,14 +48,14 @@ class SamplerTests(unittest.TestCase):
                 config.write_text(f'target_pid = {target.pid}\nrate_hz = 99\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler.send_signal(signal.SIGHUP)
                 for _ in range(3):
-                    unchanged = decode(receiver.recv(1200))
+                    unchanged = decode(receive_tick(receiver))
                     self.assertEqual(unchanged.session, first.session)
                     self.assertEqual(unchanged.interval_ms, 100)
                 self.assertIsNone(sampler.poll())
                 config.write_text(f'target_pid = {target.pid}\nrate_hz = 5\nstatus_fallback = true\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler.send_signal(signal.SIGHUP)
                 for _ in range(10):
-                    value = decode(receiver.recv(1200))
+                    value = decode(receive_tick(receiver))
                     if value.session != first.session:
                         break
                 self.assertEqual(value.interval_ms, 200)
@@ -63,7 +63,7 @@ class SamplerTests(unittest.TestCase):
                 target.terminate()
                 target.wait(timeout=3)
                 for _ in range(10):
-                    absent = decode(receiver.recv(1200))
+                    absent = decode(receive_tick(receiver))
                     if absent.flags & 1:
                         break
                 self.assertEqual(absent.flags, 3)
@@ -123,7 +123,7 @@ class SamplerTests(unittest.TestCase):
                                            stderr=subprocess.PIPE, text=True)
                 chunks = {}
                 for _ in range(20):
-                    datagram = receiver.recv(1200)
+                    datagram = receive_tick(receiver)
                     value = decode(datagram)
                     self.assertLessEqual(len(datagram), 1168)
                     self.assertEqual(value.chunks, 3)
@@ -142,7 +142,7 @@ class SamplerTests(unittest.TestCase):
                 target.stdin.flush()
                 self.assertEqual(target.stdout.readline().strip(), "released")
                 for _ in range(30):
-                    value = decode(receiver.recv(1200))
+                    value = decode(receive_tick(receiver))
                     if value.chunks == 1 and len(value.records) == 1:
                         break
                 else:
@@ -180,7 +180,7 @@ class DescriptorLimitTests(unittest.TestCase):
                 for _ in range(200):
                     if len([tick for tick in ticks.values() if len(tick) == 3]) >= 15:
                         break
-                    value = decode(receiver.recv(1200))
+                    value = decode(receive_tick(receiver))
                     sessions.add(value.session)
                     if value.flags & 1:
                         absent += 1
@@ -204,6 +204,90 @@ class DescriptorLimitTests(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[1]
 CPP_COLLECTOR = [str(ROOT / "build/triangulator-collector")]
+
+# A target with a listener and a connection whose received bytes it never
+# reads, so its sockets have something to report.
+SOCKET_TARGET = """
+import socket, sys, time
+listener = socket.socket()
+listener.bind(("127.0.0.1", 0))
+listener.listen(8)
+client = socket.create_connection(listener.getsockname())
+server, _ = listener.accept()
+client.sendall(b"x" * 4096)
+print(listener.getsockname()[1], server.fileno(), flush=True)
+time.sleep(60)
+"""
+
+
+class ResourceSampleTests(unittest.TestCase):
+    """The sampler's resource datagrams, read from a real sampler."""
+
+    def run_sampler(self, extra):
+        receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.addCleanup(receiver.close)
+        receiver.bind(("127.0.0.1", 0))
+        receiver.settimeout(3)
+        # /dev/null for the inherited descriptors, so the target's own sockets
+        # are the only ones it has.
+        target = subprocess.Popen([sys.executable, "-c", SOCKET_TARGET], stdin=subprocess.DEVNULL,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        self.addCleanup(lambda: (target.terminate(), target.wait(timeout=5)))
+        port, server_fd = (int(value) for value in target.stdout.readline().split())
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        config = Path(directory.name) / "sampler.toml"
+        config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\n'
+                          f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n{extra}')
+        sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(config)],
+                                   stderr=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: (sampler.terminate(), sampler.communicate(timeout=5)))
+        return receiver, target, port, server_fd
+
+    def test_resource_sample_describes_the_target(self):
+        receiver, target, port, server_fd = self.run_sampler("resource_interval_s = 1\n")
+        parts, ticks = {}, set()
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            data = receiver.recv(1500)
+            if not data.startswith(b"TRES"):
+                ticks.add(decode(data).session)
+                continue
+            self.assertLessEqual(len(data), 1400)
+            part = decode_resource(data)
+            parts.setdefault(part.sequence, {})[part.part] = (part, data)
+            if len(parts) >= 2 and len(parts[min(parts)]) == part.parts:
+                break
+        summary = parts[min(parts)][0][0]
+        self.assertEqual(summary.kind, RESOURCE_SUMMARY)
+        self.assertEqual(summary.pid, target.pid)
+        self.assertEqual(summary.interval_ms, 1000)
+        self.assertEqual(ticks, {summary.session}, "resource samples share the thread session")
+        self.assertEqual(summary.flags, 0, "nothing is hidden from the target's own user")
+        values = summary.values
+        self.assertEqual(values["fd_sockets"], 3)
+        self.assertEqual(values["sockets_matched"], 3)
+        self.assertEqual(values["tcp_listen"], 1)
+        self.assertEqual(values["tcp_established"], 2)
+        self.assertEqual(values["tcp_rx_queue"], 4096)
+        self.assertGreaterEqual(values["fd_soft_limit"], values["fd_open"])
+        self.assertIsNotNone(values["net_tcp_active_opens"])
+        if "0::/" in Path(f"/proc/{target.pid}/cgroup").read_text():
+            self.assertTrue(summary.cgroup.startswith("/"))
+        sockets = [decode_resource(data) for part, data in parts[min(parts)].values() if part.kind == RESOURCE_SOCKETS]
+        self.assertEqual(summary.parts, 2)
+        self.assertEqual(len(sockets), 1)
+        self.assertEqual(sockets[0].count, 3)
+        # Samples follow the configured interval, not the 10 Hz thread ticks.
+        first, second = sorted(parts)[:2]
+        gap = parts[second][0][0].monotonic_ns - parts[first][0][0].monotonic_ns
+        self.assertAlmostEqual(gap / 1e9, 1, delta=0.15)
+
+    def test_resource_samples_can_be_turned_off(self):
+        receiver, *_ = self.run_sampler("resource_interval_s = 0\n")
+        for _ in range(25):
+            self.assertFalse(receiver.recv(1500).startswith(b"TRES"))
+
 
 
 def free_port(kind):
