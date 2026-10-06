@@ -271,15 +271,32 @@ class Sampler
 int main(int p_argc, char** p_argv)
 {
   // --check-config validates CONFIG with the same parser a SIGHUP reload
-  // uses, then exits without sampling or sending anything.
-  const bool check_config =
-      p_argc == 3 && std::string_view{p_argv[1]} == "--check-config";
-  if (p_argc != 2 && !check_config)
+  // uses, then exits without sampling or sending anything. Like the
+  // collector, it may come before or after CONFIG.
+  bool check_config = false;
+  const char* config_path = nullptr;
+  for (int index = 1; index < p_argc; ++index)
+  {
+    const std::string_view argument = p_argv[index];
+    if (argument == "--check-config" && !check_config)
+    {
+      check_config = true;
+    }
+    else if (argument.starts_with('-') || config_path != nullptr)
+    {
+      config_path = nullptr;
+      break;
+    }
+    else
+    {
+      config_path = p_argv[index];
+    }
+  }
+  if (config_path == nullptr)
   {
     std::fprintf(stderr, "usage: %s [--check-config] CONFIG\n", p_argv[0]);
     return 2;
   }
-  const char* config_path = p_argv[p_argc - 1];
   try
   {
     auto config = triangulator::LoadConfig(config_path);

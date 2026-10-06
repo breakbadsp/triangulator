@@ -102,9 +102,16 @@ class SamplerTests(unittest.TestCase):
                 checked = check(text)
                 self.assertEqual(checked.returncode, 2, text[:80])
                 self.assertIn(error, checked.stderr)
-            usage = subprocess.run([str(binary), "--check", str(config)], capture_output=True, text=True, timeout=5)
-            self.assertEqual(usage.returncode, 2)
-            self.assertIn("usage", usage.stderr)
+            # The flag may follow CONFIG, as with the collector.
+            checked = subprocess.run([str(binary), str(config), "--check-config"],
+                                     capture_output=True, text=True, timeout=5)
+            self.assertEqual(checked.returncode, 2)
+            self.assertIn("16 KiB", checked.stderr)
+            for arguments in (["--check", str(config)], ["--check-config"], [str(config), str(config)],
+                              ["--check-config", "--check-config", str(config)]):
+                usage = subprocess.run([str(binary), *arguments], capture_output=True, text=True, timeout=5)
+                self.assertEqual(usage.returncode, 2, arguments)
+                self.assertIn("usage", usage.stderr)
 
     def test_named_target_chunking_thread_names_and_descriptor_cleanup(self):
         root = Path(__file__).resolve().parents[1]
