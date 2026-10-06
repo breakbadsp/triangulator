@@ -442,18 +442,18 @@ const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
 
 let live={},windowSecs=300,activity='active',stateFilter='',wchanFilter='',selected=null,socketData=null,socketMetric='input',settingsInfo=null;
 // Rolling whole-process series: one point per new sample tick.
-let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null,liveMapWindow=0;
+let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null,liveMapWindow=0,savedLiveAnalysis=null;
 const viewNow=()=>replayAt??Date.now()/1000;
 let buffer=[],bufferSession=null,lastTick=0,previousThreads=null,loadState=null;
-const threadCpu=new Map();
+let threadCpu=new Map();
 // Per-thread CPU every 10 s for 15 min, for the thread map's averages. Each
 // live cpu_pct already covers the last ~10 s, so one value per 10 s covers
 // the whole window: [generation, t0, v0, t1, v1, ...].
-const threadAvg=new Map();
+let threadAvg=new Map();
 const AVG_STEP=10;
 let mapWindow=0,avgSince=0;
 // When each thread was first seen and last did anything, in this tab.
-const threadSeen=new Map();
+let threadSeen=new Map();
 // A thread is idle when it used no CPU, switched no context and moved no
 // bytes in the last ~10 s. Kernel (D) and stopped threads are never idle:
 // they are blocked, which is worth seeing.
@@ -548,7 +548,7 @@ function barList(host,items,{format,onClick,pressed,mono,empty='Nothing to show.
     row.append(name,track,value);row.addEventListener('pointermove',event=>showTip(event,item.label,item.tip||[{value:format(item.value),label:item.sub||''}]));row.addEventListener('pointerleave',hideTip);host.append(row)}}
 
 // ---------- Rolling process buffer ----------
-function loadBuffer(session){bufferSession=session;buffer=[];lastTick=0;previousThreads=null;loadState=null;threadCpu.clear();threadSeen.clear();threadAvg.clear();avgSince=0;
+function loadBuffer(session){bufferSession=session;buffer=[];lastTick=0;previousThreads=null;loadState=null;threadCpu=new Map();threadSeen=new Map();threadAvg=new Map();avgSince=0;
   if(replayAt!==null)return;
   try{const saved=JSON.parse(sessionStorage.getItem('triangulator:threads')||'null');if(saved&&saved.session===session){avgSince=saved.since;for(const [tid,series] of saved.avg)threadAvg.set(tid,series);for(const [tid,seen] of saved.seen)threadSeen.set(tid,seen)}}catch{}
   try{const saved=JSON.parse(sessionStorage.getItem('triangulator:buffer')||'null');if(saved&&saved.session===session){buffer=saved.points;lastTick=buffer.at(-1)?.t||0;
@@ -1204,7 +1204,9 @@ async function inspectTime(at,direction='at'){
     if(!response.ok)throw Error(data.error||'Unable to read recordings.');
     setReplayBounds(data);
     if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No process snapshot at or before this time. Choose a time within the available recordings.':'No more recorded snapshots in this direction.';replayControls();return}
-    if(replayAt===null){saveBuffer();liveMapWindow=mapWindow}
+    if(replayAt===null){saveBuffer();liveMapWindow=mapWindow;
+      // Keep live analysis in memory: session storage does not contain CPU samples.
+      savedLiveAnalysis={buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}}
     if(selected)closeThread();
     replayAt=data.snapshot.recorded_at;live=data.snapshot;
     loadBuffer(live.health.session);ingest();setMapWindow(0);
@@ -1218,7 +1220,11 @@ async function returnLive(){const request=++replayRequest;
   if(replayAt===null){element('replay-note').textContent='Live view. Choose a time to inspect a recording.';return}
   if(!latestLive?.health){try{const response=await fetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
   if(request!==replayRequest)return;
-  if(selected)closeThread();replayAt=null;live=latestLive;loadBuffer(live.health.session);ingest();setMapWindow(liveMapWindow);renderReplayView();
+  if(selected)closeThread();replayAt=null;live=latestLive;
+  if(savedLiveAnalysis?.bufferSession===live.health.session){
+    ({buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=savedLiveAnalysis);
+  }else loadBuffer(live.health.session);
+  savedLiveAnalysis=null;ingest();setMapWindow(liveMapWindow);renderReplayView();
   element('replay-note').textContent='Live view. Choose a time to inspect a recording.';replayControls();
 }
 
