@@ -34,37 +34,37 @@ text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-ser
 <text x="36" y="292" class="lab t2" style="font-weight:600">1,000 threads · 10 Hz</text>
 <text x="576" y="292" class="lab mu" text-anchor="end">7.9× less</text>
 <text x="36" y="320" class="lab t2">Python</text>
-<rect class="bar-py" x="88" y="304" width="161.0" height="22" rx="4"><animate attributeName="width" from="0" to="161.0" dur="1.1s" begin="0.00s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-py" x="88" y="304" width="161.0" height="22" rx="4"><animate attributeName="width" values="0;0;161.0;161.0;0" keyTimes="0;0.0000;0.1600;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="257.0" y="320" class="val">32.2%</text>
 <text x="36" y="356" class="lab t2">C++</text>
-<rect class="bar-cpp" x="88" y="340" width="20.4" height="22" rx="4"><animate attributeName="width" from="0" to="20.4" dur="1.1s" begin="0.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-cpp" x="88" y="340" width="20.4" height="22" rx="4"><animate attributeName="width" values="0;0;20.4;20.4;0" keyTimes="0;0.0214;0.1814;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="116.4" y="356" class="val">4.08%</text>
 <text x="36" y="410" class="lab t2" style="font-weight:600">2,500 threads · 10 Hz</text>
 <text x="576" y="410" class="lab mu" text-anchor="end">5.8× less</text>
 <text x="36" y="438" class="lab t2">Python</text>
-<rect class="bar-py" x="88" y="422" width="358.5" height="22" rx="4"><animate attributeName="width" from="0" to="358.5" dur="1.1s" begin="0.30s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-py" x="88" y="422" width="358.5" height="22" rx="4"><animate attributeName="width" values="0;0;358.5;358.5;0" keyTimes="0;0.0429;0.2029;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="454.5" y="438" class="val">71.7%</text>
 <text x="36" y="474" class="lab t2">C++</text>
-<rect class="bar-cpp" x="88" y="458" width="61.5" height="22" rx="4"><animate attributeName="width" from="0" to="61.5" dur="1.1s" begin="0.45s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-cpp" x="88" y="458" width="61.5" height="22" rx="4"><animate attributeName="width" values="0;0;61.5;61.5;0" keyTimes="0;0.0643;0.2243;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="157.5" y="474" class="val">12.3%</text>
 <text x="624" y="244" class="ct">Dashboard API latency</text>
 <text x="624" y="263" class="lab t2">p95 of /api/live, ms · lower is better</text>
 <text x="624" y="292" class="lab t2" style="font-weight:600">1,000 threads · 10 Hz</text>
 <text x="1164" y="292" class="lab mu" text-anchor="end">88× less</text>
 <text x="624" y="320" class="lab t2">Python</text>
-<rect class="bar-py" x="676" y="304" width="394.0" height="22" rx="4"><animate attributeName="width" from="0" to="394.0" dur="1.1s" begin="0.00s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-py" x="676" y="304" width="394.0" height="22" rx="4"><animate attributeName="width" values="0;0;394.0;394.0;0" keyTimes="0;0.0000;0.1600;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="1078.0" y="320" class="val">78.8 ms</text>
 <text x="624" y="356" class="lab t2">C++</text>
-<rect class="bar-cpp" x="676" y="340" width="4.5" height="22" rx="4"><animate attributeName="width" from="0" to="4.5" dur="1.1s" begin="0.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-cpp" x="676" y="340" width="4.5" height="22" rx="4"><animate attributeName="width" values="0;0;4.5;4.5;0" keyTimes="0;0.0214;0.1814;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="688.5" y="356" class="val">0.89 ms</text>
 <text x="624" y="410" class="lab t2" style="font-weight:600">2,500 threads · 10 Hz</text>
 <text x="1164" y="410" class="lab mu" text-anchor="end">13× less</text>
 <text x="624" y="438" class="lab t2">Python</text>
-<rect class="bar-py" x="676" y="422" width="110.0" height="22" rx="4"><animate attributeName="width" from="0" to="110.0" dur="1.1s" begin="0.30s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
+<rect class="bar-py" x="676" y="422" width="110.0" height="22" rx="4"><animate attributeName="width" values="0;0;110.0;110.0;0" keyTimes="0;0.0429;0.2029;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
 <text x="794.0" y="438" class="val">22.0 ms</text>
 <text x="624" y="474" class="lab t2">C++</text>
-<rect class="bar-cpp" x="676" y="458" width="8.4" height="22" rx="4"><animate attributeName="width" from="0" to="8.4" dur="1.1s" begin="0.45s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.7 0.2 1"/></rect>
-<text x="692.5" y="474" class="val">1.7 ms</text>
+<rect class="bar-cpp" x="676" y="458" width="8.4" height="22" rx="4"><animate attributeName="width" values="0;0;8.4;8.4;0" keyTimes="0;0.0643;0.2243;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="692.5" y="474" class="val">1.69 ms</text>
 <line x1="600" y1="236" x2="600" y2="520" stroke="var(--rule)"/>
 <rect x="36" y="526" width="12" height="12" rx="3" class="bar-cpp"/><text x="56" y="537" class="lab t2">C++ collector</text>
 <rect x="160" y="526" width="12" height="12" rx="3" class="bar-py"/><text x="180" y="537" class="lab t2">Python collector (removed)</text>
