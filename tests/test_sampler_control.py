@@ -132,7 +132,7 @@ class ScriptTests(unittest.TestCase):
                 return value
         self.fail("the sampler did not apply the reload")
 
-    def start_dashboard(self, http_host="127.0.0.1"):
+    def start_dashboard(self, http_host="127.0.0.1", udp_host="127.0.0.1"):
         shutil.copy2(ROOT / "build/triangulator-collector", self.real / "build")
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
@@ -140,7 +140,7 @@ class ScriptTests(unittest.TestCase):
         config = self.real / "config/local/collector.toml"
         # The integration tests receive through the collector instead.
         self.receiver.close()
-        config.write_text(f'udp_host = "127.0.0.1"\nudp_port = {self.port}\n'
+        config.write_text(f'udp_host = "{udp_host}"\nudp_port = {self.port}\n'
                           f'http_host = "{http_host}"\nhttp_port = {port}\n'
                           f'data_dir = "{self.real / "data"}"\n')
         collector = subprocess.Popen([str(self.real / "build/triangulator-collector"), str(config)],
@@ -176,6 +176,22 @@ class ScriptTests(unittest.TestCase):
                 return live["health"]
             time.sleep(0.05)
         self.fail("dashboard did not report the new target")
+
+    def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
+        # IPv4 samples and target control both work through an IPv6 wildcard listener.
+        self.start_dashboard(udp_host="::")
+        config = self.real / "config/local/sampler.toml"
+        config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertEqual(data, {"enabled": True, "target": str(self.target.pid)})
+        other = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(stop, other)
+        status, data = self.api("/api/target", {"target": str(other.pid)}, {"X-Triangulator": "1"})
+        self.assertEqual(status, 200, data)
+        self.wait_live(lambda health: health.get("pid") == other.pid)
 
     def test_dashboard_changes_pid_name_and_absent_target(self):
         self.start_dashboard()

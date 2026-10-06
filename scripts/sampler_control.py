@@ -252,7 +252,9 @@ def require_local_collector(config, expected):
         address = ipaddress.ip_address(host.strip("[]"))
         bind_host, port = expected
         listener = ipaddress.ip_address(bind_host)
-        local = address.is_loopback and address.version == listener.version
+        # The collector's IPv6 wildcard socket also receives IPv4 datagrams.
+        local = address.is_loopback and (address.version == listener.version or
+                                         (listener.version == 6 and listener.is_unspecified))
         local = local and (listener.is_unspecified or address == listener)
         matching_port = int(configured_port) == int(port)
     except ValueError:
