@@ -528,6 +528,8 @@ code is in C++. These rules keep it fast.
   Allocation at startup, and when a new thread first appears, is fine.
   The sampler is stricter: it allocates only at startup and on a reload
   (see `docs/tigerstyle-adaption.md`).
+  The collector is also stricter: its datagram path allocates only at
+  startup (see `docs/collector-allocations.md`).
 - **Put a limit on everything.** Each loop over external data has a maximum
   (threads per packet, bytes per datagram, entries in a cache). Hitting a
   limit is an operating error: count it, log it once, and carry on. The
