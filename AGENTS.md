@@ -26,3 +26,14 @@
   return `std::expected` / `std::optional`; exceptions only where that doc
   allows them.
 - Each commit must build and pass `make check` on its own.
+
+## Git workflow
+
+- Make every new change, including documentation changes, on a separate
+  branch. Never make new changes directly on `master`.
+- Use a descriptive branch name that explains the change, for example
+  `feat/process-memory-monitoring`, `fix/resource-session-ordering`, or
+  `docs/require-descriptive-branches-and-prs`.
+- As soon as a change is complete and the required checks pass, commit it,
+  push the branch, and open a pull request targeting `master`. Do not wait
+  for a separate request to raise the PR.
