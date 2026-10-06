@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-labelledby="t d">
+<title id="t">Triangulator architecture</title>
+<desc id="d">The sampler reads /proc for the target process and sends samples over UDP to the collector. The collector writes SQLite day files and serves the dashboard over HTTP. A separate alerting module, not wired up yet, reads the SQLite files.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a0f1f"/><stop offset="1" stop-color="#121c3b"/></linearGradient>
+<pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#7f9bff" fill-opacity="0.12"/></pattern>
+<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 9 5 0 9z" fill="#8aa4ff" fill-opacity="0.8"/></marker>
+<marker id="ahd" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 9 5 0 9z" fill="#6b7aa5"/></marker>
+<clipPath id="round"><rect width="1200" height="560" rx="20"/></clipPath>
+</defs>
+<style>
+text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; fill: #dbe4ff; }
+.h { font-size: 18px; font-weight: 700; }
+.s { font-size: 13px; fill: #9db0d6; }
+.m { font-size: 12px; fill: #9db0d6; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.zone { font-size: 12px; font-weight: 700; letter-spacing: 2.4px; fill: #7f93c4; }
+.box { fill: #101a38; stroke-width: 1.6; }
+</style>
+<g clip-path="url(#round)"><rect width="1200" height="560" fill="url(#bg)"/><rect width="1200" height="560" fill="url(#dots)"/>
+<rect x="30" y="70" width="350" height="420" rx="16" fill="none" stroke="#6b7aa5" stroke-opacity="0.5" stroke-dasharray="6 6"/>
+<text class="zone" x="50" y="98">TARGET HOST · LINUX</text>
+<rect x="430" y="70" width="740" height="420" rx="16" fill="none" stroke="#6b7aa5" stroke-opacity="0.5" stroke-dasharray="6 6"/>
+<text class="zone" x="450" y="98">COLLECTOR HOST</text>
+<text class="h" x="30" y="40" style="font-size:22px">How a thread sample travels</text>
+<text class="s" x="30" y="58">One-way UDP. No agent in the target. No sudo.</text>
+<rect class="box" x="60" y="120" width="290" height="140" rx="12" stroke="#60a5fa" stroke-opacity="0.7"/>
+<text class="h" x="78" y="148">Target process</text>
+<text class="s" x="78" y="166">Many threads, any language</text>
+<rect x="80" y="216" width="13" height="30" rx="3" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="y" values="216;228;202;236;216" dur="2.2s" repeatCount="indefinite"/><animate attributeName="height" values="30;18;44;10;30" dur="2.2s" repeatCount="indefinite"/></rect>
+<rect x="101" y="236" width="13" height="10" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="236;190;236;216;236" dur="2.6500000000000004s" repeatCount="indefinite"/><animate attributeName="height" values="10;56;10;30;10" dur="2.6500000000000004s" repeatCount="indefinite"/></rect>
+<rect x="122" y="190" width="13" height="56" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="190;236;190;228;190" dur="3.1s" repeatCount="indefinite"/><animate attributeName="height" values="56;10;56;18;56" dur="3.1s" repeatCount="indefinite"/></rect>
+<rect x="143" y="236" width="13" height="10" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="236;236;202;202;236" dur="3.5500000000000003s" repeatCount="indefinite"/><animate attributeName="height" values="10;10;44;44;10" dur="3.5500000000000003s" repeatCount="indefinite"/></rect>
+<rect x="164" y="236" width="13" height="10" rx="3" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="y" values="236;228;236;190;236" dur="4.0s" repeatCount="indefinite"/><animate attributeName="height" values="10;18;10;56;10" dur="4.0s" repeatCount="indefinite"/></rect>
+<rect x="185" y="202" width="13" height="44" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="202;236;190;236;202" dur="2.2s" repeatCount="indefinite"/><animate attributeName="height" values="44;10;56;10;44" dur="2.2s" repeatCount="indefinite"/></rect>
+<rect x="206" y="228" width="13" height="18" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="228;190;236;190;228" dur="2.6500000000000004s" repeatCount="indefinite"/><animate attributeName="height" values="18;56;10;56;18" dur="2.6500000000000004s" repeatCount="indefinite"/></rect>
+<rect x="227" y="190" width="13" height="56" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="190;202;236;228;190" dur="3.1s" repeatCount="indefinite"/><animate attributeName="height" values="56;44;10;18;56" dur="3.1s" repeatCount="indefinite"/></rect>
+<rect x="248" y="236" width="13" height="10" rx="3" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="y" values="236;190;228;216;236" dur="3.5500000000000003s" repeatCount="indefinite"/><animate attributeName="height" values="10;56;18;30;10" dur="3.5500000000000003s" repeatCount="indefinite"/></rect>
+<rect x="269" y="202" width="13" height="44" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="202;228;190;236;202" dur="4.0s" repeatCount="indefinite"/><animate attributeName="height" values="44;18;56;10;44" dur="4.0s" repeatCount="indefinite"/></rect>
+<rect x="290" y="190" width="13" height="56" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="190;216;190;228;190" dur="2.2s" repeatCount="indefinite"/><animate attributeName="height" values="56;30;56;18;56" dur="2.2s" repeatCount="indefinite"/></rect>
+<rect x="311" y="236" width="13" height="10" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="y" values="236;190;190;228;236" dur="2.6500000000000004s" repeatCount="indefinite"/><animate attributeName="height" values="10;56;56;18;10" dur="2.6500000000000004s" repeatCount="indefinite"/></rect>
+<rect class="box" x="60" y="340" width="290" height="110" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<text class="h" x="78" y="370">Sampler</text>
+<text class="s" x="78" y="390">C++ · static binary · zero dependencies</text>
+<text class="m" x="78" y="414">stat  schedstat  io  wchan</text>
+<text class="m" x="78" y="434">1 Hz default · 0.2–10 Hz</text>
+<path id="p0" d="M205 262V338" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
+<text class="m" x="216" y="305">read-only /proc</text>
+<path id="pu" d="M350 395H500" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<path id="pc_db" d="M730 360C770 360 770 205 810 205" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<path id="pc_http" d="M730 395H810" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<path id="pdb_http" d="M880 250V328" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<path id="phb" d="M970 395H1030" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<path id="pdb_al" d="M950 205H1030" fill="none" stroke="#6b7aa5" stroke-opacity="0.8" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ahd)"/>
+<text class="h" x="425" y="360" text-anchor="middle" style="font-size:15px">UDP :9400</text>
+<text class="m" x="425" y="378" text-anchor="middle">112-byte records</text>
+<text class="m" x="425" y="416" text-anchor="middle">10 per datagram</text>
+<rect class="box" x="500" y="330" width="230" height="130" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<text class="h" x="518" y="360">Collector</text>
+<text class="s" x="518" y="380">C++ · single binary</text>
+<text class="m" x="518" y="404">reorder · dedupe</text>
+<text class="m" x="518" y="422">per-thread rollups</text>
+<text class="m" x="518" y="440">loss + health</text>
+<path d="M810.0 164V236A70.0 14 0 0 0 950.0 236V164" fill="#101a38" stroke="#fbbf24" stroke-opacity="0.8" stroke-width="1.6"/>
+<ellipse cx="880" cy="164" rx="70.0" ry="14" fill="#16224a" stroke="#fbbf24" stroke-opacity="0.8" stroke-width="1.6"/>
+<text class="h" x="880" y="208" text-anchor="middle">SQLite</text>
+<text class="s" x="880" y="227" text-anchor="middle">one file per UTC day</text>
+<rect class="box" x="810" y="330" width="160" height="130" rx="12" stroke="#a78bfa" stroke-opacity="0.8"/>
+<text class="h" x="828" y="360">HTTP server</text>
+<text class="s" x="828" y="380">:9401 · loopback</text>
+<text class="m" x="828" y="404">/api/live</text>
+<text class="m" x="828" y="422">/api/history</text>
+<text class="m" x="828" y="440">/api/replay</text>
+<rect class="box" x="1030" y="330" width="120" height="130" rx="12" stroke="#a78bfa" stroke-opacity="0.8"/>
+<path d="M1030 358H1150" stroke="#8aa4ff" stroke-opacity="0.35"/><circle cx="1044" cy="344" r="3" fill="#f26a2e"/><circle cx="1055" cy="344" r="3" fill="#fbbf24"/><circle cx="1066" cy="344" r="3" fill="#34d399"/>
+<polyline fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" points="1042,430 1056,418 1070,424 1084,404 1098,412 1112,392 1126,400 1138,384"><animate attributeName="points" dur="3.2s" repeatCount="indefinite" values="1042,430 1056,418 1070,424 1084,404 1098,412 1112,392 1126,400 1138,384;1042,420 1056,428 1070,410 1084,418 1098,396 1112,406 1126,388 1138,396;1042,430 1056,418 1070,424 1084,404 1098,412 1112,392 1126,400 1138,384"/></polyline>
+<text class="s" x="1090" y="450" text-anchor="middle">Dashboard</text>
+<rect x="1030" y="160" width="120" height="90" rx="12" fill="none" stroke="#6b7aa5" stroke-dasharray="6 5" stroke-width="1.6"/>
+<text class="h" x="1090" y="192" text-anchor="middle" style="fill:#9db0d6">Alerting</text>
+<text class="s" x="1090" y="212" text-anchor="middle">separate module</text>
+<text class="s" x="1090" y="230" text-anchor="middle">not wired up yet</text>
+<text class="m" x="752" y="262" text-anchor="end">rollups</text>
+<text class="m" x="888" y="296">history</text>
+<text class="m" x="890" y="388" style="display:none"></text>
+<text class="m" x="1000" y="188" text-anchor="middle" style="fill:#7f8db5">reads</text>
+<text class="s" x="30" y="528">Blue dots: raw samples. Amber: stored rollups. Violet: views for the browser.</text>
+<text class="s" x="1170" y="528" text-anchor="end">Ports are defaults.</text>
+<circle r="4.2" fill="#60a5fa"><animateMotion dur="1.4s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#60a5fa"><animateMotion dur="1.4s" begin="-0.47s" repeatCount="indefinite" rotate="auto"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.47s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#60a5fa"><animateMotion dur="1.4s" begin="-0.93s" repeatCount="indefinite" rotate="auto"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.93s" repeatCount="indefinite"/></circle>
+<rect x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="0.00s" repeatCount="indefinite"><mpath href="#pu"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="0.00s" repeatCount="indefinite"/></rect>
+<rect x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-0.40s" repeatCount="indefinite"><mpath href="#pu"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.40s" repeatCount="indefinite"/></rect>
+<rect x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-0.80s" repeatCount="indefinite"><mpath href="#pu"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.80s" repeatCount="indefinite"/></rect>
+<rect x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-1.20s" repeatCount="indefinite"><mpath href="#pu"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-1.20s" repeatCount="indefinite"/></rect>
+<circle r="4.2" fill="#fbbf24"><animateMotion dur="2.4s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_db"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#fbbf24"><animateMotion dur="2.4s" begin="-0.80s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_db"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-0.80s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#fbbf24"><animateMotion dur="2.4s" begin="-1.60s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_db"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-1.60s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#a78bfa"><animateMotion dur="1.6s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#a78bfa"><animateMotion dur="1.6s" begin="-0.53s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.53s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#a78bfa"><animateMotion dur="1.6s" begin="-1.07s" repeatCount="indefinite" rotate="auto"><mpath href="#pc_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-1.07s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#fbbf24"><animateMotion dur="1.8s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#pdb_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.8s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#fbbf24"><animateMotion dur="1.8s" begin="-0.90s" repeatCount="indefinite" rotate="auto"><mpath href="#pdb_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.8s" begin="-0.90s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#a78bfa"><animateMotion dur="1.0s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#phb"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.0s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="4.2" fill="#a78bfa"><animateMotion dur="1.0s" begin="-0.50s" repeatCount="indefinite" rotate="auto"><mpath href="#phb"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.0s" begin="-0.50s" repeatCount="indefinite"/></circle>
+<circle r="3.2" fill="#6b7aa5"><animateMotion dur="2.4s" begin="0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#pdb_al"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="0.00s" repeatCount="indefinite"/></circle>
+<circle r="3.2" fill="#6b7aa5"><animateMotion dur="2.4s" begin="-1.20s" repeatCount="indefinite" rotate="auto"><mpath href="#pdb_al"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-1.20s" repeatCount="indefinite"/></circle>
+</g></svg>
