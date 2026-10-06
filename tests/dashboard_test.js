@@ -516,3 +516,37 @@ test('returning to live restores the chosen thread map window', async () => {
   await app.run('returnLive()');
   assert.equal(app.run('mapWindow'), 300);
 });
+
+
+test('replay preserves live CPU samples without depending on session storage', async () => {
+  for (const unavailable of [false, true]) {
+    const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+      ? jsonResponse({first: 900, last: 1000, snapshot: frame(1000)}) : undefined);
+    if (unavailable) app.run('sessionStorage.setItem=()=>{throw Error("storage unavailable")}');
+    for (let time = 2000; time < 2100; time++) tick(app, time, time % 100);
+    app.run('latestLive=live');
+    const before = app.run('JSON.stringify({buffer,cpu:[...threadCpu],avg:[...threadAvg],seen:[...threadSeen],loadState})');
+    await app.run('inspectTime(1000)');
+    await app.run('inspectTime(900)');
+    await app.run('returnLive()');
+    assert.equal(app.run('JSON.stringify({buffer,cpu:[...threadCpu],avg:[...threadAvg],seen:[...threadSeen],loadState})'), before);
+    tick(app, 2100, 50);
+    assert.equal(app.run('threadCpu.get(1).length'), 101);
+    assert.equal(app.run('threadCpu.get(1).at(-1).v'), 50);
+    assert.equal(app.run('buffer.at(-1).born'), 0);
+    assert.equal(app.run('buffer.at(-1).died'), 0);
+  }
+});
+
+test('returning from replay discards CPU history from an earlier live session', async () => {
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 1000, last: 1000, snapshot: frame(1000)}) : undefined);
+  tick(app, 2000, 100);
+  await app.run('inspectTime(1000)');
+  app.run('latestLive=' + JSON.stringify(frame(2100, 'session-2', 1)));
+  await app.run('returnLive()');
+  assert.equal(app.run('bufferSession'), 'session-2');
+  assert.equal(app.run('threadCpu.get(1).length'), 1);
+  assert.equal(app.run('threadCpu.get(1)[0].t'), 2100);
+  assert.equal(app.run('buffer.length'), 1);
+});
