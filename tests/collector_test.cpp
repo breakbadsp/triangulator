@@ -850,6 +850,52 @@ void TestResourceResetsLossAndOrder()
           "a silent resource stream is stale");
 }
 
+// Pending and delayed packets from an old target must not replace the new
+// target, including when the old session never published a complete sample.
+void TestResourceRetiredSessions()
+{
+  for (const bool prior_sample : {false, true})
+  {
+    for (const bool complete_old : {false, true})
+    {
+      ResourceMonitor monitor;
+      auto old_header = ResourceHeader(0);
+      old_header.pid_ = 111;
+      if (prior_sample)
+      {
+        monitor.Accept(Summary(old_header, GrowingValues(0)), 0);
+      }
+      old_header.sequence_ = 1;
+      old_header.parts_ = 2;
+      monitor.Accept(Summary(old_header, GrowingValues(1)), 1);
+      auto new_header = ResourceHeader(0, 1, 2);
+      new_header.pid_ = 222;
+      monitor.Accept(Summary(new_header, GrowingValues(2)), 2);
+      const auto row_count = monitor.PendingRows().size();
+      if (complete_old)
+      {
+        const auto socket = TcpSocket(5, 100);
+        monitor.Accept(Sockets(old_header, std::span{&socket, 1}), 3);
+      }
+      monitor.Drain(3);
+      // Even a higher sequence from the retired session remains late.
+      old_header.sequence_ = 2;
+      old_header.parts_ = 1;
+      monitor.Accept(Summary(old_header, GrowingValues(3)), 4);
+      monitor.Drain(4, true);
+      const auto live = monitor.Snapshot(4);
+      Require(Field(live, "session").AsString() == "2" &&
+                  Field(live, "pid").AsInt() == 222 &&
+                  Field(live, "elapsed_s").IsNull(),
+              "retired sessions cannot replace the current target or rates");
+      Require(monitor.PendingRows().size() == row_count,
+              "retired packets do not create new stored samples");
+      Require(ResourceField(live, "stats.late").AsInt() > 0,
+              "retired packets are counted as late");
+    }
+  }
+}
+
 // Memory, cgroup limits and interface counters: signed RSS growth, the share
 // of CPU periods throttled, OOM kills and interface drops over the interval,
 // and "no limit" staying unavailable.
@@ -1008,6 +1054,7 @@ int main()
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
     TestResourceResetsLossAndOrder();
+    TestResourceRetiredSessions();
     TestMemoryCgroupAndInterfaceRates();
     TestResourceStorageAndHistory();
     std::puts(

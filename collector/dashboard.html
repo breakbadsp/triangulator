@@ -962,7 +962,8 @@ function fillCell(value,title){const cell=node('td');if(!isNum(value)){cell.text
 function resourcePoints(){return (resourceHistory?.rows||[]).map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}))}
 function renderResourceTiles(r,points){
   const scope=scopeOf(r),p=r.pressure?.[scope]||{},fds=r.fds||{},io=r.io||{},kinds=r.sockets||{},net=r.network||{};
-  const queued=key=>['tcp','udp','unix'].reduce((sum,kind)=>sum+(kinds[kind]?.[key]||0),0);
+  const queued=key=>{const values=['tcp','udp','unix'].map(kind=>kinds[kind]?.[key]);return values.every(isNum)?values.reduce((sum,value)=>sum+value,0):null};
+  const receiveQueue=queued('rx_queue'),sendQueue=queued('tx_queue');
   const drops=['listen_drops','tcp_backlog_drop','tcp_rcvq_drop','tcp_zero_window_drop','udp_in_errors','udp_sndbuf_errors'].reduce((sum,key)=>isNum(net[key]?.per_s)?(sum??0)+net[key].per_s:sum,null);
   const retrans=net.tcp_retrans_segs?.per_s,sent=net.tcp_out_segs?.per_s;
   const tiles=[];
@@ -971,7 +972,7 @@ function renderResourceTiles(r,points){
   tiles.push(['Memory (RSS)',bytes(memory.rss),`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`+(isNum(memory.rss_growth_per_s)&&Math.abs(memory.rss_growth_per_s)>=1024?` · ${memory.rss_growth_per_s>0?'+':'−'}${bytes(Math.abs(memory.rss_growth_per_s))}/s`:''),points.map(point=>point.rss_bytes)]);
   tiles.push(['Open files',isNum(fds.open)?String(fds.open):'—',isNum(fds.soft_limit)&&isNum(fds.open)?`${pct(100*fds.open/fds.soft_limit)} of limit ${fds.soft_limit} · ${fds.sockets??'?'} sockets`:'limit unknown',points.map(point=>point.fd_open)]);
   tiles.push(['Disk I/O',isNum(io.read_bps)||isNum(io.write_bps)?perSec((io.read_bps||0)+(io.write_bps||0)):'—',`read ${perSec(io.read_bps)} · write ${perSec(io.write_bps)} (block layer)`,points.map(point=>isNum(point.read_bps)?point.read_bps+(point.write_bps||0):null)]);
-  tiles.push(['Queued in sockets',bytes(queued('rx_queue')+queued('tx_queue')),`unread ${bytes(queued('rx_queue'))} · unsent ${bytes(queued('tx_queue'))}`,points.map(point=>isNum(point.rx_queue_bytes)?point.rx_queue_bytes+(point.tx_queue_bytes||0):null)]);
+  tiles.push(['Queued in sockets',bytes(isNum(receiveQueue)&&isNum(sendQueue)?receiveQueue+sendQueue:null),`unread ${bytes(receiveQueue)} · unsent ${bytes(sendQueue)}`,points.map(point=>isNum(point.rx_queue_bytes)&&isNum(point.tx_queue_bytes)?point.rx_queue_bytes+point.tx_queue_bytes:null)]);
   tiles.push(['Network drops',isNum(drops)?number(drops,drops<10?2:1)+'/s':'—','connections and packets, namespace-wide',points.map(point=>{let sum=null;for(const key of DROP_COLUMNS){const value=point.per(key);if(isNum(value))sum=(sum||0)+value}return sum})]);
   tiles.push(['TCP retransmits',isNum(retrans)?number(retrans,retrans<10?2:1)+'/s':'—',isNum(retrans)&&sent>0?`${pct(100*retrans/sent)} of segments sent`:'namespace-wide',points.map(point=>point.per('tcp_retrans_segs_delta'))]);
   const closeWait=kinds.tcp_states?.close_wait;
@@ -1054,8 +1055,10 @@ function renderResources(){const r=live.resources,empty=element('resources-empty
 async function refreshResources(){try{const end=Date.now()/1000;
     const response=await fetch('/api/resources?'+new URLSearchParams({start:end-resourceRange,end}));
     if(response.ok){resourceHistory=await response.json();if(live.health)renderResources()}}
-  catch(error){}
-  finally{setTimeout(refreshResources,5000)}}
+  catch(error){}}
+// Range changes refresh immediately; only this loop schedules polling.
+async function pollResources(){try{await refreshResources()}
+  finally{setTimeout(pollResources,5000)}}
 for(const button of document.querySelectorAll('[data-res-range]'))button.onclick=()=>{resourceRange=Number(button.dataset.resRange);for(const other of document.querySelectorAll('[data-res-range]'))other.setAttribute('aria-pressed',String(other===button));resourceHistory=null;refreshResources()};
 element('pressure-scope').onchange=()=>{pressureScope=element('pressure-scope').value;renderResources()};
 element('sockets-busy-only').onchange=()=>renderResources();
@@ -1191,7 +1194,7 @@ let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeT
 addEventListener('pagehide',saveBuffer);
 refresh();
 loadTarget();
-refreshResources();
+pollResources();
 refreshSocket();
 if(location.hash==='#settings')toggleSettings();
 </script>
