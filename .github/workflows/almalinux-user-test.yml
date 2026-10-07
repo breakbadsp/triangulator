@@ -2,15 +2,12 @@ name: AlmaLinux new user test
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/almalinux-new-user-test]
-    paths:
-      - .github/workflows/almalinux-user-test.yml
-      - .github/scripts/almalinux-*.sh
   pull_request:
     paths:
       - .github/workflows/almalinux-user-test.yml
       - .github/scripts/almalinux-*.sh
+      - Makefile
+      - scripts/**
 
 permissions:
   contents: read
