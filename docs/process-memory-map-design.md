@@ -396,6 +396,12 @@ cannot be longer than the `retention_days` of the collector, because the
 collector deletes the whole day file then.
 
 Replay shows the stored snapshots and summaries. It is not a continuous record.
+When the time selector inspects a past moment, the section asks
+`GET /api/memory-map/replay?at=T`. The collector returns the newest summary and
+the newest VMA list at or before `T`, and the section says how old each is. The
+page cells are not stored, so a selected mapping shows no pages. The findings
+panel asks the report for the same time (`triangulator-memory-report DIR PID
+AT`), so it judges what was known then.
 
 ## 9. The memory report
 
@@ -424,8 +430,8 @@ program. Settings for them are a later change.
 |---|---|---|
 | VMA count near the limit | `vm_summary`: VMA count, `vm.max_map_count` | Warn at 80 %. Critical at 90 %. At the limit, `mmap` fails with `ENOMEM`. |
 | Address space near the limit | `vm_summary`: `VmSize`, RLIMIT_AS | Warn at 80 %. |
-| Stack near its limit | `vm_snapshot`: `[stack]` size; `vm_summary`: RLIMIT_STACK | Warn at 50 %. Critical at 80 %. |
-| Anonymous memory grows without a plateau | `resource_sample`: `rss_anon_bytes` | Over the last 10 minutes, the value rises in at least 90 % of the steps, and by more than 1 MiB per minute. This is a **suspicion** of a leak, not proof. |
+| Stack near its limit | `vm_summary`: `stack_start`, `stack_end` and RLIMIT_STACK (newer than the stored list) | Warn at 50 %. Critical at 80 %. |
+| Resident memory grows without a plateau | `resource_sample`: `rss_bytes` (the table has no anonymous share) | Over the last 10 minutes, the value rises in at least 90 % of the steps, and by more than 1 MiB per minute. This is a **suspicion** of a leak, not proof. |
 | Memory pressure | `resource_sample`: PSI `some` and `full` for the host and the cgroup | `some` above 10 % is serious. Any `full` above 0 is serious. |
 | Major page faults rise | `thread_rollup`: `major_faults_delta` | The rate of the last 5 minutes is above 10 per second and above 4 times the median of the last hour. |
 | Swap in use | `resource_sample`: `swap_bytes` | The process has pages in swap, and the value rose in the last 10 minutes. |
@@ -576,8 +582,8 @@ faults also wait for the lock. The pass limit for them is still open.
 
 ## 12. Plan
 
-Status: steps 1 to 5 are done. Steps 6 (memory report) and 7 (replay) are
-not started.
+Status: steps 1 to 7 are done. The finding thresholds are constants in
+`metrics/memory_report.hpp`.
 
 Each step is a separate commit. Each commit builds and passes `make check`
 alone. The steps can go in one pull request or in several.

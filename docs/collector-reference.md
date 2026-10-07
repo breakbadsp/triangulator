@@ -100,7 +100,8 @@ build/triangulator-collector config/local/collector.toml --check-config
   such). The sampler and collector must run as the same user.
 - `GET /api/replay`: oldest/newest recorded process view; add `at=…` for a
   view at or before a timestamp, or `direction=previous|next` to step.
-- `GET /api/memory-map` and `POST /api/memory-map/watch`: only with
+- `GET /api/memory-map`, `GET /api/memory-map/report`,
+  `GET /api/memory-map/replay` and `POST /api/memory-map/watch`: only with
   `[memory_map] enabled = true` (404 otherwise). See "Memory map" below.
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
@@ -131,6 +132,19 @@ build/triangulator-collector config/local/collector.toml --check-config
   `{"vma_start": null | "HEX"}` sends one signed request to the sampler's
   control socket (`sampler_control`), at most one each 250 ms. The HTTP thread
   sends it; the receive loop does not take part.
+- `GET /api/memory-map/replay?at=T` (`memory_replay.hpp`) answers from the
+  stored rows, in the shape of the live view: the newest summary and the newest
+  VMA list at or before `T` (looking back up to 8 day files), `replay` with the
+  times of both, and `history` for the three charts. There are no page cells in
+  the database. `summary` and `layout` are `null` when nothing is stored.
+- `GET /api/memory-map/report?pid=P&at=T` (`memory_report.hpp`) relays the
+  findings of the separate `triangulator-memory-report` program, which opens
+  the day files read-only (`pid` 0 means the newest process, `at` 0 means now).
+  A worker thread runs the program (`report_process.hpp`, the same bounded
+  runner as the socket report); a request returns the cached answer at once.
+  A report about a past time is made once. Without the binary next to the
+  collector the answer has `"helper_missing": true`, and the page hides the
+  findings panel.
 
 **9. Shutdown** (`main.cpp`)
 - On SIGINT or SIGTERM, it processes ticks still waiting for missing pieces,
@@ -158,6 +172,9 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
 | `memory_map.hpp` | `MemoryMapMonitor` (memory-map reassembly, JSON, stored rows) and `MemoryMapControl` (signed requests to the sampler) |
+| `memory_replay.hpp` | `MemoryReplay`: the memory map at a past time, from `vm_summary` and `vm_snapshot` |
+| `memory_report.hpp` | `MemoryReportBridge`: runs `triangulator-memory-report` on a worker thread and caches its answers |
+| `report_process.hpp` | `RunReportHelper`: starts a helper program next to the collector and reads its output with a time limit |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |

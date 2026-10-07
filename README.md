@@ -374,8 +374,8 @@ A missing recording returns `snapshot: null`; unreadable day files are skipped.
 <summary>Read more</summary>
 
 The units in `deploy/` are templates with a placeholder target user and collector
-IP; edit them first. Install the sampler, collector and `triangulator-socket-report`
-binaries in `/usr/local/bin`
+IP; edit them first. Install the sampler, collector, `triangulator-socket-report`
+and (with the memory map) `triangulator-memory-report` binaries in `/usr/local/bin`
 and configuration in `/etc/triangulator`. `triangulator-collector.service` runs
 the collector. Keep sampler code
 and configuration root-owned and not writable by the target user. The collector unit
@@ -501,7 +501,9 @@ BPF tracing privileges and a compatible kernel. Completion counts require an
 explicit application marker called once after successful processing. Setup and
 measurement limits are in [the socket design guide](docs/socket-ingress-design.md).
 Reporting runs in the separate `triangulator-socket-report` executable installed
-next to the collector; `/api/socket-io?pid=PID` exposes the report.
+next to the collector; `/api/socket-io?pid=PID` exposes the report. The memory
+map findings work the same way: `triangulator-memory-report` sits next to the
+collector and `/api/memory-map/report` relays it.
 
 With the collector running, start observation on the target host:
 
