@@ -34,7 +34,7 @@ tail -n 30 /reports/system-build.log
 
 # CRB supplies the static runtime development packages.
 dnf config-manager --set-enabled crb
-dnf install -y glibc-static libstdc++-static nodejs shadow-utils util-linux unzip
+dnf install -y diffutils glibc-static libstdc++-static nodejs shadow-utils util-linux
 if [[ "$ALMA_VERSION" == 9 ]]; then
     dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11
     mkdir -p /opt/test/bin

@@ -58,4 +58,6 @@ printf 'GET / HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3
 cat <&3 > /reports/runtime-dashboard.http
 exec 3>&-
 grep -qi '<html' /reports/runtime-dashboard.http
+./triangulator-socket-report /tmp/triangulator/data "$target_pid" "" \
+    > /reports/runtime-socket-report.json
 kill -0 "$collector_pid" "$sampler_pid"

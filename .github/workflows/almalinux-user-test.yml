@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [ci/almalinux-new-user-test]
+    paths:
+      - .github/workflows/almalinux-user-test.yml
+      - .github/scripts/almalinux-*.sh
   pull_request:
     paths:
       - .github/workflows/almalinux-user-test.yml
@@ -11,6 +14,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: almalinux-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -50,7 +57,7 @@ jobs:
           from pathlib import Path
           response = Path('reports/runtime-live.http').read_bytes()
           headers, body = response.split(b'\r\n\r\n', 1)
-          assert headers.startswith(b'HTTP/1.1 200'), headers
+          assert headers.split(b'\r\n', 1)[0].split()[1] == b'200', headers
           live = json.loads(body)
           assert live['threads'], live
           assert live['threads'][0]['name'] == 'sleep', live['threads']
