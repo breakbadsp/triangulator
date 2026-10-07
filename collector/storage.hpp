@@ -21,9 +21,12 @@
 #include <variant>
 #include <vector>
 
+#include "../common/resource_wire.hpp"
 #include "../socket_sampler/protocol.hpp"
+#include "bounded.hpp"
 #include "json.hpp"
 #include "protocol.hpp"
+#include "text.hpp"
 
 namespace triangulator::collector
 {
@@ -67,16 +70,24 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 3>
                          {"write_bps", "REAL"},
                          {"major_faults_delta", "INTEGER"}}};
 
+// The sample_counts column: a JSON object of state counts, such as
+// {"running": 3, "futex": 2}. It has at most kMaxStates entries. Each entry
+// is the quoted name, ": ", a count of at most 20 digits and ", ".
+using SampleCountsText =
+    FixedText<kMaxStates*(kMaxStateNameSize + 2 + 2 + 20 + 2) + 2>;
+
+// One rollup row. It holds its own text, except the group name, which views
+// the group name in the Config.
 struct RollupRow
 {
   double ts_{};
-  std::string session_;
+  FixedText<24> session_;
   std::int64_t tid_{};
-  std::string name_;
-  std::string group_;
+  FixedText<SanitizedSize(kCommSize)> name_;
+  std::string_view group_;
   std::optional<double> cpu_pct_;
   std::optional<double> run_delay_pct_;
-  std::string sample_counts_;
+  SampleCountsText sample_counts_;
   std::optional<std::int64_t> timeslices_delta_;
   std::int64_t samples_{};
   double expected_samples_{};
@@ -92,8 +103,8 @@ struct RollupRow
 struct RawRow
 {
   double ts_{};
-  std::string session_;
-  std::shared_ptr<const Record> record_;
+  FixedText<24> session_;
+  Record record_;
 };
 
 // How a resource column combines rows into one history bucket: the
@@ -196,10 +207,57 @@ consteval std::size_t ResourceColumnIndex(std::string_view p_name)
   throw "unknown resource column";
 }
 
-// A value for one SQLite column: NULL, integer, real or text.
-using SqlValue =
-    std::variant<std::monostate, std::int64_t, double, std::string>;
-using ResourceRow = std::array<SqlValue, kResourceColumns.size()>;
+inline constexpr std::size_t kResourceTsColumn = ResourceColumnIndex("ts");
+inline constexpr std::size_t kResourceSessionColumn =
+    ResourceColumnIndex("session");
+inline constexpr std::size_t kResourceCgroupColumn =
+    ResourceColumnIndex("cgroup");
+inline constexpr std::size_t kResourceSocketsColumn =
+    ResourceColumnIndex("sockets");
+
+// A value for one numeric SQLite column: NULL, integer or real.
+using SqlValue = std::variant<std::monostate, std::int64_t, double>;
+
+// The text of the stored sockets column, a JSON array of at most
+// kStoredSockets sockets. A socket that does not fit is left out.
+using StoredSocketsText = FixedText<4096>;
+
+// One resource_sample row. The numeric columns are in values_, indexed by
+// ResourceColumnIndex. The three text columns (session, cgroup and sockets)
+// have their own members, and their entries in values_ stay NULL.
+struct ResourceRow
+{
+  std::array<SqlValue, kResourceColumns.size()> values_{};
+  FixedText<24> session_;
+  FixedText<resource_wire::kCgroupSize> cgroup_;
+  StoredSocketsText sockets_;
+
+  [[nodiscard]] SqlValue& operator[](std::size_t p_column) noexcept
+  {
+    return values_[p_column];
+  }
+  [[nodiscard]] const SqlValue& operator[](std::size_t p_column) const noexcept
+  {
+    return values_[p_column];
+  }
+};
+
+// Where the Monitor and the ResourceMonitor send finished rows. A sink
+// writes the row at once and keeps any error for its owner; the monitors
+// do not look at it. They do no I/O themselves and build rows on the stack, so
+// nothing waits in a buffer that could grow.
+class RowSink
+{
+ public:
+  RowSink() = default;
+  RowSink(const RowSink&) = delete;
+  RowSink& operator=(const RowSink&) = delete;
+  virtual ~RowSink() = default;
+
+  virtual void Rollup(const RollupRow& p_row) = 0;
+  virtual void Raw(const RawRow& p_row) = 0;
+  virtual void Resource(const ResourceRow& p_row) = 0;
+};
 
 [[nodiscard]] inline std::string ResourceTableSql()
 {
@@ -375,10 +433,13 @@ class Binder
     ::sqlite3_bind_int64(statement_, ++index_, p_value);
     return *this;
   }
+  // The text must stay valid until the statement runs. SQLITE_STATIC makes
+  // SQLite read it in place; SQLITE_TRANSIENT would copy it into memory that
+  // SQLite allocates.
   Binder& Add(std::string_view p_value)
   {
     ::sqlite3_bind_text(statement_, ++index_, p_value.data(),
-                        static_cast<int>(p_value.size()), SQLITE_TRANSIENT);
+                        static_cast<int>(p_value.size()), SQLITE_STATIC);
     return *this;
   }
   Binder& Add(const SqlValue& p_value)
@@ -390,10 +451,6 @@ class Binder
     if (const auto* real = std::get_if<double>(&p_value))
     {
       return Add(*real);
-    }
-    if (const auto* text = std::get_if<std::string>(&p_value))
-    {
-      return Add(std::string_view{*text});
     }
     ::sqlite3_bind_null(statement_, ++index_);
     return *this;
@@ -547,13 +604,13 @@ class Storage
     }
     Binder{file.rollup_.get()}
         .Add(p_row.ts_)
-        .Add(std::string_view{p_row.session_})
+        .Add(p_row.session_.View())
         .Add(p_row.tid_)
-        .Add(std::string_view{p_row.name_})
-        .Add(std::string_view{p_row.group_})
+        .Add(p_row.name_.View())
+        .Add(p_row.group_)
         .Add(p_row.cpu_pct_)
         .Add(p_row.run_delay_pct_)
-        .Add(std::string_view{p_row.sample_counts_})
+        .Add(p_row.sample_counts_.View())
         .Add(p_row.timeslices_delta_)
         .Add(p_row.samples_)
         .Add(p_row.expected_samples_)
@@ -577,11 +634,13 @@ class Storage
     {
       return begun;
     }
+    RecordJsonText sample;
+    AppendRecordJson(sample, p_row.record_);
     Binder{file.raw_.get()}
         .Add(p_row.ts_)
-        .Add(std::string_view{p_row.session_})
-        .Add(std::int64_t{p_row.record_->tid_})
-        .Add(std::string_view{DumpJson(RecordJson(*p_row.record_))});
+        .Add(p_row.session_.View())
+        .Add(std::int64_t{p_row.record_.tid_})
+        .Add(sample.View());
     return Run(file.database_.get(), file.raw_.get());
   }
 
@@ -603,9 +662,11 @@ class Storage
       return begun;
     }
     auto* statement = file.socket_.get();
+    FixedText<24> observer;
+    AppendUnsigned(observer, p_observation.observer_);
     Binder{statement}
         .Add(p_received)
-        .Add(std::string_view{std::to_string(p_observation.observer_)})
+        .Add(observer.View())
         .Add(std::int64_t{p_observation.pid_})
         .Add(static_cast<std::int64_t>(p_observation.sequence_))
         .Add(std::int64_t{p_observation.index_})
@@ -614,7 +675,7 @@ class Storage
             Check(file.database_.get(),
                   ::sqlite3_bind_blob(statement, 7, p_packet.data(),
                                       static_cast<int>(p_packet.size()),
-                                      SQLITE_TRANSIENT));
+                                      SQLITE_STATIC));
         !bound)
     {
       return bound;
@@ -624,7 +685,7 @@ class Storage
 
   [[nodiscard]] SqliteResult Resource(const ResourceRow& p_row)
   {
-    const auto* ts = std::get_if<double>(&p_row[0]);
+    const auto* ts = std::get_if<double>(&p_row[kResourceTsColumn]);
     auto connection = Connection(ts != nullptr ? *ts : 0);
     if (!connection)
     {
@@ -636,9 +697,24 @@ class Storage
       return begun;
     }
     Binder binder{file.resource_.get()};
-    for (const auto& value : p_row)
+    for (std::size_t column = 0; column < p_row.values_.size(); ++column)
     {
-      binder.Add(value);
+      if (column == kResourceSessionColumn)
+      {
+        binder.Add(p_row.session_.View());
+      }
+      else if (column == kResourceCgroupColumn)
+      {
+        binder.Add(p_row.cgroup_.View());
+      }
+      else if (column == kResourceSocketsColumn)
+      {
+        binder.Add(p_row.sockets_.View());
+      }
+      else
+      {
+        binder.Add(p_row.values_[column]);
+      }
     }
     return Run(file.database_.get(), file.resource_.get());
   }
@@ -648,14 +724,13 @@ class Storage
   [[nodiscard]] SqliteResult Flush(double p_now)
   {
     const auto today = UtcDay(p_now);
-    const auto today_name = DayName(today);
     for (auto iterator = files_.begin(); iterator != files_.end();)
     {
       if (auto committed = Commit(iterator->second); !committed)
       {
         return committed;
       }
-      if (iterator->first != today_name)
+      if (iterator->first != today)
       {
         iterator = files_.erase(iterator);
       }
@@ -716,7 +791,7 @@ class Storage
 
   std::filesystem::path directory_;
   std::int64_t retention_days_;
-  std::map<std::string, DayFile> files_;
+  std::map<Days, DayFile> files_;
   std::optional<Days> last_prune_;
 
   Storage(std::filesystem::path p_directory, std::int64_t p_retention_days)
@@ -751,12 +826,14 @@ class Storage
   [[nodiscard]] std::expected<std::reference_wrapper<DayFile>, std::string>
   Connection(double p_timestamp)
   {
-    const auto day = DayName(UtcDay(p_timestamp));
+    const auto day = UtcDay(p_timestamp);
     if (const auto found = files_.find(day); found != files_.end())
     {
       return std::ref(found->second);
     }
-    auto opened = OpenDay(directory_ / (day + ".sqlite3"));
+    // The first row of a new UTC day opens that day's file. Like startup,
+    // this allocates.
+    auto opened = OpenDay(directory_ / (DayName(day) + ".sqlite3"));
     if (!opened)
     {
       return std::unexpected(std::move(opened.error()));
@@ -857,6 +934,49 @@ class Storage
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }
+};
+
+// The sink the collector uses: writes each row to Storage. After the first
+// failure it writes nothing more and keeps that error in Status(), which the
+// main loop checks. Rows that follow a failed write would only fail too, and
+// the loop stops on the first error anyway.
+class StorageSink final : public RowSink
+{
+ public:
+  explicit StorageSink(Storage& p_storage) noexcept : storage_(p_storage)
+  {
+  }
+
+  void Rollup(const RollupRow& p_row) override
+  {
+    if (status_)
+    {
+      status_ = storage_.Rollup(p_row);
+    }
+  }
+  void Raw(const RawRow& p_row) override
+  {
+    if (status_)
+    {
+      status_ = storage_.Raw(p_row);
+    }
+  }
+  void Resource(const ResourceRow& p_row) override
+  {
+    if (status_)
+    {
+      status_ = storage_.Resource(p_row);
+    }
+  }
+
+  [[nodiscard]] const SqliteResult& Status() const noexcept
+  {
+    return status_;
+  }
+
+ private:
+  Storage& storage_;
+  SqliteResult status_;
 };
 
 // Up to p_limit rollup rows for one thread from one day file, oldest first.

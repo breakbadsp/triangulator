@@ -29,8 +29,8 @@ void Require(bool p_condition, std::string_view p_message)
   }
 }
 
-// Encodes a record with distinct values (and the largest 64-bit value) and
-// checks that decoding the bytes returns every field unchanged.
+// Sends a record with distinct values (and the largest 64-bit value) as bytes
+// and checks that reading the bytes returns every field unchanged.
 void TestRecordRoundTrip()
 {
   wire::Record record{.tid_ = 0x01020304,
@@ -46,9 +46,7 @@ void TestRecordRoundTrip()
                       .write_bytes_ = 7};
   std::ranges::copy(std::string_view{"worker"}, record.comm_.begin());
   std::ranges::copy(std::string_view{"futex_do_wait"}, record.wchan_.begin());
-  wire::RecordBytes bytes{};
-  wire::EncodeRecord(bytes, record);
-  const auto decoded = wire::DecodeRecord(bytes);
+  const auto decoded = wire::FromBytes<wire::Record>(wire::AsBytes(record));
   Require(decoded.tid_ == record.tid_ && decoded.state_ == record.state_ &&
               decoded.flags_ == record.flags_ &&
               decoded.processor_ == record.processor_ &&
@@ -78,9 +76,7 @@ void TestHeaderRoundTrip()
       .wall_ns_ = 13,
       .interval_ms_ = 1000,
       .pid_ = 0x01020304};
-  std::array<std::byte, wire::kHeaderSize> bytes{};
-  wire::EncodeHeader(bytes, header);
-  const auto decoded = wire::DecodeHeader(bytes);
+  const auto decoded = wire::DecodeHeader(wire::AsBytes(header));
   Require(decoded.has_value(), "an encoded header decodes");
   Require(decoded->flags_ == header.flags_ && decoded->chunk_ == 1 &&
               decoded->chunks_ == 3 && decoded->session_ == header.session_ &&
@@ -96,7 +92,7 @@ void TestHeaderRoundTrip()
 void TestHeaderRejectsOtherData()
 {
   std::array<std::byte, wire::kHeaderSize> bytes{};
-  wire::EncodeHeader(bytes, wire::Header{});
+  std::ranges::copy(wire::AsBytes(wire::Header{}), bytes.begin());
   Require(!wire::DecodeHeader(std::span{bytes}.first(wire::kHeaderSize - 1)),
           "a short header is rejected");
   auto bad_magic = bytes;
@@ -178,8 +174,9 @@ void TestResourceSocketsRoundTrip()
     }
     else
     {
-      std::ranges::copy(std::string_view{"/run/app.sock"},
-                        socket.unix_path_.begin());
+      resource_wire::Socket::UnixPathBytes path{};
+      std::ranges::copy(std::string_view{"/run/app.sock"}, path.begin());
+      socket.SetUnixPath(path);
     }
     socket.local_port_ = 443;
     socket.remote_port_ = 65535;
@@ -221,7 +218,7 @@ void TestResourceSocketsRoundTrip()
     Require(value->header_.part_ == part &&
                 value->header_.kind_ == resource_wire::PartKind::Sockets,
             "socket part numbering");
-    std::ranges::copy(value->sockets_, std::back_inserter(decoded));
+    std::ranges::copy(value->Sockets(), std::back_inserter(decoded));
   }
   Require(decoded == sockets, "socket rows survive a round trip");
   Require(resource_wire::PartCount(0) == 1 &&

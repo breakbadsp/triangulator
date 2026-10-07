@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <csignal>
+#include <cstring>
 #include <expected>
 #include <format>
 #include <string>
@@ -91,6 +92,8 @@ class Sampler
       if (reload_requested)
       {
         reload_requested = 0;
+        // A reload is a new start on operator request. Like startup, it
+        // may allocate; the sampling ticks after it do not.
         auto next = LoadConfig(p_config_path);
         if (next)
         {
@@ -102,9 +105,9 @@ class Sampler
         }
         else
         {
-          logger_.Warn(std::format(
+          logger_.Warn(
               "invalid SIGHUP config; keeping previous configuration: {}",
-              next.error()));
+              next.error());
         }
       }
       const auto lookup = FindTarget(config_.settings_.target_);
@@ -119,9 +122,8 @@ class Sampler
       {
         // Not the same as "target absent": keep the session and the
         // thread cache, send nothing and retry at the next deadline.
-        logger_.Warn(
-            std::format("target lookup failed: {}; tick skipped, session kept",
-                        std::generic_category().message(lookup.error())));
+        logger_.Warn("target lookup failed: {}; tick skipped, session kept",
+                     std::strerror(lookup.error()));
       }
       const auto interval = config_.settings_.Interval();
       const auto now = ClockNow(CLOCK_MONOTONIC);
@@ -259,7 +261,7 @@ class Sampler
   }
 
   void SendTick(int p_pid, Nanoseconds p_monotonic, Nanoseconds p_wall,
-                std::span<const wire::RecordBytes> p_records)
+                std::span<const wire::Record> p_records)
   {
     const auto chunks = std::max(
         std::size_t{1}, (p_records.size() + wire::kRecordsPerPacket - 1) /
@@ -269,14 +271,12 @@ class Sampler
       const auto offset = chunk * wire::kRecordsPerPacket;
       const auto count =
           std::min(p_records.size() - offset, wire::kRecordsPerPacket);
-      wire::Packet packet{};
       const auto flags =
           (p_pid ? wire::Flags::None : wire::Flags::TargetAbsent) |
           (config_.settings_.status_fallback_ ? wire::Flags::StatusFallback
                                               : wire::Flags::None);
-      wire::EncodeHeader(
-          std::span{packet}.first<wire::kHeaderSize>(),
-          {
+      wire::Packet packet{
+          .header_ = {
               .flags_ = flags,
               .chunk_ = static_cast<std::uint8_t>(chunk),
               .chunks_ = static_cast<std::uint8_t>(chunks),
@@ -287,13 +287,12 @@ class Sampler
               .wall_ns_ = static_cast<std::uint64_t>(p_wall.count()),
               .interval_ms_ = config_.settings_.IntervalMs(),
               .pid_ = static_cast<std::uint32_t>(p_pid),
-          });
-      const auto bytes = std::as_bytes(p_records.subspan(offset, count));
-      std::ranges::copy(bytes,
-                        std::span{packet}.subspan<wire::kHeaderSize>().begin());
+          }};
+      std::ranges::copy(p_records.subspan(offset, count),
+                        packet.records_.begin());
       const auto& endpoint = config_.endpoint_;
-      if (::sendto(endpoint.socket_.Get(), packet.data(),
-                   wire::kHeaderSize + bytes.size(), MSG_DONTWAIT,
+      if (::sendto(endpoint.socket_.Get(), &packet, wire::DatagramSize(count),
+                   MSG_DONTWAIT,
                    reinterpret_cast<const sockaddr*>(&endpoint.address_),
                    endpoint.address_length_) < 0 &&
           errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOBUFS)
@@ -327,7 +326,7 @@ class Sampler
 
   RuntimeConfig config_;
   ThreadCache threads_;
-  std::array<wire::RecordBytes, wire::kMaxThreads> records_{};
+  std::array<wire::Record, wire::kMaxThreads> records_{};
   RateLimitedLogger logger_;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
@@ -347,6 +346,12 @@ int main(int p_argc, char** p_argv)
   // uses, then exits without sampling or sending anything.
   const bool check_config =
       p_argc == 3 && std::string_view{p_argv[1]} == "--check-config";
+  if (p_argc == 2 && (std::string_view{p_argv[1]} == "-h" ||
+                      std::string_view{p_argv[1]} == "--help"))
+  {
+    std::printf("usage: %s [--check-config] CONFIG\n", p_argv[0]);
+    return 0;
+  }
   if (p_argc != 2 && !check_config)
   {
     std::fprintf(stderr, "usage: %s [--check-config] CONFIG\n", p_argv[0]);

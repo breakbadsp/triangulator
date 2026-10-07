@@ -6,13 +6,16 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cerrno>
 #include <chrono>
+#include <cstddef>
 #include <cstdio>
+#include <cstring>
+#include <format>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -23,19 +26,98 @@
 namespace triangulator
 {
 
-struct DirectoryCloser
+// After startup the sampler does not allocate heap memory (TigerStyle; see
+// docs/tigerstyle-adaption.md). These helpers keep that rule: text, paths
+// and directory entries go into fixed storage.
+
+// Text formatted into fixed storage, such as a /proc path. Text that does
+// not fit becomes empty, so opening it as a path fails with ENOENT.
+class FixedString
 {
-  void operator()(DIR* p_directory) const noexcept
+ public:
+  static constexpr std::size_t kCapacity = 4096;  // PATH_MAX on Linux
+
+  template <typename... TArgs>
+  explicit FixedString(std::format_string<TArgs...> p_format, TArgs&&... p_args)
   {
-    ::closedir(p_directory);
+    const auto result = std::format_to_n(text_.data(), kCapacity - 1, p_format,
+                                         std::forward<TArgs>(p_args)...);
+    const auto length = static_cast<std::size_t>(result.size);
+    length_ = length < kCapacity ? length : 0;
+    text_[length_] = '\0';
   }
+  [[nodiscard]] const char* CStr() const noexcept
+  {
+    return text_.data();
+  }
+  [[nodiscard]] std::string_view View() const noexcept
+  {
+    return {text_.data(), length_};
+  }
+
+ private:
+  std::array<char, kCapacity> text_{};
+  std::size_t length_ = 0;
 };
-using Directory = std::unique_ptr<DIR, DirectoryCloser>;
 
 [[nodiscard]] inline FileDescriptor OpenReadonly(const char* p_path)
 {
   return FileDescriptor{::open(p_path, O_RDONLY | O_CLOEXEC)};
 }
+
+// Reads a directory with getdents64 into its own buffer. opendir is not
+// used because it allocates its buffer on the heap.
+class Directory
+{
+ public:
+  // Check with operator bool; on failure errno tells why, as for open().
+  explicit Directory(const char* p_path)
+      : fd_(::open(p_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC))
+  {
+  }
+  explicit operator bool() const noexcept
+  {
+    return static_cast<bool>(fd_);
+  }
+  [[nodiscard]] int Fd() const noexcept
+  {
+    return fd_.Get();
+  }
+
+  // The next entry's name, or nullopt at the end or on a read error.
+  [[nodiscard]] std::optional<std::string_view> Next()
+  {
+    if (offset_ == length_)
+    {
+      ssize_t length;
+      do
+      {
+        length = ::getdents64(fd_.Get(), buffer_.data(), buffer_.size());
+      } while (length < 0 && errno == EINTR);
+      if (length <= 0)
+      {
+        return std::nullopt;
+      }
+      offset_ = 0;
+      length_ = static_cast<std::size_t>(length);
+    }
+    // Read the record length with memcpy: records are not always aligned
+    // for dirent64.
+    unsigned short record_length = 0;
+    std::memcpy(&record_length,
+                buffer_.data() + offset_ + offsetof(dirent64, d_reclen),
+                sizeof(record_length));
+    const char* name = buffer_.data() + offset_ + offsetof(dirent64, d_name);
+    offset_ += record_length;
+    return std::string_view{name};
+  }
+
+ private:
+  FileDescriptor fd_;
+  std::array<char, 8192> buffer_{};
+  std::size_t offset_ = 0;
+  std::size_t length_ = 0;
+};
 
 [[nodiscard]] inline std::optional<std::string_view> ReadAtStart(
     const FileDescriptor& p_descriptor, std::span<char> p_buffer)
@@ -105,15 +187,25 @@ using namespace std::chrono_literals;
 class RateLimitedLogger
 {
  public:
-  void Warn(std::string_view p_message)
+  // Formats the message only when it is printed, into fixed storage. A long
+  // message is cut.
+  template <typename... TArgs>
+  void Warn(std::format_string<TArgs...> p_format, TArgs&&... p_args)
   {
     const auto now = ClockNow(CLOCK_MONOTONIC);
-    if (!last_warning_ || now - *last_warning_ >= 60s)
+    if (last_warning_ && now - *last_warning_ < 60s)
     {
-      std::fprintf(stderr, "triangulator: %.*s\n",
-                   static_cast<int>(p_message.size()), p_message.data());
-      last_warning_ = now;
+      return;
     }
+    last_warning_ = now;
+    std::array<char, 512> message{};
+    const auto result =
+        std::format_to_n(message.data(), message.size(), p_format,
+                         std::forward<TArgs>(p_args)...);
+    const auto length =
+        std::min(static_cast<std::size_t>(result.size), message.size());
+    std::fprintf(stderr, "triangulator: %.*s\n", static_cast<int>(length),
+                 message.data());
   }
 
  private:

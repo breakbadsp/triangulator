@@ -13,12 +13,11 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
-#include <format>
+#include <cstring>
 #include <optional>
-#include <string>
+#include <span>
 #include <string_view>
 #include <tuple>
-#include <unordered_map>
 #include <vector>
 
 #include "io.hpp"
@@ -30,13 +29,15 @@ namespace triangulator
 
 using resource_wire::Field;
 
+// cgroup_ and sockets_ view the probe's storage. They stay valid until the
+// probe's next Sample().
 struct ResourceSample
 {
   resource_wire::SummaryValues summary_ = resource_wire::EmptySummary();
   resource_wire::Flags flags_ = resource_wire::Flags::None;
-  std::string cgroup_;
+  std::string_view cgroup_;
   // The target's fullest sockets first, at most kMaxSockets.
-  std::vector<resource_wire::Socket> sockets_;
+  std::span<const resource_wire::Socket> sockets_;
 };
 
 // How full a socket's buffers are, 0 (empty) to 1 (at its limit): the
@@ -61,30 +62,72 @@ struct ResourceSample
   return std::max(received, sent);
 }
 
-// Keeps the kMaxSockets sockets most worth a look, fullest first: buffer
-// fullness, then queued bytes, then drops. Returns whether any were cut.
-inline bool KeepFullest(std::vector<resource_wire::Socket>& p_sockets)
+// Keeps the kMaxSockets sockets most worth a look: buffer fullness, then
+// queued bytes, then drops. The storage is fixed. It is a heap whose front
+// is the least full socket kept, so a fuller socket replaces that one.
+class FullestSockets
 {
-  const auto key = [](const resource_wire::Socket& p_socket)
+ public:
+  void Clear() noexcept
   {
-    return std::tuple{Fullness(p_socket),
-                      std::uint64_t{p_socket.rx_queue_} + p_socket.tx_queue_,
-                      p_socket.drops_, p_socket.total_retrans_};
-  };
-  const auto fuller = [&](const resource_wire::Socket& p_left,
-                          const resource_wire::Socket& p_right)
+    size_ = 0;
+    truncated_ = false;
+  }
+
+  void Add(const resource_wire::Socket& p_socket)
   {
+    if (size_ < sockets_.size())
+    {
+      sockets_[size_++] = p_socket;
+      std::ranges::push_heap(Kept(), Fuller);
+      return;
+    }
+    truncated_ = true;
+    if (Fuller(p_socket, sockets_.front()))
+    {
+      std::ranges::pop_heap(sockets_, Fuller);
+      sockets_.back() = p_socket;
+      std::ranges::push_heap(sockets_, Fuller);
+    }
+  }
+
+  // The kept sockets, fullest first. Add nothing after this until Clear().
+  [[nodiscard]] std::span<const resource_wire::Socket> Sorted()
+  {
+    std::ranges::sort(Kept(), Fuller);
+    return Kept();
+  }
+
+  // Whether sockets were cut because more than kMaxSockets were added.
+  [[nodiscard]] bool Truncated() const noexcept
+  {
+    return truncated_;
+  }
+
+ private:
+  [[nodiscard]] std::span<resource_wire::Socket> Kept() noexcept
+  {
+    return std::span{sockets_}.first(size_);
+  }
+
+  [[nodiscard]] static bool Fuller(const resource_wire::Socket& p_left,
+                                   const resource_wire::Socket& p_right)
+  {
+    const auto key = [](const resource_wire::Socket& p_socket)
+    {
+      return std::tuple{Fullness(p_socket),
+                        std::uint64_t{p_socket.rx_queue_} + p_socket.tx_queue_,
+                        p_socket.drops_, p_socket.total_retrans_};
+    };
     const auto left = key(p_left);
     const auto right = key(p_right);
     return left != right ? left > right : p_left.fd_ < p_right.fd_;
-  };
-  const auto kept = std::min(p_sockets.size(), resource_wire::kMaxSockets);
-  std::ranges::partial_sort(
-      p_sockets, p_sockets.begin() + static_cast<long>(kept), fuller);
-  const bool truncated = p_sockets.size() > kept;
-  p_sockets.resize(kept);
-  return truncated;
-}
+  }
+
+  std::array<resource_wire::Socket, resource_wire::kMaxSockets> sockets_{};
+  std::size_t size_ = 0;
+  bool truncated_ = false;
+};
 
 class ResourceProbe
 {
@@ -92,7 +135,15 @@ class ResourceProbe
   // Descriptor links read per sample. A process with more descriptors is
   // still counted, but sockets past this many are not matched.
   static constexpr std::size_t kMaxDescriptorLinks = 65536;
+  static constexpr std::size_t kDiagBufferSize = 65536;
 
+  // All of the probe's heap storage is allocated here, at startup.
+  ResourceProbe() : diag_buffer_(kDiagBufferSize)
+  {
+    socket_fds_.reserve(kMaxDescriptorLinks);
+  }
+
+  // The result views the probe's storage until the next call.
   [[nodiscard]] ResourceSample Sample(int p_pid)
   {
     ResourceSample sample;
@@ -127,11 +178,20 @@ class ResourceProbe
   static_assert(Field("cgroup_io_full_total") == kCgroupPressure + 11);
   static constexpr std::array<std::string_view, 3> kPressureResources{
       "cpu", "memory", "io"};
+  static constexpr std::size_t kTcpStates = Field("tcp_established");
+  static_assert(Field("tcp_closing") == kTcpStates + 9);
+
+  // A socket descriptor of the target, found by the socket's inode.
+  struct SocketFd
+  {
+    std::uint64_t inode_;
+    std::uint32_t fd_;
+  };
 
   // Contents of p_path, valid until the next read, or nullopt.
-  [[nodiscard]] std::optional<std::string_view> Read(const std::string& p_path)
+  [[nodiscard]] std::optional<std::string_view> Read(const char* p_path)
   {
-    return ReadAtStart(OpenReadonly(p_path.c_str()), buffer_);
+    return ReadAtStart(OpenReadonly(p_path), buffer_);
   }
 
   void StorePressure(std::size_t p_first, std::string_view p_text,
@@ -155,23 +215,32 @@ class ResourceProbe
     for (std::size_t index = 0; index < kPressureResources.size(); ++index)
     {
       if (const auto text =
-              Read(std::format("/proc/pressure/{}", kPressureResources[index])))
+              Read(FixedString{"/proc/pressure/{}", kPressureResources[index]}
+                       .CStr()))
       {
         StorePressure(kHostPressure + index * 4, *text, p_sample.summary_);
       }
     }
-    const auto cgroups = Read(std::format("/proc/{}/cgroup", p_pid));
+    const auto cgroups = Read(FixedString{"/proc/{}/cgroup", p_pid}.CStr());
     const auto path = cgroups.and_then(ParseCgroupPath);
     if (!path)
     {
       return;
     }
-    p_sample.cgroup_ = *path;
+    // Copy the path: it views buffer_, which the next Read() overwrites. A
+    // path too long for FixedString becomes empty, and is skipped.
+    cgroup_ = FixedString{"{}", *path};
+    p_sample.cgroup_ = cgroup_.View();
+    if (p_sample.cgroup_.empty())
+    {
+      return;
+    }
     for (std::size_t index = 0; index < kPressureResources.size(); ++index)
     {
       if (const auto text =
-              Read(std::format("/sys/fs/cgroup{}/{}.pressure", p_sample.cgroup_,
-                               kPressureResources[index])))
+              Read(FixedString{"/sys/fs/cgroup{}/{}.pressure", p_sample.cgroup_,
+                               kPressureResources[index]}
+                       .CStr()))
       {
         StorePressure(kCgroupPressure + index * 4, *text, p_sample.summary_);
       }
@@ -184,27 +253,25 @@ class ResourceProbe
     auto& summary = p_sample.summary_;
     socket_fds_.clear();
     links_hidden_ = false;
-    if (const auto limits = Read(std::format("/proc/{}/limits", p_pid))
+    if (const auto limits = Read(FixedString{"/proc/{}/limits", p_pid}.CStr())
                                 .and_then(ParseDescriptorLimits))
     {
       summary[Field("fd_soft_limit")] = limits->soft_;
       summary[Field("fd_hard_limit")] = limits->hard_;
     }
-    const Directory directory{
-        ::opendir(std::format("/proc/{}/fd", p_pid).c_str())};
+    Directory directory{FixedString{"/proc/{}/fd", p_pid}.CStr()};
     if (!directory)
     {
       links_hidden_ = true;
       p_sample.flags_ = p_sample.flags_ | Flags::DescriptorsHidden;
       return;
     }
-    const int directory_fd = ::dirfd(directory.get());
     std::uint64_t open = 0;
     std::uint64_t sockets = 0;
     std::array<char, 64> link{};
-    while (const auto* entry = ::readdir(directory.get()))
+    while (const auto entry = directory.Next())
     {
-      const auto fd = ParseNumber<std::uint32_t>(entry->d_name);
+      const auto fd = ParseNumber<std::uint32_t>(*entry);
       if (!fd)
       {
         continue;
@@ -214,8 +281,9 @@ class ResourceProbe
       {
         continue;
       }
+      // entry views a NUL-terminated name, so data() is a C string.
       const auto length =
-          ::readlinkat(directory_fd, entry->d_name, link.data(), link.size());
+          ::readlinkat(directory.Fd(), entry->data(), link.data(), link.size());
       if (length < 0)
       {
         // EACCES/EPERM: not dumpable or another user. ENOENT: closed since
@@ -231,10 +299,21 @@ class ResourceProbe
                 ParseNumber<std::uint64_t>(target.substr(8, target.size() - 9)))
         {
           ++sockets;
-          socket_fds_.emplace(*inode, *fd);
+          // Within capacity: at most kMaxDescriptorLinks links are read.
+          socket_fds_.push_back({*inode, *fd});
         }
       }
     }
+    // Sort for binary search by inode. A socket open on several
+    // descriptors keeps the lowest one.
+    std::ranges::sort(socket_fds_, {},
+                      [](const SocketFd& p_entry)
+                      {
+                        return std::pair{p_entry.inode_, p_entry.fd_};
+                      });
+    const auto duplicates =
+        std::ranges::unique(socket_fds_, {}, &SocketFd::inode_);
+    socket_fds_.erase(duplicates.begin(), duplicates.end());
     summary[Field("fd_open")] = open;
     if (links_hidden_)
     {
@@ -251,7 +330,7 @@ class ResourceProbe
 
   void ReadProcessMemory(int p_pid, ResourceSample& p_sample)
   {
-    const auto text = Read(std::format("/proc/{}/status", p_pid));
+    const auto text = Read(FixedString{"/proc/{}/status", p_pid}.CStr());
     if (!text)
     {
       return;
@@ -278,10 +357,13 @@ class ResourceProbe
       return;
     }
     auto& summary = p_sample.summary_;
+    const auto path = [&](std::string_view p_file)
+    {
+      return FixedString{"/sys/fs/cgroup{}/{}", p_sample.cgroup_, p_file};
+    };
     const auto number = [&](std::string_view p_file, std::size_t p_field)
     {
-      if (const auto text = Read(
-              std::format("/sys/fs/cgroup{}/{}", p_sample.cgroup_, p_file)))
+      if (const auto text = Read(path(p_file).CStr()))
       {
         summary[p_field] =
             ParseCgroupNumber(*text).value_or(resource_wire::kUnavailable);
@@ -292,21 +374,20 @@ class ResourceProbe
     number("memory.high", Field("cgroup_memory_high"));
     number("pids.current", Field("cgroup_pids_current"));
     number("pids.max", Field("cgroup_pids_max"));
-    const auto base = std::format("/sys/fs/cgroup{}/", p_sample.cgroup_);
-    if (const auto text = Read(base + "memory.events"))
+    if (const auto text = Read(path("memory.events").CStr()))
     {
       summary[Field("cgroup_memory_max_events")] =
           FindKeyValue(*text, "max").value_or(resource_wire::kUnavailable);
       summary[Field("cgroup_memory_oom_kill")] =
           FindKeyValue(*text, "oom_kill").value_or(resource_wire::kUnavailable);
     }
-    if (const auto text = Read(base + "cpu.max").and_then(ParseCpuMax))
+    if (const auto text = Read(path("cpu.max").CStr()).and_then(ParseCpuMax))
     {
       summary[Field("cgroup_cpu_period_us")] = text->period_us_;
       summary[Field("cgroup_cpu_quota_us")] =
           text->quota_us_.value_or(resource_wire::kUnavailable);
     }
-    if (const auto text = Read(base + "cpu.stat"))
+    if (const auto text = Read(path("cpu.stat").CStr()))
     {
       for (const auto& [key, field] :
            {std::pair{"nr_periods", Field("cgroup_cpu_nr_periods")},
@@ -321,7 +402,7 @@ class ResourceProbe
 
   void ReadProcessIo(int p_pid, ResourceSample& p_sample)
   {
-    const auto text = Read(std::format("/proc/{}/io", p_pid));
+    const auto text = Read(FixedString{"/proc/{}/io", p_pid}.CStr());
     if (!text)
     {
       return;
@@ -350,7 +431,7 @@ class ResourceProbe
     const auto own_length =
         ::readlink("/proc/self/ns/net", own.data(), own.size());
     const auto target_length =
-        ::readlink(std::format("/proc/{}/ns/net", p_pid).c_str(), target.data(),
+        ::readlink(FixedString{"/proc/{}/ns/net", p_pid}.CStr(), target.data(),
                    target.size());
     if (own_length <= 0 || target_length <= 0)
     {
@@ -363,18 +444,21 @@ class ResourceProbe
 
   void ReadSockets(ResourceSample& p_sample)
   {
-    auto& summary = p_sample.summary_;
     if (links_hidden_ ||
-        summary[Field("fd_sockets")] == resource_wire::kUnavailable)
+        p_sample.summary_[Field("fd_sockets")] == resource_wire::kUnavailable)
     {
       return;
     }
-    matched_.clear();
+    // Count into a copy, so a failed dump leaves the totals unavailable.
+    auto totals = p_sample.summary_;
+    ClearSocketTotals(totals);
+    std::uint64_t matched = 0;
+    fullest_.Clear();
     if (!socket_fds_.empty())
     {
       if (!diag_)
       {
-        auto opened = SocketDiag::Open();
+        auto opened = SocketDiag::Open(diag_buffer_);
         if (!opened)
         {
           Fail(p_sample, "open", opened.error());
@@ -382,13 +466,16 @@ class ResourceProbe
         }
         diag_.emplace(std::move(*opened));
       }
-      const auto keep = [this](resource_wire::Socket p_socket)
+      const auto keep = [&](resource_wire::Socket p_socket)
       {
-        const auto found = socket_fds_.find(p_socket.inode_);
-        if (found != socket_fds_.end())
+        const auto found = std::ranges::lower_bound(
+            socket_fds_, p_socket.inode_, {}, &SocketFd::inode_);
+        if (found != socket_fds_.end() && found->inode_ == p_socket.inode_)
         {
-          p_socket.fd_ = found->second;
-          matched_.push_back(p_socket);
+          p_socket.fd_ = found->fd_;
+          ++matched;
+          CountSocket(totals, p_socket);
+          fullest_.Add(p_socket);
         }
       };
       for (const auto& [family, protocol] :
@@ -416,32 +503,29 @@ class ResourceProbe
         return;
       }
     }
-    Summarize(summary);
-    if (KeepFullest(matched_))
+    totals[Field("sockets_matched")] = matched;
+    totals[Field("sockets_unmatched")] =
+        socket_fds_.size() -
+        std::min<std::uint64_t>(socket_fds_.size(), matched);
+    p_sample.summary_ = totals;
+    p_sample.sockets_ = fullest_.Sorted();
+    if (fullest_.Truncated())
     {
       p_sample.flags_ = p_sample.flags_ | Flags::SocketsTruncated;
     }
-    p_sample.sockets_ = matched_;
   }
 
   void Fail(ResourceSample& p_sample, std::string_view p_step, int p_error)
   {
     diag_.reset();  // reopen next time, in case the socket is the problem
     p_sample.flags_ = p_sample.flags_ | Flags::SocketDiagFailed;
-    logger_.Warn(std::format("sock_diag {} failed: {}; socket queues omitted",
-                             p_step, std::generic_category().message(p_error)));
+    logger_.Warn("sock_diag {} failed: {}; socket queues omitted", p_step,
+                 std::strerror(p_error));
   }
 
-  // Totals and TCP state counts over every matched socket.
-  void Summarize(resource_wire::SummaryValues& p_summary) const
+  // Socket totals and TCP state counts start at zero.
+  static void ClearSocketTotals(resource_wire::SummaryValues& p_summary)
   {
-    using resource_wire::SocketKind;
-    // Each kind's fields start with its socket count; UDP has no listeners.
-    static_assert(Field("tcp_drops") == Field("tcp_sockets") + 4);
-    static_assert(Field("udp_drops") == Field("udp_sockets") + 3);
-    static_assert(Field("unix_drops") == Field("unix_sockets") + 4);
-    constexpr std::array<std::size_t, 3> kFirst{
-        Field("tcp_sockets"), Field("udp_sockets"), Field("unix_sockets")};
     for (const auto field :
          {Field("tcp_sockets"), Field("tcp_listeners"), Field("tcp_rx_queue"),
           Field("tcp_tx_queue"), Field("tcp_drops"), Field("udp_sockets"),
@@ -451,46 +535,51 @@ class ResourceProbe
     {
       p_summary[field] = 0;
     }
-    constexpr std::size_t kStates = Field("tcp_established");
-    static_assert(Field("tcp_closing") == kStates + 9);
-    for (std::size_t field = kStates; field <= kStates + 9; ++field)
+    for (std::size_t field = kTcpStates; field <= kTcpStates + 9; ++field)
     {
       p_summary[field] = 0;
     }
-    for (const auto& socket : matched_)
+  }
+
+  // Adds one matched socket to the totals and TCP state counts.
+  static void CountSocket(resource_wire::SummaryValues& p_summary,
+                          const resource_wire::Socket& p_socket)
+  {
+    using resource_wire::SocketKind;
+    // Each kind's fields start with its socket count; UDP has no listeners.
+    static_assert(Field("tcp_drops") == Field("tcp_sockets") + 4);
+    static_assert(Field("udp_drops") == Field("udp_sockets") + 3);
+    static_assert(Field("unix_drops") == Field("unix_sockets") + 4);
+    constexpr std::array<std::size_t, 3> kFirst{
+        Field("tcp_sockets"), Field("udp_sockets"), Field("unix_sockets")};
+    const bool tcp = p_socket.kind_ == SocketKind::Tcp4 ||
+                     p_socket.kind_ == SocketKind::Tcp6;
+    const bool udp = p_socket.kind_ == SocketKind::Udp4 ||
+                     p_socket.kind_ == SocketKind::Udp6;
+    const auto first = kFirst[tcp ? 0 : udp ? 1 : 2];
+    const bool listener =
+        p_socket.state_ == std::to_underlying(SocketState::Listen);
+    // UDP has no listeners field: its fields after "sockets" are queues.
+    ++p_summary[first];
+    const auto queues = udp ? first + 1 : first + 2;
+    if (listener && !udp)
     {
-      const bool tcp =
-          socket.kind_ == SocketKind::Tcp4 || socket.kind_ == SocketKind::Tcp6;
-      const bool udp =
-          socket.kind_ == SocketKind::Udp4 || socket.kind_ == SocketKind::Udp6;
-      const auto first = kFirst[tcp ? 0 : udp ? 1 : 2];
-      const bool listener =
-          socket.state_ == std::to_underlying(SocketState::Listen);
-      // UDP has no listeners field: its fields after "sockets" are queues.
-      ++p_summary[first];
-      const auto queues = udp ? first + 1 : first + 2;
-      if (listener && !udp)
-      {
-        ++p_summary[first + 1];
-      }
-      else
-      {
-        p_summary[queues] += socket.rx_queue_;
-        p_summary[queues + 1] += socket.tx_queue_;
-      }
-      p_summary[queues + 2] += socket.drops_;
-      // States 1..11 without TIME_WAIT (6), which no descriptor owns.
-      if (tcp && socket.state_ >= 1 && socket.state_ <= 11 &&
-          socket.state_ != std::to_underlying(SocketState::TimeWait))
-      {
-        const auto offset =
-            socket.state_ < 6 ? socket.state_ - 1 : socket.state_ - 2;
-        ++p_summary[kStates + static_cast<std::size_t>(offset)];
-      }
+      ++p_summary[first + 1];
     }
-    p_summary[Field("sockets_matched")] = matched_.size();
-    p_summary[Field("sockets_unmatched")] =
-        socket_fds_.size() - std::min(socket_fds_.size(), matched_.size());
+    else
+    {
+      p_summary[queues] += p_socket.rx_queue_;
+      p_summary[queues + 1] += p_socket.tx_queue_;
+    }
+    p_summary[queues + 2] += p_socket.drops_;
+    // States 1..11 without TIME_WAIT (6), which no descriptor owns.
+    if (tcp && p_socket.state_ >= 1 && p_socket.state_ <= 11 &&
+        p_socket.state_ != std::to_underlying(SocketState::TimeWait))
+    {
+      const auto offset =
+          p_socket.state_ < 6 ? p_socket.state_ - 1 : p_socket.state_ - 2;
+      ++p_summary[kTcpStates + static_cast<std::size_t>(offset)];
+    }
   }
 
   // Socket memory sysctls. tcp_mem and udp_mem are host-wide; the others
@@ -569,7 +658,7 @@ class ResourceProbe
         {"TcpExt", "TCPReqQFullDrop", Field("net_tcp_req_q_full_drop")},
         {"TcpExt", "SyncookiesSent", Field("net_syncookies_sent")},
     }};
-    if (const auto text = Read(std::format("/proc/{}/net/snmp", p_pid)))
+    if (const auto text = Read(FixedString{"/proc/{}/net/snmp", p_pid}.CStr()))
     {
       for (const auto& counter : kSnmp)
       {
@@ -580,7 +669,7 @@ class ResourceProbe
     }
     // IPv6 UDP counters are separate; add them to IPv4's. A host without
     // IPv6 has no file, and IPv4 alone is the whole count.
-    if (const auto text = Read(std::format("/proc/{}/net/snmp6", p_pid)))
+    if (const auto text = Read(FixedString{"/proc/{}/net/snmp6", p_pid}.CStr()))
     {
       for (const auto& counter : kSnmp)
       {
@@ -589,7 +678,7 @@ class ResourceProbe
           continue;
         }
         const auto ipv6 =
-            FindKeyValue(*text, std::format("Udp6{}", counter.name_));
+            FindKeyValue(*text, FixedString{"Udp6{}", counter.name_}.View());
         auto& value = summary[counter.field_];
         if (ipv6 && value != resource_wire::kUnavailable)
         {
@@ -597,7 +686,8 @@ class ResourceProbe
         }
       }
     }
-    if (const auto text = Read(std::format("/proc/{}/net/netstat", p_pid)))
+    if (const auto text =
+            Read(FixedString{"/proc/{}/net/netstat", p_pid}.CStr()))
     {
       for (const auto& counter : kNetstat)
       {
@@ -606,15 +696,16 @@ class ResourceProbe
                 .value_or(resource_wire::kUnavailable);
       }
     }
-    if (const auto text =
-            Read(std::format("/proc/{}/net/dev", p_pid)).and_then(ParseNetDev))
+    if (const auto text = Read(FixedString{"/proc/{}/net/dev", p_pid}.CStr())
+                              .and_then(ParseNetDev))
     {
       summary[Field("net_if_rx_errors")] = text->rx_errors_;
       summary[Field("net_if_rx_dropped")] = text->rx_dropped_;
       summary[Field("net_if_tx_errors")] = text->tx_errors_;
       summary[Field("net_if_tx_dropped")] = text->tx_dropped_;
     }
-    if (const auto text = Read(std::format("/proc/{}/net/sockstat", p_pid)))
+    if (const auto text =
+            Read(FixedString{"/proc/{}/net/sockstat", p_pid}.CStr()))
     {
       for (const auto& [protocol, name, field] :
            {std::tuple{"TCP", "inuse", Field("sockstat_tcp_inuse")},
@@ -632,10 +723,13 @@ class ResourceProbe
   }
 
   std::array<char, 32768> buffer_{};
+  FixedString cgroup_{""};
+  std::vector<std::byte> diag_buffer_;
   std::optional<SocketDiag> diag_;
   RateLimitedLogger logger_;
-  std::unordered_map<std::uint64_t, std::uint32_t> socket_fds_;
-  std::vector<resource_wire::Socket> matched_;
+  // Sorted by inode. Capacity is reserved at startup and never exceeded.
+  std::vector<SocketFd> socket_fds_;
+  FullestSockets fullest_;
   bool links_hidden_ = false;
 };
 

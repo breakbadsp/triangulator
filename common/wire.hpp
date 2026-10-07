@@ -3,16 +3,16 @@
 // The sampler-to-collector datagram format, shared by both programs. This
 // header depends only on the standard library.
 
-#include <algorithm>
 #include <array>
 #include <bit>
-#include <concepts>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace triangulator::wire
@@ -25,8 +25,6 @@ inline constexpr std::size_t kRecordsPerPacket = 10;
 inline constexpr std::size_t kMaxThreads = kRecordsPerPacket * 255;
 inline constexpr std::size_t kPacketSize =
     kHeaderSize + kRecordsPerPacket * kRecordSize;
-using RecordBytes = std::array<std::byte, kRecordSize>;
-using Packet = std::array<std::byte, kPacketSize>;
 static_assert(kPacketSize == 1168);
 
 enum class Flags : std::uint8_t
@@ -46,36 +44,66 @@ constexpr Flags operator|(Flags p_left, Flags p_right) noexcept
                             std::to_underlying(p_right));
 }
 
-template <std::unsigned_integral TNumber>
-void WriteLittleEndian(std::span<std::byte, sizeof(TNumber)> p_destination,
-                       TNumber p_value)
+// The wire structs below are the datagram format itself, like TigerBeetle's
+// extern structs: the sampler sends their bytes and the collector reads the
+// bytes back into them, with no field-by-field encoding. This is correct only
+// on a little-endian host with no padding between the fields, so the build
+// checks both. Change a wire struct only together with its version, the
+// static_asserts after it and tests/wire.py.
+static_assert(std::endian::native == std::endian::little,
+              "the wire structs are little-endian; byte swaps are needed here");
+
+// A type that can be a wire struct: copied as bytes, with no padding (so no
+// uninitialized bytes go onto the network and equal values have equal
+// bytes). Do not use bool, bit-fields or pointers in wire structs; a wire
+// byte can hold any value, so use integers and let the reader check them.
+template <typename TWire>
+concept WireStruct =
+    std::is_trivially_copyable_v<TWire> && std::is_standard_layout_v<TWire> &&
+    std::has_unique_object_representations_v<TWire>;
+
+// The bytes to send for p_value.
+template <WireStruct TWire>
+[[nodiscard]] std::span<const std::byte, sizeof(TWire)> AsBytes(
+    const TWire& p_value) noexcept
 {
-  if constexpr (std::endian::native == std::endian::big)
-  {
-    p_value = std::byteswap(p_value);
-  }
-  const auto bytes =
-      std::bit_cast<std::array<std::byte, sizeof(TNumber)>>(p_value);
-  std::ranges::copy(bytes, p_destination.begin());
+  return std::as_bytes(std::span<const TWire, 1>{&p_value, 1});
 }
 
-template <std::unsigned_integral TNumber>
-[[nodiscard]] TNumber ReadLittleEndian(std::span<const std::byte> p_bytes,
-                                       std::size_t p_offset)
+// The wire struct in the first sizeof(TWire) bytes of p_data. The caller
+// checks the length first.
+//
+// Why memcpy and not reinterpret_cast: recv() writes bytes into a std::byte
+// buffer, and no TWire object exists at that address. Reading one through
+// reinterpret_cast<const TWire*>(p_data.data()) is undefined behaviour
+// (object lifetime, [basic.life], and strict aliasing, [basic.lval]), and the
+// buffer can also be misaligned for TWire. The compiler can then miscompile
+// the reads. memcpy into a local object is defined for trivially copyable
+// types, and GCC and Clang make it plain loads with no call. The cost is one
+// copy of a small struct, which is small next to the checks that follow.
+//
+// Options for a later change that removes the copy:
+// - std::start_lifetime_as<TWire>(p_data.data()) (C++23, P2590) makes the
+//   bytes a TWire object in place. The buffer must be aligned for TWire.
+//   libstdc++ 16 and Clang 22 have it (__cpp_lib_start_lifetime_as); GCC 13,
+//   the oldest compiler the README supports, does not.
+// - recv() directly into an aligned wire struct, so the kernel writes the
+//   bytes of an object that already exists. That needs one buffer for each
+//   format, or a check of the magic before the receive.
+// - reinterpret_cast with -fno-strict-aliasing, as the Linux kernel does.
+//   Do not use it: it removes the optimization for all the code, and it does
+//   not fix the lifetime or alignment problems.
+template <WireStruct TWire>
+[[nodiscard]] TWire FromBytes(std::span<const std::byte> p_data) noexcept
 {
-  std::array<std::byte, sizeof(TNumber)> bytes{};
-  std::memcpy(bytes.data(), p_bytes.data() + p_offset, sizeof(TNumber));
-  auto value = std::bit_cast<TNumber>(bytes);
-  if constexpr (std::endian::native == std::endian::big)
-  {
-    value = std::byteswap(value);
-  }
+  assert(p_data.size() >= sizeof(TWire));
+  TWire value;
+  std::memcpy(&value, p_data.data(), sizeof(TWire));
   return value;
 }
 
-// One thread's sample as plain values. The name fields are the fixed-size,
-// NUL-padded byte fields of the format; decoding them into strings is up to
-// the reader.
+// One thread's sample. The name fields are NUL-padded bytes; decoding them
+// into strings is up to the reader.
 struct Record
 {
   std::uint32_t tid_{};
@@ -92,80 +120,49 @@ struct Record
   std::array<char, 16> comm_{};
   std::array<char, 32> wchan_{};
 };
+static_assert(WireStruct<Record> && sizeof(Record) == kRecordSize);
+static_assert(offsetof(Record, processor_) == 6 &&
+              offsetof(Record, write_bytes_) == 56 &&
+              offsetof(Record, comm_) == 64 && offsetof(Record, wchan_) == 80);
 
-inline void EncodeRecord(std::span<std::byte, kRecordSize> p_buffer,
-                         const Record& p_record)
-{
-  WriteLittleEndian(p_buffer.subspan<0, 4>(), p_record.tid_);
-  p_buffer[4] = static_cast<std::byte>(p_record.state_);
-  p_buffer[5] = static_cast<std::byte>(p_record.flags_);
-  WriteLittleEndian(p_buffer.subspan<6, 2>(), p_record.processor_);
-  WriteLittleEndian(p_buffer.subspan<8, 8>(), p_record.utime_);
-  WriteLittleEndian(p_buffer.subspan<16, 8>(), p_record.stime_);
-  WriteLittleEndian(p_buffer.subspan<24, 8>(), p_record.run_delay_);
-  WriteLittleEndian(p_buffer.subspan<32, 8>(), p_record.timeslices_);
-  WriteLittleEndian(p_buffer.subspan<40, 8>(), p_record.major_faults_);
-  WriteLittleEndian(p_buffer.subspan<48, 8>(), p_record.read_bytes_);
-  WriteLittleEndian(p_buffer.subspan<56, 8>(), p_record.write_bytes_);
-  std::ranges::copy(std::as_bytes(std::span{p_record.comm_}),
-                    p_buffer.subspan<64, 16>().begin());
-  std::ranges::copy(std::as_bytes(std::span{p_record.wchan_}),
-                    p_buffer.subspan<80, 32>().begin());
-}
-
-// Reads every field as it is on the wire; it does not judge the values.
-[[nodiscard]] inline Record DecodeRecord(
-    std::span<const std::byte, kRecordSize> p_buffer)
-{
-  Record record;
-  record.tid_ = ReadLittleEndian<std::uint32_t>(p_buffer, 0);
-  record.state_ = static_cast<char>(p_buffer[4]);
-  record.flags_ = static_cast<RecordFlags>(p_buffer[5]);
-  record.processor_ = ReadLittleEndian<std::uint16_t>(p_buffer, 6);
-  record.utime_ = ReadLittleEndian<std::uint64_t>(p_buffer, 8);
-  record.stime_ = ReadLittleEndian<std::uint64_t>(p_buffer, 16);
-  record.run_delay_ = ReadLittleEndian<std::uint64_t>(p_buffer, 24);
-  record.timeslices_ = ReadLittleEndian<std::uint64_t>(p_buffer, 32);
-  record.major_faults_ = ReadLittleEndian<std::uint64_t>(p_buffer, 40);
-  record.read_bytes_ = ReadLittleEndian<std::uint64_t>(p_buffer, 48);
-  record.write_bytes_ = ReadLittleEndian<std::uint64_t>(p_buffer, 56);
-  std::memcpy(record.comm_.data(), p_buffer.data() + 64, record.comm_.size());
-  std::memcpy(record.wchan_.data(), p_buffer.data() + 80, record.wchan_.size());
-  return record;
-}
+inline constexpr std::array<char, 4> kMagic{'T', 'M', 'O', 'N'};
 
 struct Header
 {
+  std::array<char, 4> magic_ = kMagic;
+  std::uint8_t version_ = kVersion;
   Flags flags_{};
   std::uint8_t chunk_{};
   std::uint8_t chunks_{};
   std::uint64_t session_{};
   std::uint32_t sequence_{};
   std::uint16_t records_{};
+  // Zero. The collector rejects other values, so a later version can use
+  // these bytes.
+  std::array<std::uint8_t, 2> reserved_{};
   std::uint64_t monotonic_ns_{};
   std::uint64_t wall_ns_{};
   std::uint32_t interval_ms_{};
   std::uint32_t pid_{};
 };
+static_assert(WireStruct<Header> && sizeof(Header) == kHeaderSize);
+static_assert(offsetof(Header, session_) == 8 &&
+              offsetof(Header, records_) == 20 &&
+              offsetof(Header, monotonic_ns_) == 24 &&
+              offsetof(Header, pid_) == 44);
 
-inline void EncodeHeader(std::span<std::byte, kHeaderSize> p_buffer,
-                         const Header& p_header)
+// One datagram: the header, then the first header_.records_ records. Send
+// only those bytes (DatagramSize).
+struct Packet
 {
-  std::ranges::fill(p_buffer, std::byte{0});
-  constexpr std::array kMagic{std::byte{'T'}, std::byte{'M'}, std::byte{'O'},
-                              std::byte{'N'}};
-  std::ranges::copy(kMagic, p_buffer.begin());
-  p_buffer[4] = std::byte{kVersion};
-  p_buffer[5] = static_cast<std::byte>(p_header.flags_);
-  p_buffer[6] = static_cast<std::byte>(p_header.chunk_);
-  p_buffer[7] = static_cast<std::byte>(p_header.chunks_);
-  WriteLittleEndian(p_buffer.subspan<8, 8>(), p_header.session_);
-  WriteLittleEndian(p_buffer.subspan<16, 4>(), p_header.sequence_);
-  WriteLittleEndian(p_buffer.subspan<20, 2>(), p_header.records_);
-  WriteLittleEndian(p_buffer.subspan<24, 8>(), p_header.monotonic_ns_);
-  WriteLittleEndian(p_buffer.subspan<32, 8>(), p_header.wall_ns_);
-  WriteLittleEndian(p_buffer.subspan<40, 4>(), p_header.interval_ms_);
-  WriteLittleEndian(p_buffer.subspan<44, 4>(), p_header.pid_);
+  Header header_;
+  std::array<Record, kRecordsPerPacket> records_{};
+};
+static_assert(WireStruct<Packet> && sizeof(Packet) == kPacketSize);
+
+[[nodiscard]] constexpr std::size_t DatagramSize(std::size_t p_records) noexcept
+{
+  return kHeaderSize + p_records * kRecordSize;
 }
 
 // Checks only what identifies the format (length, magic, version). Whether the
@@ -177,22 +174,11 @@ inline void EncodeHeader(std::span<std::byte, kHeaderSize> p_buffer,
   {
     return std::unexpected("short header");
   }
-  if (std::memcmp(p_data.data(), "TMON", 4) != 0 ||
-      std::to_integer<std::uint8_t>(p_data[4]) != kVersion)
+  const auto header = FromBytes<Header>(p_data);
+  if (header.magic_ != kMagic || header.version_ != kVersion)
   {
     return std::unexpected("unsupported protocol");
   }
-  Header header;
-  header.flags_ = static_cast<Flags>(p_data[5]);
-  header.chunk_ = std::to_integer<std::uint8_t>(p_data[6]);
-  header.chunks_ = std::to_integer<std::uint8_t>(p_data[7]);
-  header.session_ = ReadLittleEndian<std::uint64_t>(p_data, 8);
-  header.sequence_ = ReadLittleEndian<std::uint32_t>(p_data, 16);
-  header.records_ = ReadLittleEndian<std::uint16_t>(p_data, 20);
-  header.monotonic_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 24);
-  header.wall_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 32);
-  header.interval_ms_ = ReadLittleEndian<std::uint32_t>(p_data, 40);
-  header.pid_ = ReadLittleEndian<std::uint32_t>(p_data, 44);
   return header;
 }
 

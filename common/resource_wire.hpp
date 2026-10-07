@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -209,9 +210,11 @@ inline constexpr std::uint16_t kKnownSocketFlags = 15;
   return (p_flags & std::to_underlying(p_flag)) != 0;
 }
 
-// One of the target's sockets. Addresses are in network byte order: IPv4
-// uses the first four bytes. Unix sockets have a path instead (abstract
-// names start with '@'), NUL-padded and truncated to 32 bytes.
+// One of the target's sockets, as it is on the wire (see the wire structs
+// in wire.hpp). Addresses are in network byte order: IPv4 uses the first
+// four bytes. A unix socket has no addresses; its path (abstract names
+// start with '@'), NUL-padded and truncated to 32 bytes, uses the same 32
+// bytes (UnixPath).
 struct Socket
 {
   SocketKind kind_{};
@@ -221,7 +224,6 @@ struct Socket
   std::uint64_t inode_{};
   std::array<std::uint8_t, 16> local_address_{};
   std::array<std::uint8_t, 16> remote_address_{};
-  std::array<char, 32> unix_path_{};
   std::uint16_t local_port_{};
   std::uint16_t remote_port_{};
   // Bytes waiting to be read and not yet sent or acknowledged. For a
@@ -247,15 +249,40 @@ struct Socket
   std::uint8_t ca_state_{};
   std::uint32_t last_data_recv_ms_{};
   std::uint32_t last_data_sent_ms_{};
+  std::array<std::uint8_t, 4> reserved_{};  // zero
   std::uint64_t busy_us_{};
   std::uint64_t rwnd_limited_us_{};
   std::uint64_t sndbuf_limited_us_{};
+  std::array<std::uint8_t, 8> reserved_end_{};  // zero
+
+  using UnixPathBytes = std::array<char, 32>;
+  using AddressPair = std::array<std::array<std::uint8_t, 16>, 2>;
+  [[nodiscard]] UnixPathBytes UnixPath() const noexcept
+  {
+    return std::bit_cast<UnixPathBytes>(
+        AddressPair{local_address_, remote_address_});
+  }
+  void SetUnixPath(const UnixPathBytes& p_path) noexcept
+  {
+    const auto addresses = std::bit_cast<AddressPair>(p_path);
+    local_address_ = addresses[0];
+    remote_address_ = addresses[1];
+  }
 
   bool operator==(const Socket&) const = default;
 };
+static_assert(wire::WireStruct<Socket> && sizeof(Socket) == kSocketSize);
+static_assert(offsetof(Socket, local_address_) == 16 &&
+              offsetof(Socket, local_port_) == 48 &&
+              offsetof(Socket, retransmits_) == 112 &&
+              offsetof(Socket, busy_us_) == 128);
+
+inline constexpr std::array<char, 4> kMagic{'T', 'R', 'E', 'S'};
 
 struct Header
 {
+  std::array<char, 4> magic_ = kMagic;
+  std::uint8_t version_ = kVersion;
   PartKind kind_{};
   std::uint8_t part_{};
   std::uint8_t parts_{};
@@ -263,12 +290,14 @@ struct Header
   std::uint64_t session_{};
   std::uint32_t sequence_{};
   std::uint16_t count_{};  // summary values or socket rows in this part
+  std::array<std::uint8_t, 2> reserved_{};  // zero
   std::uint64_t monotonic_ns_{};
   std::uint64_t wall_ns_{};
   std::uint32_t interval_ms_{};
   std::uint32_t pid_{};
   std::uint64_t process_start_{};  // /proc/PID/stat starttime, clock ticks
   Flags flags_{};
+  std::array<std::uint8_t, 4> reserved_end_{};  // zero
 
   // Every part of one sample carries the same header apart from these.
   [[nodiscard]] bool SameSample(const Header& p_other) const noexcept
@@ -281,6 +310,31 @@ struct Header
            process_start_ == p_other.process_start_ && flags_ == p_other.flags_;
   }
 };
+static_assert(wire::WireStruct<Header> && sizeof(Header) == kHeaderSize);
+static_assert(offsetof(Header, session_) == 8 &&
+              offsetof(Header, count_) == 20 &&
+              offsetof(Header, monotonic_ns_) == 24 &&
+              offsetof(Header, flags_) == 56);
+
+// Part 0 of a sample.
+struct SummaryPart
+{
+  Header header_;
+  SummaryValues values_{};
+  std::array<char, kCgroupSize> cgroup_{};  // NUL-terminated
+};
+static_assert(wire::WireStruct<SummaryPart> &&
+              sizeof(SummaryPart) == kSummaryPartSize);
+
+// Parts 1..: the header, then header_.count_ socket rows.
+struct SocketsPart
+{
+  Header header_;
+  std::array<Socket, kSocketsPerPart> sockets_{};
+};
+static_assert(wire::WireStruct<SocketsPart> &&
+              sizeof(SocketsPart) ==
+                  kHeaderSize + kSocketsPerPart * kSocketSize);
 
 // Number of datagrams for a sample with p_sockets socket rows.
 [[nodiscard]] constexpr std::uint8_t PartCount(std::size_t p_sockets) noexcept
@@ -290,73 +344,7 @@ struct Header
               kSocketsPerPart);
 }
 
-inline void EncodeHeader(std::span<std::byte, kHeaderSize> p_buffer,
-                         const Header& p_header)
-{
-  using wire::WriteLittleEndian;
-  std::ranges::fill(p_buffer, std::byte{0});
-  std::memcpy(p_buffer.data(), "TRES", 4);
-  p_buffer[4] = std::byte{kVersion};
-  p_buffer[5] = static_cast<std::byte>(p_header.kind_);
-  p_buffer[6] = static_cast<std::byte>(p_header.part_);
-  p_buffer[7] = static_cast<std::byte>(p_header.parts_);
-  WriteLittleEndian(p_buffer.subspan<8, 8>(), p_header.session_);
-  WriteLittleEndian(p_buffer.subspan<16, 4>(), p_header.sequence_);
-  WriteLittleEndian(p_buffer.subspan<20, 2>(), p_header.count_);
-  WriteLittleEndian(p_buffer.subspan<24, 8>(), p_header.monotonic_ns_);
-  WriteLittleEndian(p_buffer.subspan<32, 8>(), p_header.wall_ns_);
-  WriteLittleEndian(p_buffer.subspan<40, 4>(), p_header.interval_ms_);
-  WriteLittleEndian(p_buffer.subspan<44, 4>(), p_header.pid_);
-  WriteLittleEndian(p_buffer.subspan<48, 8>(), p_header.process_start_);
-  WriteLittleEndian(p_buffer.subspan<56, 4>(),
-                    std::to_underlying(p_header.flags_));
-}
-
-inline void EncodeSocket(std::span<std::byte, kSocketSize> p_buffer,
-                         const Socket& p_socket)
-{
-  using wire::WriteLittleEndian;
-  std::ranges::fill(p_buffer, std::byte{0});
-  p_buffer[0] = static_cast<std::byte>(p_socket.kind_);
-  p_buffer[1] = static_cast<std::byte>(p_socket.state_);
-  WriteLittleEndian(p_buffer.subspan<2, 2>(), p_socket.flags_);
-  WriteLittleEndian(p_buffer.subspan<4, 4>(), p_socket.fd_);
-  WriteLittleEndian(p_buffer.subspan<8, 8>(), p_socket.inode_);
-  if (IsUnix(p_socket.kind_))
-  {
-    std::memcpy(p_buffer.data() + 16, p_socket.unix_path_.data(), 32);
-  }
-  else
-  {
-    std::memcpy(p_buffer.data() + 16, p_socket.local_address_.data(), 16);
-    std::memcpy(p_buffer.data() + 32, p_socket.remote_address_.data(), 16);
-  }
-  WriteLittleEndian(p_buffer.subspan<48, 2>(), p_socket.local_port_);
-  WriteLittleEndian(p_buffer.subspan<50, 2>(), p_socket.remote_port_);
-  const std::array<std::uint32_t, 15> quads{
-      p_socket.rx_queue_,  p_socket.tx_queue_,      p_socket.rmem_alloc_,
-      p_socket.rcvbuf_,    p_socket.wmem_alloc_,    p_socket.wmem_queued_,
-      p_socket.sndbuf_,    p_socket.drops_,         p_socket.rtt_us_,
-      p_socket.rttvar_us_, p_socket.total_retrans_, p_socket.unacked_,
-      p_socket.lost_,      p_socket.notsent_bytes_, p_socket.peer_window_};
-  for (std::size_t index = 0; index < quads.size(); ++index)
-  {
-    WriteLittleEndian(
-        std::span<std::byte, 4>{p_buffer.data() + 52 + index * 4, 4},
-        quads[index]);
-  }
-  p_buffer[112] = static_cast<std::byte>(p_socket.retransmits_);
-  p_buffer[113] = static_cast<std::byte>(p_socket.probes_);
-  p_buffer[114] = static_cast<std::byte>(p_socket.backoff_);
-  p_buffer[115] = static_cast<std::byte>(p_socket.ca_state_);
-  WriteLittleEndian(p_buffer.subspan<116, 4>(), p_socket.last_data_recv_ms_);
-  WriteLittleEndian(p_buffer.subspan<120, 4>(), p_socket.last_data_sent_ms_);
-  WriteLittleEndian(p_buffer.subspan<128, 8>(), p_socket.busy_us_);
-  WriteLittleEndian(p_buffer.subspan<136, 8>(), p_socket.rwnd_limited_us_);
-  WriteLittleEndian(p_buffer.subspan<144, 8>(), p_socket.sndbuf_limited_us_);
-}
-
-// Encodes the summary part into p_buffer and returns its length.
+// Writes the summary part into p_buffer and returns its length.
 [[nodiscard]] inline std::size_t EncodeSummary(
     std::span<std::byte, kMaxPartSize> p_buffer, Header p_header,
     const SummaryValues& p_summary, std::string_view p_cgroup)
@@ -364,22 +352,15 @@ inline void EncodeSocket(std::span<std::byte, kSocketSize> p_buffer,
   p_header.kind_ = PartKind::Summary;
   p_header.part_ = 0;
   p_header.count_ = static_cast<std::uint16_t>(p_summary.size());
-  EncodeHeader(p_buffer.first<kHeaderSize>(), p_header);
-  for (std::size_t index = 0; index < p_summary.size(); ++index)
-  {
-    wire::WriteLittleEndian(
-        std::span<std::byte, 8>{p_buffer.data() + kHeaderSize + index * 8, 8},
-        p_summary[index]);
-  }
-  auto cgroup =
-      p_buffer.subspan(kHeaderSize + p_summary.size() * 8, kCgroupSize);
-  std::ranges::fill(cgroup, std::byte{0});
-  std::memcpy(cgroup.data(), p_cgroup.data(),
+  SummaryPart part{.header_ = p_header, .values_ = p_summary};
+  std::memcpy(part.cgroup_.data(), p_cgroup.data(),
               std::min(p_cgroup.size(), kCgroupSize - 1));
-  return kSummaryPartSize;
+  std::ranges::copy(wire::AsBytes(part), p_buffer.begin());
+  return sizeof(part);
 }
 
-// Encodes sockets part p_part (1-based) of p_sockets and returns its length.
+// Writes sockets part p_part (1-based) of p_sockets into p_buffer and
+// returns its length.
 [[nodiscard]] inline std::size_t EncodeSockets(
     std::span<std::byte, kMaxPartSize> p_buffer, Header p_header,
     std::span<const Socket> p_sockets, std::uint8_t p_part)
@@ -389,15 +370,11 @@ inline void EncodeSocket(std::span<std::byte, kSocketSize> p_buffer,
   p_header.kind_ = PartKind::Sockets;
   p_header.part_ = p_part;
   p_header.count_ = static_cast<std::uint16_t>(rows);
-  EncodeHeader(p_buffer.first<kHeaderSize>(), p_header);
-  for (std::size_t row = 0; row < rows; ++row)
-  {
-    EncodeSocket(
-        std::span<std::byte, kSocketSize>{
-            p_buffer.data() + kHeaderSize + row * kSocketSize, kSocketSize},
-        p_sockets[first + row]);
-  }
-  return kHeaderSize + rows * kSocketSize;
+  SocketsPart part{.header_ = p_header};
+  std::ranges::copy(p_sockets.subspan(first, rows), part.sockets_.begin());
+  const auto length = kHeaderSize + rows * kSocketSize;
+  std::ranges::copy(wire::AsBytes(part).first(length), p_buffer.begin());
+  return length;
 }
 
 // One decoded datagram. values_ and cgroup_ are set for the summary part,
@@ -407,77 +384,15 @@ struct Part
   Header header_;
   SummaryValues values_{};
   std::array<char, kCgroupSize> cgroup_{};
-  std::vector<Socket> sockets_;
+  // The socket rows of this part: sockets_[0 .. socket_count_).
+  std::array<Socket, kSocketsPerPart> sockets_{};
+  std::size_t socket_count_ = 0;
+
+  [[nodiscard]] std::span<const Socket> Sockets() const noexcept
+  {
+    return std::span{sockets_}.first(socket_count_);
+  }
 };
-
-[[nodiscard]] inline bool AllZero(std::span<const std::byte> p_bytes) noexcept
-{
-  return std::ranges::all_of(p_bytes,
-                             [](std::byte p_byte)
-                             {
-                               return p_byte == std::byte{0};
-                             });
-}
-
-[[nodiscard]] inline std::expected<Socket, std::string_view> DecodeSocket(
-    std::span<const std::byte, kSocketSize> p_buffer)
-{
-  using wire::ReadLittleEndian;
-  Socket socket;
-  const auto kind = std::to_integer<std::uint8_t>(p_buffer[0]);
-  socket.flags_ = ReadLittleEndian<std::uint16_t>(p_buffer, 2);
-  if (kind == 0 || kind > kMaxSocketKind ||
-      (socket.flags_ & ~kKnownSocketFlags) != 0 ||
-      !AllZero(p_buffer.subspan<124, 4>()) ||
-      !AllZero(p_buffer.subspan<152, 8>()))
-  {
-    return std::unexpected("invalid socket row");
-  }
-  socket.kind_ = static_cast<SocketKind>(kind);
-  socket.state_ = std::to_integer<std::uint8_t>(p_buffer[1]);
-  socket.fd_ = ReadLittleEndian<std::uint32_t>(p_buffer, 4);
-  socket.inode_ = ReadLittleEndian<std::uint64_t>(p_buffer, 8);
-  if (IsUnix(socket.kind_))
-  {
-    std::memcpy(socket.unix_path_.data(), p_buffer.data() + 16, 32);
-  }
-  else
-  {
-    std::memcpy(socket.local_address_.data(), p_buffer.data() + 16, 16);
-    std::memcpy(socket.remote_address_.data(), p_buffer.data() + 32, 16);
-  }
-  socket.local_port_ = ReadLittleEndian<std::uint16_t>(p_buffer, 48);
-  socket.remote_port_ = ReadLittleEndian<std::uint16_t>(p_buffer, 50);
-  const auto quad = [&](std::size_t p_index)
-  {
-    return ReadLittleEndian<std::uint32_t>(p_buffer, 52 + p_index * 4);
-  };
-  socket.rx_queue_ = quad(0);
-  socket.tx_queue_ = quad(1);
-  socket.rmem_alloc_ = quad(2);
-  socket.rcvbuf_ = quad(3);
-  socket.wmem_alloc_ = quad(4);
-  socket.wmem_queued_ = quad(5);
-  socket.sndbuf_ = quad(6);
-  socket.drops_ = quad(7);
-  socket.rtt_us_ = quad(8);
-  socket.rttvar_us_ = quad(9);
-  socket.total_retrans_ = quad(10);
-  socket.unacked_ = quad(11);
-  socket.lost_ = quad(12);
-  socket.notsent_bytes_ = quad(13);
-  socket.peer_window_ = quad(14);
-  socket.retransmits_ = std::to_integer<std::uint8_t>(p_buffer[112]);
-  socket.probes_ = std::to_integer<std::uint8_t>(p_buffer[113]);
-  socket.backoff_ = std::to_integer<std::uint8_t>(p_buffer[114]);
-  socket.ca_state_ = std::to_integer<std::uint8_t>(p_buffer[115]);
-  socket.last_data_recv_ms_ = ReadLittleEndian<std::uint32_t>(p_buffer, 116);
-  socket.last_data_sent_ms_ = ReadLittleEndian<std::uint32_t>(p_buffer, 120);
-  socket.busy_us_ = ReadLittleEndian<std::uint64_t>(p_buffer, 128);
-  socket.rwnd_limited_us_ = ReadLittleEndian<std::uint64_t>(p_buffer, 136);
-  socket.sndbuf_limited_us_ = ReadLittleEndian<std::uint64_t>(p_buffer, 144);
-  return socket;
-}
 
 // Checks the format (length, magic, version, part numbering, reserved
 // bytes) and that the identities and clocks are set. Whether the values
@@ -485,33 +400,22 @@ struct Part
 [[nodiscard]] inline std::expected<Part, std::string_view> Decode(
     std::span<const std::byte> p_data)
 {
-  using wire::ReadLittleEndian;
   if (p_data.size() < kHeaderSize || std::memcmp(p_data.data(), "TRES", 4) != 0)
   {
     return std::unexpected("not a resource datagram");
   }
-  if (std::to_integer<std::uint8_t>(p_data[4]) != kVersion)
+  Part part;
+  auto& header = part.header_;
+  header = wire::FromBytes<Header>(p_data);
+  if (header.version_ != kVersion)
   {
     return std::unexpected("unsupported resource protocol");
   }
-  Part part;
-  auto& header = part.header_;
-  const auto kind = std::to_integer<std::uint8_t>(p_data[5]);
-  header.part_ = std::to_integer<std::uint8_t>(p_data[6]);
-  header.parts_ = std::to_integer<std::uint8_t>(p_data[7]);
-  header.session_ = ReadLittleEndian<std::uint64_t>(p_data, 8);
-  header.sequence_ = ReadLittleEndian<std::uint32_t>(p_data, 16);
-  header.count_ = ReadLittleEndian<std::uint16_t>(p_data, 20);
-  header.monotonic_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 24);
-  header.wall_ns_ = ReadLittleEndian<std::uint64_t>(p_data, 32);
-  header.interval_ms_ = ReadLittleEndian<std::uint32_t>(p_data, 40);
-  header.pid_ = ReadLittleEndian<std::uint32_t>(p_data, 44);
-  header.process_start_ = ReadLittleEndian<std::uint64_t>(p_data, 48);
-  const auto flags = ReadLittleEndian<std::uint32_t>(p_data, 56);
-  header.flags_ = static_cast<Flags>(flags);
-  if ((flags & ~kKnownFlags) != 0 || !AllZero(p_data.subspan(22, 2)) ||
-      !AllZero(p_data.subspan(60, 4)) || header.parts_ == 0 ||
-      header.parts_ > kMaxParts || header.part_ >= header.parts_)
+  if ((std::to_underlying(header.flags_) & ~kKnownFlags) != 0 ||
+      header.reserved_ != decltype(header.reserved_){} ||
+      header.reserved_end_ != decltype(header.reserved_end_){} ||
+      header.parts_ == 0 || header.parts_ > kMaxParts ||
+      header.part_ >= header.parts_)
   {
     return std::unexpected("invalid resource header");
   }
@@ -520,45 +424,41 @@ struct Part
   {
     return std::unexpected("invalid resource sample identity or clock");
   }
-  if (kind == std::to_underlying(PartKind::Summary))
+  if (header.kind_ == PartKind::Summary)
   {
-    header.kind_ = PartKind::Summary;
     if (header.part_ != 0 || header.count_ != kSummaryFields.size() ||
         p_data.size() != kSummaryPartSize)
     {
       return std::unexpected("invalid resource summary");
     }
-    for (std::size_t index = 0; index < part.values_.size(); ++index)
-    {
-      part.values_[index] =
-          ReadLittleEndian<std::uint64_t>(p_data, kHeaderSize + index * 8);
-    }
-    const auto cgroup =
-        p_data.subspan(kHeaderSize + part.values_.size() * 8, kCgroupSize);
-    std::memcpy(part.cgroup_.data(), cgroup.data(), kCgroupSize);
+    const auto summary = wire::FromBytes<SummaryPart>(p_data);
+    part.values_ = summary.values_;
+    part.cgroup_ = summary.cgroup_;
     if (part.cgroup_.back() != '\0')
     {
       return std::unexpected("invalid resource summary");
     }
     return part;
   }
-  if (kind != std::to_underlying(PartKind::Sockets) || header.part_ == 0 ||
+  if (header.kind_ != PartKind::Sockets || header.part_ == 0 ||
       header.count_ == 0 || header.count_ > kSocketsPerPart ||
       p_data.size() != kHeaderSize + header.count_ * kSocketSize)
   {
     return std::unexpected("invalid resource socket part");
   }
-  header.kind_ = PartKind::Sockets;
-  part.sockets_.reserve(header.count_);
   for (std::size_t row = 0; row < header.count_; ++row)
   {
-    auto socket = DecodeSocket(std::span<const std::byte, kSocketSize>{
-        p_data.data() + kHeaderSize + row * kSocketSize, kSocketSize});
-    if (!socket)
+    const auto socket = wire::FromBytes<Socket>(
+        p_data.subspan(kHeaderSize + row * kSocketSize));
+    const auto kind = std::to_underlying(socket.kind_);
+    if (kind == 0 || kind > kMaxSocketKind ||
+        (socket.flags_ & ~kKnownSocketFlags) != 0 ||
+        socket.reserved_ != decltype(socket.reserved_){} ||
+        socket.reserved_end_ != decltype(socket.reserved_end_){})
     {
-      return std::unexpected(socket.error());
+      return std::unexpected("invalid socket row");
     }
-    part.sockets_.push_back(*socket);
+    part.sockets_[part.socket_count_++] = socket;
   }
   return part;
 }

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,7 +15,9 @@
 #include <vector>
 
 #include "../common/wire.hpp"
+#include "bounded.hpp"
 #include "json.hpp"
+#include "text.hpp"
 
 namespace triangulator::collector
 {
@@ -30,6 +34,16 @@ inline constexpr std::uint8_t kStatusFallback =
 inline constexpr std::uint8_t kIoUnavailable =
     std::to_underlying(wire::RecordFlags::IoUnavailable);
 
+// The largest thread id Linux hands out (PID_MAX_LIMIT on 64-bit systems).
+// A larger id in a datagram is invalid. The bound lets the collector keep
+// one table slot for every possible thread id.
+inline constexpr std::uint32_t kMaxTid = 4'194'304;
+
+// Longest text of a thread name or wait channel after SanitizeUtf8. The wire
+// fields hold 16 and 32 bytes, and one invalid byte becomes three.
+inline constexpr std::size_t kCommSize = 16;
+inline constexpr std::size_t kWchanSize = 32;
+
 struct Record
 {
   std::uint32_t tid_{};
@@ -43,8 +57,8 @@ struct Record
   std::uint64_t major_faults_{};
   std::uint64_t read_bytes_{};
   std::uint64_t write_bytes_{};
-  std::string comm_;
-  std::string wchan_;
+  FixedText<SanitizedSize(kCommSize)> comm_;
+  FixedText<SanitizedSize(kWchanSize)> wchan_;
 
   // False when the sampler could not read the thread's io file.
   [[nodiscard]] bool HasIo() const noexcept
@@ -68,7 +82,28 @@ struct Packet
   std::uint64_t wall_ns_{};
   std::uint32_t interval_ms_{};
   std::uint32_t pid_{};
-  std::vector<Record> records_;
+  // The records of this datagram: records_[0 .. count_).
+  std::array<Record, kRecordsPerPacket> records_;
+  std::size_t count_ = 0;
+
+  // Copies every field except the records.
+  void CopyHeaderFrom(const Packet& p_other) noexcept
+  {
+    flags_ = p_other.flags_;
+    chunk_ = p_other.chunk_;
+    chunks_ = p_other.chunks_;
+    session_ = p_other.session_;
+    sequence_ = p_other.sequence_;
+    monotonic_ns_ = p_other.monotonic_ns_;
+    wall_ns_ = p_other.wall_ns_;
+    interval_ms_ = p_other.interval_ms_;
+    pid_ = p_other.pid_;
+  }
+
+  [[nodiscard]] std::span<const Record> Records() const noexcept
+  {
+    return std::span{records_}.first(count_);
+  }
 
   // Every chunk of one tick carries the same header apart from chunk_.
   [[nodiscard]] bool SameTick(const Packet& p_other) const noexcept
@@ -87,6 +122,16 @@ template <std::size_t TSize>
 {
   const std::string_view field{p_field.data(), p_field.size()};
   return SanitizeUtf8(field.substr(0, field.find('\0')));
+}
+
+// ReadName without the heap. p_out has room for the longest result.
+template <std::size_t TSize, std::size_t TCapacity>
+void ReadNameInto(const std::array<char, TSize>& p_field,
+                  FixedText<TCapacity>& p_out)
+{
+  static_assert(TCapacity >= SanitizedSize(TSize));
+  const std::string_view field{p_field.data(), p_field.size()};
+  SanitizeInto(field.substr(0, field.find('\0')), p_out);
 }
 
 [[nodiscard]] inline std::expected<Packet, std::string_view> Decode(
@@ -108,13 +153,13 @@ template <std::size_t TSize>
   packet.interval_ms_ = header->interval_ms_;
   packet.pid_ = header->pid_;
   const auto count = header->records_;
-  if ((packet.flags_ & ~(kTargetAbsent | kStatusFallback)) != 0)
+  if ((packet.flags_ & ~(kTargetAbsent | kStatusFallback)) != 0 ||
+      header->reserved_ != decltype(header->reserved_){})
   {
     return std::unexpected("unsupported protocol");
   }
   if (packet.chunks_ == 0 || packet.chunk_ >= packet.chunks_ ||
-      count > kRecordsPerPacket ||
-      p_data.size() != kHeaderSize + count * kRecordSize)
+      count > kRecordsPerPacket || p_data.size() != wire::DatagramSize(count))
   {
     return std::unexpected("invalid packet length or chunk");
   }
@@ -132,18 +177,17 @@ template <std::size_t TSize>
   {
     return std::unexpected("missing target pid");
   }
-  packet.records_.reserve(count);
   for (std::size_t offset = kHeaderSize; offset < p_data.size();
        offset += kRecordSize)
   {
     const auto wire_record =
-        wire::DecodeRecord(p_data.subspan(offset).first<kRecordSize>());
+        wire::FromBytes<wire::Record>(p_data.subspan(offset));
     Record record;
     record.tid_ = wire_record.tid_;
     record.flags_ = std::to_underlying(wire_record.flags_);
     const auto state = static_cast<std::uint8_t>(wire_record.state_);
-    if (record.tid_ == 0 || state < 32 || state >= 127 ||
-        (record.flags_ & ~kIoUnavailable) != 0)
+    if (record.tid_ == 0 || record.tid_ > kMaxTid || state < 32 ||
+        state >= 127 || (record.flags_ & ~kIoUnavailable) != 0)
     {
       return std::unexpected("invalid thread record");
     }
@@ -156,16 +200,16 @@ template <std::size_t TSize>
     record.major_faults_ = wire_record.major_faults_;
     record.read_bytes_ = wire_record.read_bytes_;
     record.write_bytes_ = wire_record.write_bytes_;
-    record.comm_ = ReadName(wire_record.comm_);
-    record.wchan_ = ReadName(wire_record.wchan_);
-    for (const auto& previous : packet.records_)
+    ReadNameInto(wire_record.comm_, record.comm_);
+    ReadNameInto(wire_record.wchan_, record.wchan_);
+    for (const auto& previous : packet.Records())
     {
       if (previous.tid_ == record.tid_)
       {
         return std::unexpected("duplicate thread");
       }
     }
-    packet.records_.push_back(std::move(record));
+    packet.records_[packet.count_++] = record;
   }
   return packet;
 }
@@ -189,6 +233,17 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 14>
                   {"eventfd", "pipe"},
                   {"nanosleep", "sleep"}}};
 
+// Classify returns at most kMaxStates names: the five fixed names below and
+// the states in kWchanStates. No name is longer than kMaxStateNameSize bytes.
+inline constexpr std::size_t kMaxStates = 10;
+inline constexpr std::size_t kMaxStateNameSize = 11;
+static_assert(std::ranges::all_of(kWchanStates,
+                                  [](const auto& p_entry)
+                                  {
+                                    return p_entry.second.size() <=
+                                           kMaxStateNameSize;
+                                  }));
+
 [[nodiscard]] inline std::string_view Classify(const Record& p_record)
 {
   if (p_record.state_ == 'D')
@@ -203,13 +258,14 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 14>
   {
     return "stopped";
   }
-  if (p_record.wchan_.empty())
+  const auto wchan = p_record.wchan_.View();
+  if (wchan.empty())
   {
     return "no_access";
   }
   for (const auto& [needle, state] : kWchanStates)
   {
-    if (p_record.wchan_.find(needle) != std::string::npos)
+    if (wchan.find(needle) != std::string_view::npos)
     {
       return state;
     }
@@ -217,21 +273,41 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 14>
   return "other";
 }
 
-[[nodiscard]] inline Json RecordJson(const Record& p_record)
+// The longest AppendRecordJson text: the keys and punctuation (fewer than
+// 200 bytes), eleven numbers of at most 20 digits, the state (at most
+// \"\u00XX\", 8 bytes), and a name and wait channel in which every wire byte
+// became a six-byte \u00XX escape, with quotes.
+inline constexpr std::size_t kRecordJsonSize =
+    200 + 11 * 20 + 8 + 6 * (kCommSize + kWchanSize) + 4;
+using RecordJsonText = FixedText<kRecordJsonSize>;
+
+// The record as compact JSON, the form the raw_sample table stores.
+inline void AppendRecordJson(RecordJsonText& p_out, const Record& p_record)
 {
-  return JsonObject{{"tid", p_record.tid_},
-                    {"state", std::string(1, p_record.state_)},
-                    {"flags", p_record.flags_},
-                    {"processor", p_record.processor_},
-                    {"utime", p_record.utime_},
-                    {"stime", p_record.stime_},
-                    {"run_delay", p_record.run_delay_},
-                    {"timeslices", p_record.timeslices_},
-                    {"major_faults", p_record.major_faults_},
-                    {"read_bytes", p_record.read_bytes_},
-                    {"write_bytes", p_record.write_bytes_},
-                    {"comm", p_record.comm_},
-                    {"wchan", p_record.wchan_}};
+  const auto field = [&](std::string_view p_name, std::uint64_t p_value)
+  {
+    p_out.Append(p_name);
+    AppendUnsigned(p_out, p_value);
+  };
+  p_out.Clear();
+  field("{\"tid\":", p_record.tid_);
+  p_out.Append(",\"state\":");
+  AppendJsonString(p_out, {&p_record.state_, 1});
+  field(",\"flags\":", p_record.flags_);
+  field(",\"processor\":", p_record.processor_);
+  field(",\"utime\":", p_record.utime_);
+  field(",\"stime\":", p_record.stime_);
+  field(",\"run_delay\":", p_record.run_delay_);
+  field(",\"timeslices\":", p_record.timeslices_);
+  field(",\"major_faults\":", p_record.major_faults_);
+  field(",\"read_bytes\":", p_record.read_bytes_);
+  field(",\"write_bytes\":", p_record.write_bytes_);
+  p_out.Append(",\"comm\":");
+  AppendJsonString(p_out, p_record.comm_);
+  p_out.Append(",\"wchan\":");
+  AppendJsonString(p_out, p_record.wchan_);
+  p_out.Append("}");
+  assert(p_out.View().size() < kRecordJsonSize);
 }
 
 }  // namespace triangulator::collector

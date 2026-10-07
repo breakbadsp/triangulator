@@ -7,6 +7,13 @@
 
 int main(int p_argc, char** p_argv)
 {
+  if (p_argc == 2 && (std::string_view{p_argv[1]} == "-h" ||
+                      std::string_view{p_argv[1]} == "--help"))
+  {
+    std::printf("usage: %s DATA-DIRECTORY PID OBSERVER-ID-OR-EMPTY\n",
+                p_argv[0]);
+    return 0;
+  }
   if (p_argc != 4)
   {
     std::fprintf(stderr, "usage: %s DATA-DIRECTORY PID OBSERVER-ID-OR-EMPTY\n",

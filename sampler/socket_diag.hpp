@@ -24,7 +24,6 @@
 #include <expected>
 #include <span>
 #include <utility>
-#include <vector>
 
 #include "../common/fd.hpp"
 #include "../common/resource_wire.hpp"
@@ -69,8 +68,11 @@ class SocketDiag
   // a bounded amount of work per resource sample.
   static constexpr std::size_t kMaxSocketsPerDump = 1'000'000;
 
-  // Opens the netlink socket. Error: errno.
-  [[nodiscard]] static std::expected<SocketDiag, int> Open()
+  // Opens the netlink socket. Replies are read into p_buffer, which the
+  // caller allocates at startup and keeps alive. Large replies take fewer
+  // recv calls; the kernel fills up to p_buffer.size(). Error: errno.
+  [[nodiscard]] static std::expected<SocketDiag, int> Open(
+      std::span<std::byte> p_buffer)
   {
     FileDescriptor socket{
         ::socket(AF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC, NETLINK_SOCK_DIAG)};
@@ -82,7 +84,7 @@ class SocketDiag
     const timeval timeout{1, 0};
     ::setsockopt(socket.Get(), SOL_SOCKET, SO_RCVTIMEO, &timeout,
                  sizeof(timeout));
-    return SocketDiag{std::move(socket)};
+    return SocketDiag{std::move(socket), p_buffer};
   }
 
   // Calls p_visit(socket) for every TCP or UDP socket of p_family. TIME_WAIT
@@ -226,8 +228,8 @@ class SocketDiag
   }
 
  private:
-  explicit SocketDiag(FileDescriptor p_socket)
-      : socket_(std::move(p_socket)), buffer_(65536)
+  SocketDiag(FileDescriptor p_socket, std::span<std::byte> p_buffer)
+      : socket_(std::move(p_socket)), buffer_(p_buffer)
   {
   }
 
@@ -330,21 +332,20 @@ class SocketDiag
   static void ReadUnixName(std::span<const std::byte> p_value,
                            resource_wire::Socket& p_socket)
   {
-    auto& path = p_socket.unix_path_;
-    auto length = std::min(p_value.size(), path.size() - 1);
+    resource_wire::Socket::UnixPathBytes path{};
+    const auto length = std::min(p_value.size(), path.size() - 1);
     std::memcpy(path.data(), p_value.data(), length);
-    if (length == 0)
-    {
-      return;
-    }
     if (path[0] != '\0')
     {
       // A filesystem path ends at its terminating NUL.
       std::fill(std::find(path.begin(), path.end(), '\0'), path.end(), '\0');
-      return;
     }
-    std::replace(path.begin(), path.begin() + static_cast<long>(length), '\0',
-                 '@');
+    else
+    {
+      std::replace(path.begin(), path.begin() + static_cast<long>(length), '\0',
+                   '@');
+    }
+    p_socket.SetUnixPath(path);
   }
 
   // Sends p_request and passes each reply payload to p_visit until the
@@ -417,9 +418,8 @@ class SocketDiag
 
   FileDescriptor socket_;
   std::uint32_t sequence_ = 0;
-  // Large replies take fewer recv calls; the kernel fills up to this much.
-  // Read with memcpy, so its alignment does not matter.
-  std::vector<std::byte> buffer_;
+  // Owned by the caller. Read with memcpy, so its alignment does not matter.
+  std::span<std::byte> buffer_;
 };
 
 }  // namespace triangulator

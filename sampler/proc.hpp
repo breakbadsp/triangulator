@@ -31,7 +31,7 @@ using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
   else
   {
     const auto& name = std::get<TargetName>(p_selector).value_;
-    const Directory directory{::opendir("/proc")};
+    Directory directory{"/proc"};
     if (!directory)
     {
       if (DescriptorsExhausted(errno))
@@ -40,15 +40,15 @@ using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
       }
       return std::nullopt;
     }
-    while (const auto* entry = ::readdir(directory.get()))
+    while (const auto entry = directory.Next())
     {
-      const auto candidate = ParseNumber<int>(entry->d_name);
+      const auto candidate = ParseNumber<int>(*entry);
       if (!candidate || *candidate <= 0)
       {
         continue;
       }
       const auto descriptor =
-          OpenReadonly(std::format("/proc/{}/comm", *candidate).c_str());
+          OpenReadonly(FixedString{"/proc/{}/comm", *candidate}.CStr());
       if (!descriptor && DescriptorsExhausted(errno))
       {
         return std::unexpected(errno);
@@ -78,7 +78,7 @@ using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
     return std::nullopt;
   }
   const auto descriptor =
-      OpenReadonly(std::format("/proc/{}/stat", pid).c_str());
+      OpenReadonly(FixedString{"/proc/{}/stat", pid}.CStr());
   if (!descriptor && DescriptorsExhausted(errno))
   {
     return std::unexpected(errno);
@@ -117,7 +117,7 @@ class Thread
 
   struct Sample
   {
-    wire::RecordBytes record_;
+    wire::Record record_;
     bool wchan_hidden_;
   };
 
@@ -149,9 +149,10 @@ class Thread
                   .and_then(ParseSchedstat);
     if (!counters)
     {
-      p_logger.Warn(p_fallback ? "status counters unreadable; sample omitted"
-                               : "schedstat unreadable; validate host support "
-                                 "or configure status_fallback = true");
+      p_logger.Warn("{}", p_fallback
+                              ? "status counters unreadable; sample omitted"
+                              : "schedstat unreadable; validate host support "
+                                "or configure status_fallback = true");
       return std::nullopt;
     }
     const auto io = ReadFile(io_, p_pid, "io", buffer).and_then(ParseIo);
@@ -181,7 +182,7 @@ class Thread
       return ReadAtStart(p_descriptor, p_buffer);
     }
     auto opened = OpenReadonly(
-        std::format("/proc/{}/task/{}/{}", p_pid, tid_, p_name).c_str());
+        FixedString{"/proc/{}/task/{}/{}", p_pid, tid_, p_name}.CStr());
     const auto contents = ReadAtStart(opened, p_buffer);
     if (keep_descriptors_)
     {
@@ -213,7 +214,7 @@ class ThreadCache
                             Thread::kDescriptorsPerThread
                       : 0)
   {
-    threads_.reserve(wire::kMaxThreads);
+    threads_.reserve(wire::kMaxThreads);  // the only allocation; at startup
   }
   void Clear() noexcept
   {
@@ -247,8 +248,7 @@ class ThreadCache
       threads_[index].seen_ = false;
       lookup[slot_for(threads_[index].Tid())] = index + 1;
     }
-    const Directory directory{
-        ::opendir(std::format("/proc/{}/task", p_pid).c_str())};
+    Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
     if (!directory)
     {
       // Out of descriptors: keep the cache as it is and try again next tick.
@@ -258,9 +258,9 @@ class ThreadCache
       }
       return;
     }
-    while (const auto* entry = ::readdir(directory.get()))
+    while (const auto entry = directory.Next())
     {
-      const auto tid = ParseNumber<int>(entry->d_name);
+      const auto tid = ParseNumber<int>(*entry);
       if (!tid || *tid <= 0)
       {
         continue;
@@ -276,10 +276,10 @@ class ThreadCache
         const bool keep = kept_ < max_kept_;
         if (!keep)
         {
-          p_logger.Warn(std::format(
+          p_logger.Warn(
               "descriptor limit allows keeping files open for {} threads; "
               "others reopen their /proc files every tick",
-              max_kept_));
+              max_kept_);
         }
         kept_ += static_cast<std::size_t>(keep);
         threads_.emplace_back(*tid, keep);

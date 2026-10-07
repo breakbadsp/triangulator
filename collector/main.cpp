@@ -22,6 +22,7 @@
 #include "config.hpp"
 #include "engine.hpp"
 #include "http.hpp"
+#include "ingest.hpp"
 #include "json.hpp"
 #include "log.hpp"
 #include "protocol.hpp"
@@ -48,52 +49,6 @@ void HandleStopSignal(int)
                "triangulator-collector: error: %.*s\n",
                static_cast<int>(p_message.size()), p_message.data());
   std::exit(2);
-}
-
-[[nodiscard]] std::string PeerAddress(const sockaddr_storage& p_peer)
-{
-  std::array<char, INET6_ADDRSTRLEN> buffer{};
-  const void* address =
-      p_peer.ss_family == AF_INET6
-          ? static_cast<const void*>(
-                &reinterpret_cast<const sockaddr_in6&>(p_peer).sin6_addr)
-          : static_cast<const void*>(
-                &reinterpret_cast<const sockaddr_in&>(p_peer).sin_addr);
-  ::inet_ntop(p_peer.ss_family, address, buffer.data(),
-              static_cast<socklen_t>(buffer.size()));
-  return buffer.data();
-}
-
-// Writes the rows the monitors produced since the last call. On failure the
-// rows stay pending and the error is returned.
-[[nodiscard]] SqliteResult WriteRows(Monitor& p_monitor,
-                                     ResourceMonitor& p_resources,
-                                     Storage& p_storage)
-{
-  for (const auto& row : p_resources.PendingRows())
-  {
-    if (auto written = p_storage.Resource(row); !written)
-    {
-      return written;
-    }
-  }
-  p_resources.ClearRows();
-  for (const auto& row : p_monitor.PendingRollups())
-  {
-    if (auto written = p_storage.Rollup(row); !written)
-    {
-      return written;
-    }
-  }
-  for (const auto& row : p_monitor.PendingRaw())
-  {
-    if (auto written = p_storage.Raw(row); !written)
-    {
-      return written;
-    }
-  }
-  p_monitor.ClearRows();
-  return {};
 }
 
 int Stopped(std::string_view p_reason)
@@ -131,7 +86,6 @@ class SaveOnUnwind
     server_.Stop();
     monitor_.Close();
     resources_.Drain(0, true);
-    static_cast<void>(WriteRows(monitor_, resources_, storage_));
     static_cast<void>(storage_.Close());
   }
 
@@ -173,8 +127,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     return Stopped(flushed.error());
   }
-  Monitor monitor{config, WallNow()};
-  ResourceMonitor resources;
+  StorageSink sink{storage};
+  Monitor monitor{config, WallNow(), sink};
+  ResourceMonitor resources{sink};
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -202,8 +157,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  auto sampler_ip = config.sampler_ip_;
-  auto socket_sampler_ip = config.sampler_ip_;
+  Ingest ingest{config.sampler_ip_, monitor, resources, storage, sink};
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -235,70 +189,16 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     const double now = WallNow();
     if (length >= 0)
     {
-      const auto peer_ip = PeerAddress(peer);
-      const auto data =
-          std::span{buffer.data(), static_cast<std::size_t>(length)};
-      if (data.size() >= 4 && std::memcmp(data.data(), "TSIO", 4) == 0)
-      {
-        if (!socket_sampler_ip || peer_ip == *socket_sampler_ip)
-        {
-          if (const auto observation =
-                  triangulator::socket_metrics::Decode(data))
-          {
-            socket_sampler_ip = peer_ip;
-            storage_ok = storage.Socket(now, *observation, data);
-          }
-          else
-          {
-            ++monitor.bad_packets_;
-          }
-        }
-      }
-      else if (data.size() >= 4 && std::memcmp(data.data(), "TRES", 4) == 0)
-      {
-        if (!sampler_ip || peer_ip == *sampler_ip)
-        {
-          if (auto part = triangulator::resource_wire::Decode(data))
-          {
-            if (!sampler_ip)
-            {
-              sampler_ip = peer_ip;
-              Log(LogLevel::Info,
-                  std::format("Pinned sampler source to {}", peer_ip));
-            }
-            resources.Accept(std::move(*part), now);
-            storage_ok = WriteRows(monitor, resources, storage);
-          }
-          else
-          {
-            ++resources.bad_parts_;
-          }
-        }
-      }
-      else if (!sampler_ip || peer_ip == *sampler_ip)
-      {
-        auto packet = Decode(data);
-        if (!packet)
-        {
-          ++monitor.bad_packets_;
-        }
-        else
-        {
-          if (!sampler_ip)
-          {
-            sampler_ip = peer_ip;
-            Log(LogLevel::Info,
-                std::format("Pinned sampler source to {}", peer_ip));
-          }
-          monitor.Accept(std::move(*packet), now);
-          storage_ok = WriteRows(monitor, resources, storage);
-        }
-      }
+      storage_ok = ingest.Handle(
+          std::span{buffer.data(), static_cast<std::size_t>(length)},
+          PeerAddress(peer), now);
     }
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
       auto health = monitor.Health(now);
-      health.Set("sampler_ip", Json(sampler_ip));
+      health.Set("sampler_ip", ingest.SamplerIp()
+                                   ? Json(ingest.SamplerIp()->View())
+                                   : Json(nullptr));
       auto live = monitor.Snapshot(now);
       live.Set("health", std::move(health));
       resources.Drain(now);
@@ -311,7 +211,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         recorder.Offer(now, body);
       }
       state.SetLive(std::move(body));
-      storage_ok = WriteRows(monitor, resources, storage);
+      storage_ok = sink.Status();
       if (storage_ok)
       {
         storage_ok = storage.Flush(now);
@@ -326,7 +226,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   resources.Drain(0, true);
   if (storage_ok)
   {
-    storage_ok = WriteRows(monitor, resources, storage);
+    storage_ok = sink.Status();
   }
   // Close even after a failure, so rows from other day files still commit.
   const auto closed = storage.Close();

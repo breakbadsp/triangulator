@@ -1,21 +1,37 @@
-# Triangulator
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="Triangulator: see what every thread of a Linux process is doing. Live, and as it was." width="100%">
+</p>
 
-Linux thread monitoring using `/proc`: a C++23 sampler sends UDP to a C++
-collector with a live dashboard and daily SQLite history. Alerting is a separate
-module (`alerting/`) that is not wired up yet, so for now nothing sends alerts.
-Start with the [architecture diagrams](docs/architecture.md); see the
-[full design](docs/thread-monitor-design.md) for details.
+<p align="center">
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#see-it-work">Tour</a> ·
+  <a href="#time-travel">Replay</a> ·
+  <a href="#performance">Performance</a> ·
+  <a href="#deploy-by-copying">Deploy</a> ·
+  <a href="docs/thread-monitor-design.md">Design</a>
+</p>
 
-The sampler also reports what the threads share: pressure stalls (PSI) for the
-host and the target's cgroup, descriptor headroom, storage I/O, the target's
-socket queues and buffers, and its network namespace's drops and overflows. See
-[Pressure, limits and socket buffers](docs/resource-monitoring.md). For coverage
-and proposed Linux metrics, see
-[Linux monitoring coverage and priorities](docs/linux-monitoring.md) and the
-[prioritized monitoring TODO](TODO.md).
+## How it works
+
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="Animated architecture: the sampler reads /proc and sends UDP datagrams to the collector. The collector writes SQLite day files and serves the dashboard over HTTP. A separate alerting module is not wired up yet." width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/features.svg" alt="Animated cards: thread states change, wait timelines scroll, pressure meters rise and fall" width="100%">
+</p>
 
 ## Quick start
 
+<p align="center">
+  <img src="docs/assets/quickstart.svg" alt="Terminal animation: scripts/start.sh, then scripts/set-target.sh ghostty" width="100%">
+</p>
+
+Then open <http://127.0.0.1:9401>.
+
+<details>
+<summary>Read more</summary>
 Two programs: the **sampler** runs next to the process you want to watch and sends
 its threads' stats over UDP; the **collector** receives them and serves the dashboard.
 To build and start everything on one machine:
@@ -94,13 +110,74 @@ config paths, the optional `scripts/start.sh collector path/to/collector.toml` a
 with `scripts/stop.sh collector` and `scripts/stop.sh sampler`. To deploy with
 systemd, see [Production setup](#production-setup).
 
+</details>
+
+## See it work
+
+<p align="center">
+  <img src="docs/assets/dashboard-tour.gif" alt="Animated tour of the Triangulator dashboard" width="880">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme-overview.png" alt="Process overview"></td>
+    <td width="50%"><img src="docs/screenshots/readme-thread-map.png" alt="Thread map"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme-resources.png" alt="Pressure, limits and sockets"></td>
+    <td width="50%"><img src="docs/screenshots/readme-threads.png" alt="Thread table"></td>
+  </tr>
+</table>
+
+## Time travel
+
+<p align="center">
+  <img src="docs/assets/replay.svg" alt="A scrubber moves along a CPU timeline. The thread tiles freeze to the recorded state at each position." width="100%">
+</p>
+
+Turn on `replay_interval_s`, then use **Inspect a moment**. See the
+[recording notes](collector/README.md#historical-process-inspection).
+
+## Performance
+
+<p align="center">
+  <img src="docs/assets/performance.svg" alt="Charts: at 1,000 threads and 10 Hz the C++ collector used 4.08 percent of one core against 32.2 for Python, and its dashboard p95 latency was 0.89 ms against 78.8 ms." width="100%">
+</p>
+
+Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
+
+## Loss and reordering
+
+<p align="center">
+  <img src="docs/assets/resilience.svg" alt="Datagrams arrive out of order and one is lost. The collector puts them in order and still builds the tick." width="100%">
+</p>
+
+## Deploy by copying
+
+<p align="center">
+  <img src="docs/assets/deploy.svg" alt="Two binaries are copied to two hosts. Each host needs zero dependencies." width="100%">
+</p>
+
+Alerting is a separate module that is not wired up yet
+([details](#alerting)). More metrics:
+[coverage](docs/linux-monitoring.md), [resource monitoring](docs/resource-monitoring.md),
+[TODO](TODO.md). Also see the [architecture diagrams](docs/architecture.md).
+
+# Reference
+
 ## Requirements and build
+
+<details>
+<summary>Read more</summary>
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
 Make, the compiler's static C/C++ runtime libraries, and libsqlite3 development
-files for the collector. Python 3.11+ is needed only for tests, the optional
-sampler control scripts and alerting; it needs no third-party packages.
-The basic startup script uses Bash, sed and getconf.
+files for the collector (not needed with the SQLite amalgamation, see below).
+Python 3.11+ is needed only for tests, the optional sampler control scripts,
+alerting and `make sqlite-amalgamation`; it needs no third-party packages.
+Node.js is optional: without it `make check` skips the dashboard JavaScript tests.
+The basic startup script uses Bash, sed and getconf and checks them, Make and
+the compiler before it creates any file.
 Binary-only deployments without `scripts/sampler_control.py` serve monitoring
 without Python; the dashboard hides target control there.
 
@@ -111,6 +188,20 @@ make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
 ```
 
+To use a different compiler, set `CXX` on the command line or in the
+environment. Do not edit the Makefile. The same variable builds the SQLite
+amalgamation, so no separate C compiler setting exists. Make stops with a clear
+message if the compiler cannot build C++23.
+
+```sh
+make CXX=g++-14                    # for example a newer GCC next to the system one
+CXX=clang++-19 make check
+```
+
+On a system with a compiler toolset (for example GCC Toolset on AlmaLinux 9),
+put the toolset's `bin` directory on `PATH` or give the full path in `CXX`.
+Changing `CXX`, `CXXFLAGS` or the link options rebuilds every program.
+
 The sampler links fully statically by default. The collector and socket report
 helper embed libstdc++ and libgcc, leaving libc and SQLite as shared libraries.
 Builds do not download anything. To build all three programs fully statically:
@@ -120,19 +211,24 @@ make release                       # requires the system's static SQLite library
 make check STATIC=1                 # test those same release binaries
 ```
 
-If your distribution does not ship `libsqlite3.a`, provide `sqlite3.c` and
-`sqlite3.h` from the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
-in the same directory:
+If your distribution does not ship `libsqlite3.a`, `make release` stops and says
+so. Use the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
+instead. `make sqlite-amalgamation` is the only target that uses the network. It
+downloads the amalgamation, checks the published SHA3-256 hash and writes
+`build/sqlite/sqlite3.c`. It needs Python 3. You can also download the files
+yourself and give the path of `sqlite3.c`; `sqlite3.h` must be in the same
+directory:
 
 ```sh
-make release SQLITE_SOURCE=/path/to/sqlite3.c
-make check STATIC=1 SQLITE_SOURCE=/path/to/sqlite3.c
+make sqlite-amalgamation
+make release SQLITE_SOURCE=build/sqlite/sqlite3.c
+make check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c
 ```
 
 This compiles SQLite directly into the collector and report helper, with dynamic
-extension loading disabled. A C compiler is needed for that option. `release`
-uses readelf to reject a dynamic loader or shared-library dependencies and fails
-if static libraries are missing. Use numeric `udp_host` and `http_host` addresses
+extension loading disabled. No separate C compiler is needed. `release` uses
+readelf to reject a dynamic loader or shared-library dependencies and fails if
+static libraries are missing. Use numeric `udp_host` and `http_host` addresses
 in static releases; glibc hostname resolution can require runtime NSS modules.
 The optional eBPF source remains a separate build (`make socket-sampler`) and
 needs libbpf; it is not included in `release`.
@@ -166,7 +262,12 @@ next to the collector. The sampler can be deployed on its own, with its config.
 Static linking does not remove CPU architecture or Linux kernel requirements.
 Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
 
+</details>
+
 ## Configuration
+
+<details>
+<summary>Read more</summary>
 
 - **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
   booleans and `#` comments. Unknown or duplicate keys and malformed values are
@@ -184,7 +285,12 @@ Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
   - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
     format does not carry it.
 
+</details>
+
 ## Dashboard
+
+<details>
+<summary>Read more</summary>
 
 The page opens on a **process overview**, built in the browser from `/api/live`
 (nothing extra is sampled or stored):
@@ -257,7 +363,12 @@ those bounds and the latest recorded process view at or before that timestamp.
 Add `direction=previous` or `direction=next` to step strictly before or after it.
 A missing recording returns `snapshot: null`; unreadable day files are skipped.
 
+</details>
+
 ## Production setup
+
+<details>
+<summary>Read more</summary>
 
 The units in `deploy/` are templates with a placeholder target user and collector
 IP; edit them first. Install the sampler, collector and `triangulator-socket-report`
@@ -298,7 +409,12 @@ Checklist before going live (design section 12):
   even if the collector stops, so watch the collector and sampler units by other
   means.
 
+</details>
+
 ## How it behaves
+
+<details>
+<summary>Read more</summary>
 
 - **Wire format:** 48-byte header and 112-byte records (version 2), little-endian,
   at most 10 threads per datagram. A tick holds at most 2,550 threads; the rest are
@@ -320,13 +436,20 @@ Checklist before going live (design section 12):
   session and process. Values the sampler could not read stay unavailable,
   never zero. One `resource_sample` row per sample is stored.
 - **Storage:** live samples expire after ten minutes and are capped by
-  `max_live_samples` (default one million). History is one SQLite file per UTC
-  day (WAL mode) with per-thread rollups, committed every half second.
+  `max_live_samples` (default one million, at most ten million; the collector
+  reserves about 280 bytes of address space per sample at startup). History
+  is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
+  every half second.
   `store_raw = true` also saves decoded records. Retention deletes whole day files,
   keeping today and the previous `retention_days - 1`. Old day files gain new
   columns when opened.
 
+</details>
+
 ## Collector
+
+<details>
+<summary>Read more</summary>
 
 `collector/` is the core collector, written in C++ (`scripts/start.sh`,
 `deploy/triangulator-collector.service`):
@@ -344,7 +467,12 @@ The collector replaced an earlier Python collector, which was removed after the
 C++ one was shown to store identical rollups for several times less CPU and
 memory: see [docs/collector-comparison.md](docs/collector-comparison.md).
 
+</details>
+
 ## Alerting
+
+<details>
+<summary>Read more</summary>
 
 Nothing sends alerts at the moment. The collector has no alert rules, no dashboard
 alert settings and no webhook, dead-man or email delivery. Alerting will be a
@@ -356,7 +484,12 @@ remind, resolve), the alert event log and webhook/email delivery. It is not
 connected to the collector and does not run. [alerting/README.md](alerting/README.md)
 describes what is there and what is missing, including each rule's condition.
 
+</details>
+
 ## Socket I/O and messages processed
+
+<details>
+<summary>Read more</summary>
 
 The C++ dashboard includes received/sent socket bytes, monitoring-period totals
 and averages, recent minimum/maximum rates, and a breakdown by thread and socket
@@ -393,7 +526,12 @@ Message counts remain unavailable without an application completion marker;
 socket traffic alone cannot tell when a message has finished processing.
 Restart the wrapper when switching targets or when the target process restarts.
 
+</details>
+
 ## Layout
+
+<details>
+<summary>Read more</summary>
 
 - `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
   parsing and cache, RAII resources, and the resource probe: `resources.hpp`,
@@ -414,6 +552,8 @@ Restart the wrapper when switching targets or when the target process restarts.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).
+
+</details>
 
 ## License
 

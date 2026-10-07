@@ -124,8 +124,8 @@ enum class DecodeError
   {
     return std::unexpected(DecodeError::ShortHeader);
   }
-  const auto version = ReadLittleEndian<std::uint16_t>(p_bytes, 0);
-  if (version != kProtocolVersion)
+  const auto header = FromBytes<Header>(p_bytes);
+  if (header.version_ != kProtocolVersion)
   {
     return std::unexpected(DecodeError::BadVersion);
   }
@@ -491,9 +491,8 @@ private:
 | **T.120** | Template metaprogramming only when `constexpr` can't do the job |
 
 ```cpp
-template <std::unsigned_integral TNumber>
-[[nodiscard]] TNumber ReadLittleEndian(std::span<const std::byte> p_bytes,
-                                       std::size_t p_offset);
+template <WireStruct TWire>
+[[nodiscard]] TWire FromBytes(std::span<const std::byte> p_data) noexcept;
 ```
 
 ## Standard library
@@ -526,6 +525,10 @@ code is in C++. These rules keep it fast.
 - **Don't allocate on every datagram.** Reuse buffers. Set bounds once at
   startup. Keep maps keyed by thread so they don't rebuild on each tick.
   Allocation at startup, and when a new thread first appears, is fine.
+  The sampler is stricter: it allocates only at startup and on a reload
+  (see `docs/tigerstyle-adaption.md`).
+  The collector is also stricter: its datagram path allocates only at
+  startup (see `docs/collector-allocations.md`).
 - **Put a limit on everything.** Each loop over external data has a maximum
   (threads per packet, bytes per datagram, entries in a cache). Hitting a
   limit is an operating error: count it, log it once, and carry on. The

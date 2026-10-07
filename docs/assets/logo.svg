@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 140" width="560" height="140" role="img" aria-labelledby="t">
+  <title id="t">Triangulator</title>
+  <style>
+    .word { fill: #0f1a33; font: 700 62px/1 Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; letter-spacing: -1.5px; }
+    .sub  { fill: #4f5f86; font: 600 15px/1 Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; letter-spacing: 3.2px; }
+    @media (prefers-color-scheme: dark) {
+      .word { fill: #f2f5ff; }
+      .sub  { fill: #9db0d6; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="edge" x1="14" y1="93" x2="64" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2f6fe0"/>
+      <stop offset="1" stop-color="#8b6cf0"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(6 6)">
+    <circle cx="64" cy="64" r="57.7" fill="none" stroke="#6f86c9" stroke-opacity="0.45" stroke-width="1.2" stroke-dasharray="2 4"/>
+    <path d="M64 6.3V64M14 92.9 64 64M114 92.9 64 64" stroke="#6f86c9" stroke-opacity="0.6" stroke-width="1.4"/>
+    <circle cx="64" cy="64" r="28.9" fill="none" stroke="#6f86c9" stroke-opacity="0.65" stroke-width="1.6"/>
+    <path d="M64 6.3 114 92.9H14Z" fill="none" stroke="url(#edge)" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="#0b1220" stroke="url(#edge)" stroke-width="3">
+      <circle cx="64" cy="6.3" r="5.5"/><circle cx="114" cy="92.9" r="5.5"/><circle cx="14" cy="92.9" r="5.5"/>
+    </g>
+    <circle cx="64" cy="64" r="9" fill="#f26a2e" fill-opacity="0.22"/>
+    <circle cx="64" cy="64" r="5.2" fill="#f26a2e"/>
+  </g>
+  <text class="word" x="160" y="82">Triangulator</text>
+  <text class="sub" x="164" y="112">THREAD MONITORING FOR LINUX</text>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-labelledby="t d">
+<title id="t">Triangulator performance</title>
+<desc id="d">Bar charts comparing the earlier Python collector with the C++ collector doing the same work. At 1,000 threads and 10 Hz the C++ collector used 4.08 percent of one core against 32.2 for Python, and its dashboard API p95 latency was 0.89 milliseconds against 78.8. At 2,500 threads it used 12.3 against 71.7 percent, and 1.69 against 22.0 milliseconds.</desc>
+<style>
+:root { --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#7a7972; --rule:#e4e3dc; --tile:#f4f3ee; --cpp:#2a78d6; --py:#eb6834; }
+@media (prefers-color-scheme: dark) { :root { --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#8f8e85; --rule:#33332f; --tile:#242422; --cpp:#3987e5; --py:#d95926; } }
+text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; fill: var(--ink); }
+.t2 { fill: var(--ink2); } .mu { fill: var(--muted); }
+.big { font-size: 38px; font-weight: 700; letter-spacing: -1px; }
+.lab { font-size: 13px; } .val { font-size: 14px; font-weight: 700; } .ct { font-size: 15px; font-weight: 700; }
+.bar-cpp { fill: var(--cpp); } .bar-py { fill: var(--py); }
+</style>
+<rect width="1200" height="600" rx="20" fill="var(--surface)"/>
+<text x="36" y="52" style="font-size:24px;font-weight:700">Fast where it counts</text>
+<text class="t2" x="36" y="76" style="font-size:14px">Numbers from the C++ collector today, and a side-by-side run against the Python collector it replaced.</text>
+<rect x="36" y="96" width="273" height="104" rx="12" fill="var(--tile)"/>
+<text class="big" x="54" y="144">2.2%</text>
+<text class="ct" x="54" y="168">of one core</text>
+<text class="lab t2" x="54" y="187">collector at 1,000 threads, 10 Hz</text>
+<rect x="325" y="96" width="273" height="104" rx="12" fill="var(--tile)"/>
+<text class="big" x="343" y="144">0.72 ms</text>
+<text class="ct" x="343" y="168">p95 /api/live</text>
+<text class="lab t2" x="343" y="187">same load, dashboard stays smooth</text>
+<rect x="614" y="96" width="273" height="104" rx="12" fill="var(--tile)"/>
+<text class="big" x="632" y="144">1.9 MB</text>
+<text class="ct" x="632" y="168">sampler memory</text>
+<text class="lab t2" x="632" y="187">static binary, 41 threads at 5 Hz</text>
+<rect x="903" y="96" width="273" height="104" rx="12" fill="var(--tile)"/>
+<text class="big" x="921" y="144">0</text>
+<text class="ct" x="921" y="168">packets lost</text>
+<text class="lab t2" x="921" y="187">in every comparison run</text>
+<text x="36" y="244" class="ct">CPU used</text>
+<text x="36" y="263" class="lab t2">% of one core · lower is better</text>
+<text x="36" y="292" class="lab t2" style="font-weight:600">1,000 threads · 10 Hz</text>
+<text x="576" y="292" class="lab mu" text-anchor="end">7.9× less</text>
+<text x="36" y="320" class="lab t2">Python</text>
+<rect class="bar-py" x="88" y="304" width="161.0" height="22" rx="4"><animate attributeName="width" values="0;0;161.0;161.0;0" keyTimes="0;0.0000;0.1600;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="257.0" y="320" class="val">32.2%</text>
+<text x="36" y="356" class="lab t2">C++</text>
+<rect class="bar-cpp" x="88" y="340" width="20.4" height="22" rx="4"><animate attributeName="width" values="0;0;20.4;20.4;0" keyTimes="0;0.0214;0.1814;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="116.4" y="356" class="val">4.08%</text>
+<text x="36" y="410" class="lab t2" style="font-weight:600">2,500 threads · 10 Hz</text>
+<text x="576" y="410" class="lab mu" text-anchor="end">5.8× less</text>
+<text x="36" y="438" class="lab t2">Python</text>
+<rect class="bar-py" x="88" y="422" width="358.5" height="22" rx="4"><animate attributeName="width" values="0;0;358.5;358.5;0" keyTimes="0;0.0429;0.2029;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="454.5" y="438" class="val">71.7%</text>
+<text x="36" y="474" class="lab t2">C++</text>
+<rect class="bar-cpp" x="88" y="458" width="61.5" height="22" rx="4"><animate attributeName="width" values="0;0;61.5;61.5;0" keyTimes="0;0.0643;0.2243;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="157.5" y="474" class="val">12.3%</text>
+<text x="624" y="244" class="ct">Dashboard API latency</text>
+<text x="624" y="263" class="lab t2">p95 of /api/live, ms · lower is better</text>
+<text x="624" y="292" class="lab t2" style="font-weight:600">1,000 threads · 10 Hz</text>
+<text x="1164" y="292" class="lab mu" text-anchor="end">88× less</text>
+<text x="624" y="320" class="lab t2">Python</text>
+<rect class="bar-py" x="676" y="304" width="394.0" height="22" rx="4"><animate attributeName="width" values="0;0;394.0;394.0;0" keyTimes="0;0.0000;0.1600;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="1078.0" y="320" class="val">78.8 ms</text>
+<text x="624" y="356" class="lab t2">C++</text>
+<rect class="bar-cpp" x="676" y="340" width="4.5" height="22" rx="4"><animate attributeName="width" values="0;0;4.5;4.5;0" keyTimes="0;0.0214;0.1814;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="688.5" y="356" class="val">0.89 ms</text>
+<text x="624" y="410" class="lab t2" style="font-weight:600">2,500 threads · 10 Hz</text>
+<text x="1164" y="410" class="lab mu" text-anchor="end">13× less</text>
+<text x="624" y="438" class="lab t2">Python</text>
+<rect class="bar-py" x="676" y="422" width="110.0" height="22" rx="4"><animate attributeName="width" values="0;0;110.0;110.0;0" keyTimes="0;0.0429;0.2029;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="794.0" y="438" class="val">22.0 ms</text>
+<text x="624" y="474" class="lab t2">C++</text>
+<rect class="bar-cpp" x="676" y="458" width="8.4" height="22" rx="4"><animate attributeName="width" values="0;0;8.4;8.4;0" keyTimes="0;0.0643;0.2243;0.92;1" dur="7s" repeatCount="indefinite" calcMode="linear"/></rect>
+<text x="692.5" y="474" class="val">1.69 ms</text>
+<line x1="600" y1="236" x2="600" y2="520" stroke="var(--rule)"/>
+<rect x="36" y="526" width="12" height="12" rx="3" class="bar-cpp"/><text x="56" y="537" class="lab t2">C++ collector</text>
+<rect x="160" y="526" width="12" height="12" rx="3" class="bar-py"/><text x="180" y="537" class="lab t2">Python collector (removed)</text>
+<text class="lab mu" x="36" y="568">Intel Core i5-9500, 2026-10-04. Bars: both collectors did the same work, alerting included, on identical input. Tiles: current collector, no alerting.</text>
+<text class="lab mu" x="36" y="586">Sources: docs/collector-comparison.md and a fresh run on the same CPU. One run per case. See the notes there.</text>
+</svg>

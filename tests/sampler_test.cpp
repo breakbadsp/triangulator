@@ -160,7 +160,7 @@ void TestWire()
       wire::EncodeSample(0x01020304, stat, {10, 11}, IoCounters{12, 13},
                          ParseWchan("futex_do_wait"));
   RequireHex(
-      record,
+      wire::AsBytes(record),
       "04030201530002010807060504030201090000000000000"
       "00a000000000000000b0000000000000005000000000000000c000000000000000d00000"
       "000000000"
@@ -168,19 +168,19 @@ void TestWire()
       "66757465785f646f5f7761697400000000000000000000000000000000000000");
   const auto missing_io =
       wire::EncodeSample(1, stat, {10, 11}, std::nullopt, WaitChannel{});
-  Require(missing_io[5] == std::byte{1}, "unreadable io is flagged");
-  std::array<std::byte, wire::kHeaderSize> header{};
-  wire::EncodeHeader(header, {.flags_ = wire::Flags::StatusFallback,
-                              .chunk_ = 1,
-                              .chunks_ = 3,
-                              .session_ = 0x0102030405060708ULL,
-                              .sequence_ = 0x090a0b0c,
-                              .records_ = 1,
-                              .monotonic_ns_ = 12,
-                              .wall_ns_ = 13,
-                              .interval_ms_ = 1000,
-                              .pid_ = 0x01020304});
-  RequireHex(header,
+  Require(missing_io.flags_ == wire::RecordFlags::IoUnavailable,
+          "unreadable io is flagged");
+  const wire::Header header{.flags_ = wire::Flags::StatusFallback,
+                            .chunk_ = 1,
+                            .chunks_ = 3,
+                            .session_ = 0x0102030405060708ULL,
+                            .sequence_ = 0x090a0b0c,
+                            .records_ = 1,
+                            .monotonic_ns_ = 12,
+                            .wall_ns_ = 13,
+                            .interval_ms_ = 1000,
+                            .pid_ = 0x01020304};
+  RequireHex(wire::AsBytes(header),
              "544d4f4e0202010308070605040302010c0b0a09010000000c000000000000000"
              "d00000000000000e803000004030201");
 }
@@ -363,19 +363,22 @@ void TestSocketRanking()
   auto sender = SyntheticSocket(2, 0);
   sender.wmem_queued_ = 900;
   Require(Fullness(sender) == 0.9, "a nearly full send buffer");
-  std::vector<resource_wire::Socket> sockets;
+  FullestSockets fullest;
   for (std::uint32_t fd = 10; fd < 40; ++fd)
   {
-    sockets.push_back(SyntheticSocket(fd, fd));
+    fullest.Add(SyntheticSocket(fd, fd));
   }
-  sockets.push_back(sender);
-  Require(KeepFullest(sockets), "more than kMaxSockets are cut");
+  fullest.Add(sender);
+  const auto sockets = fullest.Sorted();
+  Require(fullest.Truncated(), "more than kMaxSockets are cut");
   Require(sockets.size() == resource_wire::kMaxSockets &&
               sockets.front().fd_ == 2 && sockets[1].fd_ == 39 &&
               sockets.back().fd_ == 17,
           "the fullest sockets are kept, fullest first");
-  std::vector<resource_wire::Socket> few{SyntheticSocket(1, 0)};
-  Require(!KeepFullest(few) && few.size() == 1, "few sockets are all kept");
+  fullest.Clear();
+  fullest.Add(SyntheticSocket(1, 0));
+  Require(!fullest.Truncated() && fullest.Sorted().size() == 1,
+          "few sockets are all kept");
 }
 
 const resource_wire::Socket* FindSocket(const ResourceSample& p_sample,
@@ -516,8 +519,8 @@ void TestResourceProbe()
 std::size_t OpenDescriptors()
 {
   std::size_t count = 0;
-  const Directory directory{::opendir("/proc/self/fd")};
-  while (::readdir(directory.get()))
+  Directory directory{"/proc/self/fd"};
+  while (directory.Next())
   {
     ++count;
   }
