@@ -12,6 +12,16 @@ collector_bin="$root/build/triangulator-collector"
 
 if [[ $# -eq 0 ]]; then
     cd "$root"
+    # Check the build tools first, so a missing one leaves no half-made setup.
+    missing=()
+    for tool in make sed getconf "${CXX:-c++}"; do
+        command -v "$tool" >/dev/null || missing+=("$tool")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "required command not found: ${missing[*]}" >&2
+        echo "Install the build tools (see README, Requirements and build), then run this script again." >&2
+        exit 1
+    fi
     mkdir -p "$root/config/local"
     for app in sampler collector; do
         config="$root/config/local/$app.toml"
