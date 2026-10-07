@@ -243,6 +243,30 @@ tr.zero td{color:var(--muted)}
 .notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
 kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
+/* Memory map. Kinds use palette roles; guard pages and unmeasured cells use
+   a pattern, so no state depends on color alone. */
+.mm-split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:1050px){.mm-split{grid-template-columns:minmax(0,1fr)}}
+.mm-map{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;max-height:680px;overflow:auto;padding:2px}
+.mm-addr{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);text-align:right;align-self:center;white-space:nowrap}
+.mm-row{position:relative;display:flex;align-items:center;gap:8px;min-height:20px;padding:0 8px;border-radius:6px;border:1px solid var(--line);overflow:hidden;cursor:pointer;text-align:left;font-size:12px;color:#111;background:var(--k,var(--s-other));width:100%}
+.mm-row:hover{outline:2px solid var(--ink);outline-offset:0}
+.mm-row[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:1px}
+.mm-row.unreadable{cursor:default}
+.mm-row .fill{position:absolute;left:0;top:0;bottom:0;background:rgba(0,0,0,.28)}
+.mm-row span{position:relative;z-index:1;white-space:nowrap}
+.mm-row .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mm-row .meta{margin-left:auto;font-family:ui-monospace,monospace;font-size:11px}
+.mm-row .tag{font-size:10.5px;font-weight:650;border-radius:5px;padding:0 5px;background:rgba(255,255,255,.75);color:#111}
+.mm-gap{grid-column:2;height:18px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--line) 6px 12px)}
+.k-heap{--k:var(--series-1);color:#fff}.k-stack{--k:var(--series-2)}.k-anonymous{--k:var(--s-poll)}.k-code{--k:var(--s-other)}.k-data{--k:var(--s-stopped);color:#fff}.k-kernel{--k:var(--s-no_access)}.k-named{--k:var(--s-socket)}.k-other{--k:var(--s-pipe)}
+.k-guard{--k:var(--surface-2);color:var(--muted);background:repeating-linear-gradient(135deg,var(--surface-2) 0 5px,var(--raised) 5px 10px)}
+.mm-grid{display:grid;grid-template-columns:repeat(32,minmax(0,1fr));gap:2px;margin:10px 0}
+.mm-grid i{aspect-ratio:1;border-radius:2px;background:var(--raised)}
+.mm-grid i.swapped{background:repeating-linear-gradient(135deg,var(--series-2) 0 3px,color-mix(in srgb,var(--series-2) 45%,var(--surface)) 3px 6px)}
+.mm-grid i.unmeasured{background:none;border:1px dashed var(--axis)}
+.mm-charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+@media (max-width:1050px){.mm-charts{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:640px){main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
 </style>
 </head>
@@ -251,7 +275,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a id="memory-map-link" href="#memory-map" hidden>Memory map</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -340,6 +364,30 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
 <div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" title="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th title="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" title="Bytes not yet sent or acknowledged">Send-Q</th><th title="Send buffer use">Send buffer</th><th class="num" title="Packets this socket dropped; + in the last interval">Drops</th><th class="num" title="Smoothed round-trip time">RTT</th><th class="num" title="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
 <p id="resource-coverage" class="socket-note"></p></div>
+</div>
+</section>
+
+<!-- The target's address space (docs/process-memory-map-design.md). Shown
+     only when the collector has [memory_map] enabled. The page asks the
+     sampler to read it (a lease) only while this section is on the screen. -->
+<section id="memory-map" class="block" hidden>
+<div class="section-head"><div><h2>Memory map</h2><p id="mm-sub">The virtual address space of the target: heap, stacks, libraries and other mappings. Read without privileges while this section is open.</p></div><span id="mm-status" class="socket-badge" role="status">Waiting for the sampler…</span></div>
+<div id="mm-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+<div class="grid mm-split" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Address space <span id="mm-count" class="muted" style="font-weight:400"></span></h3><p>High addresses at the top. Large unmapped gaps are shortened. Bar height grows with size. Click a readable mapping to see its pages.</p></div><label class="muted" style="font-size:13px"><input id="mm-group" type="checkbox" checked> Group neighbors</label></div>
+<div id="mm-map" class="mm-map"></div>
+<div class="legend"><span><i class="sw k-code" style="background:var(--k)"></i>program / library code</span><span><i class="sw k-data" style="background:var(--k)"></i>file data</span><span><i class="sw k-heap" style="background:var(--k)"></i>heap (brk)</span><span><i class="sw k-anonymous" style="background:var(--k)"></i>anonymous</span><span><i class="sw k-stack" style="background:var(--k)"></i>main stack</span><span><i class="sw k-named" style="background:var(--k)"></i>named anonymous</span><span><i class="sw k-kernel" style="background:var(--k)"></i>kernel</span><span><i class="sw k-guard"></i>guard (no access)</span></div>
+<p class="socket-note">↑ the end moved (the heap grows up) · ↓ the start moved (the stack grows down) · <b>new</b>: appeared since the last read. The dark fill is the resident share; only the selected mapping has one, because measuring every mapping would lock the target's memory map for too long.</p></div>
+<div class="card"><div class="card-head"><div><h3 id="mm-zoom-title">Selected mapping</h3><p id="mm-zoom-sub">Select a mapping to see which of its pages are in RAM.</p></div><button id="mm-clear" hidden>Clear selection</button></div>
+<dl id="mm-facts" class="facts" style="grid-template-columns:repeat(3,minmax(0,1fr))"></dl>
+<div id="mm-grid" class="mm-grid" role="img" aria-label="Pages of the selected mapping"></div>
+<div id="mm-cell-legend" class="legend" hidden><span><i class="sw" style="background:var(--raised)"></i>not resident</span><span><i class="sw" style="background:var(--accent)"></i>resident (darker = more of the cell)</span><span><i class="sw" style="background:repeating-linear-gradient(135deg,var(--series-2) 0 3px,transparent 3px 6px)"></i>swapped out</span><span><i class="sw" style="border:1px dashed var(--axis)"></i>not measured yet</span></div>
+<p id="mm-zoom-note" class="socket-note">The sampler reads <code>/proc/&lt;pid&gt;/pagemap</code> for the selected mapping only: page flags, never the bytes. This briefly locks the target's memory map; the read is limited to 50 ms each cycle.</p></div>
+</div>
+<div class="mm-charts">
+<div class="card"><div class="card-head"><div><h3>Heap size (brk)</h3><p>[heap] end − start. It grows when the allocator calls brk.</p></div></div><div id="mm-chart-heap" class="chart" role="img" aria-label="Heap size history"></div></div>
+<div class="card"><div class="card-head"><div><h3>Main stack size</h3><p>[stack] end − start. The start moves down as the main thread goes deeper.</p></div></div><div id="mm-chart-stack" class="chart" role="img" aria-label="Main stack size history"></div></div>
+<div class="card"><div class="card-head"><div><h3>Resident anonymous</h3><p>RssAnon: heap, stacks and other private memory in RAM.</p></div></div><div id="mm-chart-anon" class="chart" role="img" aria-label="Resident anonymous memory history"></div></div>
 </div>
 </section>
 
@@ -1237,6 +1285,151 @@ element('replay-live').onclick=returnLive;
 element('replay-time').value=localInput(Date.now());
 loadReplayBounds();
 
+// ---------- Memory map ----------
+// The collector serves /api/memory-map only with [memory_map] enabled. The
+// page renews the sampler's lease (POST /api/memory-map/watch) every 5 s and
+// reads the view every 2 s, but only while the section is on the screen and
+// the browser tab is visible. Addresses are hex text (JSON numbers lose
+// precision above 2^53); sizes are numbers.
+const MM_HISTORY_SECS=900,MM_COLUMNS=['start','end','size','offset','inode','device','permissions','kind','changes','flags','name'];
+let memoryMap=null,mmEnabled=false,mmVisible=false,mmSelected=null,mmLayoutKey='',mmHistory=[],mmLastWatch=0,mmTimer=null;
+const hexBig=text=>BigInt('0x'+(text||'0'));
+const shortHex=text=>(text||'').replace(/^0+(?=.)/,'');
+// The color class of a VMA: code, file data, heap, stack, anonymous, guard...
+function mmKind(vma){if(!/[rwx]/.test(vma.permissions.slice(0,3)))return 'guard';
+  if(vma.kind==='file')return vma.permissions[2]==='x'?'code':'data';return {heap:'heap',stack:'stack',anonymous:'anonymous',kernel:'kernel',named:'named'}[vma.kind]||'other'}
+function mmRows(){const layout=memoryMap?.layout;if(!layout)return [];const columns=layout.columns||MM_COLUMNS;
+  return layout.rows.map(row=>{const vma={};columns.forEach((name,index)=>vma[name]=row[index]);vma.class=mmKind(vma);return vma})}
+// Neighbors without a gap that show the same thing become one bar: the
+// segments of one library, a run of anonymous blocks and their guards.
+function mmGroups(rows,grouped){const groups=[];
+  for(const vma of rows){const last=groups.at(-1),prev=last?.items.at(-1);
+    const key=vma.kind==='file'?'file:'+vma.name:['anonymous','guard'].includes(vma.class)?'anonymous':vma.class+':'+vma.start;
+    if(grouped&&last&&last.key===key&&prev.end===vma.start)last.items.push(vma);else groups.push({key,items:[vma]})}
+  for(const group of groups){const items=group.items;group.start=items[0].start;group.end=items.at(-1).end;group.size=items.reduce((sum,item)=>sum+item.size,0);
+    // The bar's color: the largest readable member decides.
+    const readable=items.filter(item=>item.permissions[0]==='r');group.main=(readable.length?readable:items).reduce((best,item)=>item.size>best.size?item:best);
+    group.class=items.length>1&&group.key==='anonymous'?(readable.length?'anonymous':'guard'):group.main.class}
+  return groups}
+function mmLabel(group){const main=group.main,count=group.items.length;
+  if(main.kind==='file'){const name=(main.flags&2?'…':'')+main.name;return name.split('/').at(-1)||name}
+  if(group.key==='anonymous'&&count>1){const guards=group.items.filter(item=>item.class==='guard').length;return `anonymous × ${count-guards}`+(guards?` (+${guards} guard)`:'')}
+  return main.name||(main.class==='guard'?'guard':'anonymous')}
+function renderMemoryMap(){
+  const map=memoryMap,status=element('mm-status');
+  const summary=map?.summary,values=summary?.values||{};
+  const states={waiting:'Waiting for the sampler…',live:'Live',stale:'Stale: no data for a while'};
+  let text=states[map?.state]||'Waiting for the sampler…';
+  if(map?.state==='live'&&summary){const cost=isNum(values.cpu_ns)&&summary.interval_s?values.cpu_ns/1e9/summary.interval_s*100:null;
+    text=`Live · every ${duration(summary.interval_s)} · cost ${cost===null?'?':cost<0.1?'<0.1':cost.toFixed(1)}% of one CPU`+(isNum(values.read_ns_max)?` · longest read ${(values.read_ns_max/1e6).toFixed(2)} ms`:'')}
+  if(summary?.target_absent)text='Target absent';else if(summary?.maps_unreadable)text='No access to /proc/<pid>/maps';
+  status.textContent=text;status.className='socket-badge'+(map?.state==='live'&&!summary?.maps_unreadable?'':' socket-warning');
+  element('mm-sub').textContent=!summary?'Waiting for the sampler. It sends data only while this section is open. If this stays, check memory_map_enabled, the token and the control port.'
+    :summary.maps_unreadable?'The sampler cannot read this process\'s memory map: it runs as another user, or the process is not dumpable.'
+    :`The virtual address space of ${targetName()}: heap, stacks, libraries and other mappings. Read without privileges while this section is open.`;
+  renderMemoryTiles(values,summary);
+  const layout=map?.layout,key=layout?`${layout.session}:${layout.sequence}:${mmSelected}:${element('mm-group').checked}`:'';
+  if(key!==mmLayoutKey){mmLayoutKey=key;renderMemoryLayout()}
+  renderMemoryZoom();renderMemoryCharts()}
+function mmTile(label,value,sub,title){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub||'','sub'));if(title)tile.title=title;return tile}
+function renderMemoryTiles(values,summary){const host=element('mm-tiles');host.replaceChildren();if(!summary)return;
+  const rate=key=>{const [a,b]=mmHistory.slice(-2);return a&&b&&isNum(a[key])&&isNum(b[key])&&b.t>a.t?(b[key]-a[key])/(b.t-a.t):null};
+  const of=(value,limit)=>isNum(value)&&isNum(limit)&&limit>0?pct(100*value/limit):null;
+  host.append(
+    mmTile('Virtual size',bytes(values.vm_size_bytes),isNum(values.rlimit_as_bytes)?`limit ${bytes(values.rlimit_as_bytes)} (${of(values.vm_size_bytes,values.rlimit_as_bytes)})`:'no address-space limit','VmSize: everything mapped, used or not'),
+    mmTile('Resident',bytes(values.vm_rss_bytes),isNum(values.vm_hwm_bytes)?'peak '+bytes(values.vm_hwm_bytes):'','VmRSS: pages in RAM now'),
+    mmTile('Anonymous / file / shmem',[values.rss_anon_bytes,values.rss_file_bytes,values.rss_shmem_bytes].map(bytes).join(' / '),'resident, by kind','RssAnon / RssFile / RssShmem'),
+    mmTile('Mappings (VMAs)',isNum(values.vma_count)?number(values.vma_count,0):'—',isNum(values.max_map_count)?`${of(values.vma_count,values.max_map_count)} of vm.max_map_count`+(summary.truncated?` · ${number(values.vmas_sent,0)} largest shown`:''):'','At vm.max_map_count, mmap fails with ENOMEM'),
+    mmTile('Page faults',isNum(rate('major_faults'))?number(rate('major_faults'))+' /s':'—',isNum(rate('minor_faults'))?'major · minor '+number(rate('minor_faults'))+' /s':'major (from disk)','Major faults need disk I/O; minor faults do not'),
+    mmTile('Swap',bytes(values.vm_swap_bytes),'page tables '+bytes(values.vm_pte_bytes),'VmSwap: this process\'s pages on swap'))}
+function renderMemoryLayout(){const host=element('mm-map');host.replaceChildren();
+  const rows=mmRows(),layout=memoryMap?.layout;
+  element('mm-count').textContent=layout?`${number(rows.length,0)}${layout.truncated?' largest of '+number(layout.vma_count,0):''} · list from ${clock(layout.received_at)}`:'';
+  if(!rows.length){host.append(node('p',memoryMap?.summary?'The VMA list has not arrived yet.':'No data yet.','muted'));host.style.display='block';return}
+  host.style.display='';
+  const groups=mmGroups(rows,element('mm-group').checked).reverse();
+  const detail=memoryMap?.detail,selectedFill=detail&&detail.measured_pages?detail.resident_pages/detail.measured_pages:null;
+  groups.forEach((group,index)=>{
+    const above=groups[index-1];
+    if(above){const gap=Number(hexBig(above.start)-hexBig(group.end));if(gap>=64*1024*1024){host.append(node('span','','mm-addr'));host.append(node('div',`≈ ${bytes(gap)} not mapped`,'mm-gap'))}}
+    const main=group.main,readable=group.items.some(item=>item.permissions[0]==='r');
+    const target=readable?group.items.filter(item=>item.permissions[0]==='r').reduce((best,item)=>item.size>best.size?item:best):null;
+    const bar=node('button',undefined,'mm-row k-'+group.class+(readable?'':' unreadable'));
+    bar.style.minHeight=Math.round(Math.min(44,Math.max(20,20+3*Math.log2(Math.max(1,group.size/(1024*1024))))))+'px';
+    const pressed=target&&group.items.some(item=>item.start===mmSelected);bar.setAttribute('aria-pressed',String(Boolean(pressed)));
+    if(pressed&&isNum(selectedFill)){const fill=node('span',undefined,'fill');fill.style.width=(100*selectedFill).toFixed(1)+'%';bar.append(fill)}
+    bar.append(node('span',mmLabel(group),'name'));
+    const growth=group.items.find(item=>item.changes&6);
+    if(growth)bar.append(node('span',growth.changes&4?'↑ grew':'↓ grew','tag'));
+    else if(group.items.some(item=>item.changes&1))bar.append(node('span','new','tag'));
+    if(group.items.some(item=>item.flags&1))bar.append(node('span','deleted','tag'));
+    if(group.items.some(item=>item.permissions.startsWith('rwx')))bar.append(node('span','rwx','tag'));
+    const perms=[...new Set(group.items.map(item=>item.permissions))].join(' ');
+    bar.append(node('span',`${perms} · ${bytes(group.size)}`,'meta'));
+    const tip=[{value:shortHex(group.start)+'–'+shortHex(group.end),label:''},{value:bytes(group.size),label:group.items.length>1?`in ${group.items.length} mappings`:main.permissions}];
+    if(main.kind==='file')tip.push({value:main.name,label:main.flags&1?'(deleted)':''});
+    bar.addEventListener('pointermove',event=>showTip(event,mmLabel(group),tip));bar.addEventListener('pointerleave',hideTip);
+    if(target)bar.onclick=()=>selectMemoryMapping(mmSelected===target.start?null:target.start);else bar.title='No read permission: nothing to measure';
+    const address=node('span',shortHex(group.end),'mm-addr');address.title='End address (exclusive)';
+    host.append(address,bar)})}
+function selectMemoryMapping(start){mmSelected=start;try{sessionStorage.setItem('triangulator:mm-selected',start||'')}catch{}
+  mmLayoutKey='';mmLastWatch=0;renderMemoryMap();pollMemoryMap()}
+function renderMemoryZoom(){const facts=element('mm-facts'),grid=element('mm-grid');facts.replaceChildren();grid.replaceChildren();
+  const vma=mmSelected?mmRows().find(row=>row.start===mmSelected):null,detail=memoryMap?.detail;
+  element('mm-clear').hidden=!mmSelected;element('mm-cell-legend').hidden=true;
+  if(!mmSelected){element('mm-zoom-title').textContent='Selected mapping';element('mm-zoom-sub').textContent='Select a readable mapping in the address space to see which of its pages are in RAM.';return}
+  element('mm-zoom-title').textContent=vma?`Selected: ${vma.name||vma.kind}`:'Selected mapping';
+  element('mm-zoom-sub').textContent=vma?`${shortHex(vma.start)} – ${shortHex(vma.end)} · ${vma.permissions} · ${vma.kind}`:'This mapping is not in the latest list.';
+  const fact=(label,value)=>{const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item)};
+  const page=memoryMap?.summary?.values?.page_size_bytes||4096;
+  if(!detail||detail.vma_start!==mmSelected){fact('Status','Waiting for the sampler to read the pages…');return}
+  if(detail.status==='not_found'){fact('Status','No mapping starts at this address now: it was unmapped or split.');return}
+  if(detail.status==='unreadable'){fact('Status','pagemap is not readable for this process.');return}
+  const measured=detail.measured_pages*page;
+  fact('Size',vma?bytes(vma.size):'—');
+  fact('Resident',`${bytes(detail.resident_pages*page)} (${detail.measured_pages?pct(100*detail.resident_pages/detail.measured_pages):'—'})`);
+  fact('Swapped',bytes(detail.swapped_pages*page));
+  fact('Shared with other processes',bytes(detail.shared_pages*page));
+  fact('One square',`${bytes(detail.pages_per_cell*page)} (${number(detail.pages_per_cell,0)} pages)`);
+  fact('Read',detail.status==='complete'?`complete · ${(detail.scan_ns/1e6).toFixed(1)} ms this cycle`:`measuring: ${bytes(measured)} of ${vma?bytes(vma.size):'?'} so far`);
+  element('mm-cell-legend').hidden=false;
+  const cells=detail.cells||[];
+  cells.forEach((cell,index)=>{const square=node('i');
+    let label;
+    if(cell===null){square.className='unmeasured';label='not measured yet'}
+    else{const [resident,swapped,shared]=cell.map(value=>value/254);
+      if(swapped>0&&swapped>=resident){square.className='swapped';label=`${pct(100*swapped)} swapped`}
+      else if(resident>0){square.style.background=`color-mix(in srgb,var(--accent) ${Math.round(25+75*resident)}%,var(--raised))`;label=`${pct(100*resident)} resident`+(shared?`, ${pct(100*shared)} shared`:'')}
+      else label='not resident'}
+    const start=hexBig(detail.vma_start)+BigInt(index)*BigInt(detail.pages_per_cell*page);
+    square.addEventListener('pointermove',event=>showTip(event,'0x'+start.toString(16),[{value:label,label:''}]));square.addEventListener('pointerleave',hideTip);
+    grid.append(square)})}
+function renderMemoryCharts(){const points=mmHistory;
+  const chart=(id,get,label)=>timeChart(element(id),{points,series:[{get,color:'var(--series-1)',label}],format:bytes,height:120,empty:'Collecting data while this section is open…'});
+  chart('mm-chart-heap',point=>point.heap,'heap');chart('mm-chart-stack',point=>point.stack,'stack');chart('mm-chart-anon',point=>point.anon,'RssAnon')}
+function recordMemoryHistory(){const summary=memoryMap?.summary;if(!summary)return;const values=summary.values||{};
+  const last=mmHistory.at(-1);if(last&&last.sequence===summary.sequence&&last.session===summary.session)return;
+  if(last&&last.session!==summary.session)mmHistory=[];
+  const span=(start,end)=>start&&end?Number(hexBig(end)-hexBig(start)):null;
+  mmHistory.push({t:summary.received_at,session:summary.session,sequence:summary.sequence,heap:span(values.heap_start,values.heap_end),stack:span(values.stack_start,values.stack_end),anon:values.rss_anon_bytes,major_faults:values.major_faults,minor_faults:values.minor_faults});
+  while(mmHistory.length&&mmHistory[0].t<summary.received_at-MM_HISTORY_SECS)mmHistory.shift()}
+async function watchMemoryMap(){mmLastWatch=Date.now();
+  try{await fetch('/api/memory-map/watch',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify({vma_start:mmSelected})})}catch{}}
+async function pollMemoryMap(){clearTimeout(mmTimer);mmTimer=null;
+  if(!mmEnabled||!mmVisible||document.visibilityState==='hidden'||replayAt!==null)return;
+  if(Date.now()-mmLastWatch>=5000)await watchMemoryMap();
+  try{const response=await fetch('/api/memory-map');if(response.ok){memoryMap=await response.json();recordMemoryHistory();renderMemoryMap()}}catch{}
+  mmTimer=setTimeout(pollMemoryMap,2000)}
+async function startMemoryMap(){try{const response=await fetch('/api/memory-map');if(!response.ok)return;memoryMap=await response.json()}catch{return}
+  mmEnabled=true;element('memory-map').hidden=false;element('memory-map-link').hidden=false;
+  try{mmSelected=sessionStorage.getItem('triangulator:mm-selected')||null}catch{}
+  renderMemoryMap();
+  element('mm-group').onchange=()=>{mmLayoutKey='';renderMemoryMap()};
+  element('mm-clear').onclick=()=>selectMemoryMapping(null);
+  const changed=visible=>{const was=mmVisible;mmVisible=visible;if(visible&&!was){mmLastWatch=0;pollMemoryMap()}};
+  if(typeof IntersectionObserver==='function')new IntersectionObserver(entries=>changed(entries.some(entry=>entry.isIntersecting))).observe(element('memory-map'));else changed(true);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&mmVisible){mmLastWatch=0;pollMemoryMap()}})}
+
 // ---------- Main loop ----------
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
@@ -1272,12 +1465,13 @@ const themes=['auto','light','dark'];
 function applyTheme(theme){if(theme==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;element('theme').title='Theme: '+(theme==='auto'?'follow system':theme);element('theme').textContent={auto:'◐',light:'☀',dark:'☾'}[theme];try{localStorage.setItem('triangulator:theme',theme)}catch{}}
 element('theme').onclick=()=>{let current='auto';try{current=localStorage.getItem('triangulator:theme')||'auto'}catch{}applyTheme(themes[(themes.indexOf(current)+1)%themes.length]);if(live.health)renderOverview()};
 try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTheme('auto')}
-let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
+let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}if(mmEnabled)renderMemoryCharts()},150)});
 addEventListener('pagehide',saveBuffer);
 refresh();
 loadTarget();
 pollResources();
 refreshSocket();
+startMemoryMap();
 if(location.hash==='#settings')toggleSettings();
 </script>
 </body>

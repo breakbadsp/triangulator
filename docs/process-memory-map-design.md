@@ -576,6 +576,9 @@ faults also wait for the lock. The pass limit for them is still open.
 
 ## 12. Plan
 
+Status: steps 1 to 5 are done. Steps 6 (memory report) and 7 (replay) are
+not started.
+
 Each step is a separate commit. Each commit builds and passes `make check`
 alone. The steps can go in one pull request or in several.
 
