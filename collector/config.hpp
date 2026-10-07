@@ -22,6 +22,11 @@
 namespace triangulator::collector
 {
 
+// The largest max_live_samples. The Monitor reserves about 280 bytes of
+// address space for each live sample at startup, so this limit is about
+// 2.8 GB. A larger value could make the reservation fail.
+inline constexpr std::int64_t kMaxLiveSamplesLimit = 10'000'000;
+
 struct GroupRule
 {
   std::string name_;
@@ -153,6 +158,11 @@ namespace detail
     {
       return std::unexpected(std::format("invalid {}", key));
     }
+  }
+  if (config.max_live_samples_ > kMaxLiveSamplesLimit)
+  {
+    return std::unexpected(std::format("max_live_samples must be at most {}",
+                                       kMaxLiveSamplesLimit));
   }
   for (const auto& [key, member] :
        {std::pair{"data_dir", &Config::data_dir_},

@@ -766,7 +766,8 @@ void TestSnapshotRecorder()
           "stopping writes the waiting view, one per interval");
 }
 
-// Invalid recording intervals fail configuration validation before startup.
+// Invalid recording intervals, and a max_live_samples above the limit, fail
+// configuration validation before startup.
 void TestReplayConfig()
 {
   for (const std::string_view text :
@@ -781,6 +782,9 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid recording cadence is rejected");
   }
+  Require(ParseConfig("max_live_samples=10000000").has_value() &&
+              !ParseConfig("max_live_samples=10000001"),
+          "max_live_samples has an upper limit");
 }
 
 // Storage failures come back as values, not exceptions: a data directory
