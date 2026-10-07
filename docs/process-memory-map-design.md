@@ -1,0 +1,411 @@
+# Process memory map: design
+
+Status: proposal. No code exists yet.
+
+This document describes a new dashboard tab, **Memory map**. The tab shows the
+virtual address space of the target process. It shows the heap, the stacks, the
+libraries and all other mappings. The user can select one mapping and zoom in to
+see its pages. The tab also reports memory pressure, fragmentation and other
+virtual-memory problems.
+
+The design needs **no privilege**. The sampler runs as the target user. It reads
+only files that the same user can read.
+
+![Mock-up of the Memory map tab](screenshots/memory-map-mockup.png)
+
+The source of the picture is [mockups/process-memory-map.html](mockups/process-memory-map.html).
+The mock-up uses invented numbers. Open the file in a browser to see it.
+
+## 1. Background: the virtual address space
+
+Each Linux process sees its own range of addresses. The kernel splits this range
+into **VMAs** (virtual memory areas). A VMA is one block of addresses. All
+addresses in one VMA have the same permissions and the same backing.
+
+On x86-64 the usual layout is as follows. High addresses are at the top.
+
+```text
+high   [vsyscall] [vvar] [vdso]        kernel helpers
+       [stack]                         main stack. Grows DOWN.
+       ... large unmapped gap ...
+       thread stacks                   fixed size. Do not grow.
+       allocator arenas, big mmaps     anonymous memory
+       libraries (code, data)          file-backed
+       ... unmapped gap ...
+       [heap]                          brk heap. Grows UP.
+       data, bss
+low    program code                    file-backed
+```
+
+Four terms matter for the rest of this document:
+
+- **Mapped** means the kernel has a VMA for the address. It does not mean that
+  RAM is in use.
+- **Resident** means a page is in RAM now. The kernel gives RAM to a page only
+  when the program first touches it.
+- **Swapped** means the kernel moved the page to disk.
+- **Dirty** means the program changed the page.
+
+A process can map 18 GiB and use 2 GiB of RAM. The tab shows both numbers.
+
+## 2. What the sampler can read without privilege
+
+All sources below are readable by the same user. None of them needs `sudo`,
+`CAP_SYS_PTRACE` or `ptrace` attach. See
+[proc(5)](https://man7.org/linux/man-pages/man5/proc.5.html) and the
+[pagemap guide](https://docs.kernel.org/admin-guide/mm/pagemap.html).
+
+| Source | What it gives | Cost |
+|---|---|---|
+| `/proc/<pid>/maps` | Start, end, permissions, file offset, inode, path, names such as `[heap]` and `[stack]` | Low |
+| `/proc/<pid>/smaps` | Per VMA: Size, Rss, Pss, shared and private pages, dirty pages, swap, huge pages, `VmFlags` (for example `gd` = grows down) | High. The kernel walks the page tables. |
+| `/proc/<pid>/smaps_rollup` | The totals of `smaps` | Medium |
+| `/proc/<pid>/pagemap` | Per page: present, swapped, exclusive, soft-dirty. The frame number is hidden without `CAP_SYS_ADMIN`. | Medium |
+| `/proc/<pid>/status` | VmSize, VmRSS, RssAnon, RssFile, RssShmem, VmSwap, VmPTE, VmLck | Low |
+| `/proc/<pid>/stat` | `minflt`, `majflt`, `startstack`, `vsize` | Low. The sampler reads it already. |
+| `/proc/<pid>/limits` | RLIMIT_AS, RLIMIT_STACK, RLIMIT_MEMLOCK | Low |
+| `/proc/sys/vm/max_map_count` | The maximum number of VMAs for one process | Low |
+| `/proc/pressure/memory` and cgroup `memory.pressure` | Memory pressure (PSI). The sampler reads it already. | Low |
+| `/proc/meminfo`, `/proc/vmstat`, `/proc/buddyinfo` | Host memory, reclaim and compaction counters, free blocks by order | Low |
+
+### What the sampler cannot read without privilege
+
+- **The bytes of the memory.** `/proc/<pid>/mem` and `process_vm_readv` need
+  `ptrace` attach rights. Yama `ptrace_scope=1` blocks them. This version does
+  not show bytes. It shows page state only.
+- **The stack pointer.** The sampler cannot see how deep a thread is in its
+  stack. It sees the resident part of the stack. This shows the deepest point
+  that the thread reached (the high-water mark).
+- **Physical addresses.** The sampler cannot see where a page is in RAM. It
+  cannot measure the physical fragmentation of one process. It can measure the
+  physical fragmentation of the host with `/proc/buddyinfo`.
+- **The state of the allocator.** The sampler cannot see which heap bytes are
+  live and which bytes the program freed. Heap fragmentation findings are
+  therefore indicators, not proof.
+- **Processes that are not dumpable.** The kernel gives these `/proc` files to
+  root. The tab shows "no access" for them, not zero.
+
+## 3. How the tab shows growth
+
+The kernel does not announce growth. The sampler **reads `maps` again and
+compares the two results**.
+
+| Area | Direction | What changes | What the sampler sees |
+|---|---|---|---|
+| `[heap]` (brk) | Up | The end address of the VMA | The end address rises when the allocator calls `brk`. |
+| `[stack]` (main) | Down | The start address of the VMA | The start address falls when the kernel expands the stack on a page fault. It never rises. |
+| Thread stacks | None | The size is fixed (8 MiB by default). A guard page is below it. | The resident size rises as the thread goes deeper. |
+| Allocator arenas and big `mmap` blocks | None | New VMAs appear. Others disappear. | VMA added and removed events. |
+
+The change is in steps of whole pages. The tab shows a growth arrow and a
+time chart for the end of the heap and the start of the stack.
+
+glibc `malloc` uses `brk` only for the main arena. It uses `mmap` for large
+blocks and for the arenas of other threads. The tab therefore shows the arenas
+and the large maps next to the heap.
+
+The sampler cannot name thread stacks with certainty. The kernel removed the
+`[stack:tid]` label in Linux 4.5. The tab labels a block as a probable thread
+stack when it is anonymous, `rw-p`, near the stack size limit, and has a guard
+VMA below it.
+
+## 4. Where the code runs
+
+The project rules in [AGENTS.md](../AGENTS.md) apply:
+
+- Fast and performance-critical code is C++ or Rust.
+- The core collector does not get unrequested features.
+- Analysis, reports and richer dashboard data are separate programs. They read
+  SQLite read-only or use the HTTP API. They never read the UDP stream.
+- `smaps` stays off the per-thread sampling path
+  ([linux-monitoring.md](linux-monitoring.md)).
+
+### Options
+
+| Option | Description | Advantage | Disadvantage |
+|---|---|---|---|
+| **A. A thread in the sampler** | The sampler starts one extra thread when the feature is on. The thread reads `/proc` and sends `TVMA` datagrams. | One program to deploy. Same target lookup, same session, same UDP path. Works when the collector runs on another host. History goes to SQLite, so replay works. | A bug in the new code can stop the thread sampler. The sampler is no longer single-threaded. |
+| **B. A separate sampler program** | A new binary, like `socket_sampler/`. | The failure of one program does not stop the other. The user can limit it with `nice` or a cgroup. | One more program to deploy. It needs its own target lookup. |
+| **C. A helper on the collector host, started on request** | Like `SocketReportBridge`. The HTTP thread starts a helper, which reads `/proc` once. | The user can select any range at any time. No new wire format. | The target must be on the same host. No history. Python or C++ start-up cost for each request. |
+
+### Recommendation
+
+Use **option A** for version 1, with these conditions:
+
+1. The feature is **off by default**.
+2. The new thread has bounded memory, bounded time and no exceptions. Fallible
+   functions return `std::expected`.
+3. The parsers are in headers under `common/`, not inside `sampler/main.cpp`. If
+   the thread causes trouble, the code moves to option B with little change.
+4. The thread backs off by itself when a read is slow (see section 9).
+
+Option C is a possible later addition for local targets that need an arbitrary
+zoom range.
+
+## 5. Data flow
+
+```mermaid
+flowchart LR
+    subgraph target_host["Target host"]
+        target["Target process"]
+        sampler["Sampler<br/>thread sampler: unchanged"]
+        vmthread["Memory thread · new<br/>maps, smaps, pagemap<br/>diff and cells"]
+        target -->|"Read-only /proc"| vmthread
+        sampler ~~~ vmthread
+    end
+
+    subgraph collector_host["Collector host"]
+        collector["Collector · C++<br/>Store raw records<br/>Keep the latest snapshot"]
+        db[("Daily SQLite files<br/>vm tables")]
+        http["HTTP :9401"]
+        analysis["Analysis module · Python · new<br/>Findings, fragmentation, trends"]
+        collector --> db
+        collector -->|"Latest snapshot"| http
+        db -.->|"Read-only"| analysis
+        analysis -.->|"Findings on request"| http
+    end
+
+    sampler -->|"UDP · TMON, TRES"| collector
+    vmthread -->|"UDP · TVMA"| collector
+    http <-->|"JSON"| browser["Browser<br/>Memory map tab"]
+```
+
+Each part has one job:
+
+1. **The memory thread** reads facts. It does not judge them.
+2. **The collector** stores the raw records. It keeps the latest snapshot in
+   memory. It computes no findings.
+3. **The analysis module** reads SQLite and computes findings. It runs in its own
+   process, so a slow analysis cannot delay the collector.
+4. **The browser** gets only the minimum for the live view: the latest snapshot
+   and the changes since the last request. The browser asks for findings less
+   often.
+
+## 6. The sampler memory thread
+
+### Control: how the user turns it on
+
+The sampler has **no inbound channel today**. UDP goes one way. The only control
+is the configuration file and `SIGHUP`. A valid reload starts a new session,
+which resets the thread baselines.
+
+For version 1:
+
+1. Add a `[memory_map]` section to `sampler.toml`. The keys are `enabled`,
+   `interval_s`, `keyframe_s`, `max_vmas` and `cell_vmas`.
+2. A reload that changes only `[memory_map]` must **not** start a new session. It
+   starts or stops the memory thread only.
+3. The dashboard toggle uses the existing local target-control helper, as it does
+   for the target name today. Installations without the helper show the toggle
+   as unavailable.
+
+Zoom in the browser works on data that the sampler already sent. The sampler
+cannot receive "zoom into this range" from the browser. To compensate, the
+sampler always sends detail for these VMAs: `[heap]`, `[stack]` and the largest
+`cell_vmas` VMAs by resident size (default 6).
+
+A real-time control channel is a **later** decision. It would add a listening
+socket to the sampler. That changes the security model, so it needs its own
+design.
+
+### One cycle
+
+1. Read `status`, `stat` (fault counters) and `limits`. These are cheap.
+2. Read `maps` in one `read` loop with a large buffer. Parse it with a fixed
+   buffer, without allocation in the loop.
+3. Compare with the previous cycle. Mark each VMA as new, removed, resized or
+   unchanged.
+4. Read `smaps` only for new or resized VMAs, and for all VMAs once in each
+   `keyframe_s` period (default 30 s).
+5. Read `pagemap` for the selected VMAs. Reduce the result to at most 512
+   **cells** for each VMA. One cell covers a fixed number of pages. The cell
+   holds the fractions of resident, dirty and swapped pages.
+6. Send datagrams. Do not retry. Do not buffer on disk.
+
+Linux 6.11 and later offers the `PROCMAP_QUERY` ioctl on `/proc/<pid>/maps`. It
+returns one VMA for an address, without text parsing, and it is not affected by
+the changes that can happen while the program reads the text. Use it when the
+kernel has it. Keep the text parser as the fallback, because many target hosts
+run older kernels.
+
+### Limits
+
+| Limit | Default | Reason |
+|---|---|---|
+| `interval_s` | 2 | Growth of the heap is visible at this rate. Fast enough for a live view. |
+| `max_vmas` | 8192 | Some processes have more than 60 000 VMAs. The sampler sends a summary and the largest VMAs. It sets a `truncated` flag. |
+| Time per cycle | 1 % of wall time | The thread measures its own read time and increases the interval when it is above the budget. |
+| Cells per VMA | 512 | 512 cells fit in 2 datagrams. They are enough for one screen. |
+
+## 7. Transport: the `TVMA` datagram
+
+Use a new format. Do not reuse the `TMON` or `TRES` fields
+([linux-monitoring.md](linux-monitoring.md) requires this). Follow the pattern of
+`common/resource_wire.hpp`: a fixed header, a version, and parts that share the
+header.
+
+Outline (the implementation pull request fixes the exact layout):
+
+| Record | Content | Size |
+|---|---|---|
+| Header | Magic, version, session, sequence, timestamps, kind (keyframe or delta), part number, part count, `truncated` flag | 64 bytes |
+| Summary | Values from `status`, `stat`, `limits`; VMA count; address range statistics | Fixed list of `u64` values. `kUnavailable` means "not readable". |
+| VMA record | Start, end, offset, inode, permissions, `VmFlags` bits, kind, name identifier, Rss, Pss, private dirty, shared, swap, huge pages | About 80 bytes. About 14 per datagram. |
+| Name record | Name identifier and path text | Short text. Sent when the name is new. |
+| Cell record | VMA start, cell size in pages, 3 bytes per cell (resident, dirty, swapped) | 512 cells = about 1.5 KB |
+
+UDP can lose datagrams. The design handles this in three ways:
+
+1. A **keyframe** every `keyframe_s` seconds holds the complete state.
+2. A **delta** holds only the new, removed and changed VMAs.
+3. The collector marks a gap when it misses a sequence number. The tab shows
+   "stale" until the next keyframe. A missing part never means "the VMA is
+   gone".
+
+## 8. The collector
+
+The collector does three things. It does not interpret the data.
+
+1. It decodes `TVMA` datagrams and reassembles the parts.
+2. It writes **raw records** to SQLite (see below).
+3. It keeps the **latest full snapshot** in memory and serves it with
+   `GET /api/memory-map`.
+
+`GET /api/memory-map?since=<sequence>` returns only the changes after the given
+sequence. The live view is therefore small: one summary and a few VMA changes.
+
+### SQLite tables
+
+| Table | One row for | Content |
+|---|---|---|
+| `vm_summary` | Each cycle | The summary values. About 100 bytes. Low volume. |
+| `vm_vma` | Each VMA change | The VMA record, with the sequence number. A keyframe writes all VMAs. |
+| `vm_cells` | Each cell record | The cells for one selected VMA. |
+| `vm_name` | Each new name | Name identifier and path. |
+
+These tables go to the same daily files as the other data. Retention follows the
+existing raw-record setting. The volume stays low because most cycles write only
+`vm_summary` and a few `vm_vma` changes.
+
+The stored history lets the user **replay** the address space for any past time.
+Replay already exists for threads. The tab uses the same time selector.
+
+## 9. The analysis module
+
+The module is a Python program in a new directory, `memory_analysis/`. It reads
+the SQLite files in read-only mode and computes findings. This follows the rule
+for reports and richer dashboard data. Python is optional. If the module is not
+installed, the tab still shows the map and the numbers. It hides the findings
+panel.
+
+The collector starts the module through a bounded bridge, as it does for the
+socket report. A slow or failed analysis cannot delay the UDP loop.
+
+The thresholds below are defaults. All of them are settings.
+
+| Finding | Source | Rule |
+|---|---|---|
+| VMA count near the limit | `maps` count, `vm.max_map_count` | Warn at 80 %. Critical at 90 %. At the limit, `mmap` fails with `ENOMEM`. |
+| Address space near the limit | `VmSize`, RLIMIT_AS | Warn at 80 %. |
+| Stack near its limit | `[stack]` size, RLIMIT_STACK | Warn at 50 %. Critical at 80 %. |
+| Anonymous memory grows without a plateau | `RssAnon` over time | Slope is positive in at least 90 % of windows for 10 minutes and exceeds a minimum rate. This is a **suspicion** of a leak, not proof. |
+| Memory pressure | PSI `some` and `full` for the host and the cgroup | `some` above 10 % is serious. Any `full` above 0 is serious. |
+| Major page faults rise | `majflt` rate | The rate exceeds a multiple of the 1-hour median. |
+| Swap in use | `VmSwap`, `pswpin`, `pswpout` | `VmSwap` above 0 and swap-in rate above 0. |
+| Little room in the cgroup | `memory.current`, `memory.max`, `memory.events` | Above 90 % of the limit, or the `high`, `max` or `oom_kill` counters rise. (Add these fields to the resource sample if it does not have them.) |
+| Sparse heap | `pagemap` cells of `[heap]` and arenas | Resident share below 60 % **and** many short resident runs. This is an **indicator** of fragmentation. |
+| Many small VMAs | VMA size distribution | More than 50 % of the VMAs are 4 KiB to 64 KiB. This often means many guard pages or many tiny `mmap` calls. |
+| Arena count | Anonymous 64 MiB regions | More than 8 times the CPU count. This matches the glibc default arena limit. |
+| Stale library | Path ends with `(deleted)` | The process runs code that the package manager replaced. Restart it. |
+| Writable and executable memory | Permissions `rwx` | Report it. JIT compilers cause it. Other programs should not. |
+| Huge page trouble | `AnonHugePages`, `thp_*`, `compact_stall` | Compaction stalls rise while the process uses huge pages. |
+| Host fragmentation | `/proc/buddyinfo` | Few free blocks of order 9 and above while memory is free. Huge page allocations will fail or stall. |
+
+Notes for the reader:
+
+- **Virtual fragmentation** is about the address space. It shows as many small
+  VMAs and small gaps between them. It can cause `mmap` failures even when RAM
+  is free.
+- **Heap fragmentation** is about the allocator. Free memory is in many small
+  pieces. The process uses more RSS than its live data needs. Without `ptrace`
+  the tab can show only the indicator in the table above.
+- **Physical fragmentation** is about RAM. It makes large contiguous
+  allocations fail. The tab shows it for the host only.
+
+## 10. The dashboard tab
+
+The tab has four parts. See the mock-up.
+
+1. **Tiles.** VmSize, RSS, RSS by type, VMA count, major faults, memory pressure.
+2. **Findings.** A list with severity. Each finding explains the evidence in one
+   or two sentences.
+3. **Address space.** One bar for each VMA or group of VMAs, with high addresses
+   at the top. The fill shows the resident share. Long gaps are shortened and
+   labeled. Click a readable mapping to select it.
+4. **Zoom.** The page grid of the selected VMA, with the facts and three time
+   charts (end of heap, start of stack, resident anonymous memory).
+
+Rules for the page:
+
+- Use the existing colors and fonts of the dashboard. Do not load anything from
+  the network.
+- Do not use color alone. Each state also has a label or a pattern.
+- Show "not readable" for unavailable data. Never show zero.
+- Poll the live endpoint about once each 2 s only while the tab is open.
+
+## 11. Observer effect and safety
+
+Reading `smaps` and `pagemap` makes the kernel hold the **mmap lock** of the
+target for reading. During that time, calls such as `mmap`, `munmap` and `brk`
+in the target wait. A large process can see delays of milliseconds. A very large
+process can see more.
+
+The design limits this:
+
+1. The feature is off by default.
+2. `smaps` runs only for changed VMAs and once in each keyframe period.
+3. `pagemap` runs only for the selected VMAs.
+4. The thread measures its read time. It raises the interval when the cost is
+   above 1 % of wall time. It sends the measured cost, and the tab shows it.
+5. The thread never writes to the target. In particular, it does **not** write to
+   `/proc/<pid>/clear_refs`. That file would give a "written since" view, but it
+   changes the state of the target and adds page faults. Add it only as a
+   separate, explicit option.
+6. A VMA can disappear between two reads. A process can exit. The thread treats
+   `ENOENT`, `ESRCH` and `EIO` as normal results.
+
+## 12. Plan
+
+Each step is a separate pull request. Each pull request builds and passes
+`make check` alone.
+
+1. **Parsers.** `maps`, `smaps`, `pagemap` and `status` parsers in `common/` with
+   unit tests that use fixture text. No sampler change.
+2. **`TVMA` wire format.** Encoder and decoder with round-trip tests.
+3. **Sampler thread.** The `[memory_map]` configuration, the thread, the cost
+   budget, and the rule that a `[memory_map]` reload keeps the session.
+4. **Collector.** Decode, store, snapshot and `/api/memory-map`.
+5. **Tab, version 1.** Tiles, address space bar, zoom grid and growth charts.
+   No findings yet.
+6. **Analysis module.** `memory_analysis/`, the bridge and the findings panel.
+7. **Replay.** Connect the tab to the time selector.
+
+## 13. Open decisions
+
+1. **Control channel.** Is the config toggle (section 6) enough for version 1, or
+   does the project need a real-time channel to the sampler?
+2. **Defaults.** Are 2 s and 30 s the right defaults for `interval_s` and
+   `keyframe_s`?
+3. **Retention.** How long should `vm_vma` rows stay in the daily files?
+4. **Thread or program.** Section 4 recommends a thread. Choose option B if the
+   project prefers fault isolation to a single program.
+
+## 14. Limits of this design
+
+- Without `ptrace` the tab shows page state, not bytes. It does not show stack
+  depth.
+- Thread-stack labels are a heuristic.
+- Fragmentation findings are indicators.
+- Kernel versions differ. `PROCMAP_QUERY` needs Linux 6.11. Some `VmFlags`
+  names depend on the kernel.
+- Containers, `hidepid` and non-dumpable processes can hide `/proc` files.
