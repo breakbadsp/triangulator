@@ -44,17 +44,18 @@ fi
 # CRB supplies the static runtime development packages.
 dnf config-manager --set-enabled crb
 # diffutils (cmp) is not installed by this script: the build must not need it.
-dnf install -y glibc-static libstdc++-static nodejs shadow-utils util-linux
+dnf install -y glibc-static libstdc++-static shadow-utils util-linux
 export CXX=c++
 if [[ "$ALMA_VERSION" == 9 ]]; then
-    dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11
+    dnf module enable -y nodejs:22
+    dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11 nodejs
     mkdir -p /opt/test/bin
     ln -s /usr/bin/python3.11 /opt/test/bin/python3
     export PATH="/opt/test/bin:$PATH"
     # Select the newer compiler from outside, without changing PATH or the Makefile.
     export CXX=/opt/rh/gcc-toolset-14/root/usr/bin/g++
 else
-    dnf install -y python3
+    dnf install -y python3 nodejs
 fi
 # Some packages (the AlmaLinux 9 toolset) pull in cmp. Hide it in this disposable
 # container, so the build must work without it.

@@ -167,19 +167,26 @@ Alerting is a separate module that is not wired up yet
 
 ## Requirements and build
 
+See the [build guidelines](docs/build-guidelines.md) for AlmaLinux package commands,
+compiler setup, static releases, required checks, and known deployment limits.
+
 <details>
 <summary>Read more</summary>
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-Make, the compiler's static C/C++ runtime libraries, and libsqlite3 development
-files for the collector (not needed with the SQLite amalgamation, see below).
-Python 3.11+ is needed only for tests, the optional sampler control scripts,
-alerting and `make sqlite-amalgamation`; it needs no third-party packages.
-Node.js is optional: without it `make check` skips the dashboard JavaScript tests.
-The basic startup script uses Bash, sed and getconf and checks them, Make and
-the compiler before it creates any file.
+GNU Make 4.2 or later, Bash, coreutils, sed, the compiler's static C/C++
+runtime libraries, and libsqlite3 development files for the collector
+(unless you supply the SQLite amalgamation).
+Static release verification also needs binutils (`readelf`).
+Python 3.11+ is needed only for tests, the optional
+sampler control scripts, alerting, and `make sqlite-amalgamation`.
+It needs no third-party packages.
+Node.js is required for the dashboard tests in `make check`.
+Formatting uses clang-format 22.1.8.
+The basic startup script also uses getconf.
 Binary-only deployments without `scripts/sampler_control.py` serve monitoring
 without Python; the dashboard hides target control there.
+The monitoring binaries need no Node.js.
 
 ```sh
 make          # sampler, collector and read-only socket report helper
