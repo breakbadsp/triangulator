@@ -332,21 +332,20 @@ class SocketDiag
   static void ReadUnixName(std::span<const std::byte> p_value,
                            resource_wire::Socket& p_socket)
   {
-    auto& path = p_socket.unix_path_;
-    auto length = std::min(p_value.size(), path.size() - 1);
+    resource_wire::Socket::UnixPathBytes path{};
+    const auto length = std::min(p_value.size(), path.size() - 1);
     std::memcpy(path.data(), p_value.data(), length);
-    if (length == 0)
-    {
-      return;
-    }
     if (path[0] != '\0')
     {
       // A filesystem path ends at its terminating NUL.
       std::fill(std::find(path.begin(), path.end(), '\0'), path.end(), '\0');
-      return;
     }
-    std::replace(path.begin(), path.begin() + static_cast<long>(length), '\0',
-                 '@');
+    else
+    {
+      std::replace(path.begin(), path.begin() + static_cast<long>(length), '\0',
+                   '@');
+    }
+    p_socket.SetUnixPath(path);
   }
 
   // Sends p_request and passes each reply payload to p_visit until the
