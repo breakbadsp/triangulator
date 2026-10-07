@@ -27,7 +27,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     const button = element(); button.dataset.resRange = String(seconds); return button;
   });
   const timers = new Map();
-  let timerId = 0;
+  let timerId = 0, timerNow = 0;
   const requests = [];
   const context = vm.createContext({
     document: {getElementById(id) {
@@ -41,7 +41,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     localStorage: {getItem() {return null;}, setItem() {}},
     history: {replaceState() {}}, location: {hash: '', pathname: '/'},
     addEventListener() {},
-    setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay}); return id;},
+    setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
     fetch(url) {
       requests.push(url);
@@ -60,7 +60,16 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
   `, context);
   return {run: source => vm.runInContext(source, context), elements, ranges, resourceRanges, timers, requests, storage,
-    setFetch: callback => {context.fetch = callback;}};
+    setFetch: callback => {context.fetch = callback;},
+    advance(ms) {
+      const until = timerNow + ms;
+      for (;;) {
+        const next = [...timers].filter(([, timer]) => timer.due <= until).sort((a, b) => a[1].due - b[1].due)[0];
+        if (!next) break;
+        const [id, timer] = next; timers.delete(id); timerNow = timer.due; timer.callback();
+      }
+      timerNow = until;
+    }};
 }
 
 test('target editor loads the selector and sends one validated dashboard write', async () => {
@@ -549,4 +558,124 @@ test('returning from replay discards CPU history from an earlier live session', 
   assert.equal(app.run('threadCpu.get(1).length'), 1);
   assert.equal(app.run('threadCpu.get(1)[0].t'), 2100);
   assert.equal(app.run('buffer.length'), 1);
+});
+
+function helpClock() {
+  const app = dashboard();
+  app.run("var helpEvents=[];var dwell=createHelpTimer(value=>helpEvents.push(value),()=>helpEvents.push('closed'))");
+  return app;
+}
+
+test('help waits the full dwell time and never warms up subsequent targets', () => {
+  const app = helpClock();
+  app.run("dwell.request('cpu','CPU')");
+  app.advance(1199);
+  assert.equal(app.run('helpEvents.length'), 0);
+  app.advance(1);
+  assert.equal(app.run('helpEvents[0]'), 'CPU');
+  app.run("dwell.request('delay','Run delay')");
+  app.advance(1199);
+  assert.equal(app.run('helpEvents.at(-1)'), 'closed');
+  app.advance(1);
+  assert.equal(app.run('helpEvents.at(-1)'), 'Run delay');
+});
+
+test('leaving cancels pending help; focus and pointer entry preserve it', () => {
+  const app = helpClock();
+  app.run("dwell.request('cpu','CPU')");
+  app.advance(700);
+  app.run('dwell.leave()');
+  app.advance(1200);
+  assert.equal(app.run('helpEvents.length'), 0);
+  app.run("dwell.request('cpu','CPU')");
+  app.advance(800);
+  app.run('dwell.leave(()=>true)');
+  app.advance(400);
+  assert.equal(app.run('helpEvents.at(-1)'), 'CPU');
+  app.run('dwell.leave()');
+  app.advance(249);
+  assert.equal(app.run('helpEvents.at(-1)'), 'CPU');
+  app.run("dwell.request('cpu','CPU')");
+  app.advance(1000);
+  assert.equal(app.run('helpEvents.length'), 1, 'entering the card cancels its close timer');
+  app.run('dwell.leave()');
+  app.advance(250);
+  assert.equal(app.run('helpEvents.at(-1)'), 'closed');
+});
+
+test('Escape suppresses the same target until it is left', () => {
+  const app = helpClock();
+  app.run("dwell.request('cpu','CPU')");app.advance(1200);
+  app.run("dwell.cancel(true);dwell.request('cpu','CPU')");app.advance(2000);
+  assert.equal(app.run('helpEvents.length'), 2);
+  app.run("dwell.leave();dwell.request('cpu','CPU')");app.advance(1200);
+  assert.equal(app.run('helpEvents.length'), 3);
+});
+
+test('chart dwell resets for a different point or significant pointer motion', () => {
+  const app = helpClock();
+  app.run("dwell.request('chart:100','first',{x:10,y:10})");app.advance(900);
+  app.run("dwell.request('chart:100','latest',{x:14,y:12})");app.advance(300);
+  assert.equal(app.run('helpEvents[0]'), 'latest');
+  app.run("dwell.request('chart:101','next',{x:14,y:12})");app.advance(900);
+  app.run("dwell.request('chart:101','moved',{x:30,y:12})");app.advance(1199);
+  assert.equal(app.run('helpEvents.at(-1)'), 'closed');
+  app.advance(1);assert.equal(app.run('helpEvents.at(-1)'), 'moved');
+});
+
+test('an open explanation is frozen and removed targets never open', () => {
+  const app = helpClock();
+  app.run("dwell.request('cpu','first')");app.advance(1200);
+  app.run("dwell.request('cpu','changed')");app.advance(1200);
+  assert.equal(app.run('helpEvents.length'), 1);
+  app.run('var rejected=createHelpTimer(()=>false,()=>helpEvents.push("wrong close"));rejected.request("gone",{})');
+  app.advance(1200);
+  assert.equal(app.run('rejected.visible'), null);
+  assert.equal(app.run('helpEvents.length'), 1);
+});
+
+test('help topics keep metric denominators separate and all related links resolve', () => {
+  const app = dashboard();
+  assert.notEqual(app.run("topicForText('Waiting for CPU')"), app.run("topicForText('Run delay')"));
+  assert.notEqual(app.run("topicForText('Socket wait')"), app.run("topicForText('Socket')"));
+  assert.match(app.run('HELP.throttle.scope'), /CPU periods/);
+  assert.equal(app.run('Object.values(HELP).flatMap(t=>t.related.filter(key=>!HELP[key])).length'), 0);
+  assert.ok(app.run('Object.keys(HELP).length') > 80);
+  assert.ok(!/\stitle=/.test(html.split('<script>')[0]), 'native title tooltips must not bypass the delay');
+});
+
+test('Escape stays suppressed while keyboard focus remains on its trigger', () => {
+  const app = helpClock();
+  app.run("dwell.request('cpu','CPU')");app.advance(1200);
+  app.run("dwell.cancel(true);dwell.leave(()=>true);dwell.request('cpu','CPU')");app.advance(1200);
+  assert.equal(app.run('helpEvents.length'), 2);
+  assert.equal(app.run('dwell.blocked.key'), 'cpu');
+});
+
+test('cell explanations use the displayed observation and distinguish missing from zero', () => {
+  const app = dashboard();
+  app.run(`
+    live={health:{session:'s'},threads:[{tid:1,generation:1,name:'new',run_delay_pct:99,last_sample:200}]};
+    var shown={tid:1,generation:1,name:'displayed',run_delay_pct:null,last_sample:100};
+    var helpRow={dataset:{tid:'1'},_helpThread:shown,cells:[{textContent:'displayed'}],children:[]};
+    var helpTable={querySelectorAll:()=>[{textContent:'Run delay'}]};
+    var helpCell={textContent:'·',parentElement:helpRow,querySelector:()=>null,
+      closest:selector=>selector==='tr'?helpRow:selector==='table'?helpTable:null};
+    helpRow.children=[helpCell];
+    var captured=captureHelp({target:helpCell,column:helpCell,id:'delay'});
+  `);
+  assert.equal(app.run('captured.value'), 'Not available');
+  assert.equal(app.run('captured.stamp'), 100);
+  assert.equal(app.run('captured.context'), 'displayed · TID 1');
+  app.run("shown.run_delay_pct=0;captured=captureHelp({target:helpCell,column:helpCell,id:'delay'})");
+  assert.equal(app.run('captured.value'), '0');
+  assert.match(app.run('captured.scope'), /preceding ~10 s/);
+});
+
+test('each cell has a distinct help target even when it shares a metric topic', () => {
+  const app = dashboard();
+  app.run("var readCell={textContent:'1'},writeCell={textContent:'1'};var readKey=helpIdentity(readCell,'sysio')");
+  assert.notEqual(app.run('readKey'), app.run("helpIdentity(writeCell,'sysio')"));
+  app.run("readCell.textContent='2'");
+  assert.equal(app.run('readKey'), app.run("helpIdentity(readCell,'sysio')"), 'new values must not reset dwell on the same target');
 });
