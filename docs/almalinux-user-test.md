@@ -27,8 +27,8 @@ Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 4. Try `make` with the distribution's default compiler.
    On AlmaLinux 9, it must stop with `cannot compile C++23`.
 5. Install the compiler, static runtime libraries, and test tools.
-   The test does not install `diffutils` (`cmp`) and does not change `PATH`
-   for the compiler. On AlmaLinux 9, it sets `CXX` to the GCC Toolset 14 compiler.
+   The test does not install `diffutils` (`cmp`). It hides `cmp` if another
+   package installs it. The test does not change `PATH` for the compiler. On AlmaLinux 9, it sets `CXX` to the GCC Toolset 14 compiler.
 6. Run the startup scripts as an ordinary user.
 7. Monitor a `sleep` process owned by that user.
 8. Change the target and sampling rate with the control scripts.

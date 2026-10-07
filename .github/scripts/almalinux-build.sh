@@ -43,7 +43,7 @@ fi
 
 # CRB supplies the static runtime development packages.
 dnf config-manager --set-enabled crb
-# diffutils (cmp) is not installed: the build must not need it.
+# diffutils (cmp) is not installed by this script: the build must not need it.
 dnf install -y glibc-static libstdc++-static nodejs shadow-utils util-linux
 export CXX=c++
 if [[ "$ALMA_VERSION" == 9 ]]; then
@@ -56,7 +56,10 @@ if [[ "$ALMA_VERSION" == 9 ]]; then
 else
     dnf install -y python3
 fi
-if command -v cmp; then echo "cmp must not be installed for this test" >&2; exit 1; fi
+# Some packages (the AlmaLinux 9 toolset) pull in cmp. Hide it in this disposable
+# container, so the build must work without it.
+if cmp_path="$(command -v cmp)"; then mv "$cmp_path" "$cmp_path.disabled"; fi
+if command -v cmp; then echo "cmp must be absent for this test" >&2; exit 1; fi
 "$CXX" --version
 python3 --version
 node --version
