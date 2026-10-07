@@ -1,11 +1,13 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
 
+#include "../sampler/memory_map.hpp"
 #include "../sampler/memory_parsing.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
@@ -93,7 +95,38 @@ void TestConfig()
       "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,
           "resource samples can be turned off");
+  const auto memory = ParseConfig(
+      "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_enabled=true\n"
+      "memory_map_token_file=/tmp/token\nmemory_map_interval_s=5\n"
+      "memory_map_keyframe_s=5\nmemory_map_max_vmas=256\n"
+      "memory_map_max_lease_s=60\nmemory_map_listen=\"[::1]:9500\"\n");
+  Require(memory && memory->memory_map_enabled_ &&
+              memory->memory_map_interval_s_ == 5 &&
+              memory->memory_map_max_vmas_ == 256 &&
+              memory->memory_map_max_lease_s_ == 60 &&
+              memory->memory_map_listen_ == "[::1]:9500",
+          "memory-map keys");
+  Require(config->memory_map_interval_s_ == 2 &&
+              config->memory_map_keyframe_s_ == 30 &&
+              config->memory_map_max_vmas_ == 8192 &&
+              !config->memory_map_enabled_,
+          "memory-map defaults: off, 2 s, 30 s, 8192");
+  auto changed = *memory;
+  changed.memory_map_interval_s_ = 9;
+  changed.memory_map_enabled_ = false;
+  Require(changed.SameSampling(*memory), "memory keys keep the session");
+  changed.rate_hz_ = 2;
+  Require(!changed.SameSampling(*memory), "the rate starts a new session");
   for (const auto invalid : {
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_enabled=true",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_interval_s=0",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_max_vmas=255",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_max_lease_s=4",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_keyframe_s=301",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_interval_s=9\n"
+           "memory_map_keyframe_s=8",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_other=1",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_map_enabled=yes",
            "target_pid=1\ntarget_process=foo\ncollector=127.0.0.1:9400",
            "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=nan",
            "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=10.1",
@@ -632,6 +665,175 @@ void TestMemoryParsing()
   Require(!DecodePagemapEntry(0).present_, "an empty entry is not present");
 }
 
+// Finds the VMA that starts at p_start in the reader's list.
+const memory_wire::Vma* FindVma(const MemoryMapReader& p_reader,
+                                const void* p_start)
+{
+  const auto start = reinterpret_cast<std::uintptr_t>(p_start);
+  for (const auto& vma : p_reader.Vmas())
+  {
+    if (vma.start_ == start)
+    {
+      return &vma;
+    }
+  }
+  return nullptr;
+}
+
+// The reader on this test process: a new mapping is marked new and raises
+// the generation, a grown one is marked EndMoved, a removed one is counted,
+// and a cycle without changes keeps the generation. The scanner reads the
+// pages of one mapping: half of them touched gives half resident.
+void TestMemoryMapReader()
+{
+  const auto page = static_cast<std::size_t>(::sysconf(_SC_PAGESIZE));
+  const int pid = ::getpid();
+  MemoryMapReader reader{memory_wire::kMaxVmas};
+  const std::stop_token never;
+  auto cycle = reader.Read(pid, std::nullopt, never);
+  Require(cycle.layout_changed_ && reader.Generation() == 1,
+          "the first cycle is a change");
+  Require(
+      cycle.summary_[memory_wire::Field("vma_count")] == reader.Vmas().size(),
+      "every VMA is in the list");
+  Require(cycle.summary_[memory_wire::Field("vm_rss_bytes")] > 0 &&
+              cycle.summary_[memory_wire::Field("page_size_bytes")] == page,
+          "status and page size");
+  Require(std::ranges::is_sorted(reader.Vmas(), {}, &memory_wire::Vma::start_),
+          "sorted by start");
+  Require(std::ranges::all_of(reader.Vmas(),
+                              [](const memory_wire::Vma& p_vma)
+                              {
+                                return p_vma.changes_ == 0;
+                              }),
+          "the first cycle marks nothing");
+  cycle = reader.Read(pid, std::nullopt, never);
+  Require(!cycle.layout_changed_ && reader.Generation() == 1,
+          "no change, same generation");
+
+  // Reserve more than needed so the mapping can grow in place.
+  auto* region = static_cast<char*>(::mmap(nullptr, 64 * page, PROT_NONE,
+                                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+  Require(region != MAP_FAILED, "mmap");
+  Require(::mprotect(region, 16 * page, PROT_READ | PROT_WRITE) == 0,
+          "mprotect");
+  cycle = reader.Read(pid, std::nullopt, never);
+  const auto* added = FindVma(reader, region);
+  Require(
+      cycle.layout_changed_ && reader.Generation() == 2 && added != nullptr &&
+          added->changes_ == std::to_underlying(memory_wire::Changes::New) &&
+          added->end_ == reinterpret_cast<std::uintptr_t>(region) + 16 * page,
+      "a new mapping is marked new");
+  Require(::mprotect(region, 24 * page, PROT_READ | PROT_WRITE) == 0, "grow");
+  cycle = reader.Read(pid, std::nullopt, never);
+  const auto* grown = FindVma(reader, region);
+  Require(grown != nullptr &&
+              grown->changes_ ==
+                  std::to_underlying(memory_wire::Changes::EndMoved) &&
+              cycle.summary_[memory_wire::Field("vmas_resized")] >= 1,
+          "a mapping whose end moved is marked EndMoved");
+
+  for (std::size_t index = 0; index < 24; index += 2)
+  {
+    region[index * page] = 1;
+  }
+  cycle = reader.Read(pid, reinterpret_cast<std::uintptr_t>(region), never);
+  Require(cycle.detail_.has_value(), "detail on request");
+  Require(cycle.detail_->status_ == memory_wire::DetailStatus::Complete &&
+              cycle.detail_->pages_per_cell_ == 1 &&
+              reader.Cells().size() == 24,
+          "one cell per page for a small mapping");
+  Require(cycle.detail_->resident_pages_ == 12 &&
+              cycle.detail_->measured_pages_ == 24,
+          "every other page is resident");
+  Require(reader.Cells()[0].resident_ == memory_wire::kCellScale &&
+              reader.Cells()[1].resident_ == 0,
+          "cells follow the pages");
+  Require(reader.Cells()[0].shared_ == 0,
+          "a private anonymous page is exclusive");
+  cycle = reader.Read(pid, 1, never);
+  Require(cycle.detail_->status_ == memory_wire::DetailStatus::NotFound,
+          "no VMA at that address");
+
+  Require(::munmap(region, 64 * page) == 0, "munmap");
+  cycle = reader.Read(pid, std::nullopt, never);
+  Require(cycle.layout_changed_ && FindVma(reader, region) == nullptr &&
+              cycle.summary_[memory_wire::Field("vmas_removed")] >= 1,
+          "a removed mapping is counted");
+
+  // A mapping larger than one burst is read over several cycles.
+  const auto large_pages = 2 * PageScanner::kPagesPerBurst + 10;
+  auto* large = ::mmap(nullptr, large_pages * page, PROT_READ,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+  Require(large != MAP_FAILED, "large mmap");
+  const auto large_start = reinterpret_cast<std::uintptr_t>(large);
+  MemoryMapReader scanner{memory_wire::kMaxVmas};
+  static_cast<void>(scanner.Read(pid, std::nullopt, never));
+  std::size_t cycles = 0;
+  for (; cycles < 10; ++cycles)
+  {
+    cycle = scanner.Read(pid, large_start, never);
+    if (cycle.detail_->status_ == memory_wire::DetailStatus::Complete)
+    {
+      break;
+    }
+    Require(cycle.detail_->status_ == memory_wire::DetailStatus::Measuring &&
+                cycle.detail_->measured_pages_ < large_pages,
+            "a pass in progress");
+  }
+  Require(cycles >= 2 && cycles < 10, "the pass ends after several cycles");
+  Require(scanner.Cells().size() == memory_wire::kMaxCells &&
+              cycle.detail_->measured_pages_ == large_pages &&
+              cycle.detail_->resident_pages_ == 0,
+          "an untouched reservation has no resident pages");
+  Require(::munmap(large, large_pages * page) == 0, "munmap large");
+
+  // A list shorter than the process keeps the largest VMAs and the stack.
+  MemoryMapReader truncated{4};
+  cycle = truncated.Read(pid, std::nullopt, never);
+  Require(memory_wire::HasFlag(cycle.flags_, memory_wire::Flags::Truncated) &&
+              truncated.Vmas().size() == 4 &&
+              cycle.summary_[memory_wire::Field("vma_count")] > 4,
+          "truncated to max_vmas");
+  Require(std::ranges::any_of(truncated.Vmas(),
+                              [](const memory_wire::Vma& p_vma)
+                              {
+                                return p_vma.kind_ ==
+                                       memory_wire::VmaKind::Stack;
+                              }),
+          "the stack stays in a truncated list");
+  Require(!truncated.Read(999'999'999, std::nullopt, never).layout_changed_,
+          "an absent process is not a change");
+}
+
+void TestClassifyVma()
+{
+  const auto kind = [](std::string_view p_line)
+  {
+    return ClassifyVma(*ParseMapsLine(p_line));
+  };
+  Require(kind("1000-2000 rw-p 0 00:00 0 [heap]") == memory_wire::VmaKind::Heap,
+          "heap");
+  Require(
+      kind("1000-2000 r-xp 0 00:00 0 [vdso]") == memory_wire::VmaKind::Kernel,
+      "vdso");
+  Require(kind("1000-2000 rw-p 0 00:00 0 [anon:arena]") ==
+              memory_wire::VmaKind::NamedAnonymous,
+          "named anonymous");
+  Require(
+      kind("1000-2000 rw-p 0 00:00 0 [uprobes]") == memory_wire::VmaKind::Other,
+      "other kernel name");
+  Require(kind("1000-2000 rw-p 0 00:00 0") == memory_wire::VmaKind::Anonymous,
+          "anonymous");
+  const auto vma =
+      ToWireVma(*ParseMapsLine("1000-2000 r-xp 0 08:01 7 /lib/a.so (deleted)"));
+  Require(
+      vma.kind_ == memory_wire::VmaKind::File &&
+          vma.flags_ == std::to_underlying(memory_wire::VmaFlags::Deleted) &&
+          vma.Name() == "/lib/a.so",
+      "deleted file");
+}
+
 int main()
 {
   try
@@ -646,10 +848,12 @@ int main()
     TestSocketRanking();
     TestResourceProbe();
     TestMemoryParsing();
+    TestClassifyVma();
+    TestMemoryMapReader();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
         "RAII, descriptor budget, resource parsing and probe, memory "
-        "parsing)");
+        "parsing and reader)");
   }
   catch (const std::exception& error)
   {

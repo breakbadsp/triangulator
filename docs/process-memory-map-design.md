@@ -554,6 +554,26 @@ time. The pull request for the sampler thread must report the extra latency at
 p50, p99 and the maximum, on a 6.x kernel and on an older kernel. The project
 sets the pass limit from these results.
 
+### Results
+
+`make memory-map-latency` runs the test (`tests/memory_map_latency.cpp`). The
+target has 20 000 small mappings and a populated 1 GiB mapping. The reader
+runs tiers 0, 1 and 2 (on the 1 GiB mapping) back to back, with no pause:
+about 46 cycles each second, against one cycle each 2 s by default.
+
+Linux 7.2, x86-64:
+
+| Call | Without the reader: p50 / p99 / max | With the reader: p50 / p99 / max |
+|---|---|---|
+| `mmap` | 1.4 / 2.0 / 31 µs | 1.5 / 24 / 484 µs |
+| Page fault | 1.1 / 3.1 / 165 µs | 1.1 / 3.2 / 171 µs |
+| `munmap` | 5.3 / 8.3 / 43 µs | 6.6 / 23 / 284 µs |
+
+Page faults do not change: this kernel uses per-VMA locks for faults. `mmap`
+and `munmap` wait for the reader at most about 0.5 ms. No older kernel (for
+example 4.18 or 5.14) was available for this test. On those kernels page
+faults also wait for the lock. The pass limit for them is still open.
+
 ## 12. Plan
 
 Each step is a separate commit. Each commit builds and passes `make check`
@@ -706,3 +726,45 @@ include the fixes.
 11. **Two names for one setting.** `memory_retention_days` and
     `[memory_map] retention_days` were the same setting. The design now uses
     the second name only (section 8).
+
+## 17. Threat review of the request channel
+
+The control socket is the first inbound path to the sampler. This section is
+the review that section 6 asks for.
+
+**What an attacker can reach.** A UDP port on `memory_map_listen`. The default
+is `127.0.0.1`, so only local users can send to it. A non-loopback address is
+an explicit choice in `sampler.toml`.
+
+**Checks, in order.**
+
+1. **Rate.** At most 8 datagrams each second are checked. The thread reads
+   and drops the others. A flood costs at most 8 HMAC computations each
+   second, and at most 64 `recvfrom` calls each time the thread wakes.
+2. **Sender.** The source address must be the host of the `collector` address.
+   On loopback every local user has this address, so this check alone is not
+   enough there.
+3. **Signature.** HMAC-SHA256 with the token. The token file must belong to the
+   sampler user and have no group or other permissions, so other local users
+   cannot read it. The comparison takes the same time for every wrong MAC.
+4. **Format.** Version, action, tier, reserved bytes and lease.
+5. **Counter.** The counter must be larger than the last accepted counter.
+   A captured request cannot be sent again.
+
+**What a valid request can do.** Start or stop reads of the configured
+target only. A request holds no PID, path or command. The lease is limited to
+`memory_map_max_lease_s`. Tier 2 reads `pagemap` of one VMA with a burst budget
+(section 6). The sampler sends the results only to the configured collector.
+
+**Known limits.**
+
+- After a sampler restart the last counter is zero. An attacker who captured
+  an old request (on the network, if the channel is not on loopback) can send
+  it once and start one lease. The effect is a bounded read and datagrams to
+  the collector. Nothing leaves the configured path.
+- The TVMA datagrams are not encrypted. They show the address layout of the
+  target, including library paths, to anyone who can read the network between
+  the sampler and the collector. The thread ticks have the same exposure. Keep
+  the collector on a trusted network.
+- There is no reply, so an attacker cannot use the sampler to send data to a
+  third host.

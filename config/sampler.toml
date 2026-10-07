@@ -6,3 +6,18 @@ status_fallback = false
 # Seconds between resource samples: pressure, descriptors, socket queues and
 # network drops (0 = off, 1..60). Never more often than thread ticks.
 resource_interval_s = 5
+
+# Memory map (docs/process-memory-map-design.md). Off by default. When on, a
+# second thread waits for signed requests from the collector and reads the
+# target's memory map only while the dashboard's Memory map section is open.
+# memory_map_enabled = false
+# Control socket for the collector's requests. Use a non-loopback address
+# only when the collector runs on another host.
+# memory_map_listen = "127.0.0.1:9402"
+# Required when enabled: one line of at least 32 characters, mode 0600 or
+# 0400, owned by the sampler user. The collector uses the same token.
+# memory_map_token_file = "/etc/triangulator/memory-map.token"
+# memory_map_interval_s = 2      # 1..60: seconds between reads
+# memory_map_keyframe_s = 30     # 5..300: full VMA list at least this often
+# memory_map_max_vmas = 8192     # 256..65536: the largest VMAs are sent
+# memory_map_max_lease_s = 15    # 5..60: longest time one request keeps it on

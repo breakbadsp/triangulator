@@ -36,7 +36,7 @@ SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
 CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
-	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
+	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp tests/memory_map_latency.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
 	$(METRICS_HEADERS) metrics/main.cpp
 
@@ -119,6 +119,16 @@ build/allocation-test: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) \
 		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc $(LDLIBS) -o $@
+
+# The acceptance test of docs/process-memory-map-design.md, section 11. Not
+# part of check: it reports timings, which depend on the machine.
+.PHONY: memory-map-latency
+memory-map-latency: build/memory-map-latency
+	./build/memory-map-latency
+
+build/memory-map-latency: tests/memory_map_latency.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
 build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build

@@ -1,8 +1,11 @@
 """Decoder for the sampler's wire format, so the tests can read real sampler datagrams.
 
 This mirrors the layout in common/wire.hpp; change both together. Resource
-samples (common/resource_wire.hpp) are decoded only as far as the tests need."""
+samples (common/resource_wire.hpp) and memory-map datagrams
+(common/memory_wire.hpp) are decoded only as far as the tests need."""
 import dataclasses
+import hashlib
+import hmac
 import re
 import struct
 from pathlib import Path
@@ -123,9 +126,9 @@ RESOURCE_SOCKETS = 2
 UNAVAILABLE = 2**64 - 1
 
 
-def _summary_fields():
+def _summary_fields(header="common/resource_wire.hpp"):
     """The summary field names, read from the C++ header so there is one list."""
-    source = (Path(__file__).resolve().parents[1] / "common/resource_wire.hpp").read_text()
+    source = (Path(__file__).resolve().parents[1] / header).read_text()
     source = re.sub(r"//[^\n]*", "", source)
     block = re.search(r"kSummaryFields\{(.*?)\};", source, re.S).group(1)
     return tuple(re.findall(r'"([a-z0-9_]+)"', block))
@@ -172,5 +175,78 @@ def receive_tick(receiver, size=1500):
     """The next thread-tick datagram, skipping the sampler's resource samples."""
     while True:
         data = receiver.recv(size)
-        if not data.startswith(b"TRES"):
+        if not data.startswith((b"TRES", b"TVMA")):
             return data
+
+
+MEMORY_HEADER = struct.Struct("<4sBBHHHIQQQIIQIHH")
+MEMORY_VMA = struct.Struct("<QQQQIIBBBB4x48s")
+MEMORY_DETAIL = struct.Struct("<QQQQQQQQIIB7x")
+MEMORY_SUMMARY, MEMORY_VMAS, MEMORY_DETAIL_PART = 1, 2, 3
+MEMORY_FIELDS = _summary_fields("common/memory_wire.hpp")
+MEMORY_TARGET_ABSENT = 2
+VMA_KINDS = {1: "anonymous", 2: "file", 3: "heap", 4: "stack", 5: "kernel", 6: "named", 7: "other"}
+
+
+@dataclasses.dataclass(frozen=True)
+class Vma:
+    start: int
+    end: int
+    permissions: int
+    kind: str
+    changes: int
+    flags: int
+    name: str
+
+
+@dataclasses.dataclass(frozen=True)
+class MemoryPart:
+    kind: int
+    part: int
+    parts: int
+    sequence: int
+    session: int
+    pid: int
+    interval_ms: int
+    generation: int
+    flags: int
+    layout_parts: int
+    values: dict
+    vmas: tuple
+    detail: dict
+    cells: tuple
+
+
+def decode_memory(data: bytes) -> MemoryPart:
+    """One TVMA datagram: the summary values (None when unavailable), the VMAs or the detail and cells."""
+    (magic, version, kind, part, parts, count, sequence, session, _monotonic, _wall, pid, interval,
+     _start, generation, flags, layout_parts) = MEMORY_HEADER.unpack_from(data)
+    if magic != b"TVMA" or version != 1:
+        raise ValueError("not a memory-map datagram")
+    values, vmas, detail, cells = {}, (), {}, ()
+    offset = MEMORY_HEADER.size
+    if kind == MEMORY_SUMMARY:
+        numbers = struct.unpack_from(f"<{len(MEMORY_FIELDS)}Q", data, offset)
+        values = {name: None if value == UNAVAILABLE else value for name, value in zip(MEMORY_FIELDS, numbers)}
+    elif kind == MEMORY_VMAS:
+        items = []
+        for index in range(count):
+            (start, end, _offset, _inode, _major, _minor, permissions, vma_kind, changes, vma_flags,
+             name) = MEMORY_VMA.unpack_from(data, offset + index * MEMORY_VMA.size)
+            items.append(Vma(start, end, permissions, VMA_KINDS[vma_kind], changes, vma_flags,
+                             name.split(b"\0", 1)[0].decode(errors="replace")))
+        vmas = tuple(items)
+    elif kind == MEMORY_DETAIL_PART:
+        names = ("vma_start", "vma_end", "pages_per_cell", "measured_pages", "resident_pages", "swapped_pages",
+                 "shared_pages", "scan_ns", "cell_count", "first_cell", "status")
+        detail = dict(zip(names, MEMORY_DETAIL.unpack_from(data, offset)))
+        start = offset + MEMORY_DETAIL.size
+        cells = tuple(tuple(data[start + 3 * index:start + 3 * index + 3]) for index in range(count))
+    return MemoryPart(kind, part, parts, sequence, session, pid, interval, generation, flags, layout_parts,
+                      values, vmas, detail, cells)
+
+
+def memory_request(token: bytes, counter: int, *, action=1, tier=1, lease_s=15, vma_start=0) -> bytes:
+    """A signed TVMQ request, as the collector sends it."""
+    signed = struct.pack("<4sBBBBI4xQQ", b"TVMQ", 1, action, tier, 0, lease_s, counter, vma_start)
+    return signed + hmac.new(token, signed, hashlib.sha256).digest()

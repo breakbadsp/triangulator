@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "../sampler/memory_map.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
 
@@ -85,6 +86,12 @@ int main()
   ThreadCache reopened{ThreadCache::kReservedDescriptors};
   ResourceProbe probe;
   RateLimitedLogger logger;
+  // The memory-map reader, with the largest list and a selected VMA: its
+  // first cycle (startup) fills the list; the later cycles must reuse it.
+  MemoryMapReader memory{memory_wire::kMaxVmas};
+  const std::stop_token never;
+  static_cast<void>(memory.Read(pid, std::nullopt, never));
+  const auto selected = memory.Vmas().front().start_;
 
   // Sampling, for several ticks.
   const auto before = allocation_count;
@@ -112,6 +119,9 @@ int main()
                 resource_wire::HasFlag(sample.flags_,
                                        resource_wire::Flags::SocketsTruncated),
             "resource sample keeps the fullest sockets");
+    const auto cycle = memory.Read(pid, selected, never);
+    Require(cycle.detail_ && !memory.Vmas().empty(),
+            "memory-map cycle with a selected VMA");
     logger.Warn("allocation test tick {}: warning text uses fixed storage",
                 tick);
   }

@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "memory_map.hpp"
 #include "proc.hpp"
 #include "resources.hpp"
 
@@ -86,6 +87,12 @@ class Sampler
     {
       return reset;
     }
+    // At startup a memory-map thread that cannot start (for example, its
+    // port is in use) stops the sampler: the configuration asked for it.
+    if (auto started = StartMemoryMap(); !started)
+    {
+      return started;
+    }
     auto deadline = ClockNow(CLOCK_MONOTONIC);
     while (!stop_requested)
     {
@@ -97,10 +104,22 @@ class Sampler
         auto next = LoadConfig(p_config_path);
         if (next)
         {
+          // A reload that changes only memory_map_* keys keeps the
+          // session; it restarts only the memory-map thread.
+          const bool same = next->settings_.SameSampling(config_.settings_);
+          memory_map_.reset();
           config_ = std::move(*next);
-          if (auto reset = ResetSession(); !reset)
+          if (!same)
           {
-            return reset;
+            if (auto reset = ResetSession(); !reset)
+            {
+              return reset;
+            }
+          }
+          if (auto started = StartMemoryMap(); !started)
+          {
+            logger_.Warn("memory map stays off after the reload: {}",
+                         started.error());
           }
         }
         else
@@ -148,6 +167,10 @@ class Sampler
         return reset;
       }
       previous_target_ = p_target;
+    }
+    if (memory_map_)
+    {
+      memory_target_.Publish(session_, p_target);
     }
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
     const auto wall = ClockNow(CLOCK_REALTIME);
@@ -244,6 +267,23 @@ class Sampler
     }
   }
 
+  // Starts the memory-map thread when the configuration turns it on.
+  [[nodiscard]] std::expected<void, std::string> StartMemoryMap()
+  {
+    if (!config_.memory_map_)
+    {
+      return {};
+    }
+    auto started =
+        MemoryMapper::Start(MemoryMapOptionsFrom(config_), memory_target_);
+    if (!started)
+    {
+      return std::unexpected(std::move(started.error()));
+    }
+    memory_map_ = std::move(*started);
+    return {};
+  }
+
   [[nodiscard]] std::expected<void, std::string> ResetSession()
   {
     const auto session = NewSession();
@@ -335,6 +375,9 @@ class Sampler
   std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
   std::uint32_t resource_sequence_ = 0;
   Nanoseconds next_resources_{0};
+  MemoryMapTarget memory_target_;
+  // Last, so the thread stops before the members above are destroyed.
+  std::unique_ptr<MemoryMapper> memory_map_;
 };
 
 }  // namespace
