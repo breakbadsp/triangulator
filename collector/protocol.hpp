@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cassert>
@@ -232,6 +233,17 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 14>
                   {"eventfd", "pipe"},
                   {"nanosleep", "sleep"}}};
 
+// Classify returns at most kMaxStates names: the five fixed names below and
+// the states in kWchanStates. No name is longer than kMaxStateNameSize bytes.
+inline constexpr std::size_t kMaxStates = 10;
+inline constexpr std::size_t kMaxStateNameSize = 11;
+static_assert(std::ranges::all_of(kWchanStates,
+                                  [](const auto& p_entry)
+                                  {
+                                    return p_entry.second.size() <=
+                                           kMaxStateNameSize;
+                                  }));
+
 [[nodiscard]] inline std::string_view Classify(const Record& p_record)
 {
   if (p_record.state_ == 'D')
@@ -261,9 +273,13 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 14>
   return "other";
 }
 
-// The longest AppendRecordJson text: thirteen fields, and a name and wait
-// channel in which every byte is escaped as \u00XX (six bytes).
-using RecordJsonText = FixedText<1536>;
+// The longest AppendRecordJson text: the keys and punctuation (fewer than
+// 200 bytes), eleven numbers of at most 20 digits, the state (at most
+// \"\u00XX\", 8 bytes), and a name and wait channel in which every wire byte
+// became a six-byte \u00XX escape, with quotes.
+inline constexpr std::size_t kRecordJsonSize =
+    200 + 11 * 20 + 8 + 6 * (kCommSize + kWchanSize) + 4;
+using RecordJsonText = FixedText<kRecordJsonSize>;
 
 // The record as compact JSON, the form the raw_sample table stores.
 inline void AppendRecordJson(RecordJsonText& p_out, const Record& p_record)
@@ -291,7 +307,7 @@ inline void AppendRecordJson(RecordJsonText& p_out, const Record& p_record)
   p_out.Append(",\"wchan\":");
   AppendJsonString(p_out, p_record.wchan_);
   p_out.Append("}");
-  assert(p_out.View().size() < 1536);
+  assert(p_out.View().size() < kRecordJsonSize);
 }
 
 }  // namespace triangulator::collector

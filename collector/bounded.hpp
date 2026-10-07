@@ -38,6 +38,13 @@ class BoundedVector
   {
     items_.reserve(p_capacity);
   }
+  // A copy of a std::vector has a capacity of only its size, so a copy would
+  // be full. A move keeps the capacity.
+  BoundedVector(const BoundedVector&) = delete;
+  BoundedVector& operator=(const BoundedVector&) = delete;
+  BoundedVector(BoundedVector&&) noexcept = default;
+  BoundedVector& operator=(BoundedVector&&) noexcept = default;
+  ~BoundedVector() = default;
 
   [[nodiscard]] std::size_t Capacity() const noexcept
   {

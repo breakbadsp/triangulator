@@ -3,8 +3,8 @@
 // Resource samples: reassembles the sampler's TRES datagrams, turns
 // cumulative counters into rates over the interval since the previous
 // sample, keeps the latest sample for the live view and produces one
-// resource_sample row per sample. Like Monitor, it does no I/O: rows wait in
-// PendingRows() until the caller writes them. It evaluates no alert rules.
+// resource_sample row per sample. Like Monitor, it does no I/O: it gives each
+// finished row to the RowSink at once. It evaluates no alert rules.
 
 #include <arpa/inet.h>
 
@@ -292,7 +292,10 @@ class ResourceMonitor
 
   // A sample whose parts are still arriving. Socket rows from part N go to
   // sockets_ at (N - 1) * kSocketsPerPart, so Finish() can join them in part
-  // order.
+  // order. Finish() copies them to ResourceSample::socket_rows_, which holds
+  // kMaxSockets rows; the two sizes agree only for whole parts.
+  static_assert(resource_wire::kMaxSockets % resource_wire::kSocketsPerPart ==
+                0);
   struct Assembly
   {
     bool active_ = false;

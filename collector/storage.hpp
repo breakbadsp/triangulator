@@ -71,9 +71,10 @@ inline constexpr std::array<std::pair<std::string_view, std::string_view>, 3>
                          {"major_faults_delta", "INTEGER"}}};
 
 // The sample_counts column: a JSON object of state counts, such as
-// {"running": 3, "futex": 2}. At most ten distinct states exist (see
-// Classify), each at most 11 + 2 + 2 + 20 + 2 bytes.
-using SampleCountsText = FixedText<384>;
+// {"running": 3, "futex": 2}. It has at most kMaxStates entries. Each entry
+// is the quoted name, ": ", a count of at most 20 digits and ", ".
+using SampleCountsText =
+    FixedText<kMaxStates*(kMaxStateNameSize + 2 + 2 + 20 + 2) + 2>;
 
 // One rollup row. It holds its own text, except the group name, which views
 // the group name in the Config.
@@ -243,7 +244,7 @@ struct ResourceRow
 
 // Where the Monitor and the ResourceMonitor send finished rows. A sink
 // writes the row at once and keeps any error for its owner; the monitors
-// don't look at it. They do no I/O themselves and build rows on the stack, so
+// do not look at it. They do no I/O themselves and build rows on the stack, so
 // nothing waits in a buffer that could grow.
 class RowSink
 {
