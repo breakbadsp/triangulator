@@ -345,6 +345,16 @@ class Sampler
 
 int main(int p_argc, char** p_argv)
 {
+  if (p_argc == 2 && (std::string_view{p_argv[1]} == "-h" ||
+                      std::string_view{p_argv[1]} == "--help"))
+  {
+    std::puts(
+        "usage: triangulator-sampler [--check-config] CONFIG\n"
+        "       triangulator-sampler -h|--help\n\n"
+        "Read-only Linux process and thread sampler.\n"
+        "--check-config validates CONFIG without sampling.");
+    return 0;
+  }
   // --check-config validates CONFIG with the same parser a SIGHUP reload
   // uses, then exits without sampling or sending anything.
   const bool check_config =

@@ -42,8 +42,20 @@ build:
 	mkdir -p $@
 
 build/build_options: FORCE | build
+	@command -v cmp >/dev/null 2>&1 || { \
+		echo "missing cmp; install diffutils (see docs/build-guidelines.md)" >&2; exit 1; }
 	@$(file >build/build_options.tmp,$(CXX) $(CC) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) $(SAMPLER_LDFLAGS) $(RUNTIME_LDFLAGS) $(COLLECTOR_LIBS) $(SQLITE_SOURCE) $(SQLITE_CFLAGS)) true
-	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+	@set -e; \
+		if test ! -e $@; then mv $@.tmp $@; \
+		else \
+			status=0; cmp -s $@.tmp $@ || status=$$?; \
+			case "$$status" in \
+				0) rm $@.tmp ;; \
+				1) mv $@.tmp $@ ;; \
+				*) echo "cannot compare build options (cmp exit $$status)" >&2; \
+					rm $@.tmp; exit "$$status" ;; \
+			esac; \
+		fi
 
 build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/build_options Makefile
 	$(CC) $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@

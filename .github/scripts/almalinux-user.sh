@@ -57,10 +57,13 @@ done > /reports/normal-linkage.txt
 set +e
 build/triangulator-sampler --help > /reports/sampler-help.log 2>&1
 help_status=$?
+set -e
+printf '%s\n' "$help_status" > /reports/sampler-help.status
+test "$help_status" -eq 0
+set +e
 make release > /reports/release-without-amalgamation.log 2>&1
 release_status=$?
 set -e
-printf '%s\n' "$help_status" > /reports/sampler-help.status
 printf '%s\n' "$release_status" > /reports/release-without-amalgamation.status
 
 make -j2 release SQLITE_SOURCE=/tmp/sqlite3.c

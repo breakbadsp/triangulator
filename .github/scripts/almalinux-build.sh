@@ -24,6 +24,12 @@ cat /reports/first-start.log
 
 # Record the system compiler result before enabling a newer toolset.
 dnf install -y dnf-plugins-core gcc-c++ make sqlite-devel
+set +e
+make build/build_options > /reports/missing-cmp.log 2>&1
+cmp_status=$?
+set -e
+printf '%s\n' "$cmp_status" > /reports/missing-cmp.status
+dnf install -y diffutils
 c++ --version > /reports/system-compiler.txt
 set +e
 make > /reports/system-build.log 2>&1
@@ -34,14 +40,15 @@ tail -n 30 /reports/system-build.log
 
 # CRB supplies the static runtime development packages.
 dnf config-manager --set-enabled crb
-dnf install -y diffutils glibc-static libstdc++-static nodejs shadow-utils util-linux
+dnf install -y glibc-static libstdc++-static shadow-utils util-linux
 if [[ "$ALMA_VERSION" == 9 ]]; then
-    dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11
+    dnf module enable -y nodejs:22
+    dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11 nodejs
     mkdir -p /opt/test/bin
     ln -s /usr/bin/python3.11 /opt/test/bin/python3
     export PATH="/opt/test/bin:/opt/rh/gcc-toolset-14/root/usr/bin:$PATH"
 else
-    dnf install -y python3
+    dnf install -y python3 nodejs
 fi
 c++ --version
 python3 --version

@@ -17,7 +17,7 @@ After the workflow is merged into `master`:
 
 Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 Changes to the workflow or its scripts start it on pull requests.
-The initial test branch also starts it when these files change on push.
+Build, source, configuration, test, and build guideline changes also start it.
 
 ## What the test does
 
@@ -106,7 +106,7 @@ It does not replace the operating system's `python3`.
 AlmaLinux 10 uses its default compiler and Python.
 
 Node.js is needed to run the dashboard JavaScript tests. Without it, `make check`
-skips those tests. Python is needed for tests and local target control.
+fails those tests. Python is needed for tests and local target control.
 It is not needed by the copied monitoring binaries.
 The clean AlmaLinux images already contain Python, so the test records that fact;
 it does not claim to use a Python-free image.
@@ -115,12 +115,19 @@ The normal sampler is fully static. The normal collector and socket report helpe
 still use shared SQLite and glibc libraries. The release binaries have no shared
 library dependencies. The link reports record this distinction.
 
-## Recommended improvements
+## Build guidelines and fixes
 
-1. Add AlmaLinux package commands to the main build instructions.
-2. Check the compiler, static libraries, and required commands before building.
-3. Report a missing `cmp` as a dependency error.
-4. Put the fully static build instructions next to the binary deployment example.
-5. Publish release archives with the binaries and usable local configuration files.
-6. Document Node.js and any skipped tests in the test instructions.
-7. Add consistent `--help` and version output to the programs.
+The [build guidelines](build-guidelines.md) contain AlmaLinux package commands,
+tool selection, static release instructions, and required quality checks.
+The Makefile now stops when `cmp` is absent or returns a comparison error.
+The sampler now accepts `-h` and `--help` without reading a configuration file.
+The dashboard tests now fail when Node.js is absent.
+The AlmaLinux 9 workflow selects Node.js 22 explicitly.
+
+## Remaining improvements
+
+1. Define the oldest supported kernel and CPU architecture.
+2. Verify releases on that kernel and the supported AlmaLinux service environment.
+3. Publish release archives with binaries, local configuration files, and checksums.
+4. Add a compiler and library diagnostic command if installation errors remain unclear.
+5. Define release version information before adding version output to the programs.

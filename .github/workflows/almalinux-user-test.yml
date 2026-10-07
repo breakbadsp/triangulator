@@ -2,15 +2,22 @@ name: AlmaLinux new user test
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/almalinux-new-user-test]
-    paths:
-      - .github/workflows/almalinux-user-test.yml
-      - .github/scripts/almalinux-*.sh
   pull_request:
     paths:
+      - Makefile
+      - README.md
+      - docs/build-guidelines.md
+      - docs/almalinux-user-test.md
       - .github/workflows/almalinux-user-test.yml
       - .github/scripts/almalinux-*.sh
+      - common/**
+      - sampler/**
+      - collector/**
+      - metrics/**
+      - socket_sampler/**
+      - scripts/**
+      - tests/**
+      - config/**
 
 permissions:
   contents: read
@@ -20,10 +27,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: C++ format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - run: make format-check CLANG_FORMAT=clang-format-18
   test:
     name: AlmaLinux ${{ matrix.version }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    needs: format
     strategy:
       fail-fast: false
       matrix:

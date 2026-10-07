@@ -28,6 +28,24 @@ def wait_until_asleep(pid, timeout=5):
 
 
 class SamplerTests(unittest.TestCase):
+    def test_help_does_not_require_a_config_or_send_samples(self):
+        binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(0.1)
+            # A valid file with the flag's name must not start sampling.
+            for flag in ("-h", "--help"):
+                Path(directory, flag).write_text(
+                    f'target_pid=1\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                result = subprocess.run([str(binary), flag], cwd=directory,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("--check-config", result.stdout)
+                self.assertIn("CONFIG", result.stdout)
+                self.assertEqual(result.stderr, "")
+                with self.assertRaises(TimeoutError):
+                    receiver.recv(1200)
+
     def test_real_proc_wire_format_reload_and_absent_heartbeat(self):
         binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
