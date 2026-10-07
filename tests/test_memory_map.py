@@ -3,6 +3,7 @@ without a request, answers a signed watch with TVMA datagrams, reads the pages
 of one selected VMA, stops when the lease ends and ignores forged or repeated
 requests. See docs/process-memory-map-design.md."""
 import json
+import os
 import signal
 import socket
 import sqlite3
@@ -122,7 +123,10 @@ class MemoryMapSamplerTests(unittest.TestCase):
         self.assertEqual(vmas, sorted(vmas, key=lambda vma: vma.start), "sorted by address")
         stack = next(vma for vma in vmas if vma.kind == "stack")
         self.assertEqual(stack.name, "[stack]")
-        self.assertTrue(any(vma.kind == "file" and vma.name.endswith("sleep") for vma in vmas))
+        # The program file, by its real path: on some systems `sleep` runs
+        # from another binary, such as a multi-call coreutils.
+        program = os.path.realpath(f"/proc/{self.target.pid}/exe")[-48:]
+        self.assertTrue(any(vma.kind == "file" and vma.name == program for vma in vmas))
         self.assertEqual(summary.values["stack_end"], stack.end)
 
         # The layout of a sleeping process does not change, so the next
