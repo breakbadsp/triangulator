@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <type_traits>
 
+#include "../sampler/memory_parsing.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
 
@@ -551,6 +552,86 @@ void TestDescriptorBudget()
   Require(RaiseDescriptorLimit() >= 64, "descriptor limit is readable");
 }
 
+// The memory-map parsers read fixture text shaped like the kernel's files,
+// including the cases that real files have: names with spaces, deleted
+// files, kernel names and unlimited limits.
+void TestMemoryParsing()
+{
+  const auto heap = ParseMapsLine(
+      "55d0c1a00000-55d0c6e00000 rw-p 00000000 00:00 0                    "
+      "      [heap]");
+  Require(heap.has_value(), "heap line must parse");
+  Require(heap->start_ == 0x55d0c1a00000 && heap->end_ == 0x55d0c6e00000,
+          "address range");
+  Require(heap->permissions_ == 3, "rw-p is read and write, private");
+  Require(heap->name_ == "[heap]" && heap->inode_ == 0, "heap name");
+  const auto library = ParseMapsLine(
+      "7f8a10000000-7f8a10021000 r-xs 0001c000 fd:01 1234567   "
+      "/usr/lib/my lib.so (deleted)");
+  Require(library.has_value(), "library line must parse");
+  Require(library->permissions_ == (1 | 4 | 8), "r-xs");
+  Require(library->offset_ == 0x1c000 && library->inode_ == 1234567 &&
+              library->device_major_ == 0xfd && library->device_minor_ == 1,
+          "offset, inode and device");
+  Require(library->name_ == "/usr/lib/my lib.so" && library->deleted_,
+          "a name with a space keeps it; (deleted) becomes a flag");
+  const auto anonymous =
+      ParseMapsLine("7f8a20000000-7f8a24000000 ---p 00000000 00:00 0\n");
+  Require(anonymous && anonymous->name_.empty() && anonymous->permissions_ == 0,
+          "an anonymous guard mapping has no name and no permissions");
+  Require(!ParseMapsLine("7f8a-7f80 rw-p 0 00:00 0"),
+          "an empty or reversed range is invalid");
+  Require(!ParseMapsLine("7f80-7f8a rwzp 0 00:00 0"),
+          "unknown permission letters are invalid");
+  Require(!ParseMapsLine("7f80-7f8a rw-p 0 0000 0"), "device needs a colon");
+  Require(!ParseMapsLine(""), "an empty line is invalid");
+
+  std::string stat = "42 (a) b) S";
+  for (int field = 4; field <= 52; ++field)
+  {
+    stat += std::format(" {}", field == 10   ? 900
+                               : field == 12 ? 7
+                               : field == 28 ? 140737488347136
+                                             : 0);
+  }
+  const auto process = ParseProcessStat(stat);
+  Require(process && process->minor_faults_ == 900 &&
+              process->major_faults_ == 7 &&
+              process->start_stack_ == 140737488347136,
+          "process stat fields 10, 12 and 28");
+  Require(!ParseProcessStat("42 (a) S 1 2 3"), "short stat is invalid");
+
+  const std::string_view limits =
+      "Limit                     Soft Limit           Hard Limit           "
+      "Units\n"
+      "Max stack size            8388608              unlimited            "
+      "bytes\n"
+      "Max address space         unlimited            unlimited            "
+      "bytes\n"
+      "Max locked memory         8388608              8388608              "
+      "bytes\n";
+  Require(ParseSoftLimit(limits, "Max stack size") == 8388608, "stack limit");
+  Require(!ParseSoftLimit(limits, "Max address space"),
+          "unlimited is not a number");
+  Require(ParseSoftLimit(limits, "Max locked memory") == 8388608,
+          "locked memory");
+  Require(!ParseSoftLimit(limits, "Max stack"),
+          "a row prefix is not a row name");
+
+  const auto present = DecodePagemapEntry((std::uint64_t{1} << 63) |
+                                          (std::uint64_t{1} << 56) | 0x1234);
+  Require(present.present_ && present.exclusive_ && !present.swapped_ &&
+              !present.file_or_shared_,
+          "present, exclusive anonymous page");
+  const auto swapped = DecodePagemapEntry(std::uint64_t{1} << 62);
+  Require(swapped.swapped_ && !swapped.present_, "swapped page");
+  const auto file =
+      DecodePagemapEntry((std::uint64_t{1} << 63) | (std::uint64_t{1} << 61));
+  Require(file.present_ && file.file_or_shared_ && !file.exclusive_,
+          "present file page mapped by others too");
+  Require(!DecodePagemapEntry(0).present_, "an empty entry is not present");
+}
+
 int main()
 {
   try
@@ -564,9 +645,11 @@ int main()
     TestMemoryCgroupAndInterfaceParsing();
     TestSocketRanking();
     TestResourceProbe();
+    TestMemoryParsing();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
-        "RAII, descriptor budget, resource parsing and probe)");
+        "RAII, descriptor budget, resource parsing and probe, memory "
+        "parsing)");
   }
   catch (const std::exception& error)
   {
