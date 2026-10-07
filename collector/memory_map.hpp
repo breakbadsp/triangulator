@@ -50,6 +50,24 @@ inline void AppendHex(std::string& p_out, std::uint64_t p_value)
   std::format_to(std::back_inserter(p_out), "\"{:x}\"", p_value);
 }
 
+// One summary value as JSON: null when unknown, hex text for addresses.
+inline void AppendSummaryValue(std::string& p_out, std::string_view p_name,
+                               std::optional<std::uint64_t> p_value)
+{
+  if (!p_value)
+  {
+    p_out += "null";
+  }
+  else if (IsAddressField(p_name) || p_name == "start_stack")
+  {
+    AppendHex(p_out, *p_value);
+  }
+  else
+  {
+    std::format_to(std::back_inserter(p_out), "{}", *p_value);
+  }
+}
+
 [[nodiscard]] inline std::string_view VmaKindName(memory_wire::VmaKind p_kind)
 {
   constexpr std::array<std::string_view, 8> kNames{
@@ -379,18 +397,9 @@ class MemoryMapMonitor
       const auto value = summary_->values_[index];
       std::format_to(std::back_inserter(p_out), "{}\"{}\":", index ? "," : "",
                      name);
-      if (value == kUnavailable)
-      {
-        p_out += "null";
-      }
-      else if (IsAddressField(name) || name == "start_stack")
-      {
-        AppendHex(p_out, value);
-      }
-      else
-      {
-        std::format_to(std::back_inserter(p_out), "{}", value);
-      }
+      AppendSummaryValue(
+          p_out, name,
+          value == kUnavailable ? std::nullopt : std::optional{value});
     }
     p_out += "}}";
   }

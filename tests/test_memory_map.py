@@ -311,9 +311,40 @@ class MemoryMapCollectorTests(unittest.TestCase):
                 count = database.execute("SELECT count(*) FROM vm_snapshot").fetchone()[0]
         self.assertEqual(count, 1)
 
+        # Replay: the stored summary and list, shaped like the live view.
+        status, replay = self.fetch(f"/api/memory-map/replay?at={time.time() + 2}")
+        self.assertEqual((status, replay["state"]), (200, "replay"))
+        self.assertEqual(replay["summary"]["pid"], self.target.pid)
+        self.assertEqual(replay["layout"]["columns"], columns)
+        stored = [dict(zip(columns, row)) for row in replay["layout"]["rows"]]
+        self.assertTrue(any(row["kind"] == "stack" for row in stored))
+        self.assertTrue(replay["history"] and replay["history"][0]["stack"] > 0)
+        self.assertFalse(replay["replay"]["read_error"])
+        # Before the first record there is nothing: null, never an empty map.
+        nothing = self.fetch("/api/memory-map/replay?at=1")[1]
+        self.assertEqual((nothing["summary"], nothing["layout"]), (None, None))
+        self.assertEqual(self.fetch("/api/memory-map/replay")[0], 400)
+        self.assertEqual(self.fetch("/api/memory-map/replay?at=-1")[0], 400)
+
+        # The findings come from the helper program, through the bridge.
+        report = {"loading": True}
+        deadline = time.monotonic() + 8
+        while report.get("loading") and time.monotonic() < deadline:
+            report = self.fetch("/api/memory-map/report")[1]
+            time.sleep(0.1)
+        self.assertTrue(report["available"], report)
+        self.assertEqual(report["pid"], self.target.pid)
+        self.assertIsInstance(report["findings"], list)
+        self.assertIsNotNone(report["sources"]["summary_age_s"])
+        self.assertIsNotNone(report["sources"]["snapshot_age_s"])
+        self.assertFalse(report["read_error"])
+        self.assertEqual(self.fetch("/api/memory-map/report?pid=x")[0], 400)
+
     def test_disabled_collector_has_no_memory_map(self):
         self.start("", "")
         self.assertEqual(self.fetch("/api/memory-map")[0], 404)
+        for path in ("/api/memory-map/report", "/api/memory-map/replay?at=5"):
+            self.assertEqual(self.fetch(path)[0], 404)
         self.assertEqual(self.watch()[0], 404)
         time.sleep(1.5)
         for day in (self.directory / "data").glob("*.sqlite3"):

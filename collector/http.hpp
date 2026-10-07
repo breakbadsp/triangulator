@@ -29,6 +29,8 @@
 #include "json.hpp"
 #include "log.hpp"
 #include "memory_map.hpp"
+#include "memory_replay.hpp"
+#include "memory_report.hpp"
 #include "replay.hpp"
 #include "socket_report.hpp"
 #include "storage.hpp"
@@ -277,6 +279,7 @@ class DashboardServer
         state_(p_state),
         listener_(std::move(p_listener)),
         socket_reports_(p_config.data_dir_),
+        memory_reports_(p_config.data_dir_),
         memory_map_(p_memory_map)
   {
   }
@@ -289,6 +292,13 @@ class DashboardServer
     if (auto started = socket_reports_.Start(); !started)
     {
       return started;
+    }
+    if (memory_map_ != nullptr)
+    {
+      if (auto started = memory_reports_.Start(); !started)
+      {
+        return started;
+      }
     }
     try
     {
@@ -328,6 +338,7 @@ class DashboardServer
   std::atomic<bool> stopped_ = false;
   std::thread thread_;
   SocketReportBridge socket_reports_;
+  MemoryReportBridge memory_reports_;
   MemoryMapShared* memory_map_;
 
   void Serve()
@@ -623,6 +634,16 @@ class DashboardServer
     {
       Respond(p_connection, 200, *memory_map_->Json(), "application/json");
     }
+    else if (p_request.path_ == "/api/memory-map/report" &&
+             memory_map_ != nullptr)
+    {
+      MemoryReport(p_connection, p_request);
+    }
+    else if (p_request.path_ == "/api/memory-map/replay" &&
+             memory_map_ != nullptr)
+    {
+      MemoryMapReplay(p_connection, p_request);
+    }
     else
     {
       Respond(p_connection, 404, "Not found", "text/plain");
@@ -638,6 +659,57 @@ class DashboardServer
            (p_request.origin_.empty() ||
             p_request.origin_ == "http://" + p_request.host_ ||
             p_request.origin_ == "https://" + p_request.host_);
+  }
+
+  // The seconds since the epoch in the query value "at", or 0 (now) without
+  // one. Whole seconds, rounded up, so the report includes the moment.
+  [[nodiscard]] static std::optional<std::uint64_t> QueryTime(
+      const Request& p_request)
+  {
+    const auto text = QueryValue(p_request.query_, "at");
+    if (!text)
+    {
+      return 0;
+    }
+    const auto at = PythonFloat(*text);
+    if (!at || !std::isfinite(*at) || *at < 0 || *at > 253402214400.0)
+    {
+      return std::nullopt;
+    }
+    return static_cast<std::uint64_t>(std::ceil(*at));
+  }
+
+  // The findings for the process (default: the newest) at a time (default:
+  // now). The helper program makes them; this only relays its answer.
+  void MemoryReport(int p_connection, const Request& p_request)
+  {
+    const auto pid = triangulator::ParseNumber<std::uint32_t>(
+        QueryValue(p_request.query_, "pid").value_or("0"));
+    const auto at = QueryTime(p_request);
+    if (!pid || !at)
+    {
+      Respond(p_connection, 400, R"({"error":"invalid pid or time"})",
+              "application/json");
+      return;
+    }
+    Respond(p_connection, 200, *memory_reports_.Request(*pid, *at),
+            "application/json");
+  }
+
+  // The stored memory map at a time, in the shape of /api/memory-map.
+  void MemoryMapReplay(int p_connection, const Request& p_request)
+  {
+    const auto at = QueryTime(p_request);
+    if (!at || *at == 0)
+    {
+      Respond(p_connection, 400, R"({"error":"a valid time is required"})",
+              "application/json");
+      return;
+    }
+    Respond(
+        p_connection, 200,
+        collector::MemoryReplay(config_.data_dir_, static_cast<double>(*at)),
+        "application/json");
   }
 
   // Asks the sampler to read the memory map for one more lease: the layout,
