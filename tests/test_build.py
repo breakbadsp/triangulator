@@ -1,4 +1,4 @@
-"""Check build option tracking and its dependency errors without compiling."""
+"""Check build option tracking without compiling."""
 import os
 from pathlib import Path
 import shutil
@@ -29,13 +29,12 @@ class BuildOptionsTests(unittest.TestCase):
             (tools / name).symlink_to(shutil.which(name))
         return tools
 
-    def test_missing_cmp_stops_the_first_build(self):
+    def test_build_options_do_not_require_cmp(self):
         with tempfile.TemporaryDirectory() as directory:
             tools = self.prepare(directory)
             result = self.run_make(directory, path=tools)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("missing cmp; install diffutils", result.stderr)
-            self.assertFalse((Path(directory) / "build/build_options").exists())
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((Path(directory) / "build/build_options").exists())
 
     def test_same_options_preserve_the_timestamp_and_new_options_replace_them(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -53,18 +52,14 @@ class BuildOptionsTests(unittest.TestCase):
             self.assertIn("-O3", options.read_text())
             self.assertNotEqual(options.read_text(), old_options)
 
-    def test_cmp_error_preserves_the_saved_options(self):
+    def test_build_options_ignore_a_failing_cmp(self):
         with tempfile.TemporaryDirectory() as directory:
             tools = self.prepare(directory)
             first = self.run_make(directory, "CXXFLAGS=-O2")
             self.assertEqual(first.returncode, 0, first.stderr)
-            options = Path(directory) / "build/build_options"
-            before = options.read_bytes()
             failing_cmp = tools / "cmp"
             failing_cmp.write_text("#!/bin/sh\nexit 2\n")
             failing_cmp.chmod(0o755)
-            failed = self.run_make(directory, "CXXFLAGS=-O3", path=tools)
-            self.assertNotEqual(failed.returncode, 0)
-            self.assertIn("cannot compare build options", failed.stderr)
-            self.assertEqual(options.read_bytes(), before)
-            self.assertFalse((Path(directory) / "build/build_options.tmp").exists())
+            changed = self.run_make(directory, "CXXFLAGS=-O3", path=tools)
+            self.assertEqual(changed.returncode, 0, changed.stderr)
+            self.assertIn("-O3", (Path(directory) / "build/build_options").read_text())

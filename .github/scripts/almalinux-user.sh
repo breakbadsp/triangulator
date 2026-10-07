@@ -54,20 +54,22 @@ for binary in /reports/normal/*; do
     readelf -dW "$binary"
 done > /reports/normal-linkage.txt
 
-set +e
-build/triangulator-sampler --help > /reports/sampler-help.log 2>&1
-help_status=$?
-set -e
-printf '%s\n' "$help_status" > /reports/sampler-help.status
-test "$help_status" -eq 0
+# Both programs must print usage for --help and exit with status 0.
+build/triangulator-sampler --help > /reports/sampler-help.log
+build/triangulator-socket-report --help > /reports/socket-report-help.log
+
+# Without a static SQLite library, release must stop with a clear message.
 set +e
 make release > /reports/release-without-amalgamation.log 2>&1
 release_status=$?
 set -e
 printf '%s\n' "$release_status" > /reports/release-without-amalgamation.status
+[[ "$release_status" != 0 ]]
+grep -q 'make sqlite-amalgamation' /reports/release-without-amalgamation.log
 
-make -j2 release SQLITE_SOURCE=/tmp/sqlite3.c
-make -j2 check STATIC=1 SQLITE_SOURCE=/tmp/sqlite3.c 2>&1 | tee /reports/release-check.log
+make sqlite-amalgamation
+make -j2 release SQLITE_SOURCE=build/sqlite/sqlite3.c
+make -j2 check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c 2>&1 | tee /reports/release-check.log
 cp build/triangulator-{sampler,collector,socket-report} /reports/release/
 for binary in /reports/release/*; do
     readelf -lW "$binary"

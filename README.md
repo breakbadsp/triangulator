@@ -174,11 +174,13 @@ compiler setup, static releases, required checks, and known deployment limits.
 <summary>Read more</summary>
 
 Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
-GNU Make, Bash, coreutils, diffutils (`cmp`), sed, the compiler's static C/C++
-runtime libraries, and libsqlite3 development files for the collector.
+GNU Make 4.2 or later, Bash, coreutils, sed, the compiler's static C/C++
+runtime libraries, and libsqlite3 development files for the collector
+(unless you supply the SQLite amalgamation).
 Static release verification also needs binutils (`readelf`).
 Python 3.11+ is needed only for tests, the optional
-sampler control scripts and alerting; it needs no third-party packages.
+sampler control scripts, alerting, and `make sqlite-amalgamation`.
+It needs no third-party packages.
 Node.js is required for the dashboard tests in `make check`.
 Formatting uses clang-format 22.1.8.
 The basic startup script also uses getconf.
@@ -193,6 +195,20 @@ make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
 ```
 
+To use a different compiler, set `CXX` on the command line or in the
+environment. Do not edit the Makefile. The same variable builds the SQLite
+amalgamation, so no separate C compiler setting exists. Make stops with a clear
+message if the compiler cannot build C++23.
+
+```sh
+make CXX=g++-14                    # for example a newer GCC next to the system one
+CXX=clang++-19 make check
+```
+
+On a system with a compiler toolset (for example GCC Toolset on AlmaLinux 9),
+put the toolset's `bin` directory on `PATH` or give the full path in `CXX`.
+Changing `CXX`, `CXXFLAGS` or the link options rebuilds every program.
+
 The sampler links fully statically by default. The collector and socket report
 helper embed libstdc++ and libgcc, leaving libc and SQLite as shared libraries.
 Builds do not download anything. To build all three programs fully statically:
@@ -202,19 +218,24 @@ make release                       # requires the system's static SQLite library
 make check STATIC=1                 # test those same release binaries
 ```
 
-If your distribution does not ship `libsqlite3.a`, provide `sqlite3.c` and
-`sqlite3.h` from the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
-in the same directory:
+If your distribution does not ship `libsqlite3.a`, `make release` stops and says
+so. Use the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
+instead. `make sqlite-amalgamation` is the only target that uses the network. It
+downloads the amalgamation, checks the published SHA3-256 hash and writes
+`build/sqlite/sqlite3.c`. It needs Python 3. You can also download the files
+yourself and give the path of `sqlite3.c`; `sqlite3.h` must be in the same
+directory:
 
 ```sh
-make release SQLITE_SOURCE=/path/to/sqlite3.c
-make check STATIC=1 SQLITE_SOURCE=/path/to/sqlite3.c
+make sqlite-amalgamation
+make release SQLITE_SOURCE=build/sqlite/sqlite3.c
+make check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c
 ```
 
 This compiles SQLite directly into the collector and report helper, with dynamic
-extension loading disabled. A C compiler is needed for that option. `release`
-uses readelf to reject a dynamic loader or shared-library dependencies and fails
-if static libraries are missing. Use numeric `udp_host` and `http_host` addresses
+extension loading disabled. No separate C compiler is needed. `release` uses
+readelf to reject a dynamic loader or shared-library dependencies and fails if
+static libraries are missing. Use numeric `udp_host` and `http_host` addresses
 in static releases; glibc hostname resolution can require runtime NSS modules.
 The optional eBPF source remains a separate build (`make socket-sampler`) and
 needs libbpf; it is not included in `release`.

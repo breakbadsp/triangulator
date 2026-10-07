@@ -123,6 +123,18 @@ class SamplerTests(unittest.TestCase):
             usage = subprocess.run([str(binary), "--check", str(config)], capture_output=True, text=True, timeout=5)
             self.assertEqual(usage.returncode, 2)
             self.assertIn("usage", usage.stderr)
+            for option in ("-h", "--help"):
+                helped = subprocess.run([str(binary), option], capture_output=True, text=True, timeout=5)
+                self.assertEqual(helped.returncode, 0, helped.stderr)
+                self.assertIn("usage", helped.stdout)
+
+    def test_report_helper_prints_help(self):
+        root = Path(__file__).resolve().parents[1]
+        binary = root / "build" / "triangulator-socket-report"
+        for option in ("-h", "--help"):
+            helped = subprocess.run([str(binary), option], capture_output=True, text=True, timeout=5)
+            self.assertEqual(helped.returncode, 0, helped.stderr)
+            self.assertIn("usage", helped.stdout)
 
     def test_named_target_chunking_thread_names_and_descriptor_cleanup(self):
         root = Path(__file__).resolve().parents[1]

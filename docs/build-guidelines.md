@@ -9,16 +9,17 @@ See [the test report](almalinux-user-test.md) for the evidence and test limits.
 ## Dependencies
 
 - Checkout: Git.
-- Build: GNU Make, a C++23 compiler, Bash, coreutils, diffutils, sed, static C/C++
+- Build: GNU Make 4.2 or later, a C++23 compiler, Bash, coreutils, sed, static C/C++
   runtime libraries, and SQLite development headers and library.
 - Release verification: binutils, including `readelf`.
 - Tests: Python 3.11 or later and Node.js. No Python packages are required.
 - Formatting: clang-format 22.1.8 with the repository's `.clang-format` file.
 - Fully static release: a static SQLite library, or `sqlite3.c` and `sqlite3.h`
-  from the same SQLite amalgamation archive. This option also needs a C compiler.
+  from the same SQLite amalgamation archive.
+  The selected C++ compiler compiles this source as C.
 
-`cmp` comes from diffutils. The Makefile uses it to compare saved build options.
-An absent command or a comparison error stops the build.
+Make compares saved build options without an external command.
+The build does not require `cmp` or diffutils.
 The dashboard tests require Node.js. An absent Node.js executable fails the tests.
 The optional eBPF kernel test is separate and remains disabled in normal checks.
 
@@ -37,14 +38,14 @@ Install GCC Toolset 14 and select Node.js 22 from the module repository.
 AlmaLinux includes [Node.js 22](https://wiki.almalinux.org/release-notes/9.6).
 
 ```sh
-dnf install -y dnf-plugins-core git make diffutils coreutils sed binutils gcc-c++ sqlite-devel
+dnf install -y dnf-plugins-core git make coreutils sed binutils gcc-c++ sqlite-devel
 dnf config-manager --set-enabled crb
 dnf module enable -y nodejs:22
 dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel glibc-static libstdc++-static python3.11 nodejs
 ```
 
 CRB is the AlmaLinux repository that supplies the static development packages.
-The compiler installation supplies a C compiler for the SQLite amalgamation.
+The selected compiler also compiles the SQLite amalgamation as C.
 
 ### AlmaLinux 10
 
@@ -52,7 +53,7 @@ The default GCC 14 compiler supports the required language features.
 Static runtime libraries still need a separate package installation.
 
 ```sh
-dnf install -y dnf-plugins-core git make diffutils coreutils sed binutils gcc-c++ sqlite-devel
+dnf install -y dnf-plugins-core git make coreutils sed binutils gcc-c++ sqlite-devel
 dnf config-manager --set-enabled crb
 dnf install -y glibc-static libstdc++-static python3 nodejs
 ```
@@ -71,7 +72,8 @@ dnf install -y glibc-static libstdc++-static python3 nodejs
    ```sh
    mkdir -p config/local/build-tools
    ln -sfn /usr/bin/python3.11 config/local/build-tools/python3
-   export PATH="$PWD/config/local/build-tools:/opt/rh/gcc-toolset-14/root/usr/bin:$PATH"
+   export PATH="$PWD/config/local/build-tools:$PATH"
+   export CXX=/opt/rh/gcc-toolset-14/root/usr/bin/g++
    ```
 
    This local alias leaves the operating system's `python3` executable unchanged.
@@ -80,7 +82,7 @@ dnf install -y glibc-static libstdc++-static python3 nodejs
 3. Check the selected tool versions.
 
    ```sh
-   c++ --version
+   "${CXX:-c++}" --version
    python3 --version
    node --version
    ```
@@ -132,7 +134,15 @@ make check STATIC=1
 ```
 
 The tested AlmaLinux package setup did not supply this static SQLite library.
-For that setup:
+Use the verified download target:
+
+```sh
+make sqlite-amalgamation
+make release SQLITE_SOURCE=build/sqlite/sqlite3.c
+make check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c
+```
+
+To supply the source manually:
 
 1. Download a release archive from the [SQLite download page](https://www.sqlite.org/download.html).
 2. Verify the archive against its published SHA3-256 hash.
@@ -183,7 +193,6 @@ See [the socket source guide](socket-ingress-design.md#build-and-run).
 ## Errors and remaining release work
 
 - `make: command not found`: install Make.
-- `missing cmp; install diffutils`: install diffutils.
 - `fatal error: expected: No such file or directory`: select a supported C++23 compiler.
 - `cannot find -lstdc++`, `-lm`, or `-lc` in a static build: install the static runtime packages.
 - `cannot find -lsqlite3` in `make release`: supply static SQLite or use `SQLITE_SOURCE`.

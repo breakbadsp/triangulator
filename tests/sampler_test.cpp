@@ -160,7 +160,7 @@ void TestWire()
       wire::EncodeSample(0x01020304, stat, {10, 11}, IoCounters{12, 13},
                          ParseWchan("futex_do_wait"));
   RequireHex(
-      record,
+      wire::AsBytes(record),
       "04030201530002010807060504030201090000000000000"
       "00a000000000000000b0000000000000005000000000000000c000000000000000d00000"
       "000000000"
@@ -168,19 +168,19 @@ void TestWire()
       "66757465785f646f5f7761697400000000000000000000000000000000000000");
   const auto missing_io =
       wire::EncodeSample(1, stat, {10, 11}, std::nullopt, WaitChannel{});
-  Require(missing_io[5] == std::byte{1}, "unreadable io is flagged");
-  std::array<std::byte, wire::kHeaderSize> header{};
-  wire::EncodeHeader(header, {.flags_ = wire::Flags::StatusFallback,
-                              .chunk_ = 1,
-                              .chunks_ = 3,
-                              .session_ = 0x0102030405060708ULL,
-                              .sequence_ = 0x090a0b0c,
-                              .records_ = 1,
-                              .monotonic_ns_ = 12,
-                              .wall_ns_ = 13,
-                              .interval_ms_ = 1000,
-                              .pid_ = 0x01020304});
-  RequireHex(header,
+  Require(missing_io.flags_ == wire::RecordFlags::IoUnavailable,
+          "unreadable io is flagged");
+  const wire::Header header{.flags_ = wire::Flags::StatusFallback,
+                            .chunk_ = 1,
+                            .chunks_ = 3,
+                            .session_ = 0x0102030405060708ULL,
+                            .sequence_ = 0x090a0b0c,
+                            .records_ = 1,
+                            .monotonic_ns_ = 12,
+                            .wall_ns_ = 13,
+                            .interval_ms_ = 1000,
+                            .pid_ = 0x01020304};
+  RequireHex(wire::AsBytes(header),
              "544d4f4e0202010308070605040302010c0b0a09010000000c000000000000000"
              "d00000000000000e803000004030201");
 }
