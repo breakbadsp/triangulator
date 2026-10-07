@@ -124,7 +124,7 @@ The project rules in [AGENTS.md](../AGENTS.md) apply:
 
 | Option | Description | Advantage | Disadvantage |
 |---|---|---|---|
-| **A. A thread in the sampler** | The sampler starts one extra thread when the feature is on. The thread reads `/proc` and sends `TVMA` datagrams. | One program to deploy. Same target lookup, same session, same UDP path. Works when the collector runs on another host. History goes to SQLite, so replay works. | A bug in the new code can stop the thread sampler. The sampler is no longer single-threaded. |
+| **A. A thread in the sampler** | The sampler starts one extra thread when the feature is on. The thread reads `/proc` and sends `TVMA` datagrams. | One program to deploy. Same target lookup, same session, same UDP path. Works when the collector runs on another host. Summaries and evidence snapshots go to SQLite. | A bug in the new code can stop the thread sampler. The sampler is no longer single-threaded. |
 | **B. A separate sampler program** | A new binary, like `socket_sampler/`. | The failure of one program does not stop the other. The user can limit it with `nice` or a cgroup. | One more program to deploy. It needs its own target lookup. |
 | **C. A helper on the collector host, started on request** | Like `SocketReportBridge`. The HTTP thread starts a helper, which reads `/proc` once. | The user can select any range at any time. No new wire format. | The target must be on the same host. No history. Python or C++ start-up cost for each request. |
 
@@ -137,7 +137,7 @@ Use **option A** for version 1, with these conditions:
    functions return `std::expected`.
 3. The parsers are in headers under `common/`, not inside `sampler/main.cpp`. If
    the thread causes trouble, the code moves to option B with little change.
-4. The thread backs off by itself when a read is slow (see section 9).
+4. The thread backs off by itself when a read is slow (see section 11).
 
 Option C is a possible later addition for local targets that need an arbitrary
 zoom range.
@@ -167,6 +167,7 @@ flowchart LR
 
     sampler -->|"UDP · TMON, TRES"| collector
     vmthread -->|"UDP · TVMA"| collector
+    collector -->|"UDP · watch request with lease"| vmthread
     http <-->|"JSON"| browser["Browser<br/>Memory map tab"]
 ```
 
@@ -183,59 +184,91 @@ Each part has one job:
 
 ## 6. The sampler memory thread
 
-### Control: how the user turns it on
+The sampler starts the thread when `[memory_map] enabled = true`. The thread
+then **blocks** until a request arrives. While it blocks, it uses no CPU and
+reads nothing from the target.
 
-The sampler has **no inbound channel today**. UDP goes one way. The only control
-is the configuration file and `SIGHUP`. A valid reload starts a new session,
-which resets the thread baselines.
+### Control: the request channel
 
-For version 1:
+The thread waits in `poll()` on a control socket. The collector sends small UDP
+requests to this socket.
 
-1. Add a `[memory_map]` section to `sampler.toml`. The keys are `enabled`,
-   `interval_s`, `keyframe_s`, `max_vmas` and `cell_vmas`.
-2. A reload that changes only `[memory_map]` must **not** start a new session. It
-   starts or stops the memory thread only.
-3. The dashboard toggle uses the existing local target-control helper, as it does
-   for the target name today. Installations without the helper show the toggle
-   as unavailable.
+| Field | Content |
+|---|---|
+| Action | `watch` or `stop` |
+| Tier | `layout` (tiers 0 and 1) or `detail` (tier 2, see below) |
+| Lease | Seconds. The sampler limits it to `max_lease_s` (default 15). |
+| VMA start | For `detail` only. The start address of the selected VMA. |
+| Counter | Rises with each request. The sampler ignores a request with an old counter. |
+| HMAC | Computed with a shared token. |
 
-Zoom in the browser works on data that the sampler already sent. The sampler
-cannot receive "zoom into this range" from the browser. To compensate, the
-sampler always sends detail for these VMAs: `[heap]`, `[stack]` and the largest
-`cell_vmas` VMAs by resident size (default 6).
+Rules for the channel:
 
-A real-time control channel is a **later** decision. It would add a listening
-socket to the sampler. That changes the security model, so it needs its own
-design.
+1. A request never holds a PID or a path. The target is always the process in
+   `sampler.toml`. The only actions are the fixed list above.
+2. The sampler accepts a request only from the configured collector address with
+   a valid HMAC. It limits the request rate.
+3. The default listen address is `127.0.0.1`. A remote collector needs an
+   explicit address and a token file in `[memory_map]`.
+4. The request has a **lease**. While a browser has the tab open, the collector
+   repeats `watch` every 5 s. If the lease ends, the thread stops and blocks
+   again. A forgotten tab cannot keep the sampling on.
+5. The sampler sends no reply. The `TVMA` stream is the reply. The tab shows
+   "waiting for the sampler" until the first datagram arrives.
+
+This is the first inbound path to the sampler. The pull request that adds it
+must include a short threat review. The worst case for an attacker who passes the
+checks is a bounded read of the configured target.
+
+Configuration keys: `enabled`, `listen`, `token_file`, `interval_s`,
+`keyframe_s`, `max_vmas`, `max_lease_s`. A reload that changes only
+`[memory_map]` must **not** start a new session. It only changes this thread.
+
+On the collector side, a new setting, `sampler_control = "host:port"`, gives the
+address of the control socket. The HTTP endpoint `POST /api/memory-map/watch`
+sets the lease. The tab calls it while it is open.
+
+### Three tiers of work
+
+Each tier takes more of the target's memory-map lock (section 11).
+
+| Tier | Reads | Runs when | Risk to the target |
+|---|---|---|---|
+| 0 | `status`, `stat`, `limits` | The lease is active | None. These reads take no `mmap_lock`. |
+| 1 | `maps`, in small reads | The lease is active | Short lock holds |
+| 2 | `smaps` and `pagemap` for **one** selected VMA | Only after the user selects the VMA | Short lock holds in a bounded burst |
+
+Tiers 0 and 1 give the whole growth view: the end of the heap, the start of the
+stack, the VMA list and the totals. Tier 2 gives the page grid of the selected
+VMA. Tier 2 never runs on its own.
 
 ### One cycle
 
-1. Read `status`, `stat` (fault counters) and `limits`. These are cheap.
-2. Read `maps` in one `read` loop with a large buffer. Parse it with a fixed
-   buffer, without allocation in the loop.
+1. Tier 0: read `status`, `stat` (fault counters) and `limits`.
+2. Tier 1: read `maps` in small `read` calls (default buffer: 4 KiB). Parse with
+   a fixed buffer, without allocation in the loop.
 3. Compare with the previous cycle. Mark each VMA as new, removed, resized or
    unchanged.
-4. Read `smaps` only for new or resized VMAs, and for all VMAs once in each
-   `keyframe_s` period (default 30 s).
-5. Read `pagemap` for the selected VMAs. Reduce the result to at most 512
-   **cells** for each VMA. One cell covers a fixed number of pages. The cell
-   holds the fractions of resident, dirty and swapped pages.
-6. Send datagrams. Do not retry. Do not buffer on disk.
+4. Tier 2, on request only: read `smaps` for the selected VMA. Read `pagemap` for
+   its address range in small windows. Reduce the result to at most 512
+   **cells**. One cell covers a fixed number of pages. It holds the fractions of
+   resident, dirty and swapped pages.
+5. Send datagrams. Do not retry. Do not buffer on disk.
 
-Linux 6.11 and later offers the `PROCMAP_QUERY` ioctl on `/proc/<pid>/maps`. It
-returns one VMA for an address, without text parsing, and it is not affected by
-the changes that can happen while the program reads the text. Use it when the
-kernel has it. Keep the text parser as the fallback, because many target hosts
-run older kernels.
+Use `PROCMAP_QUERY` (Linux 6.11 and later) when the kernel has it. It returns one
+VMA for an address, without text parsing. Keep the text parser as the fallback.
 
 ### Limits
 
 | Limit | Default | Reason |
 |---|---|---|
-| `interval_s` | 2 | Growth of the heap is visible at this rate. Fast enough for a live view. |
-| `max_vmas` | 8192 | Some processes have more than 60 000 VMAs. The sampler sends a summary and the largest VMAs. It sets a `truncated` flag. |
-| Time per cycle | 1 % of wall time | The thread measures its own read time and increases the interval when it is above the budget. |
-| Cells per VMA | 512 | 512 cells fit in 2 datagrams. They are enough for one screen. |
+| `interval_s` | 2 | The growth of the heap is visible at this rate. |
+| `keyframe_s` | 30 | A lost datagram is corrected within 30 s. |
+| `max_vmas` | 8192 | Some processes have more than 60 000 VMAs. The sampler sends a summary and the largest VMAs, and sets a `truncated` flag. Tier 2 needs a confirmation above this number. |
+| Read size | 4 KiB for `maps` | A small read holds the lock for a short time. |
+| Slow-read limit | 2 ms | The thread times each read. A slow read doubles the sleep time. |
+| Burst budget | 50 ms total | The thread stops a tier 2 burst above this time and sends what it has. |
+| Cells per VMA | 512 | 512 cells fit in 2 datagrams. |
 
 ## 7. Transport: the `TVMA` datagram
 
@@ -276,19 +309,19 @@ sequence. The live view is therefore small: one summary and a few VMA changes.
 
 ### SQLite tables
 
+The tab is mostly live. The sampler reads only while someone watches, so the
+database holds little. It keeps only important data:
+
 | Table | One row for | Content |
 |---|---|---|
-| `vm_summary` | Each cycle | The summary values. About 100 bytes. Low volume. |
-| `vm_vma` | Each VMA change | The VMA record, with the sequence number. A keyframe writes all VMAs. |
-| `vm_cells` | Each cell record | The cells for one selected VMA. |
+| `vm_summary` | Each minute of watching | The summary values. About 100 bytes. |
+| `vm_snapshot` | Each evidence snapshot | The full VMA list. The collector writes one at most each hour, and one when a finding opens. |
 | `vm_name` | Each new name | Name identifier and path. |
 
-These tables go to the same daily files as the other data. Retention follows the
-existing raw-record setting. The volume stays low because most cycles write only
-`vm_summary` and a few `vm_vma` changes.
+The database holds **no page cells** and no continuous VMA history. The
+retention is 7 days by default (setting: `memory_retention_days`).
 
-The stored history lets the user **replay** the address space for any past time.
-Replay already exists for threads. The tab uses the same time selector.
+Replay shows the stored snapshots and summaries. It is not a continuous record.
 
 ## 9. The analysis module
 
@@ -353,26 +386,76 @@ Rules for the page:
 - Show "not readable" for unavailable data. Never show zero.
 - Poll the live endpoint about once each 2 s only while the tab is open.
 
-## 11. Observer effect and safety
+## 11. Observer effect: the memory-map lock
 
-Reading `smaps` and `pagemap` makes the kernel hold the **mmap lock** of the
-target for reading. During that time, calls such as `mmap`, `munmap` and `brk`
-in the target wait. A large process can see delays of milliseconds. A very large
-process can see more.
+### What the lock is
 
-The design limits this:
+Each process has one `mmap_lock`. It is a read/write lock on the list of VMAs.
 
-1. The feature is off by default.
-2. `smaps` runs only for changed VMAs and once in each keyframe period.
-3. `pagemap` runs only for the selected VMAs.
-4. The thread measures its read time. It raises the interval when the cost is
-   above 1 % of wall time. It sends the measured cost, and the tab shows it.
-5. The thread never writes to the target. In particular, it does **not** write to
-   `/proc/<pid>/clear_refs`. That file would give a "written since" view, but it
-   changes the state of the target and adds page faults. Add it only as a
-   separate, explicit option.
-6. A VMA can disappear between two reads. A process can exit. The thread treats
+- **Readers** share the lock. They are: page-fault handling on older kernels,
+  and reads of `/proc/<pid>/maps`, `smaps` and `pagemap`.
+- **Writers** need the lock alone. They are: `mmap`, `munmap`, `mprotect`, `brk`,
+  `mremap` and stack growth.
+
+A waiting writer blocks all new readers. The stall can therefore spread:
+
+1. The sampler reads `smaps`. It holds the read lock.
+2. A target thread calls `mmap`. It waits for the lock.
+3. Other target threads page-fault. On older kernels, they queue behind the
+   waiting writer.
+4. The whole target stops for the time of step 1.
+
+Userspace cannot ask for "try the lock". After a `read()` starts, the sampler
+cannot stop it. The stall is the length of **one lock hold**, not of the whole
+scan.
+
+### How long a hold is
+
+| Source | Lock hold |
+|---|---|
+| `status`, `stat`, `limits`, `statm` | No `mmap_lock`. |
+| `maps` | Per `read()` call. The kernel takes the lock at the start of the call and drops it at the end. A small buffer means a short hold. Newer kernels reduce it more (per-VMA locks, `PROCMAP_QUERY`). |
+| `smaps` | Per `read()` call. Each VMA entry is large, so a large buffer covers many VMAs. |
+| `smaps_rollup` | The whole walk in one hold. **Never use it for large processes.** |
+| `pagemap` | Windows of a limited address range. Verify the size on each supported kernel. |
+| `clear_refs` | A write lock and extra page faults. **Never use it.** |
+
+The kernel version changes the risk. Since Linux 6.4, most page faults use
+per-VMA locks. Then only `mmap`, `munmap`, `brk` and similar writers wait. Older
+enterprise kernels (for example 4.18 and 5.14) make every faulting thread wait.
+The sampler reads the kernel version and uses stricter limits on old kernels.
+
+Do not give the memory thread a very low priority (`SCHED_IDLE` or a high nice
+value). If the kernel pauses the thread while it holds the lock, the target
+stays blocked for the whole pause. Keep each read short. Sleep between reads.
+
+### What the design promises
+
+The sampler cannot read `maps`, `smaps` or `pagemap` with zero effect on the
+target. The design gives three guarantees instead:
+
+1. **No cost when nobody looks.** The thread blocks until a request arrives. The
+   lease ends the work when the tab closes.
+2. **A bound.** The tiers (section 6) keep the heavy reads for one selected VMA.
+   Reads are small. The thread sleeps between them. A burst has a time budget.
+3. **A measurement.** The thread times each read, because a read time shows the
+   lock hold. It backs off when a read is slow. It sends the cost to the
+   collector, and the tab shows it.
+
+### Other safety rules
+
+1. The thread never writes to the target.
+2. A VMA can disappear between two reads. A process can exit. The thread treats
    `ENOENT`, `ESRCH` and `EIO` as normal results.
+3. The zoom button shows a warning: "This briefly locks the target memory map."
+
+### Acceptance test
+
+A test target does `mmap`, `munmap` and page faults in a loop and records the
+latency of each call. The memory thread reads `smaps` and `pagemap` at the same
+time. The pull request for the sampler thread must report the extra latency at
+p50, p99 and the maximum, on a 6.x kernel and on an older kernel. The project
+sets the pass limit from these results.
 
 ## 12. Plan
 
@@ -381,24 +464,30 @@ Each step is a separate pull request. Each pull request builds and passes
 
 1. **Parsers.** `maps`, `smaps`, `pagemap` and `status` parsers in `common/` with
    unit tests that use fixture text. No sampler change.
-2. **`TVMA` wire format.** Encoder and decoder with round-trip tests.
-3. **Sampler thread.** The `[memory_map]` configuration, the thread, the cost
-   budget, and the rule that a `[memory_map]` reload keeps the session.
-4. **Collector.** Decode, store, snapshot and `/api/memory-map`.
+2. **`TVMA` wire format and request format.** Encoders and decoders with
+   round-trip tests. The request has the HMAC.
+3. **Sampler thread.** The `[memory_map]` configuration, the blocking thread, the
+   control socket, the lease, the tiers, the read timing and back-off, and the
+   rule that a `[memory_map]` reload keeps the session. Include the threat
+   review and the **acceptance test** from section 11.
+4. **Collector.** Decode, keep the snapshot, `sampler_control`,
+   `POST /api/memory-map/watch`, `GET /api/memory-map` and the SQLite tables.
 5. **Tab, version 1.** Tiles, address space bar, zoom grid and growth charts.
    No findings yet.
 6. **Analysis module.** `memory_analysis/`, the bridge and the findings panel.
-7. **Replay.** Connect the tab to the time selector.
+7. **Replay of snapshots.** Connect the tab to the time selector for the stored
+   snapshots.
 
-## 13. Open decisions
+## 13. Decisions
 
-1. **Control channel.** Is the config toggle (section 6) enough for version 1, or
-   does the project need a real-time channel to the sampler?
-2. **Defaults.** Are 2 s and 30 s the right defaults for `interval_s` and
-   `keyframe_s`?
-3. **Retention.** How long should `vm_vma` rows stay in the daily files?
-4. **Thread or program.** Section 4 recommends a thread. Choose option B if the
-   project prefers fault isolation to a single program.
+The project owner made these decisions:
+
+1. **Control channel.** The sampler gets a real-time request channel. The memory
+   thread blocks until it receives a request (section 6).
+2. **Defaults.** `interval_s` is 2 and `keyframe_s` is 30.
+3. **Retention.** The tab is mostly live. The database keeps only summaries and
+   evidence snapshots, for 7 days (section 8).
+4. **Thread or program.** A thread in the sampler.
 
 ## 14. Limits of this design
 
