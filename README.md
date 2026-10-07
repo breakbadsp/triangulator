@@ -180,6 +180,7 @@ Static release verification also needs binutils (`readelf`).
 Python 3.11+ is needed only for tests, the optional
 sampler control scripts and alerting; it needs no third-party packages.
 Node.js is required for the dashboard tests in `make check`.
+Formatting uses clang-format 22.1.8.
 The basic startup script also uses getconf.
 Binary-only deployments without `scripts/sampler_control.py` serve monitoring
 without Python; the dashboard hides target control there.

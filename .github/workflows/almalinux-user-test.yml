@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - run: make format-check CLANG_FORMAT=clang-format-18
+      - run: make format-check CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
   test:
     name: AlmaLinux ${{ matrix.version }}
     runs-on: ubuntu-24.04

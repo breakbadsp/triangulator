@@ -13,7 +13,7 @@ See [the test report](almalinux-user-test.md) for the evidence and test limits.
   runtime libraries, and SQLite development headers and library.
 - Release verification: binutils, including `readelf`.
 - Tests: Python 3.11 or later and Node.js. No Python packages are required.
-- Formatting: clang-format with the repository's `.clang-format` file.
+- Formatting: clang-format 22.1.8 with the repository's `.clang-format` file.
 - Fully static release: a static SQLite library, or `sqlite3.c` and `sqlite3.h`
   from the same SQLite amalgamation archive. This option also needs a C compiler.
 
@@ -158,6 +158,16 @@ See [production setup](../README.md#production-setup) for the service templates.
 
 Keep the C++23 requirement, compiler warnings, `-Werror`, and static sampler linkage.
 Keep the release dependency verification enabled.
+Use clang-format 22.1.8 for local checks and CI.
+Formatter versions can produce different layouts for the same configuration.
+CI selects the exact version with the [clang-format package](https://pypi.org/project/clang-format/22.1.8/)
+through `pipx`. Developers with `pipx` can use the same commands:
+
+```sh
+make format CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
+make format-check CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
+```
+
 Run `make format` and `make format-check` for C++ changes.
 Run `make check` before each commit.
 Run `make check` with the same static options as the release build.
