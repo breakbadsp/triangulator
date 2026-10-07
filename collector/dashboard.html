@@ -373,6 +373,9 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <section id="memory-map" class="block" hidden>
 <div class="section-head"><div><h2>Memory map</h2><p id="mm-sub">The virtual address space of the target: heap, stacks, libraries and other mappings. Read without privileges while this section is open.</p></div><span id="mm-status" class="socket-badge" role="status">Waiting for the sampler…</span></div>
 <div id="mm-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+<div id="mm-findings-card" class="card" style="margin-top:14px" hidden><div class="card-head"><div><h3>Memory findings <span id="mm-findings-count" class="muted" style="font-weight:400"></span></h3><p id="mm-findings-sub">Limits and trends of this process, judged by <code>triangulator-memory-report</code> from stored data.</p></div></div>
+<ul id="mm-findings" class="findings" aria-live="polite"></ul>
+<details id="mm-skipped" style="margin-top:10px" hidden><summary>Checks that did not run</summary><ul id="mm-skipped-list" class="muted" style="font-size:12.5px;margin:8px 0 0;padding-left:18px"></ul></details></div>
 <div class="grid mm-split" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>Address space <span id="mm-count" class="muted" style="font-weight:400"></span></h3><p>High addresses at the top. Large unmapped gaps are shortened. Bar height grows with size. Click a readable mapping to see its pages.</p></div><label class="muted" style="font-size:13px"><input id="mm-group" type="checkbox" checked> Group neighbors</label></div>
 <div id="mm-map" class="mm-map"></div>
@@ -1261,7 +1264,7 @@ async function inspectTime(at,direction='at'){
     const inputMs=Math.ceil(replayAt*1000);element('replay-time').value=localInput(inputMs)+'.'+String(inputMs%1000).padStart(3,'0');
     const gap=Math.max(0,at-replayAt);
     element('replay-note').textContent=`Historical view · recorded ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
-    replayControls();renderReplayView();
+    replayControls();renderReplayView();loadMemoryReplay();
   }catch(error){if(request===replayRequest)element('replay-note').textContent=error.message}
 }
 async function returnLive(){const request=++replayRequest;
@@ -1273,7 +1276,7 @@ async function returnLive(){const request=++replayRequest;
     ({buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=savedLiveAnalysis);
   }else loadBuffer(live.health.session);
   savedLiveAnalysis=null;ingest();setMapWindow(liveMapWindow);renderReplayView();
-  element('replay-note').textContent='Live view. Choose a time to inspect a recording.';replayControls();
+  element('replay-note').textContent='Live view. Choose a time to inspect a recording.';replayControls();resumeLiveMemoryMap();
 }
 
 element('replay-open').onclick=()=>inspectTime(new Date(element('replay-time').value).getTime()/1000);
@@ -1292,7 +1295,7 @@ loadReplayBounds();
 // the browser tab is visible. Addresses are hex text (JSON numbers lose
 // precision above 2^53); sizes are numbers.
 const MM_HISTORY_SECS=900,MM_COLUMNS=['start','end','size','offset','inode','device','permissions','kind','changes','flags','name'];
-let memoryMap=null,mmEnabled=false,mmVisible=false,mmSelected=null,mmLayoutKey='',mmHistory=[],mmLastWatch=0,mmTimer=null;
+let memoryMap=null,mmEnabled=false,mmVisible=false,mmSelected=null,mmLayoutKey='',mmHistory=[],mmLastWatch=0,mmTimer=null,mmReport=null,mmReportKey='',mmReportTimer=null,mmLastReport=0,mmReplayRequest=0;
 const hexBig=text=>BigInt('0x'+(text||'0'));
 const shortHex=text=>(text||'').replace(/^0+(?=.)/,'');
 // The color class of a VMA: code, file data, heap, stack, anonymous, guard...
@@ -1322,15 +1325,17 @@ function renderMemoryMap(){
   let text=states[map?.state]||'Waiting for the sampler…';
   if(map?.state==='live'&&summary){const cost=isNum(values.cpu_ns)&&summary.interval_s?values.cpu_ns/1e9/summary.interval_s*100:null;
     text=`Live · every ${duration(summary.interval_s)} · cost ${cost===null?'?':cost<0.1?'<0.1':cost.toFixed(1)}% of one CPU`+(isNum(values.read_ns_max)?` · longest read ${(values.read_ns_max/1e6).toFixed(2)} ms`:'')}
+  if(map?.state==='replay')text=summary?`Recorded · summary from ${date(summary.received_at)}`:'No record';
   if(summary?.target_absent)text='Target absent';else if(summary?.maps_unreadable)text='No access to /proc/<pid>/maps';
-  status.textContent=text;status.className='socket-badge'+(map?.state==='live'&&!summary?.maps_unreadable?'':' socket-warning');
-  element('mm-sub').textContent=!summary?'Waiting for the sampler. It sends data only while this section is open. If this stays, check memory_map_enabled, the token and the control port.'
+  status.textContent=text;status.className='socket-badge'+((map?.state==='live'||map?.state==='replay'&&summary)&&!summary?.maps_unreadable?'':' socket-warning');
+  element('mm-sub').textContent=map?.state==='replay'?(summary?`Recorded memory map at or before ${date(map.replay.at)}. The sampler reads it only while someone watches this section, so the record has gaps: the summary is ${duration(map.replay.at-summary.received_at)} before this time${map.layout?`, the mapping list ${duration(map.replay.at-map.layout.received_at)} before it`:' and no mapping list is stored'}.`:'No memory-map record at or before this time. The sampler reads the memory map only while someone watches this section, and the collector keeps it for [memory_map] retention_days.')
+    :!summary?'Waiting for the sampler. It sends data only while this section is open. If this stays, check memory_map_enabled, the token and the control port.'
     :summary.maps_unreadable?'The sampler cannot read this process\'s memory map: it runs as another user, or the process is not dumpable.'
     :`The virtual address space of ${targetName()}: heap, stacks, libraries and other mappings. Read without privileges while this section is open.`;
   renderMemoryTiles(values,summary);
   const layout=map?.layout,key=layout?`${layout.session}:${layout.sequence}:${mmSelected}:${element('mm-group').checked}`:'';
   if(key!==mmLayoutKey){mmLayoutKey=key;renderMemoryLayout()}
-  renderMemoryZoom();renderMemoryCharts()}
+  renderMemoryZoom();renderMemoryCharts();renderMemoryFindings()}
 function mmTile(label,value,sub,title){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub||'','sub'));if(title)tile.title=title;return tile}
 function renderMemoryTiles(values,summary){const host=element('mm-tiles');host.replaceChildren();if(!summary)return;
   const rate=key=>{const [a,b]=mmHistory.slice(-2);return a&&b&&isNum(a[key])&&isNum(b[key])&&b.t>a.t?(b[key]-a[key])/(b.t-a.t):null};
@@ -1382,6 +1387,7 @@ function renderMemoryZoom(){const facts=element('mm-facts'),grid=element('mm-gri
   element('mm-zoom-sub').textContent=vma?`${shortHex(vma.start)} – ${shortHex(vma.end)} · ${vma.permissions} · ${vma.kind}`:'This mapping is not in the latest list.';
   const fact=(label,value)=>{const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item)};
   const page=memoryMap?.summary?.values?.page_size_bytes||4096;
+  if(memoryMap?.state==='replay'){fact('Status','Pages are not stored. Return to the live view to measure this mapping.');return}
   if(!detail||detail.vma_start!==mmSelected){fact('Status','Waiting for the sampler to read the pages…');return}
   if(detail.status==='not_found'){fact('Status','No mapping starts at this address now: it was unmapped or split.');return}
   if(detail.status==='unreadable'){fact('Status','pagemap is not readable for this process.');return}
@@ -1413,13 +1419,51 @@ function recordMemoryHistory(){const summary=memoryMap?.summary;if(!summary)retu
   const span=(start,end)=>start&&end?Number(hexBig(end)-hexBig(start)):null;
   mmHistory.push({t:summary.received_at,session:summary.session,sequence:summary.sequence,heap:span(values.heap_start,values.heap_end),stack:span(values.stack_start,values.stack_end),anon:values.rss_anon_bytes,major_faults:values.major_faults,minor_faults:values.minor_faults});
   while(mmHistory.length&&mmHistory[0].t<summary.received_at-MM_HISTORY_SECS)mmHistory.shift()}
+// The findings come from triangulator-memory-report through the collector. It
+// judges stored data, so it works also for a past time (replay).
+function renderMemoryFindings(){const card=element('mm-findings-card'),report=mmReport;
+  if(!report||report.helper_missing){card.hidden=true;return}
+  card.hidden=false;const list=element('mm-findings'),skipped=element('mm-skipped');list.replaceChildren();
+  const icons={warning:'!',serious:'▲',critical:'✕'};
+  if(report.loading){list.append(node('li','Checking…','muted'));element('mm-findings-count').textContent='';skipped.hidden=true;return}
+  if(!report.available){list.append(node('li',report.reason||'No report.','muted'));element('mm-findings-count').textContent='';skipped.hidden=true;return}
+  const findings=report.findings||[];element('mm-findings-count').textContent=`(${findings.length})`;
+  for(const item of findings){const row=node('li',undefined,'finding lvl-'+item.severity),icon=node('span',icons[item.severity]||'!','ic');icon.setAttribute('aria-label',item.severity);
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);list.append(row)}
+  if(!findings.length){const row=node('li',undefined,'finding lvl-good'),body=node('div');row.append(node('span','✓','ic'),body);body.append(node('div','No problem found in the data that was checked','t'),node('div','See below for the checks that could not run.','d'));list.append(row)}
+  const sources=report.sources||{},parts=[];
+  if(isNum(sources.summary_age_s))parts.push(`limits from a summary ${duration(sources.summary_age_s)} old`);
+  if(isNum(sources.snapshot_age_s))parts.push(`mappings from a list ${duration(sources.snapshot_age_s)} old`);
+  parts.push(`${number(sources.resource_samples||0,0)} resource samples in the last hour`);
+  element('mm-findings-sub').textContent='Judged by triangulator-memory-report from stored data: '+parts.join(', ')+'.'+(report.read_error?' Some day files could not be read.':'');
+  const skippedList=element('mm-skipped-list');skippedList.replaceChildren();
+  for(const item of report.skipped||[])skippedList.append(node('li',`${item.id.replaceAll('_',' ')}: ${item.reason}`));
+  skipped.hidden=!(report.skipped||[]).length}
+async function fetchMemoryReport(){mmLastReport=Date.now();clearTimeout(mmReportTimer);mmReportTimer=null;
+  const at=replayAt===null?0:Math.ceil(replayAt),pid=memoryMap?.summary?.pid||0,key=`${pid}:${at}`;
+  if(key!==mmReportKey){mmReportKey=key;mmReport=null}
+  try{const response=await fetch(`/api/memory-map/report?pid=${pid}&at=${at}`);if(!response.ok)return;const report=await response.json();
+    if(key!==mmReportKey)return;mmReport=report;renderMemoryFindings();
+    if(report.loading)mmReportTimer=setTimeout(fetchMemoryReport,500)}catch{}}
+// Replay: the stored summary and list nearest before the inspected time.
+async function loadMemoryReplay(){if(!mmEnabled||replayAt===null)return;
+  clearTimeout(mmTimer);mmTimer=null;const request=++mmReplayRequest,at=replayAt;
+  try{const response=await fetch('/api/memory-map/replay?at='+encodeURIComponent(at));if(!response.ok)return;const data=await response.json();
+    if(request!==mmReplayRequest||replayAt!==at)return;
+    memoryMap=data;mmHistory=(data.history||[]).map(point=>({...point,session:data.summary?.session}));mmLayoutKey=null;mmReport=null;mmReportKey='';
+    renderMemoryMap();fetchMemoryReport()}catch{}}
+// Back to live: drop the recorded view and start reading again.
+function resumeLiveMemoryMap(){if(!mmEnabled)return;
+  ++mmReplayRequest;memoryMap=null;mmHistory=[];mmLayoutKey=null;mmReport=null;mmReportKey='';mmLastWatch=0;renderMemoryMap();
+  if(mmVisible)pollMemoryMap();else fetch('/api/memory-map').then(response=>response.ok?response.json():null).then(data=>{if(data&&replayAt===null){memoryMap=data;renderMemoryMap()}}).catch(()=>{})}
 async function watchMemoryMap(){mmLastWatch=Date.now();
   try{await fetch('/api/memory-map/watch',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify({vma_start:mmSelected})})}catch{}}
 async function pollMemoryMap(){clearTimeout(mmTimer);mmTimer=null;
   if(!mmEnabled||!mmVisible||document.visibilityState==='hidden'||replayAt!==null)return;
   if(Date.now()-mmLastWatch>=5000)await watchMemoryMap();
-  try{const response=await fetch('/api/memory-map');if(response.ok){memoryMap=await response.json();recordMemoryHistory();renderMemoryMap()}}catch{}
-  mmTimer=setTimeout(pollMemoryMap,2000)}
+  try{const response=await fetch('/api/memory-map');if(response.ok&&replayAt===null){memoryMap=await response.json();recordMemoryHistory();renderMemoryMap()}}catch{}
+  if(replayAt===null&&Date.now()-mmLastReport>=10000)fetchMemoryReport();
+  if(replayAt===null)mmTimer=setTimeout(pollMemoryMap,2000)}
 async function startMemoryMap(){try{const response=await fetch('/api/memory-map');if(!response.ok)return;memoryMap=await response.json()}catch{return}
   mmEnabled=true;element('memory-map').hidden=false;element('memory-map-link').hidden=false;
   try{mmSelected=sessionStorage.getItem('triangulator:mm-selected')||null}catch{}
