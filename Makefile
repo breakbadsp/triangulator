@@ -38,10 +38,10 @@ CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampl
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp tests/memory_map_latency.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
-	$(METRICS_HEADERS) metrics/main.cpp
+	$(METRICS_HEADERS) metrics/main.cpp metrics/memory_main.cpp tests/memory_report_test.cpp
 
 .PHONY: all check clean format format-check release sqlite-amalgamation FORCE
-all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report
+all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report build/triangulator-memory-report
 
 # Rebuild when link mode, compiler or flags change, including after release.
 build:
@@ -82,7 +82,7 @@ ifeq ($(strip $(SQLITE_SOURCE)),)
 		exit 1; }
 endif
 	$(MAKE) all STATIC=1
-	@for binary in build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report; do \
+	@for binary in build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report build/triangulator-memory-report; do \
 		$(READELF) -lW "$$binary" > build/release_segments.tmp || exit 1; \
 		$(READELF) -dW "$$binary" > build/release_dynamic.tmp || exit 1; \
 		if grep -Eq 'INTERP|NEEDED' build/release_segments.tmp build/release_dynamic.tmp; then \
@@ -144,13 +144,14 @@ build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
+check: all build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test build/memory-report-test
 	./build/wire-test
 	./build/sampler-test
 	./build/allocation-test
 	./build/collector-allocation-test
 	./build/collector-test
 	./build/socket-metrics-test
+	./build/memory-report-test
 	python3 -m unittest discover -s tests -v
 
 format:
@@ -190,3 +191,11 @@ check-socket-kernel: all socket-sampler build/socket-target
 build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+
+build/triangulator-memory-report: metrics/memory_main.cpp $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+
+build/memory-report-test: tests/memory_report_test.cpp $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
