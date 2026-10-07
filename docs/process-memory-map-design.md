@@ -1,5 +1,8 @@
 # Process memory map: design
 
+For a short diagram of the implementation, see the
+[implementation overview](process-memory-map-overview.md).
+
 Status: final design, reviewed. Section 16 lists the changes that the review
 made.
 
