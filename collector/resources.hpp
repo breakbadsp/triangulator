@@ -631,7 +631,7 @@ class ResourceMonitor
                              {"accept_fill_pct", Json(fill.accept_)}};
     if (resource_wire::IsUnix(p_socket.kind_))
     {
-      result.Set("path", ReadName(p_socket.unix_path_));
+      result.Set("path", ReadName(p_socket.UnixPath()));
     }
     else
     {
@@ -1141,7 +1141,7 @@ class ResourceMonitor
       if (resource_wire::IsUnix(socket.kind_))
       {
         FixedText<SanitizedSize(32)> path;
-        ReadNameInto(socket.unix_path_, path);
+        ReadNameInto(socket.UnixPath(), path);
         text(",\"path\":");
         fitted &= AppendJsonString(p_out, path.View());
       }

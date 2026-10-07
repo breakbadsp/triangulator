@@ -174,8 +174,9 @@ void TestResourceSocketsRoundTrip()
     }
     else
     {
-      std::ranges::copy(std::string_view{"/run/app.sock"},
-                        socket.unix_path_.begin());
+      resource_wire::Socket::UnixPathBytes path{};
+      std::ranges::copy(std::string_view{"/run/app.sock"}, path.begin());
+      socket.SetUnixPath(path);
     }
     socket.local_port_ = 443;
     socket.remote_port_ = 65535;
