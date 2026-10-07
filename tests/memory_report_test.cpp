@@ -329,6 +329,11 @@ void DayFileRoundTrip()
          std::format("INSERT INTO vm_summary(ts,session,pid,generation,flags,"
                      "vma_count,max_map_count) VALUES ({},'0',49,1,0,5,65530)",
                      kAt - 1));
+    // "No target" (pid 0) is newer than everything and must not be chosen.
+    Exec(handle,
+         std::format("INSERT INTO vm_summary(ts,session,pid,generation,flags) "
+                     "VALUES ({},'2',0,1,2)",
+                     kAt - 0.5));
     // A stored list: a deleted library and a writable executable mapping.
     Exec(handle,
          std::format(

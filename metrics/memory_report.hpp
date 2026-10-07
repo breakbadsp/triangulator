@@ -375,8 +375,8 @@ inline void CheckSnapshot(const Evidence& p_evidence,
     }
     detail::Add(
         p_out, "stale_library", Severity::Warning,
-        std::format("The process runs {} file{} that were replaced",
-                    deleted.size(), deleted.size() == 1 ? "" : "s"),
+        std::format("The process runs {} replaced file{}", deleted.size(),
+                    deleted.size() == 1 ? "" : "s"),
         std::format("{} is mapped but deleted on disk. This is usually a "
                     "package update. The process keeps the old code until it "
                     "restarts.",
@@ -815,11 +815,14 @@ struct Result
   return vmas;
 }
 
-// The newest pid that has a resource sample or a summary at or before p_at.
+// The pid of the newest resource sample or summary at or before p_at. A
+// summary with pid 0 means "no target" and is ignored.
 [[nodiscard]] inline std::optional<std::uint32_t> FindPid(
     const std::vector<std::filesystem::path>& p_files, double p_at,
     bool& p_read_error)
 {
+  std::optional<std::uint32_t> pid;
+  double newest = 0;
   for (const auto& path : p_files)
   {
     auto database = collector::OpenDatabase(path, true);
@@ -843,7 +846,8 @@ struct Result
       }
       auto statement = collector::Prepare(
           database->get(),
-          std::format("SELECT pid FROM {} WHERE ts<=? ORDER BY ts DESC LIMIT 1",
+          std::format("SELECT pid,ts FROM {} WHERE ts<=? AND pid>0 ORDER BY "
+                      "ts DESC LIMIT 1",
                       table));
       if (!statement)
       {
@@ -851,14 +855,16 @@ struct Result
         continue;
       }
       collector::Binder{statement->get()}.Add(p_at);
-      if (::sqlite3_step(statement->get()) == SQLITE_ROW)
+      if (::sqlite3_step(statement->get()) == SQLITE_ROW &&
+          ::sqlite3_column_double(statement->get(), 1) > newest)
       {
-        return static_cast<std::uint32_t>(
+        newest = ::sqlite3_column_double(statement->get(), 1);
+        pid = static_cast<std::uint32_t>(
             ::sqlite3_column_int64(statement->get(), 0));
       }
     }
   }
-  return std::nullopt;
+  return pid;
 }
 
 inline void ReadResources(sqlite3* p_database, Evidence& p_evidence)
