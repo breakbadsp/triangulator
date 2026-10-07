@@ -328,11 +328,11 @@ Outline (the implementation pull request fixes the exact layout):
 |---|---|---|
 | Header | Magic, version, kind, part number, part count, session, sequence, timestamps, PID, layout generation, flags (such as `truncated`) | 64 bytes |
 | Summary | Values from `status`, `stat`, `limits`, `vm.max_map_count`; VMA count; read cost | Fixed list of `u64` values. `kUnavailable` means "not readable". |
-| VMAs | Start, end, file offset, inode, device, permissions, kind, change marks, and the last 56 bytes of the path | 96 bytes per VMA, 13 per datagram |
+| VMAs | Start, end, file offset, inode, device, permissions, kind, change marks, and the last 48 bytes of the path | 96 bytes per VMA, 13 per datagram |
 | Detail | Start of the selected VMA, resident, swapped and shared sizes, scan progress, and the cells (1 byte each for resident, swapped and shared, in 1/255 steps) | 2 datagrams for 512 cells |
 
 The path is in the VMA record. There is no name table, so a lost datagram
-cannot make a name unknown. Most paths fit in 56 bytes. For a longer path the
+cannot make a name unknown. Most paths fit in 48 bytes. For a longer path the
 record keeps the end, because the file name is the important part.
 
 There are no delta records. The sampler counts a **layout generation**. The
@@ -340,6 +340,18 @@ generation rises when a VMA appears, disappears or changes. Each cycle sends the
 summary. The VMA parts are sent only when the generation changed, or when
 `keyframe_s` passed since the last full list. A process with a stable layout
 therefore costs one or two datagrams per cycle.
+
+`common/memory_wire.hpp` has the exact layout. In short:
+
+| Part | Bytes | Notes |
+|---|---|---|
+| Header | 64 | `TVMA`, version 1, kind, part, parts, count, sequence, session, clocks, PID, interval, process start time, generation, flags, `layout_parts` |
+| Summary (part 0) | 64 + 46 × 8 = 432 | Field names in `kSummaryFields` |
+| VMAs (parts 1 to `layout_parts`) | 64 + 13 × 96 = 1312 at most | Sent when the generation changed or `keyframe_s` passed |
+| Detail (the last parts) | 64 + 80 + 256 × 3 = 912 at most | Only while a VMA is selected |
+
+The request is one 64-byte `TVMQ` datagram: version, action, tier, lease,
+counter, VMA start and a 32-byte HMAC-SHA256 of the first 32 bytes.
 
 UDP can lose datagrams. The design handles this in two ways:
 
