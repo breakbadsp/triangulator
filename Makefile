@@ -40,19 +40,28 @@ CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampl
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
 	$(METRICS_HEADERS) metrics/main.cpp
 
-.PHONY: all check clean format format-check release FORCE
+.PHONY: all check clean format format-check release sqlite-amalgamation FORCE
 all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report
 
 # Rebuild when link mode, compiler or flags change, including after release.
 build:
 	mkdir -p $@
 
+# Make reads the saved options when it starts and writes them only on a change,
+# so the file's timestamp changes only then. Make 4.2 or later reads files.
+BUILD_OPTIONS := $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) $(SAMPLER_LDFLAGS) $(RUNTIME_LDFLAGS) $(COLLECTOR_LIBS) $(SQLITE_SOURCE) $(SQLITE_CFLAGS)
+ifneq ($(file <build/build_options),$(BUILD_OPTIONS))
 build/build_options: FORCE | build
-	@$(file >build/build_options.tmp,$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LDLIBS) $(SAMPLER_LDFLAGS) $(RUNTIME_LDFLAGS) $(COLLECTOR_LIBS) $(SQLITE_SOURCE) $(SQLITE_CFLAGS)) true
-	@cmp -s $@.tmp $@ && rm $@.tmp || mv $@.tmp $@
+	@$(file >$@,$(BUILD_OPTIONS)) true
+endif
 
 build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/compiler_ok Makefile
 	$(CXX) -x c $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@
+
+# Optional download of the SQLite amalgamation for fully static builds. Nothing
+# else in this Makefile uses the network. The script checks the published hash.
+sqlite-amalgamation:
+	python3 -I scripts/fetch-sqlite.py build/sqlite
 
 # Stop early, with a clear message, if the compiler lacks C++23 library support.
 # The stamp is renewed only when build_options changes (compiler or flags).
@@ -66,6 +75,12 @@ build/compiler_ok: build/build_options
 	@touch $@
 
 release:
+ifeq ($(strip $(SQLITE_SOURCE)),)
+	@printf 'int main() {}\n' | $(CXX) -x c++ - -static -lsqlite3 -o /dev/null 2>/dev/null || { \
+		echo "error: no static SQLite library (libsqlite3.a) found." >&2; \
+		echo "Run: make sqlite-amalgamation && make release SQLITE_SOURCE=build/sqlite/sqlite3.c" >&2; \
+		exit 1; }
+endif
 	$(MAKE) all STATIC=1
 	@for binary in build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report; do \
 		$(READELF) -lW "$$binary" > build/release_segments.tmp || exit 1; \
