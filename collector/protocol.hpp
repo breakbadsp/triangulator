@@ -153,13 +153,13 @@ void ReadNameInto(const std::array<char, TSize>& p_field,
   packet.interval_ms_ = header->interval_ms_;
   packet.pid_ = header->pid_;
   const auto count = header->records_;
-  if ((packet.flags_ & ~(kTargetAbsent | kStatusFallback)) != 0)
+  if ((packet.flags_ & ~(kTargetAbsent | kStatusFallback)) != 0 ||
+      header->reserved_ != decltype(header->reserved_){})
   {
     return std::unexpected("unsupported protocol");
   }
   if (packet.chunks_ == 0 || packet.chunk_ >= packet.chunks_ ||
-      count > kRecordsPerPacket ||
-      p_data.size() != kHeaderSize + count * kRecordSize)
+      count > kRecordsPerPacket || p_data.size() != wire::DatagramSize(count))
   {
     return std::unexpected("invalid packet length or chunk");
   }
@@ -181,7 +181,7 @@ void ReadNameInto(const std::array<char, TSize>& p_field,
        offset += kRecordSize)
   {
     const auto wire_record =
-        wire::DecodeRecord(p_data.subspan(offset).first<kRecordSize>());
+        wire::FromBytes<wire::Record>(p_data.subspan(offset));
     Record record;
     record.tid_ = wire_record.tid_;
     record.flags_ = std::to_underlying(wire_record.flags_);

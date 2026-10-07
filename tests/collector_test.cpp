@@ -88,20 +88,29 @@ Packet MakePacket(std::uint32_t p_sequence)
   return MakePacket(p_sequence, {MakeRecord()});
 }
 
-// The datagram the sampler would send for p_packet, using the shared wire
-// encoders.
+// The datagram the sampler would send for p_packet, made of the shared wire
+// structs. It can hold more than kRecordsPerPacket records, to test that
+// the collector rejects them.
 std::vector<std::byte> Encode(const Packet& p_packet,
                               std::span<const Record> p_records)
 {
-  std::vector<std::byte> data(kHeaderSize + p_records.size() * kRecordSize);
-  wire::EncodeHeader(
-      std::span{data}.first<kHeaderSize>(),
-      wire::Header{static_cast<wire::Flags>(p_packet.flags_), p_packet.chunk_,
-                   p_packet.chunks_, p_packet.session_, p_packet.sequence_,
-                   static_cast<std::uint16_t>(p_records.size()),
-                   p_packet.monotonic_ns_, p_packet.wall_ns_,
-                   p_packet.interval_ms_, p_packet.pid_});
-  std::size_t offset = kHeaderSize;
+  const auto append = [](std::vector<std::byte>& p_data, const auto& p_value)
+  {
+    const auto bytes = wire::AsBytes(p_value);
+    p_data.insert(p_data.end(), bytes.begin(), bytes.end());
+  };
+  std::vector<std::byte> data;
+  append(data,
+         wire::Header{.flags_ = static_cast<wire::Flags>(p_packet.flags_),
+                      .chunk_ = p_packet.chunk_,
+                      .chunks_ = p_packet.chunks_,
+                      .session_ = p_packet.session_,
+                      .sequence_ = p_packet.sequence_,
+                      .records_ = static_cast<std::uint16_t>(p_records.size()),
+                      .monotonic_ns_ = p_packet.monotonic_ns_,
+                      .wall_ns_ = p_packet.wall_ns_,
+                      .interval_ms_ = p_packet.interval_ms_,
+                      .pid_ = p_packet.pid_});
   for (const auto& record : p_records)
   {
     wire::Record wire_record{
@@ -118,9 +127,7 @@ std::vector<std::byte> Encode(const Packet& p_packet,
         .write_bytes_ = record.write_bytes_};
     std::ranges::copy(record.comm_.View(), wire_record.comm_.begin());
     std::ranges::copy(record.wchan_.View(), wire_record.wchan_.begin());
-    wire::EncodeRecord(std::span{data}.subspan(offset).first<kRecordSize>(),
-                       wire_record);
-    offset += kRecordSize;
+    append(data, wire_record);
   }
   return data;
 }
@@ -160,6 +167,9 @@ void TestDecodeRejectsInvalidDatagrams()
   const std::vector<std::byte> truncated(valid.begin(), valid.end() - 1);
   auto extended = valid;
   extended.push_back(std::byte{'x'});
+  // Header bytes 22 and 23 are reserved_ and must be zero.
+  auto reserved = valid;
+  reserved[22] = std::byte{1};
   auto no_chunks = MakePacket(0);
   no_chunks.chunks_ = 0;
   // An absent-target heartbeat must have no records and no pid.
@@ -182,6 +192,7 @@ void TestDecodeRejectsInvalidDatagrams()
       {"empty", {}},
       {"truncated", truncated},
       {"extra byte", extended},
+      {"reserved header byte", reserved},
       {"zero chunks", Encode(no_chunks)},
       {"absent with records", Encode(absent_with_records)},
       {"duplicate tid", Encode(duplicate_tid)},
