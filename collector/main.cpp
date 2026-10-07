@@ -25,6 +25,7 @@
 #include "ingest.hpp"
 #include "json.hpp"
 #include "log.hpp"
+#include "memory_map.hpp"
 #include "protocol.hpp"
 #include "replay.hpp"
 #include "resources.hpp"
@@ -117,7 +118,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
 
-  auto created = Storage::Create(config.data_dir_, config.retention_days_);
+  auto created = Storage::Create(
+      config.data_dir_, config.retention_days_,
+      config.memory_map_ ? std::optional{config.memory_map_->retention_days_}
+                         : std::nullopt);
   if (!created)
   {
     return Stopped(created.error());
@@ -140,12 +144,29 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
                sizeof(buffer_size));
   SharedState state;
+  // The memory map exists only when [memory_map] enabled = true: no buffers,
+  // no tables, no socket and no endpoints otherwise.
+  std::unique_ptr<MemoryMapMonitor> memory_map;
+  std::unique_ptr<MemoryMapShared> memory_shared;
+  if (config.memory_map_)
+  {
+    auto control = MemoryMapControl::Create(config.memory_map_->address_,
+                                            config.memory_map_->address_length_,
+                                            config.memory_map_->token_);
+    if (!control)
+    {
+      return Stopped(control.error());
+    }
+    memory_map = std::make_unique<MemoryMapMonitor>();
+    memory_shared = std::make_unique<MemoryMapShared>(std::move(*control));
+  }
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
   {
     return Stopped(listener.error());
   }
-  DashboardServer server{config, state, std::move(*listener)};
+  DashboardServer server{config, state, std::move(*listener),
+                         memory_shared.get()};
   if (auto started = server.Start(); !started)
   {
     return Stopped(started.error());
@@ -157,7 +178,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  Ingest ingest{config.sampler_ip_, monitor, resources, storage, sink};
+  Ingest ingest{config.sampler_ip_, monitor, resources, storage, sink,
+                memory_map.get()};
+  std::uint64_t memory_version = 0;
+  auto next_memory_json = std::chrono::steady_clock::time_point{};
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -212,6 +236,28 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       }
       state.SetLive(std::move(body));
       storage_ok = sink.Status();
+      if (storage_ok && memory_map)
+      {
+        // Rebuild the memory-map JSON when data arrived, and every 2 s so
+        // that "live" turns into "stale" when the data stops.
+        const auto steady = std::chrono::steady_clock::now();
+        if (memory_map->Version() != memory_version ||
+            steady >= next_memory_json)
+        {
+          memory_version = memory_map->Version();
+          next_memory_json = steady + std::chrono::seconds{2};
+          memory_shared->SetJson(
+              std::make_shared<const std::string>(memory_map->Json(now)));
+        }
+        if (auto row = memory_map->TakeSummaryRow())
+        {
+          storage_ok = storage.MemorySummary(*row);
+        }
+        if (auto row = memory_map->TakeSnapshot(); storage_ok && row)
+        {
+          storage_ok = storage.MemorySnapshot(*row);
+        }
+      }
       if (storage_ok)
       {
         storage_ok = storage.Flush(now);

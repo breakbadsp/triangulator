@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <format>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -25,6 +27,7 @@
 #include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
 #include "json.hpp"
+#include "memory_map.hpp"
 #include "protocol.hpp"
 #include "text.hpp"
 
@@ -414,6 +417,68 @@ TableColumns(sqlite3* p_database, std::string_view p_table)
   return {};
 }
 
+// The memory-map tables (docs/process-memory-map-design.md, section 8).
+// They exist only in day files that a collector with [memory_map] enabled =
+// true wrote. vm_summary has one column per summary field.
+[[nodiscard]] inline std::string MemoryTableSql()
+{
+  std::string sql =
+      "CREATE TABLE IF NOT EXISTS vm_summary (ts REAL NOT NULL, session TEXT "
+      "NOT NULL, pid INTEGER NOT NULL, generation INTEGER NOT NULL, flags "
+      "INTEGER NOT NULL";
+  for (const auto name : memory_wire::kSummaryFields)
+  {
+    sql += std::format(", {} INTEGER", name);
+  }
+  sql +=
+      ", PRIMARY KEY(session, ts));\n"
+      "CREATE INDEX IF NOT EXISTS vm_summary_time ON vm_summary(ts);\n"
+      "CREATE TABLE IF NOT EXISTS vm_snapshot (ts REAL NOT NULL, session TEXT "
+      "NOT NULL, pid INTEGER NOT NULL, generation INTEGER NOT NULL, vma_count "
+      "INTEGER NOT NULL, truncated INTEGER NOT NULL, columns TEXT NOT NULL, "
+      "vmas TEXT NOT NULL, PRIMARY KEY(session, ts));\n"
+      "CREATE INDEX IF NOT EXISTS vm_snapshot_time ON vm_snapshot(ts);";
+  return sql;
+}
+
+[[nodiscard]] inline std::string MemorySummaryInsertSql()
+{
+  std::string sql =
+      "INSERT OR REPLACE INTO vm_summary(ts,session,pid,generation,flags";
+  std::string values = "?,?,?,?,?";
+  for (const auto name : memory_wire::kSummaryFields)
+  {
+    sql += std::format(",{}", name);
+    values += ",?";
+  }
+  return sql + ") VALUES (" + values + ")";
+}
+
+// Summary fields added after the first release; older day files gain them.
+[[nodiscard]] inline SqliteResult UpdateMemoryColumns(sqlite3* p_database)
+{
+  auto existing = TableColumns(p_database, "vm_summary");
+  if (!existing)
+  {
+    return std::unexpected(std::move(existing.error()));
+  }
+  for (const auto name : memory_wire::kSummaryFields)
+  {
+    if (std::ranges::find(*existing, name) != existing->end())
+    {
+      continue;
+    }
+    if (auto added = Execute(
+            p_database,
+            std::format("ALTER TABLE vm_summary ADD COLUMN {} INTEGER", name));
+        !added)
+    {
+      return added;
+    }
+  }
+  return {};
+}
+
 // Binds values to parameters 1, 2, ... in order.
 class Binder
 {
@@ -577,8 +642,11 @@ using Days = std::chrono::sys_days;
 class Storage
 {
  public:
+  // p_memory_retention_days is set when [memory_map] is enabled: only
+  // then do day files get the vm_* tables.
   [[nodiscard]] static std::expected<Storage, std::string> Create(
-      std::filesystem::path p_directory, std::int64_t p_retention_days)
+      std::filesystem::path p_directory, std::int64_t p_retention_days,
+      std::optional<std::int64_t> p_memory_retention_days = std::nullopt)
   {
     std::error_code error;
     std::filesystem::create_directories(p_directory, error);
@@ -587,7 +655,8 @@ class Storage
       return std::unexpected(std::format(
           "cannot create {}: {}", p_directory.string(), error.message()));
     }
-    return Storage{std::move(p_directory), p_retention_days};
+    return Storage{std::move(p_directory), p_retention_days,
+                   p_memory_retention_days};
   }
 
   [[nodiscard]] SqliteResult Rollup(const RollupRow& p_row)
@@ -719,6 +788,61 @@ class Storage
     return Run(file.database_.get(), file.resource_.get());
   }
 
+  [[nodiscard]] SqliteResult MemorySummary(const MemorySummaryRow& p_row)
+  {
+    assert(memory_retention_days_.has_value());
+    auto connection = Connection(p_row.ts_);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
+    Binder binder{file.memory_summary_.get()};
+    binder.Add(p_row.ts_)
+        .Add(p_row.session_.View())
+        .Add(std::int64_t{p_row.pid_})
+        .Add(std::int64_t{p_row.generation_})
+        .Add(std::int64_t{p_row.flags_});
+    for (const auto value : p_row.values_)
+    {
+      // Unavailable values, and values SQLite cannot hold, are NULL.
+      binder.Add(value <= static_cast<std::uint64_t>(
+                              std::numeric_limits<std::int64_t>::max())
+                     ? std::optional{static_cast<std::int64_t>(value)}
+                     : std::nullopt);
+    }
+    return Run(file.database_.get(), file.memory_summary_.get());
+  }
+
+  [[nodiscard]] SqliteResult MemorySnapshot(const MemorySnapshotRow& p_row)
+  {
+    assert(memory_retention_days_.has_value());
+    auto connection = Connection(p_row.ts_);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
+    Binder{file.memory_snapshot_.get()}
+        .Add(p_row.ts_)
+        .Add(std::string_view{p_row.session_})
+        .Add(std::int64_t{p_row.pid_})
+        .Add(std::int64_t{p_row.generation_})
+        .Add(static_cast<std::int64_t>(p_row.vma_count_))
+        .Add(std::int64_t{p_row.truncated_ ? 1 : 0})
+        .Add(kVmaColumns)
+        .Add(std::string_view{p_row.rows_});
+    return Run(file.database_.get(), file.memory_snapshot_.get());
+  }
+
   // Commits pending rows, closes files for past days and, once a day,
   // deletes day files older than the retention period.
   [[nodiscard]] SqliteResult Flush(double p_now)
@@ -756,6 +880,15 @@ class Storage
           std::filesystem::remove(path.string() + std::string{suffix}, error);
         }
       }
+      else if (day && memory_retention_days_ &&
+               *day < today - std::chrono::days{static_cast<int>(
+                                  *memory_retention_days_ - 1)})
+      {
+        if (auto pruned = PruneMemory(path); !pruned)
+        {
+          return pruned;
+        }
+      }
     }
     last_prune_ = today;
     return {};
@@ -786,17 +919,52 @@ class Storage
     Statement raw_;
     Statement socket_;
     Statement resource_;
+    Statement memory_summary_;  // only with the memory map enabled
+    Statement memory_snapshot_;
     bool in_transaction_ = false;
   };
 
   std::filesystem::path directory_;
   std::int64_t retention_days_;
+  std::optional<std::int64_t> memory_retention_days_;
   std::map<Days, DayFile> files_;
   std::optional<Days> last_prune_;
 
-  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days)
-      : directory_(std::move(p_directory)), retention_days_(p_retention_days)
+  Storage(std::filesystem::path p_directory, std::int64_t p_retention_days,
+          std::optional<std::int64_t> p_memory_retention_days)
+      : directory_(std::move(p_directory)),
+        retention_days_(p_retention_days),
+        memory_retention_days_(p_memory_retention_days)
   {
+  }
+
+  // Deletes the memory-map rows of a day file that is past their retention
+  // but within the file's. Files without the tables are left alone.
+  [[nodiscard]] static SqliteResult PruneMemory(
+      const std::filesystem::path& p_path)
+  {
+    auto opened = OpenDatabase(p_path, false);
+    if (!opened)
+    {
+      return std::unexpected(std::move(opened.error()));
+    }
+    auto* database = opened->get();
+    ::sqlite3_busy_timeout(database, 1000);
+    auto tables = Prepare(database,
+                          "SELECT count(*) FROM sqlite_master WHERE type = "
+                          "'table' AND name = 'vm_summary'");
+    if (!tables)
+    {
+      return std::unexpected(std::move(tables.error()));
+    }
+    if (::sqlite3_step(tables->get()) != SQLITE_ROW ||
+        ::sqlite3_column_int(tables->get(), 0) == 0)
+    {
+      return {};
+    }
+    tables->reset();
+    return Execute(database,
+                   "DELETE FROM vm_summary; DELETE FROM vm_snapshot;");
   }
 
   // Rows are written in one transaction per flush, like Python's sqlite3
@@ -843,8 +1011,8 @@ class Storage
 
   // Opens (or creates) a day file, brings its schema up to date and
   // prepares the insert statements.
-  [[nodiscard]] static std::expected<DayFile, std::string> OpenDay(
-      const std::filesystem::path& p_path)
+  [[nodiscard]] std::expected<DayFile, std::string> OpenDay(
+      const std::filesystem::path& p_path) const
   {
     auto opened = OpenDatabase(p_path, false);
     if (!opened)
@@ -931,6 +1099,31 @@ class Storage
       return std::unexpected(std::move(resource.error()));
     }
     file.resource_ = std::move(*resource);
+    if (memory_retention_days_)
+    {
+      if (auto created = Execute(database, MemoryTableSql()); !created)
+      {
+        return std::unexpected(std::move(created.error()));
+      }
+      if (auto updated = UpdateMemoryColumns(database); !updated)
+      {
+        return std::unexpected(std::move(updated.error()));
+      }
+      auto summary = Prepare(database, MemorySummaryInsertSql());
+      if (!summary)
+      {
+        return std::unexpected(std::move(summary.error()));
+      }
+      file.memory_summary_ = std::move(*summary);
+      auto snapshot = Prepare(
+          database,
+          "INSERT OR REPLACE INTO vm_snapshot VALUES (?,?,?,?,?,?,?,?)");
+      if (!snapshot)
+      {
+        return std::unexpected(std::move(snapshot.error()));
+      }
+      file.memory_snapshot_ = std::move(*snapshot);
+    }
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }

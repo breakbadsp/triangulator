@@ -28,6 +28,7 @@
 #include "config.hpp"
 #include "json.hpp"
 #include "log.hpp"
+#include "memory_map.hpp"
 #include "replay.hpp"
 #include "socket_report.hpp"
 #include "storage.hpp"
@@ -267,12 +268,16 @@ enum class RequestError
 class DashboardServer
 {
  public:
+  // p_memory_map is null when the memory map is off; its endpoints then
+  // answer 404.
   DashboardServer(const Config& p_config, SharedState& p_state,
-                  FileDescriptor p_listener)
+                  FileDescriptor p_listener,
+                  MemoryMapShared* p_memory_map = nullptr)
       : config_(p_config),
         state_(p_state),
         listener_(std::move(p_listener)),
-        socket_reports_(p_config.data_dir_)
+        socket_reports_(p_config.data_dir_),
+        memory_map_(p_memory_map)
   {
   }
 
@@ -323,6 +328,7 @@ class DashboardServer
   std::atomic<bool> stopped_ = false;
   std::thread thread_;
   SocketReportBridge socket_reports_;
+  MemoryMapShared* memory_map_;
 
   void Serve()
   {
@@ -539,10 +545,7 @@ class DashboardServer
     }
     else if (request->method_ == "POST" && request->path_ == "/api/target")
     {
-      if (!request->dashboard_write_ ||
-          (!request->origin_.empty() &&
-           request->origin_ != "http://" + request->host_ &&
-           request->origin_ != "https://" + request->host_))
+      if (!DashboardWrite(*request))
       {
         RespondJson(p_connection, 403,
                     JsonObject{{"error", "dashboard request required"}});
@@ -559,6 +562,11 @@ class DashboardServer
         return;
       }
       Target(p_connection, target->AsString());
+    }
+    else if (request->method_ == "POST" &&
+             request->path_ == "/api/memory-map/watch")
+    {
+      WatchMemoryMap(p_connection, *request);
     }
     else
     {
@@ -611,10 +619,63 @@ class DashboardServer
     {
       Resources(p_connection, p_request);
     }
+    else if (p_request.path_ == "/api/memory-map" && memory_map_ != nullptr)
+    {
+      Respond(p_connection, 200, *memory_map_->Json(), "application/json");
+    }
     else
     {
       Respond(p_connection, 404, "Not found", "text/plain");
     }
+  }
+
+  // True for a write from the dashboard page: the custom header, which a
+  // plain cross-site form cannot send, and an Origin (when present) that is
+  // this server.
+  [[nodiscard]] static bool DashboardWrite(const Request& p_request)
+  {
+    return p_request.dashboard_write_ &&
+           (p_request.origin_.empty() ||
+            p_request.origin_ == "http://" + p_request.host_ ||
+            p_request.origin_ == "https://" + p_request.host_);
+  }
+
+  // Asks the sampler to read the memory map for one more lease: the layout,
+  // or also the pages of the VMA at "vma_start" (hex text).
+  void WatchMemoryMap(int p_connection, const Request& p_request)
+  {
+    if (memory_map_ == nullptr)
+    {
+      Respond(p_connection, 404, "Not found", "text/plain");
+      return;
+    }
+    if (!DashboardWrite(p_request))
+    {
+      RespondJson(p_connection, 403,
+                  JsonObject{{"error", "dashboard request required"}});
+      return;
+    }
+    const auto body = ParseJson(p_request.body_);
+    const auto* start =
+        body && body->IsObject() ? body->Find("vma_start") : nullptr;
+    std::optional<std::uint64_t> vma_start;
+    if (start != nullptr && !start->IsNull())
+    {
+      vma_start = start->IsString() ? triangulator::ParseHex(start->AsString())
+                                    : std::nullopt;
+      if (!vma_start)
+      {
+        RespondJson(p_connection, 400,
+                    JsonObject{{"error", "vma_start must be hex text"}});
+        return;
+      }
+    }
+    if (auto sent = memory_map_->Control().Watch(vma_start); !sent)
+    {
+      RespondJson(p_connection, 503, JsonObject{{"error", sent.error()}});
+      return;
+    }
+    RespondJson(p_connection, 200, JsonObject{{"sent", true}});
   }
 
   void Target(int p_connection, const std::optional<std::string>& p_target)

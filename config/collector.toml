@@ -16,6 +16,15 @@ replay_interval_s = 0
 max_live_samples = 1000000
 # deadman_url = "https://your-heartbeat-service.example/your-token"
 
+# The Memory map section of the dashboard (docs/process-memory-map-design.md).
+# Off by default. The sampler needs memory_map_enabled = true and the same
+# token. sampler_control is the sampler's memory_map_listen address.
+# [memory_map]
+# enabled = false
+# sampler_control = "10.0.0.10:9402"
+# token_file = "/etc/triangulator/memory-map.token"   # mode 0600 or 0400
+# retention_days = 7                                   # 1..90, <= retention_days
+
 # The collector uses only window_s, the rollup window (5-10 s). Everything else
 # here, and deadman_url above, is for the alerting module (alerting/), which is
 # not wired up yet; the collector logs a warning that it ignores them.

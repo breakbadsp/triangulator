@@ -4,6 +4,7 @@
 // Monitor, so no sockets or timers are involved.
 
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include <cmath>
 #include <cstdint>
@@ -21,7 +22,9 @@
 #include <utility>
 #include <vector>
 
+#include "../collector/config.hpp"
 #include "../collector/engine.hpp"
+#include "../collector/memory_map.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
 
@@ -1293,6 +1296,291 @@ void TestResourceStorageAndHistory()
 
 }  // namespace
 
+// ---------- Memory map ----------
+
+memory_wire::Header MemoryHeader(std::uint32_t p_sequence,
+                                 std::uint16_t p_layout_parts,
+                                 std::uint16_t p_detail_parts)
+{
+  return memory_wire::Header{
+      .parts_ = static_cast<std::uint16_t>(1 + p_layout_parts + p_detail_parts),
+      .sequence_ = p_sequence,
+      .session_ = 9,
+      .monotonic_ns_ = 1,
+      .wall_ns_ = 2,
+      .pid_ = 123,
+      .interval_ms_ = 2000,
+      .generation_ = p_sequence,
+      .layout_parts_ = p_layout_parts};
+}
+
+// The parts of one cycle, encoded and decoded as the collector receives
+// them: the summary, then the layout parts, then the detail parts.
+std::vector<memory_wire::Part> MemoryCycle(
+    std::uint32_t p_sequence, std::span<const memory_wire::Vma> p_vmas,
+    std::span<const memory_wire::Cell> p_cells)
+{
+  using memory_wire::DetailParts;
+  using memory_wire::LayoutParts;
+  const auto layout_parts =
+      static_cast<std::uint16_t>(LayoutParts(p_vmas.size()));
+  const auto detail_parts = static_cast<std::uint16_t>(
+      p_cells.empty() ? 0 : DetailParts(p_cells.size()));
+  const auto header = MemoryHeader(p_sequence, layout_parts, detail_parts);
+  std::array<std::byte, memory_wire::kMaxPartSize> bytes{};
+  std::vector<memory_wire::Part> parts;
+  const auto add = [&](std::size_t p_length)
+  {
+    auto part = memory_wire::Decode(std::span{bytes}.first(p_length));
+    Require(part.has_value(), "a test memory part decodes");
+    parts.push_back(*part);
+  };
+  auto values = memory_wire::EmptySummary();
+  values[memory_wire::Field("vma_count")] = p_vmas.size();
+  values[memory_wire::Field("heap_end")] = 0x5000'0000'0000;
+  values[memory_wire::Field("vm_rss_bytes")] = 4096;
+  add(memory_wire::EncodeSummary(bytes, header, values));
+  for (std::size_t index = 0; index < layout_parts; ++index)
+  {
+    add(memory_wire::EncodeVmas(bytes, header, p_vmas, index));
+  }
+  for (std::size_t index = 0; index < detail_parts; ++index)
+  {
+    add(memory_wire::EncodeDetail(
+        bytes, header,
+        memory_wire::Detail{.vma_start_ = p_vmas.front().start_,
+                            .vma_end_ = p_vmas.front().end_,
+                            .pages_per_cell_ = 1,
+                            .measured_pages_ = 3,
+                            .resident_pages_ = 2,
+                            .status_ = memory_wire::DetailStatus::Complete},
+        p_cells, index));
+  }
+  return parts;
+}
+
+std::vector<memory_wire::Vma> MemoryVmas(std::size_t p_count)
+{
+  std::vector<memory_wire::Vma> vmas(p_count);
+  for (std::size_t index = 0; index < p_count; ++index)
+  {
+    vmas[index].start_ = 0x7f00'0000'0000 + index * 0x10000;
+    vmas[index].end_ = vmas[index].start_ + 0x2000;
+    vmas[index].kind_ = memory_wire::VmaKind::File;
+    vmas[index].permissions_ = 5;
+    vmas[index].SetName(std::format("/lib/\"quoted\"-{}.so", index));
+  }
+  vmas[0].kind_ = memory_wire::VmaKind::Heap;
+  vmas[0].SetName("[heap]");
+  return vmas;
+}
+
+// Reassembly: parts in any order make one list; a list that lost a part is
+// not used, and the previous list stays; parts of an older cycle are late.
+// The JSON keeps addresses as hex text and marks unmeasured cells null.
+void TestMemoryMapAssembly()
+{
+  MemoryMapMonitor monitor;
+  const auto parsed = [&](double p_now)
+  {
+    auto json = ParseJson(monitor.Json(p_now));
+    Require(json.has_value(), "the memory-map JSON parses");
+    return std::move(*json);
+  };
+  Require(Field(parsed(0), "state").AsString() == "waiting", "nothing yet");
+  const auto vmas = MemoryVmas(30);
+  const std::array<memory_wire::Cell, 3> cells{memory_wire::Cell{254, 0, 0},
+                                               memory_wire::Cell{0, 254, 0},
+                                               memory_wire::kUnmeasuredCell};
+  auto parts = MemoryCycle(1, vmas, cells);
+  Require(parts.size() == 1 + 3 + 1, "summary, three layout parts, detail");
+  std::swap(parts[1], parts[3]);  // reordered on the network
+  for (const auto& part : parts)
+  {
+    monitor.Accept(part, 100);
+  }
+  auto json = parsed(100);
+  Require(Field(json, "state").AsString() == "live", "live");
+  const auto& layout = Field(json, "layout");
+  Require(Field(layout, "rows").AsArray().size() == 30 &&
+              Field(layout, "generation").AsInt() == 1,
+          "the whole list");
+  const auto& heap = Field(layout, "rows").AsArray()[0].AsArray();
+  Require(heap[0].AsString() == "7f0000000000" && heap[2].AsInt() == 0x2000 &&
+              heap[6].AsString() == "r-xp" && heap[7].AsString() == "heap" &&
+              heap[10].AsString() == "[heap]",
+          "a row: hex start, size, permissions, kind, name");
+  Require(Field(layout, "rows").AsArray()[1].AsArray()[10].AsString() ==
+              "/lib/\"quoted\"-1.so",
+          "names are escaped JSON text");
+  const auto& values = Field(Field(json, "summary"), "values");
+  Require(Field(values, "heap_end").AsString() == "500000000000" &&
+              Field(values, "vm_rss_bytes").AsInt() == 4096 &&
+              Field(values, "vm_size_bytes").IsNull(),
+          "summary: hex addresses, numbers, null when unavailable");
+  const auto& detail = Field(json, "detail");
+  Require(Field(detail, "status").AsString() == "complete" &&
+              Field(detail, "cells").AsArray().size() == 3 &&
+              Field(detail, "cells").AsArray()[2].IsNull() &&
+              Field(detail, "cells").AsArray()[1].AsArray()[1].AsInt() == 254,
+          "detail cells");
+
+  // Cycle 2 loses its second layout part; cycle 3 has no layout at all.
+  auto lost = MemoryCycle(2, MemoryVmas(20), {});
+  lost.erase(lost.begin() + 2);
+  for (const auto& part : lost)
+  {
+    monitor.Accept(part, 102);
+  }
+  for (const auto& part : MemoryCycle(3, MemoryVmas(20), {}))
+  {
+    monitor.Accept(part, 104);
+  }
+  json = parsed(104);
+  Require(Field(Field(json, "layout"), "generation").AsInt() == 3 &&
+              Field(Field(json, "layout"), "rows").AsArray().size() == 20,
+          "the next complete list replaces it");
+  Require(Field(json, "incomplete_layouts").AsInt() == 1,
+          "the list that lost a part is counted");
+  Require(Field(json, "detail").IsNull(),
+          "a cycle without detail ends the selection");
+  const auto old = MemoryCycle(1, vmas, {});
+  monitor.Accept(old[1], 105);
+  Require(Field(parsed(105), "late_parts").AsInt() == 1, "an old part is late");
+  Require(Field(parsed(104 + 2 * 3 + 2), "state").AsString() == "stale",
+          "stale after three intervals without data");
+}
+
+// Rows to store: a summary row at most once a minute; the first complete
+// list of each watch and then one an hour. Storage writes them only when
+// the memory map is enabled, and old rows go after their retention.
+void TestMemoryMapStorage()
+{
+  MemoryMapMonitor monitor;
+  const auto vmas = MemoryVmas(3);
+  const auto feed =
+      [&](std::uint32_t p_sequence, double p_now, bool p_layout = true)
+  {
+    for (const auto& part : MemoryCycle(
+             p_sequence,
+             p_layout ? std::span{vmas} : std::span<memory_wire::Vma>{}, {}))
+    {
+      monitor.Accept(part, p_now);
+    }
+  };
+  const double start = 1'700'000'000;
+  feed(1, start);
+  auto summary = monitor.TakeSummaryRow();
+  auto snapshot = monitor.TakeSnapshot();
+  Require(summary && snapshot && snapshot->vma_count_ == 3 &&
+              snapshot->rows_.starts_with("[[\"7f0000000000\""),
+          "the first summary and list are stored");
+  feed(2, start + 30);
+  Require(!monitor.TakeSummaryRow() && !monitor.TakeSnapshot(),
+          "nothing more within a minute and an hour");
+  feed(3, start + 61);
+  Require(monitor.TakeSummaryRow().has_value(), "a minute later: a summary");
+  Require(!monitor.TakeSnapshot(), "the list only each hour");
+  feed(4, start + 61 + 120);  // two minutes without data: a new watch
+  Require(monitor.TakeSnapshot().has_value(),
+          "the first list of a new watch is stored");
+
+  TempDirectory directory;
+  auto storage = Storage::Create(directory.Path(), 7, 2);
+  Require(storage.has_value(), "storage");
+  Require(storage->MemorySummary(*summary).has_value() &&
+              storage->MemorySnapshot(*snapshot).has_value() &&
+              storage->Flush(start).has_value(),
+          "memory rows are written");
+  const auto day = directory.Path() / "2023-11-14.sqlite3";
+  const auto count =
+      [](const std::filesystem::path& p_path, std::string_view p_sql)
+  {
+    auto database = OpenDatabase(p_path, true);
+    Require(database.has_value(), "open the day file");
+    auto statement = Prepare(database->get(), p_sql);
+    if (!statement)
+    {
+      return std::int64_t{-1};  // no such table
+    }
+    Require(::sqlite3_step(statement->get()) == SQLITE_ROW, "a count");
+    return std::int64_t{::sqlite3_column_int64(statement->get(), 0)};
+  };
+  Require(count(day,
+                "SELECT count(*) FROM vm_summary WHERE vm_rss_bytes = "
+                "4096 AND vm_size_bytes IS NULL") == 1,
+          "a summary row with NULL for unavailable values");
+  Require(count(day,
+                "SELECT count(*) FROM vm_snapshot WHERE vma_count = 3 "
+                "AND json_array_length(vmas) = 3") == 1,
+          "a snapshot row with the list as JSON");
+  Require(storage->Close().has_value(), "close");
+
+  // Three days later the memory rows are past their two days; the day
+  // file is within its seven.
+  auto later = Storage::Create(directory.Path(), 7, 2);
+  Require(later.has_value() && later->Flush(start + 3 * 86400).has_value(),
+          "the daily prune runs");
+  Require(count(day, "SELECT count(*) FROM vm_summary") == 0 &&
+              count(day, "SELECT count(*) FROM vm_snapshot") == 0 &&
+              std::filesystem::exists(day),
+          "memory rows deleted, the day file kept");
+  Require(later->Close().has_value(), "close");
+
+  TempDirectory plain;
+  auto disabled = Storage::Create(plain.Path(), 7);
+  RollupRow row;
+  row.ts_ = start;
+  row.session_ = "1";
+  row.group_ = "ungrouped";
+  Require(disabled && disabled->Rollup(row).has_value() &&
+              disabled->Close().has_value(),
+          "storage without the memory map");
+  Require(count(plain.Path() / "2023-11-14.sqlite3",
+                "SELECT count(*) FROM vm_summary") == -1,
+          "no vm tables when the memory map is off");
+}
+
+// [memory_map]: off unless enabled; enabled needs the control address and
+// a token file with safe permissions; its retention fits in the global one.
+void TestMemoryMapConfig()
+{
+  Require(!ParseConfig("")->memory_map_, "off by default");
+  Require(!ParseConfig("[memory_map]\nenabled = false\n")->memory_map_,
+          "off when disabled");
+  const auto enabled = ParseConfig(
+      "[memory_map]\nenabled = true\nsampler_control = \"[::1]:9402\"\n"
+      "token_file = \"/x\"\nretention_days = 3\n");
+  Require(enabled && enabled->memory_map_ &&
+              enabled->memory_map_->address_.ss_family == AF_INET6 &&
+              enabled->memory_map_->retention_days_ == 3,
+          "enabled");
+  for (const auto invalid :
+       {"[memory_map]\nenabled = true\n", "[memory_map]\nenabled = 1\n",
+        "[memory_map]\nenabled = true\nsampler_control = \"host:9402\"\n"
+        "token_file = \"/x\"\n",
+        "[memory_map]\nenabled = true\nsampler_control = \"127.0.0.1:0\"\n"
+        "token_file = \"/x\"\n",
+        "retention_days = 2\n[memory_map]\nenabled = true\n"
+        "sampler_control = \"127.0.0.1:9402\"\ntoken_file = \"/x\"\n",
+        "[memory_map]\nenabled = true\nsampler_control = \"127.0.0.1:9402\"\n"
+        "token_file = \"/x\"\nretention_days = 91\n"})
+  {
+    Require(!ParseConfig(invalid), std::format("invalid: {}", invalid));
+  }
+  TempDirectory directory;
+  const auto token = directory.Path() / "token";
+  std::ofstream{token} << "  0123456789abcdef0123456789abcdef  \nrest\n";
+  ::chmod(token.c_str(), 0600);
+  const auto read = ReadMemoryMapToken(token.string());
+  Require(read && read->size() == 32, "the first line, trimmed");
+  ::chmod(token.c_str(), 0640);
+  Require(!ReadMemoryMapToken(token.string()), "group-readable is refused");
+  ::chmod(token.c_str(), 0600);
+  std::ofstream{token} << "short\n";
+  Require(!ReadMemoryMapToken(token.string()), "a short token is refused");
+}
+
 int main()
 {
   try
@@ -1321,9 +1609,12 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestReplayConfig();
+    TestMemoryMapAssembly();
+    TestMemoryMapStorage();
+    TestMemoryMapConfig();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
-        "sessions, rollups, storage, health, resource samples)");
+        "sessions, rollups, storage, health, resource samples, memory map)");
   }
   catch (const std::exception& error)
   {

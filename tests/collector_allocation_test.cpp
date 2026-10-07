@@ -252,16 +252,67 @@ std::vector<std::vector<std::byte>> ResourceSample(std::uint32_t p_sequence)
   return parts;
 }
 
+// The datagrams of memory-map cycle p_sequence: a summary, a VMA list of
+// 40 VMAs (four parts) and a detail of 300 cells (two parts).
+std::vector<std::vector<std::byte>> MemoryCycle(std::uint32_t p_sequence)
+{
+  std::vector<memory_wire::Vma> vmas(40);
+  for (std::size_t index = 0; index < vmas.size(); ++index)
+  {
+    vmas[index].start_ = 0x7f00'0000'0000 + index * 0x10000;
+    vmas[index].end_ = vmas[index].start_ + 0x1000 * (1 + p_sequence % 3);
+    vmas[index].kind_ = memory_wire::VmaKind::File;
+    vmas[index].SetName("/usr/lib/libexample.so");
+  }
+  const std::vector<memory_wire::Cell> cells(300, memory_wire::Cell{1, 2, 3});
+  memory_wire::Header header{
+      .sequence_ = p_sequence,
+      .session_ = kSession,
+      .monotonic_ns_ = (1000 + std::uint64_t{p_sequence}) * 1'000'000'000,
+      .wall_ns_ = (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000,
+      .pid_ = 123,
+      .interval_ms_ = 2000,
+      .generation_ = p_sequence,
+      .layout_parts_ =
+          static_cast<std::uint16_t>(memory_wire::LayoutParts(vmas.size()))};
+  header.parts_ = static_cast<std::uint16_t>(
+      1 + header.layout_parts_ + memory_wire::DetailParts(cells.size()));
+  std::vector<std::vector<std::byte>> parts;
+  std::array<std::byte, memory_wire::kMaxPartSize> buffer{};
+  auto length =
+      memory_wire::EncodeSummary(buffer, header, memory_wire::EmptySummary());
+  parts.emplace_back(buffer.begin(), buffer.begin() + length);
+  for (std::size_t part = 0; part < header.layout_parts_; ++part)
+  {
+    length = memory_wire::EncodeVmas(buffer, header, vmas, part);
+    parts.emplace_back(buffer.begin(), buffer.begin() + length);
+  }
+  for (std::size_t part = 0; part < memory_wire::DetailParts(cells.size());
+       ++part)
+  {
+    length = memory_wire::EncodeDetail(
+        buffer, header,
+        memory_wire::Detail{.vma_start_ = vmas[0].start_,
+                            .vma_end_ = vmas[0].end_,
+                            .pages_per_cell_ = 1,
+                            .status_ = memory_wire::DetailStatus::Measuring},
+        cells, part);
+    parts.emplace_back(buffer.begin(), buffer.begin() + length);
+  }
+  return parts;
+}
+
 struct Totals
 {
   Phase threads_{"thread datagrams (decode, ticks, rows)"};
   Phase resources_{"resource datagrams (decode, rows)"};
+  Phase memory_{"memory-map datagrams (decode, reassembly)"};
   Phase flush_{"Storage::Flush"};
 
   [[nodiscard]] std::size_t Sum() const
   {
     return threads_.allocations_ + resources_.allocations_ +
-           flush_.allocations_;
+           memory_.allocations_ + flush_.allocations_;
   }
 };
 
@@ -288,6 +339,15 @@ void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
     {
       Counter counter{p_totals.threads_};
       p_monitor.Drain(now, true);
+    }
+    if (sequence % 2 == 0)
+    {
+      for (const auto& part : MemoryCycle(sequence))
+      {
+        Counter counter{p_totals.memory_};
+        Require(p_ingest.Handle(part, peer, now).has_value(),
+                "memory-map datagram");
+      }
     }
     if (sequence % 5 == 0)
     {
@@ -321,7 +381,8 @@ std::size_t Measure(bool p_store_raw)
   StorageSink sink{storage};
   Monitor monitor{config, 1'700'000'000, sink};
   ResourceMonitor resources{sink};
-  Ingest ingest{std::nullopt, monitor, resources, storage, sink};
+  MemoryMapMonitor memory_map;
+  Ingest ingest{std::nullopt, monitor, resources, storage, sink, &memory_map};
 
   // Warm-up covers startup: the first session, every thread, the first
   // windows and the first resource samples.
@@ -338,9 +399,12 @@ std::size_t Measure(bool p_store_raw)
       monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
           monitor.Snapshot(end).Find("threads")->AsArray().size() == kThreads,
       "every chunk of every tick is processed");
+  Require(memory_map.Json(end).find("\"incomplete_layouts\":0") !=
+              std::string::npos,
+          "every memory-map list is complete");
   std::printf("%s\n", p_store_raw ? "store_raw = true" : "store_raw = false");
   for (const auto* phase :
-       {&steady.threads_, &steady.resources_, &steady.flush_})
+       {&steady.threads_, &steady.resources_, &steady.memory_, &steady.flush_})
   {
     std::printf("  %-36s %zu\n", phase->name_, phase->allocations_);
   }

@@ -100,6 +100,8 @@ build/triangulator-collector config/local/collector.toml --check-config
   such). The sampler and collector must run as the same user.
 - `GET /api/replay`: oldest/newest recorded process view; add `at=…` for a
   view at or before a timestamp, or `direction=previous|next` to step.
+- `GET /api/memory-map` and `POST /api/memory-map/watch`: only with
+  `[memory_map] enabled = true` (404 otherwise). See "Memory map" below.
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
@@ -113,7 +115,24 @@ build/triangulator-collector config/local/collector.toml --check-config
   `AGENTS.md`: recording lives in the collector because it reuses the view the
   collector already builds. It is off by default and runs off the receive loop.
 
-**8. Shutdown** (`main.cpp`)
+**8. Memory map** (`memory_map.hpp`, off unless `[memory_map] enabled = true`)
+- `MemoryMapMonitor` reassembles the sampler's `TVMA` datagrams. It uses a VMA
+  list only when every part of it arrived; otherwise it keeps the previous
+  list. Its buffers are reserved at startup, so the receive loop allocates
+  nothing for it.
+- Every 0.5 s, when data arrived, the receive loop rebuilds the
+  `/api/memory-map` JSON: the latest summary, VMA list and page cells, and a
+  state (`waiting`, `live` or `stale`). Addresses are hex text.
+- It writes one `vm_summary` row each minute while the sampler sends, and a
+  `vm_snapshot` row (the whole VMA list as JSON) for the first list of each
+  watch and then at most once an hour. `[memory_map] retention_days` deletes
+  these rows earlier than the day files.
+- `POST /api/memory-map/watch` with `X-Triangulator: 1` and
+  `{"vma_start": null | "HEX"}` sends one signed request to the sampler's
+  control socket (`sampler_control`), at most one each 250 ms. The HTTP thread
+  sends it; the receive loop does not take part.
+
+**9. Shutdown** (`main.cpp`)
 - On SIGINT or SIGTERM, it processes ticks still waiting for missing pieces,
   writes the last partial summaries, commits SQLite and exits.
 
@@ -138,6 +157,7 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `protocol.hpp` | Datagram checks (on top of `common/wire.hpp`) and thread-state classification |
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
+| `memory_map.hpp` | `MemoryMapMonitor` (memory-map reassembly, JSON, stored rows) and `MemoryMapControl` (signed requests to the sampler) |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |

@@ -2,13 +2,16 @@
 without a request, answers a signed watch with TVMA datagrams, reads the pages
 of one selected VMA, stops when the lease ends and ignores forged or repeated
 requests. See docs/process-memory-map-design.md."""
-import os
+import json
 import signal
 import socket
+import sqlite3
 import subprocess
 import tempfile
 import time
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from wire import MEMORY_DETAIL_PART, MEMORY_SUMMARY, MEMORY_VMAS, decode, decode_memory, memory_request, receive_tick
@@ -194,6 +197,125 @@ class MemoryMapSamplerTests(unittest.TestCase):
             result = subprocess.run([str(BINARY), str(self.config)], capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 1)
         self.assertIn("memory_map_listen", result.stderr)
+
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def free_tcp_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+class MemoryMapCollectorTests(unittest.TestCase):
+    """The real collector and sampler: the dashboard's watch request goes to the
+    sampler, and the TVMA stream comes back as /api/memory-map."""
+
+    def start(self, collector_extra, sampler_extra):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        token = self.directory / "token"
+        token.write_bytes(TOKEN + b"\n")
+        token.chmod(0o600)
+        udp_port, self.http_port, control_port = free_udp_port(), free_tcp_port(), free_udp_port()
+        collector_config = self.directory / "collector.toml"
+        collector_config.write_text(
+            f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={self.http_port}\n'
+            f'data_dir="{self.directory}/data"\n' + collector_extra.format(port=control_port, token=token))
+        target = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(target.wait)
+        self.addCleanup(target.kill)
+        self.target = target
+        sampler_config = self.directory / "sampler.toml"
+        sampler_config.write_text(
+            f'target_pid={target.pid}\nrate_hz=2\ncollector="127.0.0.1:{udp_port}"\nresource_interval_s=0\n'
+            + sampler_extra.format(port=control_port, token=token))
+        for command in ([str(ROOT / "build/triangulator-collector"), str(collector_config)],
+                        [str(BINARY), str(sampler_config)]):
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.addCleanup(process.wait, 5)
+            self.addCleanup(process.terminate)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                self.fetch("/api/live")
+                return
+            except OSError:
+                time.sleep(0.1)
+        self.fail("the collector did not start")
+
+    def fetch(self, path, body=None, headers=None):
+        request = urllib.request.Request(f"http://127.0.0.1:{self.http_port}{path}",
+                                         data=None if body is None else json.dumps(body).encode(),
+                                         headers=headers or {}, method="GET" if body is None else "POST")
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status, json.loads(response.read() or b"null")
+        except urllib.error.HTTPError as error:
+            with error:
+                text = error.read()
+                try:
+                    return error.code, json.loads(text)
+                except ValueError:
+                    return error.code, text.decode()
+
+    def watch(self, vma_start=None):
+        return self.fetch("/api/memory-map/watch", {"vma_start": vma_start}, {"X-Triangulator": "1"})
+
+    def test_watch_layout_and_detail_through_the_collector(self):
+        self.start('[memory_map]\nenabled=true\nsampler_control="127.0.0.1:{port}"\ntoken_file="{token}"\n',
+                   'memory_map_enabled=true\nmemory_map_listen="127.0.0.1:{port}"\n'
+                   'memory_map_token_file="{token}"\nmemory_map_interval_s=1\n')
+        status, view = self.fetch("/api/memory-map")
+        self.assertEqual((status, view["state"]), (200, "waiting"))
+        self.assertEqual(self.fetch("/api/memory-map/watch", {})[0], 403, "the dashboard header is required")
+        self.assertEqual(self.watch(), (200, {"sent": True}))
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and not (view.get("layout") and view["state"] == "live"):
+            time.sleep(0.2)
+            view = self.fetch("/api/memory-map")[1]
+        self.assertEqual(view["state"], "live")
+        self.assertEqual(view["summary"]["pid"], self.target.pid)
+        columns = view["layout"]["columns"]
+        rows = [dict(zip(columns, row)) for row in view["layout"]["rows"]]
+        stack = next(row for row in rows if row["kind"] == "stack")
+        self.assertEqual(int(stack["end"], 16) - int(stack["start"], 16), stack["size"])
+        self.assertEqual(view["summary"]["values"]["stack_end"], stack["end"])
+
+        time.sleep(0.3)  # the collector sends at most one request each 250 ms
+        self.assertEqual(self.watch(stack["start"])[0], 200)
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and not view.get("detail"):
+            time.sleep(0.2)
+            view = self.fetch("/api/memory-map")[1]
+        self.assertEqual(view["detail"]["vma_start"], stack["start"])
+        self.assertEqual(view["detail"]["status"], "complete")
+        self.assertGreater(view["detail"]["resident_pages"], 0)
+        time.sleep(0.3)
+        self.assertEqual(self.watch("not hex")[0], 400)
+
+        # The first list of the watch is stored at once; summaries each minute.
+        day = next((self.directory / "data").glob("*.sqlite3"))
+        deadline = time.monotonic() + 5
+        count = 0
+        while time.monotonic() < deadline and not count:
+            time.sleep(0.5)
+            with sqlite3.connect(f"file:{day}?mode=ro", uri=True) as database:
+                count = database.execute("SELECT count(*) FROM vm_snapshot").fetchone()[0]
+        self.assertEqual(count, 1)
+
+    def test_disabled_collector_has_no_memory_map(self):
+        self.start("", "")
+        self.assertEqual(self.fetch("/api/memory-map")[0], 404)
+        self.assertEqual(self.watch()[0], 404)
+        time.sleep(1.5)
+        for day in (self.directory / "data").glob("*.sqlite3"):
+            with sqlite3.connect(f"file:{day}?mode=ro", uri=True) as database:
+                tables = {row[0] for row in database.execute("SELECT name FROM sqlite_master")}
+            self.assertFalse({"vm_summary", "vm_snapshot"} & tables)
 
 
 if __name__ == "__main__":

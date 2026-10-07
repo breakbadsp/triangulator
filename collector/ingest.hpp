@@ -1,11 +1,11 @@
 #pragma once
 
-// What the collector does with one received datagram: tells the three
-// datagram kinds apart (thread ticks, resource parts and socket
+// What the collector does with one received datagram: tells the datagram
+// kinds apart (thread ticks, resource parts, memory-map parts and socket
 // observations), checks the sender, and passes the datagram to the Monitor,
-// the ResourceMonitor or Storage. The main loop calls Handle() for each
-// datagram. Handle() allocates nothing, except in the one-time log message
-// when it pins the sampler's address.
+// the ResourceMonitor, the MemoryMapMonitor or Storage. The main loop calls
+// Handle() for each datagram. Handle() allocates nothing, except in the
+// one-time log message when it pins the sampler's address.
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -18,11 +18,13 @@
 #include <string>
 #include <string_view>
 
+#include "../common/memory_wire.hpp"
 #include "../common/resource_wire.hpp"
 #include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
 #include "engine.hpp"
 #include "log.hpp"
+#include "memory_map.hpp"
 #include "protocol.hpp"
 #include "resources.hpp"
 #include "storage.hpp"
@@ -52,13 +54,16 @@ class Ingest
  public:
   // p_sampler_ip and p_socket_sampler_ip are the configured sender
   // addresses; a sender that has none is pinned to the first valid datagram.
+  // p_memory_map is null when the memory map is off; its datagrams are
+  // then counted as bad packets, like any unknown datagram.
   Ingest(const std::optional<std::string>& p_sampler_ip, Monitor& p_monitor,
          ResourceMonitor& p_resources, Storage& p_storage,
-         const StorageSink& p_sink)
+         const StorageSink& p_sink, MemoryMapMonitor* p_memory_map = nullptr)
       : monitor_(p_monitor),
         resources_(p_resources),
         storage_(p_storage),
-        sink_(p_sink)
+        sink_(p_sink),
+        memory_map_(p_memory_map)
   {
     if (p_sampler_ip)
     {
@@ -111,6 +116,22 @@ class Ingest
         }
       }
     }
+    else if (memory_map_ != nullptr && p_data.size() >= 4 &&
+             std::memcmp(p_data.data(), "TVMA", 4) == 0)
+    {
+      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      {
+        if (const auto part = memory_wire::Decode(p_data))
+        {
+          Pin(p_peer);
+          memory_map_->Accept(*part, p_now);
+        }
+        else
+        {
+          ++memory_map_->bad_parts_;
+        }
+      }
+    }
     else if (!sampler_ip_ || p_peer == *sampler_ip_)
     {
       if (const auto packet = Decode(p_data))
@@ -131,6 +152,7 @@ class Ingest
   ResourceMonitor& resources_;
   Storage& storage_;
   const StorageSink& sink_;
+  MemoryMapMonitor* memory_map_;
   std::optional<PeerText> sampler_ip_;
   std::optional<PeerText> socket_sampler_ip_;
 
