@@ -86,13 +86,12 @@ struct Sample
 };
 
 // State counts in order of first appearance, like Python's Counter. The
-// states are the names Classify returns, ten at most, so the table is a fixed
-// array.
+// states are the names Classify returns, kMaxStates at most, so the table is
+// a fixed array.
 class StateCounts
 {
  public:
   using Item = std::pair<std::string_view, std::int64_t>;
-  static constexpr std::size_t kMaxStates = 16;
 
   void Count(std::string_view p_state) noexcept
   {
@@ -104,7 +103,7 @@ class StateCounts
         return;
       }
     }
-    // A state beyond kMaxStates cannot occur: Classify has ten names.
+    // A state beyond kMaxStates cannot occur (see Classify).
     if (size_ < kMaxStates)
     {
       items_[size_++] = {p_state, 1};
@@ -383,7 +382,9 @@ class Monitor
   [[nodiscard]] Json Snapshot(double p_now) const
   {
     JsonArray threads;
-    StateCounts groups;
+    // Groups come from the config and have no limit, so they are counted in
+    // JSON. Snapshot is not on the datagram path and can allocate.
+    Json groups{JsonObject{}};
     for (const auto& [tid, slot] : index_)
     {
       const auto& thread = threads_[slot];
@@ -430,7 +431,17 @@ class Monitor
       {
         run_delay = *rate(current.run_delay_, previous.run_delay_, 1e9) * 100;
       }
-      CountState(groups, thread.group_);
+      auto& group_counts = groups.AsObject();
+      const auto group = std::ranges::find(group_counts, thread.group_,
+                                           &JsonObject::value_type::first);
+      if (group == group_counts.end())
+      {
+        group_counts.emplace_back(std::string{thread.group_}, 1);
+      }
+      else
+      {
+        group->second = Json(group->second.AsInt() + 1);
+      }
       threads.emplace_back(JsonObject{
           {"tid", tid},
           {"name", current.comm_.View()},
@@ -452,7 +463,7 @@ class Monitor
           {"generation", thread.generation_}});
     }
     return JsonObject{{"threads", std::move(threads)},
-                      {"groups", CountsJson(groups)}};
+                      {"groups", std::move(groups)}};
   }
 
   void Close()
