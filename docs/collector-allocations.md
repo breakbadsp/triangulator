@@ -54,12 +54,12 @@ gives the fix for each source.
 | `std::vector<Record>` in `Packet` and `Part` | A fixed array with a count. | A datagram holds at most 10 records or 6 sockets. |
 | `std::map` of pending ticks, with `std::map` and `std::vector` for the chunks | `Monitor` has 128 tick slots. Each slot has a `BoundedVector` for 2,550 records and a bit set for the chunks. | `BoundedVector` reserves its capacity at construction. It never grows. |
 | `std::map<tid, ThreadState>` | A table of 2,550 slots, plus a sorted index of thread IDs. | The sorted index keeps the output order of `std::map`. |
-| `std::shared_ptr<const Record>` per sample, `std::deque` of raw samples, `std::vector` window | `Sample` holds its `Record` by value. Raw samples are lists in one arena of `max_live_samples + 2,550` nodes. The rollup window is summed as samples arrive. | The window needs only the first sample, the last sample, the count and the state counts. |
+| `std::shared_ptr<const Record>` per sample, `std::deque` of raw samples, `std::vector` window | `Sample` holds its `Record` by value. Raw samples are lists in one arena of `max(max_live_samples, 2,550) + 2,550` nodes. The arena cannot become full (see `Monitor::ArenaSize`). The rollup window is summed as samples arrive. | The window needs only the first sample, the last sample, the count and the state counts. |
 | `std::map<tid, generation>` | A zeroed array with one entry for each possible thread ID (4,194,304). An epoch number resets it for a new session. | Linux thread IDs do not exceed 4,194,304. `Decode` now rejects a larger ID. |
 | `std::set` and `std::vector` in `Process` | A stamp in each thread slot, and one pass with `RemoveThreadsIf`. | No temporary container is needed. |
 | `std::deque` of loss entries and retired sessions | `Ring` with a fixed array. | Both have a limit. A full ring drops the oldest entry. |
 | Rows that wait in `std::vector`, with `std::string` fields | `RowSink`. A monitor builds a row on the stack and passes it to the sink at once. Rows hold `FixedText`. | A buffer for pending rows needs a limit that a burst can exceed. The sink has no buffer. |
-| `std::string` state counts text and stored sockets JSON | `AppendInteger`, `AppendDouble` and `AppendJsonString` in `collector/text.hpp` write into a `FixedText`. | The text is the same as before. |
+| `std::string` state counts text, raw sample JSON and stored sockets JSON | `AppendInteger`, `AppendDouble` and `AppendJsonString` in `collector/text.hpp` write into a `FixedText`. | The text is the same as before. |
 | `std::to_string`, `std::format` and `DumpJson` in `Storage` | `std::to_chars` into a buffer. The raw sample JSON is written by `AppendRecordJson`. Day files are keyed by `Days`, not by a string. | No temporary string. |
 | `SQLITE_TRANSIENT` text binds | `SQLITE_STATIC`. | SQLite reads the text in place. It makes no copy. |
 | Peer address `std::string` | `PeerText`, a `FixedText`. | No allocation for each datagram. |
@@ -71,9 +71,9 @@ A limit is a documented value. The collector counts the work that goes over it.
 - 2,550 threads at one time (`kMaxTrackedThreads`). A sample of a thread over
   the limit is dropped. `Monitor::Health` reports `dropped_samples`.
 - 128 pending ticks, 128 retired sessions, 4,096 loss entries.
-- `max_live_samples` is a startup value. A larger value in a later run needs a
-  restart. The Monitor drops the oldest sample of a thread when the arena is
-  full.
+- `max_live_samples` is at most 10,000,000. The arena takes about 280 bytes
+  of address space for each sample, so a larger value could make the
+  reservation fail at startup. `--check-config` rejects a larger value.
 - The stored sockets column holds up to 4,096 bytes. A socket that does not fit
   is left out.
 

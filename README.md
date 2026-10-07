@@ -414,8 +414,10 @@ Checklist before going live (design section 12):
   session and process. Values the sampler could not read stay unavailable,
   never zero. One `resource_sample` row per sample is stored.
 - **Storage:** live samples expire after ten minutes and are capped by
-  `max_live_samples` (default one million). History is one SQLite file per UTC
-  day (WAL mode) with per-thread rollups, committed every half second.
+  `max_live_samples` (default one million, at most ten million; the collector
+  reserves about 280 bytes of address space per sample at startup). History
+  is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
+  every half second.
   `store_raw = true` also saves decoded records. Retention deletes whole day files,
   keeping today and the previous `retention_days - 1`. Old day files gain new
   columns when opened.

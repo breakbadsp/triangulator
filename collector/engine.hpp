@@ -200,9 +200,7 @@ class Monitor
         threads_(kMaxTrackedThreads),
         index_(kMaxTrackedThreads),
         free_threads_(kMaxTrackedThreads),
-        samples_(static_cast<std::size_t>(
-                     std::max<std::int64_t>(p_config.max_live_samples_, 0)) +
-                 kMaxTrackedThreads),
+        samples_(ArenaSize(p_config.max_live_samples_)),
         generations_(std::size_t{kMaxTid} + 1)
   {
     for (auto& tick : ticks_)
@@ -689,20 +687,22 @@ class Monitor
     return static_cast<std::uint32_t>(samples_.Size() - 1);
   }
 
+  // Nodes in the sample arena. PruneRaw ends each tick with at most
+  // max(max_live_samples, threads) samples, and a tick adds at most one
+  // sample per thread, kMaxTrackedThreads in total. So the arena is never
+  // full. (A test that makes max_live_samples_ larger after construction
+  // breaks this; the tests only make it smaller.)
+  [[nodiscard]] static std::size_t ArenaSize(std::int64_t p_max_live_samples)
+  {
+    const auto live =
+        static_cast<std::size_t>(std::max<std::int64_t>(p_max_live_samples, 0));
+    return std::max(live, kMaxTrackedThreads) + kMaxTrackedThreads;
+  }
+
   void PushRaw(ThreadState& p_thread, const Sample& p_sample)
   {
-    auto node = AllocateNode();
-    if (node == kNoNode && p_thread.raw_size_ > 0)
-    {
-      // The arena is full because max_live_samples_ grew after startup. Make
-      // room by dropping this thread's oldest sample.
-      PopRawFront(p_thread);
-      node = AllocateNode();
-    }
-    if (node == kNoNode)
-    {
-      return;
-    }
+    const auto node = AllocateNode();
+    assert(node != kNoNode);  // See ArenaSize.
     samples_[node] = {p_sample, p_thread.raw_last_, kNoNode};
     if (p_thread.raw_last_ != kNoNode)
     {
