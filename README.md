@@ -185,6 +185,20 @@ make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
 ```
 
+To use a different compiler, set `CXX` on the command line or in the
+environment. Do not edit the Makefile. The same variable builds the SQLite
+amalgamation, so no separate C compiler setting exists. Make stops with a clear
+message if the compiler cannot build C++23.
+
+```sh
+make CXX=g++-14                    # for example a newer GCC next to the system one
+CXX=clang++-19 make check
+```
+
+On a system with a compiler toolset (for example GCC Toolset on AlmaLinux 9),
+put the toolset's `bin` directory on `PATH` or give the full path in `CXX`.
+Changing `CXX`, `CXXFLAGS` or the link options rebuilds every program.
+
 The sampler links fully statically by default. The collector and socket report
 helper embed libstdc++ and libgcc, leaving libc and SQLite as shared libraries.
 Builds do not download anything. To build all three programs fully statically:
