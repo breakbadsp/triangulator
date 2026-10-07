@@ -261,7 +261,7 @@ class Sampler
   }
 
   void SendTick(int p_pid, Nanoseconds p_monotonic, Nanoseconds p_wall,
-                std::span<const wire::RecordBytes> p_records)
+                std::span<const wire::Record> p_records)
   {
     const auto chunks = std::max(
         std::size_t{1}, (p_records.size() + wire::kRecordsPerPacket - 1) /
@@ -271,14 +271,12 @@ class Sampler
       const auto offset = chunk * wire::kRecordsPerPacket;
       const auto count =
           std::min(p_records.size() - offset, wire::kRecordsPerPacket);
-      wire::Packet packet{};
       const auto flags =
           (p_pid ? wire::Flags::None : wire::Flags::TargetAbsent) |
           (config_.settings_.status_fallback_ ? wire::Flags::StatusFallback
                                               : wire::Flags::None);
-      wire::EncodeHeader(
-          std::span{packet}.first<wire::kHeaderSize>(),
-          {
+      wire::Packet packet{
+          .header_ = {
               .flags_ = flags,
               .chunk_ = static_cast<std::uint8_t>(chunk),
               .chunks_ = static_cast<std::uint8_t>(chunks),
@@ -289,13 +287,12 @@ class Sampler
               .wall_ns_ = static_cast<std::uint64_t>(p_wall.count()),
               .interval_ms_ = config_.settings_.IntervalMs(),
               .pid_ = static_cast<std::uint32_t>(p_pid),
-          });
-      const auto bytes = std::as_bytes(p_records.subspan(offset, count));
-      std::ranges::copy(bytes,
-                        std::span{packet}.subspan<wire::kHeaderSize>().begin());
+          }};
+      std::ranges::copy(p_records.subspan(offset, count),
+                        packet.records_.begin());
       const auto& endpoint = config_.endpoint_;
-      if (::sendto(endpoint.socket_.Get(), packet.data(),
-                   wire::kHeaderSize + bytes.size(), MSG_DONTWAIT,
+      if (::sendto(endpoint.socket_.Get(), &packet, wire::DatagramSize(count),
+                   MSG_DONTWAIT,
                    reinterpret_cast<const sockaddr*>(&endpoint.address_),
                    endpoint.address_length_) < 0 &&
           errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOBUFS)
@@ -329,7 +326,7 @@ class Sampler
 
   RuntimeConfig config_;
   ThreadCache threads_;
-  std::array<wire::RecordBytes, wire::kMaxThreads> records_{};
+  std::array<wire::Record, wire::kMaxThreads> records_{};
   RateLimitedLogger logger_;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts

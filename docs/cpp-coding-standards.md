@@ -124,8 +124,8 @@ enum class DecodeError
   {
     return std::unexpected(DecodeError::ShortHeader);
   }
-  const auto version = ReadLittleEndian<std::uint16_t>(p_bytes, 0);
-  if (version != kProtocolVersion)
+  const auto header = FromBytes<Header>(p_bytes);
+  if (header.version_ != kProtocolVersion)
   {
     return std::unexpected(DecodeError::BadVersion);
   }
@@ -491,9 +491,8 @@ private:
 | **T.120** | Template metaprogramming only when `constexpr` can't do the job |
 
 ```cpp
-template <std::unsigned_integral TNumber>
-[[nodiscard]] TNumber ReadLittleEndian(std::span<const std::byte> p_bytes,
-                                       std::size_t p_offset);
+template <WireStruct TWire>
+[[nodiscard]] TWire FromBytes(std::span<const std::byte> p_data) noexcept;
 ```
 
 ## Standard library

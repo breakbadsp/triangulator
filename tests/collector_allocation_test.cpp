@@ -173,20 +173,22 @@ std::vector<std::array<std::byte, wire::kPacketSize>> ThreadTick(
     const std::size_t first = chunk * wire::kRecordsPerPacket;
     const std::size_t count =
         std::min(wire::kRecordsPerPacket, kThreads - first);
-    auto& data = datagrams[chunk];
-    wire::EncodeHeader(
-        std::span<std::byte, wire::kHeaderSize>{data.data(), wire::kHeaderSize},
-        wire::Header{
-            wire::Flags::None, static_cast<std::uint8_t>(chunk),
-            static_cast<std::uint8_t>(chunks), kSession, p_sequence,
-            static_cast<std::uint16_t>(count),
-            (1000 + std::uint64_t{p_sequence}) * 1'000'000'000,
-            (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000, 1000,
-            123});
+    wire::Packet packet{
+        .header_ = {
+            .chunk_ = static_cast<std::uint8_t>(chunk),
+            .chunks_ = static_cast<std::uint8_t>(chunks),
+            .session_ = kSession,
+            .sequence_ = p_sequence,
+            .records_ = static_cast<std::uint16_t>(count),
+            .monotonic_ns_ = (1000 + std::uint64_t{p_sequence}) * 1'000'000'000,
+            .wall_ns_ =
+                (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000,
+            .interval_ms_ = 1000,
+            .pid_ = 123}};
     for (std::size_t index = 0; index < count; ++index)
     {
       const std::size_t thread = first + index;
-      wire::Record record{};
+      auto& record = packet.records_[index];
       // Thread 0 gets a new id every seven ticks, so threads also come and go.
       record.tid_ = static_cast<std::uint32_t>(
           100 + thread + (thread == 0 ? 1000 * (p_sequence / 7) : 0));
@@ -200,13 +202,9 @@ std::vector<std::array<std::byte, wire::kPacketSize>> ThreadTick(
       const std::string name = thread % 2 == 0 ? "worker-" : "io-";
       std::memcpy(record.comm_.data(), name.data(), name.size());
       std::memcpy(record.wchan_.data(), "futex_do_wait", 13);
-      wire::EncodeRecord(
-          std::span<std::byte, wire::kRecordSize>{
-              data.data() + wire::kHeaderSize + index * wire::kRecordSize,
-              wire::kRecordSize},
-          record);
     }
-    p_sizes[chunk] = wire::kHeaderSize + count * wire::kRecordSize;
+    std::ranges::copy(wire::AsBytes(packet), datagrams[chunk].begin());
+    p_sizes[chunk] = wire::DatagramSize(count);
   }
   return datagrams;
 }

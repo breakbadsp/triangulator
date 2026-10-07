@@ -117,7 +117,7 @@ class Thread
 
   struct Sample
   {
-    wire::RecordBytes record_;
+    wire::Record record_;
     bool wchan_hidden_;
   };
 
