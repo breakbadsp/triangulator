@@ -58,6 +58,10 @@ See [the socket source guide](socket-ingress-design.md#build-and-run).
 
 ## Problems found in the first test
 
+The [corrected workflow passed on both versions](https://github.com/breakbadsp/triangulator/actions/runs/37585821437).
+It also ran the copied socket report helper in each clean container.
+The run artifacts contain the complete logs, package lists, and binaries.
+
 The first run tested AlmaLinux 9.8 and 10.2 on x86-64.
 Both normal builds and static builds passed the C++ tests and `make check`.
 Each test run ran 51 Python tests: 50 passed and the optional eBPF test was skipped.
