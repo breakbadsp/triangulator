@@ -12,14 +12,14 @@ including calls from `libstdc++` and libc.
 
 | Measurement (60 ticks, 25 threads, 12 resource samples) | Before | After |
 | --- | --- | --- |
-| `store_raw = false` | 3,385 | 0 |
-| `store_raw = true` | 6,422 | 0 |
+| `store_raw = false` | 6,452 | 0 |
+| `store_raw = true` | 13,952 | 0 |
 
 The "before" numbers come from the code at revision `9fa7bbc`. The same test
-program ran against it.
+program ran against it, changed only for the old API.
 
 SQLite makes a few allocations of its own. They are counted separately
-(4 and 41 in the same runs). SQLite grows its page cache while a day file
+(22 and 107 in the same runs, before and after). SQLite grows its page cache while a day file
 grows. The growth stops at the cache size limit. The test prints this number.
 It does not require zero.
 
@@ -105,9 +105,12 @@ The large items are:
 ## Allocation test
 
 `tests/collector_allocation_test.cpp` builds real datagrams with the shared
-wire encoders. It sends 30 ticks of 25 threads as a warm-up. Then it measures
-60 more ticks. This includes more than ten rollup windows, 12 resource
-samples and a `Storage::Flush` for each tick. It runs twice: with and without
+wire encoders. It sends 30 ticks of 25 threads (three datagrams each) as a
+warm-up. Then it measures 60 more ticks. This includes more than ten rollup
+windows, 12 resource samples and a `Storage::Flush` for each tick. One thread
+gets a new ID every seven ticks, so threads also start and stop. The test
+drains each tick after its last datagram, and then checks that no datagram
+was late and that all 25 threads are live. It runs twice: with and without
 `store_raw`.
 
 The test is linked dynamically with its own `malloc`. A static link would

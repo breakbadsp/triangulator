@@ -187,7 +187,9 @@ std::vector<std::array<std::byte, wire::kPacketSize>> ThreadTick(
     {
       const std::size_t thread = first + index;
       wire::Record record{};
-      record.tid_ = static_cast<std::uint32_t>(100 + thread);
+      // Thread 0 gets a new id every seven ticks, so threads also come and go.
+      record.tid_ = static_cast<std::uint32_t>(
+          100 + thread + (thread == 0 ? 1000 * (p_sequence / 7) : 0));
       record.state_ = 'S';
       record.utime_ = std::uint64_t{p_sequence} * 10;
       record.stime_ = std::uint64_t{p_sequence} * 5;
@@ -266,7 +268,8 @@ struct Totals
 };
 
 // Feeds p_ticks thread ticks and one resource sample per five ticks, through
-// Ingest like the main loop does.
+// Ingest like the main loop does. Each tick is drained after its last chunk,
+// so the Monitor joins all the chunks of the tick.
 void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
          std::uint32_t p_first, std::uint32_t p_ticks, Totals& p_totals)
 {
@@ -283,6 +286,9 @@ void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
                                             sizes[index]};
       Counter counter{p_totals.threads_};
       Require(p_ingest.Handle(data, peer, now).has_value(), "thread datagram");
+    }
+    {
+      Counter counter{p_totals.threads_};
       p_monitor.Drain(now, true);
     }
     if (sequence % 5 == 0)
@@ -323,10 +329,17 @@ std::size_t Measure(bool p_store_raw)
   // windows and the first resource samples.
   Totals warmup;
   Run(ingest, monitor, storage, 1, 30, warmup);
-  // Steady state: more than six windows, ten resource samples.
+  // Steady state: more than ten windows, 12 resource samples.
   Totals steady;
   const auto sqlite_before = g_sqlite_allocations;
   Run(ingest, monitor, storage, 31, 60, steady);
+  // Health and Snapshot allocate, so they run after the measurement. They
+  // show that no chunk was dropped as late and that every thread is live.
+  const double end = 1'700'000'000.0 + 90;
+  Require(
+      monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
+          monitor.Snapshot(end).Find("threads")->AsArray().size() == kThreads,
+      "every chunk of every tick is processed");
   std::printf("%s\n", p_store_raw ? "store_raw = true" : "store_raw = false");
   for (const auto* phase :
        {&steady.threads_, &steady.resources_, &steady.flush_})

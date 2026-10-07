@@ -256,9 +256,6 @@ class TempDirectory
   std::filesystem::path path_;
 };
 
-// A Monitor whose rows go to a temporary directory, with one "worker" group.
-// As in the real collector, the config is shared by reference, so tests may
-// change it after construction.
 // A RowSink that keeps the resource rows it receives.
 struct RowCollector final : RowSink
 {
@@ -276,6 +273,9 @@ struct RowCollector final : RowSink
   }
 };
 
+// A Monitor whose rows go to a temporary directory, with one "worker" group.
+// As in the real collector, the config is shared by reference, so tests may
+// change it after construction.
 struct MonitorFixture
 {
   TempDirectory directory_;
