@@ -346,6 +346,12 @@ int main(int p_argc, char** p_argv)
   // uses, then exits without sampling or sending anything.
   const bool check_config =
       p_argc == 3 && std::string_view{p_argv[1]} == "--check-config";
+  if (p_argc == 2 && (std::string_view{p_argv[1]} == "-h" ||
+                      std::string_view{p_argv[1]} == "--help"))
+  {
+    std::printf("usage: %s [--check-config] CONFIG\n", p_argv[0]);
+    return 0;
+  }
   if (p_argc != 2 && !check_config)
   {
     std::fprintf(stderr, "usage: %s [--check-config] CONFIG\n", p_argv[0]);
