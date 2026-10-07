@@ -1,6 +1,6 @@
 # Process memory map: design
 
-Status: proposal. No code exists yet.
+Status: final design, ready for review. No code exists yet.
 
 This document describes a new dashboard tab, **Memory map**. The tab shows the
 virtual address space of the target process. It shows the heap, the stacks, the
@@ -184,7 +184,7 @@ Each part has one job:
 
 ## 6. The sampler memory thread
 
-The sampler starts the thread when `[memory_map] enabled = true`. The thread
+The sampler starts the thread when `memory_map_enabled = true` (section 14). The thread
 then **blocks** until a request arrives. While it blocks, it uses no CPU and
 reads nothing from the target.
 
@@ -209,7 +209,7 @@ Rules for the channel:
 2. The sampler accepts a request only from the configured collector address with
    a valid HMAC. It limits the request rate.
 3. The default listen address is `127.0.0.1`. A remote collector needs an
-   explicit address and a token file in `[memory_map]`.
+   explicit `memory_map_listen` address.
 4. The request has a **lease**. While a browser has the tab open, the collector
    repeats `watch` every 5 s. If the lease ends, the thread stops and blocks
    again. A forgotten tab cannot keep the sampling on.
@@ -220,13 +220,12 @@ This is the first inbound path to the sampler. The pull request that adds it
 must include a short threat review. The worst case for an attacker who passes the
 checks is a bounded read of the configured target.
 
-Configuration keys: `enabled`, `listen`, `token_file`, `interval_s`,
-`keyframe_s`, `max_vmas`, `max_lease_s`. A reload that changes only
-`[memory_map]` must **not** start a new session. It only changes this thread.
+The keys, defaults and checks are in section 14. A reload that changes only
+`memory_map_*` keys must **not** start a new session.
 
-On the collector side, a new setting, `sampler_control = "host:port"`, gives the
-address of the control socket. The HTTP endpoint `POST /api/memory-map/watch`
-sets the lease. The tab calls it while it is open.
+On the collector side, `sampler_control` gives the address of the control socket.
+The HTTP endpoint `POST /api/memory-map/watch` sets the lease. The tab calls it
+while it is open.
 
 ### Three tiers of work
 
@@ -466,11 +465,12 @@ Each step is a separate pull request. Each pull request builds and passes
    unit tests that use fixture text. No sampler change.
 2. **`TVMA` wire format and request format.** Encoders and decoders with
    round-trip tests. The request has the HMAC.
-3. **Sampler thread.** The `[memory_map]` configuration, the blocking thread, the
+3. **Sampler thread.** The `memory_map_*` configuration, the blocking thread, the
    control socket, the lease, the tiers, the read timing and back-off, and the
-   rule that a `[memory_map]` reload keeps the session. Include the threat
+   rule that a `memory_map_*` reload keeps the session. Add the commented keys to
+   `config/sampler.toml` and check them with `--check-config`. Include the threat
    review and the **acceptance test** from section 11.
-4. **Collector.** Decode, keep the snapshot, `sampler_control`,
+4. **Collector.** The `[memory_map]` section, decode, keep the snapshot, `sampler_control`,
    `POST /api/memory-map/watch`, `GET /api/memory-map` and the SQLite tables.
 5. **Tab, version 1.** Tiles, address space bar, zoom grid and growth charts.
    No findings yet.
@@ -488,8 +488,81 @@ The project owner made these decisions:
 3. **Retention.** The tab is mostly live. The database keeps only summaries and
    evidence snapshots, for 7 days (section 8).
 4. **Thread or program.** A thread in the sampler.
+5. **Gating.** The feature is off unless the configuration turns it on, in both
+   the sampler and the collector (section 14). There is no compile-time switch.
 
-## 14. Limits of this design
+## 14. Configuration and gating
+
+The whole feature is **off unless the configuration turns it on**. The code is
+always part of the build, so `make check` tests it. No compile-time switch is
+needed.
+
+### What "off" means
+
+| Program | When the feature is off |
+|---|---|
+| Sampler | It starts no memory thread. It opens no control socket. It reads no extra `/proc` file. The behavior is the same as today. |
+| Collector | It opens no sampler-control path. It creates no `vm_*` tables. `GET /api/memory-map` returns `404`. |
+| Dashboard | The **Memory map** tab is hidden. |
+
+### Sampler keys (`sampler.toml`)
+
+The sampler parser reads flat keys without sections and rejects unknown keys. The
+new keys follow that style. A reload that changes only `memory_map_*` keys must
+**not** start a new session. It only starts, stops or changes the memory thread.
+
+| Key | Default | Rule |
+|---|---|---|
+| `memory_map_enabled` | `false` | `true` or `false`. |
+| `memory_map_listen` | `"127.0.0.1:9402"` | A numeric IPv4 or `[IPv6]` address and a port. A non-loopback address needs an explicit value. |
+| `memory_map_token_file` | none | Required when the feature is on. The file must belong to the sampler user and must not give access to other users (mode `0600`). The sampler refuses to start with a wrong mode. |
+| `memory_map_interval_s` | `2` | 1 to 60. |
+| `memory_map_keyframe_s` | `30` | 5 to 300, and not less than the interval. |
+| `memory_map_max_vmas` | `8192` | 256 to 65536. |
+| `memory_map_max_lease_s` | `15` | 5 to 60. |
+
+Validation rules:
+
+1. If `memory_map_enabled` is `true` and there is no valid token file, the
+   configuration is invalid. At startup the sampler refuses to start. On
+   reload, it keeps the previous configuration and logs the reason.
+2. `--check-config` runs all of these checks.
+3. A request channel always needs the token, also on loopback. Other local users
+   can send UDP to loopback.
+
+### Collector keys (`collector.toml`)
+
+The collector uses a TOML section.
+
+```toml
+[memory_map]
+enabled = false                   # off by default
+sampler_control = "10.0.0.7:9402" # the sampler memory_map_listen address
+token_file = "/etc/triangulator/memory-map.token"
+retention_days = 7                # 1 to 90
+```
+
+| Key | Default | Rule |
+|---|---|---|
+| `enabled` | `false` | Turns on the endpoints, the tables and the tab. |
+| `sampler_control` | none | Required when enabled. Host and port of the sampler control socket. |
+| `token_file` | none | Required when enabled. The same token as the sampler. Same mode rule. |
+| `retention_days` | `7` | 1 to 90. |
+
+The analysis module has its own setting for thresholds (section 9). If the
+module is not installed, the tab hides the findings panel only.
+
+### Status shown in the tab
+
+The tab shows one of these states. It never shows empty data without a reason.
+
+1. **Disabled in the collector.** The tab is hidden.
+2. **Waiting for the sampler.** No `TVMA` datagram arrived yet. The usual causes
+   are: the sampler feature is off, a wrong token, or a blocked port.
+3. **Live.** Data arrives. The tab shows the read cost.
+4. **Stale.** The data stopped. The lease ended or the datagrams were lost.
+
+## 15. Limits of this design
 
 - Without `ptrace` the tab shows page state, not bytes. It does not show stack
   depth.
