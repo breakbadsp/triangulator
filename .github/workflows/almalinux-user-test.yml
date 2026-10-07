@@ -1,0 +1,66 @@
+name: AlmaLinux new user test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/almalinux-new-user-test]
+  pull_request:
+    paths:
+      - .github/workflows/almalinux-user-test.yml
+      - .github/scripts/almalinux-*.sh
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: AlmaLinux ${{ matrix.version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['9', '10']
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Build and test in AlmaLinux
+        env:
+          ALMA_VERSION: ${{ matrix.version }}
+        run: |
+          mkdir -p reports
+          docker pull "almalinux:$ALMA_VERSION"
+          docker image inspect "almalinux:$ALMA_VERSION" > reports/image.json
+          docker run --rm \
+            -e ALMA_VERSION \
+            -v "$PWD:/source:ro" \
+            -v "$PWD/reports:/reports" \
+            "almalinux:$ALMA_VERSION" \
+            bash /source/.github/scripts/almalinux-build.sh
+      - name: Run copied release binaries in a clean container
+        env:
+          ALMA_VERSION: ${{ matrix.version }}
+        run: |
+          docker run --rm --user 1000:1000 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -v "$PWD/reports:/reports" \
+            -v "$PWD/.github/scripts/almalinux-runtime.sh:/test.sh:ro" \
+            "almalinux:$ALMA_VERSION" bash /test.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          response = Path('reports/runtime-live.http').read_bytes()
+          headers, body = response.split(b'\r\n\r\n', 1)
+          assert headers.startswith(b'HTTP/1.1 200'), headers
+          live = json.loads(body)
+          assert live['threads'], live
+          assert live['threads'][0]['name'] == 'sleep', live['threads']
+          assert live['health']['pid'] == int(Path('reports/runtime-target.pid').read_text()), live['health']
+          print('Copied static binaries monitored the target as UID 1000.')
+          PY
+      - name: Save test logs and binaries
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: almalinux-${{ matrix.version }}-new-user-test
+          path: reports/
+          retention-days: 14
