@@ -169,8 +169,8 @@ def decode_resource(data: bytes) -> ResourcePart:
 
 
 def receive_tick(receiver, size=1500):
-    """The next thread-tick datagram, skipping the sampler's resource samples."""
+    """The next thread-tick datagram, skipping resource and memory-map samples."""
     while True:
         data = receiver.recv(size)
-        if not data.startswith(b"TRES"):
+        if not data.startswith((b"TRES", b"TVMA")):
             return data

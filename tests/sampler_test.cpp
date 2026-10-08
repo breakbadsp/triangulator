@@ -80,6 +80,7 @@ void TestParsing()
           "both fallback counters are required");
 }
 
+// Omitted feature settings enable sampling; explicit zero disables it.
 void TestConfig()
 {
   const auto config = ParseConfig(
@@ -96,11 +97,16 @@ void TestConfig()
       "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,
           "resource samples can be turned off");
-  Require(config->memory_interval_s_ == 0, "memory-map samples default to off");
+  Require(config->memory_interval_s_ == 30,
+          "memory-map samples default to 30 s");
   const auto memory_on = ParseConfig(
       "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=30\n");
   Require(memory_on && memory_on->memory_interval_s_ == 30,
           "memory-map samples can be turned on");
+  const auto memory_off = ParseConfig(
+      "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=0\n");
+  Require(memory_off && memory_off->memory_interval_s_ == 0,
+          "memory-map samples can be turned off");
   for (const auto invalid : {
            "target_pid=1\ntarget_process=foo\ncollector=127.0.0.1:9400",
            "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=nan",

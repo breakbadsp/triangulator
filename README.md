@@ -43,7 +43,9 @@ scripts/start.sh
 The script creates `config/local/sampler.toml` and `config/local/collector.toml`
 on first use, builds the sampler, validates the collector config, and starts both
 programs. The local configs use loopback addresses, save history in `data/`, detect
-the host's clock ticks, and leave webhook delivery disabled. Existing local configs
+the host's clock ticks, and leave webhook delivery disabled. Resource sampling
+(every 5 seconds), memory maps (every 30 seconds), raw sample storage, and
+dashboard recordings (every second) are enabled. Existing local configs
 are preserved; running the script again leaves already-running services alone.
 
 Open <http://127.0.0.1:9401>, click **Change target** next to the current target,
@@ -135,7 +137,7 @@ systemd, see [Production setup](#production-setup).
   <img src="docs/assets/replay.svg" alt="A scrubber moves along a CPU timeline. The thread tiles freeze to the recorded state at each position." width="100%">
 </p>
 
-Turn on `replay_interval_s`, then use **Inspect a moment**. See the
+Dashboard recording is enabled by default. Use **Inspect a moment**. See the
 [recording notes](collector/README.md#historical-process-inspection).
 
 ## Performance
@@ -281,8 +283,8 @@ Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
   `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
   at most 60) sets how often resource samples are sent; they are never more
-  frequent than thread ticks. `memory_interval_s` (default 0, off; at most
-  3600) sets how often memory-map samples are sent; see
+  frequent than thread ticks. `memory_interval_s` (default 30; 0 turns it off;
+  at most 3600) sets how often memory-map samples are sent; see
   [docs/memory-map.md](docs/memory-map.md). `SIGHUP` reloads the file; an invalid file leaves the old
   settings active, and a successful reload starts a new session. Validate with
   `build/triangulator-sampler --check-config config/sampler.toml`.
@@ -334,9 +336,9 @@ returns to the current process. The recorded view includes all threads, their
 states, wait channels, core placement, CPU, run delay, switches, I/O and health.
 Click a thread to open its summary history ending at the recorded time.
 
-Recording is off by default. Set `replay_interval_s` in the collector config
-(0.5–60 seconds; `0`, the default, disables it) to save complete views,
-independently of `store_raw`. They go to `data_dir/replay/` and use the
+Recording is enabled every second by default. Set `replay_interval_s` in the
+collector config (0.5–60 seconds; `0` disables it) to change the interval for
+complete views, independently of `store_raw`. They go to `data_dir/replay/` and use the
 existing `retention_days` setting.
 Older rollups remain readable but cannot reconstruct a complete process view.
 State means the latest sampled observation; rates still cover the preceding
@@ -386,6 +388,9 @@ and configuration in `/etc/triangulator`. `triangulator-collector.service` runs
 the collector. Keep sampler code
 and configuration root-owned and not writable by the target user. The collector unit
 creates `/var/lib/triangulator`.
+The shipped configs use local development addresses and `./data`. For deployment,
+set the sampler's `collector` address, the collector's `sampler_ip`, and an
+absolute `data_dir` such as `/var/lib/triangulator`.
 
 ```sh
 triangulator-collector /etc/triangulator/collector.toml
@@ -449,7 +454,8 @@ Checklist before going live (design section 12):
   reserves about 280 bytes of address space per sample at startup). History
   is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
   every half second.
-  `store_raw = true` also saves decoded records. Retention deletes whole day files,
+  `store_raw = true` (the default) also saves decoded records. Set it to `false`
+  to keep only rollups. Retention deletes whole day files,
   keeping today and the previous `retention_days - 1`. Old day files gain new
   columns when opened.
 

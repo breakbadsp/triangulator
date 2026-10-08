@@ -1,11 +1,11 @@
 # Memory map
 
 The sampler can send the target's virtual address space to the collector. The
-dashboard shows it in the **Memory map** section. The feature is off by
-default. Turn it on in the sampler config:
+dashboard shows it in the **Memory map** section. Sampling is enabled every
+30 seconds by default. Change the interval in the sampler config:
 
 ```toml
-memory_interval_s = 30   # 0 = off (default), 1..3600
+memory_interval_s = 30   # default 30; 0 = off; 1..3600
 ```
 
 ## What is sampled

@@ -36,8 +36,8 @@ struct Config
   // turns them off.
   int resource_interval_s_ = 5;
   // Seconds between memory-map samples (/proc/PID/maps and the summary
-  // files); 0, the default, turns them off.
-  int memory_interval_s_ = 0;
+  // files); 0 turns them off.
+  int memory_interval_s_ = 30;
 
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {

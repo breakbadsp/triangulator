@@ -277,9 +277,13 @@ class ResourceSampleTests(unittest.TestCase):
     def test_resource_sample_describes_the_target(self):
         receiver, target, port, server_fd = self.run_sampler("resource_interval_s = 1\n")
         parts, ticks = {}, set()
+        memory_seen = False
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             data = receiver.recv(1500)
+            if data.startswith(b"TVMA"):
+                memory_seen = True
+                continue
             if not data.startswith(b"TRES"):
                 ticks.add(decode(data).session)
                 continue
@@ -293,6 +297,7 @@ class ResourceSampleTests(unittest.TestCase):
         self.assertEqual(summary.pid, target.pid)
         self.assertEqual(summary.interval_ms, 1000)
         self.assertEqual(ticks, {summary.session}, "resource samples share the thread session")
+        self.assertTrue(memory_seen, "memory maps are sent alongside resource samples by default")
         self.assertEqual(summary.flags, 0, "nothing is hidden from the target's own user")
         values = summary.values
         self.assertEqual(values["fd_sockets"], 3)
