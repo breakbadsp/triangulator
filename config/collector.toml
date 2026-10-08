@@ -4,7 +4,7 @@ udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
 sampler_ip = "10.0.0.10"
-data_dir = "/var/lib/triangulator"
+data_dir = "./data"
 retention_days = 7
 store_raw = false
 # Record complete dashboard views to data_dir/replay for "Inspect a moment".

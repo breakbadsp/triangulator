@@ -11,7 +11,7 @@ cleanup() {
         kill "$target_pid" 2>/dev/null || true
         wait "$target_pid" 2>/dev/null || true
     fi
-    cp -a .run /reports/startup-logs 2>/dev/null || true
+    cp -a "${TRIANGULATOR_HOME:-$HOME/triangulator}/logs" /reports/startup-logs 2>/dev/null || true
 }
 trap cleanup EXIT
 
