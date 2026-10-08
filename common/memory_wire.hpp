@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -43,7 +44,7 @@ inline constexpr std::uint64_t kUnavailable =
 
 // Summary values, in wire order. Each is a u64; kUnavailable when unknown.
 // Resident memory is not here: the resource sample already has it.
-inline constexpr std::array<std::string_view, 16> kSummaryFields{
+inline constexpr std::array<std::string_view, 17> kSummaryFields{
     // /proc/PID/status, in bytes.
     "vm_size_bytes", "vm_peak_bytes", "vm_data_bytes", "vm_stack_bytes",
     "vm_exe_bytes", "vm_lib_bytes", "vm_pte_bytes", "vm_locked_bytes",
@@ -52,9 +53,11 @@ inline constexpr std::array<std::string_view, 16> kSummaryFields{
     // /proc/PID/limits (soft limits) and /proc/sys/vm/max_map_count.
     "address_space_limit_bytes", "stack_limit_bytes", "max_map_count",
     // /proc/PID/maps: mappings (VMAs) counted, and what reading them cost.
-    // The read time shows how long the target's memory-map lock was shared
-    // with the sampler.
-    "vma_count", "maps_read_us", "maps_reads"};
+    // maps_read_us is the total wall time of all read() calls, including
+    // time spent waiting for the lock or descheduled. One read() holds the
+    // target's memory-map lock once, so the longest read, maps_read_max_us,
+    // bounds how long one of the target's mmap calls waited for the sampler.
+    "vma_count", "maps_read_us", "maps_read_max_us", "maps_reads"};
 using SummaryValues = std::array<std::uint64_t, kSummaryFields.size()>;
 
 // The index of the summary field p_name. Only for names in kSummaryFields;
@@ -234,12 +237,15 @@ static_assert(kMaxPartSize <= 1400 && kSummaryPartSize <= kMaxPartSize);
 }
 
 // Writes region part p_part (1-based) of p_regions into p_buffer and
-// returns its length.
+// returns its length. p_header must be the header of this layout.
 [[nodiscard]] inline std::size_t EncodeRegions(
     std::span<std::byte, kMaxPartSize> p_buffer, Header p_header,
     std::span<const Region> p_regions, std::uint8_t p_part)
 {
+  assert(p_part >= 1 && p_part < p_header.parts_);
+  assert(p_header.parts_ == PartCount(p_regions.size()));
   const auto first = (p_part - std::size_t{1}) * kRegionsPerPart;
+  assert(first < p_regions.size());
   const auto rows = std::min(kRegionsPerPart, p_regions.size() - first);
   p_header.kind_ = PartKind::Regions;
   p_header.part_ = p_part;
@@ -318,8 +324,12 @@ struct Part
     part.values_ = wire::FromBytes<SummaryPart>(p_data).values_;
     return part;
   }
+  // Every region part but the last is full: the collector places part N
+  // at row (N - 1) * kRegionsPerPart, so a short part would leave a gap.
+  const bool last = header.part_ + 1 == header.parts_;
   if (header.kind_ != PartKind::Regions || header.part_ == 0 ||
       header.count_ == 0 || header.count_ > kRegionsPerPart ||
+      (!last && header.count_ != kRegionsPerPart) ||
       p_data.size() != kHeaderSize + header.count_ * kRegionSize)
   {
     return std::unexpected("invalid memory-map region part");

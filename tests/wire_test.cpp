@@ -352,6 +352,18 @@ void TestMemoryRoundTrip()
     Require(!memory_wire::Decode(std::span{copy}.first(length)),
             "an invalid memory-map part is rejected");
   }
+  // Part 1 of 3 with one region: only the last region part may be short.
+  auto short_part = bytes;
+  const auto full_length =
+      memory_wire::EncodeRegions(short_part, header, regions, 1);
+  Require(
+      memory_wire::Decode(std::span{short_part}.first(full_length)).has_value(),
+      "a full first part decodes");
+  short_part[20] = std::byte{1};  // count_
+  short_part[21] = std::byte{0};
+  Require(!memory_wire::Decode(std::span{short_part}.first(
+              memory_wire::kHeaderSize + memory_wire::kRegionSize)),
+          "a short region part before the last is rejected");
   auto empty = MemoryHeader(1);
   empty.pid_ = 0;
   const auto empty_length = memory_wire::EncodeSummary(bytes, empty, values);
