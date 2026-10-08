@@ -1,23 +1,18 @@
 [Unit]
 Description=Triangulator collector and dashboard (C++, no alerting)
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple
-DynamicUser=yes
-ExecStart=/usr/local/bin/triangulator-collector /etc/triangulator/collector.toml
-StateDirectory=triangulator
+WorkingDirectory=%h/triangulator
+ExecStart=%h/triangulator/bin/triangulator-collector %h/triangulator/config/collector.toml
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
 CapabilityBoundingSet=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=1G
+StandardOutput=append:%h/triangulator/logs/collector.log
+StandardError=append:%h/triangulator/logs/collector.log
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

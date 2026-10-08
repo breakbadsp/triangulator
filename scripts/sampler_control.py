@@ -30,6 +30,11 @@ class ControlError(Exception):
     pass
 
 
+def runtime_directory():
+    """All user runtime files share this directory."""
+    return Path(os.environ.get("TRIANGULATOR_HOME") or Path.home() / "triangulator").resolve()
+
+
 def parse_pid(text):
     """Return text as a PID, or None when it is not a decimal number."""
     if not (text.isascii() and text.isdecimal()):
@@ -151,7 +156,7 @@ def running_sampler(root):
 
     Inspection errors propagate so callers cannot mistake them for absence.
     """
-    pidfile = root / ".run/sampler.pid"
+    pidfile = runtime_directory() / "run/sampler.pid"
     try:
         pid_text = pidfile.read_text().strip()
     except FileNotFoundError:
@@ -168,7 +173,9 @@ def running_sampler(root):
         raise ControlError(f"cannot inspect sampler PID {pid}; run this as the sampler's user") from None
     # The kernel reports a fully resolved path; resolve ours too, so a repo
     # reached through a symlink still matches.
-    if Path(executable) != (root / "build/triangulator-sampler").resolve():
+    binaries = ((root / "build/triangulator-sampler").resolve(),
+                runtime_directory() / "bin/triangulator-sampler")
+    if Path(executable) not in binaries:
         raise ControlError(f"{pidfile} points to {executable}, not this repo's sampler; refusing to signal it")
     args = (proc / "cmdline").read_bytes().split(b"\0")
     if len(args) != 3 or args[-1] != b"":
@@ -181,9 +188,10 @@ def running_sampler(root):
 
 def update_config(root, pattern, setting, collector_endpoint=None):
     """Write setting into the running sampler's config and request a reload."""
-    (root / ".run").mkdir(exist_ok=True)
+    run_dir = runtime_directory() / "run"
+    run_dir.mkdir(parents=True, exist_ok=True)
     # Serialise concurrent runs, so one edit can't overwrite another.
-    with open(root / ".run/sampler-control.lock", "w") as lock:
+    with open(run_dir / "sampler-control.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         sampler = running_sampler(root)
         if sampler is None:
@@ -192,10 +200,11 @@ def update_config(root, pattern, setting, collector_endpoint=None):
         if collector_endpoint is not None:
             require_local_collector(config, collector_endpoint)
         examples = (root / "config").resolve()
-        if config.is_relative_to(examples) and not config.is_relative_to(examples / "local"):
+        if (root / "build").is_dir() and config.is_relative_to(examples) and \
+                not config.is_relative_to(examples / "local"):
             raise ControlError(
                 f"the sampler is using {config}, a tracked example file; refusing to edit it. "
-                f"Restart it with config/local/sampler.toml: {RESTART_HINT}")
+                f"Restart it with {runtime_directory() / 'config/sampler.toml'}: {RESTART_HINT}")
         updated = replace_setting(config.read_text(), pattern, setting)
         temporary = None
         try:
@@ -239,7 +248,8 @@ def set_target(root, target, collector_endpoint=None):
     if collector_endpoint is not None:
         return {"enabled": True, "target": target, "message": message}
     print(f"Updated {config}: {setting}")
-    print(f"Requested reload of sampler {sampler}; check the dashboard and .run/sampler.log.")
+    print(f"Requested reload of sampler {sampler}; check the dashboard and "
+          f"{runtime_directory() / 'logs/sampler.log'}.")
     if not running:
         print(f"No process named {target} is running yet; the dashboard shows the target as absent until one starts.")
 
@@ -297,10 +307,10 @@ def set_rate(root, text):
 
 
 def collector(root):
-    """Use config/local only when the sampler is absent or stopped."""
+    """Use the runtime config only when the sampler is absent or stopped."""
     try:
         sampler = running_sampler(root)
-        config = sampler[1] if sampler is not None else root / "config/local/sampler.toml"
+        config = sampler[1] if sampler is not None else runtime_directory() / "config/sampler.toml"
         endpoint = read_setting(config.read_text(), "collector")
     except (ControlError, OSError) as error:
         raise ControlError(f"cannot read the collector endpoint: {error}; pass --collector IP:PORT") from None

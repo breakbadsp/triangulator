@@ -24,7 +24,7 @@ cat /reports/first-start.log
 # A missing build tool must give a clear message and leave no local setup.
 [[ "$first_status" != 0 ]]
 grep -q 'required command not found' /reports/first-start.log
-[[ ! -e config/local ]]
+[[ ! -e "$HOME/triangulator" ]]
 
 # Record the system compiler result before enabling a newer toolset.
 dnf install -y dnf-plugins-core gcc-c++ make sqlite-devel
@@ -68,4 +68,6 @@ rpm -qa | sort > /reports/build-packages.txt
 
 useradd -m tester
 chown -R tester:tester /work /reports
-runuser -u tester --preserve-environment -- bash .github/scripts/almalinux-user.sh
+# Keep the toolchain environment, but use the unprivileged account's runtime.
+runuser -u tester --preserve-environment -- env TRIANGULATOR_HOME=/home/tester/triangulator \
+    bash .github/scripts/almalinux-user.sh

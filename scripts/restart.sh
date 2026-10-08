@@ -7,6 +7,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$root/scripts/runtime.sh"
 app="${1:-collector}"
 
 case "$app" in
@@ -20,7 +21,9 @@ case "$app" in
     *) echo "usage: $0 [<collector|sampler|all> [config.toml]]" >&2; exit 2 ;;
 esac
 
-bin="$root/build/triangulator-$app"
+bin="$bin_dir/triangulator-$app"
+source_bin="$root/build/triangulator-$app"
+[[ -f "$root/Makefile" ]] || source_bin="$bin"
 
 # PIDs of this checkout's build of $app run by this user. The pidfile can be
 # missing (deleted, or started by hand), so look at what is actually running.
@@ -30,7 +33,7 @@ running_pids() {
     for pid in $(pgrep -u "$(id -u)" -x "$(printf %.15s "triangulator-$app")" || true); do
         # After a rebuild the running binary shows as "<path> (deleted)".
         exe="$(readlink "/proc/$pid/exe" 2>/dev/null)" || continue
-        [[ "${exe% (deleted)}" == "$bin" ]] && echo "$pid"
+        [[ "${exe% (deleted)}" == "$bin" || "${exe% (deleted)}" == "$source_bin" ]] && echo "$pid"
     done
 }
 
@@ -44,7 +47,7 @@ config_of() {
 }
 
 mapfile -t pids < <(running_pids)
-pidfile="$root/.run/$app.pid"
+pidfile="$run_dir/$app.pid"
 pid=""
 if [[ $# -ge 2 ]]; then
     config="$(realpath "$2")"
@@ -63,7 +66,7 @@ else
     fi
     config=""
     [[ -n "$pid" ]] && config="$(config_of "$pid" || true)"
-    config="${config:-$root/config/local/$app.toml}"
+    config="${config:-$config_dir/$app.toml}"
 fi
 [[ -f "$config" ]] || { echo "config not found: $config (run scripts/start.sh first)" >&2; exit 1; }
 
@@ -75,7 +78,7 @@ foreign=""
 for candidate in $(pgrep -x "$(printf %.15s "triangulator-$app")" || true); do
     [[ "$(stat -c %u "/proc/$candidate")" == "$(id -u)" ]] && continue
     mapfile -t args < <(tr '\0' '\n' <"/proc/$candidate/cmdline")
-    [[ "${args[0]:-}" == "$bin" ]] || continue
+    [[ "${args[0]:-}" == "$bin" || "${args[0]:-}" == "$source_bin" ]] || continue
     [[ "${args[1]:-}" == /* && "$(realpath -m "${args[1]}")" != "$config" ]] && continue
     foreign+=" $candidate"
 done
@@ -86,9 +89,11 @@ if [[ -n "$foreign" ]]; then
     exit 1
 fi
 
-make -C "$root" --no-print-directory "build/triangulator-$app"
+[[ ! -f "$root/Makefile" ]] || make -C "$root" --no-print-directory "build/triangulator-$app"
 if [[ "$app" == collector ]]; then
-    "$bin" "$config" --check-config
+    "$source_bin" "$config" --check-config
+else
+    "$source_bin" --check-config "$config"
 fi
 
 # stop.sh stops whatever the pidfile names; point it at the process found.
@@ -103,7 +108,7 @@ if [[ -f "$pidfile" ]]; then
     fi
 fi
 if [[ -n "$pid" ]]; then
-    mkdir -p "$root/.run"
+    mkdir -p "$run_dir"
     echo "$pid" >"$pidfile"
     "$root/scripts/stop.sh" "$app"
 else
@@ -129,6 +134,6 @@ if [[ "$app" == collector ]] && command -v curl >/dev/null; then
         fi
         sleep 0.1
     done
-    echo "collector started, but $url did not answer within 5 s; see $root/.run/collector.log" >&2
+    echo "collector started, but $url did not answer within 5 s; see $log_dir/collector.log" >&2
     exit 1
 fi

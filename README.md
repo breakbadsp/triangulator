@@ -40,11 +40,23 @@ To build and start everything on one machine:
 scripts/start.sh
 ```
 
-The script creates `config/local/sampler.toml` and `config/local/collector.toml`
-on first use, builds the sampler, validates the collector config, and starts both
-programs. The local configs use loopback addresses, save history in `data/`, detect
-the host's clock ticks, and leave webhook delivery disabled. Existing local configs
-are preserved; running the script again leaves already-running services alone.
+The script builds the programs and installs the runtime files under
+`~/triangulator/`. It creates `config/sampler.toml` and `config/collector.toml`
+from the repository templates on first use. Existing configs are preserved.
+The generated configs use local addresses and the host's clock ticks.
+
+- `bin/`: the running binaries, including the socket report helper.
+- `config/`: the active sampler and collector settings.
+- `data/`: SQLite history and dashboard recordings.
+- `logs/`: sampler, collector, and socket observer logs.
+- `run/`: process IDs and the sampler control lock.
+- `scripts/`: startup, restart, stop, and sampler-control commands.
+- `templates/`: shipped settings used to create missing configs.
+- `services/`: systemd user-service files.
+
+Set `TRIANGULATOR_HOME` to use another runtime directory. This also isolates
+test instances. Relative collector data paths are resolved from this directory.
+The repository's `config/*.toml` files are templates, not active settings.
 
 Open <http://127.0.0.1:9401>, click **Change target** next to the current target,
 enter a process name or PID, and click **Monitor**. The change is saved in the
@@ -86,7 +98,7 @@ overhead. The separate socket observer's one-second reporting interval is unchan
 Both scripts check the edited file with the running sampler binary
 (`triangulator-sampler --check-config`) before replacing it, so a change the
 sampler would reject leaves the config untouched. They refuse to edit the tracked
-examples in `config/`: start the sampler with `config/local/sampler.toml`, which
+examples in `config/`: start the sampler with `~/triangulator/config/sampler.toml`, which
 `scripts/start.sh` does by default.
 
 ```sh
@@ -104,11 +116,15 @@ even without a pidfile. It will not touch a copy started by another user
 The collector (`build/triangulator-collector`) does **no alerting**; see
 [Alerting](#alerting).
 
-Logs are in `.run/`; local configs are ignored by git. For separate hosts or custom
+Logs are in `~/triangulator/logs/`. For separate hosts or custom
 config paths, the optional `scripts/start.sh collector path/to/collector.toml` and
 `scripts/start.sh sampler path/to/sampler.toml` commands remain available, along
 with `scripts/stop.sh collector` and `scripts/stop.sh sampler`. To deploy with
 systemd, see [Production setup](#production-setup).
+
+After installation, `~/triangulator/scripts/start.sh` and `restart.sh` use the
+installed binaries without a compiler or repository checkout. Run the repository
+scripts to rebuild and install development changes.
 
 </details>
 
@@ -379,24 +395,53 @@ A missing recording returns `snapshot: null`; unreadable day files are skipped.
 <details>
 <summary>Read more</summary>
 
-The units in `deploy/` are templates with a placeholder target user and collector
-IP; edit them first. Install the sampler, collector and `triangulator-socket-report`
-binaries in `/usr/local/bin`
-and configuration in `/etc/triangulator`. `triangulator-collector.service` runs
-the collector. Keep sampler code
-and configuration root-owned and not writable by the target user. The collector unit
-creates `/var/lib/triangulator`.
+Production hosts need binaries and configs, not a repository checkout.
+Use the same `~/triangulator/` runtime directory as development. Deploy the
+sampler under the monitored process's user account. Deploy the collector
+under its own service account on the collector host.
+
+Create the directories as that account:
 
 ```sh
-triangulator-collector /etc/triangulator/collector.toml
-./build/triangulator-sampler /etc/triangulator/sampler.toml   # as the target user
+mkdir -p ~/triangulator/{bin,config,data,logs,run,services}
 ```
 
+Copy the sampler binary to `~/triangulator/bin/triangulator-sampler` and its
+config to `~/triangulator/config/sampler.toml` on the application host.
+On the collector host, copy the collector and socket report helper to `bin/`
+and its config to `config/collector.toml`. Set `data_dir = "./data"`.
+Set the sampler's `collector` address and the collector's `sampler_ip` for
+these hosts. Set `clock_ticks` to the application host's `getconf CLK_TCK`.
+
+The units in `deploy/` are user services. Copy the required unit to
+`~/triangulator/services/` on each host. For the sampler:
+
+```sh
+~/triangulator/bin/triangulator-sampler --check-config ~/triangulator/config/sampler.toml
+systemctl --user link ~/triangulator/services/triangulator-sampler.service
+systemctl --user daemon-reload
+systemctl --user enable --now triangulator-sampler
+```
+
+For the collector:
+
+```sh
+~/triangulator/bin/triangulator-collector ~/triangulator/config/collector.toml --check-config
+systemctl --user link ~/triangulator/services/triangulator-collector.service
+systemctl --user daemon-reload
+systemctl --user enable --now triangulator-collector
+```
+
+No root access is needed to install these files or start the user services.
+The units use the account's home directory and write logs under `logs/`.
+Continuous operation after logout requires lingering enabled for that account.
+The systemd registration links are outside the runtime directory; the actual
+service files remain in `~/triangulator/services/`.
+
 The sampler unit runs at niceness 19 with a 5% CPU quota, a 32 MiB memory limit,
-no capabilities and an outbound IP allowlist. Tune the quota after measuring your
+no capabilities. Apply the network rules on the host or management network. Tune the quota after measuring your
 real thread count and rate; overruns skip deadlines. The sampler opens no listening
-socket, sends no signals to the target and writes no files. Messages go to stderr
-(journald), with a one-minute warning rate limit.
+socket, sends no signals to the target and writes no files. Messages go to `~/triangulator/logs/sampler.log`.
 
 Checklist before going live (design section 12):
 
@@ -462,7 +507,7 @@ Checklist before going live (design section 12):
 
 `collector/` is the core collector, written in C++ (`scripts/start.sh`,
 `deploy/triangulator-collector.service`):
-`build/triangulator-collector config/local/collector.toml`.
+`build/triangulator-collector ~/triangulator/config/collector.toml`.
 [collector/README.md](collector/README.md) lists what it does.
 
 **Rule:** latency- and performance-critical code (receiving datagrams, building
@@ -521,10 +566,10 @@ scripts/watch-sockets.sh --sudo --marker /absolute/path/to/application Triangula
 The wrapper builds the optional source (clang with BPF support and libbpf
 development files are required), resolves the target, and runs in the foreground.
 `--sudo` elevates only the observer; omit it when tracing privileges are already
-available. Ctrl+C stops it. Logs are appended to `.run/socket-sampler.log`.
+available. Ctrl+C stops it. Logs are appended to `~/triangulator/logs/socket-sampler.log`.
 The target must be a process ID (not a thread ID) or a unique process name. The
 collector endpoint defaults to the running sampler's, so both reach the same
-dashboard, or to `config/local/sampler.toml` when the sampler isn't running;
+dashboard, or to `~/triangulator/config/sampler.toml` when the sampler is not running;
 override it with `--collector IP:PORT` for a remote collector. If the running
 sampler or its config cannot be inspected, the wrapper requires an explicit
 `--collector` instead of falling back to the local config. The dashboard's

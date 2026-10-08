@@ -36,8 +36,8 @@ Use an existing local configuration:
 
 ```sh
 make build/triangulator-sampler
-build/triangulator-sampler --check-config config/local/sampler.toml
-build/triangulator-sampler config/local/sampler.toml
+build/triangulator-sampler --check-config ~/triangulator/config/sampler.toml
+scripts/start.sh sampler
 ```
 
 Set `target_process` or `target_pid` in the configuration.

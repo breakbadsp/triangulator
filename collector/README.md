@@ -24,8 +24,8 @@ Use an existing local configuration:
 
 ```sh
 make build/triangulator-collector
-build/triangulator-collector config/local/collector.toml --check-config
-build/triangulator-collector config/local/collector.toml
+build/triangulator-collector ~/triangulator/config/collector.toml --check-config
+scripts/start.sh collector
 ```
 
 [Configuration example](../config/collector.toml) ·
