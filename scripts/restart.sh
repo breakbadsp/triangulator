@@ -13,8 +13,9 @@ app="${1:-collector}"
 case "$app" in
     all)
         [[ $# -le 1 ]] || { echo "usage: $0 all (no config: each program keeps its own)" >&2; exit 2; }
-        "$root/scripts/restart.sh" collector
-        "$root/scripts/restart.sh" sampler
+        for program in collector sampler; do
+            [[ " ${programs[*]} " != *" $program "* ]] || "$root/scripts/restart.sh" "$program"
+        done
         exit 0
         ;;
     sampler|collector) ;;

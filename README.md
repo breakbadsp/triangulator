@@ -176,19 +176,30 @@ Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
 
 ### Install from a release package
 
-Each `v*` tag publishes `triangulator-<version>-el8-x86_64.tar.gz` and
-`...-el9-x86_64.tar.gz` (static binaries, so no compiler or libraries are
-needed) with a `.sha256` file. Unpack in your home directory and start:
+Each `v*` tag publishes two packages per distro, as static binaries that need
+no compiler or libraries, each with a `.sha256` file:
+
+- `triangulator-sampler-<version>-el9-x86_64.tar.gz`: only the sampler and the
+  control scripts. Install it on the monitored host.
+- `triangulator-collector-<version>-el9-x86_64.tar.gz`: the collector,
+  dashboard and report helper. Install it on the monitoring host.
+
+There are `el8` and `el9` builds of both. On each host:
 
 ```sh
-sha256sum -c triangulator-<version>-el9-x86_64.tar.gz.sha256
-tar -xzf triangulator-<version>-el9-x86_64.tar.gz -C ~
+sha256sum -c triangulator-sampler-<version>-el9-x86_64.tar.gz.sha256
+tar -xzf triangulator-sampler-<version>-el9-x86_64.tar.gz -C ~
 ~/triangulator/scripts/start.sh
 ```
 
+`start.sh` runs the programs the package contains. On a sampler-only host, set
+`collector` in `~/triangulator/config/sampler.toml` to the collector's IP and
+port, and `target_process` to the process to monitor. Unpacking both packages
+in the same directory gives a single-machine install.
+
 To upgrade, run `~/triangulator/scripts/stop.sh`, unpack over the same
-directory and start again. The archive has no `config/`, `data/` or `logs/`, so
-these are kept. `scripts/package.sh` builds the archive after `make release`.
+directory and start again. The archives have no `config/`, `data/` or `logs/`,
+so these are kept. `scripts/package.sh` builds the archives after `make release`.
 
 Alerting is a separate module that is not wired up yet
 ([details](#alerting)). More metrics:

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Usage: scripts/start.sh (build and start both with ~/triangulator/config/*.toml)
+# Usage: scripts/start.sh (build and start both with ~/triangulator/config/*.toml;
+# from a package, start the programs it contains)
 # Optional: scripts/start.sh <sampler|collector> [config.toml]
 # The collector (build/triangulator-collector) does no alerting.
 # Both run as the invoking user with no extra privileges; run the sampler as the
@@ -25,12 +26,17 @@ if [[ $# -eq 0 ]]; then
         exit 1
     fi
     mkdir -p "$config_dir" "$run_dir" "$log_dir" "$runtime_dir/data"
-    for app in sampler collector; do
+    for app in "${programs[@]}"; do
         config="$config_dir/$app.toml"
         [[ -e "$config" ]] && continue
         if [[ "$app" == sampler ]]; then
-            sed 's/collector = "10.0.0.5:9400"/collector = "127.0.0.1:9400"/' \
-                "$template_dir/sampler.toml" >"$config.tmp"
+            if [[ " ${programs[*]} " == *" collector "* ]]; then
+                sed 's/collector = "10.0.0.5:9400"/collector = "127.0.0.1:9400"/' \
+                    "$template_dir/sampler.toml" >"$config.tmp"
+            else
+                # A sampler-only host reports to a collector elsewhere.
+                cp "$template_dir/sampler.toml" "$config.tmp"
+            fi
         else
             clock_ticks="$(getconf CLK_TCK)"
             sed \
@@ -46,24 +52,34 @@ if [[ $# -eq 0 ]]; then
         mv -n "$config.tmp" "$config"
         echo "Created $config"
     done
-    echo "Set target_process (or target_pid) in $config_dir/sampler.toml to select the process to monitor."
+    has_sampler=false has_collector=false
+    [[ " ${programs[*]} " != *" sampler "* ]] || has_sampler=true
+    [[ " ${programs[*]} " != *" collector "* ]] || has_collector=true
+    if [[ "$has_sampler" == true ]]; then
+        echo "Set target_process (or target_pid) in $config_dir/sampler.toml to select the process to monitor."
+        [[ "$has_collector" == true ]] ||
+            echo "Set collector in $config_dir/sampler.toml to the collector's IP:port."
+    fi
     [[ ! -f "$root/Makefile" ]] || make -C "$root"
-    install_runtime_binary collector
-    install_runtime_binary sampler
-    "$collector_bin" "$config_dir/collector.toml" --check-config
+    for app in "${programs[@]}"; do
+        install_runtime_binary "$app"
+    done
+    [[ "$has_collector" == false ]] || "$collector_bin" "$config_dir/collector.toml" --check-config
 
     collector_was_running=false
     if [[ -f "$run_dir/collector.pid" ]] && kill -0 "$(<"$run_dir/collector.pid")" 2>/dev/null; then
         collector_was_running=true
     fi
-    "$root/scripts/start.sh" collector "$config_dir/collector.toml"
-    if ! "$root/scripts/start.sh" sampler "$config_dir/sampler.toml"; then
-        if [[ "$collector_was_running" == false ]]; then
+    [[ "$has_collector" == false ]] || "$root/scripts/start.sh" collector "$config_dir/collector.toml"
+    if [[ "$has_sampler" == true ]] && ! "$root/scripts/start.sh" sampler "$config_dir/sampler.toml"; then
+        if [[ "$has_collector" == true && "$collector_was_running" == false ]]; then
             "$root/scripts/stop.sh" collector
         fi
         exit 1
     fi
-    echo "Dashboard address is configured by http_host and http_port in $config_dir/collector.toml (default: http://127.0.0.1:9401)."
+    if [[ "$has_collector" == true ]]; then
+        echo "Dashboard address is configured by http_host and http_port in $config_dir/collector.toml (default: http://127.0.0.1:9401)."
+    fi
     exit 0
 fi
 
