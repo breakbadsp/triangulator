@@ -34,7 +34,7 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
-CPP_SOURCES := $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
+CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
