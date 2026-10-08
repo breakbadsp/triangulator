@@ -23,6 +23,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
 
 #include "../common/memory_wire.hpp"
 #include "io.hpp"
@@ -110,6 +111,18 @@ struct MapsLine
   return MapsLine{*start, *end, bits, ClassifyMapping(name), name};
 }
 
+// FNV-1a over p_bytes.
+[[nodiscard]] inline std::uint64_t Fnv1a(
+    std::span<const std::byte> p_bytes) noexcept
+{
+  std::uint64_t hash = 14695981039346656037ull;
+  for (const auto byte : p_bytes)
+  {
+    hash = (hash ^ std::to_integer<std::uint64_t>(byte)) * 1099511628211ull;
+  }
+  return hash;
+}
+
 // The layout: maps lines joined into regions, in address order. The
 // storage is fixed at kMaxRegions; later regions are counted, not kept.
 class LayoutBuilder
@@ -120,6 +133,7 @@ class LayoutBuilder
     size_ = 0;
     vma_count_ = 0;
     truncated_ = false;
+    last_name_hash_ = 0;
   }
 
   void Add(const MapsLine& p_line)
@@ -131,11 +145,15 @@ class LayoutBuilder
         p_line.name_.size() -
         std::min(p_line.name_.size(), memory_wire::kNameSize - 1));
     std::ranges::copy(kept, name.begin());
+    // Joining compares the whole name: two paths with the same end are
+    // different files.
+    const auto name_hash = Fnv1a(std::as_bytes(std::span{p_line.name_}));
+    const auto previous_hash = std::exchange(last_name_hash_, name_hash);
     if (size_ != 0)
     {
       auto& last = regions_[size_ - 1];
       if (last.end_ == p_line.start_ && last.kind_ == p_line.kind_ &&
-          last.name_ == name)
+          previous_hash == name_hash)
       {
         last.end_ = p_line.end_;
         ++last.vma_count_;
@@ -174,6 +192,9 @@ class LayoutBuilder
   std::size_t size_ = 0;
   std::uint64_t vma_count_ = 0;
   bool truncated_ = false;
+  // The full name of the last line added, hashed; regions_ keeps only its
+  // end.
+  std::uint64_t last_name_hash_ = 0;
 };
 
 // Field p_field (1-based, as in proc(5)) of /proc/PID/stat, as a number.
@@ -218,7 +239,7 @@ class LayoutBuilder
 
 // A finished sample. regions_ views the probe's storage and stays valid
 // until the probe's next Start(). It is empty when the layout is unchanged
-// since the last sample that sent it.
+// since the last sample that sent it, unless that sample asked for it.
 struct MemorySample
 {
   memory_wire::SummaryValues summary_ = memory_wire::EmptySummary();
@@ -229,9 +250,6 @@ struct MemorySample
 class MemoryProbe
 {
  public:
-  // A layout is sent again after this many samples, even when unchanged,
-  // so a collector that started later or lost a part gets it.
-  static constexpr int kLayoutRefreshSamples = 10;
   static constexpr std::size_t kReadBytes = 4096;
 
   // Whether a sample is in progress: Continue() has more of maps to read.
@@ -246,21 +264,31 @@ class MemoryProbe
     maps_ = FileDescriptor{};
     busy_ = false;
     last_layout_hash_.reset();
-    samples_since_layout_ = 0;
   }
 
   // Starts a sample of p_pid: reads the summary files, which take no
-  // memory-map lock, and opens maps.
-  void Start(int p_pid)
+  // memory-map lock, and opens maps. The sample carries the layout when it
+  // changed, or when p_send_layout asks for it: a periodic refresh for a
+  // collector that started later or lost a part.
+  void Start(int p_pid, bool p_send_layout)
+  {
+    Start(p_pid, p_send_layout, FixedString{"/proc/{}/maps", p_pid}.CStr());
+  }
+
+  // Start(), with the layout read from p_maps_path instead of
+  // /proc/PID/maps. Tests use it for maps text the kernel does not make.
+  void Start(int p_pid, bool p_send_layout, const char* p_maps_path)
   {
     busy_ = true;
+    send_layout_ = p_send_layout;
     sample_ = MemorySample{};
     layout_.Clear();
     used_ = 0;
     read_time_ = Nanoseconds{0};
+    longest_read_ = Nanoseconds{0};
     reads_ = 0;
     ReadSummary(p_pid);
-    maps_ = OpenReadonly(FixedString{"/proc/{}/maps", p_pid}.CStr());
+    maps_ = OpenReadonly(p_maps_path);
     if (!maps_)
     {
       sample_.flags_ = sample_.flags_ | memory_wire::Flags::MapsHidden;
@@ -346,7 +374,9 @@ class MemoryProbe
     {
       length = ::read(maps_.Get(), buffer_.data() + used_, space);
     } while (length < 0 && errno == EINTR);
-    read_time_ += ClockNow(CLOCK_MONOTONIC) - started;
+    const auto read_time = ClockNow(CLOCK_MONOTONIC) - started;
+    read_time_ += read_time;
+    longest_read_ = std::max(longest_read_, read_time);
     ++reads_;
     if (length <= 0)
     {
@@ -387,9 +417,8 @@ class MemoryProbe
     using memory_wire::Field;
     busy_ = false;
     auto& summary = sample_.summary_;
-    summary[Field("maps_read_us")] = static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(read_time_)
-            .count());
+    summary[Field("maps_read_us")] = Microseconds(read_time_);
+    summary[Field("maps_read_max_us")] = Microseconds(longest_read_);
     summary[Field("maps_reads")] = reads_;
     if (memory_wire::HasFlag(sample_.flags_, memory_wire::Flags::MapsHidden))
     {
@@ -400,27 +429,20 @@ class MemoryProbe
     {
       sample_.flags_ = sample_.flags_ | memory_wire::Flags::RegionsTruncated;
     }
-    const auto hash = Hash(layout_.Regions());
-    if (hash != last_layout_hash_ ||
-        ++samples_since_layout_ >= kLayoutRefreshSamples)
+    // The hash of the regions' bytes tells whether the layout changed.
+    const auto hash = Fnv1a(std::as_bytes(layout_.Regions()));
+    if (send_layout_ || hash != last_layout_hash_)
     {
       last_layout_hash_ = hash;
-      samples_since_layout_ = 0;
       sample_.regions_ = layout_.Regions();
     }
     return sample_;
   }
 
-  // FNV-1a over the regions' bytes, to tell whether the layout changed.
-  [[nodiscard]] static std::uint64_t Hash(
-      std::span<const memory_wire::Region> p_regions) noexcept
+  [[nodiscard]] static std::uint64_t Microseconds(Nanoseconds p_time) noexcept
   {
-    std::uint64_t hash = 14695981039346656037ull;
-    for (const auto byte : std::as_bytes(p_regions))
-    {
-      hash = (hash ^ std::to_integer<std::uint64_t>(byte)) * 1099511628211ull;
-    }
-    return hash;
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(p_time).count());
   }
 
   // Large enough for a maps line with a PATH_MAX path, plus one read.
@@ -428,12 +450,13 @@ class MemoryProbe
   std::size_t used_ = 0;
   FileDescriptor maps_;
   bool busy_ = false;
+  bool send_layout_ = false;
   MemorySample sample_;
   LayoutBuilder layout_;
   Nanoseconds read_time_{0};
+  Nanoseconds longest_read_{0};
   std::uint64_t reads_ = 0;
   std::optional<std::uint64_t> last_layout_hash_;
-  int samples_since_layout_ = 0;
 };
 
 }  // namespace triangulator

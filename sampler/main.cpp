@@ -12,6 +12,7 @@
 #include "memory.hpp"
 #include "proc.hpp"
 #include "resources.hpp"
+#include "schedule.hpp"
 
 namespace triangulator
 {
@@ -203,18 +204,6 @@ class Sampler
     return {};
   }
 
-  // The next deadline of a periodic task that ran at p_now: one interval
-  // after the previous deadline, or after p_now when the task fell behind
-  // or runs for the first time.
-  [[nodiscard]] static Nanoseconds NextDeadline(Nanoseconds p_previous,
-                                                Nanoseconds p_now,
-                                                Nanoseconds p_interval)
-  {
-    return p_previous == Nanoseconds{0} || p_now - p_previous >= p_interval
-               ? p_now + p_interval
-               : p_previous + p_interval;
-  }
-
   // Time between memory-map samples, as for ResourceInterval().
   [[nodiscard]] Nanoseconds MemoryInterval() const noexcept
   {
@@ -227,6 +216,14 @@ class Sampler
                                  config_.settings_.Interval());
   }
 
+  // How often an unchanged layout is sent again: every 10 samples, but at
+  // least once a minute, so a collector that started later or lost a part
+  // gets it soon. Datagrams are not acknowledged.
+  [[nodiscard]] Nanoseconds LayoutRefreshInterval() const noexcept
+  {
+    return std::min<Nanoseconds>(10 * MemoryInterval(), 60s);
+  }
+
   // Starts a memory-map sample when one is due, and reads more of maps in
   // the time left in this tick. A large target's maps can take several
   // ticks; thread ticks stay on time.
@@ -237,21 +234,29 @@ class Sampler
     {
       return;
     }
+    // A quarter of a tick, at most 50 ms, including the summary reads in
+    // Start(): the rest of the tick stays free for the sleep before the
+    // next thread sample. When Start() used it all, maps is read next tick.
     const auto tick = config_.settings_.Interval();
+    const auto deadline =
+        ClockNow(CLOCK_MONOTONIC) + std::min<Nanoseconds>(tick / 4, 50ms);
     if (!memory_.Busy())
     {
+      // Half an interval of slack, as for the samples themselves.
       if (p_monotonic + tick / 2 < next_memory_)
       {
         return;
       }
-      memory_.Start(p_target.pid_);
+      const bool refresh_layout = p_monotonic + interval / 2 >= next_layout_;
+      if (refresh_layout)
+      {
+        next_layout_ =
+            NextDeadline(next_layout_, p_monotonic, LayoutRefreshInterval());
+      }
+      memory_.Start(p_target.pid_, refresh_layout);
       next_memory_ = NextDeadline(next_memory_, p_monotonic, interval);
     }
-    // A quarter of a tick, at most 50 ms: the rest of the tick stays free
-    // for the sleep before the next thread sample.
-    const auto budget = std::min<Nanoseconds>(tick / 4, 50ms);
-    if (const auto sample =
-            memory_.Continue(ClockNow(CLOCK_MONOTONIC) + budget))
+    if (const auto sample = memory_.Continue(deadline))
     {
       SendMemory(p_target, *sample);
     }
@@ -364,6 +369,7 @@ class Sampler
     memory_.Reset();
     memory_sequence_ = 0;
     next_memory_ = Nanoseconds{0};
+    next_layout_ = Nanoseconds{0};
     return {};
   }
 
@@ -446,6 +452,7 @@ class Sampler
   std::array<std::byte, memory_wire::kMaxPartSize> memory_packet_{};
   std::uint32_t memory_sequence_ = 0;
   Nanoseconds next_memory_{0};
+  Nanoseconds next_layout_{0};
   bool memory_deferred_ = false;
 };
 

@@ -2,6 +2,8 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -9,6 +11,7 @@
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
+#include "../sampler/schedule.hpp"
 
 namespace
 {
@@ -624,6 +627,14 @@ void TestMemoryParsing()
               "/libname.so") &&
               layout.Regions()[0].name_.back() == '\0',
           "a long path keeps its end");
+  layout.Clear();
+  const std::string common = "/a/common/path/longer/than/39/bytes/library.so";
+  layout.Add(*ParseMapsLine("1000-2000 r--p 0 08:01 1 /package-A" + common));
+  layout.Add(*ParseMapsLine("2000-3000 r-xp 0 08:01 2 /package-B" + common));
+  Require(layout.Regions().size() == 2 &&
+              layout.Regions()[0].name_ == layout.Regions()[1].name_ &&
+              layout.Regions()[0].permissions_ == 1,
+          "files whose sent names are equal are not joined");
   for (std::size_t index = 0; index <= memory_wire::kMaxRegions; ++index)
   {
     const auto start = 0x2000 * (index + 1);
@@ -658,12 +669,13 @@ void TestMemoryParsing()
 
 // Samples this test process: a deadline in the past stops before the first
 // read and leaves the sample for a later call, which completes it. The next
-// sample of an unchanged layout leaves the regions out.
+// sample of an unchanged layout leaves the regions out, and a refresh sends
+// them again. This assumes the process maps nothing between the samples.
 void TestMemoryProbe()
 {
   using memory_wire::Field;
   MemoryProbe probe;
-  probe.Start(::getpid());
+  probe.Start(::getpid(), false);
   Require(probe.Busy() && !probe.Continue(Nanoseconds{0}) && probe.Busy(),
           "an expired budget defers the read");
   const auto sample = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
@@ -686,14 +698,77 @@ void TestMemoryProbe()
                                            memory_wire::RegionKind::Stack;
                                   }),
           "the layout has the main stack");
-  probe.Start(::getpid());
+  probe.Start(::getpid(), false);
   const auto again = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
   Require(again && again->regions_.empty(), "an unchanged layout is not sent");
-  probe.Start(0x7fffffff);
+  probe.Start(::getpid(), true);
+  const auto refreshed = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(refreshed && !refreshed->regions_.empty(),
+          "a refresh sends an unchanged layout again");
+  probe.Start(0x7fffffff, false);
   const auto missing = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
   Require(missing && memory_wire::HasFlag(missing->flags_,
                                           memory_wire::Flags::MapsHidden),
           "a missing process has no layout");
+}
+
+// Reads maps text that the kernel does not produce, through the path seam:
+// a last line without a newline, a line longer than the buffer, and a read
+// error (a directory). Each sets MapsPartial and keeps the complete lines.
+void TestMemoryProbePartialMaps()
+{
+  std::string pattern =
+      (std::filesystem::temp_directory_path() / "sampler-test-XXXXXX").string();
+  Require(::mkdtemp(pattern.data()) != nullptr, "mkdtemp failed");
+  const std::filesystem::path directory{pattern};
+  const auto sample = [&](const std::string& p_text)
+  {
+    const auto path = directory / "maps";
+    std::ofstream{path} << p_text;
+    MemoryProbe probe;
+    probe.Start(::getpid(), false, path.c_str());
+    return probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  };
+  const auto partial = memory_wire::Flags::MapsPartial;
+  const std::string line = "1000-2000 r--p 0 08:01 1 /lib/a.so\n";
+  const auto complete = sample(line + line);
+  Require(complete && complete->flags_ == memory_wire::Flags::None &&
+              complete->summary_[memory_wire::Field("vma_count")] == 2,
+          "complete maps text");
+  const auto cut = sample(line + "2000-3000 r--p 0 08:01 1 /lib/b");
+  Require(cut && memory_wire::HasFlag(cut->flags_, partial) &&
+              cut->summary_[memory_wire::Field("vma_count")] == 1,
+          "a last line without a newline is partial");
+  const auto long_line = sample(line + "3000-4000 r--p 0 08:01 1 /" +
+                                std::string(20000, 'x') + "\n" + line);
+  Require(long_line && memory_wire::HasFlag(long_line->flags_, partial) &&
+              long_line->summary_[memory_wire::Field("vma_count")] == 2,
+          "a line longer than the buffer is dropped");
+  MemoryProbe probe;
+  probe.Start(::getpid(), false, directory.c_str());
+  const auto failed = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(failed && memory_wire::HasFlag(failed->flags_, partial) &&
+              failed->summary_[memory_wire::Field("vma_count")] == 0,
+          "a read error is partial");
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+// Checks NextDeadline, which schedules resource and memory-map samples: the
+// first run and a run that fell behind count from now; a run on time keeps
+// the previous deadlines' cadence.
+void TestNextDeadline()
+{
+  using std::chrono::seconds;
+  Require(
+      NextDeadline(Nanoseconds{0}, seconds{100}, seconds{5}) == seconds{105},
+      "the first run counts from now");
+  Require(NextDeadline(seconds{100}, seconds{101}, seconds{5}) == seconds{105},
+          "a run on time keeps the cadence");
+  Require(NextDeadline(seconds{100}, seconds{99}, seconds{5}) == seconds{105},
+          "a run a little early keeps the cadence");
+  Require(NextDeadline(seconds{100}, seconds{112}, seconds{5}) == seconds{117},
+          "a run that fell behind counts from now");
 }
 
 int main()
@@ -711,6 +786,8 @@ int main()
     TestResourceProbe();
     TestMemoryParsing();
     TestMemoryProbe();
+    TestMemoryProbePartialMaps();
+    TestNextDeadline();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
         "RAII, descriptor budget, resource parsing and probe, memory map)");

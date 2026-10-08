@@ -116,7 +116,7 @@ int main()
                                        resource_wire::Flags::SocketsTruncated),
             "resource sample keeps the fullest sockets");
     // A memory-map sample split over two calls, as over two ticks.
-    memory.Start(pid);
+    memory.Start(pid, true);
     Require(!memory.Continue(Nanoseconds{0}), "memory-map read deferred");
     const auto layout = memory.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
     Require(layout && layout->summary_[memory_wire::Field("vma_count")] > 0,
