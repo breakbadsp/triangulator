@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -92,7 +93,10 @@ class Directory
       ssize_t length;
       do
       {
-        length = ::getdents64(fd_.Get(), buffer_.data(), buffer_.size());
+        // glibc declared getdents64 only in 2.30; AlmaLinux 8 has 2.28.
+        // The system call itself exists on every kernel we support.
+        length = ::syscall(SYS_getdents64, fd_.Get(), buffer_.data(),
+                           buffer_.size());
       } while (length < 0 && errno == EINTR);
       if (length <= 0)
       {
