@@ -565,6 +565,7 @@ test('memory map rows join neighbours, shorten gaps and stay few', () => {
     // Above 2^53: the addresses must not lose precision.
     {start: '0xffffffffff600000', end: '0xffffffffff601000', size: 0x1000, vmas: 1, kind: 'kernel', permissions: '--xp', name: '[vsyscall]'},
   ]};
+  app.run('live={health:{pid:42},threads:[{tid:42,name:"app"}]}');
   const rows = app.run(`memoryRows(memoryRegions(${JSON.stringify(layout)})).map(row=>row.gap?'gap':memoryRowName(row))`);
   assert.deepEqual([...rows], ['[vsyscall]', 'gap', '[stack]', 'gap', 'libc, libm (2 libraries)', 'gap', '[heap]', 'app (program image)']);
 
@@ -589,4 +590,47 @@ test('memory findings flag mapping limits, deleted libraries and the main stack'
     'warning: Main stack is at 87.5% of its limit',
     'info: Library replaced on disk',
   ]);
+});
+
+test('memory history follows the layout the summary names and the sampler session', () => {
+  const app = dashboard();
+  const heapLayout = size => ({regions: [{start: '0x1000000', end: '0x' + (0x1000000 + size).toString(16), size, vmas: 1, kind: 'heap', permissions: 'rw-p', name: ''}]});
+  app.run(`live={health:{session:'a'},threads:[]}`);
+  const summary = (updated, pid = 1) => JSON.stringify({pid, updated, values: {major_faults: 10}});
+  // The summary names a layout that is still loading: the heap waits for it.
+  app.run(`recordMemory(${summary(1)},memoryRegions(${JSON.stringify(heapLayout(1 << 20))}),false)`);
+  assert.equal(app.run('memoryHistory.at(-1).heap'), null);
+  app.run(`recordMemory(${summary(1)},memoryRegions(${JSON.stringify(heapLayout(2 << 20))}),true)`);
+  assert.equal(app.run('memoryHistory.length'), 1);
+  assert.equal(app.run('memoryHistory.at(-1).heap'), 2 << 20);
+  // The same PID in a new sampler session starts a new history.
+  app.run(`live.health.session='b';recordMemory(${summary(2)},[],true)`);
+  assert.equal(app.run('memoryHistory.length'), 1);
+});
+
+test('memory fault rate uses the recording in replay and never live history', () => {
+  const app = dashboard();
+  app.run(`live={health:{session:'a'},threads:[]};memoryHistory=[{t:1,mf:0},{t:2,mf:0}]`);
+  app.run('replayAt=100;buffer=[{t:100,mf:200}]');
+  assert.equal(app.run('memoryFaultRate()'), 200);
+  app.run('buffer=[{t:100,mf:null}]');
+  assert.equal(app.run('memoryFaultRate()'), null);
+  // Live, a counter that went down (another process) gives no rate.
+  app.run('replayAt=null;buffer=[];memoryHistory=[{t:1,mf:50},{t:2,mf:10}]');
+  assert.equal(app.run('memoryFaultRate()'), null);
+});
+
+test('a data file below the executable is not the program image', () => {
+  const app = dashboard();
+  const file = (start, permissions, name) => ({start: '0x' + start.toString(16), end: '0x' + (start + 0x1000).toString(16), size: 0x1000, vmas: 1, kind: 'file', permissions, name});
+  const layout = JSON.stringify({regions: [file(0x40e58000, 'rw-p', '/tmp/data (deleted)'), file(0x55e558c1c000, 'r-xp', '/usr/bin/python3.14')]});
+  app.run('live={health:{session:"a",pid:7},threads:[{tid:7,name:"python3"}]}');
+  assert.deepEqual([...app.run(`memoryRegions(${layout}).map(region=>region.cat+(region.certain?'!':''))`)], ['code!', 'file']);
+  const titles = app.run(`(()=>{const regions=memoryRegions(${layout});return assessMemory({values:{}},regions,memoryRows(regions)).map(item=>item.title)})()`);
+  assert.ok(!titles.some(title => /replaced on disk/.test(title)), titles.join('\n'));
+  // Without a name match the program is only a guess, and a deleted guess is
+  // not reported as the program.
+  const guess = JSON.stringify({regions: [file(0x55e558c1c000, 'r-xp', '/usr/bin/other (deleted)')]});
+  const guessed = app.run(`(()=>{const regions=memoryRegions(${guess});return assessMemory({values:{}},regions,memoryRows(regions)).map(item=>item.title)})()`);
+  assert.ok(guessed.includes('Executable file replaced on disk'), guessed.join('\n'));
 });

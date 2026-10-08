@@ -1322,7 +1322,7 @@ loadReplayBounds();
 // from /api/memory-map. live.memory.layout_id names the sample the layout
 // came from, so it stays valid across collector restarts. The layout is
 // fetched when that id changes, and again on later polls until it loads.
-let memoryLayout=null,memoryLayoutLoading=false,memoryPrevious=null,memoryRenderedLayout,memorySelected=null,memoryHistory=[],memoryHistoryPid=null;
+let memoryLayout=null,memoryLayoutLoading=false,memoryPrevious=null,memoryRenderedLayout,memorySelected=null,memoryHistory=[],memoryHistoryKey=null;
 async function refreshMemoryLayout(){memoryLayoutLoading=true;
   try{const response=await fetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){
     // Keep the layout before it for the zoom's "mapped since" squares.
@@ -1346,8 +1346,16 @@ const baseName=name=>(name||'').split('/').pop();
 // Addresses can pass 2^53, so they are BigInt; sizes fit in a number.
 function memoryRegions(layout){const regions=(layout?.regions||[]).map(region=>({...region,lo:BigInt(region.start),hi:BigInt(region.end)}));
   regions.sort((a,b)=>a.lo<b.lo?1:a.lo>b.lo?-1:0);
-  const program=regions.filter(region=>region.kind==='file'&&!isLibrary(region.name)).at(-1);
+  // The program image is an executable file mapping, not a library. A data
+  // file can be mapped below it, so execute permission is required. The one
+  // named like the target's comm is the program for certain; without such a
+  // match the lowest candidate is only a guess.
+  const comm=(live.threads||[]).find(thread=>thread.tid===live.health?.pid)?.name;
+  const candidates=regions.filter(region=>region.kind==='file'&&region.permissions[2]==='x'&&!isLibrary(region.name));
+  const named=comm?candidates.find(region=>baseName(region.name).replace(/ \(deleted\)$/,'').startsWith(comm)):undefined;
+  const program=named??candidates.at(-1);
   for(const region of regions)region.cat=region.kind==='heap'||region.kind==='stack'||region.kind==='kernel'?region.kind:region.permissions.startsWith('---')?'guard':region.kind==='file'?(isLibrary(region.name)?'library':region===program?'code':'file'):'anonymous';
+  if(program)program.certain=program===named;
   return regions}
 // One row per run of neighbouring regions of a kind, high addresses first.
 // Libraries take in the small anonymous and guard regions between them;
@@ -1383,7 +1391,7 @@ function memoryRowName(row){const members=row.members,count=cat=>members.filter(
   switch(row.cat){
     case 'library':{const names=[...new Set(members.filter(region=>region.cat==='library').map(region=>baseName(region.name).replace(/\.so(\.\d[\w.]*)?/,'')).reverse())];
       return names.length===1?baseName(members.find(region=>region.cat==='library').name):`${names.slice(0,4).join(', ')}${names.length>4?' …':''} (${names.length} libraries)`}
-    case 'code':return baseName(members[0].name)+' (program image)';
+    case 'code':return baseName(members[0].name)+(members[0].certain?' (program image)':' (probably the program)');
     case 'kernel':return members.map(memoryRegionName).reverse().join(' ');
     case 'anonymous':{const anonymous=count('anonymous'),guards=count('guard');
       return anonymous===1&&!guards?memoryRegionName(members[0]):`${anonymous} anonymous region${anonymous===1?'':'s'}${guards?` + ${guards} guard${guards===1?'':'s'}`:''}`}
@@ -1393,12 +1401,18 @@ function memoryRowName(row){const members=row.members,count=cat=>members.filter(
 const memoryPerms=row=>[...new Set(row.members.map(region=>region.permissions))].slice(0,3).join(' ');
 const memoryGrows=cat=>cat==='heap'?' · grows ↑':cat==='stack'?' · grows ↓':'';
 
-// Live history for the zoom charts and growth findings; reset per process.
-function recordMemory(m,regions){if(replayAt!==null)return;
-  if(memoryHistoryPid!==m.pid){memoryHistory=[];memoryHistoryPid=m.pid}
-  if(memoryHistory.at(-1)?.t===m.updated)return;
-  const v=m.values||{},heap=regions.find(region=>region.cat==='heap');
-  memoryHistory.push({t:m.updated,heap:heap?.size??null,stack:v.vm_stack_bytes??null,mf:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
+// Live history for the zoom charts and growth findings. A PID can come back
+// in another sampler session, so the history resets when either changes.
+// fresh: the regions are the layout the summary names. While a newer
+// layout is still loading, the heap is left unknown and filled in when it
+// arrives, so the heap chart is not one layout behind.
+function recordMemory(m,regions,fresh){if(replayAt!==null)return;
+  const key=`${live.health?.session}:${m.pid}`;
+  if(memoryHistoryKey!==key){memoryHistory=[];memoryHistoryKey=key}
+  const heap=fresh?regions.find(region=>region.cat==='heap')?.size??null:null,last=memoryHistory.at(-1);
+  if(last?.t===m.updated){if(fresh)last.heap=heap;return}
+  const v=m.values||{};
+  memoryHistory.push({t:m.updated,heap,stack:v.vm_stack_bytes??null,mf:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
   while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
 // Change per minute of a value over the points, or null.
 function memorySlope(points,key){const values=points.filter(point=>isNum(point[key]));if(values.length<2)return null;
@@ -1423,19 +1437,23 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
   // Only code matters: deleted data files (shared memory, temporary files)
   // are normal, and the sampler may cut the start of long names.
+  // A guessed program image is reported as an executable file, not as the program.
   const deleted=regions.filter(region=>(region.cat==='library'||region.cat==='code')&&/ \(deleted\)$/.test(region.name));
-  if(deleted.length)add('info',deleted.some(region=>region.cat==='code')?'Program replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
+  if(deleted.length)add('info',deleted.some(region=>region.cat==='code'&&region.certain)?'Program replaced on disk':deleted.some(region=>region.cat==='code')?'Executable file replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
   const stack=regions.find(region=>region.cat==='stack');
   if(stack&&v.stack_limit_bytes>0){const share=100*stack.size/v.stack_limit_bytes;
     add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${bytes(stack.size)}; RLIMIT_STACK is ${bytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.`)}
   if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
   const order=['critical','serious','warning','info','good'];
   return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
-// Major faults per second: the thread samples when they have it, else the
-// difference of the last two memory summaries.
-function memoryFaultRate(){const last=buffer.at(-1);if(replayAt===null&&isNum(last?.mf))return last.mf;
+// Major faults per second: the thread samples when they have it (in replay,
+// the recorded ones), else the difference of the last two live memory
+// summaries. Live history says nothing about a recording.
+function memoryFaultRate(){const last=buffer.at(-1);if(isNum(last?.mf))return last.mf;
+  if(replayAt!==null)return null;
   const points=memoryHistory.filter(point=>isNum(point.mf)).slice(-2);
-  return points.length===2&&points[1].t>points[0].t?(points[1].mf-points[0].mf)/(points[1].t-points[0].t):null}
+  const rate=points.length===2&&points[1].t>points[0].t?(points[1].mf-points[0].mf)/(points[1].t-points[0].t):null;
+  return rate>=0?rate:null}
 function memoryPressure(r){const p=r?.pressure?.[scopeOf(r)]?.memory;return p?stall(p.some):null}
 function renderMemoryFindings(findings){const list=element('memory-findings');list.replaceChildren();
   const names={critical:'critical',serious:'serious',warning:'warning',info:'notice',good:'ok'};
@@ -1532,7 +1550,7 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   const v=m.values||{},now=viewNow(),flags=m.flags||{};
   element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s; the longest maps read took ${microseconds(v.maps_read_max_us)}. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
   const regions=memoryRegions(layout),rows=memoryRows(regions),stack=regions.find(region=>region.cat==='stack');
-  recordMemory(m,regions);
+  recordMemory(m,regions,!!layout&&layout.id===m.layout_id);
   renderMemoryTiles(m);renderMemoryFindings(assessMemory(m,regions,rows));
   const limits=element('memory-limits');limits.replaceChildren();
   limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
