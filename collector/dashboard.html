@@ -58,6 +58,8 @@ nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 main{max-width:1480px;margin:auto;padding:20px 24px 60px}
 section.block{margin-top:30px}
 .section-separator{margin:30px 0;border:0;border-top:1px solid var(--line)}
+/* The socket panel is hidden when inspecting a past moment; drop its line too. */
+.section-separator:has(+ [hidden]){display:none}
 .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .section-head h2{font-size:18px;letter-spacing:-.01em}
 .section-head p{margin:3px 0 0;color:var(--muted)}
