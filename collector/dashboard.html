@@ -424,7 +424,6 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div id="memory-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"></div>
 <div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Findings</h3><p>Worked out in the browser from the latest memory-map, resource and thread samples.</p></div></div><ul id="memory-findings" class="mem-findings"></ul></div>
 <div class="grid g-mem" style="margin-top:14px">
-<div class="grid">
 <div class="card"><div class="card-head"><div><h3>Address space <span id="memory-region-count" class="muted" style="font-weight:400"></span></h3><p>High addresses at the top. Unmapped spaces between mappings are shortened.</p></div></div>
 <div id="memory-amap" class="amap"></div>
 <div class="legend">
@@ -437,8 +436,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <span><i class="sw" style="background:var(--k-kernel)"></i>kernel</span>
 </div>
 <p class="mem-hint">The darker part of a bar is its size on a log scale, from 4 KB to the largest bar. Adjacent mappings of the same kind are joined into one bar. Mapped is not resident: a bar can be large and use little RAM. Click a bar to zoom.</p></div>
-<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
-</div>
+<div class="grid">
 <div class="card"><div class="card-head"><div><h3>Zoom: <code id="memory-zoom-name"></code></h3><p id="memory-zoom-sub" class="mono"></p></div></div>
 <dl id="memory-zoom-facts" class="facts four"></dl>
 <p id="memory-grid-caption" class="muted" style="font-size:12px;margin:14px 0 6px"></p>
@@ -453,6 +451,8 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div id="memory-charts" class="mem-charts"></div>
 <p class="mem-hint">Charts cover the last 15 minutes this page has been open. The heap grows up when the allocator calls <code>brk</code>; the main stack grows down when a page fault touches below it. Both move in whole pages.</p>
 <div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th>Region</th><th>Start</th><th class="num">Size</th><th data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div>
+</div>
+<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
 </div>
 </div>
 </div>
