@@ -28,6 +28,24 @@ def wait_until_asleep(pid, timeout=5):
 
 
 class SamplerTests(unittest.TestCase):
+    def test_help_does_not_require_a_config_or_send_samples(self):
+        binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
+        with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+            receiver.bind(("127.0.0.1", 0))
+            receiver.settimeout(0.1)
+            # A valid file with the flag's name must not start sampling.
+            for flag in ("-h", "--help"):
+                Path(directory, flag).write_text(
+                    f'target_pid=1\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                result = subprocess.run([str(binary), flag], cwd=directory,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("--check-config", result.stdout)
+                self.assertIn("CONFIG", result.stdout)
+                self.assertEqual(result.stderr, "")
+                with self.assertRaises(TimeoutError):
+                    receiver.recv(1200)
+
     def test_real_proc_wire_format_reload_and_absent_heartbeat(self):
         binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
@@ -329,7 +347,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                                       stderr=subprocess.DEVNULL)
             sampler_config = Path(directory) / "sampler.toml"
             sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
-                                      'resource_interval_s=1\n')
+                                      'resource_interval_s=1\nmemory_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(collector_config)], cwd=ROOT,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(sampler_config)],
@@ -348,7 +366,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
 
             try:
                 deadline = time.monotonic() + 10
-                rows, resource_rows, live = [], [], {}
+                rows, resource_rows, live, layout = [], [], {}, {}
                 while time.monotonic() < deadline:
                     if collector.poll() is not None:
                         self.fail(collector.communicate()[1])
@@ -358,7 +376,9 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                             session = live["health"]["session"]
                             rows = json.loads(fetch(f"/api/history?session={session}&tid={target.pid}")[1])["rows"]
                             resource_rows = json.loads(fetch("/api/resources")[1])["rows"]
-                            if rows and len(resource_rows) >= 2 and live["resources"].get("elapsed_s"):
+                            layout = json.loads(fetch("/api/memory-map")[1])
+                            if (rows and len(resource_rows) >= 2 and live["resources"].get("elapsed_s")
+                                    and layout["available"]):
                                 break
                     except (OSError, KeyError, ValueError):
                         pass
@@ -374,6 +394,14 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertGreaterEqual(len(resource_rows), 2, "resource samples were not stored")
                 self.assertIn("host_io_some_pct", resource_rows[-1])
                 self.assertEqual(fetch("/api/resources?start=10&end=5")[0], 400)
+                memory = live["memory"]
+                self.assertTrue(memory["available"])
+                self.assertEqual(memory["pid"], target.pid)
+                self.assertGreater(memory["values"]["vma_count"], 0)
+                self.assertFalse(memory["flags"]["maps_hidden"])
+                self.assertEqual(layout["pid"], target.pid)
+                kinds = {region["kind"] for region in layout["regions"]}
+                self.assertTrue({"stack", "file"} <= kinds, kinds)
                 self.assertEqual(live["threads"][0]["name"], "sleep")
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertNotIn("alerts", live)

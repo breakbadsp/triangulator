@@ -7,7 +7,8 @@ It tests the official `almalinux:9` and `almalinux:10` container images.
 ## Run the test
 
 The workflow starts on pull requests that change the workflow, its scripts,
-the `Makefile`, or the files in `scripts/`. To start it by hand:
+build files, source files, configuration, tests, or build guidelines.
+To start it by hand:
 
 1. Open the repository's **Actions** page.
 2. Select **AlmaLinux new user test**.
@@ -76,8 +77,9 @@ It puts a Python 3.11 alias on `PATH` and does not replace the operating
 system's `python3`. AlmaLinux 10 uses its default compiler and Python.
 
 Node.js is needed to run the dashboard JavaScript tests. Without it, `make check`
-skips those tests. Python is needed for tests, local target control, and
-`make sqlite-amalgamation`. It is not needed by the copied monitoring binaries.
+fails those tests. Python is needed for tests, local target control, and
+`make sqlite-amalgamation`.
+It is not needed by the copied monitoring binaries.
 The clean AlmaLinux images already contain Python, so the test records that fact;
 it does not claim to use a Python-free image.
 
@@ -85,8 +87,19 @@ The normal sampler is fully static. The normal collector and socket report helpe
 still use shared SQLite and glibc libraries. The release binaries have no shared
 library dependencies. The link reports record this distinction.
 
+## Build guidelines and fixes
+
+The [build guidelines](build-guidelines.md) contain AlmaLinux package commands,
+tool selection, static release instructions, and required quality checks.
+Make compares saved build options without `cmp`.
+The sampler now accepts `-h` and `--help` without reading a configuration file.
+The dashboard tests now fail when Node.js is absent.
+The AlmaLinux 9 workflow selects Node.js 22 explicitly.
+
 ## Remaining improvements
 
-1. Put the fully static build instructions next to the binary deployment example.
-2. Publish release archives with the binaries and usable local configuration files.
-3. Add version output to the programs when the project has a version number.
+1. Define the oldest supported kernel and CPU architecture.
+2. Verify releases on that kernel and the supported AlmaLinux service environment.
+3. Publish release archives with binaries, local configuration files, and checksums.
+4. Add a compiler and library diagnostic command if installation errors remain unclear.
+5. Define release version information before adding version output to the programs.

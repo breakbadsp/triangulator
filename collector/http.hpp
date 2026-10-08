@@ -48,8 +48,8 @@ inline constexpr unsigned char kDashboardHtml[] = {
       .count();
 }
 
-// The latest /api/live payload, written by the main loop and read by the
-// dashboard thread.
+// The latest /api/live and /api/memory-map payloads, written by the main
+// loop and read by the dashboard thread.
 class SharedState
 {
  public:
@@ -63,11 +63,23 @@ class SharedState
     std::lock_guard lock{mutex_};
     return live_;
   }
+  void SetMemoryMap(std::shared_ptr<const std::string> p_memory_map)
+  {
+    std::lock_guard lock{mutex_};
+    memory_map_ = std::move(p_memory_map);
+  }
+  [[nodiscard]] std::shared_ptr<const std::string> MemoryMap()
+  {
+    std::lock_guard lock{mutex_};
+    return memory_map_;
+  }
 
  private:
   std::mutex mutex_;
   std::shared_ptr<const std::string> live_ =
       std::make_shared<const std::string>("{}");
+  std::shared_ptr<const std::string> memory_map_ =
+      std::make_shared<const std::string>(R"({"available":false})");
 };
 
 [[nodiscard]] inline std::string_view TrimSpace(std::string_view p_text)
@@ -578,6 +590,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/live")
     {
       Respond(p_connection, 200, *state_.Live(), "application/json");
+    }
+    else if (p_request.path_ == "/api/memory-map")
+    {
+      Respond(p_connection, 200, *state_.MemoryMap(), "application/json");
     }
     else if (p_request.path_ == "/api/target")
     {

@@ -1,10 +1,5 @@
 # Triangulator agent instructions
 
-## Communication
-
-Use [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/)
-for all written communication. Preserve exact technical identifiers and quotations.
-
 ## Architecture
 
 - Use C++ or Rust for performance-critical code: the sampler, core collector

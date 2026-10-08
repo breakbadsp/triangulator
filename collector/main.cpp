@@ -130,6 +130,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   StorageSink sink{storage};
   Monitor monitor{config, WallNow(), sink};
   ResourceMonitor resources{sink};
+  MemoryMonitor memory;
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -157,7 +158,8 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  Ingest ingest{config.sampler_ip_, monitor, resources, storage, sink};
+  Ingest ingest{config.sampler_ip_, monitor, resources, memory, storage, sink};
+  std::uint64_t published_layout = 0;
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -203,6 +205,13 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       live.Set("health", std::move(health));
       resources.Drain(now);
       live.Set("resources", resources.Snapshot(now));
+      live.Set("memory", memory.Snapshot(now));
+      if (memory.LayoutVersion() != published_layout)
+      {
+        published_layout = memory.LayoutVersion();
+        state.SetMemoryMap(
+            std::make_shared<const std::string>(DumpJson(memory.Layout())));
+      }
       live.Set("recorded_at", now);
       live.Set("recording_interval_s", config.replay_interval_s_);
       auto body = std::make_shared<const std::string>(DumpJson(live));
