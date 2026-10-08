@@ -32,3 +32,14 @@ build/triangulator-collector config/local/collector.toml
 [Collector reference](../docs/collector-reference.md) ·
 [Sampler](../sampler/README.md) ·
 [Performance](../docs/collector-comparison.md)
+
+## Dashboard help
+
+Pause over a metric, table cell, or chart point for 1.2 seconds to see its
+explanation. Move into the card to read it, or press Escape to close it.
+Select an information button for examples, measurement limits, related topics,
+and a chart data table where available. Keyboard users can focus the information
+button; touch users can tap it. **How to read this page** contains the page guide.
+
+The guide includes **Show help on hover or focus**. This preference is saved in
+the browser. Turning it off keeps explicit guide access available.
