@@ -5,7 +5,9 @@
 // carries layout regions only when the layout changed or for a periodic
 // refresh, so the layout and the summary can come from different samples.
 // The layout is published only when all of its parts arrived; a sample with
-// a lost part leaves the previous layout in place.
+// a lost part leaves the previous layout in place. Layouts are ordered by
+// their own sample sequence, apart from the summaries, so a late part never
+// replaces a newer layout. A new sampler session drops the old layout.
 
 #include <array>
 #include <bitset>
@@ -19,6 +21,7 @@
 #include <utility>
 
 #include "../common/memory_wire.hpp"
+#include "bounded.hpp"
 #include "json.hpp"
 
 namespace triangulator::collector
@@ -60,6 +63,8 @@ namespace triangulator::collector
 class MemoryMonitor
 {
  public:
+  static constexpr std::size_t kMaxRetiredSessions = 128;
+
   std::int64_t bad_parts_ = 0;
 
   // Memory is fixed at construction: Accept() allocates nothing.
@@ -67,14 +72,22 @@ class MemoryMonitor
   void Accept(const memory_wire::Part& p_part, double p_received)
   {
     const auto& header = p_part.header_;
-    if (latest_ && latest_->header_.session_ == header.session_ &&
-        header.sequence_ < latest_->header_.sequence_)
+    if (!session_ || header.session_ != *session_)
     {
-      ++late_;
-      return;
+      if (IsRetired(header.session_))
+      {
+        ++late_;
+        return;
+      }
+      StartSession(header.session_);
     }
     if (header.kind_ == memory_wire::PartKind::Summary)
     {
+      if (latest_ && header.sequence_ <= latest_->header_.sequence_)
+      {
+        ++late_;
+        return;
+      }
       latest_ = Summary{header, p_part.values_, p_received};
       ++samples_;
     }
@@ -84,7 +97,8 @@ class MemoryMonitor
     }
   }
 
-  // Changes each time a new layout is complete.
+  // Changes each time the published layout changes: a new complete layout,
+  // or none after a session change. Starts at zero in every collector run.
   [[nodiscard]] std::uint64_t LayoutVersion() const noexcept
   {
     return layout_version_;
@@ -121,17 +135,18 @@ class MemoryMonitor
         {"interval_s", interval},
         {"flags", FlagsJson(header.flags_)},
         {"values", std::move(values)},
-        {"layout_version", layout_version_},
+        {"layout_id", layout_available_ ? Json(LayoutId()) : Json(nullptr)},
         {"layout_updated",
-         layout_version_ ? Json(layout_received_) : Json(nullptr)},
+         layout_available_ ? Json(layout_received_) : Json(nullptr)},
         {"stats", Stats()}};
   }
 
   // The latest complete layout for /api/memory-map. Addresses are hex
-  // strings: they do not fit in a JavaScript number.
+  // strings: they do not fit in a JavaScript number. "id" names the sample
+  // the layout came from, so it is the same in every collector run.
   [[nodiscard]] Json Layout() const
   {
-    if (layout_version_ == 0)
+    if (!layout_available_)
     {
       return JsonObject{{"available", false}};
     }
@@ -152,7 +167,7 @@ class MemoryMonitor
                      {"name", name}});
     }
     return JsonObject{{"available", true},
-                      {"version", layout_version_},
+                      {"id", LayoutId()},
                       {"updated", layout_received_},
                       {"pid", layout_header_.pid_},
                       {"flags", FlagsJson(layout_header_.flags_)},
@@ -167,10 +182,58 @@ class MemoryMonitor
     double received_{};
   };
 
+  // Retires the current session, if any, and drops its summary and layout.
+  // A late datagram from a retired session is ignored.
+  void StartSession(std::uint64_t p_session) noexcept
+  {
+    if (session_)
+    {
+      retired_sessions_.PushBack(*session_);
+    }
+    session_ = p_session;
+    latest_.reset();
+    assembling_ = false;
+    layout_sequence_.reset();
+    if (layout_available_)
+    {
+      layout_available_ = false;
+      ++layout_version_;
+    }
+  }
+
+  [[nodiscard]] bool IsRetired(std::uint64_t p_session) const noexcept
+  {
+    for (std::size_t index = 0; index < retired_sessions_.Size(); ++index)
+    {
+      if (retired_sessions_[index] == p_session)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void AcceptLayoutPart(const memory_wire::Part& p_part, double p_received)
   {
     const auto& header = p_part.header_;
-    if (!assembling_ || !header.SameSample(assembly_header_))
+    if ((layout_sequence_ && header.sequence_ <= *layout_sequence_) ||
+        (assembling_ && header.sequence_ < assembly_header_.sequence_))
+    {
+      // Older than the published layout or the one in progress. A summary
+      // was already used above, so only a region part counts as late.
+      if (header.kind_ == memory_wire::PartKind::Regions)
+      {
+        ++late_;
+      }
+      return;
+    }
+    if (assembling_ && header.sequence_ == assembly_header_.sequence_ &&
+        !header.SameSample(assembly_header_))
+    {
+      ++bad_parts_;  // the same sample with a different header
+      return;
+    }
+    if (!assembling_ || header.sequence_ != assembly_header_.sequence_)
     {
       if (assembling_)
       {
@@ -199,8 +262,19 @@ class MemoryMonitor
       layout_regions_ = assembly_regions_;
       layout_count_ = assembly_count_;
       layout_received_ = p_received;
+      layout_sequence_ = header.sequence_;
+      layout_available_ = true;
       ++layout_version_;
+      ++layouts_;
     }
+  }
+
+  // The session and sequence of the published layout's sample. The session
+  // does not fit in a JavaScript number, so this is a string.
+  [[nodiscard]] std::string LayoutId() const
+  {
+    return std::format("{}:{}", layout_header_.session_,
+                       layout_header_.sequence_);
   }
 
   [[nodiscard]] static Json FlagsJson(memory_wire::Flags p_flags)
@@ -216,12 +290,14 @@ class MemoryMonitor
   [[nodiscard]] Json Stats() const
   {
     return JsonObject{{"samples", samples_},
-                      {"layouts", layout_version_},
+                      {"layouts", layouts_},
                       {"incomplete_layouts", incomplete_layouts_},
                       {"late", late_},
                       {"bad_parts", bad_parts_}};
   }
 
+  std::optional<std::uint64_t> session_;
+  Ring<std::uint64_t, kMaxRetiredSessions> retired_sessions_;
   std::optional<Summary> latest_;
   bool assembling_ = false;
   memory_wire::Header assembly_header_;
@@ -232,7 +308,11 @@ class MemoryMonitor
   std::array<memory_wire::Region, memory_wire::kMaxRegions> layout_regions_{};
   std::size_t layout_count_ = 0;
   double layout_received_{};
+  // The sequence of the published layout's sample, in this session.
+  std::optional<std::uint32_t> layout_sequence_;
+  bool layout_available_ = false;
   std::uint64_t layout_version_ = 0;
+  std::int64_t layouts_ = 0;
   std::int64_t samples_ = 0;
   std::int64_t incomplete_layouts_ = 0;
   std::int64_t late_ = 0;

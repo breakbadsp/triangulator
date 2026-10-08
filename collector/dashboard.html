@@ -1256,24 +1256,36 @@ loadReplayBounds();
 
 // ---------- Memory map ----------
 // The summary comes from live.memory. The layout is the latest complete one
-// from /api/memory-map, fetched again only when its version changes.
-let memoryLayout=null,memoryLayoutVersion=0;
-async function refreshMemoryLayout(){try{const response=await fetch('/api/memory-map');if(response.ok){memoryLayout=await response.json();if(live.health)renderMemory()}}catch{}}
+// from /api/memory-map. live.memory.layout_id names the sample the layout
+// came from, so it stays valid across collector restarts. The layout is
+// fetched when that id changes, and again on later polls until it loads.
+let memoryLayout=null,memoryLayoutLoading=false,memoryRenderedLayout;
+async function refreshMemoryLayout(){memoryLayoutLoading=true;
+  try{const response=await fetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){memoryLayout=layout;if(live.health)renderMemory()}}}
+  catch{}finally{memoryLayoutLoading=false}}
+// The loaded layout when it belongs to the summary's session and process:
+// a newer layout of the same session is still being fetched, so the older
+// one stays on screen until then.
+function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
+  return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
+function microseconds(value){return isNum(value)?(value>=1000?number(value/1000,1)+' ms':value+' µs'):'—'}
 function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',heap:'[heap]',stack:'[stack]'}[region.kind]??'')}
 function renderMemory(){const m=live.memory,empty=element('memory-empty'),content=element('memory-content');
   if(!m||!m.available){empty.hidden=false;content.hidden=true;empty.textContent=m?.reason||'This collector does not report memory-map samples.';return}
   empty.hidden=true;content.hidden=false;
-  if(m.layout_version&&m.layout_version!==memoryLayoutVersion){memoryLayoutVersion=m.layout_version;refreshMemoryLayout()}
+  const historical=replayAt!==null;
+  if(!historical&&m.layout_id&&memoryLayout?.id!==m.layout_id&&!memoryLayoutLoading)refreshMemoryLayout();
+  const layout=historical?memoryLayout:memoryLayoutFor(m);
   const v=m.values||{},now=viewNow(),flags=m.flags||{};
   element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
   const tiles=[['Address space',bytes(v.vm_size_bytes),`peak ${bytes(v.vm_peak_bytes)} · data ${bytes(v.vm_data_bytes)}`],
     ['Mappings (VMAs)',isNum(v.vma_count)?String(v.vma_count):'—',isNum(v.max_map_count)&&isNum(v.vma_count)?`${pct(100*v.vma_count/v.max_map_count)} of max_map_count ${v.max_map_count}`:'limit unknown'],
     ['Page tables',bytes(v.vm_pte_bytes),`locked ${bytes(v.vm_locked_bytes)}`],
     ['Page faults',isNum(v.major_faults)?number(v.major_faults,0)+' major':'—',`${number(v.minor_faults,0)} minor, since start`],
-    ['Maps read cost',isNum(v.maps_read_us)?(v.maps_read_us>=1000?number(v.maps_read_us/1000,1)+' ms':v.maps_read_us+' µs'):'—',`${v.maps_reads??'—'} reads; the target's mmap waits at most this long`]];
+    ['Longest maps read',microseconds(v.maps_read_max_us),`${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} in total; one read holds the target's memory-map lock once`]];
   const host=element('memory-tiles');host.replaceChildren();
   for(const [label,value,sub] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'));host.append(tile)}
-  const regions=memoryLayout?.available?memoryLayout.regions:[],stack=regions.find(region=>region.kind==='stack');
+  const regions=layout?layout.regions:[],stack=regions.find(region=>region.kind==='stack');
   const limits=element('memory-limits');limits.replaceChildren();
   limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
   limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${bytes(v.vm_size_bytes)} / ${bytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,bytes(v.vm_size_bytes)));
@@ -1281,11 +1293,12 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   const notes=[];
   if(flags.maps_hidden)notes.push('The sampler cannot read /proc/PID/maps: run it as the target\'s user. The target may also be non-dumpable.');
   if(flags.maps_partial)notes.push('The last read of /proc/PID/maps stopped early, for example because the target exited.');
-  if(memoryLayout?.flags?.regions_truncated)notes.push(`Only the first ${regions.length} regions are shown; the rest are counted in the mapping total.`);
+  if(layout?.flags?.regions_truncated)notes.push(`Only the first ${regions.length} regions are shown; the rest are counted in the mapping total.`);
   if(replayAt!==null)notes.push('Historical view: the layout below is the latest one, not the one at the replay time.');
   element('memory-notes').textContent=notes.join(' ');
-  element('memory-region-count').textContent=memoryLayout?.available?`${regions.length} regions · updated ${ago(Date.now()/1000-memoryLayout.updated)}`:'';
-  if(!element('memory-regions').matches(':hover'))renderMemoryRegions(regions)}
+  element('memory-region-count').textContent=layout?`${regions.length} regions · updated ${ago(Date.now()/1000-layout.updated)}`:'';
+  // Rebuild the table only for another layout; a poll changes nothing in it.
+  if(layout!==memoryRenderedLayout&&!element('memory-regions').matches(':hover')){memoryRenderedLayout=layout;renderMemoryRegions(regions)}}
 function renderMemoryRegions(regions){const body=element('memory-regions');body.replaceChildren();
   if(!regions.length){const row=node('tr'),cell=node('td','No layout yet. It arrives with the next memory-map sample.');cell.colSpan=7;row.append(cell);body.append(row);return}
   const sorted=element('memory-largest').checked?regions.slice().sort((a,b)=>b.size-a.size):regions;
@@ -1294,7 +1307,7 @@ function renderMemoryRegions(regions){const body=element('memory-regions');body.
     const bar=node('div',undefined,'region-bar');bar.style.width=Math.max(1,100*(Math.log2(region.size)-11)/Math.max(1,largest-11))+'%';
     const barCell=node('td');barCell.style.minWidth='90px';barCell.append(bar);
     row.append(name,node('td',region.kind),node('td',region.start,'mono'),node('td',bytes(region.size),'num'),barCell,node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(row)}}
-element('memory-largest').onchange=()=>renderMemoryRegions(memoryLayout?.available?memoryLayout.regions:[]);
+element('memory-largest').onchange=()=>renderMemoryRegions(memoryRenderedLayout?.regions||[]);
 
 // ---------- Main loop ----------
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
