@@ -11,6 +11,10 @@
 // continues from the same file position. One read() is one lock hold, so
 // the reads are kept small. The whole read is not one atomic snapshot
 // anyway: the kernel takes and drops the lock for each read() call.
+//
+// TODO(PR 37 review): measure how much reading maps delays the target's mmap
+// and munmap calls on older kernels and on targets with tens of thousands of
+// mappings. It has been measured only on Linux 7.2 with about 1,000 mappings.
 
 #include <fcntl.h>
 #include <unistd.h>

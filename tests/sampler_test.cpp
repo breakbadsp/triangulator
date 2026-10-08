@@ -698,6 +698,9 @@ void TestMemoryProbe()
                                            memory_wire::RegionKind::Stack;
                                   }),
           "the layout has the main stack");
+  // TODO(PR 37 review): this check assumes the test process maps nothing
+  // between the two samples. If it flakes, for example because the allocator
+  // added a mapping, loosen the check or sample a target with a fixed layout.
   probe.Start(::getpid(), false);
   const auto again = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
   Require(again && again->regions_.empty(), "an unchanged layout is not sent");

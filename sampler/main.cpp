@@ -192,6 +192,8 @@ class Sampler
     // A tick that sent resources leaves the memory map to the next tick,
     // so one tick does not carry both. It waits one tick at most: when
     // every tick sends resources, the memory map still gets every other.
+    // TODO(PR 37 review): no test covers this deferral or the time budget in
+    // StepMemory(). Both are private to Sampler.
     if (p_target && (!resources_due || memory_deferred_))
     {
       memory_deferred_ = false;

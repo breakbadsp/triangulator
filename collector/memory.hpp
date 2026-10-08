@@ -8,6 +8,12 @@
 // a lost part leaves the previous layout in place. Layouts are ordered by
 // their own sample sequence, apart from the summaries, so a late part never
 // replaces a newer layout. A new sampler session drops the old layout.
+//
+// TODO(PR 37 review): decide whether the layout reassembly, /api/memory-map
+// and the dashboard section belong in the core collector. AGENTS.md keeps
+// extended dashboard data in separate programs; resource samples took the
+// same route as this code. Move them out if the design in #32 did not settle
+// this.
 
 #include <array>
 #include <bitset>
