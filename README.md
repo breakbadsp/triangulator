@@ -174,6 +174,22 @@ Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
   <img src="docs/assets/deploy.svg" alt="Two binaries are copied to two hosts. Each host needs zero dependencies." width="100%">
 </p>
 
+### Install from a release package
+
+Each `v*` tag publishes `triangulator-<version>-el8-x86_64.tar.gz` and
+`...-el9-x86_64.tar.gz` (static binaries, so no compiler or libraries are
+needed) with a `.sha256` file. Unpack in your home directory and start:
+
+```sh
+sha256sum -c triangulator-<version>-el9-x86_64.tar.gz.sha256
+tar -xzf triangulator-<version>-el9-x86_64.tar.gz -C ~
+~/triangulator/scripts/start.sh
+```
+
+To upgrade, run `~/triangulator/scripts/stop.sh`, unpack over the same
+directory and start again. The archive has no `config/`, `data/` or `logs/`, so
+these are kept. `scripts/package.sh` builds the archive after `make release`.
+
 Alerting is a separate module that is not wired up yet
 ([details](#alerting)). More metrics:
 [coverage](docs/linux-monitoring.md), [resource monitoring](docs/resource-monitoring.md),
