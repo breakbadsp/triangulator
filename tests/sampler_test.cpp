@@ -2,12 +2,16 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
 
+#include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
+#include "../sampler/schedule.hpp"
 
 namespace
 {
@@ -92,6 +96,11 @@ void TestConfig()
       "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,
           "resource samples can be turned off");
+  Require(config->memory_interval_s_ == 0, "memory-map samples default to off");
+  const auto memory_on = ParseConfig(
+      "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=30\n");
+  Require(memory_on && memory_on->memory_interval_s_ == 30,
+          "memory-map samples can be turned on");
   for (const auto invalid : {
            "target_pid=1\ntarget_process=foo\ncollector=127.0.0.1:9400",
            "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=nan",
@@ -104,6 +113,8 @@ void TestConfig()
            "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=61",
            "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=-1",
            "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=2.5",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=3601",
+           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=-1",
        })
   {
     Require(!ParseConfig(invalid), "invalid config must be rejected");
@@ -551,6 +562,218 @@ void TestDescriptorBudget()
   Require(RaiseDescriptorLimit() >= 64, "descriptor limit is readable");
 }
 
+// Checks the maps line parser, the joining of mappings into regions and the
+// summary helpers on fixed text.
+void TestMemoryParsing()
+{
+  using memory_wire::RegionKind;
+  const auto library = ParseMapsLine(
+      "7f12a000-7f12c000 r-xp 00001000 08:01 1234    /usr/lib/libc.so.6");
+  Require(
+      library && library->start_ == 0x7f12a000 && library->end_ == 0x7f12c000 &&
+          library->kind_ == RegionKind::File &&
+          library->name_ == "/usr/lib/libc.so.6" && library->permissions_ == 5,
+      "file mapping");
+  const auto spaced =
+      ParseMapsLine("1000-2000 rw-s 00000000 00:01 7  /tmp/a b (deleted)");
+  Require(spaced && spaced->name_ == "/tmp/a b (deleted)" &&
+              spaced->permissions_ == 11,
+          "a path keeps its spaces; shared mapping");
+  const auto anonymous = ParseMapsLine("3000-4000 ---p 00000000 00:00 0");
+  Require(anonymous && anonymous->kind_ == RegionKind::Anonymous &&
+              anonymous->name_.empty() && anonymous->permissions_ == 0,
+          "anonymous mapping without a name");
+  Require(
+      ParseMapsLine("5000-6000 rw-p 00000000 00:00 0  [heap]")->kind_ ==
+              RegionKind::Heap &&
+          ParseMapsLine("5000-6000 rw-p 00000000 00:00 0  [stack]")->kind_ ==
+              RegionKind::Stack &&
+          ParseMapsLine("5000-6000 r-xp 00000000 00:00 0  [vdso]")->kind_ ==
+              RegionKind::Kernel &&
+          ParseMapsLine("5000-6000 rw-p 00000000 00:00 0  [anon:x]")->kind_ ==
+              RegionKind::Anonymous &&
+          ParseMapsLine("5000-6000 rw-s 00000000 00:10 9  anon_inode:gem")
+                  ->kind_ == RegionKind::Anonymous,
+      "names that are not paths");
+  for (const auto invalid :
+       {"", "2000-1000 r--p 0 00:00 0", "1000-2000 r-p 0 00:00 0",
+        "zz-2000 r--p 0 00:00 0", "1000-2000 r--p 0 00:00"})
+  {
+    Require(!ParseMapsLine(invalid), "invalid maps line must be rejected");
+  }
+
+  LayoutBuilder layout;
+  for (const auto line : {"1000-2000 r--p 00000000 08:01 1 /usr/lib/libc.so.6",
+                          "2000-3000 r-xp 00001000 08:01 1 /usr/lib/libc.so.6",
+                          "3000-4000 rw-p 00002000 08:01 1 /usr/lib/libc.so.6",
+                          "5000-6000 rw-p 00000000 00:00 0",
+                          "6000-7000 rw-p 00000000 00:00 0  [heap]"})
+  {
+    layout.Add(*ParseMapsLine(line));
+  }
+  const auto regions = layout.Regions();
+  Require(layout.VmaCount() == 5 && regions.size() == 3, "regions joined");
+  Require(regions[0].start_ == 0x1000 && regions[0].end_ == 0x4000 &&
+              regions[0].vma_count_ == 3 && regions[0].permissions_ == 7 &&
+              std::string_view{regions[0].name_.data()} == "/usr/lib/libc.so.6",
+          "adjacent mappings of one file are one region");
+  Require(regions[1].kind_ == RegionKind::Anonymous &&
+              regions[2].kind_ == RegionKind::Heap,
+          "a gap or another kind starts a new region");
+  const std::string long_path = "/" + std::string(60, 'd') + "/libname.so";
+  layout.Clear();
+  layout.Add(*ParseMapsLine("1000-2000 r--p 0 08:01 1 " + long_path));
+  Require(std::string_view{layout.Regions()[0].name_.data()}.ends_with(
+              "/libname.so") &&
+              layout.Regions()[0].name_.back() == '\0',
+          "a long path keeps its end");
+  layout.Clear();
+  const std::string common = "/a/common/path/longer/than/39/bytes/library.so";
+  layout.Add(*ParseMapsLine("1000-2000 r--p 0 08:01 1 /package-A" + common));
+  layout.Add(*ParseMapsLine("2000-3000 r-xp 0 08:01 2 /package-B" + common));
+  Require(layout.Regions().size() == 2 &&
+              layout.Regions()[0].name_ == layout.Regions()[1].name_ &&
+              layout.Regions()[0].permissions_ == 1,
+          "files whose sent names are equal are not joined");
+  for (std::size_t index = 0; index <= memory_wire::kMaxRegions; ++index)
+  {
+    const auto start = 0x2000 * (index + 1);
+    layout.Add(MapsLine{start, start + 0x1000, 1, RegionKind::Anonymous, {}});
+  }
+  Require(
+      layout.Truncated() && layout.Regions().size() == memory_wire::kMaxRegions,
+      "regions beyond kMaxRegions are counted, not kept");
+
+  std::string stat = "42 (a b) S";
+  for (int field = 4; field <= 52; ++field)
+  {
+    stat += std::format(" {}", field);
+  }
+  Require(FindStatField(stat, 10) == 10u && FindStatField(stat, 12) == 12u &&
+              !FindStatField(stat, 60),
+          "stat fields by number");
+  const std::string_view limits =
+      "Limit                     Soft Limit           Hard Limit           "
+      "Units\n"
+      "Max stack size            8388608              unlimited            "
+      "bytes\n"
+      "Max address space         unlimited            unlimited            "
+      "bytes\n";
+  Require(FindSoftLimit(limits, "Max stack size") == 8388608 &&
+              FindSoftLimit(limits, "Max address space") ==
+                  memory_wire::kUnavailable &&
+              FindSoftLimit(limits, "Max locked memory") ==
+                  memory_wire::kUnavailable,
+          "soft limits; unlimited and missing are unavailable");
+}
+
+// Samples this test process: a deadline in the past stops before the first
+// read and leaves the sample for a later call, which completes it. The next
+// sample of an unchanged layout leaves the regions out, and a refresh sends
+// them again. This assumes the process maps nothing between the samples.
+void TestMemoryProbe()
+{
+  using memory_wire::Field;
+  MemoryProbe probe;
+  probe.Start(::getpid(), false);
+  Require(probe.Busy() && !probe.Continue(Nanoseconds{0}) && probe.Busy(),
+          "an expired budget defers the read");
+  const auto sample = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(sample.has_value() && !probe.Busy(), "the sample completes");
+  Require(sample->flags_ == memory_wire::Flags::None, "no flags for self");
+  Require(
+      sample->summary_[Field("vma_count")] > 0 &&
+          sample->summary_[Field("vma_count")] != memory_wire::kUnavailable &&
+          sample->summary_[Field("maps_reads")] > 0 &&
+          sample->summary_[Field("vm_size_bytes")] > 0 &&
+          sample->summary_[Field("minor_faults")] !=
+              memory_wire::kUnavailable &&
+          sample->summary_[Field("max_map_count")] > 0,
+      "summary values");
+  Require(!sample->regions_.empty() &&
+              std::ranges::any_of(sample->regions_,
+                                  [](const memory_wire::Region& p_region)
+                                  {
+                                    return p_region.kind_ ==
+                                           memory_wire::RegionKind::Stack;
+                                  }),
+          "the layout has the main stack");
+  // TODO(PR 37 review): this check assumes the test process maps nothing
+  // between the two samples. If it flakes, for example because the allocator
+  // added a mapping, loosen the check or sample a target with a fixed layout.
+  probe.Start(::getpid(), false);
+  const auto again = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(again && again->regions_.empty(), "an unchanged layout is not sent");
+  probe.Start(::getpid(), true);
+  const auto refreshed = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(refreshed && !refreshed->regions_.empty(),
+          "a refresh sends an unchanged layout again");
+  probe.Start(0x7fffffff, false);
+  const auto missing = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(missing && memory_wire::HasFlag(missing->flags_,
+                                          memory_wire::Flags::MapsHidden),
+          "a missing process has no layout");
+}
+
+// Reads maps text that the kernel does not produce, through the path seam:
+// a last line without a newline, a line longer than the buffer, and a read
+// error (a directory). Each sets MapsPartial and keeps the complete lines.
+void TestMemoryProbePartialMaps()
+{
+  std::string pattern =
+      (std::filesystem::temp_directory_path() / "sampler-test-XXXXXX").string();
+  Require(::mkdtemp(pattern.data()) != nullptr, "mkdtemp failed");
+  const std::filesystem::path directory{pattern};
+  const auto sample = [&](const std::string& p_text)
+  {
+    const auto path = directory / "maps";
+    std::ofstream{path} << p_text;
+    MemoryProbe probe;
+    probe.Start(::getpid(), false, path.c_str());
+    return probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  };
+  const auto partial = memory_wire::Flags::MapsPartial;
+  const std::string line = "1000-2000 r--p 0 08:01 1 /lib/a.so\n";
+  const auto complete = sample(line + line);
+  Require(complete && complete->flags_ == memory_wire::Flags::None &&
+              complete->summary_[memory_wire::Field("vma_count")] == 2,
+          "complete maps text");
+  const auto cut = sample(line + "2000-3000 r--p 0 08:01 1 /lib/b");
+  Require(cut && memory_wire::HasFlag(cut->flags_, partial) &&
+              cut->summary_[memory_wire::Field("vma_count")] == 1,
+          "a last line without a newline is partial");
+  const auto long_line = sample(line + "3000-4000 r--p 0 08:01 1 /" +
+                                std::string(20000, 'x') + "\n" + line);
+  Require(long_line && memory_wire::HasFlag(long_line->flags_, partial) &&
+              long_line->summary_[memory_wire::Field("vma_count")] == 2,
+          "a line longer than the buffer is dropped");
+  MemoryProbe probe;
+  probe.Start(::getpid(), false, directory.c_str());
+  const auto failed = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+  Require(failed && memory_wire::HasFlag(failed->flags_, partial) &&
+              failed->summary_[memory_wire::Field("vma_count")] == 0,
+          "a read error is partial");
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+// Checks NextDeadline, which schedules resource and memory-map samples: the
+// first run and a run that fell behind count from now; a run on time keeps
+// the previous deadlines' cadence.
+void TestNextDeadline()
+{
+  using std::chrono::seconds;
+  Require(
+      NextDeadline(Nanoseconds{0}, seconds{100}, seconds{5}) == seconds{105},
+      "the first run counts from now");
+  Require(NextDeadline(seconds{100}, seconds{101}, seconds{5}) == seconds{105},
+          "a run on time keeps the cadence");
+  Require(NextDeadline(seconds{100}, seconds{99}, seconds{5}) == seconds{105},
+          "a run a little early keeps the cadence");
+  Require(NextDeadline(seconds{100}, seconds{112}, seconds{5}) == seconds{117},
+          "a run that fell behind counts from now");
+}
+
 int main()
 {
   try
@@ -564,9 +787,13 @@ int main()
     TestMemoryCgroupAndInterfaceParsing();
     TestSocketRanking();
     TestResourceProbe();
+    TestMemoryParsing();
+    TestMemoryProbe();
+    TestMemoryProbePartialMaps();
+    TestNextDeadline();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
-        "RAII, descriptor budget, resource parsing and probe)");
+        "RAII, descriptor budget, resource parsing and probe, memory map)");
   }
   catch (const std::exception& error)
   {

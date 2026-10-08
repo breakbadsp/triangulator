@@ -1,4 +1,5 @@
-// Tests for common/wire.hpp and common/resource_wire.hpp alone: encoding then
+// Tests for common/wire.hpp, common/resource_wire.hpp and
+// common/memory_wire.hpp alone: encoding then
 // decoding gives back the same values, and the decoders reject data that is
 // not their format.
 
@@ -14,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+#include "../common/memory_wire.hpp"
 #include "../common/resource_wire.hpp"
 
 namespace
@@ -279,6 +281,96 @@ void TestResourceRejectsOtherData()
   }
 }
 
+memory_wire::Header MemoryHeader(std::uint8_t p_parts)
+{
+  return memory_wire::Header{.parts_ = p_parts,
+                             .session_ = 7,
+                             .sequence_ = 3,
+                             .monotonic_ns_ = 1,
+                             .wall_ns_ = 2,
+                             .interval_ms_ = 30000,
+                             .pid_ = 42,
+                             .process_start_ = 9,
+                             .flags_ = memory_wire::Flags::RegionsTruncated};
+}
+
+// Encodes a summary and two region parts (20 and 5 regions) and decodes
+// them; then changes one byte at a time and checks that the decoder rejects
+// it.
+void TestMemoryRoundTrip()
+{
+  std::vector<memory_wire::Region> regions(25);
+  for (std::size_t index = 0; index < regions.size(); ++index)
+  {
+    regions[index] =
+        memory_wire::Region{.start_ = 0x1000 * (2 * index + 1),
+                            .end_ = 0x1000 * (2 * index + 2),
+                            .vma_count_ = static_cast<std::uint32_t>(index + 1),
+                            .kind_ = memory_wire::RegionKind::File,
+                            .permissions_ = 5,
+                            .name_ = {'l', 'i', 'b'}};
+  }
+  const auto header = MemoryHeader(memory_wire::PartCount(regions.size()));
+  Require(header.parts_ == 3, "two region parts");
+  std::array<std::byte, memory_wire::kMaxPartSize> bytes{};
+  auto values = memory_wire::EmptySummary();
+  values[memory_wire::Field("vma_count")] = 77;
+  const auto summary_length = memory_wire::EncodeSummary(bytes, header, values);
+  const auto summary =
+      memory_wire::Decode(std::span{bytes}.first(summary_length));
+  Require(summary && summary->header_.kind_ == memory_wire::PartKind::Summary &&
+              summary->header_.SameSample(header) && summary->values_ == values,
+          "summary round trip");
+  Require(!memory_wire::Decode(std::span{bytes}.first(summary_length - 1)),
+          "a short summary is rejected");
+  std::vector<memory_wire::Region> decoded;
+  for (std::uint8_t part = 1; part < header.parts_; ++part)
+  {
+    const auto length =
+        memory_wire::EncodeRegions(bytes, header, regions, part);
+    const auto value = memory_wire::Decode(std::span{bytes}.first(length));
+    Require(value && value->header_.part_ == part, "region part decodes");
+    decoded.insert(decoded.end(), value->Regions().begin(),
+                   value->Regions().end());
+  }
+  Require(decoded == regions, "regions round trip");
+
+  const auto length = memory_wire::EncodeRegions(bytes, header, regions, 2);
+  for (const auto& [offset, value] :
+       {std::pair{std::size_t{0}, std::byte{'X'}},         // magic
+        std::pair{std::size_t{4}, std::byte{2}},           // version
+        std::pair{std::size_t{5}, std::byte{9}},           // kind
+        std::pair{std::size_t{6}, std::byte{3}},           // part >= parts
+        std::pair{std::size_t{22}, std::byte{1}},          // reserved
+        std::pair{std::size_t{56}, std::byte{64}},         // unknown flag
+        std::pair{std::size_t{64 + 20}, std::byte{9}},     // region kind
+        std::pair{std::size_t{64 + 21}, std::byte{16}},    // permission
+        std::pair{std::size_t{64 + 63}, std::byte{'x'}}})  // unterminated name
+  {
+    auto copy = bytes;
+    copy[offset] = value;
+    Require(!memory_wire::Decode(std::span{copy}.first(length)),
+            "an invalid memory-map part is rejected");
+  }
+  // Part 1 of 3 with one region: only the last region part may be short.
+  auto short_part = bytes;
+  const auto full_length =
+      memory_wire::EncodeRegions(short_part, header, regions, 1);
+  Require(
+      memory_wire::Decode(std::span{short_part}.first(full_length)).has_value(),
+      "a full first part decodes");
+  short_part[20] = std::byte{1};  // count_
+  short_part[21] = std::byte{0};
+  Require(!memory_wire::Decode(std::span{short_part}.first(
+              memory_wire::kHeaderSize + memory_wire::kRegionSize)),
+          "a short region part before the last is rejected");
+  auto empty = MemoryHeader(1);
+  empty.pid_ = 0;
+  const auto empty_length = memory_wire::EncodeSummary(bytes, empty, values);
+  Require(!memory_wire::Decode(std::span{bytes}.first(empty_length)),
+          "a sample without a PID is rejected");
+}
+
 }  // namespace
 
 int main()
@@ -291,7 +383,10 @@ int main()
     TestResourceSummaryRoundTrip();
     TestResourceSocketsRoundTrip();
     TestResourceRejectsOtherData();
-    std::puts("wire tests passed (thread and resource round trips, rejection)");
+    TestMemoryRoundTrip();
+    std::puts(
+        "wire tests passed (thread, resource and memory-map round trips, "
+        "rejection)");
   }
   catch (const std::exception& error)
   {

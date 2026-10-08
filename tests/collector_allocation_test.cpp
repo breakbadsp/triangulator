@@ -1,7 +1,7 @@
 // Checks the collector's memory rule: after startup, the datagram path
 // allocates no heap memory. The path is Ingest::Handle (decode, Monitor,
-// ResourceMonitor, row building, Storage writes), Monitor::Drain and
-// Storage::Flush. The test replaces malloc, calloc, realloc and the aligned
+// ResourceMonitor, MemoryMonitor, row building, Storage writes), Monitor::Drain
+// and Storage::Flush. The test replaces malloc, calloc, realloc and the aligned
 // allocation functions, so it counts every allocation, including those made
 // inside libstdc++ and libc.
 //
@@ -252,20 +252,57 @@ std::vector<std::vector<std::byte>> ResourceSample(std::uint32_t p_sequence)
   return parts;
 }
 
+// The datagrams of memory-map sample p_sequence: a summary and three region
+// parts.
+std::vector<std::vector<std::byte>> MemorySample(std::uint32_t p_sequence)
+{
+  memory_wire::Header header;
+  header.parts_ = 4;
+  header.session_ = kSession;
+  header.sequence_ = p_sequence;
+  header.monotonic_ns_ = (1000 + std::uint64_t{p_sequence}) * 1'000'000'000;
+  header.wall_ns_ = (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000;
+  header.interval_ms_ = 10000;
+  header.pid_ = 123;
+  header.process_start_ = 99;
+  memory_wire::SummaryValues values{};
+  values.fill(p_sequence);
+  std::vector<memory_wire::Region> regions(50);
+  for (std::size_t index = 0; index < regions.size(); ++index)
+  {
+    regions[index].start_ = 0x1000 * (2 * index + 1);
+    regions[index].end_ = regions[index].start_ + 0x1000;
+    regions[index].vma_count_ = 1;
+    regions[index].kind_ = memory_wire::RegionKind::Anonymous;
+  }
+  std::vector<std::vector<std::byte>> parts;
+  std::array<std::byte, memory_wire::kMaxPartSize> buffer{};
+  auto length = memory_wire::EncodeSummary(buffer, header, values);
+  parts.emplace_back(buffer.begin(), buffer.begin() + length);
+  for (std::uint8_t part = 1; part < header.parts_; ++part)
+  {
+    length = memory_wire::EncodeRegions(buffer, header, regions, part);
+    parts.emplace_back(buffer.begin(), buffer.begin() + length);
+  }
+  return parts;
+}
+
 struct Totals
 {
   Phase threads_{"thread datagrams (decode, ticks, rows)"};
   Phase resources_{"resource datagrams (decode, rows)"};
+  Phase memory_{"memory-map datagrams (decode, layout)"};
   Phase flush_{"Storage::Flush"};
 
   [[nodiscard]] std::size_t Sum() const
   {
     return threads_.allocations_ + resources_.allocations_ +
-           flush_.allocations_;
+           memory_.allocations_ + flush_.allocations_;
   }
 };
 
-// Feeds p_ticks thread ticks and one resource sample per five ticks, through
+// Feeds p_ticks thread ticks, one resource sample per five ticks and one
+// memory-map sample per ten ticks, through
 // Ingest like the main loop does. Each tick is drained after its last chunk,
 // so the Monitor joins all the chunks of the tick.
 void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
@@ -298,6 +335,15 @@ void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
                 "resource datagram");
       }
     }
+    if (sequence % 10 == 0)
+    {
+      for (const auto& part : MemorySample(sequence))
+      {
+        Counter counter{p_totals.memory_};
+        Require(p_ingest.Handle(part, peer, now).has_value(),
+                "memory-map datagram");
+      }
+    }
     {
       Counter counter{p_totals.flush_};
       Require(p_storage.Flush(now).has_value(), "flush");
@@ -321,7 +367,8 @@ std::size_t Measure(bool p_store_raw)
   StorageSink sink{storage};
   Monitor monitor{config, 1'700'000'000, sink};
   ResourceMonitor resources{sink};
-  Ingest ingest{std::nullopt, monitor, resources, storage, sink};
+  MemoryMonitor memory;
+  Ingest ingest{std::nullopt, monitor, resources, memory, storage, sink};
 
   // Warm-up covers startup: the first session, every thread, the first
   // windows and the first resource samples.
@@ -338,9 +385,12 @@ std::size_t Measure(bool p_store_raw)
       monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
           monitor.Snapshot(end).Find("threads")->AsArray().size() == kThreads,
       "every chunk of every tick is processed");
+  Require(memory.LayoutVersion() == 9 &&
+              memory.Layout().Find("regions")->AsArray().size() == 50,
+          "every memory-map layout is complete");
   std::printf("%s\n", p_store_raw ? "store_raw = true" : "store_raw = false");
   for (const auto* phase :
-       {&steady.threads_, &steady.resources_, &steady.flush_})
+       {&steady.threads_, &steady.resources_, &steady.memory_, &steady.flush_})
   {
     std::printf("  %-36s %zu\n", phase->name_, phase->allocations_);
   }

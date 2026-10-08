@@ -214,6 +214,7 @@ td small{display:block;color:var(--muted);font-size:11px}
 #socket-panel details,.notes details{font-size:13px;line-height:1.6;color:var(--ink-2);margin-top:12px}
 summary{cursor:pointer;color:var(--ink)}
 /* Resources */
+.region-bar{height:8px;border-radius:4px;background:var(--series-1);min-width:2px}
 .meter{display:grid;grid-template-columns:minmax(110px,34%) 1fr auto;gap:10px;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid var(--line)}
 .meter:last-child{border-bottom:0}
 .meter .track{height:8px;border-radius:4px;background:var(--raised);position:relative;overflow:hidden}
@@ -251,7 +252,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#memory-map">Memory</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -342,6 +343,22 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <p id="resource-coverage" class="socket-note"></p></div>
 </div>
 </section>
+
+<!-- The target's virtual address space. The summary comes from /api/live;
+     the layout from /api/memory-map, fetched when a new one arrives. -->
+<section id="memory-map" class="block">
+<div class="section-head"><div><h2>Memory map</h2><p id="memory-sub">The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds.</p></div></div>
+<p id="memory-empty" class="socket-empty" hidden></p>
+<div id="memory-content">
+<div id="memory-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Layout <span id="memory-region-count" class="muted" style="font-weight:400"></span></h3><p id="memory-layout-sub">Adjacent mappings of the same file or kind are joined into one region. Mapped is not resident: a region can be large and use little RAM.</p></div><label class="muted" style="font-size:13px"><input id="memory-largest" type="checkbox"> Largest first</label></div>
+<div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Region</th><th>Kind</th><th>Start</th><th class="num">Size</th><th title="Size on a log scale">Size (log)</th><th title="Union of the mappings' permissions">Perms</th><th class="num" title="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div></div>
+<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><p id="memory-notes" class="socket-note"></p></div>
+</div>
+</div>
+</section>
+
 
 <section id="threads-section" class="block">
 <div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
@@ -1182,7 +1199,7 @@ element('target-form').onsubmit=saveTarget;
 function renderReplayView(){
   const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
   for(const [name,count] of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}group.value=chosen;
-  showAlerting(Array.isArray(live.alerts));renderTop();renderOverview();renderHealth();renderThreads();renderDrawerLive();
+  showAlerting(Array.isArray(live.alerts));renderTop();renderOverview();renderMemory();renderHealth();renderThreads();renderDrawerLive();
 }
 function replayControls(){const historical=replayAt!==null;
   element('replay-live').setAttribute('aria-pressed',String(!historical));
@@ -1237,6 +1254,61 @@ element('replay-live').onclick=returnLive;
 element('replay-time').value=localInput(Date.now());
 loadReplayBounds();
 
+// ---------- Memory map ----------
+// The summary comes from live.memory. The layout is the latest complete one
+// from /api/memory-map. live.memory.layout_id names the sample the layout
+// came from, so it stays valid across collector restarts. The layout is
+// fetched when that id changes, and again on later polls until it loads.
+let memoryLayout=null,memoryLayoutLoading=false,memoryRenderedLayout;
+async function refreshMemoryLayout(){memoryLayoutLoading=true;
+  try{const response=await fetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){memoryLayout=layout;if(live.health)renderMemory()}}}
+  catch{}finally{memoryLayoutLoading=false}}
+// The loaded layout when it belongs to the summary's session and process:
+// a newer layout of the same session is still being fetched, so the older
+// one stays on screen until then.
+function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
+  return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
+function microseconds(value){return isNum(value)?(value>=1000?number(value/1000,1)+' ms':value+' µs'):'—'}
+function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',heap:'[heap]',stack:'[stack]'}[region.kind]??'')}
+function renderMemory(){const m=live.memory,empty=element('memory-empty'),content=element('memory-content');
+  if(!m||!m.available){empty.hidden=false;content.hidden=true;empty.textContent=m?.reason||'This collector does not report memory-map samples.';return}
+  empty.hidden=true;content.hidden=false;
+  const historical=replayAt!==null;
+  if(!historical&&m.layout_id&&memoryLayout?.id!==m.layout_id&&!memoryLayoutLoading)refreshMemoryLayout();
+  const layout=historical?memoryLayout:memoryLayoutFor(m);
+  const v=m.values||{},now=viewNow(),flags=m.flags||{};
+  element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
+  const tiles=[['Address space',bytes(v.vm_size_bytes),`peak ${bytes(v.vm_peak_bytes)} · data ${bytes(v.vm_data_bytes)}`],
+    ['Mappings (VMAs)',isNum(v.vma_count)?String(v.vma_count):'—',isNum(v.max_map_count)&&isNum(v.vma_count)?`${pct(100*v.vma_count/v.max_map_count)} of max_map_count ${v.max_map_count}`:'limit unknown'],
+    ['Page tables',bytes(v.vm_pte_bytes),`locked ${bytes(v.vm_locked_bytes)}`],
+    ['Page faults',isNum(v.major_faults)?number(v.major_faults,0)+' major':'—',`${number(v.minor_faults,0)} minor, since start`],
+    ['Longest maps read',microseconds(v.maps_read_max_us),`${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} in total; one read holds the target's memory-map lock once`]];
+  const host=element('memory-tiles');host.replaceChildren();
+  for(const [label,value,sub] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'));host.append(tile)}
+  const regions=layout?layout.regions:[],stack=regions.find(region=>region.kind==='stack');
+  const limits=element('memory-limits');limits.replaceChildren();
+  limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
+  limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${bytes(v.vm_size_bytes)} / ${bytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,bytes(v.vm_size_bytes)));
+  if(stack)limits.append(isNum(v.stack_limit_bytes)?meter('Main stack','RLIMIT_STACK; the [stack] mapping',stack.size,v.stack_limit_bytes,`${bytes(stack.size)} / ${bytes(v.stack_limit_bytes)}`):meter('Main stack','no RLIMIT_STACK limit',null,0,bytes(stack.size)));
+  const notes=[];
+  if(flags.maps_hidden)notes.push('The sampler cannot read /proc/PID/maps: run it as the target\'s user. The target may also be non-dumpable.');
+  if(flags.maps_partial)notes.push('The last read of /proc/PID/maps stopped early, for example because the target exited.');
+  if(layout?.flags?.regions_truncated)notes.push(`Only the first ${regions.length} regions are shown; the rest are counted in the mapping total.`);
+  if(replayAt!==null)notes.push('Historical view: the layout below is the latest one, not the one at the replay time.');
+  element('memory-notes').textContent=notes.join(' ');
+  element('memory-region-count').textContent=layout?`${regions.length} regions · updated ${ago(Date.now()/1000-layout.updated)}`:'';
+  // Rebuild the table only for another layout; a poll changes nothing in it.
+  if(layout!==memoryRenderedLayout&&!element('memory-regions').matches(':hover')){memoryRenderedLayout=layout;renderMemoryRegions(regions)}}
+function renderMemoryRegions(regions){const body=element('memory-regions');body.replaceChildren();
+  if(!regions.length){const row=node('tr'),cell=node('td','No layout yet. It arrives with the next memory-map sample.');cell.colSpan=7;row.append(cell);body.append(row);return}
+  const sorted=element('memory-largest').checked?regions.slice().sort((a,b)=>b.size-a.size):regions;
+  const largest=Math.log2(Math.max(...regions.map(region=>region.size)));
+  for(const region of sorted){const row=node('tr'),name=node('td',memoryRegionName(region));name.title=region.name;
+    const bar=node('div',undefined,'region-bar');bar.style.width=Math.max(1,100*(Math.log2(region.size)-11)/Math.max(1,largest-11))+'%';
+    const barCell=node('td');barCell.style.minWidth='90px';barCell.append(bar);
+    row.append(name,node('td',region.kind),node('td',region.start,'mono'),node('td',bytes(region.size),'num'),barCell,node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(row)}}
+element('memory-largest').onchange=()=>renderMemoryRegions(memoryRenderedLayout?.regions||[]);
+
 // ---------- Main loop ----------
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
@@ -1254,7 +1326,7 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
     for(const [name,count] of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}
     group.value=chosen;
-    renderTop();renderOverview();renderResources();renderHealth();if(!element('threads-live').matches(':hover'))renderThreads();renderDrawerLive();
+    renderTop();renderOverview();renderResources();renderMemory();renderHealth();if(!element('threads-live').matches(':hover'))renderThreads();renderDrawerLive();
     events('alerts',live.alerts||[]);events('recent',live.recent_alerts||[]);
     if(!selected&&location.hash.startsWith('#thread=')){const thread=(live.threads||[]).find(item=>item.tid===Number(location.hash.slice(8)));if(thread)openThread(thread)}}
   catch(error){if(replayAt!==null)return;element('error').textContent='⚠ Collector unavailable. Displayed data is stale.';element('live-dot').className='status-dot critical'}
