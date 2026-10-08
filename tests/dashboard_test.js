@@ -644,6 +644,16 @@ test('help topics keep metric denominators separate and all related links resolv
   assert.ok(!/\stitle=/.test(html.split('<script>')[0]), 'native title tooltips must not bypass the delay');
 });
 
+test('every help name selects exactly one topic', () => {
+  const app = dashboard();
+  const clashes = app.run(`Object.values(HELP).flatMap(t=>[t.title,...t.aliases]
+    .filter(name=>helpNames.get(name.toLowerCase())!==t.id).map(name=>name+': '+t.id+' vs '+helpNames.get(name.toLowerCase())))`);
+  assert.deepEqual([...clashes], []);
+  for (const name of ['Now', 'Total', 'In range', 'Drops', 'Time', '5 min', '15 min'])
+    assert.equal(app.run(`topicForText(${JSON.stringify(name)})`), undefined, `${name} is too generic for a global alias`);
+  assert.equal(app.run("topicForText('Thread map time window')"), 'map');
+});
+
 test('Escape stays suppressed while keyboard focus remains on its trigger', () => {
   const app = helpClock();
   app.run("dwell.request('cpu','CPU')");app.advance(1200);
