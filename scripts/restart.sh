@@ -22,6 +22,7 @@ case "$app" in
 esac
 
 bin="$bin_dir/triangulator-$app"
+# A fresh build in a checkout; the installed binary is what actually runs.
 source_bin="$root/build/triangulator-$app"
 [[ -f "$root/Makefile" ]] || source_bin="$bin"
 user_id="$(id -u)"

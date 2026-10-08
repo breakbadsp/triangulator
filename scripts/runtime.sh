@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Shared runtime paths. Source this after setting the repository root.
+# Shared runtime paths. Source this after setting $root to the directory that
+# holds scripts/ (a repository checkout, or the installed runtime directory).
+# Sets: runtime_dir (TRIANGULATOR_HOME, default ~/triangulator), config_dir,
+# run_dir (pidfiles), log_dir, bin_dir and template_dir (where the default
+# configs come from: config/ in a checkout, templates/ once installed).
 runtime_dir="$(realpath -m "${TRIANGULATOR_HOME:-$HOME/triangulator}")"
 export TRIANGULATOR_HOME="$runtime_dir"
 config_dir="$runtime_dir/config"
@@ -9,7 +13,11 @@ bin_dir="$runtime_dir/bin"
 template_dir="$root/config"
 [[ -f "$root/Makefile" ]] || template_dir="$root/templates"
 
-# Replace binaries atomically so running programs keep their current image.
+# Copy the named program, its control scripts, and (from a checkout) the
+# templates and service files into the runtime directory. Each file is copied
+# to a temporary name and renamed, so a running program keeps its old image and
+# a failed copy never leaves a half-written file. Without a Makefile we are
+# already running from the runtime directory and the copies are skipped.
 install_runtime_binary() {
     local app="$1" source="$root/build/triangulator-$1" destination="$bin_dir/triangulator-$1"
     [[ -x "$source" ]] || source="$root/bin/triangulator-$app"

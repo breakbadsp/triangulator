@@ -25,7 +25,8 @@ fi
 pid="$(<"$pidfile")"
 [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo "invalid pidfile: $pidfile" >&2; exit 1; }
 if kill -0 "$pid" 2>/dev/null; then
-    executable="$(readlink "/proc/$pid/exe")"
+    # Never signal a recycled PID that now belongs to another program.
+    executable="$(readlink "/proc/$pid/exe" 2>/dev/null || true)"
     [[ "${executable% (deleted)}" == "$bin_dir/triangulator-$app" ||
        "${executable% (deleted)}" == "$root/build/triangulator-$app" ]] || {
         echo "$pidfile points to another program; refusing to signal it" >&2

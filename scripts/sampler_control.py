@@ -200,6 +200,7 @@ def update_config(root, pattern, setting, collector_endpoint=None):
         if collector_endpoint is not None:
             require_local_collector(config, collector_endpoint)
         examples = (root / "config").resolve()
+        # Only a checkout (it has build/) has tracked example configs to protect.
         if (root / "build").is_dir() and config.is_relative_to(examples) and \
                 not config.is_relative_to(examples / "local"):
             raise ControlError(
