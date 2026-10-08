@@ -24,13 +24,16 @@ esac
 bin="$bin_dir/triangulator-$app"
 source_bin="$root/build/triangulator-$app"
 [[ -f "$root/Makefile" ]] || source_bin="$bin"
+user_id="$(id -u)"
 
 # PIDs of this checkout's build of $app run by this user. The pidfile can be
 # missing (deleted, or started by hand), so look at what is actually running.
 running_pids() {
-    local pid exe
-    # The kernel truncates process names to 15 bytes.
-    for pid in $(pgrep -u "$(id -u)" -x "$(printf %.15s "triangulator-$app")" || true); do
+    local process pid exe owner
+    for process in /proc/[0-9]*; do
+        pid="${process##*/}"
+        owner="$(stat -c %u "$process" 2>/dev/null)" || continue
+        [[ "$owner" == "$user_id" ]] || continue
         # After a rebuild the running binary shows as "<path> (deleted)".
         exe="$(readlink "/proc/$pid/exe" 2>/dev/null)" || continue
         [[ "${exe% (deleted)}" == "$bin" || "${exe% (deleted)}" == "$source_bin" ]] && echo "$pid"
@@ -75,16 +78,18 @@ fi
 # changing anything. Its /proc/PID/exe is unreadable, but the command line is
 # public. A relative config path cannot be resolved, so it counts as a match.
 foreign=""
-for candidate in $(pgrep -x "$(printf %.15s "triangulator-$app")" || true); do
-    [[ "$(stat -c %u "/proc/$candidate")" == "$(id -u)" ]] && continue
+for process in /proc/[0-9]*; do
+    candidate="${process##*/}"
+    owner="$(stat -c %u "$process" 2>/dev/null)" || continue
+    [[ "$owner" == "$user_id" ]] && continue
+    [[ -r "$process/cmdline" ]] || continue
     mapfile -t args < <(tr '\0' '\n' <"/proc/$candidate/cmdline")
     [[ "${args[0]:-}" == "$bin" || "${args[0]:-}" == "$source_bin" ]] || continue
     [[ "${args[1]:-}" == /* && "$(realpath -m "${args[1]}")" != "$config" ]] && continue
     foreign+=" $candidate"
 done
 if [[ -n "$foreign" ]]; then
-    for candidate in $foreign; do ps -o pid=,user=,args= -p "$candidate" | sed 's/^/  /' >&2; done
-    echo "$app is running as another user with this config (above); stop it first, e.g. sudo kill${foreign}," >&2
+    echo "$app is running as another user with this config (PIDs:${foreign}); stop it first, e.g. sudo kill${foreign}," >&2
     echo "then run $0 again as $(id -un) to restart it without extra privileges." >&2
     exit 1
 fi
