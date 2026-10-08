@@ -1,5 +1,6 @@
 // Checks the TigerStyle memory rule for the sampler: after startup, sampling
-// allocates no heap memory. The Makefile links this test statically with
+// (threads, resources and the memory map) allocates no heap memory. The
+// Makefile links this test statically with
 // --wrap=malloc,--wrap=calloc,--wrap=realloc. Every one of those calls then
 // goes through the wrappers below, including calls from the C++ library
 // (operator new) and from libc functions such as opendir.
@@ -10,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
 
@@ -84,6 +86,7 @@ int main()
   ThreadCache kept{1024};
   ThreadCache reopened{ThreadCache::kReservedDescriptors};
   ResourceProbe probe;
+  MemoryProbe memory;
   RateLimitedLogger logger;
 
   // Sampling, for several ticks.
@@ -112,6 +115,12 @@ int main()
                 resource_wire::HasFlag(sample.flags_,
                                        resource_wire::Flags::SocketsTruncated),
             "resource sample keeps the fullest sockets");
+    // A memory-map sample split over two calls, as over two ticks.
+    memory.Start(pid);
+    Require(!memory.Continue(Nanoseconds{0}), "memory-map read deferred");
+    const auto layout = memory.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
+    Require(layout && layout->summary_[memory_wire::Field("vma_count")] > 0,
+            "memory-map sample");
     logger.Warn("allocation test tick {}: warning text uses fixed storage",
                 tick);
   }

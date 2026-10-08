@@ -35,6 +35,9 @@ struct Config
   // Seconds between resource samples (pressure, descriptors, sockets); 0
   // turns them off.
   int resource_interval_s_ = 5;
+  // Seconds between memory-map samples (/proc/PID/maps and the summary
+  // files); 0, the default, turns them off.
+  int memory_interval_s_ = 0;
 
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {
@@ -53,7 +56,7 @@ struct Config
 {
   Config config;
   bool target_set = false;
-  std::array<std::string_view, 6> keys{};
+  std::array<std::string_view, 7> keys{};
   std::size_t key_count = 0;
   while (!p_contents.empty())
   {
@@ -171,6 +174,16 @@ struct Config
             "resource_interval_s must be 0 (off) or 1..60 seconds");
       }
       config.resource_interval_s_ = *seconds;
+    }
+    else if (key == "memory_interval_s")
+    {
+      const auto seconds = ParseNumber<int>(value);
+      if (!seconds || *seconds < 0 || *seconds > 3600)
+      {
+        return std::unexpected(
+            "memory_interval_s must be 0 (off) or 1..3600 seconds");
+      }
+      config.memory_interval_s_ = *seconds;
     }
     else
     {

@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "memory.hpp"
 #include "proc.hpp"
 #include "resources.hpp"
 
@@ -178,16 +179,127 @@ class Sampler
     // Resource samples ride on thread ticks. Half a tick of slack keeps
     // wake-up jitter from pushing one to the following tick.
     const auto resource_interval = ResourceInterval();
-    if (p_target && resource_interval > Nanoseconds{0} &&
-        monotonic + config_.settings_.Interval() / 2 >= next_resources_)
+    const bool resources_due =
+        p_target && resource_interval > Nanoseconds{0} &&
+        monotonic + config_.settings_.Interval() / 2 >= next_resources_;
+    if (resources_due)
     {
       SendResources(*p_target);
-      next_resources_ = next_resources_ == Nanoseconds{0} ||
-                                monotonic - next_resources_ >= resource_interval
-                            ? monotonic + resource_interval
-                            : next_resources_ + resource_interval;
+      next_resources_ =
+          NextDeadline(next_resources_, monotonic, resource_interval);
+    }
+    // A tick that sent resources leaves the memory map to the next tick,
+    // so one tick does not carry both. It waits one tick at most: when
+    // every tick sends resources, the memory map still gets every other.
+    if (p_target && (!resources_due || memory_deferred_))
+    {
+      memory_deferred_ = false;
+      StepMemory(*p_target, monotonic);
+    }
+    else
+    {
+      memory_deferred_ = resources_due;
     }
     return {};
+  }
+
+  // The next deadline of a periodic task that ran at p_now: one interval
+  // after the previous deadline, or after p_now when the task fell behind
+  // or runs for the first time.
+  [[nodiscard]] static Nanoseconds NextDeadline(Nanoseconds p_previous,
+                                                Nanoseconds p_now,
+                                                Nanoseconds p_interval)
+  {
+    return p_previous == Nanoseconds{0} || p_now - p_previous >= p_interval
+               ? p_now + p_interval
+               : p_previous + p_interval;
+  }
+
+  // Time between memory-map samples, as for ResourceInterval().
+  [[nodiscard]] Nanoseconds MemoryInterval() const noexcept
+  {
+    const auto seconds = config_.settings_.memory_interval_s_;
+    if (seconds == 0)
+    {
+      return Nanoseconds{0};
+    }
+    return std::max<Nanoseconds>(std::chrono::seconds{seconds},
+                                 config_.settings_.Interval());
+  }
+
+  // Starts a memory-map sample when one is due, and reads more of maps in
+  // the time left in this tick. A large target's maps can take several
+  // ticks; thread ticks stay on time.
+  void StepMemory(const TargetIdentity& p_target, Nanoseconds p_monotonic)
+  {
+    const auto interval = MemoryInterval();
+    if (interval == Nanoseconds{0})
+    {
+      return;
+    }
+    const auto tick = config_.settings_.Interval();
+    if (!memory_.Busy())
+    {
+      if (p_monotonic + tick / 2 < next_memory_)
+      {
+        return;
+      }
+      memory_.Start(p_target.pid_);
+      next_memory_ = NextDeadline(next_memory_, p_monotonic, interval);
+    }
+    // A quarter of a tick, at most 50 ms: the rest of the tick stays free
+    // for the sleep before the next thread sample.
+    const auto budget = std::min<Nanoseconds>(tick / 4, 50ms);
+    if (const auto sample =
+            memory_.Continue(ClockNow(CLOCK_MONOTONIC) + budget))
+    {
+      SendMemory(p_target, *sample);
+    }
+  }
+
+  // Sends one memory-map sample: the summary, then the layout regions when
+  // the sample has them.
+  void SendMemory(const TargetIdentity& p_target, const MemorySample& p_sample)
+  {
+    const auto monotonic = ClockNow(CLOCK_MONOTONIC);
+    const auto wall = ClockNow(CLOCK_REALTIME);
+    const memory_wire::Header header{
+        .parts_ = memory_wire::PartCount(p_sample.regions_.size()),
+        .session_ = session_,
+        .sequence_ = memory_sequence_++,
+        .monotonic_ns_ = static_cast<std::uint64_t>(monotonic.count()),
+        .wall_ns_ = static_cast<std::uint64_t>(wall.count()),
+        .interval_ms_ = static_cast<std::uint32_t>(
+            std::chrono::round<std::chrono::milliseconds>(MemoryInterval())
+                .count()),
+        .pid_ = static_cast<std::uint32_t>(p_target.pid_),
+        .process_start_ = p_target.starttime_,
+        .flags_ = p_sample.flags_,
+    };
+    SendPart(std::span{memory_packet_}.first(memory_wire::EncodeSummary(
+                 memory_packet_, header, p_sample.summary_)),
+             "memory-map sample");
+    for (std::uint8_t part = 1; part < header.parts_; ++part)
+    {
+      SendPart(std::span{memory_packet_}.first(memory_wire::EncodeRegions(
+                   memory_packet_, header, p_sample.regions_, part)),
+               "memory-map sample");
+    }
+  }
+
+  // Sends one datagram of a slow-rate sample. A full socket buffer drops it
+  // quietly, like a lost datagram.
+  void SendPart(std::span<const std::byte> p_bytes, std::string_view p_what)
+  {
+    const auto& endpoint = config_.endpoint_;
+    if (::sendto(endpoint.socket_.Get(), p_bytes.data(), p_bytes.size(),
+                 MSG_DONTWAIT,
+                 reinterpret_cast<const sockaddr*>(&endpoint.address_),
+                 endpoint.address_length_) < 0 &&
+        errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOBUFS)
+    {
+      logger_.Warn("UDP send failed; {} dropped", p_what);
+    }
   }
 
   // Time between resource samples: the configured interval, but never less
@@ -225,15 +337,7 @@ class Sampler
     };
     const auto send = [this](std::size_t p_length)
     {
-      const auto& endpoint = config_.endpoint_;
-      if (::sendto(endpoint.socket_.Get(), resource_packet_.data(), p_length,
-                   MSG_DONTWAIT,
-                   reinterpret_cast<const sockaddr*>(&endpoint.address_),
-                   endpoint.address_length_) < 0 &&
-          errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOBUFS)
-      {
-        logger_.Warn("UDP send failed; resource sample dropped");
-      }
+      SendPart(std::span{resource_packet_}.first(p_length), "resource sample");
     };
     send(resource_wire::EncodeSummary(resource_packet_, header, sample.summary_,
                                       sample.cgroup_));
@@ -257,6 +361,9 @@ class Sampler
     sequence_ = 0;
     resource_sequence_ = 0;
     next_resources_ = Nanoseconds{0};  // a new session samples at once
+    memory_.Reset();
+    memory_sequence_ = 0;
+    next_memory_ = Nanoseconds{0};
     return {};
   }
 
@@ -335,6 +442,11 @@ class Sampler
   std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
   std::uint32_t resource_sequence_ = 0;
   Nanoseconds next_resources_{0};
+  MemoryProbe memory_;
+  std::array<std::byte, memory_wire::kMaxPartSize> memory_packet_{};
+  std::uint32_t memory_sequence_ = 0;
+  Nanoseconds next_memory_{0};
+  bool memory_deferred_ = false;
 };
 
 }  // namespace
