@@ -550,3 +550,43 @@ test('returning from replay discards CPU history from an earlier live session', 
   assert.equal(app.run('threadCpu.get(1)[0].t'), 2100);
   assert.equal(app.run('buffer.length'), 1);
 });
+
+test('memory map rows join neighbours, shorten gaps and stay few', () => {
+  const app = dashboard();
+  const region = (start, size, kind, permissions, name = '') =>
+    ({start: '0x' + start.toString(16), end: '0x' + (start + size).toString(16), size, vmas: 1, kind, permissions, name});
+  const layout = {regions: [
+    region(0x555500000000, 0x200000, 'file', 'r-xp', '/usr/bin/app'),
+    region(0x555500400000, 0x800000, 'heap', 'rw-p'),
+    region(0x7f0000000000, 0x100000, 'file', 'r-xp', '/usr/lib/libc.so.6'),
+    region(0x7f0000100000, 0x1000, 'anonymous', 'rw-p'),
+    region(0x7f0000101000, 0x100000, 'file', 'r-xp', '/usr/lib/libm.so.6'),
+    region(0x7ffc00000000, 0x21000, 'stack', 'rw-p'),
+    // Above 2^53: the addresses must not lose precision.
+    {start: '0xffffffffff600000', end: '0xffffffffff601000', size: 0x1000, vmas: 1, kind: 'kernel', permissions: '--xp', name: '[vsyscall]'},
+  ]};
+  const rows = app.run(`memoryRows(memoryRegions(${JSON.stringify(layout)})).map(row=>row.gap?'gap':memoryRowName(row))`);
+  assert.deepEqual([...rows], ['[vsyscall]', 'gap', '[stack]', 'gap', 'libc, libm (2 libraries)', 'gap', '[heap]', 'app (program image)']);
+
+  // Hundreds of small anonymous runs between gaps merge down to the cap.
+  const many = {regions: Array.from({length: 300}, (_, index) =>
+    region(0x100000000000 + index * 0x80000000, 0x100000, index % 2 ? 'file' : 'anonymous', 'rw-p', index % 2 ? '/data/f' + index : '[anon:gc]'))};
+  const count = app.run(`memoryRows(memoryRegions(${JSON.stringify(many)})).filter(row=>!row.gap).length`);
+  assert.ok(count <= 18, String(count));
+});
+
+test('memory findings flag mapping limits, deleted libraries and the main stack', () => {
+  const app = dashboard();
+  const summary = {available: true, pid: 1, updated: 1, values: {vma_count: 950, max_map_count: 1000, stack_limit_bytes: 8 << 20}};
+  const layout = {regions: [
+    {start: '0x7f0000000000', end: '0x7f0000100000', size: 0x100000, vmas: 3, kind: 'file', permissions: 'r-xp', name: '/usr/lib/libssl.so.3 (deleted)'},
+    {start: '0x7ffc00000000', end: '0x7ffc00700000', size: 0x700000, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''},
+  ]};
+  app.run('live={health:{session:"s"},threads:[]}');
+  const findings = app.run(`(()=>{const regions=memoryRegions(${JSON.stringify(layout)});return assessMemory(${JSON.stringify(summary)},regions,memoryRows(regions)).map(item=>item.level+': '+item.title)})()`);
+  assert.deepEqual([...findings], [
+    'critical: Mapping count is close to the limit',
+    'warning: Main stack is at 87.5% of its limit',
+    'info: Library replaced on disk',
+  ]);
+});
