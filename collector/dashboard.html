@@ -730,9 +730,10 @@ function refreshHelp(){
 function guideSection(title,text,className){const section=node('section',undefined,className);section.append(node('h3',title),node('p',text));return section}
 function helpDataTable(chart){
   const details=node('details'),summary=node('summary','View chart data');details.append(summary);
-  // Keep the same snapshot while the guide is open; build rows only on request.
-  const data=chart._helpData();
+  // The chart does not redraw while its guide is open, so rows built on
+  // expansion match the drawn chart.
   details.addEventListener('toggle',()=>{if(!details.open||details.dataset.loaded)return;details.dataset.loaded='1';
+    const data=chart._helpData();
     const wrap=node('div',undefined,'help-data'),table=node('table'),head=node('thead'),header=node('tr');
     for(const label of data.headers)header.append(node('th',label));head.append(header);table.append(head);const body=node('tbody');
     if(!data.rows.length)details.append(node('p','No chart samples are available in this view.'));
