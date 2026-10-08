@@ -48,7 +48,7 @@ button:disabled{cursor:wait;opacity:.6}
 .status-dot.warning{background:var(--warning)}
 @keyframes pulse{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.status-dot.live{animation:none}}
-nav.tabs{display:flex;gap:2px;margin-left:auto}
+nav.tabs{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto}
 nav.tabs a{color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:8px}
 nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 .icon-btn{padding:6px 9px;line-height:1}
@@ -57,7 +57,7 @@ nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 
 main{max-width:1480px;margin:auto;padding:20px 24px 60px}
 section.block{margin-top:30px}
-.section-separator{margin:30px 0;border:0;border-top:1px solid var(--line)}
+.section-separator{margin:32px 0 0;border:0;border-top:1px solid var(--line)}
 /* The socket panel is hidden when inspecting a past moment; drop its line too. */
 .section-separator:has(+ [hidden]){display:none}
 .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -318,7 +318,7 @@ tr.zero td{color:var(--muted)}
 .notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
 kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
-@media (max-width:640px){main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
+@media (max-width:640px){html{scroll-padding-top:16px}.topbar{position:static}.mem-charts{grid-template-columns:minmax(0,1fr)}main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
 </style>
 </head>
 <body>
@@ -326,7 +326,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" data-help="target" data-hint="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#memory-map">Memory</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" data-hint="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -344,21 +344,11 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <!-- Whole-process view. Everything here is summed from /api/live in the
      browser and kept for the last 15 minutes; nothing new is sent by the
      sampler or stored by the collector. -->
-<section class="card" aria-label="Historical inspection" style="margin-bottom:20px">
-<div class="section-head"><div><h2>Inspect a moment</h2><p>Choose a local date and time to inspect the recorded process and every thread.</p></div><button id="replay-live" aria-pressed="true">Live</button></div>
-<div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-<input id="replay-time" type="datetime-local" step="0.001" aria-label="Inspection time">
-<button id="replay-open" class="primary">Inspect time</button>
-<button id="replay-previous" disabled aria-label="Previous recorded snapshot">← Previous</button>
-<button id="replay-next" disabled aria-label="Next recorded snapshot">Next →</button>
-<button id="replay-latest">Latest recording</button>
-</div>
-<p id="replay-note" class="muted" role="status">Live view. Recordings begin when this collector receives a sampler session.</p>
-<p id="replay-bounds" class="muted" style="font-size:12px"></p>
-</section>
 <section id="overview" class="block" style="margin-top:8px">
-<div class="section-head"><div><h2>Process overview</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
+<div class="section-head"><div><h2>Summary</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
 <div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
+
+<div id="tiles" class="tiles" style="margin-bottom:14px"></div>
 
 <div class="grid g-hero">
 <div class="card">
@@ -375,8 +365,26 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </div>
 
-<div id="tiles" class="tiles" style="margin-top:14px"></div>
+<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
 
+<section class="card" aria-label="Historical inspection" style="margin-top:14px">
+<div class="section-head"><div><h2>Inspect a moment</h2><p>Choose a local date and time to inspect the recorded process and every thread.</p></div><button id="replay-live" aria-pressed="true">Live</button></div>
+<div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<input id="replay-time" type="datetime-local" step="0.001" aria-label="Inspection time">
+<button id="replay-open" class="primary">Inspect time</button>
+<button id="replay-previous" disabled aria-label="Previous recorded snapshot">← Previous</button>
+<button id="replay-next" disabled aria-label="Next recorded snapshot">Next →</button>
+<button id="replay-latest">Latest recording</button>
+</div>
+<p id="replay-note" class="muted" role="status">Live view. Recordings begin when this collector receives a sampler session.</p>
+<p id="replay-bounds" class="muted" style="font-size:12px"></p>
+</section>
+
+</section>
+
+<hr class="section-separator" aria-hidden="true">
+<section id="threads-section" class="block">
+<div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
 <div class="grid g-2-1" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>What the threads are doing</h3><p>Thread count by latest state, stacked. Hover to read a moment.</p></div></div><div id="chart-states" class="chart"></div><div id="states-legend" class="legend"></div></div>
 <div class="card"><div class="card-head"><div><h3>Where threads wait</h3><p>Kernel wait channels right now. Click to filter the thread table.</p></div></div><div id="wchan-bars" class="bars"></div></div>
@@ -387,9 +395,26 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="card"><div class="card-head"><div><h3>Where the CPU goes</h3><p id="family-sub">Process CPU by thread family (name without its number).</p></div><select id="family-mode" aria-label="Group CPU by"><option value="family">Name family</option><option value="group">Config group</option><option value="thread">Thread</option></select></div><div id="family-bars" class="bars"></div></div>
 </div>
 
-<div class="grid g-1-1" style="margin-top:14px">
+<div class="grid" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>Core placement</h3><p>CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.</p></div></div><div id="cores" class="cores"></div><div class="core-base"></div><div id="cores-scale" class="muted" style="font-size:12px;margin-top:6px"></div></div>
-<div class="card" id="monitor"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
+
+</div>
+
+<div id="thread-details" class="card" style="margin-top:14px">
+<div class="card-head"><h3>Thread details</h3></div>
+<div class="toolbar">
+<div class="seg" role="group" aria-label="Which threads to show"><button data-activity="active" aria-pressed="true">Active <span id="n-active" class="muted"></span></button><button data-activity="idle" aria-pressed="false">Idle <span id="n-idle" class="muted"></span></button><button data-activity="all" aria-pressed="false">All <span id="n-all" class="muted"></span></button></div>
+<input id="search" type="search" placeholder="Thread name, TID or wait channel" aria-label="Find thread">
+<label>Group <select id="group"><option value="">All groups</option></select></label>
+<label>Sort <select id="sort"><option value="cpu_pct">CPU</option><option value="run_delay_pct">Run delay</option><option value="switches_per_s">Switches/s</option><option value="io">I/O</option><option value="major_faults_per_s">Major faults/s</option><option value="tid">TID</option><option value="name">Name</option></select></label>
+<button id="clear-filters">Clear filters</button>
+</div>
+<div id="threads-live">
+<div class="chips-title">State / block type</div><div id="state-chips" class="chips"></div>
+<div class="chips-title">Wait channel <span style="text-transform:none;letter-spacing:0">(kernel function the thread is blocked in)</span></div><div id="wchan-chips" class="chips"></div>
+<p id="idle-summary" class="muted" style="margin:0 0 8px;font-size:13px"></p>
+<div class="table-wrap"><table><thead><tr><th data-sort="name" data-hint="Thread name (comm) and thread ID">Thread</th><th data-hint="Thread group from the collector config">Group</th><th data-hint="Most recent scheduler state and the kernel function it is waiting in (wchan)">State / wait channel</th><th data-hint="Thread states over the last ~10 seconds">Last ~10 s</th><th data-sort="cpu_pct" class="num" data-hint="CPU time used, as a share of one core; the line shows the last two minutes">CPU</th><th data-sort="run_delay_pct" class="num" data-hint="Time spent runnable but waiting for a CPU">Run delay</th><th data-sort="switches_per_s" class="num" data-hint="Context switches per second">Switches/s</th><th data-sort="io" class="num" data-hint="Bytes read per second">Read/s</th><th data-sort="io" class="num" data-hint="Bytes written per second">Write/s</th><th data-sort="major_faults_per_s" class="num" data-hint="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" data-hint="CPU core the thread last ran on">Core</th></tr></thead><tbody id="threads"></tbody></table></div>
+</div>
 </div>
 </section>
 
@@ -417,6 +442,29 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" data-hint="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th data-hint="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" data-hint="Bytes not yet sent or acknowledged">Send-Q</th><th data-hint="Send buffer use">Send buffer</th><th class="num" data-hint="Packets this socket dropped; + in the last interval">Drops</th><th class="num" data-hint="Smoothed round-trip time">RTT</th><th class="num" data-hint="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
 <p id="resource-coverage" class="socket-note"></p></div>
 </div>
+</section>
+
+<hr class="section-separator" aria-hidden="true">
+<section id="socket-panel" class="block card" aria-labelledby="socket-title">
+<div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
+<p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
+<div id="socket-empty" class="socket-empty" hidden></div>
+<div id="socket-content" hidden>
+<div class="socket-controls" role="group" aria-label="Socket metric">
+<div class="seg"><button data-socket-metric="input" aria-pressed="true">↓ Received</button><button data-socket-metric="output" aria-pressed="false">↑ Sent</button><button data-socket-metric="messages" aria-pressed="false">✓ Messages processed</button></div>
+<label>Socket kind <select id="socket-kind"><option value="">All kinds</option></select></label>
+<label>Thread <input id="socket-search" placeholder="Name or TID" aria-label="Find socket thread"></label>
+</div>
+<p id="socket-metric-note" class="socket-note"></p>
+<div id="socket-cards" class="tiles" style="margin:12px 0"></div>
+<div id="socket-chart" class="chart" role="img" aria-label="Recent process-wide rate history"></div>
+<div class="socket-chart-caption"><span>Recent process rate · gaps mean unknown</span><span id="socket-chart-scale"></span></div>
+<h3 style="margin-top:20px">By thread and socket kind <span id="socket-row-count" class="muted"></span></h3>
+<p class="socket-note">Includes retired threads. Filters apply to this breakdown; cards and chart show the whole process.</p>
+<div class="table-wrap" style="max-height:380px"><table><thead><tr><th>Thread / TID</th><th>Socket kind</th><th class="num">Total</th><th class="num">Now /s</th><th class="num">Average /s</th><th class="num">Recent min /s</th><th class="num">Recent max /s</th></tr></thead><tbody id="socket-rows"></tbody></table></div>
+<p id="socket-coverage" class="socket-note"></p>
+</div>
+<details><summary>What is measured · setup</summary><p>Received and sent bytes are the successful byte counts reported by observed kernel socket operations. Sent means accepted by the socket, not delivered to the peer. Peeks, failed operations and UDP are excluded. A receive operation can contain part of one message or many messages.</p><p>Messages processed counts calls to an explicit application completion marker, one call per successfully processed message. It is never inferred from read calls or bytes.</p><p>Start the optional source on the target host: <code>build/triangulator-socket-sampler PID COLLECTOR-IP:PORT build/socket.bpf.o</code>. Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion counts. The source needs kernel BTF, socket length tracepoints and BPF tracing privileges. The normal sampler continues without extra privileges. See <code>docs/socket-ingress-design.md</code> for coverage and setup.</p></details>
 </section>
 
 <!-- The target's virtual address space. The summary comes from /api/live;
@@ -463,54 +511,16 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </section>
 
-
 <hr class="section-separator" aria-hidden="true">
-<section id="threads-section" class="block">
-<div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
-<div class="toolbar">
-<div class="seg" role="group" aria-label="Which threads to show"><button data-activity="active" aria-pressed="true">Active <span id="n-active" class="muted"></span></button><button data-activity="idle" aria-pressed="false">Idle <span id="n-idle" class="muted"></span></button><button data-activity="all" aria-pressed="false">All <span id="n-all" class="muted"></span></button></div>
-<input id="search" type="search" placeholder="Thread name, TID or wait channel" aria-label="Find thread">
-<label>Group <select id="group"><option value="">All groups</option></select></label>
-<label>Sort <select id="sort"><option value="cpu_pct">CPU</option><option value="run_delay_pct">Run delay</option><option value="switches_per_s">Switches/s</option><option value="io">I/O</option><option value="major_faults_per_s">Major faults/s</option><option value="tid">TID</option><option value="name">Name</option></select></label>
-<button id="clear-filters">Clear filters</button>
-</div>
-<div id="threads-live">
-<div class="chips-title">State / block type</div><div id="state-chips" class="chips"></div>
-<div class="chips-title">Wait channel <span style="text-transform:none;letter-spacing:0">(kernel function the thread is blocked in)</span></div><div id="wchan-chips" class="chips"></div>
-<p id="idle-summary" class="muted" style="margin:0 0 8px;font-size:13px"></p>
-<div class="table-wrap"><table><thead><tr><th data-sort="name" data-hint="Thread name (comm) and thread ID">Thread</th><th data-hint="Thread group from the collector config">Group</th><th data-hint="Most recent scheduler state and the kernel function it is waiting in (wchan)">State / wait channel</th><th data-hint="Thread states over the last ~10 seconds">Last ~10 s</th><th data-sort="cpu_pct" class="num" data-hint="CPU time used, as a share of one core; the line shows the last two minutes">CPU</th><th data-sort="run_delay_pct" class="num" data-hint="Time spent runnable but waiting for a CPU">Run delay</th><th data-sort="switches_per_s" class="num" data-hint="Context switches per second">Switches/s</th><th data-sort="io" class="num" data-hint="Bytes read per second">Read/s</th><th data-sort="io" class="num" data-hint="Bytes written per second">Write/s</th><th data-sort="major_faults_per_s" class="num" data-hint="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" data-hint="CPU core the thread last ran on">Core</th></tr></thead><tbody id="threads"></tbody></table></div>
-</div>
-<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
-</section>
-
-<hr class="section-separator" aria-hidden="true">
-<section id="socket-panel" class="block card" aria-labelledby="socket-title">
-<div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
-<p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
-<div id="socket-empty" class="socket-empty" hidden></div>
-<div id="socket-content" hidden>
-<div class="socket-controls" role="group" aria-label="Socket metric">
-<div class="seg"><button data-socket-metric="input" aria-pressed="true">↓ Received</button><button data-socket-metric="output" aria-pressed="false">↑ Sent</button><button data-socket-metric="messages" aria-pressed="false">✓ Messages processed</button></div>
-<label>Socket kind <select id="socket-kind"><option value="">All kinds</option></select></label>
-<label>Thread <input id="socket-search" placeholder="Name or TID" aria-label="Find socket thread"></label>
-</div>
-<p id="socket-metric-note" class="socket-note"></p>
-<div id="socket-cards" class="tiles" style="margin:12px 0"></div>
-<div id="socket-chart" class="chart" role="img" aria-label="Recent process-wide rate history"></div>
-<div class="socket-chart-caption"><span>Recent process rate · gaps mean unknown</span><span id="socket-chart-scale"></span></div>
-<h3 style="margin-top:20px">By thread and socket kind <span id="socket-row-count" class="muted"></span></h3>
-<p class="socket-note">Includes retired threads. Filters apply to this breakdown; cards and chart show the whole process.</p>
-<div class="table-wrap" style="max-height:380px"><table><thead><tr><th>Thread / TID</th><th>Socket kind</th><th class="num">Total</th><th class="num">Now /s</th><th class="num">Average /s</th><th class="num">Recent min /s</th><th class="num">Recent max /s</th></tr></thead><tbody id="socket-rows"></tbody></table></div>
-<p id="socket-coverage" class="socket-note"></p>
-</div>
-<details><summary>What is measured · setup</summary><p>Received and sent bytes are the successful byte counts reported by observed kernel socket operations. Sent means accepted by the socket, not delivered to the peer. Peeks, failed operations and UDP are excluded. A receive operation can contain part of one message or many messages.</p><p>Messages processed counts calls to an explicit application completion marker, one call per successfully processed message. It is never inferred from read calls or bytes.</p><p>Start the optional source on the target host: <code>build/triangulator-socket-sampler PID COLLECTOR-IP:PORT build/socket.bpf.o</code>. Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion counts. The source needs kernel BTF, socket length tracepoints and BPF tracing privileges. The normal sampler continues without extra privileges. See <code>docs/socket-ingress-design.md</code> for coverage and setup.</p></details>
-</section>
-
+<section id="monitor" class="block">
+<div class="section-head"><h2>Monitor</h2></div>
+<div class="card"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
 <div class="notes">
 <details hidden><summary>Recent alert events</summary><div id="recent"></div></details>
 <details><summary>Monitor diagnostics (raw health JSON)</summary><pre id="diagnostics"></pre></details>
 <details><summary>How to read this page</summary><p>Read the scope, unit, time interval, and data status before interpreting a metric. Pause over a label or value for 1.2 seconds, or select its information button.</p><button id="page-help" type="button">Open page guide</button></details>
 </div>
+</section>
 </main>
 
 <div id="scrim" class="scrim"></div>
@@ -1071,7 +1081,7 @@ function renderAssessment(threads){
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
   if(helpOwns(element('tiles')))return;
@@ -1176,14 +1186,14 @@ function renderFamilies(threads){
   let items=[...totals].map(([key,entry])=>({key,label:key,value:entry.cpu,count:entry.count})).sort((a,b)=>b.value-a.value||b.count-a.count);
   if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:'',label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0),count:rest.reduce((sum,item)=>sum+item.count,0)})}
   for(const item of items){item.sub=mode==='thread'?'':`×${item.count}`;item.tip=[{value:pct(item.value),label:'of one core'},{value:all?pct(100*item.value/all):'—',label:'of process CPU'},{value:String(item.count),label:item.count===1?'thread':'threads'}]}
-  barList(element('family-bars'),items,{format:pct,empty:'No threads reported yet.',onClick:mode==='thread'?null:item=>{if(!item.key)return;element('search').value=mode==='family'?item.key:'';if(mode==='group')element('group').value=item.key;setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}});
+  barList(element('family-bars'),items,{format:pct,empty:'No threads reported yet.',onClick:mode==='thread'?null:item=>{if(!item.key)return;element('search').value=mode==='family'?item.key:'';if(mode==='group')element('group').value=item.key;setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}});
   element('family-sub').textContent=mode==='group'?'Process CPU by thread group from the collector config.':mode==='thread'?'Process CPU by individual thread.':'Process CPU by thread family (name without its number).'}
 function renderWchans(threads){
   const counts=new Map();for(const thread of threads){if(thread.state==='running')continue;const key=thread.wchan||'—';counts.set(key,(counts.get(key)||0)+1)}
   let items=[...counts].map(([key,value])=>({key,label:key,value})).sort((a,b)=>b.value-a.value);
   if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:null,label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0)})}
   for(const item of items)item.tip=[{value:String(item.value),label:item.value===1?'thread waiting here':'threads waiting here'}];
-  barList(element('wchan-bars'),items,{format:value=>String(value),mono:true,pressed:wchanFilter,empty:'No waiting threads.',onClick:item=>{if(item.key===null)return;wchanFilter=wchanFilter===item.key?'':item.key;stateFilter='';setActivity(wchanFilter?'all':activity);renderWchans(live.threads||[]);if(wchanFilter)element('threads-section').scrollIntoView({behavior:'smooth'})}})}
+  barList(element('wchan-bars'),items,{format:value=>String(value),mono:true,pressed:wchanFilter,empty:'No waiting threads.',onClick:item=>{if(item.key===null)return;wchanFilter=wchanFilter===item.key?'':item.key;stateFilter='';setActivity(wchanFilter?'all':activity);renderWchans(live.threads||[]);if(wchanFilter)element('thread-details').scrollIntoView({behavior:'smooth'})}})}
 function renderCores(threads){
   if(helpOwns(element('cores')))return;
   const host=element('cores');host.replaceChildren();if(!threads.length){host.append(node('p','No threads reported yet.','muted'));return}
