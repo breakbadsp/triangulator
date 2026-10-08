@@ -57,6 +57,7 @@ nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 
 main{max-width:1480px;margin:auto;padding:20px 24px 60px}
 section.block{margin-top:30px}
+.section-separator{margin:30px 0;border:0;border-top:1px solid var(--line)}
 .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .section-head h2{font-size:18px;letter-spacing:-.01em}
 .section-head p{margin:3px 0 0;color:var(--muted)}
@@ -393,6 +394,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <!-- What the threads share: pressure stalls, limits, socket queues and the
      network stack. Live values come from /api/live; trends come from the
      collector's stored resource samples (/api/resources). -->
+<hr class="section-separator" aria-hidden="true">
 <section id="resources" class="block">
 <div class="section-head"><div><h2>Pressure, limits &amp; sockets</h2><p id="resources-sub">What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers.</p></div>
 <div class="seg" role="group" aria-label="Resource history range"><button data-res-range="900" aria-pressed="true">15 min</button><button data-res-range="3600" aria-pressed="false">1 h</button><button data-res-range="21600" aria-pressed="false">6 h</button><button data-res-range="86400" aria-pressed="false">24 h</button></div></div>
@@ -417,6 +419,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 
 <!-- The target's virtual address space. The summary comes from /api/live;
      the layout from /api/memory-map, fetched when a new one arrives. -->
+<hr class="section-separator" aria-hidden="true">
 <section id="memory-map" class="block">
 <div class="section-head"><div><h2>Memory map</h2><p id="memory-sub">The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds.</p></div></div>
 <p id="memory-empty" class="socket-empty" hidden></p>
@@ -459,6 +462,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </section>
 
 
+<hr class="section-separator" aria-hidden="true">
 <section id="threads-section" class="block">
 <div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
 <div class="toolbar">
@@ -477,6 +481,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
 </section>
 
+<hr class="section-separator" aria-hidden="true">
 <section id="socket-panel" class="block card" aria-labelledby="socket-title">
 <div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
 <p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
