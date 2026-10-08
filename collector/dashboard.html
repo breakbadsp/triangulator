@@ -195,10 +195,10 @@ td small{display:block;color:var(--muted);font-size:11px}
 .scrim.open{opacity:1;pointer-events:auto}
 
 /* Contextual help: shared surfaces for explanations and chart values. */
-.help-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:3px;padding:0;border:1px solid transparent;border-radius:6px;color:var(--accent-ink);background:transparent;font-size:16px;font-weight:400;vertical-align:middle;flex:none}
+.help-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:3px;padding:0;border:1px solid transparent;border-radius:6px;color:var(--accent-ink);background:transparent;font-size:16px;font-weight:400;vertical-align:middle;flex:none;position:relative}
 .help-button::before{content:'i';font:600 12px/1 Georgia,serif;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
 .help-button:hover{border-color:var(--accent-ink);background:var(--accent-wash)}
-.help-quiet{opacity:0}
+.help-quiet{opacity:0;width:20px;height:20px;margin-left:2px}
 [data-help]:hover>.help-quiet,.help-quiet:focus{opacity:1}
 @media (hover:none){.help-quiet{opacity:1}}
 #tip{position:fixed;z-index:70;width:340px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;background:var(--surface);color:var(--ink);border:1px solid var(--axis);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:16px;font-size:14px;line-height:1.5;opacity:0;transition:opacity .12s;overflow-wrap:anywhere}
@@ -234,7 +234,8 @@ td small{display:block;color:var(--muted);font-size:11px}
 @media (min-width:1200px){body.help-open{padding-right:400px}body.help-open .g-hero,body.help-open .g-2-1,body.help-open .g-1-1{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:1199px){#help-guide{inset:auto 0 0;width:100%;max-height:90dvh;border:1px solid var(--axis);border-bottom:0;border-radius:16px 16px 0 0}body.help-open{overflow:hidden}.help-guide-head{padding:16px 20px}#help-guide-body{padding:6px 20px 20px}.help-preference{padding:12px 20px}}
 @media (max-height:480px){#help-guide{overflow:auto}#help-guide-body{flex:none;overflow:visible}}
-@media (pointer:coarse){.help-button{width:44px;height:44px}.help-guide-top button,#help-back-thread{min-height:44px}.help-preference label{min-height:44px}}
+/* Touch targets grow outward so the buttons do not widen table columns. */
+@media (pointer:coarse){.help-button,.help-quiet{width:28px;height:28px}.help-button::after{content:'';position:absolute;inset:-8px}.help-guide-top button,#help-back-thread{min-height:44px}.help-preference label{min-height:44px}}
 @media (prefers-reduced-motion:reduce){#tip{transition:none}}
 
 /* Socket panel */
