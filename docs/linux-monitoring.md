@@ -28,6 +28,10 @@ whole host. The implemented sources are in `sampler/parsing.hpp` and
 - **Monitor health:** sampler last seen/silence, target present/absent, session
   changes, packet counters, estimated UDP loss, and stale thread data.
 - **History:** per-thread SQLite rollups and optional raw scheduler records.
+- **Memory-map samples** (every `memory_interval_s`, off by default, no
+  privileges): the address-space summary from `/proc/PID/status`, `stat` and
+  `limits`, and the layout from `/proc/PID/maps`. See
+  [memory-map.md](memory-map.md).
 - **Resource samples** (every `resource_interval_s`, default 5 s, no
   privileges): host and cgroup v2 pressure stall information for CPU, memory
   and I/O; open descriptors against the soft and hard limits; process-wide

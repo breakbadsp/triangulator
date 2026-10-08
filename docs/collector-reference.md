@@ -84,6 +84,11 @@ build/triangulator-collector config/local/collector.toml --check-config
   connected or silent, target, packet loss, packet counters, sample interval).
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
+  Its `memory` object is the latest memory-map summary
+  ([memory-map.md](memory-map.md)).
+- `GET /api/memory-map`: the latest complete memory-map layout: regions with
+  start and end addresses (hex strings), size, kind, permissions and mapping
+  count. Not stored; only the latest layout is kept.
 - `GET /api/history?session=…&tid=…&start=…&end=…`: one thread's summary rows
   for a time range, read from SQLite (at most 2,000).
 - `GET /api/resources?start=…&end=…`: stored resource samples for a time
@@ -138,8 +143,9 @@ build/triangulator-collector config/local/collector.toml --check-config
 | `protocol.hpp` | Datagram checks (on top of `common/wire.hpp`) and thread-state classification |
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
+| `memory.hpp` | `MemoryMonitor`: memory-map summary and layout reassembly, live and layout JSON |
 | `storage.hpp` | SQLite day files, retention, history queries |
-| `http.hpp` | Dashboard server and the `/api/live`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
+| `http.hpp` | Dashboard server and the `/api/live`, `/api/memory-map`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
 | `replay.hpp` | Recording thread for dashboard views, and the `/api/replay` queries |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |

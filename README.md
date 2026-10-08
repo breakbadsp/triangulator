@@ -281,7 +281,9 @@ Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
   `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
   at most 60) sets how often resource samples are sent; they are never more
-  frequent than thread ticks. `SIGHUP` reloads the file; an invalid file leaves the old
+  frequent than thread ticks. `memory_interval_s` (default 0, off; at most
+  3600) sets how often memory-map samples are sent; see
+  [docs/memory-map.md](docs/memory-map.md). `SIGHUP` reloads the file; an invalid file leaves the old
   settings active, and a successful reload starts a new session. Validate with
   `build/triangulator-sampler --check-config config/sampler.toml`.
 - **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
