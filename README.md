@@ -12,6 +12,10 @@
   <a href="docs/thread-monitor-design.md">Design</a>
 </p>
 
+Triangulator monitors Linux processes and their threads. Inspect CPU use, wait
+channels, resource pressure, virtual memory, and socket I/O in one dashboard.
+Record process views to inspect an earlier moment.
+
 ## How it works
 
 <p align="center">
@@ -134,16 +138,56 @@ scripts to rebuild and install development changes.
   <img src="docs/assets/dashboard-tour.gif" alt="Animated tour of the Triangulator dashboard" width="880">
 </p>
 
+The process overview shows CPU demand, thread states, and likely problems.
+Select a thread tile or table row to inspect its live metrics and stored history.
+
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/readme-overview.png" alt="Process overview"></td>
-    <td width="50%"><img src="docs/screenshots/readme-thread-map.png" alt="Thread map"></td>
+    <td width="50%"><img src="docs/screenshots/readme-overview.png" alt="Process load, assessment, thread states, and wait channels"><br><strong>Process overview</strong></td>
+    <td width="50%"><img src="docs/screenshots/readme-thread-map.png" alt="Thread tiles, CPU by thread family, and core placement"><br><strong>Thread map and CPU placement</strong></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/readme-resources.png" alt="Pressure, limits and sockets"></td>
-    <td width="50%"><img src="docs/screenshots/readme-threads.png" alt="Thread table"></td>
+    <td width="50%"><img src="docs/screenshots/readme-resources.png" alt="CPU, memory, and I/O pressure with resource limits and socket queues"><br><strong>Pressure, limits, and socket queues</strong></td>
+    <td width="50%"><img src="docs/screenshots/readme-threads.png" alt="Thread table with state and wait-channel filters"><br><strong>Thread states and wait channels</strong></td>
   </tr>
 </table>
+
+### Virtual memory: Ghostty
+
+The memory map shows Ghostty's virtual address space, resident memory, mappings,
+and page faults. Select a region to inspect its addresses, permissions, and
+mapped size. Findings and limit meters show how close the process is to its
+memory limits.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/memory-map-dark.png">
+    <img src="docs/screenshots/memory-map.png" alt="Ghostty virtual memory map with heap zoom, mapped address grid, findings, and memory limits" width="100%">
+  </picture>
+</p>
+
+Memory sampling is off by default. Add `memory_interval_s = 30` to
+`~/triangulator/config/sampler.toml`, then run `scripts/restart.sh sampler`.
+See [Memory map](docs/memory-map.md) for sampling cost and measurement limits.
+The grid shows mapped addresses; it does not show which pages are resident.
+
+### Socket I/O
+
+The optional socket observer shows received and sent bytes, rates, totals,
+and a breakdown by thread and socket kind. Message completion counts need an
+application marker. See [Socket I/O and messages processed](#socket-io-and-messages-processed)
+for setup and measurement limits.
+
+<p align="center">
+  <img src="docs/screenshots/socket-io.png" alt="Socket receive rates and totals with a breakdown by thread and socket kind" width="880">
+</p>
+
+### Help beside each metric
+
+Pause over a metric or chart point for 1.2 seconds to read its explanation.
+Select an information button for examples, measurement limits, related topics,
+and chart data tables where available. The guide also lets you turn off help
+on hover or focus. See [Dashboard help](collector/README.md#dashboard-help).
 
 ## Time travel
 
@@ -153,6 +197,18 @@ scripts to rebuild and install development changes.
 
 Turn on `replay_interval_s`, then use **Inspect a moment**. See the
 [recording notes](collector/README.md#historical-process-inspection).
+
+<details>
+<summary>See a recorded process view</summary>
+
+Select a date and time, then use **Previous** and **Next** to step through
+recorded views. Select **Live** to return to the current process.
+
+<p align="center">
+  <img src="docs/screenshots/collector-cpp-replay.png" alt="Recorded process view with time controls, thread tiles, and per-thread states" width="880">
+</p>
+
+</details>
 
 ## Performance
 
@@ -371,6 +427,15 @@ I/O). A light/dark switch is in the top bar.
 
 The page also has alert sections and alert settings. It hides them because the
 collector's `/api/live` has no alert fields.
+
+The **Memory map** section shows the latest virtual memory summary and address
+layout when `memory_interval_s` is enabled. Select an address-space bar to zoom
+into its mappings. See [Memory map](docs/memory-map.md) for the values, findings,
+and sampling limits.
+
+Metric explanations and chart guides are available through information buttons.
+See [Dashboard help](collector/README.md#dashboard-help) for mouse, keyboard,
+and touch controls.
 
 The HTTP listener defaults to loopback. Neither UDP nor HTTP is authenticated, so
 use an SSH tunnel or an authenticating reverse proxy for remote access.
