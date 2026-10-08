@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "../collector/engine.hpp"
+#include "../collector/memory.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
 
@@ -1291,6 +1292,108 @@ void TestResourceStorageAndHistory()
           "history reads a bounded number of samples");
 }
 
+// Decoded memory-map parts of one sample: the summary, then the layout's
+// region parts when p_regions is not empty.
+std::vector<memory_wire::Part> MemoryParts(
+    std::uint32_t p_sequence, std::span<const memory_wire::Region> p_regions)
+{
+  const memory_wire::Header header{
+      .parts_ = memory_wire::PartCount(p_regions.size()),
+      .session_ = 5,
+      .sequence_ = p_sequence,
+      .monotonic_ns_ = 1,
+      .wall_ns_ = 2,
+      .interval_ms_ = 30000,
+      .pid_ = 42,
+      .process_start_ = 9};
+  std::array<std::byte, memory_wire::kMaxPartSize> bytes{};
+  auto values = memory_wire::EmptySummary();
+  values[memory_wire::Field("vma_count")] = p_sequence;
+  std::vector<memory_wire::Part> parts;
+  auto length = memory_wire::EncodeSummary(bytes, header, values);
+  parts.push_back(*memory_wire::Decode(std::span{bytes}.first(length)));
+  for (std::uint8_t part = 1; part < header.parts_; ++part)
+  {
+    length = memory_wire::EncodeRegions(bytes, header, p_regions, part);
+    parts.push_back(*memory_wire::Decode(std::span{bytes}.first(length)));
+  }
+  return parts;
+}
+
+// Feeds memory-map samples to a MemoryMonitor: the summary is live at once,
+// a layout is published only when all of its parts arrived, a sample
+// without regions keeps the layout, and a late sample is ignored.
+void TestMemoryMapLayout()
+{
+  MemoryMonitor memory;
+  Require(!memory.Snapshot(100).Find("available")->AsBool() &&
+              !memory.Layout().Find("available")->AsBool(),
+          "nothing before the first sample");
+  std::vector<memory_wire::Region> regions(30);
+  for (std::size_t index = 0; index < regions.size(); ++index)
+  {
+    regions[index] =
+        memory_wire::Region{.start_ = 0x1000 * (2 * index + 1),
+                            .end_ = 0x1000 * (2 * index + 2),
+                            .vma_count_ = 1,
+                            .kind_ = index == 0 ? memory_wire::RegionKind::Heap
+                                                : memory_wire::RegionKind::File,
+                            .permissions_ = 3,
+                            .name_ = {'/', 'l', 'i', 'b'}};
+  }
+  auto first = MemoryParts(1, regions);
+  memory.Accept(first[0], 100);
+  memory.Accept(first[1], 100);
+  const auto summary = memory.Snapshot(100);
+  Require(summary.Find("available")->AsBool() &&
+              summary.Find("values")->Find("vma_count")->AsInt() == 1 &&
+              summary.Find("values")->Find("vm_size_bytes")->IsNull(),
+          "the summary is live before the layout is complete");
+  Require(memory.LayoutVersion() == 0, "an incomplete layout is not used");
+  memory.Accept(first[2], 101);
+  Require(memory.LayoutVersion() == 1, "the complete layout is published");
+  const auto layout = memory.Layout();
+  const auto& rows = layout.Find("regions")->AsArray();
+  Require(rows.size() == 30 && rows[0].Find("start")->AsString() == "0x1000" &&
+              rows[0].Find("end")->AsString() == "0x2000" &&
+              rows[0].Find("size")->AsInt() == 0x1000 &&
+              rows[0].Find("kind")->AsString() == "heap" &&
+              rows[0].Find("permissions")->AsString() == "rw-p" &&
+              rows[29].Find("name")->AsString() == "/lib",
+          "layout JSON");
+
+  for (const auto& part : MemoryParts(2, {}))
+  {
+    memory.Accept(part, 130);
+  }
+  Require(
+      memory.LayoutVersion() == 1 &&
+          memory.Snapshot(130).Find("values")->Find("vma_count")->AsInt() == 2,
+      "a sample without regions keeps the layout");
+
+  auto lost = MemoryParts(3, regions);
+  memory.Accept(lost[0], 160);
+  memory.Accept(lost[1], 160);
+  for (const auto& part : MemoryParts(4, std::span{regions}.first(5)))
+  {
+    memory.Accept(part, 190);
+  }
+  Require(memory.LayoutVersion() == 2 &&
+              memory.Layout().Find("regions")->AsArray().size() == 5 &&
+              memory.Snapshot(190)
+                      .Find("stats")
+                      ->Find("incomplete_layouts")
+                      ->AsInt() == 1,
+          "a lost part drops that layout; the next one is used");
+  memory.Accept(MemoryParts(3, {})[0], 200);
+  Require(
+      memory.Snapshot(200).Find("values")->Find("vma_count")->AsInt() == 4 &&
+          memory.Snapshot(200).Find("stats")->Find("late")->AsInt() == 1,
+      "a late sample is ignored");
+  Require(memory.Snapshot(400).Find("stale")->AsBool(),
+          "a sample older than three intervals is stale");
+}
+
 }  // namespace
 
 int main()
@@ -1321,9 +1424,10 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestReplayConfig();
+    TestMemoryMapLayout();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
-        "sessions, rollups, storage, health, resource samples)");
+        "sessions, rollups, storage, health, resource samples, memory map)");
   }
   catch (const std::exception& error)
   {

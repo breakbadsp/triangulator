@@ -1,9 +1,10 @@
 #pragma once
 
-// What the collector does with one received datagram: tells the three
-// datagram kinds apart (thread ticks, resource parts and socket
-// observations), checks the sender, and passes the datagram to the Monitor,
-// the ResourceMonitor or Storage. The main loop calls Handle() for each
+// What the collector does with one received datagram: tells the four
+// datagram kinds apart by their magic (thread ticks, resource parts,
+// memory-map parts and socket observations), checks the sender, and passes
+// the datagram to the Monitor, the ResourceMonitor, the MemoryMonitor or
+// Storage. The main loop calls Handle() for each
 // datagram. Handle() allocates nothing, except in the one-time log message
 // when it pins the sampler's address.
 
@@ -18,11 +19,13 @@
 #include <string>
 #include <string_view>
 
+#include "../common/memory_wire.hpp"
 #include "../common/resource_wire.hpp"
 #include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
 #include "engine.hpp"
 #include "log.hpp"
+#include "memory.hpp"
 #include "protocol.hpp"
 #include "resources.hpp"
 #include "storage.hpp"
@@ -53,10 +56,11 @@ class Ingest
   // p_sampler_ip and p_socket_sampler_ip are the configured sender
   // addresses; a sender that has none is pinned to the first valid datagram.
   Ingest(const std::optional<std::string>& p_sampler_ip, Monitor& p_monitor,
-         ResourceMonitor& p_resources, Storage& p_storage,
-         const StorageSink& p_sink)
+         ResourceMonitor& p_resources, MemoryMonitor& p_memory,
+         Storage& p_storage, const StorageSink& p_sink)
       : monitor_(p_monitor),
         resources_(p_resources),
+        memory_(p_memory),
         storage_(p_storage),
         sink_(p_sink)
   {
@@ -111,6 +115,22 @@ class Ingest
         }
       }
     }
+    else if (p_data.size() >= 4 &&
+             std::memcmp(p_data.data(), memory_wire::kMagic.data(), 4) == 0)
+    {
+      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      {
+        if (const auto part = memory_wire::Decode(p_data))
+        {
+          Pin(p_peer);
+          memory_.Accept(*part, p_now);
+        }
+        else
+        {
+          ++memory_.bad_parts_;
+        }
+      }
+    }
     else if (!sampler_ip_ || p_peer == *sampler_ip_)
     {
       if (const auto packet = Decode(p_data))
@@ -129,6 +149,7 @@ class Ingest
  private:
   Monitor& monitor_;
   ResourceMonitor& resources_;
+  MemoryMonitor& memory_;
   Storage& storage_;
   const StorageSink& sink_;
   std::optional<PeerText> sampler_ip_;
