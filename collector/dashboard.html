@@ -810,7 +810,7 @@ function initHelp(){
   element('live-dot').dataset.help='health';
   element('page-help').onclick=()=>openGuide('page',element('page-help'));
   element('help-guide-close').onclick=()=>closeGuide();element('help-back-thread').onclick=()=>closeGuide();element('help-scrim').onclick=()=>closeGuide();
-  const preference=element('hover-help');preference.checked=helpEnabled;preference.onchange=()=>{helpEnabled=preference.checked;helpTimer.cancel();try{localStorage.setItem('triangulator:hover-help',helpEnabled?'on':'off')}catch{}};
+  const preference=element('hover-help');preference.checked=helpEnabled;preference.onchange=()=>{helpEnabled=preference.checked;helpTimer.cancel();if(helpEnabled)for(const el of document.querySelectorAll('[data-hint][title]'))el.removeAttribute('title');try{localStorage.setItem('triangulator:hover-help',helpEnabled?'on':'off')}catch{}};
   document.addEventListener('click',event=>{
     const button=event.target.closest('.help-button');
     if(button){event.preventDefault();event.stopImmediatePropagation();openGuide(button.dataset.help,button,helpTarget(button));return}
@@ -820,6 +820,8 @@ function initHelp(){
   document.addEventListener('pointerdown',event=>{helpPointerType=event.pointerType;helpTimer.cancel(true)},true);
   document.addEventListener('pointermove',event=>{
     helpPointerPosition={x:event.clientX,y:event.clientY};
+    // Without delayed help, hints such as full names of truncated values use native tooltips.
+    if(!helpEnabled){const hinted=event.target.closest?.('[data-hint]');if(hinted&&hinted.title!==hinted.dataset.hint)hinted.title=hinted.dataset.hint;return}
     if(onHelpBridge()&&helpTimer.visible){const active=helpTimer.visible;helpTimer.request(active.key,active.payload);return}
     if(event.buttons||event.pointerType==='touch'||event.helpHandled||event.target.closest('#tip,#help-guide,.chart'))return;
     const request=helpTarget(event.target);if(request)requestHelp(request);else hideTip();
