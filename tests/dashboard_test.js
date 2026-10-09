@@ -794,6 +794,79 @@ test('a data file below the executable is not the program image', () => {
   assert.ok(guessed.includes('Executable file replaced on disk'), guessed.join('\n'));
 });
 
+// Resource history rows, one per `step` seconds, ending now. Each part is
+// [pid, seconds, start MiB, MiB per second]; `wobble` adds a small saw-tooth
+// and `dip` lowers every sixth sample (a step that does not rise).
+function rssHistory(app, parts, {step = 5, wobble = 0, dip = 0} = {}) {
+  const total = parts.reduce((sum, part) => sum + part[1], 0), start = Date.now() / 1000 - total;
+  const rows = [];
+  let at = 0;
+  for (const [pid, seconds, mib, rate] of parts) {
+    for (let t = 0; t < seconds; t += step, at += step)
+      rows.push({ts: start + at, pid, rss_bytes: (mib + rate * t + (rows.length % 2 ? wobble : 0) - (rows.length % 6 === 5 ? dip : 0)) * 2 ** 20});
+  }
+  app.run(`live={health:{session:'s',pid:${parts.at(-1)[0]}},threads:[],resources:{available:true,memory:{rss:${rows.at(-1).rss_bytes},anon:1,rss_growth_per_s:${rate0(parts)}}}};` +
+    `resourceHistory={rows:${JSON.stringify(rows)}}`);
+}
+const rate0 = parts => parts.at(-1)[3] * 2 ** 20;
+const trendOf = app => JSON.parse(app.run('JSON.stringify(rssTrend())'));
+const growthFindings = app => [...app.run("assessMemory({values:{}},[],[]).map(item=>item.title)")];
+const GROWS = 'Resident memory grows without a plateau';
+
+test('a leak that started a minute ago is reported at its own rate', () => {
+  const app = dashboard();
+  // Eight flat minutes, then 60 s at 8 MiB/s (480 MiB/min).
+  rssHistory(app, [[7, 480, 100, 0], [7, 60, 100, 8]]);
+  const trend = trendOf(app);
+  assert.ok(trend.steady);
+  assert.ok(Math.abs(trend.slope / 2 ** 20 - 480) < 25, String(trend.slope / 2 ** 20));
+  assert.ok(growthFindings(app).includes(GROWS));
+  // The same leak three minutes in is still found, and the flat time before it does not matter.
+  rssHistory(app, [[7, 400, 100, 0], [7, 180, 100, 8]]);
+  assert.ok(Math.abs(trendOf(app).slope / 2 ** 20 - 480) < 25);
+});
+
+test('an earlier, smaller process in the window does not change the RSS trend', () => {
+  const app = dashboard();
+  // PID 4 ran at 50 MiB (and shrank); PID 7 started 90 s ago and leaks 8 MiB/s.
+  rssHistory(app, [[4, 300, 400, -1], [7, 90, 40, 8]]);
+  const trend = trendOf(app);
+  assert.ok(trend.steady);
+  assert.ok(Math.abs(trend.slope / 2 ** 20 - 480) < 25, String(trend.slope / 2 ** 20));
+  assert.ok(growthFindings(app).includes(GROWS));
+  // The new process is still too young to judge: nothing is reported.
+  rssHistory(app, [[4, 300, 50, 0], [7, 20, 40, 8]]);
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // A previous process that was bigger does not make the new one look like it shrinks.
+  rssHistory(app, [[4, 300, 2000, 0], [7, 120, 100, 0]]);
+  assert.ok(!trendOf(app).steady);
+  assert.ok(Math.abs(trendOf(app).slope) < 1);
+});
+
+test('flat, noisy and slowly growing RSS do not raise the growth finding', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 600, 300, 0]], {wobble: 0.3});
+  assert.ok(!trendOf(app).steady);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // A few non-rising steps are tolerated, but 0.1 MiB/s over three minutes is not a leak.
+  rssHistory(app, [[7, 600, 300, 0.01]], {wobble: 0.3});
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // Growth that stalls: the last minutes are flat, so it does not qualify.
+  rssHistory(app, [[7, 120, 100, 4], [7, 300, 580, 0]]);
+  assert.ok(!growthFindings(app).includes(GROWS));
+});
+
+test('a leak with a few non-rising steps is still found, and the tile uses the same trend', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 300, 100, 2]], {dip: 15});
+  assert.ok(trendOf(app).steady);
+  assert.ok(growthFindings(app).includes(GROWS));
+  const tile = JSON.parse(app.run(`(()=>{renderMemoryTiles({values:{}});return JSON.stringify(element('memory-tiles').children.map(box=>box.children.map(child=>child.textContent)))})()`));
+  const resident = tile.find(box => box[0] === 'Resident (RSS)');
+  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MB \/ min$/);
+});
+
 function helpClock() {
   const app = dashboard();
   app.run("var helpEvents=[];var dwell=createHelpTimer(value=>helpEvents.push(value),()=>helpEvents.push('closed'))");

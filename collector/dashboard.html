@@ -1858,9 +1858,31 @@ function recordMemory(m,regions,fresh){if(replayAt!==null)return;
   const v=m.values||{};
   memoryHistory.push({t:m.updated,heap,stack:v.vm_stack_bytes??null,mf:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
   while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
-// Change per minute of a value over the points, or null.
+// Change per minute of a value over the points, or null: the least-squares
+// line, so one odd sample at either end does not decide the number.
 function memorySlope(points,key){const values=points.filter(point=>isNum(point[key]));if(values.length<2)return null;
-  const first=values[0],last=values.at(-1);return last.t>first.t?60*(last[key]-first[key])/(last.t-first.t):null}
+  const mean=(list)=>list.reduce((sum,value)=>sum+value,0)/list.length,t0=mean(values.map(point=>point.t)),v0=mean(values.map(point=>point[key]));
+  let covariance=0,variance=0;for(const point of values){covariance+=(point.t-t0)*(point[key]-v0);variance+=(point.t-t0)**2}
+  return variance>0?60*covariance/variance:null}
+// RSS trend of the current process. A restart or crash loop puts an older,
+// smaller process into the stored history, and a leak that began a minute ago
+// has flat time before it. Both would be averaged into the rate, so: only the
+// newest run of samples with the newest PID, and the steepest of the last 60,
+// 120 and 180 s that still climbs steadily (at least four steps in five rise).
+// {slope, span, rises, steps, steady}; null when there is no usable run.
+const RSS_TREND_WINDOWS=[60,120,180],RSS_TREND_MIN_SPAN=30,RSS_TREND_MIN_POINTS=6;
+function rssTrend(){const all=resourcePoints().filter(point=>isNum(point.rss_bytes));if(!all.length)return null;
+  const newest=all.at(-1);if(Date.now()/1000-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+  let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
+  const run=all.slice(first);let best=null;
+  for(const window of RSS_TREND_WINDOWS){const points=run.filter(point=>point.t>=newest.t-window);
+    if(points.length<RSS_TREND_MIN_POINTS||newest.t-points[0].t<RSS_TREND_MIN_SPAN)continue;
+    let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
+    const steps=points.length-1,slope=memorySlope(points,'rss_bytes'),span=newest.t-points[0].t;
+    const steady=rises>=.8*steps&&slope>=2**20&&slope*span/60>=2**20;
+    const trend={slope,span,rises,steps,steady};
+    if(!best||(steady&&(!best.steady||slope>best.slope))||(!steady&&!best.steady))best=trend}
+  return best}
 const signed=value=>(value>0?'+':value<0?'−':'')+bytes(Math.abs(value));
 
 function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
@@ -1874,10 +1896,8 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   const faults=memoryFaultRate(),psi=memoryPressure(r);
   if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`);
   else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`);
-  const points=resourcePoints().filter(point=>point.t>=Date.now()/1000-600&&isNum(point.rss_bytes));
-  if(points.length>=6){let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
-    const slope=memorySlope(points,'rss_bytes'),heap=rows.find(row=>row.cat==='heap');
-    if(rises>=.8*(points.length-1)&&slope>=2**20)add('warning','Resident memory grows without a plateau',`RSS rose in ${rises} of the last ${points.length-1} samples (${signed(slope)}/min). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`)}
+  const trend=rssTrend(),heap=rows.find(row=>row.cat==='heap');
+  if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`);
   if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
   // Only code matters: deleted data files (shared memory, temporary files)
   // are normal, and the sampler may cut the start of long names.
@@ -1908,8 +1928,8 @@ function renderMemoryFindings(findings){const list=element('memory-findings');li
 function renderMemoryTiles(m){const v=m.values||{},r=live.resources?.available?live.resources:null,memory=r?.memory||{};
   const tiles=[],tile=(label,value,sub,bad)=>tiles.push([label,value,sub,bad]);
   tile('Virtual size (VmSize)',bytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${bytes(v.address_space_limit_bytes)} · peak ${bytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${bytes(v.vm_peak_bytes)}`);
-  const growth=memorySlope(resourcePoints().filter(point=>point.t>=Date.now()/1000-600),'rss_bytes')??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
-  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,growth>=2**20);
+  const trend=rssTrend(),growth=trend?.slope??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
+  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,trend?trend.steady:growth>=2**20);
   const split=[memory.anon,memory.file,memory.shmem];
   if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GB',2**30]:largest>=2**20?['MB',2**20]:['KB',2**10];
     tile('Anonymous / file / shared',split.map(value=>isNum(value)?number(value/unit[1],value/unit[1]>=10?0:1):'—').join(' / '),`${unit[0]}: RssAnon / File / Shmem`)}
