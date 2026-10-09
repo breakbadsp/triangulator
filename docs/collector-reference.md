@@ -83,6 +83,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   binary).
 - `GET /api/live`: current threads, group counts and monitor health (sampler
   connected or silent, target, packet loss, packet counters, sample interval).
+  Each thread has `cpu_pct` and `system_pct`: its CPU use and the part of it
+  spent in the kernel, both as a share of one core.
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
   Its `memory` object is the latest memory-map summary

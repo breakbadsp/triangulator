@@ -595,6 +595,31 @@ let threadSeen=new Map();
 const isIdle=thread=>!(thread.cpu_pct>0||thread.switches_per_s>0||thread.read_bps>0||thread.write_bps>0||thread.major_faults_per_s>0||thread.state==='running'||(thread.state_mix||{}).running||thread.state==='kernel'||thread.state==='stopped');
 function idleFor(thread){if(replayAt!==null)return '';const seen=threadSeen.get(thread.tid);if(!seen)return '';const tick=lastTick||thread.last_sample;
   return seen.active!==null?'idle for '+duration(tick-seen.active):'idle for over '+duration(tick-seen.first)}
+// Seconds of consecutive idle futex observations in this tab, or null.
+function idleSecs(thread){if(replayAt!==null)return null;const seen=threadSeen.get(thread.tid);if(!isNum(seen?.futexSince))return null;return (lastTick||thread.last_sample)-seen.futexSince}
+const futexShare=thread=>{const mix=Object.values(thread.state_mix||{}),total=mix.reduce((sum,count)=>sum+count,0);return total?((thread.state_mix||{}).futex||0)/total:0};
+// Two hints for hangs with low CPU. /proc cannot prove either, and a worker
+// or timer thread parked on a futex looks the same as a deadlocked one, so both
+// are "info" findings worded as possibilities.
+const STUCK_FUTEX_S=30;
+function lockHints(threads){
+  const found=[],current=threads.filter(thread=>!thread.stale),families=new Map();
+  for(const thread of current){const key=family(thread.name);if(!families.has(key))families.set(key,[]);families.get(key).push(thread)}
+  // Threads parked on a futex for a long time while other threads run. A
+  // family with an active member is a pool with spare workers; four or more
+  // stuck in one family look like an idle pool. Neither is reported.
+  const parked=thread=>thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1&&(idleSecs(thread)??0)>=STUCK_FUTEX_S;
+  const stuck=current.filter(thread=>{const kin=families.get(family(thread.name));return parked(thread)&&kin.every(isIdle)&&kin.filter(parked).length<4});
+  if(stuck.length>=2&&current.some(thread=>!isIdle(thread))){const least=Math.min(...stuck.map(idleSecs));
+    found.push({level:'info',title:`${stuck.length} threads have waited on a futex for over ${duration(least)} while other threads are active`,
+      detail:`Possible deadlock or lost wake-up: ${stuck.slice(0,3).map(threadLabel).join(', ')}${stuck.length>3?', …':''}. Idle service threads wait the same way, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,action:{state:'futex',activity:'idle'}})}
+  // Many threads of one family waking constantly yet blocked on futex almost all the time with little CPU.
+  for(const [name,kin] of families){
+    const waiting=kin.filter(thread=>futexShare(thread)>=.7&&thread.switches_per_s>=5&&isNum(thread.cpu_pct)),cpu=kin.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
+    if(kin.length>=4&&waiting.length>=kin.length*.75&&cpu<=10)
+      found.push({level:'info',title:`${waiting.length} of ${kin.length} “${name}” threads mostly wait on a futex but keep waking`,
+        detail:`Together they used ${pct(cpu)} of one core and switched ${number(kin.reduce((sum,thread)=>sum+(thread.switches_per_s||0),0),0)} times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.`,action:{state:'futex'}})}
+  return found}
 // Load as the kernel defines it, for this process: cores of CPU used, plus
 // cores of demand that waited for a CPU, plus threads in uninterruptible wait.
 // null when the point's rates are unknown (see ingest).
@@ -622,7 +647,7 @@ helpTopic('active','Active threads','Threads · preceding ~10 seconds','Threads 
 helpTopic('switches','Context switches','Events per second','How often the scheduler switches execution to or from the observed threads.','200/s means 200 context switches per elapsed second.','Compare changes with CPU use and wait states. Frequent switching can accompany normal I/O or synchronization.','This rate alone does not identify overhead or distinguish every reason for a switch.',['cpu','states'],['Switches/s']);
 helpTopic('sysio','Disk & syscall I/O','Thread or process · bytes per second','Traffic counted by the sampled read- and write-family system-call counters.','1 KiB/s is 1,024 bytes counted per elapsed second.','Use the resource Disk I/O panel for block-layer activity. Use Socket I/O for explicitly observed socket operations.','These counters do not cover every receive API and are not a measure of bytes transferred by the disk device.',['disk','socketio'],['Read/s','Write/s','I/O']);
 helpTopic('faults','Major faults','Faults per second','Page faults that required I/O to bring a page into memory.','2/s means two major page faults per elapsed second.','Compare a sustained increase with memory pressure, RSS, and disk I/O.','A major fault is not an application crash. A single fault does not prove memory pressure.',['rss','pressure','disk'],['Maj. faults/s','Major faults/s']);
-helpTopic('churn','Thread churn','Process · preceding minute','Threads observed starting or ending during the last minute.','+4 / −2 means four starts and two ends were observed.','Compare sustained churn with worker-pool behavior and process restarts.','Threads that start and end between samples can be missed.',['thread','health']);
+helpTopic('churn','Thread churn','Process · preceding minute','Threads seen starting or ending during the last minute. This is a lower bound: a thread is counted only if a sample catches it alive.','+4 / −2 means four starts and two ends were seen. +0 / −0 means none were seen, not that none happened.','Compare sustained churn with worker-pool behavior and process restarts. If the process creates short-lived threads, expect the real number to be higher, often far higher.','A thread that starts and exits between two samples is never seen, and the kernel offers no unprivileged count of threads created. At 2 samples/s, a thread living 10 ms is seen about 2% of the time. Raise the sample rate, or count thread creations inside the application.',['thread','health']);
 helpTopic('states','Thread states','Sampled scheduler state and wait channel','A sampled classification of what a thread is doing or waiting for.','Futex wait can indicate a lock, condition variable, or timed idle wait.','Read the state together with CPU use, run delay, and the kernel wait channel. Select a state to filter the table.','Samples can miss brief transitions. A wait state does not establish that the application is unhealthy.',['futex','kernel','mix'],['What the threads are doing','State / wait channel','State / block type']);
 helpTopic('mix','State mix','Share of observed samples','The proportion of samples classified into each thread state.','Six running samples out of ten gives a 60% running sample share.','Use the displayed interval and sample count when comparing the colored bands.','Sample share is not an exact trace of time spent in each state. Missing samples reduce coverage.',['states','history'],['Last ~10 s']);
 const stateHelp={running:['Running','The scheduler reports the thread running or ready to run.','This state does not prove that it occupied a CPU for the full interval.'],futex:['Futex wait','The kernel wait channel indicates a futex wait, often used for synchronization.','A lock, condition variable, or timed idle wait can use futex. This sample cannot distinguish them.'],poll:['Poll / epoll','The thread is waiting in a poll-style event loop.','Waiting for events can be normal. Check whether work is expected.'],socket:['Socket wait','The sampled wait channel indicates a socket-related wait.','The state does not identify which peer or socket caused the wait.'],pipe:['Pipe / eventfd','The thread is waiting on a pipe or event notification.','This state can be normal coordination between threads.'],sleep:['Sleep','The sampled wait channel indicates a sleep or timer wait.','A sleeping thread is not necessarily blocked by a resource problem.'],stopped:['Stopped','The thread is stopped, for example by a signal or debugger.','Check the expected process state before treating this as a fault.'],kernel:['Kernel wait (D)','The scheduler reports uninterruptible kernel wait.','This often involves I/O, but the state alone cannot identify the device or cause.'],other:['Other','The sample does not match a more specific state category.','Do not interpret this category as running or as an error.'],no_access:['No access','The sampler could not read enough information to classify this thread.','Unavailable observations are not zero activity. Check access and monitor health.']};
@@ -1016,6 +1041,9 @@ function ingest(){
     const state=STATES.includes(thread.state)?thread.state:'other';point.s[state]=(point.s[state]||0)+1;
     ids.add(thread.tid+':'+thread.generation);
     const seen=threadSeen.get(thread.tid);if(!seen||seen.generation!==thread.generation)threadSeen.set(thread.tid,{first:tick,active:null,generation:thread.generation});
+    const observation=threadSeen.get(thread.tid);
+    if(!thread.stale&&thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1)observation.futexSince??=tick;
+    else observation.futexSince=null;
     if(!isIdle(thread)){point.active++;threadSeen.get(thread.tid).active=tick}
     let series=threadAvg.get(thread.tid);if(!series||series[0]!==thread.generation){series=[thread.generation];threadAvg.set(thread.tid,series)}
     if(isNum(thread.cpu_pct)&&(series.length<3||tick-series.at(-2)>=AVG_STEP-.5)){series.push(tick,+thread.cpu_pct.toFixed(2));while(series.length>3&&series[1]<tick-BUFFER_SECS)series.splice(1,2)}
@@ -1038,6 +1066,44 @@ const windowPoints=()=>{const end=buffer.at(-1)?.t||0;return buffer.filter(point
 
 // ---------- Overview ----------
 const threadLabel=thread=>`${thread.name} (${thread.tid})`;
+// Steady thread-count growth over the current session can indicate a leak.
+// Counts are reduced to the lowest value in each 15 s step so bursts of short-lived
+// threads do not look like growth. A window qualifies when it spans at least two
+// minutes (after the last sharp drop, such as a restart), rises in most steps and
+// still in 2 of the last 3,
+// gains at least 20 threads and 10%, and gains in both halves, so a pool that
+// ramps up once and then plateaus is ignored. Windows of 2 and 5 minutes are tried.
+function threadGrowth(points){
+  const STEP=15,counts=points.filter(point=>isNum(point.n));if(counts.length<2)return null;
+  const end=counts.at(-1).t;let best=null;
+  for(const span of [120,300]){
+    const bins=[];for(const point of counts){if(point.t<end-span)continue;const index=Math.floor((end-point.t)/STEP);if(!bins[index]||point.n<bins[index].n)bins[index]={n:point.n,t:point.t}}
+    let series=[];for(let index=bins.length-1;index>=0;index--){if(bins[index]!==undefined)series.push(bins[index]);else series=[]}
+    for(let i=series.length-1;i>0;i--)if(series[i-1].n-series[i].n>=5&&series[i].n<.75*series[i-1].n){series=series.slice(i);break}
+    if(series.length<8||series.at(-1).t-series[0].t<120)continue;
+    const steps=series.length-1,deltas=series.slice(1).map((value,i)=>value.n-series[i].n),rises=deltas.filter(delta=>delta>0).length,recent=deltas.slice(-3).filter(delta=>delta>0).length,falls=deltas.filter(delta=>delta<0).length;
+    const first=series[0].n,last=series.at(-1).n,total=last-first,middle=Math.floor(steps/2),early=series[middle].n-first,late=last-series[middle].n;
+    if(total<20||total<.1*first||rises<.6*steps||recent<2||falls>.2*steps||early<.25*total||late<.25*total)continue;
+    const minutes=(series.at(-1).t-series[0].t)/60,found={from:first,to:last,minutes,rate:total/minutes};
+    if(!best||found.rate>best.rate)best=found}
+  return best}
+
+// A saturated thread looks like a polling or yield loop, not computation, when
+// most of its CPU time is system time AND it switches context often. System time
+// alone is not enough: a thread that copies large buffers through read/write or
+// sendfile is also kernel-heavy but rarely gives up the CPU. A switch rate alone
+// is not enough either: a pure user-space spin competing for a core is preempted
+// just as often. Returns the kernel share of the thread's CPU time (0..1), or
+// null when the thread does not fit (or the collector sends no system_pct).
+// The kernel share is only a tick-sampled estimate and a yield loop measures
+// 55-98% depending on the host load, so the bar is "majority"; ordinary compute
+// is near 0%, which leaves a wide margin.
+const KERNEL_SHARE_MIN=.5,SPIN_SWITCHES_MIN=100;
+function kernelShare(thread){
+  if(!(thread.cpu_pct>0)||!(thread.system_pct>=0))return null;
+  const share=Math.min(1,thread.system_pct/thread.cpu_pct);
+  return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
+const LEVEL_ORDER=['critical','serious','warning','info','good'];
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
@@ -1047,21 +1113,35 @@ function assess(threads,points){
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
     add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
   const hot=threads.filter(thread=>(thread.cpu_pct||0)>=90).sort((a,b)=>b.cpu_pct-a.cpu_pct);
-  for(const thread of hot.slice(0,2))add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+  for(const thread of hot.slice(0,2)){
+    const share=kernelShare(thread);
+    if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+    else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
   const faults=threads.reduce((sum,thread)=>sum+(thread.major_faults_per_s||0),0);
-  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid})}
+  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid});findings.at(-1).topic='faults'}
   const stopped=threads.filter(thread=>thread.state==='stopped');
   if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
   const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
-  if(born+died>=10)add('info','High thread churn',`${born} threads started and ${died} ended in the last minute. Short-lived threads cost creation time; consider a pool.`);
+  if(born+died>=10)add('info','High thread churn',`At least ${born} threads started and ${died} ended in the last minute (threads that start and exit between samples are not counted). Short-lived threads cost creation time; consider a pool.`);
+  const growth=threadGrowth(points);
+  if(growth){const pids=live.resources?.available?live.resources.cgroup_limits?.pids:null,room=isNum(pids?.current)&&isNum(pids?.max)&&pids.max>0?pids.max-pids.current:null;
+    const eta=room!==null&&growth.rate>0?room/growth.rate:null,close=room!==null&&(pids.current>=.75*pids.max||eta<=10);
+    add(close?'serious':'warning','Thread count keeps growing',`${growth.from} to ${growth.to} threads in ${number(growth.minutes,1)} min, +${number(growth.rate,0)} threads/min, and still rising. Each thread holds a stack; if none ever exit, this is a leak (for example workers or requests that wait forever).`+(room!==null?` The cgroup allows ${pids.max} processes and threads (${pids.current} in use)`+(room>0?`; at this rate it is full in about ${number(eta,0)} min.`:'.'):' No cgroup pids.max is known; RLIMIT_NPROC and kernel.threads-max also cap this.'))}
   const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
   const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
+  findings.push(...lockHints(threads));
   for(const item of assessResources(live.resources))findings.push(item);
-  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
+  // Memory-map findings join too. One about the same topic as a finding above
+  // (major faults) is not repeated: the more severe wording stays, with the
+  // thread link of the one it replaces.
+  const memory=memoryOverviewFindings(),rank=item=>LEVEL_ORDER.indexOf(item.level);
+  for(const item of memory||[]){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
+    if(!twin)findings.push(item);else if(rank(item)<rank(twin))findings[findings.indexOf(twin)]={...item,action:twin.action}}
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' No memory-map warnings detected in the available samples.':'')});
   return findings}
 function profile(threads){
   if(!threads.length)return '';
@@ -1070,10 +1150,10 @@ function profile(threads){
   const busy=threads.filter(thread=>(thread.cpu_pct||0)>=1).length;
   let text=`${waiting} of ${threads.length} threads are waiting`+(top.length?': '+top.map(([state,count])=>`${count} ${(labels[state]||state).toLowerCase()}`).join(', '):'')+'. ';
   text+=busy?`${busy} thread${busy>1?'s are':' is'} busy (≥1% CPU).`:'No thread is using noticeable CPU.';
-  if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers; many idle futex waiters are normal for thread pools.';
+  if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.';
   return text}
 function renderAssessment(threads){
-  const findings=assess(threads,buffer);const order=['critical','serious','warning','info','good'];const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
+  const findings=assess(threads,buffer);const order=LEVEL_ORDER;const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
   const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   const list=element('findings');list.replaceChildren();
@@ -1081,7 +1161,7 @@ function renderAssessment(threads){
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
   if(helpOwns(element('tiles')))return;
@@ -1095,7 +1175,8 @@ function renderTiles(threads,points){
     ['Disk & syscall I/O',perSec((last.rb||0)+(last.wb||0)),`read ${perSec(last.rb)} · write ${perSec(last.wb)}`,points.map(point=>point.rb===null?null:point.rb+point.wb)]];
   // Signals that are usually zero only get a tile when they happened.
   if(points.some(point=>point.mf>0))tiles.push(['Major faults',number(last.mf)+'/s','reads from disk to fill memory',series('mf')]);
-  if(buffer.some(point=>point.born||point.died))tiles.push(['Thread churn',`+${born} / −${died}`,'started / ended, last minute',points.map(point=>point.born+point.died)]);
+  // Always shown: +0 / −0 must not read as "no churn", because threads that start and exit between samples are never seen.
+  if(buffer.length)tiles.push(['Thread churn',`+${born} / −${died}`,'lower bound · seen starting / ending, last minute',points.map(point=>point.born+point.died)]);
   // Socket totals are live only; a recorded view has none.
   if(replayAt===null&&socketData?.available){const totals=socketData.totals||{},history=socketData.history||[];
     tiles.push(['Socket received',perSec(totals.input?.current),'observed socket bytes',history.map(point=>point.input)],['Socket sent',perSec(totals.output?.current),'accepted by sockets',history.map(point=>point.output)]);
@@ -1247,7 +1328,8 @@ function renderThreads(){if(helpOwns(element('threads')))return;if(!helpOwns(ele
   element('n-active').textContent=base.length-idleCount;element('n-idle').textContent=idleCount;element('n-all').textContent=base.length;
   const summary=element('idle-summary');summary.replaceChildren();
   if(activity==='active'&&idleCount){const waits=tally(base.filter(isIdle),thread=>labels[thread.state]||thread.state).map(([state,count])=>`${count} ${state.toLowerCase()}`).join(', ');
-    const show=node('button','Show them');show.style.cssText='padding:2px 8px;margin-left:6px;font-size:12px';show.onclick=()=>setActivity('idle');summary.append(`${idleCount} idle thread${idleCount>1?'s':''} hidden (${waits}).`,show)}
+    const show=node('button','Show them');show.style.cssText='padding:2px 8px;margin-left:6px;font-size:12px';show.onclick=()=>setActivity('idle');const longest=Math.max(0,...base.filter(thread=>isIdle(thread)&&thread.state==='futex').map(idleSecs).filter(isNum)),note=longest>=STUCK_FUTEX_S?` Longest futex wait: over ${duration(longest)}.`:'';
+    summary.append(`${idleCount} idle thread${idleCount>1?'s':''} hidden (${waits}).${note}`,show)}
   const threads=all.filter(thread=>matches(thread)).sort(key?(left,right)=>key(right)-key(left)||left.tid-right.tid:(left,right)=>left.name.localeCompare(right.name)||left.tid-right.tid);
   element('count').textContent=threads.length===all.length?`(${all.length})`:`(${threads.length} of ${all.length})`;
   for(const header of document.querySelectorAll('th[data-sort]'))header.setAttribute('aria-sort',header.dataset.sort===order?'descending':'none');
@@ -1364,13 +1446,20 @@ const stall=entry=>isNum(entry?.pct)?entry.pct:entry?.avg10;
 const fillLevel=value=>value>=90?'critical':value>=75?'warning':'';
 const socketName=item=>item.path!==undefined?(item.path||'unnamed'):item.remote?`${item.local} → ${item.remote}`:item.local;
 const socketLabel=item=>`${KIND_LABELS[item.kind]||item.kind} ${item.state} · fd ${item.fd}`;
+// Only these TCP states move data, so only they can have a "peer window". The
+// kernel reports the window as 0 for a socket still in the handshake.
+const MOVES_DATA=new Set(['ESTAB','CLOSE-WAIT','FIN-WAIT-1','LAST-ACK']);
+const movesData=item=>!item.listener&&(item.kind==='tcp4'||item.kind==='tcp6')&&MOVES_DATA.has(item.state);
+const peerWindowZero=item=>movesData(item)&&item.tcp?.peer_window===0;
 function socketNotes(item){const notes=[],tcp=item.tcp||{};
+  if(item.state==='SYN-SENT')notes.push(['Connect unanswered: check accept queue']);
+  else if(item.state==='SYN-RECV')notes.push(['Handshake not finished: waiting for the peer’s final ACK']);
   if(item.listener){if((item.accept_fill_pct||0)>=100)notes.push(['Accept queue full: new connections are dropped','bad']);else if((item.accept_fill_pct||0)>=50)notes.push(['Connections wait for accept()'])}
   if((item.rx_fill_pct||0)>=80)notes.push(['Receive buffer nearly full: the app is not reading fast enough','bad']);
   else if(item.rx_queue>0&&!item.listener)notes.push(['Unread data waiting']);
-  if(item.tx_queue>0&&tcp.peer_window===0&&!item.listener)notes.push(['Peer window is zero: the peer is not reading','bad']);
+  if(item.tx_queue>0&&peerWindowZero(item))notes.push(['Peer window is zero: the peer is not reading','bad']);
   else if((item.tx_fill_pct||0)>=80)notes.push(['Send buffer nearly full: the peer or network is behind','bad']);
-  if((tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
+  if(movesData(item)&&(tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
   if((tcp.sndbuf_limited_pct||0)>=20)notes.push([`Limited by its own send buffer ${pct(tcp.sndbuf_limited_pct)} of the time: raise SO_SNDBUF`]);
   if(tcp.probes>0)notes.push([`Zero-window probing (${tcp.probes})`,'bad']);
   if(tcp.retransmits>0)notes.push([`Retransmitting now (backoff ${tcp.backoff})`,'bad']);
@@ -1399,8 +1488,8 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   else if(overflowing.length)add('warning',`Accept backlog of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full`,`${overflowing[0].rx_queue} connections wait for accept() with a backlog of ${overflowing[0].tx_queue}.`);
   const reading=top.filter(item=>!item.listener&&(item.rx_fill_pct||0)>=80).sort((a,b)=>b.rx_fill_pct-a.rx_fill_pct);
   if(reading.length){const item=reading[0];add((item.drops_delta||0)>0?'serious':'warning',`The app is not keeping up reading ${socketName(item)}`,`Receive buffer ${pct(item.rx_fill_pct)} full with ${bytes(item.rx_queue)} unread`+((item.drops_delta||0)>0?`; ${item.drops_delta} packet${item.drops_delta>1?'s':''} dropped.`:'.')+(reading.length>1?` ${reading.length-1} more socket${reading.length>2?'s':''} likewise.`:''))}
-  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||item.tcp?.peer_window===0)).sort((a,b)=>b.tx_queue-a.tx_queue);
-  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(item.tcp?.peer_window===0?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
+  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||peerWindowZero(item))).sort((a,b)=>b.tx_queue-a.tx_queue);
+  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(peerWindowZero(item)?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
   const udp=grew('udp_rcvbuf_errors');
   if(udp)add('serious',`${udp} UDP datagrams dropped: receive buffers full`,'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).');
   const queued=['tcp_rcvq_drop','tcp_backlog_drop','tcp_zero_window_drop'].reduce((sum,key)=>sum+grew(key),0);
@@ -1798,13 +1887,37 @@ function recordMemory(m,regions,fresh){if(replayAt!==null)return;
   const v=m.values||{};
   memoryHistory.push({t:m.updated,heap,stack:v.vm_stack_bytes??null,mf:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
   while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
-// Change per minute of a value over the points, or null.
+// Change per minute of a value over the points, or null: the least-squares
+// line, so one odd sample at either end does not decide the number.
 function memorySlope(points,key){const values=points.filter(point=>isNum(point[key]));if(values.length<2)return null;
-  const first=values[0],last=values.at(-1);return last.t>first.t?60*(last[key]-first[key])/(last.t-first.t):null}
+  const mean=(list)=>list.reduce((sum,value)=>sum+value,0)/list.length,t0=mean(values.map(point=>point.t)),v0=mean(values.map(point=>point[key]));
+  let covariance=0,variance=0;for(const point of values){covariance+=(point.t-t0)*(point[key]-v0);variance+=(point.t-t0)**2}
+  return variance>0?60*covariance/variance:null}
+// RSS trend of the current process. A restart or crash loop puts an older,
+// smaller process into the stored history, and a leak that began a minute ago
+// has flat time before it. Both would be averaged into the rate, so: only the
+// newest run of samples with the newest PID, and the steepest of the last 60,
+// 120 and 180 s that still climbs steadily (at least four steps in five rise).
+// {slope, span, rises, steps, steady}; null when there is no usable run.
+const RSS_TREND_WINDOWS=[60,120,180],RSS_TREND_MIN_SPAN=30,RSS_TREND_MIN_POINTS=6;
+function rssTrend(){if(replayAt!==null||!live.resources?.available||live.resources.stale)return null;
+  const all=resourcePoints();if(!all.length)return null;
+  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||Date.now()/1000-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+  if(!isNum(live.health?.pid)||newest.pid!==live.health.pid)return null;
+  let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
+  const run=all.slice(first).filter(point=>isNum(point.rss_bytes));let best=null;
+  for(const window of RSS_TREND_WINDOWS){const points=run.filter(point=>point.t>=newest.t-window);
+    if(points.length<RSS_TREND_MIN_POINTS||newest.t-points[0].t<RSS_TREND_MIN_SPAN)continue;
+    let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
+    const steps=points.length-1,slope=memorySlope(points,'rss_bytes'),span=newest.t-points[0].t;
+    const steady=rises>=.8*steps&&slope>=2**20&&slope*span/60>=2**20;
+    const trend={slope,span,rises,steps,steady};
+    if(!best||(steady&&(!best.steady||slope>best.slope))||(!steady&&!best.steady))best=trend}
+  return best}
 const signed=value=>(value>0?'+':value<0?'−':'')+bytes(Math.abs(value));
 
 function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
-  const add=(level,title,detail)=>findings.push({level,title,detail});
+  const add=(level,title,detail,topic)=>findings.push({level,title,detail,topic});
   if(flags.maps_hidden)add('warning','The memory map is not readable','The sampler cannot read /proc/PID/maps. Run it as the target’s user; the target may also be non-dumpable.');
   if(isNum(v.vma_count)&&v.max_map_count>0){const share=100*v.vma_count/v.max_map_count;
     if(share>=75){const anonymous=regions.filter(region=>region.cat==='anonymous').reduce((sum,region)=>sum+region.vmas,0),guards=regions.filter(region=>region.cat==='guard').reduce((sum,region)=>sum+region.vmas,0);
@@ -1812,12 +1925,10 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(isNum(v.vm_size_bytes)&&v.address_space_limit_bytes>0){const share=100*v.vm_size_bytes/v.address_space_limit_bytes;
     if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${bytes(v.vm_size_bytes)} of ${bytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
   const faults=memoryFaultRate(),psi=memoryPressure(r);
-  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`);
-  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`);
-  const points=resourcePoints().filter(point=>point.t>=Date.now()/1000-600&&isNum(point.rss_bytes));
-  if(points.length>=6){let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
-    const slope=memorySlope(points,'rss_bytes'),heap=rows.find(row=>row.cat==='heap');
-    if(rises>=.8*(points.length-1)&&slope>=2**20)add('warning','Resident memory grows without a plateau',`RSS rose in ${rises} of the last ${points.length-1} samples (${signed(slope)}/min). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`)}
+  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`,'faults');
+  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`,'faults');
+  const trend=rssTrend(),heap=rows.find(row=>row.cat==='heap');
+  if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`);
   if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
   // Only code matters: deleted data files (shared memory, temporary files)
   // are normal, and the sampler may cut the start of long names.
@@ -1830,6 +1941,14 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
   const order=['critical','serious','warning','info','good'];
   return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
+// The memory-map findings that belong in the top assessment: warning and
+// worse, from the same rules as the Memory section. null when there is no
+// usable memory sample (sampling off, an old collector, or a stale sample),
+// so the caller does not claim the memory map is fine. Layout-dependent rules
+// run only when the layout matches the summary and are skipped while it loads.
+function memoryOverviewFindings(){const m=live.memory;if(!m?.available||m.stale)return null;
+  const regions=memoryRegions(memoryLayout?.id===m.layout_id?memoryLayoutFor(m):null);
+  return assessMemory(m,regions,memoryRows(regions)).filter(item=>item.level!=='info'&&item.level!=='good')}
 // Major faults per second: the thread samples when they have it (in replay,
 // the recorded ones), else the difference of the last two live memory
 // summaries. Live history says nothing about a recording.
@@ -1848,8 +1967,8 @@ function renderMemoryFindings(findings){const list=element('memory-findings');li
 function renderMemoryTiles(m){const v=m.values||{},r=live.resources?.available?live.resources:null,memory=r?.memory||{};
   const tiles=[],tile=(label,value,sub,bad)=>tiles.push([label,value,sub,bad]);
   tile('Virtual size (VmSize)',bytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${bytes(v.address_space_limit_bytes)} · peak ${bytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${bytes(v.vm_peak_bytes)}`);
-  const growth=memorySlope(resourcePoints().filter(point=>point.t>=Date.now()/1000-600),'rss_bytes')??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
-  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,growth>=2**20);
+  const trend=rssTrend(),growth=trend?.slope??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
+  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,trend?trend.steady:growth>=2**20);
   const split=[memory.anon,memory.file,memory.shmem];
   if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GB',2**30]:largest>=2**20?['MB',2**20]:['KB',2**10];
     tile('Anonymous / file / shared',split.map(value=>isNum(value)?number(value/unit[1],value/unit[1]>=10?0:1):'—').join(' / '),`${unit[0]}: RssAnon / File / Shmem`)}

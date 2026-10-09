@@ -135,7 +135,9 @@ errors, and application latency.
     explicit voluntary/involuntary switch rates, thread creation/exit rates,
     restart counts, priority/nice and allowed CPUs. Existing session identities
     and thread counts provide part of this; lifecycle events between samples
-    can still be missed. See the
+    are missed, so churn from threads shorter-lived than the sample interval can
+    be missed (see "Known limitations" in the thread monitor design; the
+    dashboard labels thread churn as a lower bound). See the
     [proc documentation](https://docs.kernel.org/filesystems/proc.html).
 11. **Application health.** Add instrumented request/message throughput,
     latency percentiles, errors, timeouts, queue depth and oldest queued-item
