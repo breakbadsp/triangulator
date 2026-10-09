@@ -778,10 +778,17 @@ void TestSnapshotRecorder()
           "stopping writes the waiting view, one per interval");
 }
 
-// Invalid recording intervals, and a max_live_samples above the limit, fail
-// configuration validation before startup.
+// Omitted settings enable raw storage and recording; explicit values disable
+// them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
 {
+  const auto defaults = ParseConfig("");
+  Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
+          "raw storage and one-second recording default to enabled");
+  const auto disabled = ParseConfig("store_raw=false\nreplay_interval_s=0\n");
+  Require(
+      disabled && !disabled->store_raw_ && disabled->replay_interval_s_ == 0,
+      "raw storage and recording can be disabled explicitly");
   for (const std::string_view text :
        {"replay_interval_s=0", "replay_interval_s=0.5", "replay_interval_s=1",
         "replay_interval_s=60"})

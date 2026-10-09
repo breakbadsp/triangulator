@@ -3,14 +3,14 @@ udp_host = "0.0.0.0"
 udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
-sampler_ip = "10.0.0.10"
+sampler_ip = "127.0.0.1"
 data_dir = "./data"
 retention_days = 7
-store_raw = false
+store_raw = true
 # Record complete dashboard views to data_dir/replay for "Inspect a moment".
-# 0 (the default) disables recording; 0.5..60 sets seconds between recordings.
+# Default 1; 0 disables recording; 0.5..60 sets seconds between recordings.
 # Views are large (~327 KB per 1,000 threads); budget disk space accordingly.
-replay_interval_s = 0
+replay_interval_s = 1
 # Live samples kept in memory, at most 10000000. The collector reserves about
 # 280 bytes of address space per sample at startup.
 max_live_samples = 1000000
