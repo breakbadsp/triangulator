@@ -17,6 +17,12 @@
   `$HOME/ai/conventions/cpp.md`. Run `make format` after C++ changes.
 - Each commit must build and pass `make check`.
 
+## Dashboard help
+
+- Every user-visible dashboard section, card, chart, label, column, legend, and
+  disclosure needs a contextual help topic in the same change. Follow
+  [Help for new dashboard features](docs/contextual-help-design.md#help-for-new-dashboard-features).
+
 ## Manual QA
 
 - When adding a user-visible feature, add or update its cases in

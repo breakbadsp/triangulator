@@ -1137,6 +1137,28 @@ test('every help name selects exactly one topic', () => {
   assert.equal(app.run("topicForText('Thread map time window')"), 'map');
 });
 
+// Every section, card, chart, column and disclosure needs a help topic, so new
+// dashboard features cannot ship without one. See docs/contextual-help-design.md.
+test('every static heading, column and summary has a help topic', () => {
+  const app = dashboard();
+  const page = html.split('<script>')[0].replace(/<aside id="help-guide"[\s\S]*?<\/aside>/, '');
+  const missing = [];
+  for (const [, tag, attrs, inner] of page.matchAll(/<(h2|h3|th|summary)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
+    // Counts and other values filled in at runtime sit in spans after the title.
+    const text = inner.replace(/<span[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
+    const id = /data-help="([^"]+)"/.exec(attrs)?.[1] ?? app.run(`topicForText(${JSON.stringify(text)})`);
+    if (!app.run(`!!HELP[${JSON.stringify(id ?? '')}]`)) missing.push(`<${tag}> ${text}`);
+  }
+  assert.deepEqual(missing, []);
+});
+
+test('labels built at runtime use helpButtonLabel', () => {
+  // Help guide internals build their own headings; everything else must not.
+  const plain = script.split('\n').filter(line => !/^function (guideSection|helpDataTable)\b/.test(line) && !/for\(const label of data\.headers\)/.test(line))
+    .flatMap(line => line.match(/node\('(?:h2|h3|th|dt)',[^)]*\)|node\('div',\w+,'(?:label|k)'\)/g) || []);
+  assert.deepEqual(plain, []);
+});
+
 test('Escape stays suppressed while keyboard focus remains on its trigger', () => {
   const app = helpClock();
   app.run("dwell.request('cpu','CPU')");app.advance(1200);
