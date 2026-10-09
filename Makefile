@@ -134,7 +134,7 @@ build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
+check: all build/buggy-workload build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
 	./build/wire-test
 	./build/sampler-test
 	./build/allocation-test
@@ -180,3 +180,7 @@ check-socket-kernel: all socket-sampler build/socket-target
 build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+
+# The deliberate bugs stay separate from the production programs.
+build/buggy-workload: examples/buggy-workload/buggy_workload.cpp build/compiler_ok Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@

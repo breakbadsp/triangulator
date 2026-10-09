@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <barrier>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <csignal>
@@ -39,6 +41,8 @@
 #include <utility>
 #include <vector>
 
+namespace triangulator
+{
 namespace
 {
 
@@ -46,9 +50,11 @@ using std::chrono::milliseconds;
 
 constexpr std::size_t kMiB = 1024 * 1024;
 
+static_assert(std::atomic<bool>::is_always_lock_free);
+std::atomic<bool> stop{false};
+
 std::atomic<bool>& StopFlag()
 {
-  static std::atomic<bool> stop{false};
   return stop;
 }
 
@@ -76,7 +82,16 @@ void Spawn(std::string p_name, std::function<void()> p_body)
       [name = std::move(p_name), body = std::move(p_body)]()
       {
         pthread_setname_np(pthread_self(), name.c_str());
-        body();
+        try
+        {
+          body();
+        }
+        catch (const std::system_error& p_error)
+        {
+          std::fprintf(stderr, "[buggy-workload] thread failure: %s\n",
+                       p_error.what());
+          std::_Exit(1);
+        }
       })
       .detach();
 }
@@ -233,8 +248,10 @@ void StartCpuSpin()
 void StartOversubscribed()
 {
   SpawnHeartbeat();
-  const unsigned threads =
-      std::max(4U, std::thread::hardware_concurrency() * 4);
+  constexpr unsigned kMaxThreads = 128;
+  const unsigned cores =
+      std::clamp(std::thread::hardware_concurrency(), 1U, kMaxThreads / 4);
+  const unsigned threads = cores * 4;
   for (unsigned i = 0; i < threads; ++i)
   {
     Spawn("worker-" + std::to_string(i), BurnCpu);
@@ -272,18 +289,19 @@ void StartDeadlock()
   SpawnHeartbeat();
   static std::mutex first;
   static std::mutex second;
+  static std::barrier rendezvous(2);
   Spawn("worker-a",
         []()
         {
           const std::lock_guard<std::mutex> outer(first);
-          SleepMs(200);
+          rendezvous.arrive_and_wait();
           const std::lock_guard<std::mutex> inner(second);
         });
   Spawn("worker-b",
         []()
         {
           const std::lock_guard<std::mutex> outer(second);
-          SleepMs(200);
+          rendezvous.arrive_and_wait();
           const std::lock_guard<std::mutex> inner(first);
         });
   SleepMs(500);
@@ -625,7 +643,9 @@ void StartSlowConsumer()
 
 // ---- Storage --------------------------------------------------------------
 
-std::filesystem::path IoDirectory()
+std::filesystem::path io_directory;
+
+std::filesystem::path IoBaseDirectory()
 {
   const char* configured = std::getenv("BUGGY_IO_DIR");
   if (configured != nullptr)
@@ -640,7 +660,10 @@ std::filesystem::path IoDirectory()
 void CleanupIoFiles()
 {
   std::error_code error;
-  std::filesystem::remove_all(IoDirectory(), error);
+  if (!io_directory.empty())
+  {
+    std::filesystem::remove_all(io_directory, error);
+  }
 }
 
 // BUG: every small record is followed by fsync, from several threads, instead
@@ -650,14 +673,28 @@ void StartSyncStorm()
 {
   SpawnHeartbeat();
   std::error_code error;
-  std::filesystem::create_directories(IoDirectory(), error);
+  const auto base_directory = IoBaseDirectory();
+  std::filesystem::create_directories(base_directory, error);
+  if (error)
+  {
+    Log("cannot create I/O base directory: " + error.message());
+    return;
+  }
+  auto directory_template = (base_directory / "buggy-workload-XXXXXX").string();
+  const char* directory = ::mkdtemp(directory_template.data());
+  if (directory == nullptr)
+  {
+    Log("cannot create private I/O directory");
+    return;
+  }
+  io_directory = directory;
   for (int i = 0; i < 4; ++i)
   {
     Spawn("io-writer-" + std::to_string(i),
           [i]()
           {
             const std::string path =
-                (IoDirectory() / ("journal-" + std::to_string(i))).string();
+                (io_directory / ("journal-" + std::to_string(i))).string();
             const Fd file(
                 ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600));
             if (file.Get() < 0)
@@ -740,9 +777,12 @@ void PrintScenarios()
 }
 
 }  // namespace
+}  // namespace triangulator
 
 int main(int p_argc, char** p_argv)
+try
 {
+  using namespace triangulator;
   if (p_argc < 2 || std::string_view(p_argv[1]) == "--list")
   {
     PrintScenarios();
@@ -759,7 +799,24 @@ int main(int p_argc, char** p_argv)
     std::fprintf(stderr, "unknown scenario '%s'; try --list\n", p_argv[1]);
     return 2;
   }
-  const long duration_s = p_argc > 2 ? std::strtol(p_argv[2], nullptr, 10) : 0;
+  int duration_s = 0;
+  if (p_argc > 3)
+  {
+    Log("expected a scenario and optional nonnegative seconds");
+    return 2;
+  }
+  if (p_argc == 3)
+  {
+    const std::string_view duration(p_argv[2]);
+    const auto parsed = std::from_chars(
+        duration.data(), duration.data() + duration.size(), duration_s);
+    if (parsed.ec != std::errc{} ||
+        parsed.ptr != duration.data() + duration.size() || duration_s < 0)
+    {
+      Log("seconds must be a nonnegative integer");
+      return 2;
+    }
+  }
 
   std::signal(SIGINT, HandleSignal);
   std::signal(SIGTERM, HandleSignal);
@@ -777,6 +834,13 @@ int main(int p_argc, char** p_argv)
       break;
     }
   }
+  StopFlag().store(true, std::memory_order_relaxed);
   found->cleanup_();
   std::_Exit(0);  // Detached threads may be blocked forever, on purpose.
+}
+catch (const std::system_error& p_error)
+{
+  std::fprintf(stderr, "[buggy-workload] operating failure: %s\n",
+               p_error.what());
+  std::_Exit(1);
 }

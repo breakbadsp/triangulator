@@ -10,23 +10,35 @@ which real problems the product finds, which it misses, and where it misleads.
 - Re-take every screenshot: `examples/buggy-workload/capture-screenshots.sh <dir>`
 - Screenshots: [`docs/screenshots/buggy-workloads/`](screenshots/buggy-workloads/)
 
+This report records one run of revision
+`ce27d737e6e8e337a313dc23e475626bcde4165e`. The screenshots and verdicts
+are historical observations. Later changes fix some of these gaps. See the
+[bug lab report](bug-lab-report.md) for the related tests and fixes.
+
+The current scripts use a separate directory for each run and select its
+workload by PID. They keep the saved logs and data. `BUGGY_HOME` selects the
+base directory for this data. `BUGGY_IO_DIR` selects the base directory for
+temporary storage files. The storage scenario removes only its own files.
+Use a test host with sufficient memory and CPU capacity. The caps limit
+resource use but do not guarantee that other work is unaffected.
+
 ## Result at a glance
 
 | # | Scenario (bug) | Verdict | What the dashboard said |
 |---|---|---|---|
 | 1 | `cpu-spin`: busy loop and a poll loop that never blocks | Found | Both threads named as "saturating a core" |
-| 2 | `oversubscribed`: 4 CPU-bound threads per core | Found | "Threads are waiting for CPU", run delay 392% |
+| 2 | `oversubscribed`: 4 CPU-bound threads per core in the tested run | Found | "Threads are waiting for CPU", run delay 392% |
 | 3 | `lock-convoy`: slow call made while holding one lock | **Missed** | "Healthy: no problems detected" |
 | 4 | `deadlock`: two locks taken in opposite order | **Missed** | No deadlock finding; one misleading CPU finding |
 | 5 | `memory-leak`: cache without eviction, mappings never freed | Found, with gaps | Memory section: RSS "grows without a plateau". Summary: "Healthy" |
 | 6 | `fault-storm`: buffer mapped and touched per request | Partly | Saw the CPU, not the cause (14.2 M minor faults, shown only as a total) |
 | 7 | `thread-leak`: a thread per request that waits forever | **Missed** | 402 threads, no growth finding |
-| 8 | `thread-churn`: a new thread for every tiny task | **Missed** | "+2 / −2" per minute; the real rate is about 200 per second |
+| 8 | `thread-churn`: a new thread for every tiny task | **Missed** | "+2 / −2" per minute; the configured creation interval is 2 ms |
 | 9 | `fd-leak`: files never closed, then a tight retry loop | Found | "100% of file descriptors in use", plus the spinning thread |
 | 10 | `close-wait`: accepted sockets never closed | Found | Four related findings, including CLOSE-WAIT |
 | 11 | `slow-consumer`: readers slower than TCP and UDP senders | Found | UDP drops, full receive buffer, zero window |
 | 12 | `sync-storm`: `fsync` after every record | Found | "I/O is stalling all work", D-state threads named |
-| 13 | CPU quota and memory cap (cgroup limits) | Found, with a gap | CPU throttling named. OOM kill reported only as "target absent" |
+| 13 | CPU quota and memory cap (cgroup limits) | Found, with a gap | CPU throttling named. Memory run ended with "target absent" |
 
 The product finds most problems that leave a kernel-visible trace: saturated
 CPU, descriptors, socket queues, storage stalls, cgroup limits. It misses
@@ -45,7 +57,8 @@ counts that grow slowly (threads), or as events faster than the sample interval
 - Threads are named (`worker-`, `io-`, `sender-`, `misc-`) so the dashboard's
   thread families and findings can be matched to the bug that caused them.
 - Unbounded growth stops at a cap (1 GiB of cache, 6,000 mappings, 400
-  threads) so a forgotten run cannot hurt the host.
+  threads) to limit resource use. Storage uses four files capped at 64 MiB each.
+  The current oversubscription scenario also caps the worker count at 128.
 - Each scenario ran once, on one 6-core host with 15 GB of RAM.
 
 **Baseline.** A healthy idle process gives the comparison point: "Healthy", no
@@ -120,8 +133,8 @@ raise `cpu.max` or reduce use. Correct and actionable.
 
 ![cpu-spin under a CPU quota](screenshots/buggy-workloads/cpu-spin-limits.png)
 
-Memory: the leak ran into the cap and the kernel killed the process. See gap F
-below.
+Memory: the target disappeared after memory approached the cap. The saved
+screenshot does not establish why it ended. See gap F below.
 
 ## Bugs the dashboard found only in part
 
@@ -132,7 +145,7 @@ plateau", with RSS up in 50 of 50 samples (+975.8 MB/min), almost all of it
 anonymous memory. But the Summary at the top of the page, the first thing a
 person reads, says "Healthy: no problems detected" for the same moment.
 
-The second leak (6,000 mappings that are never unmapped, 9,038 mappings at
+The second leak (up to 6,000 regions that are never unmapped, 9,038 mappings at
 capture time) has no finding. The count is shown, as "9038 / 1048576", but a
 count that is climbing is not called out.
 
@@ -183,7 +196,9 @@ cgroup, not this process.
 
 ### 8. Thread churn
 
-A new thread for every 5 ms task, about 200 per second. The dashboard shows
+A new thread for every 5 ms task, with a 2 ms creation interval. This permits
+up to about 500 creations per second before creation and scheduling costs.
+We did not measure the actual creation rate. The dashboard shows
 "+2 / −2 started / ended, last minute". The sampler reads thread lists at
 2 Hz, so threads that live 5 ms are almost never seen. The assessment says
 "Healthy".
@@ -194,16 +209,16 @@ A new thread for every 5 ms task, about 200 per second. The dashboard shows
 
 Listed from the most to the least important for support work.
 
-**A. Cgroup sharing causes false alarms.** "Runnable tasks wait for CPU 30 to
-45% of the time" appeared in five scenarios where this process could not
-explain it: three whose threads were idle or blocked (deadlock 39.2%,
-thread-leak 32.0%, fd-leak 41.4%) and two with little CPU demand (fault-storm
-44.5%, sync-storm 33.7%). The idle baseline had 0%. The sampler uses the target's cgroup pressure, but on this host that
-cgroup is `t3code.service`, holding 607 tasks, so the stall time belongs to
-neighbours. The dashboard already reads the cgroup's task count; it could
-compare it with the target's thread count and say "pressure shared with N other
-tasks". Without that, a support engineer chases the wrong process. We did not
-separately measure the neighbours, so treat the cause as likely, not proven.
+**A. Shared cgroup pressure can mislead.** The saved screenshots show
+"Runnable tasks wait for CPU" in the deadlock (39.2%), thread-leak (32.0%),
+fault-storm (44.5%) and sync-storm (33.7%) runs. The deadlock and thread-leak
+threads use almost no CPU. The fault-storm uses about two cores. The sampler
+uses the target's cgroup pressure, but this host's cgroup is `t3code.service`
+with 607 tasks. The finding does not distinguish the target's demand from
+other tasks in that cgroup. A support engineer could investigate the wrong
+process. We did not separately measure those tasks, so their contribution
+is likely but not proven. The dashboard could report that the pressure
+measurement covers a shared cgroup.
 
 **B. Blocked-forever threads are invisible.** Deadlocks and lock convoys look
 like an idle process. Useful signals already in the sample: how long each
@@ -222,24 +237,27 @@ descriptors have a finding, and only at the limit. A "grows without a
 plateau" rule like the one for RSS would cover threads and mappings.
 
 **E. Thread churn is undercounted.** At 2 Hz, short-lived threads are missed.
-Thread ID numbers move forward as threads are created, so the change in the
-highest TID since the previous sample estimates creations without seeing the
-threads. This needs a decision before implementing.
+Thread IDs are shared with other processes, can wrap, and can be reused.
+A change in the highest TID does not measure this process's thread creations.
+Accurate counts need a signal that records creation and exit events.
 
-**F. Cause of death is not reported.** After the kernel killed the leaking
-process, the dashboard said "Target process is absent: check it is running"
-and still listed "Cgroup memory is 97.2% of its limit". It did not say the
-process was OOM-killed. Since the cgroup's `memory.events` records `oom_kill`,
-a killed target in a memory-capped cgroup could say so.
+**F. Cause of death is not established.** After the memory-capped run ended,
+the dashboard said "Target process is absent" and still listed "Cgroup memory
+is 97.2% of its limit". The saved screenshot also warns that resource samples
+are stale. It does not prove an OOM kill, and this report has no saved exit
+status or `memory.events` values. An increase in a dedicated cgroup's
+`oom_kill` counter would provide evidence. A shared cgroup's counter alone
+cannot identify which process was killed.
 
 ![memory-leak under MemoryMax: target absent, cause unknown](screenshots/buggy-workloads/memory-leak-limits.png)
 
 **G. Page-fault rate and kernel/user CPU split are missing.** See bug 6.
 
-**H. Reading the map file costs more as mappings grow.** With 9,038 mappings
-the longest `/proc/PID/maps` read took 4.2 ms (6.9 ms total across 123 reads);
-it was 27 µs with a normal process. That is acceptable at a 30 s interval, but
-the cost scales with the leak the feature is meant to find.
+**H. Map-read cost needs a separate measurement.** The memory-section
+screenshot shows 9,038 mappings and a longest `/proc/PID/maps` read of 54 µs
+(2.0 ms total across 111 reads). The tested map interval was 5 s. One snapshot
+does not establish how read cost changes as mapping count grows. That needs
+measurements at several mapping counts.
 
 ## What we did not test
 
