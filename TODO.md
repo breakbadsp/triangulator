@@ -100,3 +100,10 @@ these need a core change, a privilege, or a decision.
   versioned transport, storage and API for the first new metric batch.
 - [ ] Keep reports and alerting separate; add reset/permission/namespace tests
   and measure sampling overhead for each implementation.
+
+## Manual QA
+
+- [ ] Resolve QA-001 from the v0.1.0 package run: it is PASSED, but its expected
+  result requires browser diagnostics with no application error, and the run
+  could not capture them. Re-run with console and network capture, or mark the
+  case BLOCKED and update the counts in the run record.
