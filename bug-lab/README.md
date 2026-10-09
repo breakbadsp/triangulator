@@ -5,6 +5,12 @@ descriptors, storage, sockets, threads) and a healthy control. Run one at a time
 against Triangulator and see whether the dashboard finds the bug.
 It is a test fixture, not product code, and is not built by `make`.
 
+For an interactive agent session, use
+[`bugbench-session`](../.agents/skills/bugbench-session/SKILL.md).
+Ask the agent to start the session, then ask for the next or previous program.
+The skill installs the fixture in `~/triangular/bin/` and saves its position
+between requests. It reports the PID for manual dashboard target selection.
+
 ```sh
 gcc -O2 -pthread bug-lab/bugbench.c -o /tmp/bugbench
 /tmp/bugbench --list
