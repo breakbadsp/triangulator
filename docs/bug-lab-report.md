@@ -204,7 +204,7 @@ taking data"). The true cause, the accept queue overflow, is also reported, so
 the result is right but with a misleading extra line. The rule should skip
 sockets that are not ESTABLISHED.
 
-**Fixed** in commit `COMMIT`. The window rules (zero window, "not taking data",
+**Fixed** in commit `72bbbc1`. The window rules (zero window, "not taking data",
 "limited by the peer's window") now apply only to sockets in a data-moving state
 (ESTAB, CLOSE-WAIT, FIN-WAIT-1, LAST-ACK); SYN-SENT and SYN-RECV get their own
 note instead. In the re-run `listen-full` shows "8 incoming connections dropped"
