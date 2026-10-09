@@ -595,6 +595,31 @@ let threadSeen=new Map();
 const isIdle=thread=>!(thread.cpu_pct>0||thread.switches_per_s>0||thread.read_bps>0||thread.write_bps>0||thread.major_faults_per_s>0||thread.state==='running'||(thread.state_mix||{}).running||thread.state==='kernel'||thread.state==='stopped');
 function idleFor(thread){if(replayAt!==null)return '';const seen=threadSeen.get(thread.tid);if(!seen)return '';const tick=lastTick||thread.last_sample;
   return seen.active!==null?'idle for '+duration(tick-seen.active):'idle for over '+duration(tick-seen.first)}
+// Seconds a thread has been idle in this tab (a lower bound when it was never seen active), or null.
+function idleSecs(thread){if(replayAt!==null)return null;const seen=threadSeen.get(thread.tid);if(!seen)return null;return (lastTick||thread.last_sample)-(seen.active!==null?seen.active:seen.first)}
+const futexShare=thread=>{const mix=Object.values(thread.state_mix||{}),total=mix.reduce((sum,count)=>sum+count,0);return total?((thread.state_mix||{}).futex||0)/total:0};
+// Two hints for hangs with low CPU. /proc cannot prove either, and a worker
+// or timer thread parked on a futex looks the same as a deadlocked one, so both
+// are "info" findings worded as possibilities.
+const STUCK_FUTEX_S=30;
+function lockHints(threads){
+  const found=[],current=threads.filter(thread=>!thread.stale),families=new Map();
+  for(const thread of current){const key=family(thread.name);if(!families.has(key))families.set(key,[]);families.get(key).push(thread)}
+  // Threads parked on a futex for a long time while other threads run. A
+  // family with an active member is a pool with spare workers; four or more
+  // stuck in one family look like an idle pool. Neither is reported.
+  const parked=thread=>thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1&&(idleSecs(thread)??0)>=STUCK_FUTEX_S;
+  const stuck=current.filter(thread=>{const kin=families.get(family(thread.name));return parked(thread)&&kin.every(isIdle)&&kin.filter(parked).length<4});
+  if(stuck.length>=2&&current.some(thread=>!isIdle(thread))){const least=Math.min(...stuck.map(idleSecs));
+    found.push({level:'info',title:`${stuck.length} threads have waited on a futex for over ${duration(least)} while other threads are active`,
+      detail:`Possible deadlock or lost wake-up: ${stuck.slice(0,3).map(threadLabel).join(', ')}${stuck.length>3?', …':''}. Idle service threads wait the same way, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,action:{state:'futex',activity:'idle'}})}
+  // Many threads of one family waking constantly yet blocked on futex almost all the time with little CPU.
+  for(const [name,kin] of families){
+    const waiting=kin.filter(thread=>futexShare(thread)>=.7&&thread.switches_per_s>=5&&isNum(thread.cpu_pct)),cpu=kin.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
+    if(kin.length>=4&&waiting.length>=kin.length*.75&&cpu<=10)
+      found.push({level:'info',title:`${waiting.length} of ${kin.length} “${name}” threads mostly wait on a futex but keep waking`,
+        detail:`Together they used ${pct(cpu)} of one core and switched ${number(kin.reduce((sum,thread)=>sum+(thread.switches_per_s||0),0),0)} times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.`,action:{state:'futex'}})}
+  return found}
 // Load as the kernel defines it, for this process: cores of CPU used, plus
 // cores of demand that waited for a CPU, plus threads in uninterruptible wait.
 // null when the point's rates are unknown (see ingest).
@@ -1060,6 +1085,7 @@ function assess(threads,points){
   const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
   const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
+  findings.push(...lockHints(threads));
   for(const item of assessResources(live.resources))findings.push(item);
   if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
   return findings}
@@ -1070,7 +1096,7 @@ function profile(threads){
   const busy=threads.filter(thread=>(thread.cpu_pct||0)>=1).length;
   let text=`${waiting} of ${threads.length} threads are waiting`+(top.length?': '+top.map(([state,count])=>`${count} ${(labels[state]||state).toLowerCase()}`).join(', '):'')+'. ';
   text+=busy?`${busy} thread${busy>1?'s are':' is'} busy (≥1% CPU).`:'No thread is using noticeable CPU.';
-  if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers; many idle futex waiters are normal for thread pools.';
+  if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.';
   return text}
 function renderAssessment(threads){
   const findings=assess(threads,buffer);const order=['critical','serious','warning','info','good'];const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
@@ -1081,7 +1107,7 @@ function renderAssessment(threads){
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
   if(helpOwns(element('tiles')))return;
@@ -1248,7 +1274,8 @@ function renderThreads(){if(helpOwns(element('threads')))return;if(!helpOwns(ele
   element('n-active').textContent=base.length-idleCount;element('n-idle').textContent=idleCount;element('n-all').textContent=base.length;
   const summary=element('idle-summary');summary.replaceChildren();
   if(activity==='active'&&idleCount){const waits=tally(base.filter(isIdle),thread=>labels[thread.state]||thread.state).map(([state,count])=>`${count} ${state.toLowerCase()}`).join(', ');
-    const show=node('button','Show them');show.style.cssText='padding:2px 8px;margin-left:6px;font-size:12px';show.onclick=()=>setActivity('idle');summary.append(`${idleCount} idle thread${idleCount>1?'s':''} hidden (${waits}).`,show)}
+    const show=node('button','Show them');show.style.cssText='padding:2px 8px;margin-left:6px;font-size:12px';show.onclick=()=>setActivity('idle');const longest=Math.max(0,...base.filter(thread=>isIdle(thread)&&thread.state==='futex').map(idleSecs).filter(isNum)),note=longest>=STUCK_FUTEX_S?` Longest futex wait: over ${duration(longest)}.`:'';
+    summary.append(`${idleCount} idle thread${idleCount>1?'s':''} hidden (${waits}).${note}`,show)}
   const threads=all.filter(thread=>matches(thread)).sort(key?(left,right)=>key(right)-key(left)||left.tid-right.tid:(left,right)=>left.name.localeCompare(right.name)||left.tid-right.tid);
   element('count').textContent=threads.length===all.length?`(${all.length})`:`(${threads.length} of ${all.length})`;
   for(const header of document.querySelectorAll('th[data-sort]'))header.setAttribute('aria-sort',header.dataset.sort===order?'descending':'none');
