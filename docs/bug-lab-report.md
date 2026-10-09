@@ -145,6 +145,26 @@ down" shape for the convoy. A deadlock cannot be proved from `/proc`, so any
 rule here would be a hint ("2 threads have waited on a futex for more than 60
 s while the process is active"), not a verdict.
 
+**Fixed** in commit `5e5952d` as dashboard hints (no collector or sampler change).
+The assessment now lists two `info` notes. `deadlock`: "2 threads have waited on
+a futex for over 67 s while other threads are active" (threads idle in futex wait
+for 30 s or more next to active threads). `lock-convoy`: "8 of 8 "worker"
+threads mostly wait on a futex but keep waking" (a family of four or more that
+spends most of its time in futex wait, wakes at least 5 times a second and uses
+at most 10% of a core). The idle summary over the thread table now ends with
+"Longest futex wait: over 67 s.", and the profile sentence no longer calls long
+futex waits normal. Both notes are worded as possibilities: a deadlocked thread
+looks like an idle service thread in `/proc`, and a pool serving many tiny tasks
+looks like a convoy. Families with an active member, and idle pools of four or
+more, are skipped, so `healthy` and idle or partly busy futex pools stay quiet.
+The verdict badge still says "Healthy", because the hints are `info`. Telling
+the shapes apart for certain needs per-thread throughput, which is a core
+collector metric and was not added.
+
+![deadlock after the fix](screenshots/bug-lab/g1-after-deadlock.png)
+
+![lock-convoy after the fix](screenshots/bug-lab/g1-after-convoy.png)
+
 ### G2: RSS growth is averaged over time before the leak
 
 With history from other processes in the last 10 minutes (the case after a
