@@ -54,7 +54,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   });
   vm.runInContext(script, context);
   vm.runInContext(`
-    realRenderTiles=renderTiles;
+    realRenderTiles=renderTiles; realRenderAssessment=renderAssessment;
     timeChart=()=>{}; renderAssessment=()=>{}; renderTiles=()=>{};
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
@@ -493,6 +493,78 @@ test('many futex waiters that keep waking with little CPU raise a convoy hint', 
   assert.deepEqual(lockHints(convoy.map(thread => ({...thread, cpu_pct: 20})), 45), []);
   assert.deepEqual(lockHints(convoy.slice(0, 3), 45), []);
   assert.deepEqual(lockHints(convoy.map(thread => ({...thread, state_mix: {running: 15, futex: 5}})), 45), []);
+});
+
+// A memory summary as /api/live sends it; limits far away unless overridden.
+const memorySummary = (values = {}, extra = {}) => ({available: true, stale: false, pid: 1, updated: 1,
+  values: {vma_count: 100, max_map_count: 65530, vm_size_bytes: 1e9, address_space_limit_bytes: 0, stack_limit_bytes: 8 << 20, ...values}, ...extra});
+const levelsOf = app => [...app.run('assess(live.threads,buffer).map(item=>item.level+": "+item.title)')];
+
+test('memory-map warnings join the overview assessment and set the verdict', () => {
+  const app = dashboard();
+  const verdict = () => app.elements.get('verdict').textContent;
+  const render = () => app.run('realRenderAssessment(live.threads)');
+  // vm-bloat: the address space is almost at RLIMIT_AS.
+  const bloated = memorySummary({vm_size_bytes: 950e6, address_space_limit_bytes: 1000e6});
+  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(bloated)}}`);
+  assert.deepEqual(levelsOf(app), ['critical: Address space is close to RLIMIT_AS']);
+  render();
+  assert.equal(verdict(), 'Needs attention now');
+  // A warning alone makes it "Worth a look".
+  app.run(`live.memory=${JSON.stringify(memorySummary({vma_count: 50000}))}`);
+  render();
+  assert.equal(verdict(), 'Worth a look');
+  assert.deepEqual(levelsOf(app), ['warning: Mapping count is close to the limit']);
+});
+
+test('growing resident memory joins the overview assessment', () => {
+  const app = dashboard();
+  const now = Date.now() / 1000;
+  const rows = Array.from({length: 8}, (_, index) => ({ts: now - 70 + index * 10, rss_bytes: 100e6 + index * 50e6}));
+  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memorySummary())}};resourceHistory={rows:${JSON.stringify(rows)}}`);
+  assert.deepEqual(levelsOf(app), ['warning: Resident memory grows without a plateau']);
+});
+
+test('info and good memory findings stay out of the overview assessment', () => {
+  const app = dashboard();
+  // The main stack at half of its limit is only an info finding in the Memory section.
+  const layout = {id: 's:1', pid: 1, regions: [{start: '0x7ffc00000000', end: '0x7ffc00400000', size: 4 << 20, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''}]};
+  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memorySummary({}, {layout_id: 's:1'}))}};memoryLayout=${JSON.stringify(layout)}`);
+  assert.ok(app.run('assessMemory(live.memory,memoryRegions(memoryLayout),[]).some(item=>item.level==="info")'));
+  assert.deepEqual(levelsOf(app), ['good: No problems detected']);
+  assert.equal(app.run('assess([],[])[0].detail'), 'No saturated threads, CPU waiting, kernel stalls or paging right now. The memory map is within its limits.');
+  // The stack rule works from the layout when it matches.
+  layout.regions[0].end = '0x7ffc00700000'; layout.regions[0].size = 0x700000;
+  app.run(`memoryLayout=${JSON.stringify(layout)}`);
+  assert.deepEqual(levelsOf(app), ['warning: Main stack is at 87.5% of its limit']);
+});
+
+test('without usable memory samples the overview ignores the memory map', () => {
+  const app = dashboard();
+  const bloated = memorySummary({vm_size_bytes: 950e6, address_space_limit_bytes: 1000e6});
+  const healthy = 'No saturated threads, CPU waiting, kernel stalls or paging right now.';
+  for (const memory of [undefined, {available: false, reason: 'memory sampling is off'}, {...bloated, stale: true}]) {
+    app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memory)}}`);
+    assert.equal(app.run('memoryOverviewFindings()'), null);
+    assert.equal(app.run('assess([],[])[0].detail'), healthy);
+  }
+});
+
+test('a memory fault finding replaces the thread one only when it is more severe', () => {
+  const app = dashboard();
+  const thread = {tid: 7, name: 'worker', state: 'running', major_faults_per_s: 80};
+  const load = memoryPressure => {
+    const sample = resources();
+    for (const scope of ['host', 'cgroup']) sample.pressure[scope].memory = {some: {pct: memoryPressure}, full: {pct: 0}};
+    app.run(`live={health:{session:'s'},threads:[${JSON.stringify(thread)}],memory:${JSON.stringify(memorySummary())},resources:${JSON.stringify(sample)}};buffer=[{t:1,mf:80}]`);
+  };
+  // Faults and pressure: the serious memory finding replaces the warning and keeps the thread link.
+  load(20);
+  assert.equal(levelsOf(app).filter(title => /fault/.test(title)).join(), 'serious: Major page faults and memory pressure rise together');
+  assert.equal(app.run('assess(live.threads,buffer).find(item=>item.topic==="faults").action.tid'), 7);
+  // Faults without pressure at 80/s: both rules are warnings; one line remains, the thread one.
+  load(0);
+  assert.deepEqual(levelsOf(app), ['warning: 80.0 major page faults/s']);
 });
 
 test('memory, CPU quota, process count and interface rules', () => {

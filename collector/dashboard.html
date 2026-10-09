@@ -1100,6 +1100,7 @@ function kernelShare(thread){
   if(!(thread.cpu_pct>0)||!(thread.system_pct>=0))return null;
   const share=Math.min(1,thread.system_pct/thread.cpu_pct);
   return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
+const LEVEL_ORDER=['critical','serious','warning','info','good'];
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
@@ -1117,7 +1118,7 @@ function assess(threads,points){
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
   const faults=threads.reduce((sum,thread)=>sum+(thread.major_faults_per_s||0),0);
-  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid})}
+  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid});findings.at(-1).topic='faults'}
   const stopped=threads.filter(thread=>thread.state==='stopped');
   if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
   const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
@@ -1131,7 +1132,13 @@ function assess(threads,points){
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
   findings.push(...lockHints(threads));
   for(const item of assessResources(live.resources))findings.push(item);
-  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.'});
+  // Memory-map findings join too. One about the same topic as a finding above
+  // (major faults) is not repeated: the more severe wording stays, with the
+  // thread link of the one it replaces.
+  const memory=memoryOverviewFindings(),rank=item=>LEVEL_ORDER.indexOf(item.level);
+  for(const item of memory||[]){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
+    if(!twin)findings.push(item);else if(rank(item)<rank(twin))findings[findings.indexOf(twin)]={...item,action:twin.action}}
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' The memory map is within its limits.':'')});
   return findings}
 function profile(threads){
   if(!threads.length)return '';
@@ -1143,7 +1150,7 @@ function profile(threads){
   if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.';
   return text}
 function renderAssessment(threads){
-  const findings=assess(threads,buffer);const order=['critical','serious','warning','info','good'];const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
+  const findings=assess(threads,buffer);const order=LEVEL_ORDER;const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
   const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   const list=element('findings');list.replaceChildren();
@@ -1905,7 +1912,7 @@ function rssTrend(){const all=resourcePoints().filter(point=>isNum(point.rss_byt
 const signed=value=>(value>0?'+':value<0?'−':'')+bytes(Math.abs(value));
 
 function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
-  const add=(level,title,detail)=>findings.push({level,title,detail});
+  const add=(level,title,detail,topic)=>findings.push({level,title,detail,topic});
   if(flags.maps_hidden)add('warning','The memory map is not readable','The sampler cannot read /proc/PID/maps. Run it as the target’s user; the target may also be non-dumpable.');
   if(isNum(v.vma_count)&&v.max_map_count>0){const share=100*v.vma_count/v.max_map_count;
     if(share>=75){const anonymous=regions.filter(region=>region.cat==='anonymous').reduce((sum,region)=>sum+region.vmas,0),guards=regions.filter(region=>region.cat==='guard').reduce((sum,region)=>sum+region.vmas,0);
@@ -1913,8 +1920,8 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(isNum(v.vm_size_bytes)&&v.address_space_limit_bytes>0){const share=100*v.vm_size_bytes/v.address_space_limit_bytes;
     if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${bytes(v.vm_size_bytes)} of ${bytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
   const faults=memoryFaultRate(),psi=memoryPressure(r);
-  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`);
-  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`);
+  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`,'faults');
+  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`,'faults');
   const trend=rssTrend(),heap=rows.find(row=>row.cat==='heap');
   if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`);
   if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
@@ -1929,6 +1936,15 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
   const order=['critical','serious','warning','info','good'];
   return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
+// The memory-map findings that belong in the top assessment: warning and
+// worse, from the same rules as the Memory section. null when there is no
+// usable memory sample (sampling off, an old collector, or a stale sample),
+// so the caller does not claim the memory map is fine. The layout only feeds
+// the stack rule, so it is used when it matches the summary and skipped
+// while it loads.
+function memoryOverviewFindings(){const m=live.memory;if(!m?.available||m.stale)return null;
+  const regions=memoryRegions(memoryLayoutFor(m));
+  return assessMemory(m,regions,memoryRows(regions)).filter(item=>item.level!=='info'&&item.level!=='good')}
 // Major faults per second: the thread samples when they have it (in replay,
 // the recorded ones), else the difference of the last two live memory
 // summaries. Live history says nothing about a recording.

@@ -411,7 +411,10 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
   threads, thread churn, a thread count that keeps growing (steady growth for
   two minutes or more, which a pool warming up does not show), sampler silence
-  and packet loss.
+  and packet loss. Warning-level and worse findings from the Memory map
+  section (a mapping count or address space near its limit, growing resident
+  memory, swap, major faults with pressure, the main stack near its limit)
+  join it too; with memory-map sampling off, the assessment leaves memory out.
 - **Thread churn** (an overview tile and an assessment note): threads seen
   starting and ending in the last minute. This is a **lower bound**. The sampler
   sees only the threads that exist when it lists the target's tasks, so a thread
