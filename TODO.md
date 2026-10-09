@@ -69,6 +69,31 @@ Goal: deploy by copying binaries. See
 - [ ] Document the kernel features each source needs (PSI, sock_diag modules,
   BTF for eBPF) and what the dashboard shows when one is missing.
 
+## Gaps found by the bug lab
+
+From [docs/bug-lab-report.md](docs/bug-lab-report.md). The cheap fixes are done;
+these need a core change, a privilege, or a decision.
+
+- [ ] Count threads ever created. Short-lived threads (under one sample
+  interval) can be missed, so thread churn is only a lower bound. No
+  unprivileged per-process counter exists (measured in the report); needs an
+  application hook, a privilege, or a new versioned wire field.
+- [ ] Per-thread throughput or "waited on a lock" signal, to tell a deadlock
+  or lock convoy from an idle pool. Today's hints are heuristics at info
+  level; they miss a deadlocked pool of 4 or more threads and a single
+  self-deadlocked thread.
+- [ ] Return the sampler session with each `/api/resources` row, so the RSS
+  trend can tell a restarted process from a reused pid.
+- [ ] Send `RLIMIT_NPROC` (`ulimit -u`) and `kernel.threads-max`, so the
+  thread-growth finding can name limits other than the cgroup's `pids.max`.
+- [ ] Keep thread-count history in the collector, so a freshly opened
+  dashboard tab can judge thread growth and idle time at once instead of
+  after about two minutes.
+- [ ] Report a yield or poll loop that does not reach 90% CPU (for example on
+  a contended host); today only saturated threads get the kernel-time wording.
+- [ ] Decide the severity of the deadlock and convoy hints: at info level
+  the top badge still says "Healthy".
+
 ## Required before adding new resource sources
 
 - [ ] Define scope, identity, units, missing-data behavior, sampling budget,

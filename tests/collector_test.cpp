@@ -441,6 +441,25 @@ void TestHealthAbsenceAccessAndSilence()
       "an empty wait channel shows as no_access");
 }
 
+// Checks that the live view splits CPU time into user and system parts: 25
+// user and 75 system ticks per second (clock_ticks_ is 100) give a thread
+// that uses a whole core, three quarters of it in the kernel.
+void TestLiveSystemCpuShare()
+{
+  MonitorFixture fixture;
+  for (std::uint32_t sequence = 0; sequence <= 10; ++sequence)
+  {
+    auto record = MakeRecord();
+    record.utime_ = sequence * 25;
+    record.stime_ = sequence * 75;
+    fixture.Feed(sequence, record);
+  }
+  const auto live = fixture.Thread(1'700'000'010);
+  RequireNear(Field(live, "cpu_pct").AsNumber(), 100, "live total CPU");
+  RequireNear(Field(live, "system_pct").AsNumber(), 75,
+              "live system CPU is the kernel part of the total");
+}
+
 void TestRollupsRetentionAndBoundedMemory()
 {
   MonitorFixture fixture;
@@ -1506,6 +1525,7 @@ int main()
     TestHealthAbsenceAccessAndSilence();
     TestRollupsRetentionAndBoundedMemory();
     TestIoFaultAndSwitchRates();
+    TestLiveSystemCpuShare();
     TestUnreadableIoSampleDoesNotResetThread();
     TestExistingDayFileGainsNewRollupColumns();
     TestLowestRateProducesValidWindows();

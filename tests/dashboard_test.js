@@ -54,7 +54,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   });
   vm.runInContext(script, context);
   vm.runInContext(`
-    realRenderTiles=renderTiles;
+    realRenderTiles=renderTiles; realRenderAssessment=renderAssessment;
     timeChart=()=>{}; renderAssessment=()=>{}; renderTiles=()=>{};
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
@@ -293,6 +293,40 @@ test('socket rules name the slow reader, the slow peer and overflowing listeners
   assert.ok(notes.includes('Zero-window probing (2)'), notes.join('\n'));
 });
 
+test('a socket that is not transferring data is never called a zero-window peer', () => {
+  const app = dashboard();
+  const sample = resources();
+  const syn = {fd: 4, kind: 'tcp4', state: 'SYN-SENT', listener: false, local: '127.0.0.1:46242', remote: '127.0.0.1:49947',
+    rx_queue: 0, tx_queue: 1, rx_fill_pct: 0, tx_fill_pct: 0, tcp: {peer_window: 0, rwnd_limited_pct: 50}};
+  const unreported = {...syn, state: 'ESTAB', tcp: {peer_window: null}};
+  sample.sockets.top = [syn, {...syn, fd: 5, state: 'SYN-RECV'}, unreported];
+  assert.ok(!findingsOf(app, sample).some(item => /not taking data/.test(item.title)));
+  const notes = item => app.run(`socketNotes(${JSON.stringify(item)}).map(note=>note[0])`);
+  const syn_notes = notes(syn);
+  assert.ok(syn_notes.some(text => /Connect unanswered: check accept queue/.test(text)), syn_notes.join('\n'));
+  assert.ok(!syn_notes.some(text => /window/i.test(text)), syn_notes.join('\n'));
+  assert.ok(notes(sample.sockets.top[1]).some(text => /Handshake not finished/.test(text)));
+  assert.ok(!notes(unreported).some(text => /window/i.test(text)));
+  for (const state of ['ESTAB', 'CLOSE-WAIT']) {
+    const open = {...syn, state, tcp: {peer_window: 0}};
+    assert.ok(notes(open).includes('Peer window is zero: the peer is not reading'), state);
+    sample.sockets.top = [open];
+    assert.ok(findingsOf(app, sample).some(item => /not taking data/.test(item.title)), state);
+  }
+});
+
+test('full send buffers still produce findings outside TCP data states', () => {
+  const app = dashboard();
+  for (const [kind, state] of [['udp4', 'UNCONN'], ['unix-stream', 'ESTAB'], ['tcp4', 'SYN-SENT']]) {
+    const socket = {fd: 8, kind, state, listener: false, local: 'local', remote: 'peer',
+      tx_queue: 4096, tx_fill_pct: 95, tcp: {peer_window: 0}};
+    const finding = findingsOf(app, resources({sockets: {top: [socket]}})).find(item => /not taking data/.test(item.title));
+    assert.ok(finding, `${kind} ${state}`);
+    assert.match(finding.detail, /send buffer 95.0% full/);
+    assert.doesNotMatch(finding.detail, /zero window/);
+  }
+});
+
 test('hidden or unreachable sockets are explained, not reported as zero', () => {
   const app = dashboard();
   const hidden = findingsOf(app, resources({flags: {descriptors_hidden: true}}));
@@ -364,6 +398,35 @@ test('resource range changes keep one polling loop, including overlapping reques
   await firePoll();
 });
 
+// Checks that a saturated thread is called a polling or yield loop only when
+// most of its CPU is system time and it switches context often, and stays a
+// plain "saturating a core" for user-space spins, buffer-copying syscall users
+// and collectors that send no system_pct.
+test('saturated threads are told apart by kernel share and switch rate', () => {
+  const app = dashboard();
+  const describe = fields => {
+    const thread = {tid: 7, name: 'worker-1', cpu_pct: 99, system_pct: 0, switches_per_s: 0,
+      run_delay_pct: 0, state: 'running', ...fields};
+    app.run(`live={health:{session:'s'},threads:[${JSON.stringify(thread)}]}`);
+    return app.run(`assess(live.threads,[]).find(item=>item.title.includes('saturating'))`);
+  };
+  const yielding = describe({system_pct: 97, switches_per_s: 250});
+  assert.equal(yielding.title, 'worker-1 is saturating a core in the kernel');
+  assert.match(yielding.detail, /99\.0% of one core, 98\.0% of it in the kernel, with 250 context switches\/s/);
+  assert.match(yielding.detail, /polling or yield loop/);
+  assert.equal(describe({system_pct: 0.1, switches_per_s: 190}).title,
+    'worker-1 is saturating a core', 'a user-space spin stays plain');
+  assert.equal(describe({system_pct: 95, switches_per_s: 5}).title,
+    'worker-1 is saturating a core', 'kernel time without frequent switching stays plain');
+  assert.equal(describe({system_pct: 30, switches_per_s: 250}).title,
+    'worker-1 is saturating a core', 'mostly user time stays plain');
+  assert.equal(describe({system_pct: 55, switches_per_s: 3000}).title,
+    'worker-1 is saturating a core in the kernel', 'a contended yield loop measures about half');
+  assert.equal(describe({system_pct: undefined, switches_per_s: 250}).title,
+    'worker-1 is saturating a core', 'older collectors send no system_pct');
+  app.run("live={health:{session:'s'},threads:[]}");
+});
+
 test('resource assessment joins the overview assessment', () => {
   const app = dashboard();
   const sample = resources();
@@ -374,6 +437,175 @@ test('resource assessment joins the overview assessment', () => {
   app.run(`live.resources=${JSON.stringify(resources())}`);
   assert.equal(app.run('assess([],[])[0].detail'),
     'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.');
+});
+
+// Threads as the live API reports them. A thread sat in `state` for the whole
+// window, used `cpu` percent of a core, and switched `sw` times a second.
+function lockThread(tid, name, state, {cpu = 0, sw = 0} = {}) {
+  return {tid, name, state, wchan: state === 'futex' ? 'futex_do_wait' : '', cpu_pct: cpu, switches_per_s: sw,
+    state_mix: {[state]: 20}, run_delay_pct: 0, read_bps: 0, write_bps: 0, major_faults_per_s: 0,
+    last_sample: 1000, stale: false, generation: 0};
+}
+
+// Show `threads` to the dashboard with `seen` seconds of observed history.
+function lockHints(threads, seen) {
+  const app = dashboard();
+  app.run(`live={health:{session:'s'},threads:${JSON.stringify(threads)}};lastTick=1000;
+    for(const thread of live.threads)threadSeen.set(thread.tid,{first:${1000 - seen},active:null,futexSince:${1000 - seen},generation:0})`);
+  return [...app.run('lockHints(live.threads).map(item=>item.title+"|"+item.detail)')];
+}
+
+test('threads stuck on a futex while others run raise a hint, not a verdict', () => {
+  const beat = lockThread(1, 'misc-heartbeat', 'sleep', {cpu: 0.2, sw: 2});
+  const stuck = [lockThread(2, 'worker-a', 'futex'), lockThread(3, 'worker-b', 'futex')];
+  const hints = lockHints([beat, ...stuck], 45);
+  assert.equal(hints.length, 1, hints.join('\n'));
+  assert.match(hints[0], /^2 threads have waited on a futex for over 45 s while other threads are active\|Possible deadlock/);
+  assert.match(hints[0], /worker-a \(2\), worker-b \(3\)/);
+  const app = dashboard();
+  app.run(`live={health:{session:'s'},threads:${JSON.stringify([beat, ...stuck])}};lastTick=1000;
+    for(const thread of live.threads)threadSeen.set(thread.tid,{first:955,active:null,futexSince:955,generation:0})`);
+  assert.deepEqual([...app.run('assess(live.threads,[]).map(item=>item.level)')], ['good', 'info']);
+  // Not long enough yet, or only one thread, or nothing else running: quiet.
+  assert.deepEqual(lockHints([beat, ...stuck], 20), []);
+  assert.deepEqual(lockHints([beat, stuck[0]], 45), []);
+  assert.deepEqual(lockHints(stuck, 45), []);
+});
+
+test('futex duration excludes earlier sleep and resets after a state change', () => {
+  const app = dashboard();
+  const threads = [lockThread(1, 'heartbeat', 'running', {cpu: 5}),
+    lockThread(2, 'worker-a', 'sleep'), lockThread(3, 'worker-b', 'sleep')];
+  app.run(`live={health:{session:'s'},threads:${JSON.stringify(threads)}}`);
+  const feed = (time, state) => app.run(`for(const thread of live.threads){thread.last_sample=${time};if(thread.tid!==1){thread.state='${state}';thread.state_mix={${state}:20}}}ingest()`);
+  feed(1000, 'sleep');
+  feed(1060, 'sleep');
+  feed(1061, 'futex');
+  feed(1080, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 0);
+  feed(1091, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 1);
+  feed(1092, 'sleep');
+  feed(1093, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 0);
+});
+
+test('idle pool workers on a futex stay quiet', () => {
+  const main = lockThread(1, 'main', 'running', {cpu: 30, sw: 50});
+  // A pool with one busy worker: the idle ones are spare capacity.
+  const busyPool = [lockThread(2, 'pool-1', 'running', {cpu: 5, sw: 40}),
+    ...[3, 4, 5, 6].map(tid => lockThread(tid, `pool-${tid}`, 'futex'))];
+  assert.deepEqual(lockHints([main, ...busyPool], 600), []);
+  // A pool that is wholly idle next to an active thread looks like an idle pool.
+  const idlePool = [2, 3, 4, 5].map(tid => lockThread(tid, `pool-${tid}`, 'futex'));
+  assert.deepEqual(lockHints([main, ...idlePool], 600), []);
+  // Idle workers that wake now and then are not parked; a thread that is not
+  // in a futex is never reported.
+  const sleepers = [2, 3].map(tid => lockThread(tid, `timer-${tid}x`, 'sleep'));
+  assert.deepEqual(lockHints([main, ...sleepers], 600), []);
+  // No history in the tab (for example in replay) means no claim.
+  const app = dashboard();
+  app.run(`live={health:{session:'s'},threads:${JSON.stringify([main, lockThread(7, 'a', 'futex'), lockThread(8, 'b', 'futex')])}};lastTick=1000`);
+  assert.equal(app.run('lockHints(live.threads).length'), 0);
+});
+
+test('many futex waiters that keep waking with little CPU raise a convoy hint', () => {
+  const convoy = [...Array(8).keys()].map(index => {
+    const thread = lockThread(10 + index, `worker-${index}`, index ? 'futex' : 'sleep', {cpu: 0.2, sw: 15});
+    thread.state_mix = {futex: 17, sleep: 3};
+    return thread;
+  });
+  const hints = lockHints(convoy, 45);
+  assert.equal(hints.length, 1, hints.join('\n'));
+  assert.match(hints[0], /^8 of 8 “worker” threads mostly wait on a futex but keep waking\|Together they used 1\.6% of one core and switched 120 times\/s/);
+  // Waiting workers that do not wake (an idle pool), busy workers, and small families are quiet.
+  assert.deepEqual(lockHints(convoy.map(thread => ({...thread, switches_per_s: 0, cpu_pct: 0})), 45), []);
+  assert.deepEqual(lockHints(convoy.map(thread => ({...thread, cpu_pct: 20})), 45), []);
+  assert.deepEqual(lockHints(convoy.slice(0, 3), 45), []);
+  assert.deepEqual(lockHints(convoy.map(thread => ({...thread, state_mix: {running: 15, futex: 5}})), 45), []);
+});
+
+// A memory summary as /api/live sends it; limits far away unless overridden.
+const memorySummary = (values = {}, extra = {}) => ({available: true, stale: false, pid: 1, updated: 1,
+  values: {vma_count: 100, max_map_count: 65530, vm_size_bytes: 1e9, address_space_limit_bytes: 0, stack_limit_bytes: 8 << 20, ...values}, ...extra});
+const levelsOf = app => [...app.run('assess(live.threads,buffer).map(item=>item.level+": "+item.title)')];
+
+test('memory-map warnings join the overview assessment and set the verdict', () => {
+  const app = dashboard();
+  const verdict = () => app.elements.get('verdict').textContent;
+  const render = () => app.run('realRenderAssessment(live.threads)');
+  // vm-bloat: the address space is almost at RLIMIT_AS.
+  const bloated = memorySummary({vm_size_bytes: 950e6, address_space_limit_bytes: 1000e6});
+  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(bloated)}}`);
+  assert.deepEqual(levelsOf(app), ['critical: Address space is close to RLIMIT_AS']);
+  render();
+  assert.equal(verdict(), 'Needs attention now');
+  // A warning alone makes it "Worth a look".
+  app.run(`live.memory=${JSON.stringify(memorySummary({vma_count: 50000}))}`);
+  render();
+  assert.equal(verdict(), 'Worth a look');
+  assert.deepEqual(levelsOf(app), ['warning: Mapping count is close to the limit']);
+});
+
+test('growing resident memory joins the overview assessment', () => {
+  const app = dashboard();
+  const now = Date.now() / 1000;
+  const rows = Array.from({length: 8}, (_, index) => ({ts: now - 70 + index * 10, pid: 1, rss_bytes: 100e6 + index * 50e6}));
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:${JSON.stringify(memorySummary())},resources:${JSON.stringify(resources())}};resourceHistory={rows:${JSON.stringify(rows)}}`);
+  assert.deepEqual(levelsOf(app), ['warning: Resident memory grows without a plateau']);
+});
+
+test('info and good memory findings stay out of the overview assessment', () => {
+  const app = dashboard();
+  // The main stack at half of its limit is only an info finding in the Memory section.
+  const layout = {id: 's:1', pid: 1, regions: [{start: '0x7ffc00000000', end: '0x7ffc00400000', size: 4 << 20, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''}]};
+  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memorySummary({}, {layout_id: 's:1'}))}};memoryLayout=${JSON.stringify(layout)}`);
+  assert.ok(app.run('assessMemory(live.memory,memoryRegions(memoryLayout),[]).some(item=>item.level==="info")'));
+  assert.deepEqual(levelsOf(app), ['good: No problems detected']);
+  assert.equal(app.run('assess([],[])[0].detail'), 'No saturated threads, CPU waiting, kernel stalls or paging right now. No memory-map warnings detected in the available samples.');
+  // The stack rule works from the layout when it matches.
+  layout.regions[0].end = '0x7ffc00700000'; layout.regions[0].size = 0x700000;
+  app.run(`memoryLayout=${JSON.stringify(layout)}`);
+  assert.deepEqual(levelsOf(app), ['warning: Main stack is at 87.5% of its limit']);
+});
+
+test('without usable memory samples the overview ignores the memory map', () => {
+  const app = dashboard();
+  const bloated = memorySummary({vm_size_bytes: 950e6, address_space_limit_bytes: 1000e6});
+  const healthy = 'No saturated threads, CPU waiting, kernel stalls or paging right now.';
+  for (const memory of [undefined, {available: false, reason: 'memory sampling is off'}, {...bloated, stale: true}]) {
+    app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memory)}}`);
+    assert.equal(app.run('memoryOverviewFindings()'), null);
+    assert.equal(app.run('assess([],[])[0].detail'), healthy);
+  }
+});
+
+test('an older stack layout cannot supply a current overview finding', () => {
+  const app = dashboard();
+  const memory = memorySummary({}, {layout_id: 's:2'});
+  const layout = {id: 's:1', pid: 1, regions: [{start: '0x7ffc00000000', end: '0x7ffc00700000',
+    size: 0x700000, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''}]};
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:${JSON.stringify(memory)}};memoryLayout=${JSON.stringify(layout)}`);
+  assert.deepEqual(levelsOf(app), ['good: No problems detected']);
+  app.run("memoryLayout.id='s:2'");
+  assert.deepEqual(levelsOf(app), ['warning: Main stack is at 87.5% of its limit']);
+});
+
+test('a memory fault finding replaces the thread one only when it is more severe', () => {
+  const app = dashboard();
+  const thread = {tid: 7, name: 'worker', state: 'running', major_faults_per_s: 80};
+  const load = memoryPressure => {
+    const sample = resources();
+    for (const scope of ['host', 'cgroup']) sample.pressure[scope].memory = {some: {pct: memoryPressure}, full: {pct: 0}};
+    app.run(`live={health:{session:'s'},threads:[${JSON.stringify(thread)}],memory:${JSON.stringify(memorySummary())},resources:${JSON.stringify(sample)}};buffer=[{t:1,mf:80}]`);
+  };
+  // Faults and pressure: the serious memory finding replaces the warning and keeps the thread link.
+  load(20);
+  assert.equal(levelsOf(app).filter(title => /fault/.test(title)).join(), 'serious: Major page faults and memory pressure rise together');
+  assert.equal(app.run('assess(live.threads,buffer).find(item=>item.topic==="faults").action.tid'), 7);
+  // Faults without pressure at 80/s: both rules are warnings; one line remains, the thread one.
+  load(0);
+  assert.deepEqual(levelsOf(app), ['warning: 80.0 major page faults/s']);
 });
 
 test('memory, CPU quota, process count and interface rules', () => {
@@ -397,6 +629,77 @@ test('memory, CPU quota, process count and interface rules', () => {
   // No limits (all null) and a healthy cgroup add nothing.
   const quiet = resources({cgroup_limits: {memory: {current: 5e8, max: null}, cpu: {quota_us: null, throttled_pct: null}, pids: {current: 3, max: null}}});
   assert.equal(findingsOf(app, quiet).length, 0);
+});
+
+// Thread counts at one sample per second from t=1000, as {t, n} points.
+const countsAt = (seconds, count) => Array.from({length: seconds}, (_, i) => ({t: 1000 + i, n: count(i)}));
+// Whether the growth rule fires at any moment while the counts arrive.
+const growthEver = (app, points) => app.run(`(()=>{const all=${JSON.stringify(points)};
+  for(let i=1;i<=all.length;i++)if(threadGrowth(all.slice(0,i)))return i;return 0})()`);
+
+test('a steady thread leak is flagged with its rate, count and cgroup headroom', () => {
+  const app = dashboard();
+  const points = countsAt(180, i => 4 + Math.floor(i * 4));
+  app.run("live={health:{session:'s'},threads:[]}");
+  const findings = app.run(`assess([],${JSON.stringify(points)})`);
+  const finding = findings.find(item => item.title === 'Thread count keeps growing');
+  assert.equal(finding.level, 'warning');
+  assert.match(finding.detail, /\d+ to \d{3} threads in \d\.\d min, \+2\d\d threads\/min, and still rising/);
+  assert.match(finding.detail, /No cgroup pids\.max is known/);
+  assert.ok(!findings.some(item => item.level === 'good'));
+  // The rule needs about two minutes of data: it fires in the third minute, not the first.
+  const first = growthEver(app, points);
+  assert.ok(first >= 120 && first <= 150, `fired after ${first} s`);
+  // A slow leak (one thread every 4 s, 15 threads/min) shows over five minutes.
+  const slow = countsAt(330, i => 40 + Math.floor(i / 4));
+  assert.ok(growthEver(app, slow) > 0);
+});
+
+test('thread growth needs two minutes of continuous observations', () => {
+  const app = dashboard();
+  const sparse = countsAt(250, i => 4 + i * 4).filter((_, i) => i % 30 === 0);
+  assert.equal(app.run(`threadGrowth(${JSON.stringify(sparse)})`), null);
+  assert.equal(growthEver(app, countsAt(120, i => 4 + i * 4)), 0);
+  const points = countsAt(180, i => 4 + i * 4);
+  const growth = app.run(`threadGrowth(${JSON.stringify(points)})`);
+  close(growth.rate, 240);
+  assert.ok(growth.minutes >= 2);
+});
+
+test('thread growth escalates when the cgroup limit is close', () => {
+  const app = dashboard();
+  const points = JSON.stringify(countsAt(150, i => 4 + i * 4));
+  const run = pids => {
+    app.run(`live={health:{session:'s'},threads:[],resources:${JSON.stringify(resources({cgroup_limits: {pids}}))}}`);
+    return app.run(`assess([],${points}).find(item=>item.title==='Thread count keeps growing')`);
+  };
+  assert.equal(run({current: 604, max: 100000}).level, 'warning');
+  assert.match(run({current: 604, max: 100000}).detail, /full in about \d+ min/);
+  const soon = run({current: 604, max: 1000});
+  assert.equal(soon.level, 'serious');
+  assert.match(soon.detail, /allows 1000 processes and threads \(604 in use\); at this rate it is full in about 2 min/);
+  assert.equal(run({current: 800, max: 1000}).level, 'serious');
+  assert.match(run({current: 3, max: null}).detail, /No cgroup pids\.max is known/);
+});
+
+test('pools warming up, restarts, churn and noise are not thread growth', () => {
+  const app = dashboard();
+  // A pool that ramps from 8 to 200 threads in 40 s, then stays there.
+  assert.equal(growthEver(app, countsAt(600, i => Math.min(200, 8 + i * 5))), 0);
+  // A slower ramp that stops after a minute.
+  assert.equal(growthEver(app, countsAt(600, i => Math.min(300, 20 + i * 5))), 0);
+  // Growth for less than two minutes.
+  assert.equal(growthEver(app, countsAt(100, i => 4 + i * 4)), 0);
+  // A restart: 300 threads, then 2, rebuilt to 100 within 25 s, then steady.
+  assert.equal(growthEver(app, countsAt(600, i => i < 200 ? 300 : Math.min(100, 2 + (i - 200) * 4))), 0);
+  // A steady count, and one that bursts with short-lived threads.
+  assert.equal(growthEver(app, countsAt(400, () => 50)), 0);
+  assert.equal(growthEver(app, countsAt(400, i => 50 + (i % 20 < 5 ? 30 : 0))), 0);
+  // A pool that scales in and out around the same level, never settling higher.
+  assert.equal(growthEver(app, countsAt(600, i => 100 + 40 * Math.sin(i / 20))), 0);
+  // Missing counts do not matter.
+  assert.equal(app.run('threadGrowth([])'), null);
+  assert.equal(app.run('threadGrowth([{t:1,n:null},{t:2,n:null}])'), null);
 });
 
 function frame(time, session = 'old-session', tid = 9) {
@@ -642,6 +945,102 @@ test('a data file below the executable is not the program image', () => {
   const guess = JSON.stringify({regions: [file(0x55e558c1c000, 'r-xp', '/usr/bin/other (deleted)')]});
   const guessed = app.run(`(()=>{const regions=memoryRegions(${guess});return assessMemory({values:{}},regions,memoryRows(regions)).map(item=>item.title)})()`);
   assert.ok(guessed.includes('Executable file replaced on disk'), guessed.join('\n'));
+});
+
+// Resource history rows, one per `step` seconds, ending now. Each part is
+// [pid, seconds, start MiB, MiB per second]; `wobble` adds a small saw-tooth
+// and `dip` lowers every sixth sample (a step that does not rise).
+function rssHistory(app, parts, {step = 5, wobble = 0, dip = 0} = {}) {
+  const total = parts.reduce((sum, part) => sum + part[1], 0), start = Date.now() / 1000 - total;
+  const rows = [];
+  let at = 0;
+  for (const [pid, seconds, mib, rate] of parts) {
+    for (let t = 0; t < seconds; t += step, at += step)
+      rows.push({ts: start + at, pid, rss_bytes: (mib + rate * t + (rows.length % 2 ? wobble : 0) - (rows.length % 6 === 5 ? dip : 0)) * 2 ** 20});
+  }
+  app.run(`live={health:{session:'s',pid:${parts.at(-1)[0]}},threads:[],resources:{available:true,memory:{rss:${rows.at(-1).rss_bytes},anon:1,rss_growth_per_s:${rate0(parts)}}}};` +
+    `resourceHistory={rows:${JSON.stringify(rows)}}`);
+}
+const rate0 = parts => parts.at(-1)[3] * 2 ** 20;
+const trendOf = app => JSON.parse(app.run('JSON.stringify(rssTrend())'));
+const growthFindings = app => [...app.run("assessMemory({values:{}},[],[]).map(item=>item.title)")];
+const GROWS = 'Resident memory grows without a plateau';
+
+test('a leak that started a minute ago is reported at its own rate', () => {
+  const app = dashboard();
+  // Eight flat minutes, then 60 s at 8 MiB/s (480 MiB/min).
+  rssHistory(app, [[7, 480, 100, 0], [7, 60, 100, 8]]);
+  const trend = trendOf(app);
+  assert.ok(trend.steady);
+  assert.ok(Math.abs(trend.slope / 2 ** 20 - 480) < 25, String(trend.slope / 2 ** 20));
+  assert.ok(growthFindings(app).includes(GROWS));
+  // The same leak three minutes in is still found, and the flat time before it does not matter.
+  rssHistory(app, [[7, 400, 100, 0], [7, 180, 100, 8]]);
+  assert.ok(Math.abs(trendOf(app).slope / 2 ** 20 - 480) < 25);
+});
+
+test('an earlier, smaller process in the window does not change the RSS trend', () => {
+  const app = dashboard();
+  // PID 4 ran at 50 MiB (and shrank); PID 7 started 90 s ago and leaks 8 MiB/s.
+  rssHistory(app, [[4, 300, 400, -1], [7, 90, 40, 8]]);
+  const trend = trendOf(app);
+  assert.ok(trend.steady);
+  assert.ok(Math.abs(trend.slope / 2 ** 20 - 480) < 25, String(trend.slope / 2 ** 20));
+  assert.ok(growthFindings(app).includes(GROWS));
+  // The new process is still too young to judge: nothing is reported.
+  rssHistory(app, [[4, 300, 50, 0], [7, 20, 40, 8]]);
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // A previous process that was bigger does not make the new one look like it shrinks.
+  rssHistory(app, [[4, 300, 2000, 0], [7, 120, 100, 0]]);
+  assert.ok(!trendOf(app).steady);
+  assert.ok(Math.abs(trendOf(app).slope) < 1);
+});
+
+test('RSS growth does not use another target, stale resources, or live history in replay', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 120, 100, 8]]);
+  assert.ok(trendOf(app).steady);
+  app.run('live.health.pid=8');
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  app.run('live.health.pid=7;live.resources.stale=true');
+  assert.equal(trendOf(app), null);
+  app.run('live.resources.stale=false;live.resources.available=false');
+  assert.equal(trendOf(app), null);
+  app.run('live.resources.available=true;replayAt=Date.now()/1000-300');
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+});
+
+test('unavailable RSS rows preserve process boundaries', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 120, 100, 8]]);
+  app.run('resourceHistory.rows.splice(-1,0,{ts:resourceHistory.rows.at(-1).ts-1,pid:8,rss_bytes:null})');
+  assert.equal(trendOf(app), null);
+});
+
+test('flat, noisy and slowly growing RSS do not raise the growth finding', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 600, 300, 0]], {wobble: 0.3});
+  assert.ok(!trendOf(app).steady);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // A few non-rising steps are tolerated, but 0.1 MiB/s over three minutes is not a leak.
+  rssHistory(app, [[7, 600, 300, 0.01]], {wobble: 0.3});
+  assert.ok(!growthFindings(app).includes(GROWS));
+  // Growth that stalls: the last minutes are flat, so it does not qualify.
+  rssHistory(app, [[7, 120, 100, 4], [7, 300, 580, 0]]);
+  assert.ok(!growthFindings(app).includes(GROWS));
+});
+
+test('a leak with a few non-rising steps is still found, and the tile uses the same trend', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 300, 100, 2]], {dip: 15});
+  assert.ok(trendOf(app).steady);
+  assert.ok(growthFindings(app).includes(GROWS));
+  const tile = JSON.parse(app.run(`(()=>{renderMemoryTiles({values:{}});return JSON.stringify(element('memory-tiles').children.map(box=>box.children.map(child=>child.textContent)))})()`));
+  const resident = tile.find(box => box[0] === 'Resident (RSS)');
+  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MB \/ min$/);
 });
 
 function helpClock() {

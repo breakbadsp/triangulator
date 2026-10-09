@@ -39,6 +39,13 @@ The section follows the mock-up in
   near its limit, major faults with memory pressure, RSS that keeps
   growing, swap, a deleted library or program that is still mapped, and
   the main stack against `RLIMIT_STACK`.
+  Findings of warning level or worse also join the Assessment at the top
+  of the page, with the same severity, so the overall verdict reflects them;
+  notices and "nothing unusual" stay in this section. When the same fact is
+  already in the assessment (major page faults), the more severe wording is
+  kept once. Without a fresh memory sample (sampling off, a stale sample or an
+  older collector) nothing from this section is added, and the assessment
+  does not claim the memory map is fine.
 - **Address space.** One bar per run of neighbouring regions of a kind,
   high addresses at the top, with large unmapped spaces shortened. At most
   18 bars: the dashboard merges the smallest neighbours until the map
