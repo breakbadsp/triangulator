@@ -1265,3 +1265,28 @@ test('each cell has a distinct help target even when it shares a metric topic', 
   app.run("readCell.textContent='2'");
   assert.equal(app.run('readKey'), app.run("helpIdentity(readCell,'sysio')"), 'new values must not reset dwell on the same target');
 });
+
+test('zoom legend names every kind shown in the grid, in the grid colors', () => {
+  const app = dashboard();
+  const kinds = JSON.parse(app.run('JSON.stringify(Object.keys(MEMORY_KINDS))'));
+  assert.deepEqual([...kinds].sort(), ['anonymous', 'code', 'file', 'guard', 'heap', 'kernel', 'library', 'stack']);
+  // Two 8 KB regions with an unmapped page between them, so every zoom also has a "not mapped" square.
+  const legend = kind => app.run(`(()=>{const member=(lo,hi)=>({cat:'${kind}',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
+    const members=[member(0x10000n,0x12000n),member(0x13000n,0x15000n)];
+    memoryPrevious=null;renderMemoryZoom({key:'${kind}',cat:'${kind}',vmas:2,size:16384,lo:0x10000n,hi:0x15000n,members});
+    return element('memory-grid-legend').children.map(item=>({label:item.children[1],style:item.children[0].style.background,cls:item.children[0].className}))})()`);
+  for (const kind of kinds) {
+    const [mapped, gap, ...rest] = legend(kind);
+    assert.equal(rest.length, 0, kind);
+    assert.equal(mapped.label, app.run(`MEMORY_KIND_LABELS.${kind}`), kind);
+    if (kind === 'guard') assert.match(mapped.cls, /cell-guard/);
+    else assert.equal(mapped.style, app.run(`MEMORY_KINDS.${kind}[0]`), kind);
+    assert.deepEqual([gap.label, gap.cls], ['not mapped', 'sw cell-none'], kind);
+  }
+  // Squares mapped since the previous layout add the marker entry; unchanged layouts do not.
+  app.run("memoryPrevious={regions:[{start:'0x10000',end:'0x12000',permissions:'rw-p',kind:'heap',name:''}]}");
+  const labels = app.run(`(()=>{const member=(lo,hi)=>({cat:'heap',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
+    renderMemoryZoom({key:'h',cat:'heap',vmas:1,size:16384,lo:0x10000n,hi:0x14000n,members:[member(0x10000n,0x14000n)]});
+    return element('memory-grid-legend').children.map(item=>item.children[1])})()`);
+  assert.deepEqual([...labels], ['heap (brk)', 'mapped since the previous layout']);
+});
