@@ -277,8 +277,7 @@ and no "not taking data"; `tcp-slow` still reports the zero window.
 second is on the page, but the dashboard does not separate user time from
 system time, so it cannot say "this CPU is burned in syscalls". Low priority.
 
-**Fixed** in the commit titled "Say when a saturated thread is polling in the
-kernel". The user/system split was already on the wire (`utime`, `stime`), so
+**Fixed** in f52ef4b. The user/system split was already on the wire (`utime`, `stime`), so
 only `/api/live` gained a `system_pct` field per thread; the sampler and wire
 format are unchanged. A saturated thread (90% CPU or more) whose CPU is at least
 half system time and that switches context at least 100 times per second is now
