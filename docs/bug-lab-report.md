@@ -331,6 +331,21 @@ is why the bar is "half" and not "nearly all".
 - The socket observer (eBPF) was not enabled, so the Socket I/O section was
   not part of this test.
 
+## Status after the fixes
+
+Each gap has a fix (or a documented limit) on this branch, verified on a real
+run of its scenario. The scorecard above is the result *before* the fixes.
+
+| Gap | Outcome | Still open (in [TODO.md](../TODO.md#gaps-found-by-the-bug-lab)) |
+|---|---|---|
+| G1 deadlock, convoy | Two info hints and a "longest futex wait" line | Hints are heuristics at info level; a deadlocked pool of 4+ threads is missed |
+| G2 RSS growth | Trend uses the current process only, +448 MB/min on the contaminated run | Session id in `/api/resources` rows |
+| G3 memory findings | Warning and above reach the top assessment | none |
+| G4 thread churn | Labelled a lower bound everywhere | A real count needs a privilege, a wire field or an app hook |
+| G5 thread growth | New "Thread count keeps growing" warning | `RLIMIT_NPROC`, server-side history |
+| G6 SYN-SENT | State-specific note, no zero-window claim | none |
+| G7 yield loops | "saturating a core in the kernel" wording | Unsaturated yield loops |
+
 ## Suggested follow-ups
 
 Nothing here was changed in the product. If you want to act on it:

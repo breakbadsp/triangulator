@@ -38,7 +38,8 @@ for name in "${scenarios[@]}"; do
     "${run[@]}" 2>"$out/$name.log" &
     app=$!
     sleep 1
-    "$root/scripts/set-target.sh" "${comm:0:15}" >/dev/null
+    # Select by PID: a name is ambiguous if another lab run uses the same scenario.
+    "$root/scripts/set-target.sh" "$app" >/dev/null
     # The page opens first so trend charts cover the whole run.
     node "$root/bug-lab/capture.mjs" "http://127.0.0.1:$port" "$hold" "$out/$name.png" \
         "#overview=$out/$name-overview.png" "#threads-section=$out/$name-threads.png" \
@@ -47,12 +48,12 @@ for name in "${scenarios[@]}"; do
     if [[ "$name" == stopped ]]; then
         # Stop the whole process shortly before the screenshot, resume after it.
         sleep $((hold - 25))
-        pkill -STOP -x "$comm" || true
+        kill -STOP "$app" || true
         wait "$shot"
-        pkill -CONT -x "$comm" || true
+        kill -CONT "$app" || true
     fi
     wait "$shot"
-    pkill -TERM -f "$bench $name" || true
+    kill -TERM "$app" 2>/dev/null || true
     wait "$app" 2>/dev/null || true
     sleep 2
 done
