@@ -1063,6 +1063,27 @@ const windowPoints=()=>{const end=buffer.at(-1)?.t||0;return buffer.filter(point
 
 // ---------- Overview ----------
 const threadLabel=thread=>`${thread.name} (${thread.tid})`;
+// Steady thread-count growth over the current session: a leak, not a pool warming up.
+// Counts are reduced to the lowest value in each 15 s step so bursts of short-lived
+// threads do not look like growth. A window qualifies when it spans at least two
+// minutes (after the last sharp drop, such as a restart), rises in most steps and
+// still in 2 of the last 3,
+// gains at least 20 threads and 10%, and gains in both halves, so a pool that
+// ramps up once and then plateaus is ignored. Windows of 2 and 5 minutes are tried.
+function threadGrowth(points){
+  const STEP=15,counts=points.filter(point=>isNum(point.n));if(counts.length<2)return null;
+  const end=counts.at(-1).t;let best=null;
+  for(const span of [120,300]){
+    const bins=[];for(const point of counts){if(point.t<end-span)continue;const index=Math.floor((end-point.t)/STEP);bins[index]=Math.min(bins[index]??Infinity,point.n)}
+    let series=[];for(let index=bins.length-1;index>=0;index--)if(bins[index]!==undefined)series.push(bins[index]);
+    for(let i=series.length-1;i>0;i--)if(series[i-1]-series[i]>=5&&series[i]<.75*series[i-1]){series=series.slice(i);break}
+    if(series.length<8)continue;
+    const steps=series.length-1,deltas=series.slice(1).map((value,i)=>value-series[i]),rises=deltas.filter(delta=>delta>0).length,recent=deltas.slice(-3).filter(delta=>delta>0).length,falls=deltas.filter(delta=>delta<0).length;
+    const first=series[0],last=series.at(-1),total=last-first,middle=Math.floor(steps/2),early=series[middle]-first,late=last-series[middle];
+    if(total<20||total<.1*first||rises<.6*steps||recent<2||falls>.2*steps||early<.25*total||late<.25*total)continue;
+    const minutes=steps*STEP/60,found={from:first,to:last,minutes,rate:total/minutes};
+    if(!best||found.rate>best.rate)best=found}
+  return best}
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
@@ -1082,6 +1103,10 @@ function assess(threads,points){
   if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
   const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
   if(born+died>=10)add('info','High thread churn',`At least ${born} threads started and ${died} ended in the last minute (threads that lived less than one sample interval are not counted). Short-lived threads cost creation time; consider a pool.`);
+  const growth=threadGrowth(points);
+  if(growth){const pids=live.resources?.available?live.resources.cgroup_limits?.pids:null,room=isNum(pids?.current)&&isNum(pids?.max)&&pids.max>0?pids.max-pids.current:null;
+    const eta=room!==null&&growth.rate>0?room/growth.rate:null,close=room!==null&&(pids.current>=.75*pids.max||eta<=10);
+    add(close?'serious':'warning','Thread count keeps growing',`${growth.from} to ${growth.to} threads in ${number(growth.minutes,1)} min, +${number(growth.rate,0)} threads/min, and still rising. Each thread holds a stack; if none ever exit, this is a leak (for example workers or requests that wait forever).`+(room!==null?` The cgroup allows ${pids.max} processes and threads (${pids.current} in use)`+(room>0?`; at this rate it is full in about ${number(eta,0)} min.`:'.'):' No cgroup pids.max is known; RLIMIT_NPROC and kernel.threads-max also cap this.'))}
   const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
   const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}

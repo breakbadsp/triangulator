@@ -489,6 +489,66 @@ test('memory, CPU quota, process count and interface rules', () => {
   assert.equal(findingsOf(app, quiet).length, 0);
 });
 
+// Thread counts at one sample per second from t=1000, as {t, n} points.
+const countsAt = (seconds, count) => Array.from({length: seconds}, (_, i) => ({t: 1000 + i, n: count(i)}));
+// Whether the growth rule fires at any moment while the counts arrive.
+const growthEver = (app, points) => app.run(`(()=>{const all=${JSON.stringify(points)};
+  for(let i=1;i<=all.length;i++)if(threadGrowth(all.slice(0,i)))return i;return 0})()`);
+
+test('a steady thread leak is flagged with its rate, count and cgroup headroom', () => {
+  const app = dashboard();
+  const points = countsAt(180, i => 4 + Math.floor(i * 4));
+  app.run("live={health:{session:'s'},threads:[]}");
+  const findings = app.run(`assess([],${JSON.stringify(points)})`);
+  const finding = findings.find(item => item.title === 'Thread count keeps growing');
+  assert.equal(finding.level, 'warning');
+  assert.match(finding.detail, /\d+ to \d{3} threads in \d\.\d min, \+2\d\d threads\/min, and still rising/);
+  assert.match(finding.detail, /No cgroup pids\.max is known/);
+  assert.ok(!findings.some(item => item.level === 'good'));
+  // The rule needs about two minutes of data: it fires in the third minute, not the first.
+  const first = growthEver(app, points);
+  assert.ok(first >= 105 && first <= 135, `fired after ${first} s`);
+  // A slow leak (one thread every 4 s, 15 threads/min) shows over five minutes.
+  const slow = countsAt(330, i => 40 + Math.floor(i / 4));
+  assert.ok(growthEver(app, slow) > 0);
+});
+
+test('thread growth escalates when the cgroup limit is close', () => {
+  const app = dashboard();
+  const points = JSON.stringify(countsAt(150, i => 4 + i * 4));
+  const run = pids => {
+    app.run(`live={health:{session:'s'},threads:[],resources:${JSON.stringify(resources({cgroup_limits: {pids}}))}}`);
+    return app.run(`assess([],${points}).find(item=>item.title==='Thread count keeps growing')`);
+  };
+  assert.equal(run({current: 604, max: 100000}).level, 'warning');
+  assert.match(run({current: 604, max: 100000}).detail, /full in about \d+ min/);
+  const soon = run({current: 604, max: 1000});
+  assert.equal(soon.level, 'serious');
+  assert.match(soon.detail, /allows 1000 processes and threads \(604 in use\); at this rate it is full in about 2 min/);
+  assert.equal(run({current: 800, max: 1000}).level, 'serious');
+  assert.match(run({current: 3, max: null}).detail, /No cgroup pids\.max is known/);
+});
+
+test('pools warming up, restarts, churn and noise are not thread growth', () => {
+  const app = dashboard();
+  // A pool that ramps from 8 to 200 threads in 40 s, then stays there.
+  assert.equal(growthEver(app, countsAt(600, i => Math.min(200, 8 + i * 5))), 0);
+  // A slower ramp that stops after a minute.
+  assert.equal(growthEver(app, countsAt(600, i => Math.min(300, 20 + i * 5))), 0);
+  // Growth for less than two minutes.
+  assert.equal(growthEver(app, countsAt(100, i => 4 + i * 4)), 0);
+  // A restart: 300 threads, then 2, rebuilt to 100 within 25 s, then steady.
+  assert.equal(growthEver(app, countsAt(600, i => i < 200 ? 300 : Math.min(100, 2 + (i - 200) * 4))), 0);
+  // A steady count, and one that bursts with short-lived threads.
+  assert.equal(growthEver(app, countsAt(400, () => 50)), 0);
+  assert.equal(growthEver(app, countsAt(400, i => 50 + (i % 20 < 5 ? 30 : 0))), 0);
+  // A pool that scales in and out around the same level, never settling higher.
+  assert.equal(growthEver(app, countsAt(600, i => 100 + 40 * Math.sin(i / 20))), 0);
+  // Missing counts do not matter.
+  assert.equal(app.run('threadGrowth([])'), null);
+  assert.equal(app.run('threadGrowth([{t:1,n:null},{t:2,n:null}])'), null);
+});
+
 function frame(time, session = 'old-session', tid = 9) {
   return {recorded_at: time, health: {session, pid: tid, last_seen: time, sample_interval_ms: 1000},
     groups: {workers: 1}, threads: [{tid, name: 'old-worker', generation: 1, group: 'workers',

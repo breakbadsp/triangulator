@@ -724,7 +724,8 @@ static pthread_mutex_t g_park_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t g_park_cond = PTHREAD_COND_INITIALIZER;
 
 // BUG: every "request" starts a thread that waits for a reply that never
-// comes. Threads (and their stacks) pile up.
+// comes. Threads (and their stacks) pile up: one every 250 ms for 150 s, slow
+// enough that the dashboard must watch the trend to notice it.
 static void* parked_thread(void* arg)
 {
   (void)arg;
@@ -743,7 +744,7 @@ static void* leak_spawner(void* arg)
   for (int i = 0; i < 600 && running(); ++i)
   {
     start_thread(parked_thread, 0, "worker-park", 0);
-    sleep_ms(100);
+    sleep_ms(250);
   }
   return NULL;
 }

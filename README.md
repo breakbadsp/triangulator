@@ -409,7 +409,9 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   load into those parts.
 - **Assessment**: rules of thumb that point at likely problems: a thread
   saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
-  threads, thread churn, sampler silence and packet loss.
+  threads, thread churn, a thread count that keeps growing (steady growth for
+  two minutes or more, which a pool warming up does not show), sampler silence
+  and packet loss.
 - **Thread churn** (an overview tile and an assessment note): threads seen
   starting and ending in the last minute. This is a **lower bound**. The sampler
   sees only the threads that exist when it lists the target's tasks, so a thread
