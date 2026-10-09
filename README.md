@@ -48,6 +48,8 @@ The script builds the programs and installs the runtime files under
 `~/triangulator/`. It creates `config/sampler.toml` and `config/collector.toml`
 from the repository templates on first use. Existing configs are preserved.
 The generated configs use local addresses and the host's clock ticks.
+Resource sampling (every 5 seconds), memory maps (every 30 seconds), raw
+sample storage, and dashboard recordings (every second) are enabled.
 
 - `bin/`: the running binaries, including the socket report helper.
 - `config/`: the active sampler and collector settings.
@@ -166,8 +168,10 @@ memory limits.
   </picture>
 </p>
 
-Memory sampling is off by default. Add `memory_interval_s = 30` to
-`~/triangulator/config/sampler.toml`, then run `scripts/restart.sh sampler`.
+Memory sampling is enabled every 30 seconds by default. Change
+`memory_interval_s` in `~/triangulator/config/sampler.toml` to use another
+interval or set it to `0` to disable sampling. Then run
+`scripts/restart.sh sampler`.
 See [Memory map](docs/memory-map.md) for sampling cost and measurement limits.
 The grid shows mapped addresses; it does not show which pages are resident.
 
@@ -195,7 +199,7 @@ on hover or focus. See [Dashboard help](collector/README.md#dashboard-help).
   <img src="docs/assets/replay.svg" alt="A scrubber moves along a CPU timeline. The thread tiles freeze to the recorded state at each position." width="100%">
 </p>
 
-Turn on `replay_interval_s`, then use **Inspect a moment**. See the
+Dashboard recording is enabled by default. Use **Inspect a moment**. See the
 [recording notes](collector/README.md#historical-process-inspection).
 
 <details>
@@ -380,8 +384,8 @@ Remaining work is tracked in [TODO.md](TODO.md#deployment-dependencies).
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
   `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
   at most 60) sets how often resource samples are sent; they are never more
-  frequent than thread ticks. `memory_interval_s` (default 0, off; at most
-  3600) sets how often memory-map samples are sent; see
+  frequent than thread ticks. `memory_interval_s` (default 30; 0 turns it off;
+  at most 3600) sets how often memory-map samples are sent; see
   [docs/memory-map.md](docs/memory-map.md). `SIGHUP` reloads the file; an invalid file leaves the old
   settings active, and a successful reload starts a new session. Validate with
   `build/triangulator-sampler --check-config config/sampler.toml`.
@@ -410,7 +414,7 @@ The page opens on a **process overview**, built in the browser from `/api/live`
 - **Assessment**: rules of thumb that point at likely problems: a thread
   saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
   threads, thread churn, a thread count that keeps growing (steady growth for
-  two minutes or more, which a pool warming up does not show), sampler silence
+  two minutes or more; a short pool startup usually stays quiet), sampler silence
   and packet loss. Warning-level and worse findings from the Memory map
   section (a mapping count or address space near its limit, growing resident
   memory, swap, major faults with pressure, the main stack near its limit)
@@ -447,9 +451,9 @@ returns to the current process. The recorded view includes all threads, their
 states, wait channels, core placement, CPU, run delay, switches, I/O and health.
 Click a thread to open its summary history ending at the recorded time.
 
-Recording is off by default. Set `replay_interval_s` in the collector config
-(0.5–60 seconds; `0`, the default, disables it) to save complete views,
-independently of `store_raw`. They go to `data_dir/replay/` and use the
+Recording is enabled every second by default. Set `replay_interval_s` in the
+collector config (0.5–60 seconds; `0` disables it) to change the interval for
+complete views, independently of `store_raw`. They go to `data_dir/replay/` and use the
 existing `retention_days` setting.
 Older rollups remain readable but cannot reconstruct a complete process view.
 State means the latest sampled observation; rates still cover the preceding
@@ -600,7 +604,8 @@ Checklist before going live (design section 12):
   reserves about 280 bytes of address space per sample at startup). History
   is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
   every half second.
-  `store_raw = true` also saves decoded records. Retention deletes whole day files,
+  `store_raw = true` (the default) also saves decoded records. Set it to `false`
+  to keep only rollups. Retention deletes whole day files,
   keeping today and the previous `retention_days - 1`. Old day files gain new
   columns when opened.
 

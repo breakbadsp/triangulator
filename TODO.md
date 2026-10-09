@@ -75,7 +75,7 @@ From [docs/bug-lab-report.md](docs/bug-lab-report.md). The cheap fixes are done;
 these need a core change, a privilege, or a decision.
 
 - [ ] Count threads ever created. Short-lived threads (under one sample
-  interval) are invisible, so thread churn is only a lower bound. No
+  interval) can be missed, so thread churn is only a lower bound. No
   unprivileged per-process counter exists (measured in the report); needs an
   application hook, a privilege, or a new versioned wire field.
 - [ ] Per-thread throughput or "waited on a lock" signal, to tell a deadlock

@@ -15,5 +15,13 @@ gcc -O2 -pthread bug-lab/bugbench.c -o /tmp/bugbench
 captures the dashboard with `capture.mjs` (Node and headless Chromium, no npm
 packages). Use a scratch `TRIANGULATOR_HOME` and ports so your normal instance
 is untouched. `cpu-throttle` and `mem-oom` use `systemd-run --user --scope`.
+The sampler must already run in that runtime directory. The default capture
+delay is 70 seconds. `thread-leak` uses 165 seconds so the dashboard can observe
+two minutes of growth. Set `HOLD` to override the delay for all selected
+scenarios. The runner stops its scenario and capture process on failure or
+interrupt. It does not stop the sampler or collector.
+Each runner invocation uses a new temporary directory for the executable and
+storage workloads. `BUGBENCH` and `BUG_LAB_DIR` can override these paths. The
+runner removes only its own temporary directory.
 
 Results: [docs/bug-lab-report.md](../docs/bug-lab-report.md).

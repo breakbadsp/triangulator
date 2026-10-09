@@ -18,7 +18,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 ## What it does
 
 **1. Startup and config** (`config.hpp`, `toml.hpp`, `main.cpp`)
-- Reads `collector.toml`, with the defaults the retired Python collector used.
+- Reads `collector.toml`; raw sample storage and dashboard recording are enabled
+  by default.
 - `--check-config` validates the file and exits.
 - Alert settings in the file (`[alerts]` thresholds, `webhook_url`,
   `deadman_url`, `[alerts.smtp]`) are accepted and ignored, with one startup
@@ -110,7 +111,7 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
-**7. Recording** (`replay.hpp`, off unless `replay_interval_s` is set)
+**7. Recording** (`replay.hpp`, enabled every second by default)
 - Saves the `/api/live` view every `replay_interval_s` seconds to separate day
   files in `data_dir/replay/`, on its own thread. The receive loop only hands
   over the view it already built.
@@ -118,7 +119,7 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   it never stops the collector.
 - An exception to "richer dashboard data is a separate program" in
   `AGENTS.md`: recording lives in the collector because it reuses the view the
-  collector already builds. It is off by default and runs off the receive loop.
+  collector already builds. It runs off the receive loop.
 
 **8. Shutdown** (`main.cpp`)
 - On SIGINT or SIGTERM, it processes ticks still waiting for missing pieces,
@@ -187,7 +188,7 @@ last core, ten-second state mix and rates, group counts and monitor health.
 They survive collector restarts and sampler session changes. Missing history is
 reported explicitly; old rollup-only databases are never treated as exact views.
 
-`replay_interval_s` defaults to `0` (off). It accepts `0.5`–`60` seconds, or
+`replay_interval_s` defaults to `1` second. It accepts `0.5`–`60` seconds, or
 `0` to disable recording. Actual times are limited by the collector's ~0.5-second
 publish cadence and scheduling; lowering it does not recover samples between
 publications. Selecting a time returns the nearest earlier recording, never a

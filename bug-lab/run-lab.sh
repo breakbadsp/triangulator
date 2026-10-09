@@ -8,15 +8,45 @@
 #                      sampler must already be configured and running there
 #   HTTP_PORT          collector HTTP port (default 19401)
 #   OUT                output directory (default docs/screenshots/bug-lab)
-#   HOLD               seconds each scenario runs before the screenshot (default 70)
+#   HOLD               seconds before the screenshot (default 70, thread-leak 165)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export TRIANGULATOR_HOME="${TRIANGULATOR_HOME:-$HOME/triangulator-lab}"
 port="${HTTP_PORT:-19401}"
 out="${OUT:-$root/docs/screenshots/bug-lab}"
-hold="${HOLD:-70}"
-bench="${BUGBENCH:-/tmp/bugbench}"
+if [[ -n ${HOLD+x} ]] && [[ ! $HOLD =~ ^[1-9][0-9]{0,3}$ || $HOLD -lt 26 || $HOLD -gt 3600 ]]; then
+    echo "HOLD must be an integer from 26 to 3600 seconds" >&2
+    exit 2
+fi
+app=''
+shot=''
+scratch=''
+cleanup() {
+    if [[ -n $shot ]]; then
+        kill -TERM "$shot" 2>/dev/null || true
+        wait "$shot" 2>/dev/null || true
+        shot=''
+    fi
+    if [[ -n $app ]]; then
+        kill -CONT "$app" 2>/dev/null || true
+        kill -TERM "$app" 2>/dev/null || true
+        wait "$app" 2>/dev/null || true
+        app=''
+    fi
+}
+finish() {
+    cleanup
+    if [[ -n $scratch ]]; then
+        rm -rf -- "$scratch"
+    fi
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+scratch="$(mktemp -d "${TMPDIR:-/var/tmp}/triangulator-bug-lab.XXXXXX")"
+export BUG_LAB_DIR="${BUG_LAB_DIR:-$scratch/data}"
+bench="${BUGBENCH:-$scratch/bugbench}"
 mkdir -p "$out"
 gcc -O2 -Wall -Wextra -pthread "$root/bug-lab/bugbench.c" -o "$bench"
 
@@ -28,16 +58,22 @@ scenarios=("$@")
 
 for name in "${scenarios[@]}"; do
     echo "== $name"
-    run=("$bench" "$name" 300)
-    comm="bb-$name"
+    hold="${HOLD:-70}"
+    [[ $name != thread-leak || -n ${HOLD+x} ]] || hold=165
+    seconds=$((hold + 30))
+    run=("$bench" "$name" "$seconds")
     case "$name" in
-        stopped) run=("$bench" healthy 300); comm=bb-healthy ;;
+        stopped) run=("$bench" healthy "$seconds") ;;
         cpu-throttle) run=(systemd-run --user --scope --quiet -p CPUQuota=50% "${run[@]}") ;;
         mem-oom) run=(systemd-run --user --scope --quiet -p MemoryHigh=160M -p MemoryMax=240M -p MemorySwapMax=0 "${run[@]}") ;;
     esac
     "${run[@]}" 2>"$out/$name.log" &
     app=$!
     sleep 1
+    if ! kill -0 "$app" 2>/dev/null; then
+        echo "$name exited before target selection; see $out/$name.log" >&2
+        exit 1
+    fi
     # Select by PID: a name is ambiguous if another lab run uses the same scenario.
     "$root/scripts/set-target.sh" "$app" >/dev/null
     # The page opens first so trend charts cover the whole run.
@@ -50,11 +86,14 @@ for name in "${scenarios[@]}"; do
         sleep $((hold - 25))
         kill -STOP "$app" || true
         wait "$shot"
+        shot=''
         kill -CONT "$app" || true
     fi
-    wait "$shot"
-    kill -TERM "$app" 2>/dev/null || true
-    wait "$app" 2>/dev/null || true
+    if [[ -n $shot ]]; then
+        wait "$shot"
+        shot=''
+    fi
+    cleanup
     sleep 2
 done
 echo "screenshots in $out"

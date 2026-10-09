@@ -315,6 +315,18 @@ test('a socket that is not transferring data is never called a zero-window peer'
   }
 });
 
+test('full send buffers still produce findings outside TCP data states', () => {
+  const app = dashboard();
+  for (const [kind, state] of [['udp4', 'UNCONN'], ['unix-stream', 'ESTAB'], ['tcp4', 'SYN-SENT']]) {
+    const socket = {fd: 8, kind, state, listener: false, local: 'local', remote: 'peer',
+      tx_queue: 4096, tx_fill_pct: 95, tcp: {peer_window: 0}};
+    const finding = findingsOf(app, resources({sockets: {top: [socket]}})).find(item => /not taking data/.test(item.title));
+    assert.ok(finding, `${kind} ${state}`);
+    assert.match(finding.detail, /send buffer 95.0% full/);
+    assert.doesNotMatch(finding.detail, /zero window/);
+  }
+});
+
 test('hidden or unreachable sockets are explained, not reported as zero', () => {
   const app = dashboard();
   const hidden = findingsOf(app, resources({flags: {descriptors_hidden: true}}));
@@ -439,7 +451,7 @@ function lockThread(tid, name, state, {cpu = 0, sw = 0} = {}) {
 function lockHints(threads, seen) {
   const app = dashboard();
   app.run(`live={health:{session:'s'},threads:${JSON.stringify(threads)}};lastTick=1000;
-    for(const thread of live.threads)threadSeen.set(thread.tid,{first:${1000 - seen},active:null,generation:0})`);
+    for(const thread of live.threads)threadSeen.set(thread.tid,{first:${1000 - seen},active:null,futexSince:${1000 - seen},generation:0})`);
   return [...app.run('lockHints(live.threads).map(item=>item.title+"|"+item.detail)')];
 }
 
@@ -452,12 +464,30 @@ test('threads stuck on a futex while others run raise a hint, not a verdict', ()
   assert.match(hints[0], /worker-a \(2\), worker-b \(3\)/);
   const app = dashboard();
   app.run(`live={health:{session:'s'},threads:${JSON.stringify([beat, ...stuck])}};lastTick=1000;
-    for(const thread of live.threads)threadSeen.set(thread.tid,{first:955,active:null,generation:0})`);
+    for(const thread of live.threads)threadSeen.set(thread.tid,{first:955,active:null,futexSince:955,generation:0})`);
   assert.deepEqual([...app.run('assess(live.threads,[]).map(item=>item.level)')], ['good', 'info']);
   // Not long enough yet, or only one thread, or nothing else running: quiet.
   assert.deepEqual(lockHints([beat, ...stuck], 20), []);
   assert.deepEqual(lockHints([beat, stuck[0]], 45), []);
   assert.deepEqual(lockHints(stuck, 45), []);
+});
+
+test('futex duration excludes earlier sleep and resets after a state change', () => {
+  const app = dashboard();
+  const threads = [lockThread(1, 'heartbeat', 'running', {cpu: 5}),
+    lockThread(2, 'worker-a', 'sleep'), lockThread(3, 'worker-b', 'sleep')];
+  app.run(`live={health:{session:'s'},threads:${JSON.stringify(threads)}}`);
+  const feed = (time, state) => app.run(`for(const thread of live.threads){thread.last_sample=${time};if(thread.tid!==1){thread.state='${state}';thread.state_mix={${state}:20}}}ingest()`);
+  feed(1000, 'sleep');
+  feed(1060, 'sleep');
+  feed(1061, 'futex');
+  feed(1080, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 0);
+  feed(1091, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 1);
+  feed(1092, 'sleep');
+  feed(1093, 'futex');
+  assert.equal(app.run('lockHints(live.threads).length'), 0);
 });
 
 test('idle pool workers on a futex stay quiet', () => {
@@ -520,8 +550,8 @@ test('memory-map warnings join the overview assessment and set the verdict', () 
 test('growing resident memory joins the overview assessment', () => {
   const app = dashboard();
   const now = Date.now() / 1000;
-  const rows = Array.from({length: 8}, (_, index) => ({ts: now - 70 + index * 10, rss_bytes: 100e6 + index * 50e6}));
-  app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memorySummary())}};resourceHistory={rows:${JSON.stringify(rows)}}`);
+  const rows = Array.from({length: 8}, (_, index) => ({ts: now - 70 + index * 10, pid: 1, rss_bytes: 100e6 + index * 50e6}));
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:${JSON.stringify(memorySummary())},resources:${JSON.stringify(resources())}};resourceHistory={rows:${JSON.stringify(rows)}}`);
   assert.deepEqual(levelsOf(app), ['warning: Resident memory grows without a plateau']);
 });
 
@@ -532,7 +562,7 @@ test('info and good memory findings stay out of the overview assessment', () => 
   app.run(`live={health:{session:'s'},threads:[],memory:${JSON.stringify(memorySummary({}, {layout_id: 's:1'}))}};memoryLayout=${JSON.stringify(layout)}`);
   assert.ok(app.run('assessMemory(live.memory,memoryRegions(memoryLayout),[]).some(item=>item.level==="info")'));
   assert.deepEqual(levelsOf(app), ['good: No problems detected']);
-  assert.equal(app.run('assess([],[])[0].detail'), 'No saturated threads, CPU waiting, kernel stalls or paging right now. The memory map is within its limits.');
+  assert.equal(app.run('assess([],[])[0].detail'), 'No saturated threads, CPU waiting, kernel stalls or paging right now. No memory-map warnings detected in the available samples.');
   // The stack rule works from the layout when it matches.
   layout.regions[0].end = '0x7ffc00700000'; layout.regions[0].size = 0x700000;
   app.run(`memoryLayout=${JSON.stringify(layout)}`);
@@ -548,6 +578,17 @@ test('without usable memory samples the overview ignores the memory map', () => 
     assert.equal(app.run('memoryOverviewFindings()'), null);
     assert.equal(app.run('assess([],[])[0].detail'), healthy);
   }
+});
+
+test('an older stack layout cannot supply a current overview finding', () => {
+  const app = dashboard();
+  const memory = memorySummary({}, {layout_id: 's:2'});
+  const layout = {id: 's:1', pid: 1, regions: [{start: '0x7ffc00000000', end: '0x7ffc00700000',
+    size: 0x700000, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''}]};
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:${JSON.stringify(memory)}};memoryLayout=${JSON.stringify(layout)}`);
+  assert.deepEqual(levelsOf(app), ['good: No problems detected']);
+  app.run("memoryLayout.id='s:2'");
+  assert.deepEqual(levelsOf(app), ['warning: Main stack is at 87.5% of its limit']);
 });
 
 test('a memory fault finding replaces the thread one only when it is more severe', () => {
@@ -608,10 +649,21 @@ test('a steady thread leak is flagged with its rate, count and cgroup headroom',
   assert.ok(!findings.some(item => item.level === 'good'));
   // The rule needs about two minutes of data: it fires in the third minute, not the first.
   const first = growthEver(app, points);
-  assert.ok(first >= 105 && first <= 135, `fired after ${first} s`);
+  assert.ok(first >= 120 && first <= 150, `fired after ${first} s`);
   // A slow leak (one thread every 4 s, 15 threads/min) shows over five minutes.
   const slow = countsAt(330, i => 40 + Math.floor(i / 4));
   assert.ok(growthEver(app, slow) > 0);
+});
+
+test('thread growth needs two minutes of continuous observations', () => {
+  const app = dashboard();
+  const sparse = countsAt(250, i => 4 + i * 4).filter((_, i) => i % 30 === 0);
+  assert.equal(app.run(`threadGrowth(${JSON.stringify(sparse)})`), null);
+  assert.equal(growthEver(app, countsAt(120, i => 4 + i * 4)), 0);
+  const points = countsAt(180, i => 4 + i * 4);
+  const growth = app.run(`threadGrowth(${JSON.stringify(points)})`);
+  close(growth.rate, 240);
+  assert.ok(growth.minutes >= 2);
 });
 
 test('thread growth escalates when the cgroup limit is close', () => {
@@ -943,6 +995,29 @@ test('an earlier, smaller process in the window does not change the RSS trend', 
   rssHistory(app, [[4, 300, 2000, 0], [7, 120, 100, 0]]);
   assert.ok(!trendOf(app).steady);
   assert.ok(Math.abs(trendOf(app).slope) < 1);
+});
+
+test('RSS growth does not use another target, stale resources, or live history in replay', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 120, 100, 8]]);
+  assert.ok(trendOf(app).steady);
+  app.run('live.health.pid=8');
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+  app.run('live.health.pid=7;live.resources.stale=true');
+  assert.equal(trendOf(app), null);
+  app.run('live.resources.stale=false;live.resources.available=false');
+  assert.equal(trendOf(app), null);
+  app.run('live.resources.available=true;replayAt=Date.now()/1000-300');
+  assert.equal(trendOf(app), null);
+  assert.ok(!growthFindings(app).includes(GROWS));
+});
+
+test('unavailable RSS rows preserve process boundaries', () => {
+  const app = dashboard();
+  rssHistory(app, [[7, 120, 100, 8]]);
+  app.run('resourceHistory.rows.splice(-1,0,{ts:resourceHistory.rows.at(-1).ts-1,pid:8,rss_bytes:null})');
+  assert.equal(trendOf(app), null);
 });
 
 test('flat, noisy and slowly growing RSS do not raise the growth finding', () => {

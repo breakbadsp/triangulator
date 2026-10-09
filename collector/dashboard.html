@@ -595,8 +595,8 @@ let threadSeen=new Map();
 const isIdle=thread=>!(thread.cpu_pct>0||thread.switches_per_s>0||thread.read_bps>0||thread.write_bps>0||thread.major_faults_per_s>0||thread.state==='running'||(thread.state_mix||{}).running||thread.state==='kernel'||thread.state==='stopped');
 function idleFor(thread){if(replayAt!==null)return '';const seen=threadSeen.get(thread.tid);if(!seen)return '';const tick=lastTick||thread.last_sample;
   return seen.active!==null?'idle for '+duration(tick-seen.active):'idle for over '+duration(tick-seen.first)}
-// Seconds a thread has been idle in this tab (a lower bound when it was never seen active), or null.
-function idleSecs(thread){if(replayAt!==null)return null;const seen=threadSeen.get(thread.tid);if(!seen)return null;return (lastTick||thread.last_sample)-(seen.active!==null?seen.active:seen.first)}
+// Seconds of consecutive idle futex observations in this tab, or null.
+function idleSecs(thread){if(replayAt!==null)return null;const seen=threadSeen.get(thread.tid);if(!isNum(seen?.futexSince))return null;return (lastTick||thread.last_sample)-seen.futexSince}
 const futexShare=thread=>{const mix=Object.values(thread.state_mix||{}),total=mix.reduce((sum,count)=>sum+count,0);return total?((thread.state_mix||{}).futex||0)/total:0};
 // Two hints for hangs with low CPU. /proc cannot prove either, and a worker
 // or timer thread parked on a futex looks the same as a deadlocked one, so both
@@ -1041,6 +1041,9 @@ function ingest(){
     const state=STATES.includes(thread.state)?thread.state:'other';point.s[state]=(point.s[state]||0)+1;
     ids.add(thread.tid+':'+thread.generation);
     const seen=threadSeen.get(thread.tid);if(!seen||seen.generation!==thread.generation)threadSeen.set(thread.tid,{first:tick,active:null,generation:thread.generation});
+    const observation=threadSeen.get(thread.tid);
+    if(!thread.stale&&thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1)observation.futexSince??=tick;
+    else observation.futexSince=null;
     if(!isIdle(thread)){point.active++;threadSeen.get(thread.tid).active=tick}
     let series=threadAvg.get(thread.tid);if(!series||series[0]!==thread.generation){series=[thread.generation];threadAvg.set(thread.tid,series)}
     if(isNum(thread.cpu_pct)&&(series.length<3||tick-series.at(-2)>=AVG_STEP-.5)){series.push(tick,+thread.cpu_pct.toFixed(2));while(series.length>3&&series[1]<tick-BUFFER_SECS)series.splice(1,2)}
@@ -1063,7 +1066,7 @@ const windowPoints=()=>{const end=buffer.at(-1)?.t||0;return buffer.filter(point
 
 // ---------- Overview ----------
 const threadLabel=thread=>`${thread.name} (${thread.tid})`;
-// Steady thread-count growth over the current session: a leak, not a pool warming up.
+// Steady thread-count growth over the current session can indicate a leak.
 // Counts are reduced to the lowest value in each 15 s step so bursts of short-lived
 // threads do not look like growth. A window qualifies when it spans at least two
 // minutes (after the last sharp drop, such as a restart), rises in most steps and
@@ -1074,14 +1077,14 @@ function threadGrowth(points){
   const STEP=15,counts=points.filter(point=>isNum(point.n));if(counts.length<2)return null;
   const end=counts.at(-1).t;let best=null;
   for(const span of [120,300]){
-    const bins=[];for(const point of counts){if(point.t<end-span)continue;const index=Math.floor((end-point.t)/STEP);bins[index]=Math.min(bins[index]??Infinity,point.n)}
-    let series=[];for(let index=bins.length-1;index>=0;index--)if(bins[index]!==undefined)series.push(bins[index]);
-    for(let i=series.length-1;i>0;i--)if(series[i-1]-series[i]>=5&&series[i]<.75*series[i-1]){series=series.slice(i);break}
-    if(series.length<8)continue;
-    const steps=series.length-1,deltas=series.slice(1).map((value,i)=>value-series[i]),rises=deltas.filter(delta=>delta>0).length,recent=deltas.slice(-3).filter(delta=>delta>0).length,falls=deltas.filter(delta=>delta<0).length;
-    const first=series[0],last=series.at(-1),total=last-first,middle=Math.floor(steps/2),early=series[middle]-first,late=last-series[middle];
+    const bins=[];for(const point of counts){if(point.t<end-span)continue;const index=Math.floor((end-point.t)/STEP);if(!bins[index]||point.n<bins[index].n)bins[index]={n:point.n,t:point.t}}
+    let series=[];for(let index=bins.length-1;index>=0;index--){if(bins[index]!==undefined)series.push(bins[index]);else series=[]}
+    for(let i=series.length-1;i>0;i--)if(series[i-1].n-series[i].n>=5&&series[i].n<.75*series[i-1].n){series=series.slice(i);break}
+    if(series.length<8||series.at(-1).t-series[0].t<120)continue;
+    const steps=series.length-1,deltas=series.slice(1).map((value,i)=>value.n-series[i].n),rises=deltas.filter(delta=>delta>0).length,recent=deltas.slice(-3).filter(delta=>delta>0).length,falls=deltas.filter(delta=>delta<0).length;
+    const first=series[0].n,last=series.at(-1).n,total=last-first,middle=Math.floor(steps/2),early=series[middle].n-first,late=last-series[middle].n;
     if(total<20||total<.1*first||rises<.6*steps||recent<2||falls>.2*steps||early<.25*total||late<.25*total)continue;
-    const minutes=steps*STEP/60,found={from:first,to:last,minutes,rate:total/minutes};
+    const minutes=(series.at(-1).t-series[0].t)/60,found={from:first,to:last,minutes,rate:total/minutes};
     if(!best||found.rate>best.rate)best=found}
   return best}
 
@@ -1122,7 +1125,7 @@ function assess(threads,points){
   const stopped=threads.filter(thread=>thread.state==='stopped');
   if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
   const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
-  if(born+died>=10)add('info','High thread churn',`At least ${born} threads started and ${died} ended in the last minute (threads that lived less than one sample interval are not counted). Short-lived threads cost creation time; consider a pool.`);
+  if(born+died>=10)add('info','High thread churn',`At least ${born} threads started and ${died} ended in the last minute (threads that start and exit between samples are not counted). Short-lived threads cost creation time; consider a pool.`);
   const growth=threadGrowth(points);
   if(growth){const pids=live.resources?.available?live.resources.cgroup_limits?.pids:null,room=isNum(pids?.current)&&isNum(pids?.max)&&pids.max>0?pids.max-pids.current:null;
     const eta=room!==null&&growth.rate>0?room/growth.rate:null,close=room!==null&&(pids.current>=.75*pids.max||eta<=10);
@@ -1138,7 +1141,7 @@ function assess(threads,points){
   const memory=memoryOverviewFindings(),rank=item=>LEVEL_ORDER.indexOf(item.level);
   for(const item of memory||[]){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
     if(!twin)findings.push(item);else if(rank(item)<rank(twin))findings[findings.indexOf(twin)]={...item,action:twin.action}}
-  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' The memory map is within its limits.':'')});
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' No memory-map warnings detected in the available samples.':'')});
   return findings}
 function profile(threads){
   if(!threads.length)return '';
@@ -1172,7 +1175,7 @@ function renderTiles(threads,points){
     ['Disk & syscall I/O',perSec((last.rb||0)+(last.wb||0)),`read ${perSec(last.rb)} · write ${perSec(last.wb)}`,points.map(point=>point.rb===null?null:point.rb+point.wb)]];
   // Signals that are usually zero only get a tile when they happened.
   if(points.some(point=>point.mf>0))tiles.push(['Major faults',number(last.mf)+'/s','reads from disk to fill memory',series('mf')]);
-  // Always shown: +0 / −0 must not read as "no churn", because threads that live less than one sample interval are never seen.
+  // Always shown: +0 / −0 must not read as "no churn", because threads that start and exit between samples are never seen.
   if(buffer.length)tiles.push(['Thread churn',`+${born} / −${died}`,'lower bound · seen starting / ending, last minute',points.map(point=>point.born+point.died)]);
   // Socket totals are live only; a recorded view has none.
   if(replayAt===null&&socketData?.available){const totals=socketData.totals||{},history=socketData.history||[];
@@ -1446,7 +1449,7 @@ const socketLabel=item=>`${KIND_LABELS[item.kind]||item.kind} ${item.state} · f
 // Only these TCP states move data, so only they can have a "peer window". The
 // kernel reports the window as 0 for a socket still in the handshake.
 const MOVES_DATA=new Set(['ESTAB','CLOSE-WAIT','FIN-WAIT-1','LAST-ACK']);
-const movesData=item=>!item.listener&&MOVES_DATA.has(item.state);
+const movesData=item=>!item.listener&&(item.kind==='tcp4'||item.kind==='tcp6')&&MOVES_DATA.has(item.state);
 const peerWindowZero=item=>movesData(item)&&item.tcp?.peer_window===0;
 function socketNotes(item){const notes=[],tcp=item.tcp||{};
   if(item.state==='SYN-SENT')notes.push(['Connect unanswered: check accept queue']);
@@ -1485,7 +1488,7 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   else if(overflowing.length)add('warning',`Accept backlog of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full`,`${overflowing[0].rx_queue} connections wait for accept() with a backlog of ${overflowing[0].tx_queue}.`);
   const reading=top.filter(item=>!item.listener&&(item.rx_fill_pct||0)>=80).sort((a,b)=>b.rx_fill_pct-a.rx_fill_pct);
   if(reading.length){const item=reading[0];add((item.drops_delta||0)>0?'serious':'warning',`The app is not keeping up reading ${socketName(item)}`,`Receive buffer ${pct(item.rx_fill_pct)} full with ${bytes(item.rx_queue)} unread`+((item.drops_delta||0)>0?`; ${item.drops_delta} packet${item.drops_delta>1?'s':''} dropped.`:'.')+(reading.length>1?` ${reading.length-1} more socket${reading.length>2?'s':''} likewise.`:''))}
-  const stuck=top.filter(item=>movesData(item)&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||peerWindowZero(item))).sort((a,b)=>b.tx_queue-a.tx_queue);
+  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||peerWindowZero(item))).sort((a,b)=>b.tx_queue-a.tx_queue);
   if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(peerWindowZero(item)?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
   const udp=grew('udp_rcvbuf_errors');
   if(udp)add('serious',`${udp} UDP datagrams dropped: receive buffers full`,'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).');
@@ -1897,10 +1900,12 @@ function memorySlope(points,key){const values=points.filter(point=>isNum(point[k
 // 120 and 180 s that still climbs steadily (at least four steps in five rise).
 // {slope, span, rises, steps, steady}; null when there is no usable run.
 const RSS_TREND_WINDOWS=[60,120,180],RSS_TREND_MIN_SPAN=30,RSS_TREND_MIN_POINTS=6;
-function rssTrend(){const all=resourcePoints().filter(point=>isNum(point.rss_bytes));if(!all.length)return null;
-  const newest=all.at(-1);if(Date.now()/1000-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+function rssTrend(){if(replayAt!==null||!live.resources?.available||live.resources.stale)return null;
+  const all=resourcePoints();if(!all.length)return null;
+  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||Date.now()/1000-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+  if(!isNum(live.health?.pid)||newest.pid!==live.health.pid)return null;
   let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
-  const run=all.slice(first);let best=null;
+  const run=all.slice(first).filter(point=>isNum(point.rss_bytes));let best=null;
   for(const window of RSS_TREND_WINDOWS){const points=run.filter(point=>point.t>=newest.t-window);
     if(points.length<RSS_TREND_MIN_POINTS||newest.t-points[0].t<RSS_TREND_MIN_SPAN)continue;
     let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
@@ -1939,11 +1944,10 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
 // The memory-map findings that belong in the top assessment: warning and
 // worse, from the same rules as the Memory section. null when there is no
 // usable memory sample (sampling off, an old collector, or a stale sample),
-// so the caller does not claim the memory map is fine. The layout only feeds
-// the stack rule, so it is used when it matches the summary and skipped
-// while it loads.
+// so the caller does not claim the memory map is fine. Layout-dependent rules
+// run only when the layout matches the summary and are skipped while it loads.
 function memoryOverviewFindings(){const m=live.memory;if(!m?.available||m.stale)return null;
-  const regions=memoryRegions(memoryLayoutFor(m));
+  const regions=memoryRegions(memoryLayout?.id===m.layout_id?memoryLayoutFor(m):null);
   return assessMemory(m,regions,memoryRows(regions)).filter(item=>item.level!=='info'&&item.level!=='good')}
 // Major faults per second: the thread samples when they have it (in replay,
 // the recorded ones), else the difference of the last two live memory

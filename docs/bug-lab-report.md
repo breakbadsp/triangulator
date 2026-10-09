@@ -6,9 +6,13 @@ Triangulator at each one and recorded what the dashboard said. The goal is not
 to test the sample program. It is to find out where the product helps a person
 find a real problem, and where it stays quiet.
 
-**Result: 13 of 20 scenarios were found clearly (the control stayed quiet), 4
-were found only in part, and 3 were not found at all.** We also found one
+**Initial result: 12 resource bugs were found clearly, 4 were found only in
+part, and 3 were not found. The healthy control stayed quiet.** We also found one
 dashboard bug that shows wrong numbers (see [G2](#g2-rss-growth-is-averaged-over-time-before-the-leak)).
+
+The scorecard and its screenshots describe the initial report at `7c3a3b1`.
+The G1–G7 sections name the revisions used for later runs. Their screenshots
+are historical evidence, not results from the final reviewed revision.
 
 ## How it was run
 
@@ -225,7 +229,7 @@ milliseconds. The dashboard showed no churn card and no finding. The sampler
 sees threads only when it samples (here every 500 ms), so a thread that starts
 and ends between two samples never exists. `thread-leak` (threads that stay)
 does show "+511 / −1". This limit should be written in the docs: the churn
-numbers are a lower bound, and short-lived threads are invisible at 0.2–10 Hz.
+numbers are a lower bound, and short-lived threads can be missed at 0.2–10 Hz.
 
 ![thread-churn overview](screenshots/bug-lab/thread-churn-overview.png)
 
@@ -256,16 +260,22 @@ own trend, so a leak that has not yet reached `pids.max` is silent.
 
 ![thread-leak overview](screenshots/bug-lab/thread-leak-overview.png)
 
-**Fixed in f355ec4.** The assessment now has "Thread count keeps growing"
+**Initial fix in f355ec4.** The assessment now has "Thread count keeps growing"
 (warning; serious when the cgroup is 75% full or `pids.max` is under 10 minutes
-away). It needs steady growth over two minutes or more, so a pool that warms
-up, a restart and bursts of short-lived threads stay quiet. After the fix,
-`thread-leak` shows "188 to 602 threads in 1.8 min, +237 threads/min" and
+away). It is intended to require steady growth over two minutes or more, so a
+pool that warms up, a restart and bursts of short-lived threads stay quiet.
+At that revision, `thread-leak` showed "188 to 602 threads in 1.8 min, +237 threads/min" and
 `healthy` shows nothing. `ulimit -u` (RLIMIT_NPROC) is not in the wire protocol,
 so only the cgroup limit is named. The scenario now leaks one thread every
 250 ms (150 s in total); run it with `HOLD=165`.
 
 ![after the fix: thread-leak overview](screenshots/bug-lab/g5-after-overview.png)
+
+Review corrected the duration check and rate calculation. The rule now needs
+at least 120 seconds of observations without empty 15-second bins. It uses
+actual elapsed time for the growth rate. The runner now uses a 165-second
+capture delay for `thread-leak` by default. The image above shows the earlier
+rule, which could report growth after only 105 seconds.
 
 ### G6: A SYN-SENT socket is called a zero-window peer
 
@@ -346,13 +356,21 @@ run of its scenario. The scorecard above is the result *before* the fixes.
 | G6 SYN-SENT | State-specific note, no zero-window claim | none |
 | G7 yield loops | "saturating a core in the kernel" wording | Unsaturated yield loops |
 
-## Suggested follow-ups
+## Review corrections
 
-Nothing here was changed in the product. If you want to act on it:
+The final review added regression checks for these cases:
 
-1. Fix [G2](#g2-rss-growth-is-averaged-over-time-before-the-leak) first: it
-   shows a wrong number.
-2. Let Memory findings of warning level or higher appear in the top assessment (G3).
-3. Decide what the product should say about futex waits that last a long time (G1).
-4. Document the thread churn limit (G4) and add a growing-thread-count rule (G5).
-5. Skip non-established sockets in the zero-window rule (G6).
+- RSS history from another live PID does not supply a growth finding. Rows
+  with unavailable RSS still separate process runs. Stale resources and replay
+  do not use live resource history for the trend. PID reuse remains open in TODO.
+- Futex wait duration starts at the first consecutive idle futex observation.
+  Earlier sleep time does not increase the displayed wait duration.
+- Full send buffers still produce findings for UDP and UNIX sockets. Only the
+  TCP peer-window checks depend on TCP data states.
+- The top assessment uses a stack layout only when its ID matches the memory
+  summary. A previous layout cannot supply a current stack-limit finding.
+- The lab runner cleans up its scenario and capture process after a failure
+  or interrupt. Capture commands have a timeout and stop Chromium on exit.
+
+The remaining follow-ups are in
+[TODO.md](../TODO.md#gaps-found-by-the-bug-lab).

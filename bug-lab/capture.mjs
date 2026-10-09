@@ -8,33 +8,49 @@
 // a full-page screenshot and a text dump of the page (same name, .txt), plus one cropped screenshot per selector=file pair.
 
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const [url, waitArg, fullPath, ...crops] = process.argv.slice(2);
 if (!url || !waitArg || !fullPath) {
   console.error('usage: capture.mjs <url> <wait-seconds> <full.png> [selector=out.png ...]');
   process.exit(2);
 }
+const waitSeconds = Number(waitArg);
+if (!Number.isFinite(waitSeconds) || waitSeconds < 0 || waitSeconds > 3600) {
+  console.error('wait-seconds must be a number from 0 to 3600');
+  process.exit(2);
+}
+
+const controller = new AbortController();
+const interrupt = () => controller.abort();
+process.once('SIGINT', interrupt);
+process.once('SIGTERM', interrupt);
 
 const profile = mkdtempSync(join(tmpdir(), 'bug-lab-chromium-'));
-const port = 9300 + Math.floor(Math.random() * 500);
 const browser = spawn(
   process.env.CHROMIUM || 'chromium',
   [
     '--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars',
-    `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+    '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--window-size=1440,1000', 'about:blank',
   ],
   { stdio: 'ignore' },
 );
+let browserError;
+browser.on('error', error => {browserError = error;});
+let socket;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = ms => delay(ms, undefined, {signal: controller.signal});
 
 async function connect() {
   for (let i = 0; i < 100; i++) {
+    if (browserError) throw browserError;
+    if (browser.exitCode !== null || browser.signalCode !== null) throw new Error('chromium exited before capture');
     try {
+      const port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0];
       const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
       const page = targets.find((t) => t.type === 'page');
       if (page) return new WebSocket(page.webSocketDebuggerUrl);
@@ -46,7 +62,20 @@ async function connect() {
 
 try {
   const ws = await connect();
-  await new Promise((r) => ws.addEventListener('open', r, { once: true }));
+  socket = ws;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error('chromium connection timed out')), 10000);
+    const abort = () => finish(new Error('capture interrupted'));
+    const finish = error => {
+      clearTimeout(timer);
+      controller.signal.removeEventListener('abort', abort);
+      if (error) reject(error); else resolve();
+    };
+    ws.addEventListener('open', () => finish(), {once: true});
+    ws.addEventListener('error', () => finish(new Error('chromium connection failed')), {once: true});
+    controller.signal.addEventListener('abort', abort, {once: true});
+    if (controller.signal.aborted) abort();
+  });
   let next = 1;
   const pending = new Map();
   ws.addEventListener('message', (e) => {
@@ -56,14 +85,31 @@ try {
       pending.delete(m.id);
     }
   });
+  ws.addEventListener('close', () => {
+    for (const finish of pending.values()) finish({error: {message: 'chromium connection closed'}});
+    pending.clear();
+  });
   const send = (method, params = {}) =>
     new Promise((resolve, reject) => {
       const id = next++;
-      pending.set(id, (m) => (m.error ? reject(new Error(m.error.message)) : resolve(m.result)));
+      const abort = () => finish({error: {message: 'capture interrupted'}});
+      const timer = setTimeout(() => finish({error: {message: `${method} timed out`}}), 10000);
+      const finish = m => {
+        clearTimeout(timer);
+        controller.signal.removeEventListener('abort', abort);
+        pending.delete(id);
+        if (m.error) reject(new Error(m.error.message)); else resolve(m.result);
+      };
+      pending.set(id, finish);
+      controller.signal.addEventListener('abort', abort, {once: true});
+      if (controller.signal.aborted) {abort(); return;}
       ws.send(JSON.stringify({ id, method, params }));
     });
-  const evaluate = async (expression) =>
-    (await send('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+  const evaluate = async expression => {
+    const result = await send('Runtime.evaluate', {expression, returnByValue: true});
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+    return result.result.value;
+  };
   const shoot = async (clip, path) => {
     const { data } = await send('Page.captureScreenshot', {
       format: 'png', captureBeyondViewport: true, clip: { ...clip, scale: 1 },
@@ -76,7 +122,7 @@ try {
     width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
   });
   await send('Page.navigate', { url });
-  await sleep(Number(waitArg) * 1000);
+  await sleep(waitSeconds * 1000);
 
   const height = await evaluate('Math.ceil(document.documentElement.scrollHeight)');
   await shoot({ x: 0, y: 0, width: 1440, height }, fullPath);
@@ -94,7 +140,13 @@ try {
   }
   ws.close();
 } finally {
+  socket?.close();
   browser.kill();
-  await sleep(300);
+  await delay(300);
+  if (!browserError && browser.exitCode === null && browser.signalCode === null) {
+    const closed = new Promise(resolve => browser.once('close', resolve));
+    browser.kill('SIGKILL');
+    await closed;
+  }
   rmSync(profile, { recursive: true, force: true });
 }

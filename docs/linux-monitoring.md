@@ -27,8 +27,8 @@ whole host. The implemented sources are in `sampler/parsing.hpp` and
   Memory usage and minor faults are not collected.
 - **Monitor health:** sampler last seen/silence, target present/absent, session
   changes, packet counters, estimated UDP loss, and stale thread data.
-- **History:** per-thread SQLite rollups and optional raw scheduler records.
-- **Memory-map samples** (every `memory_interval_s`, off by default, no
+- **History:** per-thread SQLite rollups and raw scheduler records by default.
+- **Memory-map samples** (every `memory_interval_s`, default 30 s, no
   privileges): the address-space summary from `/proc/PID/status`, `stat` and
   `limits`, and the layout from `/proc/PID/maps`. See
   [memory-map.md](memory-map.md).
@@ -135,8 +135,8 @@ errors, and application latency.
     explicit voluntary/involuntary switch rates, thread creation/exit rates,
     restart counts, priority/nice and allowed CPUs. Existing session identities
     and thread counts provide part of this; lifecycle events between samples
-    are missed, so churn from threads shorter-lived than the sample interval is
-    invisible (see "Known limitations" in the thread monitor design; the
+    are missed, so churn from threads shorter-lived than the sample interval can
+    be missed (see "Known limitations" in the thread monitor design; the
     dashboard labels thread churn as a lower bound). See the
     [proc documentation](https://docs.kernel.org/filesystems/proc.html).
 11. **Application health.** Add instrumented request/message throughput,

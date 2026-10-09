@@ -97,6 +97,7 @@ static void start_thread(void* (*fn)(void*), intptr_t arg, const char* fmt, int 
   {
     free(info);
   }
+  pthread_attr_destroy(&attr);
 }
 
 static const char* lab_dir(void)
@@ -341,7 +342,7 @@ static void* vm_worker(void* arg)
       sleep_ms(50);
     }
   }
-  say("created about %zu mappings", count / 2);
+  say("split arena into up to %zu mappings", count);
   while (running())
   {
     // Later requests for address space fail with ENOMEM.
@@ -390,6 +391,8 @@ static void fd_leak(void)
 
 // BUG: calls fsync() after every 256 KB write from four threads, on a
 // copy-on-write filesystem. Threads sit in uninterruptible I/O wait.
+static char g_disk_block[256 * 1024];
+
 static void* sync_writer(void* arg)
 {
   int id = (int)(intptr_t)arg;
@@ -401,13 +404,11 @@ static void* sync_writer(void* arg)
     say("open %s: %s", path, strerror(errno));
     return NULL;
   }
-  static char block[256 * 1024];
-  memset(block, 0x5A, sizeof block);
   off_t off = 0;
   while (running())
   {
-    pwrite(fd, block, sizeof block, off);
-    off = (off + (off_t)sizeof block) % ((off_t)64 << 20);  // overwrite in place: cow churn
+    pwrite(fd, g_disk_block, sizeof g_disk_block, off);
+    off = (off + (off_t)sizeof g_disk_block) % ((off_t)64 << 20);  // overwrite in place: cow churn
     fsync(fd);
   }
   close(fd);
@@ -418,6 +419,7 @@ static void* sync_writer(void* arg)
 static void disk_sync(void)
 {
   mkdir(lab_dir(), 0700);
+  memset(g_disk_block, 0x5A, sizeof g_disk_block);
   for (int i = 0; i < 4; ++i)
   {
     start_thread(sync_writer, i, "io-writer%d", i);
@@ -784,7 +786,7 @@ static const struct scenario kScenarios[] = {
     {"deadlock", deadlock, "ABBA lock-order deadlock, process looks alive"},
     {"mem-leak", mem_leak, "heap grows 8 MB/s, never freed"},
     {"mem-oom", mem_oom, "same leak inside a small cgroup memory limit"},
-    {"vm-bloat", vm_bloat, "huge address reservation and 50,000 tiny mappings"},
+    {"vm-bloat", vm_bloat, "huge address reservation and 100,000 tiny mappings"},
     {"fd-leak", fd_leak, "open() without close() until EMFILE"},
     {"disk-sync", disk_sync, "fsync after every write from four threads"},
     {"major-faults", major_faults, "random mmap reads of an uncached file"},

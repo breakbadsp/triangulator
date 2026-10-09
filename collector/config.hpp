@@ -40,9 +40,9 @@ struct Config
 {
   std::int64_t clock_ticks_ = 100;
   std::int64_t retention_days_ = 7;
-  bool store_raw_ = false;
-  // Dashboard recording cadence; zero (the default) disables recording.
-  double replay_interval_s_ = 0;
+  bool store_raw_ = true;
+  // Dashboard recording cadence; zero disables recording.
+  double replay_interval_s_ = 1;
   std::string data_dir_ = "data";
   std::string udp_host_ = "0.0.0.0";
   std::int64_t udp_port_ = 9400;
@@ -126,8 +126,7 @@ namespace detail
 
 }  // namespace detail
 
-// Parses and validates a collector TOML file, with the defaults the retired
-// Python collector used. Unknown keys are ignored, as they were there.
+// Parses and validates a collector TOML file. Unknown keys are ignored.
 [[nodiscard]] inline std::expected<Config, std::string> ParseConfig(
     std::string_view p_text)
 {
