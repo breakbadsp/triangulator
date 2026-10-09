@@ -154,14 +154,16 @@ samples available. Hover help is on.
 
 1. For each section, pause over its heading for 1.2 seconds. Include Summary,
    Threads, Thread details, Pressure, Socket I/O, Memory map, and Monitor.
-2. In Memory map, pause over each tile, finding, legend entry, limit, chart
+2. In Memory map, pause over each tile, finding, legend entry (its card's guide), limit, chart
    title, region column, and zoom fact. Select a bar and repeat for the zoom.
 3. Select each information button in Memory map and read its guide.
 4. Pause over a full-width table message, such as an idle thread row or a
    "No socket has queued data" row.
 
 Expected results: Every heading and label opens a specific card, not the
-generic page guide. Memory-map guides describe the shown measurement and its
+generic page guide. Legend entries have no topics of their own, so pausing
+over one opens the guide for its card (Address space map or Zoom); this
+fallback is expected. Memory-map guides describe the shown measurement and its
 limits. Idle thread rows explain Active threads. Other full-width messages
 explain their panel.
 

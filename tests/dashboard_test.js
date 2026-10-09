@@ -1154,9 +1154,35 @@ test('every static heading, column and summary has a help topic', () => {
 
 test('labels built at runtime use helpButtonLabel', () => {
   // Help guide internals build their own headings; everything else must not.
-  const plain = script.split('\n').filter(line => !/^function (guideSection|helpDataTable)\b/.test(line) && !/for\(const label of data\.headers\)/.test(line))
-    .flatMap(line => line.match(/node\('(?:h2|h3|th|dt)',[^)]*\)|node\('div',\w+,'(?:label|k)'\)/g) || []);
+  // Scan the whole script, not single lines, and skip balanced parentheses so
+  // nested and multi-line calls are still seen.
+  const body = script.replace(/^function (guideSection|helpDataTable)\b[^\n]*(\n(?=[ \t])[^\n]*)*/gm, '')
+    .replace(/for\(const label of data\.headers\)[^\n]*/g, '');
+  const plain = [];
+  for (const match of body.matchAll(/node\(\s*(?:(['"`])(?:h2|h3|th|dt)\1|(['"`])div\2\s*,\s*\w+\s*,\s*(['"`])(?:label|k)\3)/g)) {
+    let depth = 0, end = match.index + 'node'.length;
+    for (; end < body.length; end++) {
+      if (body[end] === '(') depth++;
+      else if (body[end] === ')' && --depth === 0) break;
+    }
+    plain.push(body.slice(match.index, end + 1));
+  }
   assert.deepEqual(plain, []);
+});
+
+test('memory tile, meter and fact labels resolve to a real topic', () => {
+  const app = dashboard();
+  const labels = new Set();
+  for (const [, label] of script.matchAll(/\btile\(\s*'([^']+)'/g)) labels.add(label);
+  for (const [, label] of script.matchAll(/\bmeter\(\s*'([^']+)'/g)) labels.add(label);
+  const facts = script.match(/for\(const \[label,value\] of \[([\s\S]*?)\]\)\{\s*const item=node/)?.[1] ?? '';
+  for (const [, label] of facts.matchAll(/\['([^']+)'\s*,/g)) labels.add(label);
+  assert.ok(labels.size >= 15, `found only ${labels.size} labels`);
+  const missing = [...labels].filter(label => !app.run(`!!HELP[topicForText(${JSON.stringify(label)})]`));
+  assert.deepEqual(missing, []);
+  assert.equal(app.run("topicForText('Data + heap (VmData)')"), 'vmdata');
+  assert.equal(app.run("topicForText('Page faults since start')"), 'faulttotals');
+  assert.equal(app.run("topicForText('Major faults/s')"), 'faults');
 });
 
 test('Escape stays suppressed while keyboard focus remains on its trigger', () => {
