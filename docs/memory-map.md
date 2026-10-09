@@ -55,6 +55,9 @@ The section follows the mock-up in
   previous layout, charts of the heap size, main stack size and resident
   anonymous memory while the page is open, and the bar's regions.
 
+The legend under the grid lists only the kinds that have squares in it, in
+the same colors as the squares.
+
 The squares show the layout from `maps`. Resident, dirty and swapped pages
 need `/proc/PID/pagemap`, which the sampler does not read.
 

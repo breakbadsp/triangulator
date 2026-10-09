@@ -494,12 +494,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <dl id="memory-zoom-facts" class="facts four"></dl>
 <p id="memory-grid-caption" class="muted" style="font-size:12px;margin:14px 0 6px"></p>
 <div id="memory-grid" class="pagegrid"></div>
-<div class="legend">
-<span><i class="sw" style="background:var(--k-anon)"></i>mapped (color = kind)</span>
-<span><i class="sw cell-guard"></i>guard (no access)</span>
-<span><i class="sw cell-none"></i>not mapped</span>
-<span><i class="sw cell-new" style="background:var(--k-anon)"></i>mapped since the previous layout</span>
-</div>
+<div id="memory-grid-legend" class="legend"></div>
 <p class="mem-hint">Each square shows what <code>/proc/PID/maps</code> has at those addresses. Which pages are resident, dirty or swapped needs <code>/proc/PID/pagemap</code>, which the sampler does not read yet.</p>
 <div id="memory-charts" class="mem-charts"></div>
 <p class="mem-hint">Charts cover the last 15 minutes this page has been open. The heap grows up when the allocator calls <code>brk</code>; the main stack grows down when a page fault touches below it. Both move in whole pages.</p>
@@ -1827,6 +1822,7 @@ function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',
 // Bar colors, and whether the bar's text is white. Program code and
 // libraries share a color.
 const MEMORY_KINDS={code:['var(--k-code)',true],library:['var(--k-code)',true],heap:['var(--k-heap)',true],stack:['var(--k-stack)',true],anonymous:['var(--k-anon)',false],file:['var(--k-file)',false],guard:['var(--k-guard)',false],kernel:['var(--k-kernel)',false]};
+const MEMORY_KIND_LABELS={code:'program / library code',library:'program / library code',heap:'heap (brk)',stack:'stack',anonymous:'anonymous (arenas, mmap)',file:'file mapping',guard:'guard (no access)',kernel:'kernel'};
 const MEMORY_GAP=2**30;  // an unmapped space this large gets its own row
 const MEMORY_ROWS=18;  // bars at most, not counting gaps
 const isLibrary=name=>/\.so(\.\d[\w.]*)?( \(deleted\))?$/.test(name||'');  // not ld.so.cache
@@ -2013,8 +2009,8 @@ function renderMemoryMap(rows){const host=element('memory-amap');host.replaceChi
 
 function renderMemoryZoom(row){const v=live.memory?.values||{};
   element('memory-zoom-name').textContent=row?memoryRowName(row):'—';
-  const facts=element('memory-zoom-facts'),grid=element('memory-grid'),body=element('memory-regions'),charts=element('memory-charts');
-  facts.replaceChildren();grid.replaceChildren();body.replaceChildren();
+  const facts=element('memory-zoom-facts'),grid=element('memory-grid'),legend=element('memory-grid-legend'),body=element('memory-regions'),charts=element('memory-charts');
+  facts.replaceChildren();grid.replaceChildren();legend.replaceChildren();body.replaceChildren();
   renderMemoryCharts(charts);
   if(!row){element('memory-zoom-sub').textContent='';element('memory-grid-caption').textContent='No layout yet.';return}
   const span=Number(row.hi-row.lo);
@@ -2031,16 +2027,18 @@ function renderMemoryZoom(row){const v=live.memory?.values||{};
   element('memory-grid-caption').textContent=`Top = high address. One square = ${bytes(cell)} (${cell/4096} page${cell===4096?'':'s'}), ${count} squares.`;
   const offset=region=>[Number(region.lo-row.lo),Number(region.hi-row.lo)];
   const members=row.members.map(region=>[region,...offset(region)]);
+  const shown=new Map(),swatch=(label,className,color)=>{const item=node('span'),mark=node('i',undefined,'sw '+className);if(color)mark.style.background=color;item.append(mark,label);return item};
   const previous=memoryPrevious?memoryRegions(memoryPrevious).filter(region=>region.hi>row.lo&&region.lo<row.hi).map(offset):null;
   for(let line=lines-1;line>=0;line--)for(let column=0;column<columns;column++){const index=line*columns+column,square=node('i');
     if(index>=count){square.className='pad';grid.append(square);continue}
     const from=index*cell,to=Math.min(span,from+cell);let best=null,covered=0;
     for(const [region,lo,hi] of members){const overlap=Math.min(hi,to)-Math.max(lo,from);if(overlap>covered){covered=overlap;best=region}}
-    if(!best){square.className='cell-none';square.dataset.hint='not mapped'}
-    else{square.style.setProperty('--kind',MEMORY_KINDS[best.cat][0]);if(best.cat==='guard')square.className='cell-guard';
-      if(previous&&!previous.some(([lo,hi])=>lo<to&&hi>from))square.classList.add('cell-new');
+    if(!best){square.className='cell-none';square.dataset.hint='not mapped';shown.set('none',swatch('not mapped','cell-none'))}
+    else{square.style.setProperty('--kind',MEMORY_KINDS[best.cat][0]);shown.set(MEMORY_KIND_LABELS[best.cat],best.cat==='guard'?swatch(MEMORY_KIND_LABELS.guard,'cell-guard'):swatch(MEMORY_KIND_LABELS[best.cat],'',MEMORY_KINDS[best.cat][0]));if(best.cat==='guard')square.className='cell-guard';
+      if(previous&&!previous.some(([lo,hi])=>lo<to&&hi>from)){square.classList.add('cell-new');shown.set('new',swatch('mapped since the previous layout','cell-new','var(--raised)'))}
       square.dataset.hint=`${memoryRegionName(best)||best.cat} · ${best.permissions}\n0x${(row.lo+BigInt(from)).toString(16)}`}
     grid.append(square)}
+  legend.append(...shown.values());
   for(const region of row.members.slice(0,300)){const tr=node('tr'),name=node('td',memoryRegionName(region)||region.cat);name.dataset.hint=region.name;
     tr.append(name,node('td',region.start,'mono'),node('td',bytes(region.size),'num'),node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(tr)}}
 

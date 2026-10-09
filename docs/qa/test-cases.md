@@ -17,6 +17,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-005 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Tool errors](runs/20261009T035640Z-v0.1.0/evidence/browser-tool-errors.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | NOT_RUN | - | - | - |
+| QA-008 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -168,3 +169,26 @@ limits. Idle thread rows explain Active threads. Other full-width messages
 explain their panel.
 
 Source: [Contextual help design](../contextual-help-design.md).
+
+## QA-008: Memory zoom legend matches the grid
+
+Feature: Memory map zoom. Priority: Low. Case revision: 1.
+
+Preconditions: An owned workload is monitored with memory-map samples
+available. Its map has heap, stack, anonymous, file and program or library
+regions, and a guard region if possible.
+
+1. In Memory map, select each bar in turn, including the heap, the stack and a
+   bar with a guard region.
+2. For each zoom, compare the legend under the grid with the colors of the
+   squares.
+3. Wait for a new mapping (for example, allocate a large block) and watch the
+   zoom of the bar that contains it.
+
+Expected results: The legend lists only kinds that have squares in the grid,
+each with that kind's swatch color (heap blue, stack orange, anonymous green,
+file yellow, code gray). Guard squares are hatched, and "not mapped" appears
+only when the zoom has gaps. "Mapped since the previous layout" appears only
+while a new square is outlined.
+
+Source: [Memory map](../memory-map.md).
