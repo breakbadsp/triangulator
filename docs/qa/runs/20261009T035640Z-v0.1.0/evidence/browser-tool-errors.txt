@@ -1,0 +1,17 @@
+T3 preview_status initially returned available:false. preview_open opened tab_d. A later recovery opened tab_e.
+
+preview_snapshot repeatedly failed, including save:true and includeImage:false:
+Preview snapshot failed: Preview automation snapshot failed on client preview-3ac5c0c2af02456cdb844bcd0c291586.
+PreviewAutomationExecutionError; operation snapshot; failureCount 1.
+
+preview_recording_start timed out after 15000ms.
+
+Several click and type calls returned Preview automation click/type failed on client preview-3ac5c0c2af02456cdb844bcd0c291586.
+preview_wait_for timed out after 15000ms.
+Then focused tools returned No preview automation host is available for ... in environment d3b48db2-5acd-4ec7-907b-985ce2bc936e.
+
+preview_open recovered read-only DOM access. Snapshot saving still failed. Some focused click calls returned success but did not change the target form, replay state, or thread drawer. Scrolling to the page top and trying coordinates did not restore those interactions.
+No alternate browser was used because preview_open continued to report available:true.
+
+Application text was read with preview_evaluate(document.body.innerText). Evaluation did not change the DOM or application state.
+Console and network diagnostics from preview_snapshot were unavailable.

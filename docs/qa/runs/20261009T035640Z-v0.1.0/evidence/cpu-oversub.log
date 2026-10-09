@@ -1,0 +1,2 @@
+[bugbench    0.0s] cpu-oversub: 3x more runnable threads than cores (pid 683379, 110 s)
+[bugbench   71.5s] done

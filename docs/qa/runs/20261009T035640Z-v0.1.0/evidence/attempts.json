@@ -1,0 +1,254 @@
+[
+  {
+    "name": "cpu-oversub",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "78ea01",
+      "wall_time_seconds": 1.002156891,
+      "session_id": 17191,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 683379\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:02:24.398Z",
+    "end": "2026-10-09T04:03:34.674Z",
+    "diagnostic": "    PID NLWP STAT\n 683379   19 SNl\n[bugbench    0.0s] cpu-oversub: 3x more runnable threads than cores (pid 683379, 110 s)\n"
+  },
+  {
+    "name": "cpu-throttle",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "03d390",
+      "wall_time_seconds": 1.001358068,
+      "session_id": 51968,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 683874\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:03:35.887Z",
+    "end": "2026-10-09T04:04:46.098Z",
+    "diagnostic": "    PID NLWP STAT\n 683874    5 Sl\n[bugbench    0.0s] cpu-throttle: busy threads under a 50% cgroup CPU quota (pid 683874, 110 s)\n"
+  },
+  {
+    "name": "yield-storm",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "611da5",
+      "wall_time_seconds": 1.001709048,
+      "session_id": 38468,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 684768\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:04:47.307Z",
+    "end": "2026-10-09T04:05:57.579Z",
+    "diagnostic": "    PID NLWP STAT\n 684768    5 SNl\n[bugbench    0.0s] yield-storm: sched_yield() polling loops (pid 684768, 110 s)\n"
+  },
+  {
+    "name": "lock-convoy",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "355c4f",
+      "wall_time_seconds": 1.000342176,
+      "session_id": 10741,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 685082\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:05:58.791Z",
+    "end": "2026-10-09T04:07:09.010Z",
+    "diagnostic": "    PID NLWP STAT\n 685082    9 Sl\n[bugbench    0.0s] lock-convoy: sleeping while holding one global lock (pid 685082, 110 s)\n"
+  },
+  {
+    "name": "deadlock",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "09e1d2",
+      "wall_time_seconds": 1.001018482,
+      "session_id": 61886,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 685425\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:07:10.220Z",
+    "end": "2026-10-09T04:08:20.435Z",
+    "diagnostic": "    PID NLWP STAT\n 685425    4 Sl\n[bugbench    0.0s] deadlock: ABBA lock-order deadlock, process looks alive (pid 685425, 110 s)\n"
+  },
+  {
+    "name": "mem-leak",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "757431",
+      "wall_time_seconds": 1.000342923,
+      "session_id": 48568,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 685782\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:08:21.642Z",
+    "end": "2026-10-09T04:09:31.859Z",
+    "diagnostic": "    PID NLWP STAT\n 685782    3 Sl\n[bugbench    0.0s] mem-leak: heap grows 8 MB/s, never freed (pid 685782, 110 s)\n"
+  },
+  {
+    "name": "mem-oom",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "d41523",
+      "wall_time_seconds": 1.00067022,
+      "session_id": 24604,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 686080\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:09:33.075Z",
+    "end": "2026-10-09T04:10:43.285Z",
+    "diagnostic": "    PID NLWP STAT\n 686080    3 Sl\n[bugbench    0.0s] mem-oom: same leak inside a small cgroup memory limit (pid 686080, 110 s)\n"
+  },
+  {
+    "name": "vm-bloat",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "051820",
+      "wall_time_seconds": 1.001121151,
+      "session_id": 74915,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 686467\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:10:44.495Z",
+    "end": "2026-10-09T04:11:54.720Z",
+    "diagnostic": "    PID NLWP STAT\n 686467    2 Sl\n[bugbench    0.0s] vm-bloat: huge address reservation and 100,000 tiny mappings (pid 686467, 110 s)\n[bugbench    0.7s] split arena into up to 100000 mappings\n[bugbench   12.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   14.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   16.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   18.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   20.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   22.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   24.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   26.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   28.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   30.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   32.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   34.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   36.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   38.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   40.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   42.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   44.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   46.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   48.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   50.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   52.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   54.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   56.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   58.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   60.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   62.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   64.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   66.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   68.7s] allocation failed: Cannot allocate memory (ignored)\n[bugbench   70.7s] allocation failed: Cannot allocate memory (ignored)\n"
+  },
+  {
+    "name": "fd-leak",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "4c60dc",
+      "wall_time_seconds": 1.000276774,
+      "session_id": 29977,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 686810\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:11:55.938Z",
+    "end": "2026-10-09T04:13:06.145Z",
+    "diagnostic": "    PID NLWP STAT\n 686810    3 Sl\n[bugbench    0.0s] fd-leak: open() without close() until EMFILE (pid 686810, 110 s)\n"
+  },
+  {
+    "name": "disk-sync",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "adf332",
+      "wall_time_seconds": 1.000362662,
+      "session_id": 76176,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 687172\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:13:07.356Z",
+    "end": "2026-10-09T04:14:17.929Z",
+    "diagnostic": "    PID NLWP STAT\n 687172    6 Sl\n[bugbench    0.0s] disk-sync: fsync after every write from four threads (pid 687172, 110 s)\n"
+  },
+  {
+    "name": "major-faults",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "367b53",
+      "wall_time_seconds": 1.001554998,
+      "session_id": 95714,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 687476\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:14:19.192Z",
+    "end": "2026-10-09T04:15:29.400Z",
+    "diagnostic": "    PID NLWP STAT\n 687476    4 Sl\n[bugbench    0.0s] major-faults: random mmap reads of an uncached file (pid 687476, 110 s)\n"
+  },
+  {
+    "name": "tcp-slow",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "ab852f",
+      "wall_time_seconds": 1.000859612,
+      "session_id": 40585,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 687825\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:15:30.611Z",
+    "end": "2026-10-09T04:16:40.837Z",
+    "diagnostic": "    PID NLWP STAT\n 687825    3 Sl\n[bugbench    0.0s] tcp-slow: slow consumer, fast producer over TCP (pid 687825, 110 s)\n"
+  },
+  {
+    "name": "udp-drop",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "c18fbb",
+      "wall_time_seconds": 1.001964722,
+      "session_id": 10029,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 688151\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:16:42.049Z",
+    "end": "2026-10-09T04:17:52.251Z",
+    "diagnostic": "    PID NLWP STAT\n 688151    3 Sl\n[bugbench    0.0s] udp-drop: UDP flood into a tiny receive buffer (pid 688151, 110 s)\n"
+  },
+  {
+    "name": "close-wait",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "951c69",
+      "wall_time_seconds": 1.001456118,
+      "session_id": 68786,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 688525\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:17:53.463Z",
+    "end": "2026-10-09T04:19:03.682Z",
+    "diagnostic": "    PID NLWP STAT\n 688525    4 Sl\n[bugbench    0.0s] close-wait: server never closes accepted sockets (pid 688525, 110 s)\n"
+  },
+  {
+    "name": "listen-full",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "6277bf",
+      "wall_time_seconds": 1.000945295,
+      "session_id": 91758,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 688868\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:19:04.894Z",
+    "end": "2026-10-09T04:20:15.102Z",
+    "diagnostic": "    PID NLWP STAT\n 688868    6 Sl\n[bugbench    0.0s] listen-full: listen backlog 1, nobody calls accept() (pid 688868, 110 s)\n"
+  },
+  {
+    "name": "thread-churn",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "539c95",
+      "wall_time_seconds": 1.000222266,
+      "session_id": 14261,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 690533\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:20:16.314Z",
+    "end": "2026-10-09T04:21:26.526Z",
+    "diagnostic": "    PID NLWP STAT\n 690533    3 Sl\n[bugbench    0.0s] thread-churn: one new thread per task, 150 per second (pid 690533, 110 s)\n"
+  },
+  {
+    "name": "thread-leak",
+    "hold": 165,
+    "launch": {
+      "chunk_id": "4c3b0c",
+      "wall_time_seconds": 1.001225968,
+      "session_id": 86420,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 701565\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:21:27.738Z",
+    "end": "2026-10-09T04:24:12.956Z",
+    "diagnostic": "    PID NLWP STAT\n 701565  602 Sl\n[bugbench    0.0s] thread-leak: threads that wait forever pile up (pid 701565, 205 s)\n"
+  },
+  {
+    "name": "stopped",
+    "hold": 70,
+    "launch": {
+      "chunk_id": "6ff8e5",
+      "wall_time_seconds": 1.000651005,
+      "session_id": 90175,
+      "original_token_count": 54,
+      "output": "Updated /tmp/triangulator-qa-20261009/triangulator/config/sampler.toml: target_pid = 702893\nRequested reload of sampler 677086; check the dashboard and /tmp/triangulator-qa-20261009/triangulator/logs/sampler.log.\n"
+    },
+    "start": "2026-10-09T04:24:14.174Z",
+    "end": "2026-10-09T04:25:24.438Z",
+    "diagnostic": "    PID NLWP STAT\n 702893    5 Tl\n[bugbench    0.0s] healthy: control: light periodic work, no bug (pid 702893, 110 s)\n"
+  }
+]

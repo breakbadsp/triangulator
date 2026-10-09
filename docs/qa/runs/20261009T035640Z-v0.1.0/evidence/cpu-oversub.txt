@@ -1,0 +1,688 @@
+Triangulator
+bb-cpu-oversub PID 677877 · Live · just now
+Change target
+Overview
+Resources
+Memory
+Threads
+Sockets
+Monitor
+◐
+Inspect a moment
+
+Choose a local date and time to inspect the recorded process and every thread.
+
+Live
+Inspect time
+← Previous
+Next →
+Latest recording
+
+Live view. Recordings begin when this collector receives a sampler session.
+
+Available recordings: 10/9/2026, 9:26:49 AM – 10/9/2026, 9:31:19 AM. Recording interval: 5 s (limited by dashboard refresh cadence).
+
+Process overview
+
+How bb-cpu-oversub is behaving, summed over its 19 threads. Trends kept in this tab since 09:31:21 AM.
+
+1 min
+5 min
+15 min
+Process load
+
+The system load average, for this process only: threads on a CPU, plus threads waiting for one, plus threads stuck in uninterruptible kernel wait. 1.00 is one core's worth of demand.
+
+18.01
+1-minute load
+5 min
+18.02
+15 min (33 s of data)
+18.02
+On CPU now
+4.71 cores
+Waiting for CPU
+73.8% of demand
+Busiest thread
+worker-1 · 30.9%
+0
+10
+20
+09:31:21 AM
+09:31:38 AM
+09:31:54 AM
+On CPU
+4.71
+Waiting for CPU
+13.28
+1-min average
+Assessment
+as of 09:31:54 AM
+Worth a look
+
+1 of 19 threads are waiting: 1 sleep. 18 threads are busy (≥1% CPU).
+
+!
+Threads are waiting for CPU
+Run delay is 282% of CPU time: for every second on a core, threads spent 2.82 s waiting for one. The host may be oversubscribed.
+!
+Runnable tasks wait for CPU 73.6% of the time
+CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.
+Active threads
+19
+of 19 · 0 idle for 10 s+
+Context switches
+3881/s
+204.3/s per active thread
+Disk & syscall I/O
+0 B/s
+read 0 B/s · write 0 B/s
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+10
+20
+09:31:21 AM
+09:31:38 AM
+09:31:54 AM
+Running
+18
+Sleep
+1
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+hrtimer_nanosleep
+1
+Thread map
+
+One tile per thread (19), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+31%
+30%
+29%
+29%
+29%
+29%
+27%
+26%
+25%
+25%
+25%
+25%
+25%
+24%
+24%
+24%
+23%
+23%
+<0.1%
+Running
+18
+Sleep
+1
+Number = CPU % of one core, last ~10 s · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+worker
+471%×18
+bb-cpu-oversub
+0.0%×1
+Core placement
+
+CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.
+
+159%
+#0
+#1
+177%
+#2
+106%
+#3
+28.8%
+#4
+Bar height: 0 – 200% of one core. Cores with none of this process's threads show no bar.
+Monitor health
+
+Is the data trustworthy? Sampler link, packet loss and the collector's buffers.
+
+Sampler
+Connected
+Last data
+just now
+Sample interval
+500 ms
+Packet loss (1 min)
+0.0%
+Bad · duplicate · late
+0 · 0 · 0
+Raw samples held
+1273
+Sampler address
+127.0.0.1
+Session
+15480597300504767385
+Pressure, limits & sockets
+
+What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers. Updated just now.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+73.6%
+full 3.3% · cgroup
+Memory (RSS)
+2.2 MB
+peak 2.2 MB · swap 0 B
+Open files
+3
+0.0% of limit 524288 · 0 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+0 B
+unread 0 B · unsent 0 B
+Network drops
+0.00/s
+connections and packets, namespace-wide
+TCP retransmits
+0.00/s
+0.0% of segments sent
+Pressure stalls (PSI)
+
+Share of time tasks were stalled waiting for a resource. Some: at least one task waited. Full: every non-idle task waited at once, so no work got done. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+09:16:56 AM
+09:24:26 AM
+09:31:56 AM
+CPU some
+73.6%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	73.6%	3.3%	73.9%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+3 / 524288
+Cgroup memory
+no memory.max limit
+2.8 GB
+Processes & threads
+cgroup pids.max
+303 / 18834
+TCP memory
+pressure at 974.7 MB, limit 1.4 GB · host-wide
+312.0 KB
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+748.0 KB
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+22 · 0 orphaned · 374 time-wait
+Bytes waiting in the target's sockets
+
+Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.
+
+0 B
+1000 B
+2.0 KB
+09:16:56 AM
+09:24:26 AM
+09:31:56 AM
+Receive queue (unread)
+0 B
+Send queue (unsent)
+0 B
+0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listening
+Network stack drops & errors
+
+Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.
+
+Counter	Now	In range	Total
+Failed connection attempts
+Outgoing connections that failed (refused or timed out).
+	6.50/s	—	249.3K
+UDP to closed ports
+Datagrams to ports nobody listens on.
+	2.00/s	—	89.5K
+Retransmitted segments
+Segments sent again: packet loss or congestion on some path.
+	0.00/s	9	2378
+Connections reset
+Established connections reset, by the peer or locally.
+	0.00/s	4	1833
+Accept queue overflows
+A listener’s accept queue was full and a new connection was dropped. The app is not calling accept() fast enough, or the backlog (listen(), somaxconn) is too small.
+	0.00/s	0	1603
+Listen drops
+Every dropped incoming connection attempt, overflows included.
+	0.00/s	0	1603
+SYN cookies sent
+The SYN queue overflowed and the kernel fell back to SYN cookies: a connection burst, a flood, or a slow accept loop.
+	0.00/s	—	1
+Receive queue pruning
+The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.
+	0.00/s	—	139
+Retransmission timeouts
+A retransmission timer fired: a peer went quiet or the loss was severe.
+	0.00/s	0	888
+Aborted after timeouts
+Connections given up after repeated timeouts.
+	0.00/s	—	4
+UDP receive buffer full
+Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.
+	0.00/s	0	266.2K
+UDP input errors
+Datagrams that could not be delivered, including receive-buffer drops.
+	0.00/s	0	266.2K
+14 other counters are zero.
+Fullest sockets (0 of 0 reported)
+
+The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+The target has no sockets the sampler could list.
+
+Sample 17 · every 2 s · 0 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-com.t3tools.T3Code-3853.scope.
+
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 19 µs. Updated 4 s ago.
+
+Virtual size (VmSize)
+456.8 MB
+limit: unlimited · peak 456.8 MB
+Resident (RSS)
+2.2 MB
+peak 2.2 MB · swap 0 B
+Anonymous / file / shared
+0.3 / 1.8 / 0.0
+MB: RssAnon / File / Shmem
+Mappings (VMAs)
+41
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+0 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+NOTICE
+Main stack is at 1.7% of its limit
+[stack] is 136.0 KB; RLIMIT_STACK is 8.0 MB. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.
+OK
+Nothing unusual in the memory map
+Mappings, address space and stack are well within their limits.
+Address space 16 regions · updated 34 s ago
+
+High addresses at the top. Unmapped spaces between mappings are shortened.
+
+ffffffffff600000
+[vsyscall]
+--xp · 4.0 KB
+⋮
+kernel half of the address space
+7fffc938a000
+[stack]
+rw-p · 136.0 KB · grows ↓
+⋮
+≈ 6.7 TB not mapped
+79482f8ab000
+[anonymous]
+rw-p · 4.0 KB
+79482f86b000
+ld-linux-x86-64.so.2
+rwxp · 256.0 KB
+79482f862000
+[vvar] [vvar_vclock] [vdso]
+r-xp r--p · 36.0 KB
+79482f83a000
+ld.so.cache
+r--p · 160.0 KB
+79482f81b000
+2 anonymous regions
+rw-p · 52.0 KB
+79482f600000
+libc.so.6
+rwxp · 2.1 MB
+794810000000
+2 anonymous regions
+rw-p · 452.6 MB
+⋮
+≈ 26.7 TB not mapped
+5e9eb1e9e000
+[heap]
+rw-p · 132.0 KB · grows ↑
+5e9ea6e4f000
+[anonymous]
+rw-p · 1.3 MB
+5e9ea6e46000
+bugbench (probably the program)
+rwxp · 36.0 KB
+program / library code
+heap (brk)
+anonymous (arenas, mmap)
+stack
+file mapping
+guard (no access)
+kernel
+
+The darker part of a bar is its size on a log scale, from 4 KB to the largest bar. Adjacent mappings of the same kind are joined into one bar. Mapped is not resident: a bar can be large and use little RAM. Click a bar to zoom.
+
+Zoom: [heap]
+
+0x5e9eb1e9e000 – 0x5e9eb1ebf000 · rw-p · grows ↑
+
+Size (mapped)
+132.0 KB
+Address span
+132.0 KB
+Regions / VMAs
+1 / 1
+Share of VmSize
+0.0%
+Not mapped inside
+0 B
+Largest region
+132.0 KB
+Break moved
+collecting…
+Page size
+4 KB
+
+Top = high address. One square = 4.0 KB (1 page), 33 squares.
+
+mapped (color = kind)
+guard (no access)
+not mapped
+mapped since the previous layout
+
+Each square shows what /proc/PID/maps has at those addresses. Which pages are resident, dirty or swapped needs /proc/PID/pagemap, which the sampler does not read yet.
+
+Heap size ↑
+0 B / min
+132.0 KB → 132.0 KB
+Main stack ↓
+0 B / min
+136.0 KB → 136.0 KB
+Resident anonymous
+0 B / min
+292.0 KB → 292.0 KB
+
+Charts cover the last 15 minutes this page has been open. The heap grows up when the allocator calls brk; the main stack grows down when a page fault touches below it. Both move in whole pages.
+
+Region	Start	Size	Perms	VMAs
+[heap]	0x5e9eb1e9e000	132.0 KB	rw-p	1
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+41 / 1048576
+Address space
+no RLIMIT_AS limit
+456.8 MB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+136.0 KB / 8.0 MB
+Peak virtual size
+456.8 MB
+Data + heap (VmData)
+7.0 MB
+Page tables
+84.0 KB
+Locked
+0 B
+Page faults since start
+0 major · 337 minor
+Longest maps read
+19 µs (2 reads, 20 µs total)
+
+Threads (19)
+
+Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press / to search.
+
+Active 19
+Idle 0
+All 19
+Group
+All groups
+ungrouped (1)
+worker (18)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+19
+Running
+18
+Sleep
+1
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+19
+—
+18
+hrtimer_nanosleep
+1
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+worker-1
+TID 677880
+	worker	
+Running	
+	
+30.9%
+	68.9%	243.0	·	·	·	0
+worker-9
+TID 677888
+	worker	
+Running	
+	
+30.0%
+	69.8%	242.0	·	·	·	2
+worker-5
+TID 677884
+	worker	
+Running	
+	
+29.4%
+	70.6%	254.5	·	·	·	3
+worker-12
+TID 677891
+	worker	
+Running	
+	
+29.2%
+	70.7%	241.0	·	·	·	0
+worker-17
+TID 677897
+	worker	
+Running	
+	
+28.8%
+	71.1%	219.1	·	·	·	4
+worker-10
+TID 677889
+	worker	
+Running	
+	
+28.5%
+	71.5%	198.9	·	·	·	3
+worker-3
+TID 677882
+	worker	
+Running	
+	
+26.5%
+	73.4%	202.8	·	·	·	0
+worker-7
+TID 677886
+	worker	
+Running	
+	
+26.0%
+	73.9%	202.9	·	·	·	2
+worker-4
+TID 677883
+	worker	
+Running	
+	
+25.5%
+	74.5%	201.0	·	·	·	3
+worker-2
+TID 677881
+	worker	
+Running	
+	
+25.0%
+	74.7%	222.0	·	·	·	2
+worker-14
+TID 677893
+	worker	
+Running	
+	
+24.9%
+	74.9%	221.6	·	·	·	0
+worker-15
+TID 677894
+	worker	
+Running	
+	
+24.8%
+	75.1%	223.8	·	·	·	0
+worker-6
+TID 677885
+	worker	
+Running	
+	
+24.6%
+	75.4%	196.5	·	·	·	2
+worker-8
+TID 677887
+	worker	
+Running	
+	
+23.8%
+	76.2%	194.8	·	·	·	2
+worker-16
+TID 677895
+	worker	
+Running	
+	
+23.8%
+	76.1%	204.6	·	·	·	2
+worker-11
+TID 677890
+	worker	
+Running	
+	
+23.6%
+	76.5%	198.3	·	·	·	2
+worker-13
+TID 677892
+	worker	
+Running	
+	
+23.0%
+	76.9%	209.5	·	·	·	3
+worker-0
+TID 677879
+	worker	
+Running	
+	
+22.7%
+	77.1%	199.5	·	·	·	0
+bb-cpu-oversub
+TID 677877
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	5.1	·	·	·	2
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Monitor diagnostics (raw health JSON)
+How to read this page
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

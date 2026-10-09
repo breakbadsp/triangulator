@@ -1,7 +1,7 @@
 # Manual test cases
 
-These cases describe documented behavior. No case has been executed in this
-change. A dash in Tested package version means no package has been tested.
+These cases describe documented behavior. Current results link to versioned runs.
+A dash in Tested package version means no package has been tested.
 See [Senior Manual QA](../manual-qa.md) for invocation and package setup.
 Use the PR #47 `bug-lab/bugbench.c` sample workload for owned test processes.
 The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
@@ -10,32 +10,32 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | NOT_RUN | — | — | — |
-| QA-002 | NOT_RUN | — | — | — |
-| QA-003 | NOT_RUN | — | — | — |
-| QA-004 | NOT_RUN | — | — | — |
-| QA-005 | NOT_RUN | — | — | — |
-| QA-006 | NOT_RUN | — | — | — |
-| QA-101 | NOT_RUN | — | — | — |
-| QA-102 | NOT_RUN | — | — | — |
-| QA-103 | NOT_RUN | — | — | — |
-| QA-104 | NOT_RUN | — | — | — |
-| QA-105 | NOT_RUN | — | — | — |
-| QA-106 | NOT_RUN | — | — | — |
-| QA-107 | NOT_RUN | — | — | — |
-| QA-108 | NOT_RUN | — | — | — |
-| QA-109 | NOT_RUN | — | — | — |
-| QA-110 | NOT_RUN | — | — | — |
-| QA-111 | NOT_RUN | — | — | — |
-| QA-112 | NOT_RUN | — | — | — |
-| QA-113 | NOT_RUN | — | — | — |
-| QA-114 | NOT_RUN | — | — | — |
-| QA-115 | NOT_RUN | — | — | — |
-| QA-116 | NOT_RUN | — | — | — |
-| QA-117 | NOT_RUN | — | — | — |
-| QA-118 | NOT_RUN | — | — | — |
-| QA-119 | NOT_RUN | — | — | — |
-| QA-120 | NOT_RUN | — | — | — |
+| QA-001 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
+| QA-002 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Reloaded page](runs/20261009T035640Z-v0.1.0/evidence/target-reload.txt) |
+| QA-003 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Validation text](runs/20261009T035640Z-v0.1.0/evidence/target-validation.json) |
+| QA-004 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Tool errors](runs/20261009T035640Z-v0.1.0/evidence/browser-tool-errors.txt) |
+| QA-005 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Tool errors](runs/20261009T035640Z-v0.1.0/evidence/browser-tool-errors.txt) |
+| QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
+| QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
+| QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
+| QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
+| QA-104 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Quota page](runs/20261009T035640Z-v0.1.0/evidence/cpu-throttle.txt) |
+| QA-105 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [First page](runs/20261009T035640Z-v0.1.0/evidence/yield-storm.txt) |
+| QA-106 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Contention page](runs/20261009T035640Z-v0.1.0/evidence/lock-convoy.txt) |
+| QA-107 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Deadlock page](runs/20261009T035640Z-v0.1.0/evidence/deadlock.txt) |
+| QA-108 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Growth page](runs/20261009T035640Z-v0.1.0/evidence/mem-leak.txt) |
+| QA-109 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Pressure page](runs/20261009T035640Z-v0.1.0/evidence/mem-oom.txt) |
+| QA-110 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Address-space page](runs/20261009T035640Z-v0.1.0/evidence/vm-bloat.txt) |
+| QA-111 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Descriptor page](runs/20261009T035640Z-v0.1.0/evidence/fd-leak.txt) |
+| QA-112 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [First page](runs/20261009T035640Z-v0.1.0/evidence/disk-sync.txt) |
+| QA-113 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Fault page](runs/20261009T035640Z-v0.1.0/evidence/major-faults.txt) |
+| QA-114 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [TCP page](runs/20261009T035640Z-v0.1.0/evidence/tcp-slow.txt) |
+| QA-115 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [UDP page](runs/20261009T035640Z-v0.1.0/evidence/udp-drop.txt) |
+| QA-116 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Socket page](runs/20261009T035640Z-v0.1.0/evidence/close-wait.txt) |
+| QA-117 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Listen page](runs/20261009T035640Z-v0.1.0/evidence/listen-full.txt) |
+| QA-118 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Churn page](runs/20261009T035640Z-v0.1.0/evidence/thread-churn.txt) |
+| QA-119 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Thread-growth page](runs/20261009T035640Z-v0.1.0/evidence/thread-leak.txt) |
+| QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [First stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped.txt) |
 
 ## QA-001: Package installation and live dashboard
 
