@@ -1,0 +1,2 @@
+[bugbench    0.0s] disk-sync: fsync after every write from four threads (pid 687172, 110 s)
+[bugbench   71.8s] done

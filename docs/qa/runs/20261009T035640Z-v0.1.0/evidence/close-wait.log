@@ -1,0 +1,2 @@
+[bugbench    0.0s] close-wait: server never closes accepted sockets (pid 688525, 110 s)
+[bugbench   71.4s] done

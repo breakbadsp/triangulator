@@ -1,0 +1,4 @@
+{
+  "text": "Triangulator\nbb-healthy PID 675597 · Live · just now\nChange target\nOverview\nResources\nMemory\nThreads\nSockets\nMonitor\n◐\nChange target\n\nEnter an exact process name or PID. A process name follows the process when it restarts. Changes are saved and apply without restarting the sampler.\n\nProcess name or PID\nMonitor\nClose\n\nno running process with PID 2147483647\n\nInspect a moment\n\nChoose a local date and time to inspect the recorded process and every thread.\n\nLive\nInspect time\n← Previous\nNext →\nLatest recording\n\nLive view. Recordings begin when this collector receives a sampler session.\n\nAvailable recordings: 10/9/2026, 9:26:49 AM – 10/9/2026, 9:27:",
+  "valid": "Please fill out this field."
+}

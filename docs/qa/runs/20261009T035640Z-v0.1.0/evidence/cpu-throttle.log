@@ -1,0 +1,2 @@
+[bugbench    0.0s] cpu-throttle: busy threads under a 50% cgroup CPU quota (pid 683874, 110 s)
+[bugbench   71.4s] done

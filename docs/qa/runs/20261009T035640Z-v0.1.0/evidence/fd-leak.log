@@ -1,0 +1,2 @@
+[bugbench    0.0s] fd-leak: open() without close() until EMFILE (pid 686810, 110 s)
+[bugbench   71.4s] done

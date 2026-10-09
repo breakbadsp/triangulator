@@ -1,0 +1,2 @@
+[bugbench    0.0s] deadlock: ABBA lock-order deadlock, process looks alive (pid 685425, 110 s)
+[bugbench   71.4s] done

@@ -1,0 +1,13 @@
+target_pid = 703504
+# target_pid = 1234
+rate_hz = 2.0
+collector = "127.0.0.1:19560"
+status_fallback = false
+# Seconds between resource samples: pressure, descriptors, socket queues and
+# network drops (0 = off, 1..60). Never more often than thread ticks.
+resource_interval_s = 2
+# Seconds between memory-map samples: /proc/PID/maps and the address-space
+# summary (0 = off, the default; 1..3600). Reading maps briefly shares the
+# target's memory-map lock; see docs/memory-map.md.
+memory_interval_s = 5
+
