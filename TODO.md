@@ -107,3 +107,9 @@ these need a core change, a privilege, or a decision.
   result requires browser diagnostics with no application error, and the run
   could not capture them. Re-run with console and network capture, or mark the
   case BLOCKED and update the counts in the run record.
+- [ ] Re-run the four browser-blocked cases from the v0.1.0 package run (QA-004,
+  QA-005, QA-102, QA-118) in a browser where clicks, typing and snapshots work.
+  The run blocked them on T3 preview interaction failures, not product
+  behavior. Update their statuses and the counts in the run record.
+- [ ] Run QA-006 (upgrade) once a second published package exists; v0.1.0 has
+  no earlier release to upgrade from.
