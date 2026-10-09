@@ -186,7 +186,7 @@ numbers are a lower bound, and short-lived threads are invisible at 0.2–10 Hz.
 
 ![thread-churn overview](screenshots/bug-lab/thread-churn-overview.png)
 
-**Fixed (docs and labels, no sampler change).** Linux offers no unprivileged,
+**Fixed in 4aaf095 (docs and labels, no sampler change).** Linux offers no unprivileged,
 per-process count of threads ever created, so the blindness cannot be removed
 without a privilege or an application hook. Measured on this machine, kernel
 7.2: `/proc/PID/status`, `stat` and `sched` only carry the current thread count;
