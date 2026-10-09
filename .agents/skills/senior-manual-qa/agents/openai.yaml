@@ -1,0 +1,4 @@
+interface:
+  display_name: "Senior Manual QA"
+  short_description: "Run browser QA and record package test results"
+  default_prompt: "Use $senior-manual-qa to test the latest stable package in a real browser and update the manual test records."
