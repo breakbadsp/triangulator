@@ -1,6 +1,8 @@
 # Dashboard contextual help
 
-Status: design proposal. No dashboard behavior changes in this document.
+Status: implemented in the dashboard. Follow
+[Help for new dashboard features](#help-for-new-dashboard-features) when
+you add or change a user-visible part of the page.
 
 The goal is to help users understand each metric where they encounter it.
 Keep the dashboard compact. Show a short explanation after a deliberate pause.
@@ -204,10 +206,45 @@ and value. Legend help explains the series without changing its toggle action.
 | Thread filters and table | Group; sort; active/idle/all; TID and generation; wait channel; last ~10 s; CPU; run delay; switches; read/write; major faults; core |
 | Thread drawer | Live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
 | Socket I/O panel | Observer status and coverage; received/sent/messages; total/current/average/recent min/max; filters affect breakdown only; retired threads |
+| Memory map | VmSize and its limit; anonymous/file/shared split; VMAs and vm.max_map_count; findings; address-space bars and kinds; region zoom and page grid; heap, main stack, and resident anonymous charts; region table; memory limits |
 | Optional alerts | Rule meaning; threshold unit and window; trigger/recovery; disable and reset effects; delivery status when present |
 
 Alerts remain in their separate program. Show their help only when that feature
 is available. This design does not add alerts or new core metrics.
+
+## Help for new dashboard features
+
+Every user-visible section, card, chart, metric label, table column, legend,
+and disclosure needs a help topic. Add the topic in the same change as the
+feature. A feature without help is incomplete.
+
+1. Reuse a topic when the concept is the same. Otherwise add one with
+   `helpTopic(id, title, scope, meaning, example, reading, limits, related,
+   aliases)` in `collector/dashboard.html`. Follow
+   [A consistent explanation](#a-consistent-explanation).
+2. Give static headings, columns, and summaries a `data-help` attribute, or a
+   title or alias that names the topic exactly. Use `data-help` for generic
+   text such as "Findings", "Total", or a heading with a runtime count.
+3. Build runtime labels with `helpButtonLabel(text, id, className, tag)`, not
+   `node('h3', …)`, `node('dt', …)` or a plain `.label` div. `initHelp` runs
+   once, so it cannot reach labels created later.
+4. Do not register a generic word, such as "Now" or "Total", as an alias. Each
+   alias must select exactly one topic.
+5. A full-width table message uses its panel heading. Set `data-help` on the
+   cell if another topic explains it better.
+6. Add the section to the [coverage map](#coverage-map) and a manual case in
+   [test cases](qa/test-cases.md).
+
+`tests/dashboard_test.js` fails when a static heading, column, or summary has no
+topic. It fails when a card or section with a table has no heading that
+resolves a topic, and when a full-width table message cell (`colSpan` above 1,
+without its own `data-help`) is rendered into a card whose heading lacks an
+explicit `data-help`. It also fails when runtime code builds a heading, fact, or
+tile label without `helpButtonLabel`; that check is a line-based pattern match
+and misses calls that span lines or use other quoting. The tests read the
+markup and script text and never run `helpTarget` on a real DOM, so they cannot
+see every hover target. Pause
+over each new label in a browser before you open the pull request.
 
 ## Implementation boundaries for later work
 

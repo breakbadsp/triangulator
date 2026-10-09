@@ -1137,6 +1137,99 @@ test('every help name selects exactly one topic', () => {
   assert.equal(app.run("topicForText('Thread map time window')"), 'map');
 });
 
+// Every section, card, chart, column and disclosure needs a help topic, so new
+// dashboard features cannot ship without one. See docs/contextual-help-design.md.
+test('every static heading, column and summary has a help topic', () => {
+  const app = dashboard();
+  const page = html.split('<script>')[0].replace(/<aside id="help-guide"[\s\S]*?<\/aside>/, '');
+  const missing = [];
+  for (const [, tag, attrs, inner] of page.matchAll(/<(h2|h3|th|summary)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
+    // Counts and other values filled in at runtime sit in spans after the title.
+    const text = inner.replace(/<span[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
+    const id = /data-help="([^"]+)"/.exec(attrs)?.[1] ?? app.run(`topicForText(${JSON.stringify(text)})`);
+    if (!app.run(`!!HELP[${JSON.stringify(id ?? '')}]`)) missing.push(`<${tag}> ${text}`);
+  }
+  assert.deepEqual(missing, []);
+});
+
+// Static check on the shipped markup: a card or section with a table needs a
+// heading that resolves a topic (data-help or title), and every full-width
+// message cell (colSpan above 1) renders into a table whose card heading has an
+// explicit data-help, the fallback that helpTarget uses for such cells.
+// It reads the markup and script text; it does not run helpTarget on a real DOM.
+function cardsWithTables() {
+  const page = html.split('<script>')[0];
+  const starts = [...page.matchAll(/<(?:div\b[^>]*class="card[" ]|section\b)/g)].map(m => m.index);
+  return starts.map((start, i) => ({start, text: page.slice(start, starts[i + 1] ?? page.length)}))
+    .map(card => ({...card, heading: /<(h[23])\b([^>]*)>([\s\S]*?)<\/\1>/.exec(card.text)}));
+}
+function headingTopic(app, heading, strict = false) {
+  if (!heading) return undefined;
+  const text = heading[3].replace(/<span[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
+  const explicit = /data-help="([^"]+)"/.exec(heading[2])?.[1];
+  return explicit ?? (strict ? undefined : app.run(`topicForText(${JSON.stringify(text)})`));
+}
+test('every card with a table has a help-resolvable heading', () => {
+  const app = dashboard();
+  const bad = cardsWithTables().filter(card => /<table\b/.test(card.text))
+    .filter(card => !app.run(`!!HELP[${JSON.stringify(headingTopic(app, card.heading) ?? '')}]`))
+    .map(card => card.text.slice(0, 80));
+  assert.deepEqual(bad, []);
+});
+
+test('every full-width message cell sits in a card whose heading resolves help', () => {
+  const app = dashboard();
+  const cards = cardsWithTables();
+  const page = html.split('<script>')[0];
+  const bad = [], found = [];
+  for (const line of script.split('\n')) {
+    if (!/\.colSpan=(?:[2-9]|\d\d)/.test(line) || /dataset\.help/.test(line)) continue;
+    const ids = [...line.matchAll(/element\('([\w-]+)'\)/g)].map(m => m[1]).filter(id => page.includes(`<tbody id="${id}"`));
+    // The tbody is named earlier in the same function when not on the line itself.
+    const at = script.indexOf(line);
+    const id = ids[0] ?? [...script.slice(0, at).matchAll(/element\('([\w-]+)'\)/g)].map(m => m[1]).reverse().find(x => page.includes(`<tbody id="${x}"`));
+    const position = page.indexOf(`<tbody id="${id}"`);
+    const card = cards.filter(c => c.start < position).pop();
+    found.push(id);
+    if (!id || !card || !app.run(`!!HELP[${JSON.stringify(headingTopic(app, card.heading, true) ?? '')}]`)) bad.push(`${id}: ${line.trim().slice(0, 60)}`);
+  }
+  assert.ok(found.length >= 3, 'expected to find the full-width message cells');
+  assert.deepEqual(bad, []);
+});
+
+test('labels built at runtime use helpButtonLabel', () => {
+  // Help guide internals build their own headings; everything else must not.
+  // Scan the whole script, not single lines, and skip balanced parentheses so
+  // nested and multi-line calls are still seen.
+  const body = script.replace(/^function (guideSection|helpDataTable)\b[^\n]*(\n(?=[ \t])[^\n]*)*/gm, '')
+    .replace(/for\(const label of data\.headers\)[^\n]*/g, '');
+  const plain = [];
+  for (const match of body.matchAll(/node\(\s*(?:(['"`])(?:h2|h3|th|dt)\1|(['"`])div\2\s*,\s*\w+\s*,\s*(['"`])(?:label|k)\3)/g)) {
+    let depth = 0, end = match.index + 'node'.length;
+    for (; end < body.length; end++) {
+      if (body[end] === '(') depth++;
+      else if (body[end] === ')' && --depth === 0) break;
+    }
+    plain.push(body.slice(match.index, end + 1));
+  }
+  assert.deepEqual(plain, []);
+});
+
+test('memory tile, meter and fact labels resolve to a real topic', () => {
+  const app = dashboard();
+  const labels = new Set();
+  for (const [, label] of script.matchAll(/\btile\(\s*'([^']+)'/g)) labels.add(label);
+  for (const [, label] of script.matchAll(/\bmeter\(\s*'([^']+)'/g)) labels.add(label);
+  const facts = script.match(/for\(const \[label,value\] of \[([\s\S]*?)\]\)\{\s*const item=node/)?.[1] ?? '';
+  for (const [, label] of facts.matchAll(/\['([^']+)'\s*,/g)) labels.add(label);
+  assert.ok(labels.size >= 15, `found only ${labels.size} labels`);
+  const missing = [...labels].filter(label => !app.run(`!!HELP[topicForText(${JSON.stringify(label)})]`));
+  assert.deepEqual(missing, []);
+  assert.equal(app.run("topicForText('Data + heap (VmData)')"), 'vmdata');
+  assert.equal(app.run("topicForText('Page faults since start')"), 'faulttotals');
+  assert.equal(app.run("topicForText('Major faults/s')"), 'faults');
+});
+
 test('Escape stays suppressed while keyboard focus remains on its trigger', () => {
   const app = helpClock();
   app.run("dwell.request('cpu','CPU')");app.advance(1200);
