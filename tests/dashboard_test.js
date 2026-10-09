@@ -16,8 +16,15 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       get firstChild() {return this.children[0];}, parentElement: {},
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
-      append(...items) {this.children.push(...items);},
-      replaceChildren(...items) {this.children = items;},
+      append(...items) {for (const item of items) if (item && typeof item === 'object') item.parent = this; this.children.push(...items);},
+      replaceChildren(...items) {
+        for (const old of this.children) if (old && typeof old === 'object') old.parent = null;
+        this.children = []; this.append(...items);
+      },
+      // Connected means reachable from a document.getElementById element.
+      get isConnected() {return this.attached || !!this.parent?.isConnected;},
+      contains(other) {return other === this || this.children.some(child => child?.contains?.(other));},
+      getBoundingClientRect() {return {top: 10, bottom: 30, left: 10, right: 100, width: 90, height: 20};},
       matches() {return false;}, focus() {}, addEventListener() {}};
   }
   const ranges = [900, 3600, 21600, 86400].map(seconds => {
@@ -31,7 +38,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   const requests = [];
   const context = vm.createContext({
     document: {getElementById(id) {
-      if (!elements.has(id)) elements.set(id, element());
+      if (!elements.has(id)) elements.set(id, Object.assign(element(), {attached: true}));
       return elements.get(id);
     }, createElement: element, createElementNS: element, documentElement: {dataset: {}},
     querySelectorAll(selector) {return selector === '[data-range]' ? ranges : selector === '[data-res-range]' ? resourceRanges : [];},
@@ -1289,4 +1296,63 @@ test('zoom legend names every kind shown in the grid, in the grid colors', () =>
     renderMemoryZoom({key:'h',cat:'heap',vmas:1,size:16384,lo:0x10000n,hi:0x14000n,members:[member(0x10000n,0x14000n)]});
     return element('memory-grid-legend').children.map(item=>item.children[1])})()`);
   assert.deepEqual([...labels], ['heap (brk)', 'mapped since the previous layout']);
+});
+
+// Memory-map hover help on a live collector. refresh() re-runs renderMemory()
+// every second; help opens after 1,200 ms, so a rebuild in between would
+// disconnect the target and cancel the pending help.
+function memoryHelpApp() {
+  const app = dashboard();
+  const layout = {id: 's:1', pid: 1, regions: [
+    {start: '0x555500000000', end: '0x555500200000', size: 2 << 20, vmas: 1, kind: 'heap', permissions: 'rw-p', name: '[heap]'},
+    {start: '0x7ffc00000000', end: '0x7ffc00400000', size: 4 << 20, vmas: 1, kind: 'stack', permissions: 'rw-p', name: ''}]};
+  app.run(`innerWidth=1000;innerHeight=800;captureHelp=request=>({topic:{title:'T',meaning:'m',limits:'l'},scope:'',context:'',value:'1',stamp:1,warnings:[],target:request.target});
+    describeHelp=()=>{};positionHelp=()=>{};
+    live={health:{session:'s',pid:1},threads:[],memory:${JSON.stringify(memorySummary({}, {layout_id: 's:1', interval_s: 1}))}};
+    memoryLayout=${JSON.stringify(layout)};renderMemory()`);
+  return app;
+}
+// The first node under a host that carries a help topic.
+const memoryTargets = {
+  tiles: "memory-tiles", findings: "memory-findings", 'limit meters': "memory-limits", 'limit facts': "memory-facts",
+  'zoom facts': "memory-zoom-facts", 'chart titles': "memory-charts"};
+
+for (const [name, host] of Object.entries(memoryTargets)) {
+  test(`memory ${name} keep their help target through live re-renders`, () => {
+    const app = memoryHelpApp();
+    app.run(`var host=element('${host}');var target=(function find(node){if(node.dataset?.help)return node;for(const child of node.children){const hit=find(child);if(hit)return hit}return null})(host);
+      helpTimer.request('memory-help',{target,id:target.dataset.help})`);
+    assert.ok(app.run('target.isConnected'), 'target starts attached');
+    app.advance(1000);
+    app.run('renderMemory()');
+    assert.ok(app.run('target.isConnected'), 'the pending target is not replaced');
+    assert.ok(app.run('helpTimer.active&&helpTimer.active.payload.target===target'), 'pending help survives the poll');
+    app.advance(200);
+    assert.ok(app.run('helpTimer.visible&&helpTimer.visible.payload.target===target'), 'help opens after 1,200 ms');
+    app.run('renderMemory()');
+    assert.ok(app.run('target.isConnected'), 'an open card keeps its target too');
+    // Once help lets go, the next poll applies the skipped rebuild.
+    // The zoom facts change only with the layout; their catch-up is tested below.
+    app.run('helpTimer.cancel(true)');
+    if (host !== 'memory-zoom-facts') {
+      app.run('renderMemory()');
+      assert.ok(!app.run('target.isConnected'), 'the host is rebuilt after help closes');
+    }
+    assert.ok(app.run(`element('${host}').children.length>0`));
+  });
+}
+
+test('a skipped zoom rebuild is applied once help closes', () => {
+  const app = memoryHelpApp();
+  app.run(`var facts=element('memory-zoom-facts');var label=facts.children[0].children[0];
+    helpTimer.request('zoom',{target:label,id:label.dataset.help});
+    memoryRenderedLayout=null;renderMemory()`);
+  assert.ok(app.run('label.isConnected'));
+  assert.ok(app.run('memoryZoomStale'), 'the skipped zoom is remembered');
+  app.run("helpTimer.cancel(true);renderMemory()");
+  assert.ok(!app.run('memoryZoomStale'));
+  assert.ok(!app.run('label.isConnected'));
+  // Unrelated hosts are not held back while the zoom is skipped.
+  app.run("helpTimer.request('zoom',{target:element('memory-zoom-facts').children[0].children[0],id:'memzoom'});live.memory.values.vma_count=777;renderMemory()");
+  assert.ok(app.run("element('memory-tiles').children.some(box=>box.children.some(child=>child.textContent==='777'))"));
 });

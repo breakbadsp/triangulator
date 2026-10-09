@@ -157,6 +157,9 @@ samples available. Hover help is on.
    Threads, Thread details, Pressure, Socket I/O, Memory map, and Monitor.
 2. In Memory map, pause over each tile, finding, legend entry (its card's guide), limit, chart
    title, region column, and zoom fact. Select a bar and repeat for the zoom.
+   On a live collector keep the pointer still for the full 1.2 seconds; the
+   card must open although the page refreshes every second. Repeat with
+   keyboard focus on an information button.
 3. Select each information button in Memory map and read its guide.
 4. Pause over a full-width table message, such as an idle thread row or a
    "No socket has queued data" row.
