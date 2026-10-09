@@ -17,6 +17,13 @@
   `$HOME/ai/conventions/cpp.md`. Run `make format` after C++ changes.
 - Each commit must build and pass `make check`.
 
+## Manual QA
+
+- When adding a user-visible feature, add or update its cases in
+  `docs/qa/test-cases.md`. Leave unexecuted cases as `NOT_RUN`.
+- For requested package or browser QA, use
+  [Senior Manual QA](docs/manual-qa.md).
+
 ## Git workflow
 
 1. Create a new worktree and a descriptive branch for each change, including
