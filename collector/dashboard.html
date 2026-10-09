@@ -436,9 +436,9 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 <div class="grid g-2-1" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>Bytes waiting in the target's sockets</h3><p>Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.</p></div></div><div id="chart-queues" class="chart" role="img" aria-label="Socket queue history"></div><div id="queues-legend" class="legend"></div></div>
-<div class="card"><div class="card-head"><div><h3>Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th data-help="netdrops">Counter</th><th class="num" data-help="netdrops" data-hint="Per second over the last sample interval">Now</th><th class="num" data-help="netdrops" data-hint="Added up over the selected range">In range</th><th class="num" data-help="netdrops" data-hint="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
+<div class="card"><div class="card-head"><div><h3 data-help="netdrops">Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th data-help="netdrops">Counter</th><th class="num" data-help="netdrops" data-hint="Per second over the last sample interval">Now</th><th class="num" data-help="netdrops" data-hint="Added up over the selected range">In range</th><th class="num" data-help="netdrops" data-hint="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
 </div>
-<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
+<div class="card" style="margin-top:14px"><div class="card-head"><div><h3 data-help="queues">Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
 <div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" data-hint="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th data-hint="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" data-hint="Bytes not yet sent or acknowledged">Send-Q</th><th data-hint="Send buffer use">Send buffer</th><th class="num" data-help="sockdrops" data-hint="Packets this socket dropped; + in the last interval">Drops</th><th class="num" data-hint="Smoothed round-trip time">RTT</th><th class="num" data-hint="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
 <p id="resource-coverage" class="socket-note"></p></div>
 </div>
@@ -446,7 +446,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 
 <hr class="section-separator" aria-hidden="true">
 <section id="socket-panel" class="block card" aria-labelledby="socket-title">
-<div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
+<div class="socket-heading"><h2 id="socket-title" data-help="socketio">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
 <p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
 <div id="socket-empty" class="socket-empty" hidden></div>
 <div id="socket-content" hidden>
@@ -768,7 +768,7 @@ function helpTarget(start){
   if(!id&&column&&column.colSpan<=1)id=helpColumn(column)?.dataset.help;
   if(!id){const label=target.querySelector('[data-help],.label,.k,dt');if(label?.dataset.help)id=label.dataset.help;id=id||topicForText(helpText(label||target))}
   if(!id&&target.closest('.legend')){const label=Array.from(target.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();id=topicForText(label)}
-  if(!id){const parent=target.closest('.card,section');id=parent?.querySelector('h3[data-help],h2[data-help]')?.dataset.help}
+  if(!id){const parent=target.closest('.card,section');const heading=parent?.querySelector('h3,h2');id=heading?.dataset.help||topicForText(helpText(heading))}
   if(!id&&target.dataset.hint)id='page';
   if(!id)return null;
   const button=target.classList.contains('help-button');

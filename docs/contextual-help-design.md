@@ -236,8 +236,14 @@ feature. A feature without help is incomplete.
    [test cases](qa/test-cases.md).
 
 `tests/dashboard_test.js` fails when a static heading, column, or summary has no
-topic. It also fails when runtime code builds a heading, fact, or tile label
-without `helpButtonLabel`. These checks cannot see every hover target. Pause
+topic. It fails when a card or section with a table has no heading that
+resolves a topic, and when a full-width table message cell (`colSpan` above 1,
+without its own `data-help`) is rendered into a card whose heading lacks an
+explicit `data-help`. It also fails when runtime code builds a heading, fact, or
+tile label without `helpButtonLabel`; that check is a line-based pattern match
+and misses calls that span lines or use other quoting. The tests read the
+markup and script text and never run `helpTarget` on a real DOM, so they cannot
+see every hover target. Pause
 over each new label in a browser before you open the pull request.
 
 ## Implementation boundaries for later work

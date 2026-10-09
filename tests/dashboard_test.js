@@ -1152,6 +1152,51 @@ test('every static heading, column and summary has a help topic', () => {
   assert.deepEqual(missing, []);
 });
 
+// Static check on the shipped markup: a card or section with a table needs a
+// heading that resolves a topic (data-help or title), and every full-width
+// message cell (colSpan above 1) renders into a table whose card heading has an
+// explicit data-help, the fallback that helpTarget uses for such cells.
+// It reads the markup and script text; it does not run helpTarget on a real DOM.
+function cardsWithTables() {
+  const page = html.split('<script>')[0];
+  const starts = [...page.matchAll(/<(?:div\b[^>]*class="card[" ]|section\b)/g)].map(m => m.index);
+  return starts.map((start, i) => ({start, text: page.slice(start, starts[i + 1] ?? page.length)}))
+    .map(card => ({...card, heading: /<(h[23])\b([^>]*)>([\s\S]*?)<\/\1>/.exec(card.text)}));
+}
+function headingTopic(app, heading, strict = false) {
+  if (!heading) return undefined;
+  const text = heading[3].replace(/<span[^>]*>[^<]*<\/span>/g, '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
+  const explicit = /data-help="([^"]+)"/.exec(heading[2])?.[1];
+  return explicit ?? (strict ? undefined : app.run(`topicForText(${JSON.stringify(text)})`));
+}
+test('every card with a table has a help-resolvable heading', () => {
+  const app = dashboard();
+  const bad = cardsWithTables().filter(card => /<table\b/.test(card.text))
+    .filter(card => !app.run(`!!HELP[${JSON.stringify(headingTopic(app, card.heading) ?? '')}]`))
+    .map(card => card.text.slice(0, 80));
+  assert.deepEqual(bad, []);
+});
+
+test('every full-width message cell sits in a card whose heading resolves help', () => {
+  const app = dashboard();
+  const cards = cardsWithTables();
+  const page = html.split('<script>')[0];
+  const bad = [], found = [];
+  for (const line of script.split('\n')) {
+    if (!/\.colSpan=(?:[2-9]|\d\d)/.test(line) || /dataset\.help/.test(line)) continue;
+    const ids = [...line.matchAll(/element\('([\w-]+)'\)/g)].map(m => m[1]).filter(id => page.includes(`<tbody id="${id}"`));
+    // The tbody is named earlier in the same function when not on the line itself.
+    const at = script.indexOf(line);
+    const id = ids[0] ?? [...script.slice(0, at).matchAll(/element\('([\w-]+)'\)/g)].map(m => m[1]).reverse().find(x => page.includes(`<tbody id="${x}"`));
+    const position = page.indexOf(`<tbody id="${id}"`);
+    const card = cards.filter(c => c.start < position).pop();
+    found.push(id);
+    if (!id || !card || !app.run(`!!HELP[${JSON.stringify(headingTopic(app, card.heading, true) ?? '')}]`)) bad.push(`${id}: ${line.trim().slice(0, 60)}`);
+  }
+  assert.ok(found.length >= 3, 'expected to find the full-width message cells');
+  assert.deepEqual(bad, []);
+});
+
 test('labels built at runtime use helpButtonLabel', () => {
   // Help guide internals build their own headings; everything else must not.
   // Scan the whole script, not single lines, and skip balanced parentheses so
