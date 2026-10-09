@@ -184,6 +184,16 @@ from before the leak, or from an earlier process with a smaller RSS, drag the
 slope down and break the "rises" test. Using only the current sampler session,
 or the last minute or two, would give the right number.
 
+**Fixed in 146c117 (dashboard only; `rss_growth_per_s` in the collector was
+already per-sample and per-process, so it was left alone).** The trend now uses
+only the newest run of samples with the newest PID and the steepest of the last
+60, 120 and 180 s that still rises in at least 80% of its steps (least-squares
+slope). The same run as above, with `healthy` and `deadlock` first, showed
+**+448.2 MB/min** and the warning "RSS rose in 30 of the last 30 samples
+(+448.2 MB/min over 60 s)"; `healthy` showed no growth.
+
+![after](screenshots/bug-lab/g2-after-mem-leak-stale-history-memory.png)
+
 ### G3: Memory findings do not reach the top assessment
 
 `vm-bloat` has a CRITICAL finding in the Memory section, and `mem-leak` has a
