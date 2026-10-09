@@ -18,6 +18,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | NOT_RUN | - | - | - |
 | QA-008 | NOT_RUN | - | - | - |
+| QA-009 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -195,3 +196,26 @@ only when the zoom has gaps. "Mapped since the previous layout" appears only
 while a new square is outlined.
 
 Source: [Memory map](../memory-map.md).
+
+## QA-009: Interactive bugbench session
+
+Feature: Agent workload session. Priority: Medium. Case revision: 1.
+
+Preconditions: Python 3, GCC, and the user systemd manager are available.
+Use a test home with the helper's `--home` option.
+
+1. Ask the agent to start `bugbench-session`. Verify the installed source and
+   executable, reported PID, duration, and launch command.
+2. Ask for the next program. Verify that the former service stops and the new
+   PID can be selected as the dashboard target.
+3. In a new agent conversation, ask for the previous program. Verify that the
+   saved position is used. Verify that navigation stops at both list boundaries.
+4. Run `cpu-throttle` and inspect its 50% CPU quota. Run `mem-oom` and inspect
+   its 256 MiB memory limit and disabled swap. After it exits, request status.
+5. Stop the session. Verify that unrelated services continue to run.
+
+Expected results: Only one session workload runs at a time. Navigation persists
+across conversations. An exited process is reported as stopped. The helper does
+not select the dashboard target or remove unrelated files or processes.
+
+Source: [Bugbench session skill](../../.agents/skills/bugbench-session/SKILL.md).
