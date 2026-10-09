@@ -251,6 +251,7 @@ Linux thread names are limited to 15 characters, so prefixes must be short and t
 
 - No throughput visibility: a thread that is slow because of a slow downstream, with normal waits and low CPU, looks idle.
 - Sampling misses stalls shorter than the interval; state is approximate by design.
+- Thread churn is a lower bound. Starts and exits are inferred from the set of TIDs present in successive samples, so a thread that lives less than one interval is never seen (a 10 ms thread at 2 Hz is seen about 2% of the time). No unprivileged source counts threads ever created: `/proc/<pid>/status` and `stat` carry only the current count; `pids.events` counts only failed forks (`max`) and `pids.peak` is a high-water mark; `/proc/loadavg`'s last PID is host-wide (measured: 25 to 135 PIDs/s on an idle workstation, against a 150 threads/s signal) and `ns_last_pid` is the same counter; taskstats needs `CAP_NET_ADMIN`. The dashboard labels the tile and the finding as minimums.
 - A mutex wait and a long untimed wait cannot be told apart from who holds the lock; the futex word does not carry the owner.
 - Socket waits are inferred from the kernel wait channel, not the fd type, and wait-channel names vary by kernel version.
 - Futex waits are not split into lock, condition and timed idle (this needs `syscall`, which needs `CAP_SYS_PTRACE`).

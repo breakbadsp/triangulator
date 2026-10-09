@@ -410,6 +410,15 @@ The page opens on a **process overview**, built in the browser from `/api/live`
 - **Assessment**: rules of thumb that point at likely problems: a thread
   saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
   threads, thread churn, sampler silence and packet loss.
+- **Thread churn** (an overview tile and an assessment note): threads seen
+  starting and ending in the last minute. This is a **lower bound**. The sampler
+  sees only the threads that exist when it lists the target's tasks, so a thread
+  that starts and exits between two samples is never counted. At the default
+  1 Hz a thread living 10 ms is seen about 1% of the time, so `+0 / −0` means
+  "none seen", not "none happened". Linux has no unprivileged per-process count
+  of threads created (see [docs/thread-monitor-design.md](docs/thread-monitor-design.md#10-known-limitations)),
+  so for thread-per-task code raise the sample rate or count creations in the
+  application. A pool whose threads stay is counted accurately.
 - **Shape of the process**: active versus idle threads, context switches, I/O,
   thread states over time, CPU by thread family, the busiest wait channels,
   and CPU by the core each thread last ran on.

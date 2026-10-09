@@ -186,6 +186,24 @@ numbers are a lower bound, and short-lived threads are invisible at 0.2–10 Hz.
 
 ![thread-churn overview](screenshots/bug-lab/thread-churn-overview.png)
 
+**Fixed (docs and labels, no sampler change).** Linux offers no unprivileged,
+per-process count of threads ever created, so the blindness cannot be removed
+without a privilege or an application hook. Measured on this machine, kernel
+7.2: `/proc/PID/status`, `stat` and `sched` only carry the current thread count;
+cgroup `pids.events` counts only failed forks and `pids.peak` is a high-water
+mark; taskstats needs `CAP_NET_ADMIN`. The "last pid" in `/proc/loadavg` is
+host-wide: with `thread-churn` running it advanced about 165 to 190 per second
+(150 real threads/s), but an idle host advanced 25 to 135 per second, so the
+signal is no better than the noise. At 2 Hz, a thread that lives 10 ms is seen
+about 2% of the time. The dashboard now shows the "Thread churn" tile at all
+times, labelled "lower bound", so `+0 / −0` cannot be read as "no churn"; its
+help text and the finding ("At least N threads started...") state the limit and
+suggest a higher sample rate or counting creations in the application. The README
+and design notes carry the same limit. `thread-leak` still shows "+511 / −1",
+`healthy` shows `+0 / −0`.
+
+![thread-churn after](screenshots/bug-lab/g4-after-thread-churn.png)
+
 ### G5: Growing thread count is not flagged
 
 `thread-leak` reached 602 threads, all waiting. The only note was "High thread
