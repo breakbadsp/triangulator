@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="#how-it-works">How it works</a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
   <a href="#see-it-work">Tour</a> ·
   <a href="#time-travel">Replay</a> ·
   <a href="#performance">Performance</a> ·
@@ -16,6 +16,127 @@ Triangulator monitors Linux processes and their threads. Inspect CPU use, wait
 channels, resource pressure, virtual memory, and socket I/O in one dashboard.
 Record process views to inspect an earlier moment.
 
+## Quick start
+
+Run these commands on Linux as the same user as the process to monitor.
+For a source build, install the [build requirements](docs/build-guidelines.md)
+first: a C++23 compiler, Make, static C/C++ runtime libraries, and SQLite
+development files. Target control also requires Python 3.11 or later.
+To use prebuilt binaries, see [Install from a release package](#install-from-a-release-package).
+
+```sh
+git clone https://github.com/breakbadsp/triangulator.git
+cd triangulator
+scripts/start.sh
+scripts/set-target.sh 1234    # Replace 1234 with the process ID to monitor.
+```
+
+Open <http://127.0.0.1:9401>. The dashboard shows the selected process and its
+threads. You can also select **Change target**, enter a process name or PID,
+and select **Monitor**. A unique process name works from the command line:
+
+```sh
+scripts/set-target.sh ghostty
+```
+
+The start script builds and installs the sampler, collector, dashboard, and
+socket report helper under `~/triangulator/`. It starts the collector and
+sampler in the background. The default target is `ghostty`; select your own
+process after startup. A target name that is not running is accepted. The
+sampler waits for it to start. A name that matches several processes is
+refused; use a PID instead. Numeric targets must be running process IDs,
+not thread IDs.
+
+The first start creates the active configuration files. Later starts preserve
+them. Thread sampling runs at 1 Hz, resource sampling every 5 seconds, memory
+sampling every 30 seconds, and dashboard recording every second. Raw sample
+storage is enabled. The collector retains seven days by default. Budget disk
+space for raw samples and recordings; see the
+[storage notes](collector/README.md#historical-process-inspection).
+The optional eBPF socket observer needs a separate
+[setup step](#socket-io-and-messages-processed). Alert delivery is not available.
+
+### Stop, restart, and change settings
+
+Run these commands from the checkout:
+
+```sh
+scripts/set-rate.sh 5       # Set thread sampling to 5 Hz without a restart.
+scripts/restart.sh         # Rebuild and restart the collector and dashboard.
+scripts/restart.sh sampler # Rebuild and restart the sampler.
+scripts/restart.sh all     # Rebuild and restart both programs.
+scripts/stop.sh            # Stop both programs.
+scripts/start.sh           # Build and start again.
+```
+
+`start.sh` leaves an already running program active. Use `restart.sh` to apply
+code changes. The default restart affects only the collector. It checks the
+build and collector configuration before it stops the old collector.
+Target and rate changes validate the sampler configuration and request a
+reload. A successful reload starts a new sampler session. Rates from 0.2 to
+10 Hz are accepted.
+
+After installation, use `~/triangulator/scripts/start.sh` and the other
+installed scripts from any directory. They use the installed binaries without
+a compiler or checkout. Use the checkout scripts to build and install source
+changes. For systemd operation, use [Production setup](#production-setup).
+
+### Active files and logs
+
+- `~/triangulator/config/sampler.toml`: target, collector address, and sampling intervals.
+- `~/triangulator/config/collector.toml`: listeners, storage, and retention.
+- `~/triangulator/bin/`: installed programs, including the socket report helper.
+- `~/triangulator/data/`: SQLite history and dashboard recordings.
+- `~/triangulator/logs/`: sampler, collector, and optional socket observer logs.
+- `~/triangulator/run/`: process IDs and the sampler control lock.
+- `~/triangulator/scripts/`: installed start, restart, stop, and control commands.
+- `~/triangulator/templates/` and `services/`: configuration templates and user-service files.
+
+The repository's `config/*.toml` files are templates. Edit the active files
+under `~/triangulator/config/`. Restart the affected program after manual edits.
+Set and export `TRIANGULATOR_HOME` before each command to use another runtime
+directory. Separate instances also need different UDP and HTTP ports.
+Relative collector data paths are resolved from the runtime directory.
+
+If startup fails or the dashboard has no samples, read the logs:
+
+```sh
+tail -n 50 ~/triangulator/logs/collector.log
+tail -n 50 ~/triangulator/logs/sampler.log
+```
+
+Check that the target is running as the sampler's user. Check the active
+collector address, UDP listener, and `sampler_ip`. If a port is already in use,
+stop the other instance or select unused ports in both configurations.
+See [build errors](docs/build-guidelines.md#errors-and-remaining-release-work)
+for compiler and library failures.
+
+<details>
+<summary>Custom configurations and target control</summary>
+
+To start or stop one program, or use an existing custom configuration:
+
+```sh
+scripts/start.sh collector /absolute/path/to/collector.toml
+scripts/start.sh sampler /absolute/path/to/sampler.toml
+scripts/stop.sh collector
+scripts/stop.sh sampler
+```
+
+Build with `make` before the first individual start from a checkout.
+`restart.sh` reuses the configuration of the running program. It refuses to
+stop a copy owned by another user. The target and rate scripts use the running
+sampler's configuration and validate changes before they replace the file.
+They refuse to edit the tracked examples in `config/`.
+
+Dashboard target control requires a local sampler, a loopback HTTP listener,
+Python 3.11 or later, and `scripts/sampler_control.py` in the runtime directory
+or checkout. The sampler and collector must run as the same user with write
+access to the sampler configuration. For a remote sampler, run the target
+control script on the sampler host.
+
+</details>
+
 ## How it works
 
 <p align="center">
@@ -25,114 +146,6 @@ Record process views to inspect an earlier moment.
 <p align="center">
   <img src="docs/assets/features.svg" alt="Animated cards: thread states change, wait timelines scroll, pressure meters rise and fall" width="100%">
 </p>
-
-## Quick start
-
-<p align="center">
-  <img src="docs/assets/quickstart.svg" alt="Terminal animation: scripts/start.sh, then scripts/set-target.sh ghostty" width="100%">
-</p>
-
-Then open <http://127.0.0.1:9401>.
-
-<details>
-<summary>Read more</summary>
-Two programs: the **sampler** runs next to the process you want to watch and sends
-its threads' stats over UDP; the **collector** receives them and serves the dashboard.
-To build and start everything on one machine:
-
-```sh
-scripts/start.sh
-```
-
-The script builds the programs and installs the runtime files under
-`~/triangulator/`. It creates `config/sampler.toml` and `config/collector.toml`
-from the repository templates on first use. Existing configs are preserved.
-The generated configs use local addresses and the host's clock ticks.
-Resource sampling (every 5 seconds), memory maps (every 30 seconds), raw
-sample storage, and dashboard recordings (every second) are enabled.
-
-- `bin/`: the running binaries, including the socket report helper.
-- `config/`: the active sampler and collector settings.
-- `data/`: SQLite history and dashboard recordings.
-- `logs/`: sampler, collector, and socket observer logs.
-- `run/`: process IDs and the sampler control lock.
-- `scripts/`: startup, restart, stop, and sampler-control commands.
-- `templates/`: shipped settings used to create missing configs.
-- `services/`: systemd user-service files.
-
-Set `TRIANGULATOR_HOME` to use another runtime directory. This also isolates
-test instances. Relative collector data paths are resolved from this directory.
-The repository's `config/*.toml` files are templates, not active settings.
-
-Open <http://127.0.0.1:9401>, click **Change target** next to the current target,
-enter a process name or PID, and click **Monitor**. The change is saved in the
-running sampler's config and applied without restarting it. Validation errors
-appear in the form; a name that is not running yet is accepted and waits for it
-to start.
-
-Dashboard target control works with the local sampler started by `scripts/start.sh`,
-a loopback HTTP listener, and Python 3 plus `scripts/sampler_control.py` in this
-checkout. The collector and sampler must run as the same user, with write access
-to the sampler's config. For remote samplers, use the script on the sampler host.
-
-You can also select a target from the command line:
-
-```sh
-scripts/set-target.sh ghostty
-scripts/set-target.sh 1234
-```
-
-The script edits the target line of the running sampler's config in place and
-sends `SIGHUP` to reload it. Numeric arguments select a running process ID (not a
-thread ID); other arguments select an exact Linux process name (up to 15 bytes).
-A name that matches several processes is refused with their PIDs, because the
-sampler treats an ambiguous name as an absent target. A name with no running
-process is accepted, and the dashboard reports the target as absent until it starts.
-Start the sampler with `scripts/start.sh` first. Run the scripts as the same user
-as the target process. Open <http://127.0.0.1:9401>.
-
-Change the thread sampling frequency without restarting:
-
-```sh
-scripts/set-rate.sh 5       # 5 Hz: one sample every 200 ms
-```
-
-The accepted range is 0.2–10 Hz. This updates the running sampler's config and
-requests a reload, starting a new session. Higher frequencies increase sampling
-overhead. The separate socket observer's one-second reporting interval is unchanged.
-
-Both scripts check the edited file with the running sampler binary
-(`triangulator-sampler --check-config`) before replacing it, so a change the
-sampler would reject leaves the config untouched. They refuse to edit the tracked
-examples in `config/`: start the sampler with `~/triangulator/config/sampler.toml`, which
-`scripts/start.sh` does by default.
-
-```sh
-scripts/stop.sh       # stop both
-scripts/start.sh      # rebuild if needed and start both
-scripts/restart.sh    # rebuild and restart the collector (also: sampler, all)
-```
-
-`scripts/restart.sh` reuses the config the running program was started with.
-It rebuilds and checks the collector config before stopping anything, so a
-build or config error leaves the old collector running. It finds the program
-even without a pidfile. It will not touch a copy started by another user
-(for example with `sudo`); stop that one yourself first.
-
-The collector (`build/triangulator-collector`) does **no alerting**; see
-[Alerting](#alerting).
-
-Logs are in `~/triangulator/logs/`. For separate hosts or custom
-config paths, the optional `scripts/start.sh collector path/to/collector.toml` and
-`scripts/start.sh sampler path/to/sampler.toml` commands remain available, along
-with `scripts/stop.sh collector` and `scripts/stop.sh sampler`. To deploy with
-systemd, see [Production setup](#production-setup).
-
-After installation, `~/triangulator/scripts/start.sh` and `restart.sh` use the
-installed binaries without a compiler or repository checkout. Run the repository
-scripts to rebuild and install development changes.
-
-</details>
 
 ## See it work
 
@@ -244,18 +257,44 @@ no compiler or libraries, each with a `.sha256` file:
 - `triangulator-collector-<version>-el9-x86_64.tar.gz`: the collector,
   dashboard and report helper. Install it on the monitoring host.
 
-There are `el8` and `el9` builds of both. On each host:
+There are `el8` and `el9` builds of both. Download the two matching archives
+and their `.sha256` files from [GitHub Releases](https://github.com/breakbadsp/triangulator/releases).
+For a single-machine installation, run these commands in the download directory.
+Replace `VERSION` with the asset version, for example `0.1.0`:
 
 ```sh
-sha256sum -c triangulator-sampler-<version>-el9-x86_64.tar.gz.sha256
-tar -xzf triangulator-sampler-<version>-el9-x86_64.tar.gz -C ~
+version=VERSION
+sha256sum -c "triangulator-sampler-$version-el9-x86_64.tar.gz.sha256"
+sha256sum -c "triangulator-collector-$version-el9-x86_64.tar.gz.sha256"
+tar -xzf "triangulator-sampler-$version-el9-x86_64.tar.gz" -C ~
+tar -xzf "triangulator-collector-$version-el9-x86_64.tar.gz" -C ~
 ~/triangulator/scripts/start.sh
+~/triangulator/scripts/set-target.sh 1234 # Replace 1234 with your process ID.
 ```
 
-`start.sh` runs the programs the package contains. On a sampler-only host, set
-`collector` in `~/triangulator/config/sampler.toml` to the collector's IP and
-port, and `target_process` to the process to monitor. Unpacking both packages
-in the same directory gives a single-machine install.
+Open <http://127.0.0.1:9401>. Use `el8` filenames for an `el8` package.
+The monitoring binaries need no compiler, Python, or Node.js. Target and rate
+control scripts require Python 3.11 or later.
+
+`start.sh` runs the programs the package contains. For separate hosts, extract
+only the required package on each host. The first start creates its active
+configuration. Stop it, set the remote addresses, and start it again:
+
+- Sampler host: set `collector` to the collector's numeric IP and UDP port.
+  Set `target_process` or `target_pid` to the process to monitor. Keep only
+  one target key active; comment out or remove the other key.
+- Collector host: set `udp_host` to an interface that can receive the sampler's
+  datagrams, and `sampler_ip` to the sampler's source IP as seen by the collector.
+  Set `clock_ticks` to `getconf CLK_TCK` from the sampler host.
+- Permit the sampler's traffic to UDP port 9400, or your configured port.
+  Keep HTTP on loopback and use an SSH tunnel for dashboard access:
+
+  ```sh
+  ssh -N -L 9401:127.0.0.1:9401 USER@COLLECTOR_HOST
+  ```
+
+Open <http://127.0.0.1:9401> on the machine with the tunnel. Neither UDP nor
+HTTP has authentication. See [Production setup](#production-setup) for user services.
 
 To upgrade, run `~/triangulator/scripts/stop.sh`, unpack over the same
 directory and start again. The archives have no `config/`, `data/` or `logs/`,
@@ -293,7 +332,7 @@ The monitoring binaries need no Node.js.
 
 ```sh
 make          # sampler, collector and read-only socket report helper
-make check    # C++ and Python tests
+make check    # C++, Python, and dashboard tests
 make format   # format C++ code (2 spaces, Allman braces)
 make format-check # verify C++ formatting
 ```
@@ -520,8 +559,17 @@ Copy the sampler binary to `~/triangulator/bin/triangulator-sampler` and its
 config to `~/triangulator/config/sampler.toml` on the application host.
 On the collector host, copy the collector and socket report helper to `bin/`
 and its config to `config/collector.toml`. Set `data_dir = "./data"`.
-Set the sampler's `collector` address and the collector's `sampler_ip` for
-these hosts. Set `clock_ticks` to the application host's `getconf CLK_TCK`.
+Set the sampler's `collector` address and the collector's `udp_host` and
+`sampler_ip` for these hosts. Set `clock_ticks` to the application host's `getconf CLK_TCK`.
+
+If you started the programs with `start.sh`, stop them on each host before
+you enable the user services:
+
+```sh
+~/triangulator/scripts/stop.sh
+```
+
+Then use `systemctl --user` to start, stop, and restart these services.
 
 The units in `deploy/` are user services. Copy the required unit to
 `~/triangulator/services/` on each host. For the sampler:
@@ -693,6 +741,18 @@ Restart the wrapper when switching targets or when the target process restarts.
 
 </details>
 
+## Test workloads and manual QA
+
+Use the [bug lab](bug-lab/README.md) to run 19 fault scenarios and a healthy
+control. The fixture is separate from the monitoring programs. See the
+[bug lab report](docs/bug-lab-report.md) and
+[workload evaluation](docs/buggy-workload-evaluation.md) for observations and limits.
+
+The [manual QA guide](docs/manual-qa.md) explains package tests in a real
+browser. The [test cases](docs/qa/test-cases.md) cover installation, controls,
+dashboard behavior, and the bug lab. Each executed case records its package
+version and result.
+
 ## Layout
 
 <details>
@@ -713,7 +773,9 @@ Restart the wrapper when switching targets or when the target process restarts.
 - `socket_sampler/`: optional C++/eBPF socket and completion-marker source.
 - `metrics/`: separate read-only C++ reporting program.
 - `config/`, `deploy/`: example configuration and systemd units.
-- `scripts/`: `start.sh` and `stop.sh`.
+- `scripts/`: runtime startup, restart, stop, target and rate control, and packaging.
+- `bug-lab/` and `examples/buggy-workload/`: separate fault fixtures.
+- `docs/qa/`: manual test cases and versioned run results.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).
