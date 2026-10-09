@@ -233,6 +233,17 @@ own trend, so a leak that has not yet reached `pids.max` is silent.
 
 ![thread-leak overview](screenshots/bug-lab/thread-leak-overview.png)
 
+**Fixed in f355ec4.** The assessment now has "Thread count keeps growing"
+(warning; serious when the cgroup is 75% full or `pids.max` is under 10 minutes
+away). It needs steady growth over two minutes or more, so a pool that warms
+up, a restart and bursts of short-lived threads stay quiet. After the fix,
+`thread-leak` shows "188 to 602 threads in 1.8 min, +237 threads/min" and
+`healthy` shows nothing. `ulimit -u` (RLIMIT_NPROC) is not in the wire protocol,
+so only the cgroup limit is named. The scenario now leaks one thread every
+250 ms (150 s in total); run it with `HOLD=165`.
+
+![after the fix: thread-leak overview](screenshots/bug-lab/g5-after-overview.png)
+
 ### G6: A SYN-SENT socket is called a zero-window peer
 
 In `listen-full` the client sockets are still in SYN-SENT, waiting for the
