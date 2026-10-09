@@ -205,6 +205,19 @@ resource findings join the assessment; memory-map findings do not.
 
 ![vm-bloat memory](screenshots/bug-lab/vm-bloat-memory.png)
 
+**Fixed** in `be1b51e`. Warning-level and worse memory-map findings now join the
+top assessment with their own severity, so the badge follows them; info and
+"nothing unusual" stay in the Memory section. Nothing is added when memory
+sampling is off or the sample is stale, and a major-faults finding that the
+thread rules already report is shown once (the more severe wording wins).
+After, on a clean history: `vm-bloat` shows the critical "Address space is close
+to RLIMIT_AS" and "Needs attention now"; `mem-leak` shows "Resident memory grows
+without a plateau" (+448 MB/min) and "Worth a look"; `healthy` stays "Healthy".
+
+| vm-bloat after | mem-leak after |
+|---|---|
+| ![vm-bloat after](screenshots/bug-lab/g3-after-vm-bloat-assessment.png) | ![mem-leak after](screenshots/bug-lab/g3-after-mem-leak-assessment.png) |
+
 ### G4: Thread churn is blind to short-lived threads
 
 `thread-churn` starts about 150 threads per second, each living a few
