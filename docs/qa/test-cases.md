@@ -27,7 +27,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-109 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Pressure page](runs/20261009T035640Z-v0.1.0/evidence/mem-oom.txt) |
 | QA-110 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Address-space page](runs/20261009T035640Z-v0.1.0/evidence/vm-bloat.txt) |
 | QA-111 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Descriptor page](runs/20261009T035640Z-v0.1.0/evidence/fd-leak.txt) |
-| QA-112 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [First page](runs/20261009T035640Z-v0.1.0/evidence/disk-sync.txt) |
+| QA-112 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Btrfs retry page](runs/20261009T035640Z-v0.1.0/evidence/disk-sync-retry.txt) |
 | QA-113 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Fault page](runs/20261009T035640Z-v0.1.0/evidence/major-faults.txt) |
 | QA-114 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [TCP page](runs/20261009T035640Z-v0.1.0/evidence/tcp-slow.txt) |
 | QA-115 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [UDP page](runs/20261009T035640Z-v0.1.0/evidence/udp-drop.txt) |
@@ -35,7 +35,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-117 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Listen page](runs/20261009T035640Z-v0.1.0/evidence/listen-full.txt) |
 | QA-118 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Churn page](runs/20261009T035640Z-v0.1.0/evidence/thread-churn.txt) |
 | QA-119 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Thread-growth page](runs/20261009T035640Z-v0.1.0/evidence/thread-leak.txt) |
-| QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [First stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped.txt) |
+| QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Final stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final.txt) |
 
 ## QA-001: Package installation and live dashboard
 

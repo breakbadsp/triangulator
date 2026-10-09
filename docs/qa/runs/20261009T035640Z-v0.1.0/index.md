@@ -53,7 +53,7 @@ Evidence: [release metadata](evidence/release.json),
   [sampler settings](evidence/sampler.toml) and
   [collector settings](evidence/collector.toml).
 - Most fixture scratch files used `/tmp`, which is tmpfs. The storage-stall
-  retry used `/home/daksh/.cache/triangulator-qa-20261009/scratch` on btrfs.
+  retry used `$HOME/.cache/triangulator-qa-20261009/scratch` on btrfs.
   The four run-owned `sync-*.dat` files were removed after that retry.
 - Each full fault observation used 70 seconds. Thread growth used 165 seconds.
   The page stayed open. Fixture durations exceeded observation by 40 seconds.
