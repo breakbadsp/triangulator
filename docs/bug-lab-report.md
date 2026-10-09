@@ -204,6 +204,14 @@ taking data"). The true cause, the accept queue overflow, is also reported, so
 the result is right but with a misleading extra line. The rule should skip
 sockets that are not ESTABLISHED.
 
+**Fixed** in commit `COMMIT`. The window rules (zero window, "not taking data",
+"limited by the peer's window") now apply only to sockets in a data-moving state
+(ESTAB, CLOSE-WAIT, FIN-WAIT-1, LAST-ACK); SYN-SENT and SYN-RECV get their own
+note instead. In the re-run `listen-full` shows "8 incoming connections dropped"
+and no "not taking data"; `tcp-slow` still reports the zero window.
+
+![listen-full sockets after the fix](screenshots/bug-lab/g6-after-listen-full-sockets.png)
+
 ### G7: Spin-wait loops look like ordinary computation
 
 `yield-storm` is found only as "saturating a core". 977 context switches per

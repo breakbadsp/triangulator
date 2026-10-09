@@ -1364,13 +1364,20 @@ const stall=entry=>isNum(entry?.pct)?entry.pct:entry?.avg10;
 const fillLevel=value=>value>=90?'critical':value>=75?'warning':'';
 const socketName=item=>item.path!==undefined?(item.path||'unnamed'):item.remote?`${item.local} → ${item.remote}`:item.local;
 const socketLabel=item=>`${KIND_LABELS[item.kind]||item.kind} ${item.state} · fd ${item.fd}`;
+// Only these TCP states move data, so only they can have a "peer window". The
+// kernel reports the window as 0 for a socket still in the handshake.
+const MOVES_DATA=new Set(['ESTAB','CLOSE-WAIT','FIN-WAIT-1','LAST-ACK']);
+const movesData=item=>!item.listener&&MOVES_DATA.has(item.state);
+const peerWindowZero=item=>movesData(item)&&item.tcp?.peer_window===0;
 function socketNotes(item){const notes=[],tcp=item.tcp||{};
+  if(item.state==='SYN-SENT')notes.push(['Connect unanswered: check accept queue']);
+  else if(item.state==='SYN-RECV')notes.push(['Handshake not finished: waiting for the peer’s final ACK']);
   if(item.listener){if((item.accept_fill_pct||0)>=100)notes.push(['Accept queue full: new connections are dropped','bad']);else if((item.accept_fill_pct||0)>=50)notes.push(['Connections wait for accept()'])}
   if((item.rx_fill_pct||0)>=80)notes.push(['Receive buffer nearly full: the app is not reading fast enough','bad']);
   else if(item.rx_queue>0&&!item.listener)notes.push(['Unread data waiting']);
-  if(item.tx_queue>0&&tcp.peer_window===0&&!item.listener)notes.push(['Peer window is zero: the peer is not reading','bad']);
+  if(item.tx_queue>0&&peerWindowZero(item))notes.push(['Peer window is zero: the peer is not reading','bad']);
   else if((item.tx_fill_pct||0)>=80)notes.push(['Send buffer nearly full: the peer or network is behind','bad']);
-  if((tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
+  if(movesData(item)&&(tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
   if((tcp.sndbuf_limited_pct||0)>=20)notes.push([`Limited by its own send buffer ${pct(tcp.sndbuf_limited_pct)} of the time: raise SO_SNDBUF`]);
   if(tcp.probes>0)notes.push([`Zero-window probing (${tcp.probes})`,'bad']);
   if(tcp.retransmits>0)notes.push([`Retransmitting now (backoff ${tcp.backoff})`,'bad']);
@@ -1399,8 +1406,8 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   else if(overflowing.length)add('warning',`Accept backlog of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full`,`${overflowing[0].rx_queue} connections wait for accept() with a backlog of ${overflowing[0].tx_queue}.`);
   const reading=top.filter(item=>!item.listener&&(item.rx_fill_pct||0)>=80).sort((a,b)=>b.rx_fill_pct-a.rx_fill_pct);
   if(reading.length){const item=reading[0];add((item.drops_delta||0)>0?'serious':'warning',`The app is not keeping up reading ${socketName(item)}`,`Receive buffer ${pct(item.rx_fill_pct)} full with ${bytes(item.rx_queue)} unread`+((item.drops_delta||0)>0?`; ${item.drops_delta} packet${item.drops_delta>1?'s':''} dropped.`:'.')+(reading.length>1?` ${reading.length-1} more socket${reading.length>2?'s':''} likewise.`:''))}
-  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||item.tcp?.peer_window===0)).sort((a,b)=>b.tx_queue-a.tx_queue);
-  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(item.tcp?.peer_window===0?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
+  const stuck=top.filter(item=>movesData(item)&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||peerWindowZero(item))).sort((a,b)=>b.tx_queue-a.tx_queue);
+  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(peerWindowZero(item)?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
   const udp=grew('udp_rcvbuf_errors');
   if(udp)add('serious',`${udp} UDP datagrams dropped: receive buffers full`,'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).');
   const queued=['tcp_rcvq_drop','tcp_backlog_drop','tcp_zero_window_drop'].reduce((sum,key)=>sum+grew(key),0);

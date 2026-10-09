@@ -293,6 +293,28 @@ test('socket rules name the slow reader, the slow peer and overflowing listeners
   assert.ok(notes.includes('Zero-window probing (2)'), notes.join('\n'));
 });
 
+test('a socket that is not transferring data is never called a zero-window peer', () => {
+  const app = dashboard();
+  const sample = resources();
+  const syn = {fd: 4, kind: 'tcp4', state: 'SYN-SENT', listener: false, local: '127.0.0.1:46242', remote: '127.0.0.1:49947',
+    rx_queue: 0, tx_queue: 1, rx_fill_pct: 0, tx_fill_pct: 0, tcp: {peer_window: 0, rwnd_limited_pct: 50}};
+  const unreported = {...syn, state: 'ESTAB', tcp: {peer_window: null}};
+  sample.sockets.top = [syn, {...syn, fd: 5, state: 'SYN-RECV'}, unreported];
+  assert.ok(!findingsOf(app, sample).some(item => /not taking data/.test(item.title)));
+  const notes = item => app.run(`socketNotes(${JSON.stringify(item)}).map(note=>note[0])`);
+  const syn_notes = notes(syn);
+  assert.ok(syn_notes.some(text => /Connect unanswered: check accept queue/.test(text)), syn_notes.join('\n'));
+  assert.ok(!syn_notes.some(text => /window/i.test(text)), syn_notes.join('\n'));
+  assert.ok(notes(sample.sockets.top[1]).some(text => /Handshake not finished/.test(text)));
+  assert.ok(!notes(unreported).some(text => /window/i.test(text)));
+  for (const state of ['ESTAB', 'CLOSE-WAIT']) {
+    const open = {...syn, state, tcp: {peer_window: 0}};
+    assert.ok(notes(open).includes('Peer window is zero: the peer is not reading'), state);
+    sample.sockets.top = [open];
+    assert.ok(findingsOf(app, sample).some(item => /not taking data/.test(item.title)), state);
+  }
+});
+
 test('hidden or unreachable sockets are explained, not reported as zero', () => {
   const app = dashboard();
   const hidden = findingsOf(app, resources({flags: {descriptors_hidden: true}}));

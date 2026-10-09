@@ -207,7 +207,7 @@ to look; they are not a diagnosis, and the collector evaluates no alert rules.
 | Listen drops or overflows in the last interval | serious |
 | A listener's backlog ≥ 80% full | warning |
 | A receive buffer ≥ 80% full (with drops: serious) | warning |
-| A send queue with a zero peer window or a buffer ≥ 80% full | warning |
+| A send queue with a zero peer window or a buffer ≥ 80% full (ESTABLISHED, CLOSE-WAIT, FIN-WAIT-1 and LAST-ACK sockets only; the window is unreported before Linux 6.2) | warning |
 | UDP receive buffer errors in the last interval | serious |
 | TCP receive-queue, backlog or zero-window drops | warning |
 | Retransmissions ≥ 1% of segments sent (≥ 100 sent) | warning |
