@@ -386,6 +386,35 @@ test('resource range changes keep one polling loop, including overlapping reques
   await firePoll();
 });
 
+// Checks that a saturated thread is called a polling or yield loop only when
+// most of its CPU is system time and it switches context often, and stays a
+// plain "saturating a core" for user-space spins, buffer-copying syscall users
+// and collectors that send no system_pct.
+test('saturated threads are told apart by kernel share and switch rate', () => {
+  const app = dashboard();
+  const describe = fields => {
+    const thread = {tid: 7, name: 'worker-1', cpu_pct: 99, system_pct: 0, switches_per_s: 0,
+      run_delay_pct: 0, state: 'running', ...fields};
+    app.run(`live={health:{session:'s'},threads:[${JSON.stringify(thread)}]}`);
+    return app.run(`assess(live.threads,[]).find(item=>item.title.includes('saturating'))`);
+  };
+  const yielding = describe({system_pct: 97, switches_per_s: 250});
+  assert.equal(yielding.title, 'worker-1 is saturating a core in the kernel');
+  assert.match(yielding.detail, /99\.0% of one core, 98\.0% of it in the kernel, with 250 context switches\/s/);
+  assert.match(yielding.detail, /polling or yield loop/);
+  assert.equal(describe({system_pct: 0.1, switches_per_s: 190}).title,
+    'worker-1 is saturating a core', 'a user-space spin stays plain');
+  assert.equal(describe({system_pct: 95, switches_per_s: 5}).title,
+    'worker-1 is saturating a core', 'kernel time without frequent switching stays plain');
+  assert.equal(describe({system_pct: 30, switches_per_s: 250}).title,
+    'worker-1 is saturating a core', 'mostly user time stays plain');
+  assert.equal(describe({system_pct: 55, switches_per_s: 3000}).title,
+    'worker-1 is saturating a core in the kernel', 'a contended yield loop measures about half');
+  assert.equal(describe({system_pct: undefined, switches_per_s: 250}).title,
+    'worker-1 is saturating a core', 'older collectors send no system_pct');
+  app.run("live={health:{session:'s'},threads:[]}");
+});
+
 test('resource assessment joins the overview assessment', () => {
   const app = dashboard();
   const sample = resources();

@@ -420,11 +420,16 @@ class Monitor
                p_scale / elapsed;
       };
       std::optional<double> cpu_pct;
+      std::optional<double> system_pct;
       if (elapsed > 0)
       {
-        cpu_pct =
-            static_cast<double>(Delta(CpuTicks(current), CpuTicks(previous))) /
-            static_cast<double>(config_.clock_ticks_) / elapsed * 100;
+        const auto ticks_to_pct = [&](std::int64_t p_ticks)
+        {
+          return static_cast<double>(p_ticks) /
+                 static_cast<double>(config_.clock_ticks_) / elapsed * 100;
+        };
+        cpu_pct = ticks_to_pct(Delta(CpuTicks(current), CpuTicks(previous)));
+        system_pct = ticks_to_pct(Delta(current.stime_, previous.stime_));
       }
       std::optional<double> run_delay;
       if (!sample.fallback_ && elapsed > 0)
@@ -450,6 +455,7 @@ class Monitor
           {"wchan", current.wchan_.View()},
           {"cpu", current.processor_},
           {"cpu_pct", Json(cpu_pct)},
+          {"system_pct", Json(system_pct)},
           {"state_mix", CountsJson(counts)},
           {"run_delay_pct", Json(run_delay)},
           {"switches_per_s",

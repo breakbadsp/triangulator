@@ -1084,6 +1084,22 @@ function threadGrowth(points){
     const minutes=steps*STEP/60,found={from:first,to:last,minutes,rate:total/minutes};
     if(!best||found.rate>best.rate)best=found}
   return best}
+
+// A saturated thread looks like a polling or yield loop, not computation, when
+// most of its CPU time is system time AND it switches context often. System time
+// alone is not enough: a thread that copies large buffers through read/write or
+// sendfile is also kernel-heavy but rarely gives up the CPU. A switch rate alone
+// is not enough either: a pure user-space spin competing for a core is preempted
+// just as often. Returns the kernel share of the thread's CPU time (0..1), or
+// null when the thread does not fit (or the collector sends no system_pct).
+// The kernel share is only a tick-sampled estimate and a yield loop measures
+// 55-98% depending on the host load, so the bar is "majority"; ordinary compute
+// is near 0%, which leaves a wide margin.
+const KERNEL_SHARE_MIN=.5,SPIN_SWITCHES_MIN=100;
+function kernelShare(thread){
+  if(!(thread.cpu_pct>0)||!(thread.system_pct>=0))return null;
+  const share=Math.min(1,thread.system_pct/thread.cpu_pct);
+  return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
@@ -1093,7 +1109,10 @@ function assess(threads,points){
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
     add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
   const hot=threads.filter(thread=>(thread.cpu_pct||0)>=90).sort((a,b)=>b.cpu_pct-a.cpu_pct);
-  for(const thread of hot.slice(0,2))add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+  for(const thread of hot.slice(0,2)){
+    const share=kernelShare(thread);
+    if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+    else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}

@@ -277,6 +277,19 @@ and no "not taking data"; `tcp-slow` still reports the zero window.
 second is on the page, but the dashboard does not separate user time from
 system time, so it cannot say "this CPU is burned in syscalls". Low priority.
 
+**Fixed** in the commit titled "Say when a saturated thread is polling in the
+kernel". The user/system split was already on the wire (`utime`, `stime`), so
+only `/api/live` gained a `system_pct` field per thread; the sampler and wire
+format are unchanged. A saturated thread (90% CPU or more) whose CPU is at least
+half system time and that switches context at least 100 times per second is now
+reported as "worker-0 is saturating a core in the kernel ... it looks like a
+polling or yield loop, not computation". `cpu-spin` (0% system time) and
+`healthy` are unchanged. Kernel share is measured from clock ticks and is
+lower under contention (about 55% on a busy host, higher on an idle one), which
+is why the bar is "half" and not "nearly all".
+
+![yield-storm after the fix](screenshots/bug-lab/g7-after-yield-storm-overview.png)
+
 ## What a user cannot see by design
 
 - Application logs. In `vm-bloat` the app printed `allocation failed: Cannot
