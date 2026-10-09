@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -97,8 +98,12 @@ class ScriptTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.real = Path(directory.name) / "real"
-        for part in ("build", "scripts", "config/local", ".run"):
+        for part in ("build", "scripts", "config", "runtime/config", "runtime/run"):
             (self.real / part).mkdir(parents=True)
+        self.runtime = self.real / "runtime"
+        environment = mock.patch.dict(os.environ, {"TRIANGULATOR_HOME": str(self.runtime)})
+        environment.start()
+        self.addCleanup(environment.stop)
         shutil.copy2(ROOT / "build/triangulator-sampler", self.real / "build")
         for script in ("sampler_control.py", "set-target.sh", "set-rate.sh"):
             shutil.copy2(ROOT / "scripts" / script, self.real / "scripts")
@@ -118,7 +123,7 @@ class ScriptTests(unittest.TestCase):
         sampler = subprocess.Popen([str(self.link / "build/triangulator-sampler"), str(config)],
                                    stderr=subprocess.DEVNULL)
         self.addCleanup(stop, sampler)
-        (self.real / ".run/sampler.pid").write_text(f"{sampler.pid}\n")
+        (self.runtime / "run/sampler.pid").write_text(f"{sampler.pid}\n")
         return sampler
 
     def run_script(self, *arguments):
@@ -137,7 +142,7 @@ class ScriptTests(unittest.TestCase):
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
-        config = self.real / "config/local/collector.toml"
+        config = self.runtime / "config/collector.toml"
         # The integration tests receive through the collector instead.
         self.receiver.close()
         config.write_text(f'udp_host = "{udp_host}"\nudp_port = {self.port}\n'
@@ -180,7 +185,7 @@ class ScriptTests(unittest.TestCase):
     def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
         # IPv4 samples and target control both work through an IPv6 wildcard listener.
         self.start_dashboard(udp_host="::")
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
         self.start_sampler(config)
         self.wait_live(lambda health: health.get("pid") == self.target.pid)
@@ -195,7 +200,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_dashboard_changes_pid_name_and_absent_target(self):
         self.start_dashboard()
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
         self.start_sampler(config)
         initial = self.wait_live(lambda health: health.get("pid") == self.target.pid)
@@ -237,7 +242,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_dashboard_named_target_follows_restart_and_survives_reopening(self):
         self.start_dashboard()
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
         sampler = self.start_sampler(config)
         name = f"uir-{os.getpid()}"
@@ -281,7 +286,7 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(data["enabled"])
         self.assertIn("not running", data["error"])
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         original = f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n'
         config.write_text(original)
         self.start_sampler(config)
@@ -311,7 +316,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_dashboard_reads_split_body_and_rejects_oversized_requests(self):
         self.start_dashboard()
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         config.write_text(f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n')
         self.start_sampler(config)
         port = int(self.dashboard.rsplit(":", 1)[1])
@@ -348,12 +353,12 @@ class ScriptTests(unittest.TestCase):
         self.assertIn('target_process = "ui-split-body"', config.read_text())
 
     def test_rate_and_target_reload_in_place(self):
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         # Unquoted collector: valid for the sampler, invalid TOML.
         original = (f"# Process to sample.\ntarget_pid = {self.target.pid}\n# target_process = \"x\"\n"
                     f"# Samples per second.\nrate_hz = 10\ncollector = 127.0.0.1:{self.port}\n")
         config.write_text(original)
-        self.start_sampler(self.link / "config/local/sampler.toml")
+        self.start_sampler(self.link / "runtime/config/sampler.toml")
         first = self.receive_until(lambda value: value.pid == self.target.pid)
         self.assertEqual(first.interval_ms, 100)
 
@@ -378,7 +383,7 @@ class ScriptTests(unittest.TestCase):
         self.receive_until(lambda value: value.flags & 1)
 
     def test_rejected_changes_leave_the_config_unchanged(self):
-        config = self.real / "config/local/sampler.toml"
+        config = self.runtime / "config/sampler.toml"
         # Just under the sampler's 16 KiB limit (with lines under its 1023-byte limit).
         original = f"target_pid = {self.target.pid}\ncollector = \"127.0.0.1:{self.port}\"\n"
         padding = 16383 - len(original) - 10
@@ -423,14 +428,14 @@ class ScriptTests(unittest.TestCase):
     def test_stale_pidfile_and_other_programs_are_refused(self):
         changed = self.run_script("set-rate.sh", "5")
         self.assertIn("not running", changed.stderr)
-        (self.real / ".run/sampler.pid").write_text(f"{self.target.pid}\n")
+        (self.runtime / "run/sampler.pid").write_text(f"{self.target.pid}\n")
         changed = self.run_script("set-rate.sh", "5")
         self.assertEqual(changed.returncode, 1)
         self.assertIn("not this repo's sampler", changed.stderr)
         self.assertIsNone(self.target.poll(), "the other program must not be signalled")
 
     def test_collector_follows_the_running_sampler(self):
-        (self.real / "config/local/sampler.toml").write_text(
+        (self.runtime / "config/sampler.toml").write_text(
             f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
         custom = self.real / "custom.toml"
         custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
@@ -449,7 +454,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_collector_does_not_fall_back_when_running_config_disappears(self):
         # A live sampler keeps its loaded endpoint even after its file is removed.
-        (self.real / "config/local/sampler.toml").write_text(
+        (self.runtime / "config/sampler.toml").write_text(
             f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
         custom = self.real / "custom.toml"
         custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
@@ -467,9 +472,9 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("pass --collector IP:PORT", found.stderr)
 
     def test_collector_does_not_fall_back_when_pidfile_points_to_another_program(self):
-        (self.real / "config/local/sampler.toml").write_text(
+        (self.runtime / "config/sampler.toml").write_text(
             f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
-        (self.real / ".run/sampler.pid").write_text(f"{self.target.pid}\n")
+        (self.runtime / "run/sampler.pid").write_text(f"{self.target.pid}\n")
         found = subprocess.run(
             [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
             capture_output=True, text=True, timeout=5)

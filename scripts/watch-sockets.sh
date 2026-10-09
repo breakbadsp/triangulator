@@ -4,6 +4,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$root/scripts/runtime.sh"
 usage() {
     echo "usage: $0 [--sudo] [--collector IP:PORT] [--marker BINARY SYMBOL] <process-name|pid>"
 }
@@ -48,14 +49,20 @@ fi
 }
 
 # Compile as the invoking user; only the observer needs tracing privileges.
-make -C "$root" socket-sampler
-mkdir -p "$root/.run"
-command=("$root/build/triangulator-socket-sampler" "$pid" "$collector" "$root/build/socket.bpf.o" "${marker[@]}")
+[[ ! -f "$root/Makefile" ]] || make -C "$root" socket-sampler
+install_runtime_binary socket-sampler
+if [[ -f "$root/build/socket.bpf.o" ]]; then
+    cp -p "$root/build/socket.bpf.o" "$bin_dir/socket.bpf.o.tmp.$$"
+    mv -f "$bin_dir/socket.bpf.o.tmp.$$" "$bin_dir/socket.bpf.o"
+fi
+[[ -r "$bin_dir/socket.bpf.o" ]] || { echo "missing $bin_dir/socket.bpf.o" >&2; exit 1; }
+mkdir -p "$log_dir"
+command=("$bin_dir/triangulator-socket-sampler" "$pid" "$collector" "$bin_dir/socket.bpf.o" "${marker[@]}")
 if [[ "$elevate" == true ]]; then
     command=(sudo -- "${command[@]}")
 fi
 echo "Observing PID $pid; sending to $collector. Ctrl+C stops observation."
-echo "Log: $root/.run/socket-sampler.log"
+echo "Log: $log_dir/socket-sampler.log"
 echo "Set the normal sampler to PID $pid with scripts/set-target.sh $pid."
 echo "View the dashboard's Socket I/O & message processing panel."
 if [[ ${#marker[@]} -eq 0 ]]; then
@@ -63,4 +70,4 @@ if [[ ${#marker[@]} -eq 0 ]]; then
 fi
 # Ctrl+C reaches the whole pipeline. tee -i ignores it and keeps copying
 # until the observer exits, so shutdown output and errors are not lost.
-"${command[@]}" 2>&1 | tee -ia "$root/.run/socket-sampler.log"
+"${command[@]}" 2>&1 | tee -ia "$log_dir/socket-sampler.log"

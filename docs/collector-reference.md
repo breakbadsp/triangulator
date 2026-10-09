@@ -9,8 +9,8 @@ summaries, stores those in SQLite and serves the dashboard.
 
 ```sh
 make                                                    # builds build/triangulator-collector
-build/triangulator-collector config/local/collector.toml
-build/triangulator-collector config/local/collector.toml --check-config
+scripts/start.sh collector
+build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 ```
 
 `scripts/start.sh` starts it for you.

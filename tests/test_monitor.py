@@ -290,7 +290,7 @@ class ResourceSampleTests(unittest.TestCase):
             self.assertLessEqual(len(data), 1400)
             part = decode_resource(data)
             parts.setdefault(part.sequence, {})[part.part] = (part, data)
-            if len(parts) >= 2 and len(parts[min(parts)]) == part.parts:
+            if memory_seen and len(parts) >= 2 and len(parts[min(parts)]) == part.parts:
                 break
         summary = parts[min(parts)][0][0]
         self.assertEqual(summary.kind, RESOURCE_SUMMARY)
@@ -341,7 +341,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             # Alert settings are accepted and ignored: they are for the alerting module.
             collector_config.write_text(
                 f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
-                f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nreplay_interval_s=1\n'
+                f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nstore_raw=false\n'
                 '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n')
             invalid = Path(directory) / "invalid.toml"
             invalid.write_text("[alerts]\nwindow_s=4\n")
@@ -422,7 +422,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(fetch("/api/alert-settings")[0], 404)
                 self.assertEqual(fetch("/api/alert-settings", "POST")[0], 501)
                 self.assertEqual(fetch("/api/history?session=1")[0], 400)
-                # Replay works with store_raw=false and keeps the process view
+                # Recording defaults to one second with store_raw=false and keeps the process view
                 # from the selected moment while live samples continue.
                 bounds = json.loads(fetch("/api/replay")[1])
                 self.assertIsNotNone(bounds["first"])
@@ -452,6 +452,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM raw_sample").fetchone()[0], 0)
                     stored += connection.execute("SELECT COUNT(*) FROM resource_sample").fetchone()[0]
             self.assertGreaterEqual(stored, 2)
 

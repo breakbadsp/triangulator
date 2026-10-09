@@ -27,6 +27,30 @@ The layout joins adjacent mappings of the same file or kind into one region.
 A library's code, data and read-only parts become one region. At most 1,000
 regions are sent; the mapping count still counts all of them.
 
+## The dashboard section
+
+The section follows the mock-up in
+[mockups/process-memory-map.html](mockups/process-memory-map.html):
+
+- **Tiles.** Virtual size, RSS and its growth, RSS split into anonymous,
+  file and shared memory, mapping count, major faults and memory pressure.
+  RSS, its split and pressure come from resource samples.
+- **Findings.** Worked out in the browser: mapping count or address space
+  near its limit, major faults with memory pressure, RSS that keeps
+  growing, swap, a deleted library or program that is still mapped, and
+  the main stack against `RLIMIT_STACK`.
+- **Address space.** One bar per run of neighbouring regions of a kind,
+  high addresses at the top, with large unmapped spaces shortened. At most
+  18 bars: the dashboard merges the smallest neighbours until the map
+  fits. Heap, stack, program image and kernel regions are never merged.
+- **Zoom.** Facts about the selected bar, a grid of squares that shows
+  which of its addresses are mapped and which were mapped since the
+  previous layout, charts of the heap size, main stack size and resident
+  anonymous memory while the page is open, and the bar's regions.
+
+The squares show the layout from `maps`. Resident, dirty and swapped pages
+need `/proc/PID/pagemap`, which the sampler does not read.
+
 ## How it runs
 
 The memory map uses the same sampler loop as thread ticks and resource

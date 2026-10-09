@@ -48,7 +48,7 @@ button:disabled{cursor:wait;opacity:.6}
 .status-dot.warning{background:var(--warning)}
 @keyframes pulse{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.status-dot.live{animation:none}}
-nav.tabs{display:flex;gap:2px;margin-left:auto}
+nav.tabs{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto}
 nav.tabs a{color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:8px}
 nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 .icon-btn{padding:6px 9px;line-height:1}
@@ -57,6 +57,9 @@ nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 
 main{max-width:1480px;margin:auto;padding:20px 24px 60px}
 section.block{margin-top:30px}
+.section-separator{margin:32px 0 0;border:0;border-top:1px solid var(--line)}
+/* The socket panel is hidden when inspecting a past moment; drop its line too. */
+.section-separator:has(+ [hidden]){display:none}
 .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .section-head h2{font-size:18px;letter-spacing:-.01em}
 .section-head p{margin:3px 0 0;color:var(--muted)}
@@ -194,13 +197,49 @@ td small{display:block;color:var(--muted);font-size:11px}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:39;opacity:0;pointer-events:none;transition:opacity .2s}
 .scrim.open{opacity:1;pointer-events:auto}
 
-/* Tooltip */
-#tip{position:fixed;z-index:60;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px 10px;font-size:12px;min-width:140px;max-width:320px;opacity:0;transition:opacity .08s}
+/* Contextual help: shared surfaces for explanations and chart values. */
+.help-button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:3px;padding:0;border:1px solid transparent;border-radius:6px;color:var(--accent-ink);background:transparent;font-size:16px;font-weight:400;vertical-align:middle;flex:none;position:relative}
+.help-button::before{content:'i';font:600 12px/1 Georgia,serif;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.help-button:hover{border-color:var(--accent-ink);background:var(--accent-wash)}
+.help-quiet{opacity:0;width:20px;height:20px;margin-left:2px}
+[data-help]:hover>.help-quiet,.help-quiet:focus{opacity:1}
+@media (hover:none){.help-quiet{opacity:1}}
+#tip{position:fixed;z-index:70;width:340px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;background:var(--surface);color:var(--ink);border:1px solid var(--axis);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:16px;font-size:14px;line-height:1.5;opacity:0;transition:opacity .12s;overflow-wrap:anywhere}
 #tip.show{opacity:1}
-#tip .tt{color:var(--muted);margin-bottom:4px}
-#tip .tr{display:flex;align-items:center;gap:8px;white-space:nowrap}
-#tip .tr strong{font-variant-numeric:tabular-nums;min-width:52px}
-#tip .tr span:last-child{color:var(--ink-2)}
+#tip p{margin:10px 0}
+.help-title{font-size:15px;font-weight:600}
+.help-scope{font-size:13px;line-height:1.5;color:var(--ink-2);margin:6px 0}
+.help-sample{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;background:var(--accent-wash);padding:10px 12px;border-radius:7px;margin:12px 0;font-size:13px}
+.help-sample strong{font-size:18px;color:var(--accent-ink)}
+.help-reading{display:flex;flex-wrap:wrap;gap:4px 12px;padding:3px 0;font-variant-numeric:tabular-nums}
+.help-reading span{color:var(--ink-2)}
+.help-limit{color:var(--ink-2);font-size:13px}
+.help-footer{border-top:1px solid var(--line);padding-top:10px;margin-top:12px;color:var(--accent-ink);font-size:13px}
+#help-guide{position:fixed;inset:0 0 0 auto;width:400px;z-index:50;background:var(--surface);border-left:1px solid var(--axis);display:flex;flex-direction:column;box-shadow:var(--shadow);font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.help-guide-head{padding:20px 24px 16px;border-bottom:1px solid var(--line);flex:none}
+.help-guide-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.help-guide-top span{font-size:13px;color:var(--ink-2);letter-spacing:.05em}
+#help-guide-title{font-size:26px;line-height:1.3;text-decoration:none}
+#help-guide-body{overflow:auto;overscroll-behavior:contain;padding:6px 24px 24px;flex:1}
+#help-guide-body h3{font-size:15px;margin:20px 0 6px}
+#help-guide-body p{margin:6px 0 16px}
+#help-guide-body .help-intro{font-size:16px;color:var(--ink)}
+#help-guide-body .help-example{border:1px solid var(--axis);border-radius:10px;background:var(--accent-wash);padding:12px 16px;margin:20px 0}
+#help-guide-body .help-example h3{margin:0 0 6px;color:var(--accent-ink)}
+#help-guide-body .help-example p{margin:0}
+.help-related,.help-topics{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.help-related button,.help-topics button{font-size:13px;text-align:left;color:var(--accent-ink)}
+.help-preference{padding:14px 24px;border-top:1px solid var(--line);flex:none;font-size:13px}
+.help-preference label{display:flex;align-items:center;gap:8px}
+.help-data{overflow:auto;max-height:320px;margin-top:12px}
+.help-data th,.help-data td{font-size:13px}
+#help-scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:49}
+@media (min-width:1200px){body.help-open{padding-right:400px}body.help-open .g-hero,body.help-open .g-2-1,body.help-open .g-1-1{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:1199px){#help-guide{inset:auto 0 0;width:100%;max-height:90dvh;border:1px solid var(--axis);border-bottom:0;border-radius:16px 16px 0 0}body.help-open{overflow:hidden}.help-guide-head{padding:16px 20px}#help-guide-body{padding:6px 20px 20px}.help-preference{padding:12px 20px}}
+@media (max-height:480px){#help-guide{overflow:auto}#help-guide-body{flex:none;overflow:visible}}
+/* Touch targets grow outward so the buttons do not widen table columns. */
+@media (pointer:coarse){.help-button,.help-quiet{width:28px;height:28px}.help-button::after{content:'';position:absolute;inset:-8px}.help-guide-top button,#help-back-thread{min-height:44px}.help-preference label{min-height:44px}}
+@media (prefers-reduced-motion:reduce){#tip{transition:none}}
 
 /* Socket panel */
 .socket-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -240,21 +279,56 @@ tr.zero td{color:var(--muted)}
 #settings .setting{display:inline-flex;align-items:center;gap:6px;margin:0 14px 6px 0;white-space:nowrap}
 #settings .rule-name{font-weight:600}
 #settings .hint{font-size:12px;color:var(--muted)}
+/* Memory map. Kind colors are the same in both themes; bar text is picked
+   per kind for contrast against the fill. */
+:root{--k-code:#6b7785;--k-heap:#2a78d6;--k-stack:#d85a28;--k-anon:#1baf7a;--k-file:#c4a24a;--k-guard:#c4c8ce;--k-kernel:#9aa0a8}
+.mem-findings{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+.mem-finding{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--lvl)}
+.mem-finding .sev{flex:none;margin-top:2px;padding:1px 7px;border-radius:6px;background:var(--lvl);color:#fff;font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+.mem-finding .sev.dark{color:#2a1d00}
+.mem-finding .t{font-weight:600}
+.mem-finding .d{font-size:12px;color:var(--ink-2);margin-top:1px;overflow-wrap:anywhere}
+.g-mem{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);align-items:start}
+.amap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 10px;align-items:center}
+.amap .addr{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);text-align:right}
+.arow{position:relative;display:flex;align-items:center;gap:8px;width:100%;margin:2px 0;padding:0 10px;border-radius:7px;border:1px solid rgba(0,0,0,.1);overflow:hidden;background:var(--kind);color:#111;font-size:13px;text-align:left}
+.arow:hover{background:var(--kind);filter:brightness(1.08)}
+.arow.on-dark{color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.arow .band{position:absolute;left:0;top:0;bottom:0;background:rgba(0,0,0,.26)}
+.arow>span{position:relative;white-space:nowrap}
+.arow .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.arow .meta{font-family:ui-monospace,monospace;font-size:11px}
+.arow[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:1px}
+.agap{height:18px;margin:2px 0;border-radius:7px;display:grid;place-items:center;font-size:11px;color:var(--muted);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--line) 6px 12px)}
+.facts.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pagegrid{display:grid;grid-template-columns:repeat(64,minmax(0,1fr));gap:2px}
+.pagegrid i{aspect-ratio:1;border-radius:2px;background:var(--kind)}
+.pagegrid i.pad{visibility:hidden}
+.cell-none{background:repeating-linear-gradient(135deg,var(--surface) 0 2px,var(--axis) 2px 4px)!important}
+.cell-guard{background:repeating-linear-gradient(45deg,var(--k-guard) 0 2px,var(--raised) 2px 4px)!important}
+.cell-new{outline:2px solid var(--good);outline-offset:-1px}
+.mem-charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.mem-chart .cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;margin-bottom:4px}
+.mem-chart .cap span{font-family:ui-monospace,monospace;color:var(--ink-2);white-space:nowrap}
+.mem-chart svg{display:block;width:100%;height:84px;background:var(--surface-2);border-radius:8px}
+.mem-chart .range{font-size:11px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+.mem-hint{font-size:12px;color:var(--ink-2);margin:8px 0 0;line-height:1.5}
+@media (max-width:1050px){.g-mem,.mem-findings{grid-template-columns:minmax(0,1fr)}.facts.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
 .notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
 kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
-@media (max-width:640px){main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
+@media (max-width:640px){html{scroll-padding-top:16px}.topbar{position:static}.mem-charts{grid-template-columns:minmax(0,1fr)}main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
 </style>
 </head>
 <body>
 <header class="topbar">
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
-<div class="target" title="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Overview</a><a href="#resources">Resources</a><a href="#memory-map">Memory</a><a href="#threads-section">Threads</a><a href="#socket-panel">Sockets</a><a href="#monitor">Monitor</a></nav>
+<div class="target" data-help="target" data-hint="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
+<nav class="tabs" aria-label="Sections"><a href="#overview">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
-<button id="theme" class="icon-btn" title="Theme: follow system" aria-label="Switch color theme">◐</button>
+<button id="theme" class="icon-btn" data-hint="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
 </header>
 <div id="error" class="banner" role="status"></div>
@@ -270,21 +344,11 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <!-- Whole-process view. Everything here is summed from /api/live in the
      browser and kept for the last 15 minutes; nothing new is sent by the
      sampler or stored by the collector. -->
-<section class="card" aria-label="Historical inspection" style="margin-bottom:20px">
-<div class="section-head"><div><h2>Inspect a moment</h2><p>Choose a local date and time to inspect the recorded process and every thread.</p></div><button id="replay-live" aria-pressed="true">Live</button></div>
-<div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-<input id="replay-time" type="datetime-local" step="0.001" aria-label="Inspection time">
-<button id="replay-open" class="primary">Inspect time</button>
-<button id="replay-previous" disabled aria-label="Previous recorded snapshot">← Previous</button>
-<button id="replay-next" disabled aria-label="Next recorded snapshot">Next →</button>
-<button id="replay-latest">Latest recording</button>
-</div>
-<p id="replay-note" class="muted" role="status">Live view. Recordings begin when this collector receives a sampler session.</p>
-<p id="replay-bounds" class="muted" style="font-size:12px"></p>
-</section>
 <section id="overview" class="block" style="margin-top:8px">
-<div class="section-head"><div><h2>Process overview</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
+<div class="section-head"><div><h2>Summary</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
 <div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
+
+<div id="tiles" class="tiles" style="margin-bottom:14px"></div>
 
 <div class="grid g-hero">
 <div class="card">
@@ -301,67 +365,43 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </div>
 
-<div id="tiles" class="tiles" style="margin-top:14px"></div>
+<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
 
+<section class="card" aria-label="Historical inspection" style="margin-top:14px">
+<div class="section-head"><div><h2>Inspect a moment</h2><p>Choose a local date and time to inspect the recorded process and every thread.</p></div><button id="replay-live" aria-pressed="true">Live</button></div>
+<div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+<input id="replay-time" type="datetime-local" step="0.001" aria-label="Inspection time">
+<button id="replay-open" class="primary">Inspect time</button>
+<button id="replay-previous" disabled aria-label="Previous recorded snapshot">← Previous</button>
+<button id="replay-next" disabled aria-label="Next recorded snapshot">Next →</button>
+<button id="replay-latest">Latest recording</button>
+</div>
+<p id="replay-note" class="muted" role="status">Live view. Recordings begin when this collector receives a sampler session.</p>
+<p id="replay-bounds" class="muted" style="font-size:12px"></p>
+</section>
+
+</section>
+
+<hr class="section-separator" aria-hidden="true">
+<section id="threads-section" class="block">
+<div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
 <div class="grid g-2-1" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>What the threads are doing</h3><p>Thread count by latest state, stacked. Hover to read a moment.</p></div></div><div id="chart-states" class="chart"></div><div id="states-legend" class="legend"></div></div>
 <div class="card"><div class="card-head"><div><h3>Where threads wait</h3><p>Kernel wait channels right now. Click to filter the thread table.</p></div></div><div id="wchan-bars" class="bars"></div></div>
 </div>
 
 <div class="grid g-2-1" style="margin-top:14px">
-<div class="card"><div class="card-head"><div><h3>Thread map</h3><p id="mosaic-sub">One tile per thread. Click a tile for details.</p></div><div class="seg" role="group" aria-label="Thread map time window"><button data-map-window="0" aria-pressed="true" title="Real time: CPU over the last ~10 seconds">Now</button><button data-map-window="60" aria-pressed="false" title="Average CPU over the last minute">1 min</button><button data-map-window="300" aria-pressed="false" title="Average CPU over the last 5 minutes">5 min</button><button data-map-window="900" aria-pressed="false" title="Average CPU over the last 15 minutes">15 min</button></div></div><div id="mosaic" class="mosaic"></div><div id="mosaic-legend"></div></div>
+<div class="card"><div class="card-head"><div><h3>Thread map</h3><p id="mosaic-sub">One tile per thread. Click a tile for details.</p></div><div class="seg" role="group" aria-label="Thread map time window"><button data-map-window="0" aria-pressed="true" data-hint="Real time: CPU over the last ~10 seconds">Now</button><button data-map-window="60" aria-pressed="false" data-hint="Average CPU over the last minute">1 min</button><button data-map-window="300" aria-pressed="false" data-hint="Average CPU over the last 5 minutes">5 min</button><button data-map-window="900" aria-pressed="false" data-hint="Average CPU over the last 15 minutes">15 min</button></div></div><div id="mosaic" class="mosaic"></div><div id="mosaic-legend"></div></div>
 <div class="card"><div class="card-head"><div><h3>Where the CPU goes</h3><p id="family-sub">Process CPU by thread family (name without its number).</p></div><select id="family-mode" aria-label="Group CPU by"><option value="family">Name family</option><option value="group">Config group</option><option value="thread">Thread</option></select></div><div id="family-bars" class="bars"></div></div>
 </div>
 
-<div class="grid g-1-1" style="margin-top:14px">
+<div class="grid" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>Core placement</h3><p>CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.</p></div></div><div id="cores" class="cores"></div><div class="core-base"></div><div id="cores-scale" class="muted" style="font-size:12px;margin-top:6px"></div></div>
-<div class="card" id="monitor"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
-</div>
-</section>
 
-<!-- What the threads share: pressure stalls, limits, socket queues and the
-     network stack. Live values come from /api/live; trends come from the
-     collector's stored resource samples (/api/resources). -->
-<section id="resources" class="block">
-<div class="section-head"><div><h2>Pressure, limits &amp; sockets</h2><p id="resources-sub">What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers.</p></div>
-<div class="seg" role="group" aria-label="Resource history range"><button data-res-range="900" aria-pressed="true">15 min</button><button data-res-range="3600" aria-pressed="false">1 h</button><button data-res-range="21600" aria-pressed="false">6 h</button><button data-res-range="86400" aria-pressed="false">24 h</button></div></div>
-<p id="resources-empty" class="socket-empty" hidden></p>
-<div id="resources-content">
-<div id="resource-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
-<div class="grid g-2-1" style="margin-top:14px">
-<div class="card"><div class="card-head"><div><h3>Pressure stalls (PSI)</h3><p>Share of time tasks were stalled waiting for a resource. <b>Some</b>: at least one task waited. <b>Full</b>: every non-idle task waited at once, so no work got done. Peaks per interval.</p></div><select id="pressure-scope" aria-label="Pressure scope"><option value="cgroup">Target's cgroup</option><option value="host">Whole host</option></select></div>
-<div id="chart-pressure" class="chart" role="img" aria-label="Pressure stall history"></div><div id="pressure-legend" class="legend"></div>
-<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Resource</th><th class="num" title="Target's cgroup: some, over the last sample interval">Cgroup some</th><th class="num" title="Target's cgroup: full, over the last sample interval">Cgroup full</th><th class="num" title="Whole host: some, over the last sample interval">Host some</th><th class="num" title="Whole host: full, over the last sample interval">Host full</th></tr></thead><tbody id="pressure-rows"></tbody></table></div></div>
-<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.</p></div></div><div id="limits"></div><dl id="limit-facts" class="facts"></dl></div>
 </div>
-<div class="grid g-2-1" style="margin-top:14px">
-<div class="card"><div class="card-head"><div><h3>Bytes waiting in the target's sockets</h3><p>Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.</p></div></div><div id="chart-queues" class="chart" role="img" aria-label="Socket queue history"></div><div id="queues-legend" class="legend"></div></div>
-<div class="card"><div class="card-head"><div><h3>Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th>Counter</th><th class="num" title="Per second over the last sample interval">Now</th><th class="num" title="Added up over the selected range">In range</th><th class="num" title="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
-</div>
-<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
-<div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" title="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th title="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" title="Bytes not yet sent or acknowledged">Send-Q</th><th title="Send buffer use">Send buffer</th><th class="num" title="Packets this socket dropped; + in the last interval">Drops</th><th class="num" title="Smoothed round-trip time">RTT</th><th class="num" title="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
-<p id="resource-coverage" class="socket-note"></p></div>
-</div>
-</section>
 
-<!-- The target's virtual address space. The summary comes from /api/live;
-     the layout from /api/memory-map, fetched when a new one arrives. -->
-<section id="memory-map" class="block">
-<div class="section-head"><div><h2>Memory map</h2><p id="memory-sub">The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds.</p></div></div>
-<p id="memory-empty" class="socket-empty" hidden></p>
-<div id="memory-content">
-<div id="memory-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
-<div class="grid g-2-1" style="margin-top:14px">
-<div class="card"><div class="card-head"><div><h3>Layout <span id="memory-region-count" class="muted" style="font-weight:400"></span></h3><p id="memory-layout-sub">Adjacent mappings of the same file or kind are joined into one region. Mapped is not resident: a region can be large and use little RAM.</p></div><label class="muted" style="font-size:13px"><input id="memory-largest" type="checkbox"> Largest first</label></div>
-<div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Region</th><th>Kind</th><th>Start</th><th class="num">Size</th><th title="Size on a log scale">Size (log)</th><th title="Union of the mappings' permissions">Perms</th><th class="num" title="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div></div>
-<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><p id="memory-notes" class="socket-note"></p></div>
-</div>
-</div>
-</section>
-
-
-<section id="threads-section" class="block">
-<div class="section-head"><div><h2>Threads <span id="count" class="muted" style="font-weight:400"></span></h2><p>Latest sample per thread. Idle threads (no CPU, switches or I/O in the last ~10 s) are listed separately because their numbers are all zero. Click a row for its history; press <kbd>/</kbd> to search.</p></div></div>
+<div id="thread-details" class="card" style="margin-top:14px">
+<div class="card-head"><h3>Thread details</h3></div>
 <div class="toolbar">
 <div class="seg" role="group" aria-label="Which threads to show"><button data-activity="active" aria-pressed="true">Active <span id="n-active" class="muted"></span></button><button data-activity="idle" aria-pressed="false">Idle <span id="n-idle" class="muted"></span></button><button data-activity="all" aria-pressed="false">All <span id="n-all" class="muted"></span></button></div>
 <input id="search" type="search" placeholder="Thread name, TID or wait channel" aria-label="Find thread">
@@ -373,11 +413,38 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="chips-title">State / block type</div><div id="state-chips" class="chips"></div>
 <div class="chips-title">Wait channel <span style="text-transform:none;letter-spacing:0">(kernel function the thread is blocked in)</span></div><div id="wchan-chips" class="chips"></div>
 <p id="idle-summary" class="muted" style="margin:0 0 8px;font-size:13px"></p>
-<div class="table-wrap"><table><thead><tr><th data-sort="name" title="Thread name (comm) and thread ID">Thread</th><th title="Thread group from the collector config">Group</th><th title="Most recent scheduler state and the kernel function it is waiting in (wchan)">State / wait channel</th><th title="Thread states over the last ~10 seconds">Last ~10 s</th><th data-sort="cpu_pct" class="num" title="CPU time used, as a share of one core; the line shows the last two minutes">CPU</th><th data-sort="run_delay_pct" class="num" title="Time spent runnable but waiting for a CPU">Run delay</th><th data-sort="switches_per_s" class="num" title="Context switches per second">Switches/s</th><th data-sort="io" class="num" title="Bytes read per second">Read/s</th><th data-sort="io" class="num" title="Bytes written per second">Write/s</th><th data-sort="major_faults_per_s" class="num" title="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" title="CPU core the thread last ran on">Core</th></tr></thead><tbody id="threads"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th data-sort="name" data-hint="Thread name (comm) and thread ID">Thread</th><th data-hint="Thread group from the collector config">Group</th><th data-hint="Most recent scheduler state and the kernel function it is waiting in (wchan)">State / wait channel</th><th data-hint="Thread states over the last ~10 seconds">Last ~10 s</th><th data-sort="cpu_pct" class="num" data-hint="CPU time used, as a share of one core; the line shows the last two minutes">CPU</th><th data-sort="run_delay_pct" class="num" data-hint="Time spent runnable but waiting for a CPU">Run delay</th><th data-sort="switches_per_s" class="num" data-hint="Context switches per second">Switches/s</th><th data-sort="io" class="num" data-hint="Bytes read per second">Read/s</th><th data-sort="io" class="num" data-hint="Bytes written per second">Write/s</th><th data-sort="major_faults_per_s" class="num" data-hint="Major page faults per second (needed disk I/O)">Maj. faults/s</th><th class="num" data-hint="CPU core the thread last ran on">Core</th></tr></thead><tbody id="threads"></tbody></table></div>
 </div>
-<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
+</div>
 </section>
 
+<!-- What the threads share: pressure stalls, limits, socket queues and the
+     network stack. Live values come from /api/live; trends come from the
+     collector's stored resource samples (/api/resources). -->
+<hr class="section-separator" aria-hidden="true">
+<section id="resources" class="block">
+<div class="section-head"><div><h2>Pressure, limits &amp; sockets</h2><p id="resources-sub">What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers.</p></div>
+<div class="seg" role="group" aria-label="Resource history range"><button data-res-range="900" aria-pressed="true">15 min</button><button data-res-range="3600" aria-pressed="false">1 h</button><button data-res-range="21600" aria-pressed="false">6 h</button><button data-res-range="86400" aria-pressed="false">24 h</button></div></div>
+<p id="resources-empty" class="socket-empty" hidden></p>
+<div id="resources-content">
+<div id="resource-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Pressure stalls (PSI)</h3><p>Share of time tasks were stalled waiting for a resource. <b>Some</b>: at least one task waited. <b>Full</b>: every non-idle task waited at once, so no work got done. Peaks per interval.</p></div><select id="pressure-scope" aria-label="Pressure scope"><option value="cgroup">Target's cgroup</option><option value="host">Whole host</option></select></div>
+<div id="chart-pressure" class="chart" role="img" aria-label="Pressure stall history"></div><div id="pressure-legend" class="legend"></div>
+<div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Resource</th><th class="num" data-hint="Target's cgroup: some, over the last sample interval">Cgroup some</th><th class="num" data-hint="Target's cgroup: full, over the last sample interval">Cgroup full</th><th class="num" data-hint="Whole host: some, over the last sample interval">Host some</th><th class="num" data-hint="Whole host: full, over the last sample interval">Host full</th></tr></thead><tbody id="pressure-rows"></tbody></table></div></div>
+<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.</p></div></div><div id="limits"></div><dl id="limit-facts" class="facts"></dl></div>
+</div>
+<div class="grid g-2-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Bytes waiting in the target's sockets</h3><p>Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.</p></div></div><div id="chart-queues" class="chart" role="img" aria-label="Socket queue history"></div><div id="queues-legend" class="legend"></div></div>
+<div class="card"><div class="card-head"><div><h3>Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th>Counter</th><th class="num" data-hint="Per second over the last sample interval">Now</th><th class="num" data-hint="Added up over the selected range">In range</th><th class="num" data-hint="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
+</div>
+<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
+<div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" data-hint="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th data-hint="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" data-hint="Bytes not yet sent or acknowledged">Send-Q</th><th data-hint="Send buffer use">Send buffer</th><th class="num" data-hint="Packets this socket dropped; + in the last interval">Drops</th><th class="num" data-hint="Smoothed round-trip time">RTT</th><th class="num" data-hint="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
+<p id="resource-coverage" class="socket-note"></p></div>
+</div>
+</section>
+
+<hr class="section-separator" aria-hidden="true">
 <section id="socket-panel" class="block card" aria-labelledby="socket-title">
 <div class="socket-heading"><h2 id="socket-title">Socket I/O &amp; message processing</h2><span id="socket-status" class="socket-badge" role="status">Checking observer…</span></div>
 <p id="socket-scope" class="socket-note">Measure traffic handled by each thread, and application messages completed.</p>
@@ -400,15 +467,60 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <details><summary>What is measured · setup</summary><p>Received and sent bytes are the successful byte counts reported by observed kernel socket operations. Sent means accepted by the socket, not delivered to the peer. Peeks, failed operations and UDP are excluded. A receive operation can contain part of one message or many messages.</p><p>Messages processed counts calls to an explicit application completion marker, one call per successfully processed message. It is never inferred from read calls or bytes.</p><p>Start the optional source on the target host: <code>build/triangulator-socket-sampler PID COLLECTOR-IP:PORT build/socket.bpf.o</code>. Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion counts. The source needs kernel BTF, socket length tracepoints and BPF tracing privileges. The normal sampler continues without extra privileges. See <code>docs/socket-ingress-design.md</code> for coverage and setup.</p></details>
 </section>
 
+<!-- The target's virtual address space. The summary comes from /api/live;
+     the layout from /api/memory-map, fetched when a new one arrives. -->
+<hr class="section-separator" aria-hidden="true">
+<section id="memory-map" class="block">
+<div class="section-head"><div><h2>Memory map</h2><p id="memory-sub">The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds.</p></div></div>
+<p id="memory-empty" class="socket-empty" hidden></p>
+<div id="memory-content">
+<div id="memory-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"></div>
+<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Findings</h3><p>Worked out in the browser from the latest memory-map, resource and thread samples.</p></div></div><ul id="memory-findings" class="mem-findings"></ul></div>
+<div class="grid g-mem" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3>Address space <span id="memory-region-count" class="muted" style="font-weight:400"></span></h3><p>High addresses at the top. Unmapped spaces between mappings are shortened.</p></div></div>
+<div id="memory-amap" class="amap"></div>
+<div class="legend">
+<span><i class="sw" style="background:var(--k-code)"></i>program / library code</span>
+<span><i class="sw" style="background:var(--k-heap)"></i>heap (brk)</span>
+<span><i class="sw" style="background:var(--k-anon)"></i>anonymous (arenas, mmap)</span>
+<span><i class="sw" style="background:var(--k-stack)"></i>stack</span>
+<span><i class="sw" style="background:var(--k-file)"></i>file mapping</span>
+<span><i class="sw" style="background:var(--k-guard)"></i>guard (no access)</span>
+<span><i class="sw" style="background:var(--k-kernel)"></i>kernel</span>
+</div>
+<p class="mem-hint">The darker part of a bar is its size on a log scale, from 4 KB to the largest bar. Adjacent mappings of the same kind are joined into one bar. Mapped is not resident: a bar can be large and use little RAM. Click a bar to zoom.</p></div>
+<div class="grid">
+<div class="card"><div class="card-head"><div><h3>Zoom: <code id="memory-zoom-name"></code></h3><p id="memory-zoom-sub" class="mono"></p></div></div>
+<dl id="memory-zoom-facts" class="facts four"></dl>
+<p id="memory-grid-caption" class="muted" style="font-size:12px;margin:14px 0 6px"></p>
+<div id="memory-grid" class="pagegrid"></div>
+<div class="legend">
+<span><i class="sw" style="background:var(--k-anon)"></i>mapped (color = kind)</span>
+<span><i class="sw cell-guard"></i>guard (no access)</span>
+<span><i class="sw cell-none"></i>not mapped</span>
+<span><i class="sw cell-new" style="background:var(--k-anon)"></i>mapped since the previous layout</span>
+</div>
+<p class="mem-hint">Each square shows what <code>/proc/PID/maps</code> has at those addresses. Which pages are resident, dirty or swapped needs <code>/proc/PID/pagemap</code>, which the sampler does not read yet.</p>
+<div id="memory-charts" class="mem-charts"></div>
+<p class="mem-hint">Charts cover the last 15 minutes this page has been open. The heap grows up when the allocator calls <code>brk</code>; the main stack grows down when a page fault touches below it. Both move in whole pages.</p>
+<div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th>Region</th><th>Start</th><th class="num">Size</th><th data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div>
+</div>
+<div class="card"><div class="card-head"><div><h3>Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
+</div>
+</div>
+</div>
+</section>
+
+<hr class="section-separator" aria-hidden="true">
+<section id="monitor" class="block">
+<div class="section-head"><h2>Monitor</h2></div>
+<div class="card"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
 <div class="notes">
 <details hidden><summary>Recent alert events</summary><div id="recent"></div></details>
 <details><summary>Monitor diagnostics (raw health JSON)</summary><pre id="diagnostics"></pre></details>
-<details><summary>How to read this page</summary>
-<p>States come from the thread's scheduler state and kernel wait channel (<code>/proc/&lt;tid&gt;/wchan</code>), readable without extra privileges; futex waits cannot be split into lock, condition or timed idle. CPU is per thread, relative to one core, so a process can exceed 100%. Thread-table read/write rates mix read- and write-family syscall traffic and do not cover every receive API; use the socket panel for explicitly observed socket operations.</p>
-<p>The process overview is computed in this browser tab from the live feed and kept for up to 15 minutes (it survives a reload of this tab, not a new tab). Per-thread history beyond that comes from the collector's 5-second summaries in SQLite. The assessment uses fixed rules of thumb: a thread at or above 90% of a core, run delay over a quarter of CPU time, any thread in uninterruptible kernel wait, any major page fault, stopped threads, sampler silence and packet loss over 1%. Treat it as a pointer to where to look, not a diagnosis.</p>
-<p>Pressure, limits and sockets come from the sampler's resource samples (every <code>resource_interval_s</code>, 5 s by default), read without privileges: pressure stall information for the host and the target's cgroup, <code>/proc/&lt;pid&gt;/fd</code>, <code>limits</code> and <code>io</code>, the target's own sockets through sock_diag (what <code>ss</code> uses), and its network namespace's counters. Their assessment rules: I/O pressure over 10% (some) or 5% (full); memory pressure over 5% or 2%; CPU pressure over 20%; descriptors over 75% of the soft limit; a buffer or accept backlog over 80% full; any accept-queue, receive-buffer or UDP drops; retransmissions over 1% of segments; TCP memory pressure; and 10 or more connections in CLOSE-WAIT. See <code>docs/resource-monitoring.md</code>.</p>
-</details>
+<details><summary>How to read this page</summary><p>Read the scope, unit, time interval, and data status before interpreting a metric. Pause over a label or value for 1.2 seconds, or select its information button.</p><button id="page-help" type="button">Open page guide</button></details>
 </div>
+</section>
 </main>
 
 <div id="scrim" class="scrim"></div>
@@ -427,11 +539,17 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <h3 style="margin-top:12px">Run delay</h3><div id="history-delay" class="chart"></div>
 <h3 style="margin-top:12px">State mix</h3><div id="history-states" class="chart"></div><div id="legend" class="legend"></div>
 <h3 style="margin-top:12px">I/O</h3><div id="history-io" class="chart"></div><div class="legend"><span><i class="sw line" style="background:var(--series-1)"></i>Read/s</span><span><i class="sw line" style="background:var(--series-2)"></i>Write/s</span></div>
-<details style="margin-top:12px"><summary>Table view</summary><div class="table-wrap" style="max-height:340px;margin-top:8px"><table><thead><tr><th title="Start of the time bucket">Time</th><th class="num" title="CPU time used, as a share of one core">CPU</th><th class="num" title="Time spent runnable but waiting for a CPU">Run delay</th><th class="num" title="Bytes read per second">Read/s</th><th class="num" title="Bytes written per second">Write/s</th><th title="Number of samples in this bucket">Samples</th><th title="Share of samples in each thread state">State mix</th></tr></thead><tbody id="history-rows"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Table view</summary><div class="table-wrap" style="max-height:340px;margin-top:8px"><table><thead><tr><th data-help="history" data-hint="Start of the time bucket">Time</th><th class="num" data-hint="CPU time used, as a share of one core">CPU</th><th class="num" data-hint="Time spent runnable but waiting for a CPU">Run delay</th><th class="num" data-hint="Bytes read per second">Read/s</th><th class="num" data-hint="Bytes written per second">Write/s</th><th data-hint="Number of samples in this bucket">Samples</th><th data-hint="Share of samples in each thread state">State mix</th></tr></thead><tbody id="history-rows"></tbody></table></div></details>
 </div>
 </div>
 </aside>
-<div id="tip" role="tooltip"></div>
+<div id="tip" role="tooltip" hidden></div>
+<div id="help-scrim" hidden></div>
+<aside id="help-guide" aria-labelledby="help-guide-title" hidden>
+<div class="help-guide-head"><div class="help-guide-top"><span>METRIC GUIDE</span><button id="help-guide-close" type="button" aria-label="Close metric guide">Close ×</button></div><button id="help-back-thread" type="button" hidden>← Back to thread</button><h2 id="help-guide-title" tabindex="-1"></h2></div>
+<div id="help-guide-body"></div>
+<div class="help-preference"><label><input id="hover-help" type="checkbox" checked> Show help on hover or focus</label></div>
+</aside>
 
 <script>
 'use strict';
@@ -488,11 +606,318 @@ function updateLoadAverage(point){const value=loadOf(point);
   const averages=loadState?loadState.averages.map((average,index)=>{const step=Math.min(point.t-loadState.t,30),decay=Math.exp(-step/[60,300,900][index]);return average*decay+value*(1-decay)}):[value,value,value];
   loadState={averages,t:point.t};point.l1=averages[0]}
 
-// ---------- Tooltip ----------
+// ---------- Contextual help ----------
 const tip=element('tip');
-function showTip(event,title,rows){tip.replaceChildren();if(title)tip.append(node('div',title,'tt'));for(const row of rows){const line=node('div',undefined,'tr');if(row.color){const key=node('i',undefined,'sw line');key.style.background=row.color;line.append(key)}line.append(node('strong',row.value),node('span',row.label||''));tip.append(line)}
-  tip.classList.add('show');const box=tip.getBoundingClientRect();let x=event.clientX+14,y=event.clientY+14;if(x+box.width>innerWidth-8)x=event.clientX-box.width-14;if(y+box.height>innerHeight-8)y=event.clientY-box.height-14;tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'}
-function hideTip(){tip.classList.remove('show')}
+// One content source for hover cards, detailed guides, and the page guide.
+const HELP={};
+const helpNames=new Map();
+function helpTopic(id,title,scope,meaning,example,reading,limits,related=[],aliases=[]){
+  HELP[id]={id,title,scope,meaning,example,reading,limits,related,aliases};
+  for(const name of [title,...aliases])helpNames.set(name.toLowerCase(),id);
+}
+helpTopic('cpu','CPU','One core · percentage','CPU time used, as a percentage of one CPU core.','50% means 0.5 seconds of CPU time per elapsed second.','Compare CPU use with run delay. Process CPU sums all reported threads and can exceed 100%.','A high value can be normal for a busy worker. CPU use alone does not establish a problem.',['delay','pressure','cores'],['Recent live CPU']);
+helpTopic('delay','Run delay','Elapsed time · percentage','Time a thread was ready to run but waited for a CPU.','12% means 120 ms waiting per elapsed second.','Persistent delay can indicate competition for CPU time. Compare CPU use, cgroup CPU pressure, and quota throttling.','Sleep and futex wait are separate measurements. Run delay alone does not identify a cause.',['cpu','pressure','throttle']);
+helpTopic('load','Process load','Process · 1-, 5-, and 15-minute averages','Smoothed demand from CPU use, runnable delay, and threads in uninterruptible kernel wait.','1.00 represents about one core of demand.','Compare the three averages to see whether demand is increasing. The chart window controls what is visible, not the averaging period.','This estimate covers the target process. It is not the host load average. Live averages need observations in this browser tab.',['cpu','delay','kernel'],['1-minute load']);
+helpTopic('active','Active threads','Threads · preceding ~10 seconds','Threads with recent CPU use, context switches, or I/O. Blocked or stopped threads are not treated as idle.','An idle worker can still be waiting normally for its next task.','Active, Idle, and All change which threads are listed. Clear filters to restore the default view.','Idle does not mean exited. A sampling gap is not evidence of inactivity.',['states','switches'],['Activity','Threads','Active','Idle','All','Which threads to show']);
+helpTopic('switches','Context switches','Events per second','How often the scheduler switches execution to or from the observed threads.','200/s means 200 context switches per elapsed second.','Compare changes with CPU use and wait states. Frequent switching can accompany normal I/O or synchronization.','This rate alone does not identify overhead or distinguish every reason for a switch.',['cpu','states'],['Switches/s']);
+helpTopic('sysio','Disk & syscall I/O','Thread or process · bytes per second','Traffic counted by the sampled read- and write-family system-call counters.','1 KiB/s is 1,024 bytes counted per elapsed second.','Use the resource Disk I/O panel for block-layer activity. Use Socket I/O for explicitly observed socket operations.','These counters do not cover every receive API and are not a measure of bytes transferred by the disk device.',['disk','socketio'],['Read/s','Write/s','I/O']);
+helpTopic('faults','Major faults','Faults per second','Page faults that required I/O to bring a page into memory.','2/s means two major page faults per elapsed second.','Compare a sustained increase with memory pressure, RSS, and disk I/O.','A major fault is not an application crash. A single fault does not prove memory pressure.',['rss','pressure','disk'],['Maj. faults/s','Major faults/s']);
+helpTopic('churn','Thread churn','Process · preceding minute','Threads observed starting or ending during the last minute.','+4 / −2 means four starts and two ends were observed.','Compare sustained churn with worker-pool behavior and process restarts.','Threads that start and end between samples can be missed.',['thread','health']);
+helpTopic('states','Thread states','Sampled scheduler state and wait channel','A sampled classification of what a thread is doing or waiting for.','Futex wait can indicate a lock, condition variable, or timed idle wait.','Read the state together with CPU use, run delay, and the kernel wait channel. Select a state to filter the table.','Samples can miss brief transitions. A wait state does not establish that the application is unhealthy.',['futex','kernel','mix'],['What the threads are doing','State / wait channel','State / block type']);
+helpTopic('mix','State mix','Share of observed samples','The proportion of samples classified into each thread state.','Six running samples out of ten gives a 60% running sample share.','Use the displayed interval and sample count when comparing the colored bands.','Sample share is not an exact trace of time spent in each state. Missing samples reduce coverage.',['states','history'],['Last ~10 s']);
+const stateHelp={running:['Running','The scheduler reports the thread running or ready to run.','This state does not prove that it occupied a CPU for the full interval.'],futex:['Futex wait','The kernel wait channel indicates a futex wait, often used for synchronization.','A lock, condition variable, or timed idle wait can use futex. This sample cannot distinguish them.'],poll:['Poll / epoll','The thread is waiting in a poll-style event loop.','Waiting for events can be normal. Check whether work is expected.'],socket:['Socket wait','The sampled wait channel indicates a socket-related wait.','The state does not identify which peer or socket caused the wait.'],pipe:['Pipe / eventfd','The thread is waiting on a pipe or event notification.','This state can be normal coordination between threads.'],sleep:['Sleep','The sampled wait channel indicates a sleep or timer wait.','A sleeping thread is not necessarily blocked by a resource problem.'],stopped:['Stopped','The thread is stopped, for example by a signal or debugger.','Check the expected process state before treating this as a fault.'],kernel:['Kernel wait (D)','The scheduler reports uninterruptible kernel wait.','This often involves I/O, but the state alone cannot identify the device or cause.'],other:['Other','The sample does not match a more specific state category.','Do not interpret this category as running or as an error.'],no_access:['No access','The sampler could not read enough information to classify this thread.','Unavailable observations are not zero activity. Check access and monitor health.']};
+for(const [id,[title,meaning,limits]] of Object.entries(stateHelp))helpTopic(id,title,'Thread · sampled state',meaning,'','Compare the wait channel and recent thread history.',limits,['states','wchan']);
+helpTopic('wchan','Wait channel','Thread · kernel function','The kernel function in which a sampled thread is waiting.','','Select a wait-channel bar or filter to inspect the matching threads.','Kernel function names depend on the kernel. A name alone does not identify an application call site.',['states','futex'],['Where threads wait']);
+helpTopic('map','Thread map','One tile per reported thread','Tiles group threads by current state. Each visible number is CPU use relative to one core.','A faded tile is idle; its color still represents its sampled state.','Now uses the preceding ~10 seconds. Other windows average CPU observations retained in this tab. Select a tile for thread details.','Color represents the current sampled state even when the CPU number is an average. Short observation history limits the average.',['cpu','states','active'],['Thread map time window']);
+helpTopic('families','Where the CPU goes','Process · CPU grouped by thread','CPU use grouped by name family, configured group, or individual thread.','','Name family removes the numeric suffix. Config group uses the collector configuration. Select a bar to filter where available.','Similar names do not prove that threads do the same work. Percentages of process CPU differ from percentages of one core.',['cpu','group'],['Group CPU by','Name family']);
+helpTopic('cores','Core placement','Last observed CPU core','Thread CPU use grouped by the core on which each thread last ran.','','Uneven bars can indicate affinity or pinning. Compare thread counts with CPU use.','A thread can migrate between samples. These bars are not exact per-core utilization measurements.',['cpu','thread'],['Core','Last core']);
+helpTopic('group','Group','Collector configuration','The configured group assigned to a thread.','','Use the group filter to compare a known set of worker threads.','A configured group is different from a name family or a Linux cgroup.',['families','pressure']);
+helpTopic('thread','Thread / TID','Thread identity','The Linux thread name and thread ID identify a reported thread.','','Select a row or map tile to open its history. Search matches the name, TID, and wait channel.','Linux can reuse a TID. Stored history also uses the thread generation and sampler session.',['history','session'],['Thread','Busiest thread','Find socket thread']);
+helpTopic('health','Monitor health','Sampler and collector','Connection status, sample timing, packet handling, and retained observations.','','Check monitor health before interpreting gaps or a lack of activity.','A connected sampler does not guarantee complete data. Silence and packet loss can limit every metric.',['loss','interval','session'],['Sampler','Last data','Last sample','Sampler address','Monitor diagnostics (raw health JSON)']);
+helpTopic('interval','Sample interval','Sampler · milliseconds','The configured time between thread samples.','200 ms corresponds to five samples per second.','Resource samples and the optional socket observer have separate reporting intervals.','Short events between samples can be missed. A shorter interval increases sampling overhead.',['health','history']);
+helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The reported share of missing sampler packets in the last minute.','','Compare loss with sample age and incomplete data before drawing conclusions.','Packet loss in the monitor is different from application network drops.',['health','netdrops']);
+helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
+helpTopic('target','Process name or PID','Target selection','An exact process name follows matching process restarts. A PID selects one running process.','worker-service selects an exact name; 1234 selects a process ID.','A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.','Linux process names are limited to 15 bytes. A thread ID is not a process ID.',['session','health'],['Change target']);
+helpTopic('replay','Inspect a moment','Recording · local time','Inspect the nearest available recording at or before the selected local date and time.','','Compare the requested time with the returned recording time. Previous and Next move between recordings; Live resumes the live view.','Recording can be disabled. A recording is not an interpolated frame, and old summaries cannot reconstruct a complete snapshot.',['history','health'],['Inspection time','Previous recorded snapshot','Next recorded snapshot','Latest recording','Inspect time','Live']);
+helpTopic('history','History','Thread · stored five-second summaries','Stored summaries show CPU, run delay, state samples, and I/O for the selected thread generation.','','Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.','Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.',['replay','mix','samples'],['From','To','History range','Chart time window','Load']);
+helpTopic('samples','Samples','Count per stored bucket','The number of observations included in a stored summary bucket.','','Use the count to assess how much data supports the state mix and rates.','A partial bucket or packet loss can reduce the count.',['history','loss']);
+helpTopic('pressure','Pressure stalls (PSI)','Displayed host or cgroup · time share','Pressure stall information measures time tasks waited for CPU, memory, or I/O.','Some: at least one task waited. Full: all non-idle tasks waited at once.','Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.','The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.',['throttle','rss','disk'],['Pressure, limits & sockets','Pressure scope','CPU pressure','Memory pressure','I/O pressure','Cgroup some','Cgroup full','Host some','Host full','Resource']);
+helpTopic('rss','Memory (RSS)','Process · bytes in RAM','Resident set size is the process memory currently held in RAM.','','Compare current RSS with its peak, swap use, and growth. Use memory pressure to understand stalls.','Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone does not establish a leak.',['pressure','cgroupmem']);
+helpTopic('disk','Disk I/O','Process · block-layer bytes per second','Storage traffic attributed to the process by the block-layer counters.','','Compare read/write rates with I/O pressure and major page faults.','Caching can make storage traffic differ from application read/write traffic.',['sysio','pressure','faults']);
+helpTopic('fds','Open files','Process · descriptors and soft limit','The number of open file descriptors relative to the process soft descriptor limit.','Sockets also consume file descriptors.','At the soft limit, open(), accept(), and socket() can fail with EMFILE. Compare growth with expected workload.','The hard limit restricts changes to the soft limit. An unknown limit is not unlimited.',['limits','socketio']);
+helpTopic('limits','Limits & headroom','Process, cgroup, or host as labeled','Resource usage compared with the limit or pressure threshold shown on each row.','','Read the scope and denominator before comparing percentages. No configured limit differs from an unavailable limit. Meter colors change at 75% and 90%. Assessment findings can use different thresholds.','A high percentage suggests less remaining capacity; it does not by itself establish a leak.',['fds','cgroupmem','throttle']);
+helpTopic('cgroupmem','Cgroup memory','Target cgroup · bytes','Memory charged to the target cgroup, including page cache and other tasks in that cgroup.','','Compare memory.current with memory.max and memory.high. Limit events and OOM kills indicate that a boundary was reached.','This value is not the target process RSS. Reclaimable cache can form part of the total.',['rss','pressure']);
+helpTopic('throttle','CPU throttling','Cgroup · share of CPU periods','The share of CPU periods in which the cgroup exhausted its CPU quota.','25% means throttling occurred in one quarter of the observed periods.','Compare quota, CPU pressure, and run delay. Tasks can wait for quota even when host cores are idle.','The denominator is CPU periods, not elapsed time.',['delay','pressure','cpu'],['CPU throttled']);
+helpTopic('pids','Processes & threads','Target cgroup · task count','Task usage compared with the cgroup pids.max limit.','','Near the limit, process and thread creation can fail with EAGAIN.','The count includes processes and threads in the cgroup, not only the target process.',['limits','churn']);
+helpTopic('sockmem','TCP memory','Host · socket memory','Socket memory use compared with the host pressure threshold shown on the meter.','','The kernel can restrict socket buffers under memory pressure. The displayed row also gives the hard memory boundary.','These values cover the host and cannot be attributed to one process.',['limits','queues'],['UDP memory','Max SO_RCVBUF (rmem_max)','Max SO_SNDBUF (wmem_max)']);
+helpTopic('backlog','Accept backlog','Listener · connections','Connections waiting for the application to call accept(), compared with the listener backlog.','','Compare backlog use with listen drops and overflows.','Listener queues use connection counts, not bytes. A full queue can have several causes.',['recvq','netdrops'],['Max listen backlog (somaxconn)']);
+helpTopic('queues','Bytes waiting in the target\'s sockets','Target sockets · bytes','Data queued in the target sockets for receiving or sending.','','Compare unread receive data with send data awaiting transmission or acknowledgement. Charts use the selected resource history range.','A queue does not identify a cause by itself. Missing socket coverage is not an empty queue.',['recvq','sendq','coverage'],['Queued in sockets','Fullest sockets','Receive queue (unread)','Send queue (unsent)']);
+helpTopic('recvq','Recv-Q','Socket · bytes; listener · connections','Received bytes waiting for the application to read them. For a listener, connections waiting for accept().','','Compare sustained queue growth with receive buffer use.','Buffer fill uses queued memory and the buffer limit, which can differ from payload byte counts.',['backlog','queues'],['Receive buffer']);
+helpTopic('sendq','Send-Q','Socket · queued bytes','Bytes not yet sent or acknowledged, depending on the socket kind.','','Compare queue growth with send buffer use, RTT, and retransmissions.','Queued data alone does not prove that the peer is slow.',['rtt','retrans','queues'],['Send buffer']);
+helpTopic('rtt','RTT','TCP socket · time','Smoothed round-trip time for the socket.','','Compare sustained changes with retransmissions and queue growth.','RTT is not the application request or message-processing time.',['retrans','sendq']);
+helpTopic('retrans','TCP retransmits','TCP segments · displayed scope and interval','TCP segments sent again after loss or other delivery uncertainty.','','Per-socket values cover one socket. Resource counters cover the target network namespace.','Retransmissions do not identify where on the path the problem occurred.',['rtt','netdrops'],['Retrans']);
+helpTopic('netdrops','Network drops','Target network namespace','Selected counters for dropped packets or connections in the target network namespace.','','Now is a rate over the latest interval. In range sums available interval deltas. Total is the cumulative counter. Read each counter definition.','Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.',['health','retrans','coverage'],['Network stack drops & errors']);
+helpTopic('endpoint','Socket','Socket identity and state','Socket kind, current state, and the local and peer endpoint identify an observed socket.','','Compare queue use and errors for the same endpoint. Unnamed Unix sockets need not have a path.','A socket can disappear between samples. State and endpoint alone do not identify the owning application operation.',['queues','coverage'],['Local → peer','Socket kind','TCP sockets in namespace']);
+helpTopic('closewait','CLOSE-WAIT','TCP sockets','The peer closed its side, but the local application has not closed its socket.','','A sustained or growing count can indicate missing socket cleanup.','A brief CLOSE-WAIT state can be normal during shutdown.',['endpoint','fds']);
+helpTopic('socketio','Socket I/O & message processing','Optional observer · target process','Traffic measured by observed socket operations, with optional application completion counts.','','The cards and chart cover the whole process. Thread and socket-kind filters affect the breakdown only, which includes retired threads.','Received/sent bytes exclude peeks, failed operations, and UDP. A receive call can contain part of a message or many messages.',['received','sent','messages'],['What is measured · setup']);
+helpTopic('received','Socket received','Observed successful socket operations · bytes','Successful byte counts returned by observed receive operations.','','Compare the rate with message completions when application markers are enabled.','Coverage is specific to the observer. Receive calls and byte counts do not define application messages.',['socketio','messages'],['↓ Received','Received']);
+helpTopic('sent','Socket sent','Observed successful socket operations · bytes','Bytes accepted by observed socket send operations.','','Compare sent and received rates with queue use.','Acceptance by the socket does not prove delivery to the peer.',['socketio','sendq'],['↑ Sent','Sent']);
+helpTopic('messages','Messages processed','Application completion markers','Calls to an explicit application marker, one per successfully processed message.','','A configured completion marker is required. Compare completions with byte rates to understand workload changes.','Message counts are never inferred from read calls or byte counts.',['socketio','received'],['Messages','✓ Messages processed']);
+helpTopic('rates','Socket rates','Process or breakdown · per second','Current, average, minimum, and maximum rates over their labeled observation windows.','','Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.','Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.',['coverage','socketio'],['Current rate','Now /s','Average since start','Average /s','Recent minimum','Recent min /s','Recent maximum','Recent max /s']);
+helpTopic('coverage','Data coverage','Available observations','Coverage notes identify missing, partial, stale, or unavailable observations.','','Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.','Do not treat gaps or unreadable values as zero activity.',['health','socketio']);
+helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['health','cpu','pressure'],['What it means']);
+helpTopic('alerts','Alert settings','Separate alerting program','Rules evaluate observations and manage alert state outside the collector.','','Read the unit and duration for each threshold. Saving applies changes immediately. Disabling a rule resolves its open alerts; Reset restores configured settings.','Alert delivery and rule evaluation are separate. The feature is shown only when an alerting program is available.',['assessment','health'],['Open alerts','Recent alert events','On','Rule','Settings','Save changes','Reset to config file']);
+helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
+
+helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU time, expressed in cores used.','1.5 cores means 1.5 seconds of CPU time per elapsed second.','Compare CPU cores used with process load and runnable demand.','This is CPU use by the process, not the number of host cores.',['cpu','load'],['On CPU']);
+helpTopic('demand','Waiting for CPU','Process · percentage of runnable demand','Run delay as a share of CPU time plus run delay, summed across reported threads.','With 0.75 seconds on CPU and 0.25 seconds waiting, the share is 25%.','Compare this share with the thread-table Run delay metric, whose denominator is elapsed time.','Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.',['delay','cpucores','pressure']);
+helpTopic('packetcounts','Bad · duplicate · late','Sampler packets · counters','Packets rejected as invalid, received more than once, or received too late for normal assembly.','','Compare these counters with loss and sample age.','These are monitor transport counters, not application socket errors.',['loss','health']);
+helpTopic('rawsamples','Raw samples held','Collector · observation count','The number of raw thread observations retained in the collector buffer.','','Use this count when checking collector retention and buffer behavior.','This is not a count of active threads or stored history buckets.',['health','history']);
+helpTopic('overview','Process overview','Target process · summed thread observations','A summary of the target process, computed from its reported threads.','','Use load, CPU use, state counts, and wait channels together. Live overview trends are retained in this browser tab for up to 15 minutes. Recorded views show one saved process view.','Browser trends are not the same as stored thread history. Missing observations can limit every total.',['load','cpu','health']);
+const HELP_DELAY=1200,HELP_CLOSE_DELAY=250;
+// Timing is independent of the DOM so redraws cannot shorten the dwell period.
+function createHelpTimer(open,close){
+  let pending=null,current=null,timer=null,closing=null,suppressed=null;
+  function cancel(block=false){if(block)suppressed=current||pending||suppressed;clearTimeout(timer);clearTimeout(closing);timer=closing=null;pending=null;if(current){current=null;close()}}
+  return {
+    get active(){return current||pending},get visible(){return current},get blocked(){return suppressed},
+    request(key,payload,point=null){
+      clearTimeout(closing);closing=null;if(key===suppressed?.key)return;
+      if(suppressed?.key!==key)suppressed=null;
+      if(current?.key===key)return;
+      if(pending?.key===key&&(!point||pending.point&&Math.hypot(point.x-pending.point.x,point.y-pending.point.y)<=8)){pending.payload=payload;return}
+      cancel();pending={key,payload,point};
+      timer=setTimeout(()=>{const next=pending;pending=null;timer=null;if(next&&open(next.payload)!==false)current=next},HELP_DELAY);
+    },
+    leave(keep=()=>false){clearTimeout(closing);if(keep())return;clearTimeout(timer);timer=null;pending=null;
+      if(!current){suppressed=null;return}closing=setTimeout(()=>{if(!keep()){cancel();suppressed=null}},HELP_CLOSE_DELAY)},
+    cancel,release(){suppressed=null}
+  };
+}
+let helpPointerType='mouse',helpPointerPosition=null;
+let helpEnabled=true,helpOpener=null,helpReturnThread=false,helpThreadScroll=0,helpContext=null,helpModal=false;
+try{helpEnabled=localStorage.getItem('triangulator:hover-help')!=='off'}catch{}
+const helpTimer=createHelpTimer(openHelpCard,closeHelpCard);
+const helpText=el=>(el?.textContent||'').replace(/ⓘ/g,'').trim();
+function topicForText(text){return helpNames.get(text.toLowerCase().trim())}
+function addHelp(label,id){
+  if(!label||!HELP[id]||label.querySelector?.('.help-button'))return;
+  label.dataset.help=id;
+  const button=node('button',undefined,'help-button');button.type='button';button.dataset.help=id;
+  if(!['H2','H3'].includes(label.tagName))button.classList.add('help-quiet');
+  button.setAttribute('aria-label','Explain '+HELP[id].title);button.setAttribute('aria-controls','help-guide');button.setAttribute('aria-expanded','false');
+  label.append(button);
+}
+function helpButtonLabel(text,id,className,tag='div'){const label=node(tag,text,className);addHelp(label,id||topicForText(text));return label}
+function observeHelp(host,data){host.dataset.helpObserved='';host._helpObserved=data}
+function helpOwns(host){const active=helpTimer.active,blocked=helpTimer.blocked?.payload.target;return !!(active&&host.contains?.(active.payload.target))||!!(blocked&&host.contains?.(blocked)&&(blocked.matches(':hover')||blocked.contains(document.activeElement)))||!!(helpContext&&host.contains?.(helpOpener))}
+function helpColumn(cell){
+  const row=cell.parentElement;let index=0;
+  for(const sibling of row.children){if(sibling===cell)break;index+=sibling.colSpan||1}
+  return cell.closest('table')?.querySelectorAll('thead th')[index];
+}
+function helpTarget(start){
+  if(!start?.closest||start.closest('#tip,#help-guide'))return null;
+  const target=start.closest('[data-help],[data-hint],td,.tile,.bar-row,.cell,.core,.meter,.legend>span,.health-list>div,.facts>div,.mini-tiles>div,.kv,.chip');
+  if(!target)return null;
+  const column=target.closest('td');
+  let id=target.dataset.help||column?.parentElement.dataset.help;
+  if(!id&&column)id=column.colSpan>1?'active':helpColumn(column)?.dataset.help;
+  if(!id){const label=target.querySelector('[data-help],.label,.k,dt');if(label?.dataset.help)id=label.dataset.help;id=id||topicForText(helpText(label||target))}
+  if(!id&&target.closest('.legend')){const label=Array.from(target.childNodes).filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();id=topicForText(label)}
+  if(!id){const parent=target.closest('.card,section');id=parent?.querySelector('h3[data-help],h2[data-help]')?.dataset.help}
+  if(!id&&target.dataset.hint)id='page';
+  if(!id)return null;
+  const button=target.classList.contains('help-button');
+  return {target:button?target:column||target,id,hint:target.dataset.hint||column?.parentElement.dataset.hint||'',column:button?null:column};
+}
+const helpTargetIds=new WeakMap();let helpTargetSequence=0;
+function helpIdentity(target,id){
+  if(!helpTargetIds.has(target))helpTargetIds.set(target,++helpTargetSequence);
+  return id+'|'+helpTargetIds.get(target);
+}
+function captureHelp(request){
+  const {target,id,column}=request,topic=HELP[id];
+  const row=target.closest('tr'),tid=row?.dataset.tid||target.closest('[data-tid]')?.dataset.tid;
+  const thread=row?._helpThread||(tid?(live.threads||[]).find(item=>item.tid===Number(tid)):null);
+  const resource=!!target.closest('#resources'),socket=!!target.closest('#socket-panel');
+  const observed=target.closest('[data-help-observed]')?._helpObserved||live.resources;
+  const stamp=request.stamp??thread?.last_sample??(resource?observed?.updated:null)??viewNow();
+  let context=thread?`${thread.name} · TID ${thread.tid}`:row?helpText(row.cells?.[0]):'';
+  let value=column?helpText(column):helpText(target.querySelector('.value,.v,.val,dd'));
+  if(value==='—'||value==='')value='Not available';else if(value==='·')value=thread?'0':'Not available';
+  const header=column?helpText(helpColumn(column)):'';
+  let scope=resource&&id==='pressure'?(header.startsWith('Host')?'Whole host':header.startsWith('Cgroup')?'Target cgroup':scopeOf(observed)==='cgroup'?'Target cgroup':'Whole host'):topic.scope;
+  const rateKey={cpu:'cpu_pct',delay:'run_delay_pct',switches:'switches_per_s',faults:'major_faults_per_s',sysio:header==='Write/s'?'write_bps':'read_bps'}[id];
+  if(resource&&isNum(observed?.elapsed_s))scope+=' · interval '+number(observed.elapsed_s,1)+' s';
+  if(thread&&column&&rateKey){scope+=' · preceding ~10 s';const raw=thread[rateKey];value=isNum(raw)?raw===0?'0':value:'Not available'}
+  const warnings=[];
+  if(thread?.stale||resource&&observed?.stale||socket&&socketData?.stale)warnings.push('This observation may be stale.');
+  if(socket&&(socketData?.lower_bound||socketData?.truncated||socketData?.read_error))warnings.push('Observer coverage is incomplete.');
+  if(resource&&(observed?.flags?.sockets_truncated||observed?.flags?.descriptor_scan_truncated))warnings.push('Some sockets or descriptors were not included.');
+  if(id==='recvq'&&column){const listener=helpText(row?.cells?.[0]).includes('LISTEN');if(listener)context+=' · listener: connections, not bytes'}
+  return {...request,topic,scope,context,value,stamp,session:live.health?.session,tid:thread?.tid,generation:thread?.generation,warnings};
+}
+function describeHelp(target,add){
+  if(!target)return;const ids=(target.getAttribute('aria-describedby')||'').split(/\s+/).filter(id=>id&&id!=='tip');
+  if(add)ids.push('tip');if(ids.length)target.setAttribute('aria-describedby',ids.join(' '));else target.removeAttribute('aria-describedby');
+}
+let helpCard=null;
+function openHelpCard(request){
+  if(!helpEnabled||helpContext||!request.target.isConnected)return false;
+  const rect=request.target.getBoundingClientRect();if(rect.bottom<=0||rect.top>=innerHeight||rect.right<=0||rect.left>=innerWidth)return false;
+  helpCard=captureHelp(request);const {topic,scope,context,value,stamp,warnings}=helpCard;
+  tip.replaceChildren(node('div',topic.title,'help-title'),node('div',scope,'help-scope'),node('p',topic.meaning));
+  if(request.rows){
+    tip.append(node('div',request.title,'help-scope'));
+    for(const row of request.rows){const item=node('div',undefined,'help-reading');item.append(node('strong',row.value==='—'?'Not available':String(row.value)),node('span',row.label||''));tip.append(item)}
+  }else if(request.column||value!=='Not available'){
+    const sample=node('div',undefined,'help-sample');sample.append(node('strong',value));if(context)sample.append(node('span',context));tip.append(sample);
+  }
+  tip.append(node('div',(replayAt!==null?'Recorded at ':'At ')+date(stamp),'help-scope'));
+  if(request.hint&&request.hint!==topic.meaning)tip.append(node('p',request.hint));
+  tip.append(node('p',warnings[0]||topic.limits,'help-limit'),node('div','Select the information button for the guide.','help-footer'));
+  tip.hidden=false;tip.classList.add('show');describeHelp(request.target,true);positionHelp();return true;
+}
+function closeHelpCard(){describeHelp(helpCard?.target,false);helpCard=null;tip.hidden=true;tip.classList.remove('show')}
+function positionHelp(){
+  if(!helpCard)return;const r=helpCard.target.getBoundingClientRect(),box=tip.getBoundingClientRect();
+  if(r.bottom<=0||r.top>=innerHeight||r.right<=0||r.left>=innerWidth){helpTimer.cancel();return}
+  const point=helpCard.position;const anchor=point?{left:point.x,right:point.x,top:point.y,bottom:point.y}:r;
+  let x=anchor.right+8,y=anchor.top;
+  if(x+box.width>innerWidth-12)x=anchor.left-box.width-8;
+  if(x<12){x=Math.max(12,Math.min(anchor.left,innerWidth-box.width-12));y=anchor.bottom+8;if(y+box.height>innerHeight-12)y=anchor.top-box.height-8}
+  tip.style.left=Math.max(12,Math.min(x,innerWidth-box.width-12))+'px';tip.style.top=Math.max(12,Math.min(y,innerHeight-box.height-12))+'px';
+}
+function requestHelp(request,key,point){if(!helpEnabled||helpContext)return;helpTimer.request(key||helpIdentity(request.target,request.id),request,point)}
+function onHelpBridge(){if(!helpCard||!helpPointerPosition)return false;const r=tip.getBoundingClientRect(),p=helpPointerPosition;return p.x>=r.left-8&&p.x<=r.right+8&&p.y>=r.top-8&&p.y<=r.bottom+8}
+function holdHelp(){const target=(helpTimer.active||helpTimer.blocked)?.payload.target;return tip.matches(':hover')||onHelpBridge()||!!target&&(target.matches(':hover')||target.contains(document.activeElement))}
+function hideTip(){helpTimer.leave(holdHelp)}
+// Legacy chart/bar readouts now use the same delay, lifetime, and surface.
+function showTip(event,title,rows,options={}){
+  if(event.buttons||event.pointerType==='touch')return;event.helpHandled=true;
+  const target=options.target||event.target.closest('.bar-row,.cell,.core')||event.currentTarget;
+  const owner=helpTarget(target),id=options.id||owner?.id||'page';
+  const request={target,id,title,rows,hint:'',stamp:options.stamp,position:options.point?{x:event.clientX,y:event.clientY}:null};
+  requestHelp(request,(target.id||helpIdentity(target,id))+'|'+(options.key??title),options.point?{x:event.clientX,y:event.clientY}:null);
+}
+function refreshHelp(){
+  const active=helpTimer.active;
+  if(active&&!active.payload.target.isConnected){helpTimer.cancel();return}
+  const row=active?.payload.target.closest('tr');if(row?._helpThread&&(row._helpSession!==live.health?.session||!(live.threads||[]).some(t=>t.tid===row._helpThread.tid&&t.generation===row._helpThread.generation))){helpTimer.cancel();return}
+  if(helpCard){const thread=helpCard.tid?(live.threads||[]).find(t=>t.tid===helpCard.tid&&t.generation===helpCard.generation):null;
+    if(helpCard.session!==live.health?.session||helpCard.tid&&!thread){helpTimer.cancel();return}positionHelp()}
+}
+function guideSection(title,text,className){const section=node('section',undefined,className);section.append(node('h3',title),node('p',text));return section}
+function helpDataTable(chart){
+  const details=node('details'),summary=node('summary','View chart data');details.append(summary);
+  // The chart does not redraw while its guide is open, so rows built on
+  // expansion match the drawn chart.
+  details.addEventListener('toggle',()=>{if(!details.open||details.dataset.loaded)return;details.dataset.loaded='1';
+    const data=chart._helpData();
+    const wrap=node('div',undefined,'help-data'),table=node('table'),head=node('thead'),header=node('tr');
+    for(const label of data.headers)header.append(node('th',label));head.append(header);table.append(head);const body=node('tbody');
+    if(!data.rows.length)details.append(node('p','No chart samples are available in this view.'));
+    for(const values of data.rows){const row=node('tr');for(const value of values)row.append(node('td',value));body.append(row)}table.append(body);wrap.append(table);details.append(wrap);
+  });return details;
+}
+function openGuide(id,opener,request=null){
+  const topic=HELP[id];if(!topic)return;
+  helpTimer.cancel(true);
+  if(!helpContext){helpOpener=opener;helpReturnThread=!!selected&&element('drawer').classList.contains('open');helpThreadScroll=helpReturnThread?document.querySelector('.drawer-body').scrollTop:0;}
+  helpContext={id,request};const guide=element('help-guide'),body=element('help-guide-body');body.replaceChildren();
+  element('help-guide-title').textContent=topic.title;
+  body.append(node('p',topic.scope,'help-scope'),node('p',topic.meaning,'help-intro'));
+  if(request?.hint)body.append(node('p',request.hint));
+  if(topic.example)body.append(guideSection('Example',topic.example,'help-example'));
+  body.append(guideSection('How to read it',topic.reading),guideSection('Measurement limits',topic.limits));
+  const heading=opener?.closest('h3'),next=heading?.nextElementSibling;
+  const chart=id===opener?.dataset.help?(next?.matches('.chart')?next:opener?.closest('.card')?.querySelector('.chart')):null;
+  if(chart?._helpData)body.append(helpDataTable(chart));
+  const related=node('nav',undefined,'help-related');related.setAttribute('aria-label','Related metrics');
+  for(const key of topic.related){const button=node('button',HELP[key].title);button.type='button';button.onclick=()=>openGuide(key,helpOpener);related.append(button)}body.append(related);
+  if(id==='page'){
+    const list=node('div',undefined,'help-topics');for(const entry of Object.values(HELP)){const button=node('button',entry.title);button.type='button';button.onclick=()=>openGuide(entry.id,helpOpener);list.append(button)}body.append(list);
+  }else{const all=node('button','All topics');all.type='button';all.onclick=()=>openGuide('page',helpOpener);body.append(all)}
+  element('help-back-thread').hidden=!helpReturnThread;guide.hidden=false;
+  document.body.classList.add('help-open');element('drawer').hidden=helpReturnThread;
+  if(helpOpener?.classList.contains('help-button'))helpOpener.setAttribute('aria-expanded','true');
+  syncHelpLayout();element('help-guide-title').focus();body.scrollTop=0;
+}
+function syncHelpLayout(){
+  if(!helpContext)return;helpModal=innerWidth<1200;
+  const guide=element('help-guide');guide.setAttribute('role',helpModal?'dialog':'complementary');
+  if(helpModal)guide.setAttribute('aria-modal','true');else guide.removeAttribute('aria-modal');
+  element('help-scrim').hidden=!helpModal;
+  for(const el of document.querySelectorAll('body > header,body > main,body > #drawer,body > #error'))el.inert=helpModal;
+  element('scrim').classList.remove('open');
+  if(helpModal&&!guide.contains(document.activeElement))element('help-guide-title').focus();
+}
+function closeGuide(restore=true){
+  if(!helpContext)return;helpContext=null;helpTimer.cancel(true);
+  element('help-guide').hidden=true;element('help-scrim').hidden=true;document.body.classList.remove('help-open');
+  for(const el of document.querySelectorAll('[inert]'))el.inert=false;
+  element('drawer').hidden=false;
+  if(helpReturnThread&&selected)element('scrim').classList.add('open');
+  if(helpOpener?.isConnected){helpOpener.setAttribute('aria-expanded','false');if(restore)helpOpener.focus({preventScroll:true})}
+  else if(restore){const fallback=element('page-help');fallback.closest('details').open=true;fallback.focus()}
+  if(helpReturnThread&&selected)document.querySelector('.drawer-body').scrollTop=helpThreadScroll;
+  helpReturnThread=false;helpOpener=null;
+}
+function helpKeydown(event){
+  helpPointerType='keyboard';
+  if(event.key==='Escape'&&(helpContext||helpTimer.active)){event.preventDefault();event.stopImmediatePropagation();if(helpContext)closeGuide();else helpTimer.cancel(true);return}
+  if(event.key==='Tab'&&helpContext&&helpModal){const focusable=Array.from(element('help-guide').querySelectorAll('button,input,summary,[href]')).filter(el=>!el.hidden&&el.getClientRects().length);
+    const first=focusable[0],last=focusable.at(-1),at=document.activeElement;
+    if(event.shiftKey&&(at===first||at===element('help-guide-title'))){event.preventDefault();last?.focus()}
+    else if(!event.shiftKey&&at===last){event.preventDefault();first?.focus()}}
+}
+function initHelp(){
+  tip.hidden=true;
+  for(const label of document.querySelectorAll('h2,h3,th,.kv .k')){
+    const title=helpText(label);let id=label.dataset.help||topicForText(title);
+    // Short labels are only meaningful inside their own panel.
+    if(label.closest('.hero-side')&&/^(5|15) min/.test(title))id='load';
+    if(label.closest('table')?.querySelector('#netstack'))id='netdrops';
+    if(label.closest('#socket-panel')&&['Total','Now /s','Average /s','Recent min /s','Recent max /s'].includes(title))id='rates';
+    if(id)addHelp(label,id);
+  }
+  const fields={'target-input':'target','replay-time':'replay',from:'history',to:'history',search:'thread',sort:'active',group:'group','family-mode':'families','pressure-scope':'pressure','sockets-busy-only':'queues','socket-kind':'endpoint','socket-search':'thread'};
+  for(const el of document.querySelectorAll('input,select,button[data-hint]')){
+    // Segmented buttons are named by their group, so "Now" or "5 min" cannot match another topic.
+    const name=el.getAttribute('aria-label')||el.closest('[role=group]')?.getAttribute('aria-label')||el.closest('label')?.firstChild?.textContent||helpText(el);
+    const id=fields[el.id]||topicForText(name);if(id)el.dataset.help=id;
+  }
+  element('target-input').dataset.help='target';element('replay-time').dataset.help='replay';
+  element('live-dot').dataset.help='health';
+  element('page-help').onclick=()=>openGuide('page',element('page-help'));
+  element('help-guide-close').onclick=()=>closeGuide();element('help-back-thread').onclick=()=>closeGuide();element('help-scrim').onclick=()=>closeGuide();
+  const preference=element('hover-help');preference.checked=helpEnabled;preference.onchange=()=>{helpEnabled=preference.checked;helpTimer.cancel();if(helpEnabled)for(const el of document.querySelectorAll('[data-hint][title]'))el.removeAttribute('title');try{localStorage.setItem('triangulator:hover-help',helpEnabled?'on':'off')}catch{}};
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('.help-button');
+    if(button){event.preventDefault();event.stopImmediatePropagation();openGuide(button.dataset.help,button,helpTarget(button));return}
+    if(!event.target.closest('#tip,#help-guide'))helpTimer.cancel(true);
+  },true);
+  document.addEventListener('keydown',helpKeydown,true);
+  document.addEventListener('pointerdown',event=>{helpPointerType=event.pointerType;helpTimer.cancel(true)},true);
+  document.addEventListener('pointermove',event=>{
+    helpPointerPosition={x:event.clientX,y:event.clientY};
+    // Without delayed help, hints such as full names of truncated values use native tooltips.
+    if(!helpEnabled){const hinted=event.target.closest?.('[data-hint]');if(hinted&&hinted.title!==hinted.dataset.hint)hinted.title=hinted.dataset.hint;return}
+    if(onHelpBridge()&&helpTimer.visible){const active=helpTimer.visible;helpTimer.request(active.key,active.payload);return}
+    if(event.buttons||event.pointerType==='touch'||event.helpHandled||event.target.closest('#tip,#help-guide,.chart'))return;
+    const request=helpTarget(event.target);if(request)requestHelp(request);else hideTip();
+  });
+  document.addEventListener('pointerout',event=>{if(!event.relatedTarget)helpPointerPosition=null;const target=helpTimer.active?.payload.target;
+    if(!target||!target.contains(event.relatedTarget))hideTip();
+  });
+  document.addEventListener('focusin',event=>{if(helpPointerType==='touch')return;const request=helpTarget(event.target);if(request)requestHelp(request)});
+  document.addEventListener('focusout',hideTip);
+  document.addEventListener('input',()=>helpTimer.cancel(true));document.addEventListener('change',()=>helpTimer.cancel(true));
+  document.addEventListener('scroll',event=>{if(event.target===tip||event.target.closest?.('#tip'))return;if(helpTimer.visible)positionHelp();else if(!helpTimer.active?.payload.target.contains(document.activeElement))helpTimer.cancel()},true);
+  tip.addEventListener('pointerenter',()=>{const active=helpTimer.visible;if(active)helpTimer.request(active.key,active.payload)});tip.addEventListener('pointerleave',hideTip);
+  addEventListener('resize',()=>{helpTimer.cancel();syncHelpLayout()});
+}
 
 // ---------- Charts ----------
 function niceMax(value){if(!(value>0))return 1;const power=10**Math.floor(Math.log10(value));for(const step of [1,2,2.5,5,10])if(value<=step*power)return step*power;return 10*power}
@@ -502,6 +927,8 @@ function medianStep(points){const steps=[];for(let index=1;index<points.length;i
 // color, get(point)}]. Stacked charts fill bands; others draw a 2px line
 // over a 12% wash. Gaps over three sample steps break the line.
 function timeChart(host,{points,series,stacked=false,overlay=null,format=number,height=160,minMax=0,from,to,empty='Collecting data…'}){
+  if(helpOwns(host))return;
+  host._helpData=()=>({headers:['Local time',...series.map(item=>item.label),...(overlay?[overlay.label]:[])],rows:points.map(point=>[date(point.t),...[...series,...(overlay?[overlay]:[])].map(item=>isNum(item.get(point))?(item.format||format)(item.get(point)):'Not available')])});
   host.replaceChildren();
   const width=Math.max(240,host.clientWidth||600);
   if(points.length<2){const box=node('div',empty,'chart-empty');box.style.height=height+'px';host.append(box);return}
@@ -540,9 +967,9 @@ function timeChart(host,{points,series,stacked=false,overlay=null,format=number,
   const show=(event,px)=>{const t=t0+(px-pad.l)/plotW*(t1-t0);let best=0;for(let index=1;index<points.length;index++)if(Math.abs(points[index].t-t)<Math.abs(points[best].t-t))best=index;
     const point=points[best],cx=x(point.t);cross.setAttribute('x1',cx);cross.setAttribute('x2',cx);cross.setAttribute('visibility','visible');dots.replaceChildren();
     let sum=0;const rows=series.map(item=>{const value=item.get(point);let cy=null;if(stacked){sum+=value||0;cy=y(sum)}else if(isNum(value))cy=y(value);if(cy!==null&&(!stacked||value))dots.append(svgNode('circle',{cx,cy,r:4,fill:item.color,stroke:'var(--surface)','stroke-width':2}));return{color:item.color,value:item.format?item.format(value):format(value),label:item.label}});
-    dots.setAttribute('visibility','visible');const shown=stacked?rows.reverse().filter((row,index)=>series.at(-1-index).get(point)):rows;
+    dots.setAttribute('visibility','visible');const shown=stacked?rows.reverse().filter((row,index)=>{const value=series.at(-1-index).get(point);return !isNum(value)||value!==0}):rows;
     if(overlay&&isNum(overlay.get(point))){const oy=y(overlay.get(point));dots.append(svgNode('circle',{cx,cy:oy,r:4,fill:overlay.color,stroke:'var(--surface)','stroke-width':2}));shown.unshift({color:overlay.color,value:format(overlay.get(point)),label:overlay.label})}
-    showTip(event,clock(point.t),shown)};
+    showTip(event,clock(point.t),shown,{target:host,key:point.t,stamp:point.t,point:true,id:host.closest('.card')?.querySelector('[data-help]')?.dataset.help})};
   hit.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect();host._hover={x:event.clientX-box.left,event};show(event,host._hover.x)});
   hit.addEventListener('pointerleave',()=>{host._hover=null;cross.setAttribute('visibility','hidden');dots.setAttribute('visibility','hidden');hideTip()});
   host.append(svg);
@@ -556,10 +983,10 @@ function sparkline(values,color,{min=0,width=100,height=30,className}={}){
   svg.append(svgNode('polygon',{points:`0,${height} ${points.join(' ')} ${width},${height}`,fill:color,'fill-opacity':.12}),svgNode('polyline',{points:points.join(' '),fill:'none',stroke:color,'stroke-width':1.6,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
   return svg}
 function barList(host,items,{format,onClick,pressed,mono,empty='Nothing to show.'}){
-  host.replaceChildren();if(!items.length){host.append(node('p',empty,'muted'));return}
+  if(helpOwns(host))return;host.replaceChildren();if(!items.length){host.append(node('p',empty,'muted'));return}
   const max=Math.max(...items.map(item=>item.value))||1;
   for(const item of items){const row=node(onClick?'button':'div',undefined,'bar-row');if(onClick){row.onclick=()=>onClick(item);row.setAttribute('aria-pressed',String(pressed===item.key))}
-    const name=node('span',item.label,'name'+(mono?' mono':''));name.title=item.label;
+    const name=node('span',item.label,'name'+(mono?' mono':''));name.dataset.hint=item.label;
     const track=node('span',undefined,'track'),fill=node('span',undefined,'fill');fill.style.width=(100*item.value/max)+'%';track.append(fill);
     const value=node('span',format(item.value),'val');if(item.sub)value.append(node('small',item.sub));
     row.append(name,track,value);row.addEventListener('pointermove',event=>showTip(event,item.label,item.tip||[{value:format(item.value),label:item.sub||''}]));row.addEventListener('pointerleave',hideTip);host.append(row)}}
@@ -654,9 +1081,10 @@ function renderAssessment(threads){
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.title=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
+  if(helpOwns(element('tiles')))return;
   const last=points.at(-1)||{},series=key=>points.map(point=>point[key]);
   const window60=buffer.filter(point=>point.t>=(buffer.at(-1)?.t||0)-60);
   const born=window60.reduce((sum,point)=>sum+point.born,0),died=window60.reduce((sum,point)=>sum+point.died,0);
@@ -673,15 +1101,16 @@ function renderTiles(threads,points){
     tiles.push(['Socket received',perSec(totals.input?.current),'observed socket bytes',history.map(point=>point.input)],['Socket sent',perSec(totals.output?.current),'accepted by sockets',history.map(point=>point.output)]);
     if(socketData.messages_enabled)tiles.push(['Messages',number(totals.messages?.current)+'/s','completed by the app',history.map(point=>point.messages)])}
   const host=element('tiles');host.replaceChildren();
-  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',String(value),'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
+  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(helpButtonLabel(label,topicForText(label),'label'),node('div',String(value),'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
 const LOAD_BANDS=[{label:'On CPU',color:'var(--series-1)',get:point=>point.cpu===null?null:point.cpu/100},{label:'Waiting for CPU',color:'var(--series-2)',get:point=>point.cpu===null?null:(point.rd||0)/100},{label:'Blocked in kernel (D)',color:'var(--s-kernel)',get:point=>point.cpu===null?null:point.s.kernel||0}];
 function renderOverview(){
+  if(helpOwns(element('load-legend'))||helpOwns(element('states-legend')))return;
   const threads=live.threads||[],averages=loadState?.averages,points=windowPoints();
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best?.cpu_pct||-1)?thread:best,null);
   const span=buffer.length?buffer.at(-1).t-buffer[0].t:0,load=value=>averages?value.toFixed(2):'—';
   element('hero-load').textContent=load(averages?.[0]);element('hero-load5').textContent=load(averages?.[1]);element('hero-load15').textContent=load(averages?.[2]);
-  element('hero-load15-label').textContent=span<840&&averages?`15 min (${duration(span)} of data)`:'15 min';
+  const loadLabel=element('hero-load15-label'),loadLabelText=span<840&&averages?`15 min (${duration(span)} of data)`:'15 min';if(loadLabel.firstChild?.nodeType===3)loadLabel.firstChild.textContent=loadLabelText;else loadLabel.textContent=loadLabelText;addHelp(loadLabel,'load');
   element('hero-cpu').textContent=threads.length?(cpu/100).toFixed(2)+' cores':'—';
   // Under 1% of a core the ratio is noise, so don't report one.
   element('hero-wait').textContent=cpu+delay>=1?pct(100*delay/(cpu+delay))+' of demand':threads.length?'negligible':'—';
@@ -691,7 +1120,7 @@ function renderOverview(){
   timeChart(element('chart-load'),{points,stacked:true,series:bands,overlay:{label:'1-min load average',color:'var(--ink-2)',get:point=>point.l1},format:value=>isNum(value)?String(+value.toFixed(2)):'—',height:210,minMax:.05,...range});
   const legend=element('load-legend');legend.replaceChildren();
   const now=points.at(-1);
-  for(const band of bands){const item=node('span');const swatch=node('i',undefined,'sw');swatch.style.background=band.color;item.append(swatch,band.label,node('b',now&&isNum(band.get(now))?band.get(now).toFixed(2):'—'));legend.append(item)}
+  for(const band of bands){const item=node('span');item.dataset.help=band.label==='Waiting for CPU'?'load':band.label==='On CPU'?'cpucores':'kernel';const swatch=node('i',undefined,'sw');swatch.style.background=band.color;item.append(swatch,band.label,node('b',now&&isNum(band.get(now))?band.get(now).toFixed(2):'—'));legend.append(item)}
   const average=node('span');const key=node('i',undefined,'sw line');key.style.background='var(--ink-2)';average.append(key,'1-min average');legend.append(average);
   // Fallback mode has CPU but no run delay; a tick with no rates at all is a stall, not fallback.
   if(threads.some(thread=>isNum(thread.cpu_pct))&&!threads.some(thread=>isNum(thread.run_delay_pct)))legend.append(node('span','Waiting for CPU is unavailable in status-fallback mode.','muted'));
@@ -722,6 +1151,7 @@ function mapView(thread){
   return{cpu:averageCpu(thread.tid,mapWindow),idle:!blocked&&!active&&isIdle(thread)}}
 const windowName=()=>({60:'1 min',300:'5 min',900:'15 min'})[mapWindow];
 function renderMosaic(threads){
+  if(helpOwns(element('mosaic'))||helpOwns(element('mosaic-legend')))return;
   const host=element('mosaic'),dense=threads.length>MOSAIC_DENSE;host.replaceChildren();host.classList.toggle('dense',dense);
   const views=new Map(threads.map(thread=>[thread.tid,mapView(thread)]));
   const sorted=[...threads].sort((a,b)=>STATES.indexOf(a.state)-STATES.indexOf(b.state)||(views.get(b.tid).cpu||0)-(views.get(a.tid).cpu||0)||a.tid-b.tid);
@@ -756,15 +1186,16 @@ function renderFamilies(threads){
   let items=[...totals].map(([key,entry])=>({key,label:key,value:entry.cpu,count:entry.count})).sort((a,b)=>b.value-a.value||b.count-a.count);
   if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:'',label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0),count:rest.reduce((sum,item)=>sum+item.count,0)})}
   for(const item of items){item.sub=mode==='thread'?'':`×${item.count}`;item.tip=[{value:pct(item.value),label:'of one core'},{value:all?pct(100*item.value/all):'—',label:'of process CPU'},{value:String(item.count),label:item.count===1?'thread':'threads'}]}
-  barList(element('family-bars'),items,{format:pct,empty:'No threads reported yet.',onClick:mode==='thread'?null:item=>{if(!item.key)return;element('search').value=mode==='family'?item.key:'';if(mode==='group')element('group').value=item.key;setActivity('all');element('threads-section').scrollIntoView({behavior:'smooth'})}});
+  barList(element('family-bars'),items,{format:pct,empty:'No threads reported yet.',onClick:mode==='thread'?null:item=>{if(!item.key)return;element('search').value=mode==='family'?item.key:'';if(mode==='group')element('group').value=item.key;setActivity('all');element('thread-details').scrollIntoView({behavior:'smooth'})}});
   element('family-sub').textContent=mode==='group'?'Process CPU by thread group from the collector config.':mode==='thread'?'Process CPU by individual thread.':'Process CPU by thread family (name without its number).'}
 function renderWchans(threads){
   const counts=new Map();for(const thread of threads){if(thread.state==='running')continue;const key=thread.wchan||'—';counts.set(key,(counts.get(key)||0)+1)}
   let items=[...counts].map(([key,value])=>({key,label:key,value})).sort((a,b)=>b.value-a.value);
   if(items.length>10){const rest=items.slice(9);items=items.slice(0,9);items.push({key:null,label:`${rest.length} others`,value:rest.reduce((sum,item)=>sum+item.value,0)})}
   for(const item of items)item.tip=[{value:String(item.value),label:item.value===1?'thread waiting here':'threads waiting here'}];
-  barList(element('wchan-bars'),items,{format:value=>String(value),mono:true,pressed:wchanFilter,empty:'No waiting threads.',onClick:item=>{if(item.key===null)return;wchanFilter=wchanFilter===item.key?'':item.key;stateFilter='';setActivity(wchanFilter?'all':activity);renderWchans(live.threads||[]);if(wchanFilter)element('threads-section').scrollIntoView({behavior:'smooth'})}})}
+  barList(element('wchan-bars'),items,{format:value=>String(value),mono:true,pressed:wchanFilter,empty:'No waiting threads.',onClick:item=>{if(item.key===null)return;wchanFilter=wchanFilter===item.key?'':item.key;stateFilter='';setActivity(wchanFilter?'all':activity);renderWchans(live.threads||[]);if(wchanFilter)element('thread-details').scrollIntoView({behavior:'smooth'})}})}
 function renderCores(threads){
+  if(helpOwns(element('cores')))return;
   const host=element('cores');host.replaceChildren();if(!threads.length){host.append(node('p','No threads reported yet.','muted'));return}
   const cores=new Map();let maxCore=0;for(const thread of threads){if(!isNum(thread.cpu))continue;maxCore=Math.max(maxCore,thread.cpu);const entry=cores.get(thread.cpu)||{cpu:0,count:0,top:null};entry.cpu+=thread.cpu_pct||0;entry.count++;if(!entry.top||(thread.cpu_pct||0)>(entry.top.cpu_pct||0))entry.top=thread;cores.set(thread.cpu,entry)}
   // Scale to the busiest core (at least 5% of a core) so light load stays visible.
@@ -774,9 +1205,10 @@ function renderCores(threads){
     column.append(node('span',entry.cpu>=.05?pct(entry.cpu):'','cap'),bar,node('span','#'+core));
     column.addEventListener('pointermove',event=>showTip(event,'Core '+core,[{value:pct(entry.cpu),label:'CPU from this process'},{value:String(entry.count),label:'threads last ran here'},...(entry.top&&entry.top.cpu_pct?[{value:pct(entry.top.cpu_pct),label:'top: '+entry.top.name}]:[])]));column.addEventListener('pointerleave',hideTip);host.append(column)}}
 function renderHealth(){
+  if(helpOwns(element('health')))return;
   const health=live.health,host=element('health');host.replaceChildren();
   const rows=[['Sampler',health.sampler_silent?'Silent':health.last_seen?'Connected':'Waiting'],['Last data',ago(viewNow()-(health.last_seen||0))],['Sample interval',health.sample_interval_ms+' ms'],['Packet loss (1 min)',pct(health.packet_loss_pct)],['Bad · duplicate · late',`${health.bad_packets} · ${health.duplicates} · ${health.late_packets}`],['Raw samples held',number(health.raw_samples,0)],['Sampler address',health.sampler_ip||'—'],['Session',health.session||'—']];
-  for(const [key,value] of rows){const item=node('div');item.append(node('dt',key),node('dd',value));host.append(item)}
+  for(const [key,value] of rows){const item=node('div');item.append(helpButtonLabel(key,topicForText(key),'help-fact','dt'),node('dd',value));host.append(item)}
   element('diagnostics').textContent=JSON.stringify(health,null,2)}
 
 // ---------- Threads table ----------
@@ -788,7 +1220,7 @@ function matches(thread,ignoreState,ignoreWchan,ignoreActivity){const group=elem
   if(!ignoreState&&stateFilter&&thread.state!==stateFilter)return false;
   if(!ignoreWchan&&wchanFilter&&(thread.wchan||'—')!==wchanFilter)return false;
   return true}
-function chip(label,count,pressed,onclick,className,dot){const button=node('button',undefined,'chip'+(className?' '+className:''));button.setAttribute('aria-pressed',String(pressed));if(dot)button.append(node('span',undefined,'sw '+dot));button.append(node('span',label),node('span',String(count),'count'));button.onclick=onclick;return button}
+function chip(label,count,pressed,onclick,className,dot){const button=node('button',undefined,'chip'+(className?' '+className:''));button.dataset.help=topicForText(label)||'wchan';button.setAttribute('aria-pressed',String(pressed));if(dot)button.append(node('span',undefined,'sw '+dot));button.append(node('span',label),node('span',String(count),'count'));button.onclick=onclick;return button}
 function tally(threads,key){const counts=new Map();for(const thread of threads){const value=key(thread);counts.set(value,(counts.get(value)||0)+1)}return [...counts].sort((left,right)=>right[1]-left[1]||String(left[0]).localeCompare(String(right[0])))}
 function renderChips(){const threads=live.threads||[];
   const states=element('state-chips');states.replaceChildren();
@@ -802,11 +1234,11 @@ function renderChips(){const threads=live.threads||[];
   const channels=tally(wchanBase,thread=>thread.wchan||'—');if(wchanFilter&&!channels.some(([name])=>name===wchanFilter))channels.push([wchanFilter,0]);
   for(const [name,count] of channels)wchans.append(chip(name,count,wchanFilter===name,()=>{wchanFilter=wchanFilter===name?'':name;renderThreads()},'mono'))}
 function mix(counts){const bar=node('div',undefined,'mix');const total=Object.values(counts||{}).reduce((sum,value)=>sum+value,0);
-  for(const state of STATES){const count=(counts||{})[state];if(!count)continue;const part=node('span',undefined,state);part.style.width=(100*count/total)+'%';part.title=labels[state]+': '+count+' samples';bar.append(part)}return bar}
-function statePill(thread){const pill=node('span',undefined,'pill');const key=node('i');key.style.background=stateColor(thread.state);pill.append(key,(labels[thread.state]||thread.state)+(thread.stale?' · stale':''));return pill}
+  for(const state of STATES){const count=(counts||{})[state];if(!count)continue;const part=node('span',undefined,state);part.style.width=(100*count/total)+'%';part.dataset.hint=labels[state]+': '+count+' samples';part.dataset.help='mix';bar.append(part)}return bar}
+function statePill(thread){const pill=node('span',undefined,'pill');pill.dataset.help=HELP[thread.state]?thread.state:'states';const key=node('i');key.style.background=stateColor(thread.state);pill.append(key,(labels[thread.state]||thread.state)+(thread.stale?' · stale':''));return pill}
 function setActivity(value){activity=value;for(const button of document.querySelectorAll('[data-activity]'))button.setAttribute('aria-pressed',String(button.dataset.activity===value));renderThreads()}
 for(const button of document.querySelectorAll('[data-activity]'))button.onclick=()=>setActivity(button.dataset.activity);
-function renderThreads(){renderChips();
+function renderThreads(){if(helpOwns(element('threads')))return;if(!helpOwns(element('state-chips'))&&!helpOwns(element('wchan-chips')))renderChips();
   const body=element('threads');body.replaceChildren();
   const order=element('sort').value;
   const key=order==='name'?null:sortKeys[order]||(thread=>thread[order]??-1);
@@ -819,7 +1251,7 @@ function renderThreads(){renderChips();
   const threads=all.filter(thread=>matches(thread)).sort(key?(left,right)=>key(right)-key(left)||left.tid-right.tid:(left,right)=>left.name.localeCompare(right.name)||left.tid-right.tid);
   element('count').textContent=threads.length===all.length?`(${all.length})`:`(${threads.length} of ${all.length})`;
   for(const header of document.querySelectorAll('th[data-sort]'))header.setAttribute('aria-sort',header.dataset.sort===order?'descending':'none');
-  for(const thread of threads){const row=node('tr',undefined,'clickable'+(selected?.tid===thread.tid?' selected':''));row.dataset.tid=thread.tid;row.tabIndex=0;
+  for(const thread of threads){const row=node('tr',undefined,'clickable'+(selected?.tid===thread.tid?' selected':''));row.dataset.tid=thread.tid;row.dataset.generation=thread.generation;row._helpThread=thread;row._helpSession=live.health.session;row.tabIndex=0;
     const name=node('td');name.append(node('span',thread.name),node('small','TID '+thread.tid));
     const state=node('td');state.append(statePill(thread));if(thread.wchan)state.append(node('span',thread.wchan,'wchan'));
     const states=node('td');states.append(mix(thread.state_mix));
@@ -839,14 +1271,15 @@ for(const header of document.querySelectorAll('th[data-sort]'))header.onclick=()
 function localInput(timestamp){const offset=new Date(timestamp).getTimezoneOffset()*60000;return new Date(timestamp-offset).toISOString().slice(0,19)}
 let historyRange=3600,historyRequest=0;
 function openThread(thread){
+  closeGuide(false);helpTimer.cancel(true);
   selected={session:live.health.session,tid:thread.tid,name:thread.name,generation:thread.generation};
   history.replaceState(null,'','#thread='+thread.tid);
   element('history-title').textContent=thread.name;
   element('drawer').classList.add('open');element('drawer').setAttribute('aria-hidden','false');element('scrim').classList.add('open');
   setRange(historyRange);renderDrawerLive();renderThreads();renderMosaic(live.threads||[]);element('drawer-close').focus()}
-function closeThread(){selected=null;element('drawer').classList.remove('open');element('drawer').setAttribute('aria-hidden','true');element('scrim').classList.remove('open');history.replaceState(null,'',location.pathname);hideTip();renderThreads();renderMosaic(live.threads||[])}
+function closeThread(){closeGuide(false);helpTimer.cancel(true);selected=null;element('drawer').classList.remove('open');element('drawer').setAttribute('aria-hidden','true');element('scrim').classList.remove('open');history.replaceState(null,'',location.pathname);hideTip();renderThreads();renderMosaic(live.threads||[])}
 function renderDrawerLive(){
-  if(!selected)return;const thread=live.health.session===selected.session?(live.threads||[]).find(item=>item.tid===selected.tid&&item.generation===selected.generation):null;
+  if(!selected||helpContext&&helpReturnThread||helpOwns(element('drawer-tiles'))||helpOwns(element('drawer-state')))return;const thread=live.health.session===selected.session?(live.threads||[]).find(item=>item.tid===selected.tid&&item.generation===selected.generation):null;
   element('drawer-meta').textContent=`TID ${selected.tid}`+(thread?` · group ${thread.group} · family ${family(thread.name)}`:'');
   const state=element('drawer-state');state.replaceChildren();
   if(!thread){state.append(node('p','This thread is no longer reported; it may have exited. Its stored history is still available below.','muted'));element('drawer-tiles').replaceChildren();}
@@ -855,7 +1288,7 @@ function renderDrawerLive(){
     // Only metrics with something in them; an idle thread gets its idle time.
     const metrics=[['CPU',thread.cpu_pct,pct],['Run delay',thread.run_delay_pct,pct],['Switches/s',thread.switches_per_s,number],['Read/s',thread.read_bps,bytes],['Write/s',thread.write_bps,bytes],['Maj. faults/s',thread.major_faults_per_s,number]].filter(([,value])=>value>0).map(([key,value,format])=>[key,format(value)]);
     if(isIdle(thread))metrics.push(['Activity',idleFor(thread)||'idle']);
-    for(const [key,value] of [...metrics,['Last core','#'+thread.cpu],['Last sample',clock(thread.last_sample)]]){const tile=node('div');tile.append(node('div',key,'k'),node('div',value,'v'));tiles.append(tile)}}
+    for(const [key,value] of [...metrics,['Last core','#'+thread.cpu],['Last sample',clock(thread.last_sample)]]){const tile=node('div');tile.append(helpButtonLabel(key,topicForText(key),'k'),node('div',value,'v'));tiles.append(tile)}}
   element('drawer-live').parentElement.hidden=replayAt!==null;
   const points=(threadCpu.get(selected.tid)||[]).map(point=>({t:point.t,v:point.v}));
   timeChart(element('drawer-live'),{points,series:[{label:'CPU',color:'var(--series-1)',get:point=>point.v}],format:pct,height:120,minMax:5})}
@@ -921,6 +1354,7 @@ const NET_COUNTERS=[
   ['if_tx_dropped','Interface transmit drops','A network interface dropped outgoing packets (queue full or link trouble).',null],
   ['if_rx_errors','Interface receive errors','Bad frames, CRC or length errors on a network interface: cabling, driver or hardware.',null],
   ['if_tx_errors','Interface transmit errors','Transmit errors on a network interface: driver or hardware.',null]];
+for(const [key,label,meaning] of NET_COUNTERS)helpTopic('net-'+key,label,'Target network namespace',meaning,'',HELP.netdrops.reading,HELP.netdrops.limits,['netdrops','coverage']);
 // Drops worth a tile: listen drops (overflows included), socket queues, UDP.
 const DROP_COLUMNS=['listen_drops_delta','tcp_backlog_drop_delta','tcp_rcvq_drop_delta','tcp_zero_window_drop_delta','udp_in_errors_delta','udp_sndbuf_errors_delta'];
 const hasCgroup=r=>PRESSURE_SERIES.some(([key])=>isNum(r?.pressure?.cgroup?.[key]?.some?.pct)||isNum(r?.pressure?.cgroup?.[key]?.some?.avg10));
@@ -991,14 +1425,16 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   else if(flags.socket_diag_failed)add('info','Socket diagnostics failed','The kernel’s sock_diag interface did not answer; socket queues are missing from this sample.');
   return findings}
 
-function meter(label,sub,value,max,text){const row=node('div',undefined,'meter'),name=node('div',label);if(sub)name.append(node('small',sub));
+function meter(label,sub,value,max,text){const row=node('div',undefined,'meter'),name=helpButtonLabel(label,topicForText(label));if(sub)name.append(node('small',sub));
   const track=node('div',undefined,'track'),fill=node('div',undefined,'fill'),share=isNum(value)&&max>0?100*value/max:null;
   if(share!==null){fill.style.width=Math.min(100,share)+'%';const level=fillLevel(share);if(level)fill.classList.add(level);track.append(fill)}
   row.append(name,track,node('div',text??(share===null?'—':pct(share)),'val'));return row}
 function fillCell(value,title){const cell=node('td');if(!isNum(value)){cell.textContent='—';return cell}
-  const box=node('div',undefined,'fillcell'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');fill.style.width=Math.min(100,value)+'%';const level=fillLevel(value);if(level)fill.classList.add(level);track.append(fill);box.append(track,node('span',pct(value)));cell.append(box);if(title)cell.title=title;return cell}
+  const box=node('div',undefined,'fillcell'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');fill.style.width=Math.min(100,value)+'%';const level=fillLevel(value);if(level)fill.classList.add(level);track.append(fill);box.append(track,node('span',pct(value)));cell.append(box);if(title)cell.dataset.hint=title;return cell}
 function resourcePoints(){return (resourceHistory?.rows||[]).map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}))}
 function renderResourceTiles(r,points){
+  if(helpOwns(element('resource-tiles')))return;
+  observeHelp(element('resource-tiles'),r);
   const scope=scopeOf(r),p=r.pressure?.[scope]||{},fds=r.fds||{},io=r.io||{},kinds=r.sockets||{},net=r.network||{};
   const queued=key=>{const values=['tcp','udp','unix'].map(kind=>kinds[kind]?.[key]);return values.every(isNum)?values.reduce((sum,value)=>sum+value,0):null};
   const receiveQueue=queued('rx_queue'),sendQueue=queued('tx_queue');
@@ -1016,8 +1452,10 @@ function renderResourceTiles(r,points){
   const closeWait=kinds.tcp_states?.close_wait;
   if(closeWait>0||points.some(point=>point.tcp_close_wait>0))tiles.push(['CLOSE-WAIT',String(closeWait??'—'),'closed by the peer, not by the app',points.map(point=>point.tcp_close_wait)]);
   const host=element('resource-tiles');host.replaceChildren();
-  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
+  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(helpButtonLabel(label,topicForText(label),'label'),node('div',value,'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
 function renderPressure(r,points,range){
+  if(helpOwns(element('pressure-rows'))||helpOwns(element('pressure-legend')))return;
+  observeHelp(element('pressure-rows'),r);
   const scope=scopeOf(r);element('pressure-scope').value=scope;element('pressure-scope').options[0].disabled=!hasCgroup(r);
   const series=PRESSURE_SERIES.map(([key,label,color])=>({label:label+' some',color,get:point=>point[`${scope}_${key}_some_pct`]}));
   timeChart(element('chart-pressure'),{points,series,format:pct,height:170,minMax:5,...range,empty:'Collecting stored resource samples…'});
@@ -1025,9 +1463,12 @@ function renderPressure(r,points,range){
   for(const [key,label,color] of PRESSURE_SERIES){const item=node('span'),swatch=node('i',undefined,'sw line');swatch.style.background=color;item.append(swatch,label+' some',node('b',pct(stall(r.pressure?.[scope]?.[key]?.some))));legend.append(item)}
   const body=element('pressure-rows');body.replaceChildren();
   for(const [key,label] of PRESSURE_SERIES){const row=node('tr');row.append(node('td',label));
-    for(const [where,kind] of [['cgroup','some'],['cgroup','full'],['host','some'],['host','full']]){const entry=r.pressure?.[where]?.[key]?.[kind];const cell=node('td',pct(stall(entry)),'num');if(entry)cell.title=`avg10 ${pct(entry.avg10)} · total ${number((entry.total_us||0)/1e6,0)} s stalled`;row.append(cell)}
+    for(const [where,kind] of [['cgroup','some'],['cgroup','full'],['host','some'],['host','full']]){const entry=r.pressure?.[where]?.[key]?.[kind];const cell=node('td',pct(stall(entry)),'num');if(entry)cell.dataset.hint=`avg10 ${pct(entry.avg10)} · total ${number((entry.total_us||0)/1e6,0)} s stalled`;row.append(cell)}
     body.append(row)}}
 function renderLimits(r){
+  if(helpOwns(element('limits'))||helpOwns(element('limit-facts')))return;
+  observeHelp(element('limits'),r);
+  observeHelp(element('limit-facts'),r);
   const host=element('limits');host.replaceChildren();const fds=r.fds||{},limits=r.limits||{},sockstat=r.sockstat||{},page=limits.page_size||4096;
   host.append(meter('Open files',isNum(fds.hard_limit)?`hard limit ${fds.hard_limit}`:'',fds.open,fds.soft_limit,isNum(fds.open)&&isNum(fds.soft_limit)?`${fds.open} / ${fds.soft_limit}`:'—'));
   const cg=r.cgroup_limits||{},mem=cg.memory||{},cpu=cg.cpu||{},pids=cg.pids||{};
@@ -1039,34 +1480,39 @@ function renderLimits(r){
   for(const [label,used,thresholds] of [['TCP memory',sockstat.tcp_mem,limits.tcp_mem],['UDP memory',sockstat.udp_mem,limits.udp_mem]]){if(!isNum(used)||!thresholds||!isNum(thresholds[1]))continue;
     host.append(meter(label,`pressure at ${bytes(thresholds[1]*page)}, limit ${bytes(thresholds[2]*page)} · host-wide`,used,thresholds[1],bytes(used*page)))}
   const facts=element('limit-facts');facts.replaceChildren();
-  for(const [key,value] of [['Max SO_RCVBUF (rmem_max)',bytes(limits.rmem_max)],['Max SO_SNDBUF (wmem_max)',bytes(limits.wmem_max)],['Max listen backlog (somaxconn)',limits.somaxconn??'—'],['TCP sockets in namespace',isNum(sockstat.tcp_inuse)?`${sockstat.tcp_inuse} · ${sockstat.tcp_orphan} orphaned · ${sockstat.tcp_tw} time-wait`:'—']]){const item=node('div');item.append(node('dt',key),node('dd',String(value)));facts.append(item)}}
+  for(const [key,value] of [['Max SO_RCVBUF (rmem_max)',bytes(limits.rmem_max)],['Max SO_SNDBUF (wmem_max)',bytes(limits.wmem_max)],['Max listen backlog (somaxconn)',limits.somaxconn??'—'],['TCP sockets in namespace',isNum(sockstat.tcp_inuse)?`${sockstat.tcp_inuse} · ${sockstat.tcp_orphan} orphaned · ${sockstat.tcp_tw} time-wait`:'—']]){const item=node('div');item.append(helpButtonLabel(key,topicForText(key),'help-fact','dt'),node('dd',String(value)));facts.append(item)}}
 function renderQueues(r,points,range){
+  if(helpOwns(element('queues-legend')))return;
   timeChart(element('chart-queues'),{points,series:[{label:'Receive queue (unread)',color:'var(--series-1)',get:point=>point.rx_queue_bytes},{label:'Send queue (unsent)',color:'var(--series-2)',get:point=>point.tx_queue_bytes}],format:bytes,height:150,minMax:1024,...range,empty:'Collecting stored resource samples…'});
   const kinds=r.sockets||{},legend=element('queues-legend');legend.replaceChildren();
   for(const [key,label,color] of [['rx_queue','Receive queue (unread)','var(--series-1)'],['tx_queue','Send queue (unsent)','var(--series-2)']]){const item=node('span'),swatch=node('i',undefined,'sw line');swatch.style.background=color;item.append(swatch,label,node('b',bytes(['tcp','udp','unix'].reduce((sum,kind)=>sum+(kinds[kind]?.[key]||0),0))));legend.append(item)}
   const counts=['tcp','udp','unix'].map(kind=>`${kinds[kind]?.sockets??0} ${kind.toUpperCase()}`).join(' · '),states=kinds.tcp_states||{};
   legend.append(node('span',`${counts} · ${states.established??0} established · ${states.close_wait??0} close-wait · ${states.listen??0} listening`,'muted'))}
 function renderNetstack(r,points){
+  if(helpOwns(element('netstack')))return;
+  observeHelp(element('netstack'),r);
   const network=r.network||{},body=element('netstack');body.replaceChildren();let zero=0;
   const inRange=column=>column&&points.length?points.reduce((sum,point)=>sum+(point[column]||0),0):null;
   // Counters that grew recently first; the rest keep their reading order.
   const entries=NET_COUNTERS.map(([key,label,help,column])=>{const entry=network[key],range=inRange(column);return{entry,label,help,range,active:(entry?.delta||0)>0||(range||0)>0}}).filter(item=>item.entry&&isNum(item.entry.total));
   entries.sort((a,b)=>(b.entry.delta>0)-(a.entry.delta>0)||b.active-a.active);
   for(const {entry,label,help,range,active} of entries){if(!entry.total&&!active){zero++;continue}
-    const row=node('tr');row.className=active?'':'zero';row.title=help;const name=node('td');name.append(node('span',label));name.append(node('small',help));
+    const row=node('tr');row.className=active?'':'zero';row.dataset.help=topicForText(label);const name=node('td');const labelNode=node('span',label);addHelp(labelNode,topicForText(label));name.append(labelNode);name.append(node('small',help));
     const now=node('td',isNum(entry.per_s)?number(entry.per_s,entry.per_s<10?2:1)+'/s':'—','num');if(active&&entry.per_s>0)now.classList.add('bad');
     const ranged=node('td',range===null?'—':number(range,0),'num');if(range>0)ranged.classList.add('bad');
     row.append(name,now,ranged,node('td',number(entry.total,0),'num'));body.append(row)}
   if(zero){const row=node('tr','', 'zero'),cell=node('td',`${zero} other counter${zero>1?'s are':' is'} zero.`);cell.colSpan=4;row.append(cell);body.append(row)}
   element('netstack-sub').textContent='Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.'}
 function renderResourceSockets(r){
+  if(helpOwns(element('resource-sockets')))return;
+  observeHelp(element('resource-sockets'),r);
   const busyOnly=element('sockets-busy-only').checked,all=r.sockets?.top||[];
   const busy=item=>item.rx_queue>0||(item.tx_queue>0&&!item.listener)||(item.drops_delta||0)>0||(item.tcp?.retrans_delta||0)>0||(item.listener&&item.rx_queue>0)||Math.max(item.rx_fill_pct||0,item.tx_fill_pct||0)>=10||item.state==='CLOSE-WAIT';
   const rows=busyOnly?all.filter(busy):all;
   element('resource-socket-count').textContent=`(${rows.length} of ${all.length} reported${r.flags?.sockets_truncated?', more not listed':''})`;
   const body=element('resource-sockets');body.replaceChildren();
   for(const item of rows){const row=node('tr'),label=node('td');label.append(node('span',socketLabel(item)));if(item.listener)label.append(node('small','listener'));
-    const peer=node('td',socketName(item),'mono');peer.title=socketName(item);
+    const peer=node('td',socketName(item),'mono');peer.dataset.hint=socketName(item);
     const recvQ=node('td',item.listener?`${item.rx_queue} pending`:bytes(item.rx_queue),'num');
     const tcp=item.tcp;
     const drops=node('td',isNum(item.drops)?String(item.drops)+((item.drops_delta||0)>0?` (+${item.drops_delta})`:''):'—','num');if((item.drops_delta||0)>0)drops.classList.add('bad');
@@ -1108,7 +1554,7 @@ function socketValue(value,rate=false){if(value===null||value===undefined)return
 function renderSocketChart(){const points=(socketData.history||[]).map(point=>({t:point.ts,v:point[socketMetric]}));const values=points.map(point=>point.v).filter(isNum);
   timeChart(element('socket-chart'),{points,series:[{label:socketTitles[socketMetric]+' /s',color:'var(--series-1)',get:point=>point.v}],format:value=>socketValue(value,true),height:150,empty:'No covered rate windows yet'});
   element('socket-chart-scale').textContent=values.length?'Peak: '+socketValue(Math.max(...values),true):'No covered rate windows yet'}
-function renderSocket(){const data=socketData;if(!data)return;const available=data.available;
+function renderSocket(){if(helpOwns(element('socket-cards'))||helpOwns(element('socket-rows')))return;const data=socketData;if(!data)return;const available=data.available;
   element('socket-content').hidden=!available;element('socket-empty').hidden=available;
   if(!available){element('socket-status').textContent='Not available';element('socket-empty').textContent=data.reason||'Socket observer not connected';element('socket-scope').textContent='Socket traffic and message completion require the optional observer. Expand setup below to connect it.';return}
   const status=data.refresh_error?'Report refresh failed · cached':data.stopped?'Observation ended':data.stale?'Observer silent':data.lower_bound?'Incomplete · lower-bound totals':'Observing supported paths';
@@ -1123,15 +1569,15 @@ function renderSocket(){const data=socketData;if(!data)return;const available=da
   const unconfigured=socketMetric==='messages'&&!data.messages_enabled;const totals=data.totals[socketMetric];
   element('socket-metric-note').textContent=unconfigured?'Message completion is not configured. Add a completion marker to count messages after the application finishes processing them.':socketMetric==='messages'?'One marker call = one completed application message. Counts reflect the marker contract defined by your application.':socketMetric==='input'?'Bytes reported by successful receive operations. Peeks do not count. A read is not a processed message.':'Bytes accepted by successful send operations, including partial writes. Acceptance does not prove peer delivery.';
   const cards=element('socket-cards');cards.replaceChildren();
-  for(const [title,value,isRate] of [[socketTitles[socketMetric],totals.total,false],['Current rate',totals.current,true],['Average since start',totals.average,true],['Recent minimum',totals.minimum,true],['Recent maximum',totals.maximum,true]]){const card=node('div',undefined,'card tile');card.append(node('div',title,'label'),node('div',socketValue(value,isRate),'value'));if(value!==null)card.title=String(value)+(isRate?' per second':'');cards.append(card)}
+  for(const [title,value,isRate] of [[socketTitles[socketMetric],totals.total,false],['Current rate',totals.current,true],['Average since start',totals.average,true],['Recent minimum',totals.minimum,true],['Recent maximum',totals.maximum,true]]){const card=node('div',undefined,'card tile');card.append(helpButtonLabel(title,topicForText(title),'label'),node('div',socketValue(value,isRate),'value'));if(value!==null)card.dataset.hint=String(value)+(isRate?' per second':'');cards.append(card)}
   renderSocketChart();
   const search=element('socket-search').value.toLowerCase();
   const rows=(data.rows||[]).filter(r=>(socketMetric==='messages'?r.kind_id===6:r.kind_id!==6)&&(!kind.value||socketMetric==='messages'||String(r.kind_id)===kind.value)&&(!search||`${r.tid} ${r.name||''}`.toLowerCase().includes(search))).sort((a,b)=>Number(b.metrics[socketMetric].total)-Number(a.metrics[socketMetric].total));
   element('socket-row-count').textContent='('+rows.length+')';
   const body=element('socket-rows');body.replaceChildren();
-  for(const item of rows){const row=node('tr'),thread=node('td');thread.append(node('span',item.name||'Thread'),node('small','TID '+item.tid));thread.title='Thread generation '+item.thread_start;
+  for(const item of rows){const row=node('tr'),thread=node('td');thread.append(node('span',item.name||'Thread'),node('small','TID '+item.tid));thread.dataset.hint='Thread generation '+item.thread_start;
     const m=item.metrics[socketMetric];row.append(thread,node('td',item.kind));
-    for(const [v,rate] of [[m.total,false],[m.current,true],[m.average,true],[m.minimum,true],[m.maximum,true]]){const cell=node('td',socketValue(v,rate),'num');if(v!==null)cell.title=String(v);row.append(cell)}
+    for(const [v,rate] of [[m.total,false],[m.current,true],[m.average,true],[m.minimum,true],[m.maximum,true]]){const cell=node('td',socketValue(v,rate),'num');if(v!==null)cell.dataset.hint=String(v);row.append(cell)}
     body.append(row)}
   if(!rows.length){const row=node('tr'),cell=node('td',unconfigured?'Completion marker not configured.':search||kind.value?'No matching threads.':'No observed activity yet.');cell.colSpan=7;row.append(cell);body.append(row)}
   let coverage=data.coverage+' Average covers the monitoring period; min/max cover '+data.rate_windows+' valid nominal 1-second windows in the most recent 60 intervals. Idle covered windows count as zero.';
@@ -1259,9 +1705,12 @@ loadReplayBounds();
 // from /api/memory-map. live.memory.layout_id names the sample the layout
 // came from, so it stays valid across collector restarts. The layout is
 // fetched when that id changes, and again on later polls until it loads.
-let memoryLayout=null,memoryLayoutLoading=false,memoryRenderedLayout;
+let memoryLayout=null,memoryLayoutLoading=false,memoryPrevious=null,memoryRenderedLayout,memoryRenderedComm,memorySelected=null,memoryHistory=[],memoryHistoryKey=null;
 async function refreshMemoryLayout(){memoryLayoutLoading=true;
-  try{const response=await fetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){memoryLayout=layout;if(live.health)renderMemory()}}}
+  try{const response=await fetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){
+    // Keep the layout before it for the zoom's "mapped since" squares.
+    if(memoryLayout&&memoryLayout.id!==layout.id)memoryPrevious=memoryLayout.pid===layout.pid?memoryLayout:null;
+    memoryLayout=layout;if(live.health)renderMemory()}}}
   catch{}finally{memoryLayoutLoading=false}}
 // The loaded layout when it belongs to the summary's session and process:
 // a newer layout of the same session is still being fetched, so the older
@@ -1270,6 +1719,212 @@ function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
   return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
 function microseconds(value){return isNum(value)?(value>=1000?number(value/1000,1)+' ms':value+' µs'):'—'}
 function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',heap:'[heap]',stack:'[stack]'}[region.kind]??'')}
+// Bar colors, and whether the bar's text is white. Program code and
+// libraries share a color.
+const MEMORY_KINDS={code:['var(--k-code)',true],library:['var(--k-code)',true],heap:['var(--k-heap)',true],stack:['var(--k-stack)',true],anonymous:['var(--k-anon)',false],file:['var(--k-file)',false],guard:['var(--k-guard)',false],kernel:['var(--k-kernel)',false]};
+const MEMORY_GAP=2**30;  // an unmapped space this large gets its own row
+const MEMORY_ROWS=18;  // bars at most, not counting gaps
+const isLibrary=name=>/\.so(\.\d[\w.]*)?( \(deleted\))?$/.test(name||'');  // not ld.so.cache
+const baseName=name=>(name||'').split('/').pop();
+// Addresses can pass 2^53, so they are BigInt; sizes fit in a number.
+const memoryComm=()=>(live.threads||[]).find(thread=>thread.tid===live.health?.pid)?.name;
+function memoryRegions(layout){const regions=(layout?.regions||[]).map(region=>({...region,lo:BigInt(region.start),hi:BigInt(region.end)}));
+  regions.sort((a,b)=>a.lo<b.lo?1:a.lo>b.lo?-1:0);
+  // The program image is an executable file mapping, not a library. A data
+  // file can be mapped below it, so execute permission is required. The one
+  // named like the target's comm is the program for certain; without such a
+  // match the lowest candidate is only a guess.
+  const comm=memoryComm();
+  const candidates=regions.filter(region=>region.kind==='file'&&region.permissions[2]==='x'&&!isLibrary(region.name));
+  const named=comm?candidates.find(region=>baseName(region.name).replace(/ \(deleted\)$/,'').startsWith(comm)):undefined;
+  const program=named??candidates.at(-1);
+  for(const region of regions)region.cat=region.kind==='heap'||region.kind==='stack'||region.kind==='kernel'?region.kind:region.permissions.startsWith('---')?'guard':region.kind==='file'?(isLibrary(region.name)?'library':region===program?'code':'file'):'anonymous';
+  if(program)program.certain=program===named;
+  return regions}
+// One row per run of neighbouring regions of a kind, high addresses first.
+// Libraries take in the small anonymous and guard regions between them;
+// anonymous runs take in their guards.
+function memoryRows(regions){const rows=[];let row=null;
+  for(const region of regions){
+    if(row&&Number(row.lo-region.hi)>=MEMORY_GAP){rows.push({gap:Number(row.lo-region.hi)});row=null}
+    const joins=row&&(row.cat===region.cat&&!['code','heap','stack'].includes(row.cat)||row.cat==='library'&&['anonymous','guard'].includes(region.cat)&&region.size<=2**20||row.cat==='anonymous'&&region.cat==='guard');
+    if(joins){row.members.push(region);row.lo=region.lo;row.size+=region.size;row.vmas+=region.vmas}
+    else{row={cat:region.cat,members:[region],lo:region.lo,hi:region.hi,size:region.size,vmas:region.vmas};rows.push(row)}}
+  // A busy process has hundreds of runs. Merge the cheapest neighbouring
+  // pair until the map fits: the one with the least mapped and unmapped
+  // bytes, so big gaps stay. Heap, stack, program and kernel stay apart.
+  const mergeable=item=>!item.gap&&!['code','heap','stack','kernel'].includes(item.cat);
+  while(rows.filter(item=>!item.gap).length>MEMORY_ROWS){let best=null;
+    for(let index=0;index<rows.length;index++){if(!mergeable(rows[index]))continue;
+      const next=rows[index+1]?.gap?index+2:index+1;if(!rows[next]||!mergeable(rows[next]))continue;
+      const cost=rows[index].size+rows[next].size+(rows[index+1].gap||0);if(!best||cost<best.cost)best={index,next,cost}}
+    if(!best)break;
+    const upper=rows[best.index],lower=rows[best.next],merged={members:[...upper.members,...lower.members],lo:lower.lo,hi:upper.hi,size:upper.size+lower.size,vmas:upper.vmas+lower.vmas};
+    const totals=new Map();for(const region of merged.members)totals.set(region.cat,(totals.get(region.cat)||0)+region.size);
+    merged.cat=[...totals].sort((a,b)=>b[1]-a[1])[0][0];merged.mixed=totals.size>1||upper.mixed||lower.mixed||best.next>best.index+1;
+    rows.splice(best.index,best.next-best.index+1,merged)}
+  // Heap, stack and program keep their key while they grow, so the zoom
+  // stays on them.
+  for(const item of rows)if(!item.gap)item.key=['heap','stack','code'].includes(item.cat)?item.cat:`${item.cat}:${item.lo}`;
+  return rows}
+function memoryRowName(row){const members=row.members,count=cat=>members.filter(region=>region.cat===cat).length;
+  const names=new Set(members.map(region=>region.name));
+  if(members.length>1&&names.size===1&&members[0].name)return `${members.length} × ${baseName(members[0].name)}`;
+  if(row.mixed){const parts=[['anonymous','anonymous','anonymous'],['library','library','libraries'],['file','file','files'],['guard','guard','guards']].map(([cat,one,many])=>{const n=count(cat);return n?`${n} ${n===1?one:many}`:''}).filter(Boolean);
+    return parts.join(', ')+(parts.length===1&&count('anonymous')>1?' regions':'')}
+  switch(row.cat){
+    case 'library':{const names=[...new Set(members.filter(region=>region.cat==='library').map(region=>baseName(region.name).replace(/\.so(\.\d[\w.]*)?/,'')).reverse())];
+      return names.length===1?baseName(members.find(region=>region.cat==='library').name):`${names.slice(0,4).join(', ')}${names.length>4?' …':''} (${names.length} libraries)`}
+    case 'code':return baseName(members[0].name)+(members[0].certain?' (program image)':' (probably the program)');
+    case 'kernel':return members.map(memoryRegionName).reverse().join(' ');
+    case 'anonymous':{const anonymous=count('anonymous'),guards=count('guard');
+      return anonymous===1&&!guards?memoryRegionName(members[0]):`${anonymous} anonymous region${anonymous===1?'':'s'}${guards?` + ${guards} guard${guards===1?'':'s'}`:''}`}
+    case 'file':return members.length===1?baseName(members[0].name):`${members.length} mapped files`;
+    case 'guard':return members.length===1?'guard (no access)':`${members.length} guard regions`;
+    default:return memoryRegionName(members[0])}}
+const memoryPerms=row=>[...new Set(row.members.map(region=>region.permissions))].slice(0,3).join(' ');
+const memoryGrows=cat=>cat==='heap'?' · grows ↑':cat==='stack'?' · grows ↓':'';
+
+// Live history for the zoom charts and growth findings. A PID can come back
+// in another sampler session, so the history resets when either changes.
+// fresh: the regions are the layout the summary names. While a newer
+// layout is still loading, the heap is left unknown and filled in when it
+// arrives, so the heap chart is not one layout behind.
+function recordMemory(m,regions,fresh){if(replayAt!==null)return;
+  const key=`${live.health?.session}:${m.pid}`;
+  if(memoryHistoryKey!==key){memoryHistory=[];memoryHistoryKey=key}
+  const heap=fresh?regions.find(region=>region.cat==='heap')?.size??null:null,last=memoryHistory.at(-1);
+  if(last?.t===m.updated){if(fresh)last.heap=heap;return}
+  const v=m.values||{};
+  memoryHistory.push({t:m.updated,heap,stack:v.vm_stack_bytes??null,mf:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
+  while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
+// Change per minute of a value over the points, or null.
+function memorySlope(points,key){const values=points.filter(point=>isNum(point[key]));if(values.length<2)return null;
+  const first=values[0],last=values.at(-1);return last.t>first.t?60*(last[key]-first[key])/(last.t-first.t):null}
+const signed=value=>(value>0?'+':value<0?'−':'')+bytes(Math.abs(value));
+
+function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
+  const add=(level,title,detail)=>findings.push({level,title,detail});
+  if(flags.maps_hidden)add('warning','The memory map is not readable','The sampler cannot read /proc/PID/maps. Run it as the target’s user; the target may also be non-dumpable.');
+  if(isNum(v.vma_count)&&v.max_map_count>0){const share=100*v.vma_count/v.max_map_count;
+    if(share>=75){const anonymous=regions.filter(region=>region.cat==='anonymous').reduce((sum,region)=>sum+region.vmas,0),guards=regions.filter(region=>region.cat==='guard').reduce((sum,region)=>sum+region.vmas,0);
+      add(share>=90?'critical':'warning','Mapping count is close to the limit',`${v.vma_count} of ${v.max_map_count} (vm.max_map_count). At the limit, mmap and thread creation fail with ENOMEM. ${anonymous} mappings are anonymous and ${guards} are guard pages.`)}}
+  if(isNum(v.vm_size_bytes)&&v.address_space_limit_bytes>0){const share=100*v.vm_size_bytes/v.address_space_limit_bytes;
+    if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${bytes(v.vm_size_bytes)} of ${bytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
+  const faults=memoryFaultRate(),psi=memoryPressure(r);
+  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`);
+  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`);
+  const points=resourcePoints().filter(point=>point.t>=Date.now()/1000-600&&isNum(point.rss_bytes));
+  if(points.length>=6){let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
+    const slope=memorySlope(points,'rss_bytes'),heap=rows.find(row=>row.cat==='heap');
+    if(rises>=.8*(points.length-1)&&slope>=2**20)add('warning','Resident memory grows without a plateau',`RSS rose in ${rises} of the last ${points.length-1} samples (${signed(slope)}/min). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`)}
+  if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
+  // Only code matters: deleted data files (shared memory, temporary files)
+  // are normal, and the sampler may cut the start of long names.
+  // A guessed program image is reported as an executable file, not as the program.
+  const deleted=regions.filter(region=>(region.cat==='library'||region.cat==='code')&&/ \(deleted\)$/.test(region.name));
+  if(deleted.length)add('info',deleted.some(region=>region.cat==='code'&&region.certain)?'Program replaced on disk':deleted.some(region=>region.cat==='code')?'Executable file replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
+  const stack=regions.find(region=>region.cat==='stack');
+  if(stack&&v.stack_limit_bytes>0){const share=100*stack.size/v.stack_limit_bytes;
+    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${bytes(stack.size)}; RLIMIT_STACK is ${bytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.`)}
+  if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
+  const order=['critical','serious','warning','info','good'];
+  return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
+// Major faults per second: the thread samples when they have it (in replay,
+// the recorded ones), else the difference of the last two live memory
+// summaries. Live history says nothing about a recording.
+function memoryFaultRate(){const last=buffer.at(-1);if(isNum(last?.mf))return last.mf;
+  if(replayAt!==null)return null;
+  const points=memoryHistory.filter(point=>isNum(point.mf)).slice(-2);
+  const rate=points.length===2&&points[1].t>points[0].t?(points[1].mf-points[0].mf)/(points[1].t-points[0].t):null;
+  return rate>=0?rate:null}
+function memoryPressure(r){const p=r?.pressure?.[scopeOf(r)]?.memory;return p?stall(p.some):null}
+function renderMemoryFindings(findings){const list=element('memory-findings');list.replaceChildren();
+  const names={critical:'critical',serious:'serious',warning:'warning',info:'notice',good:'ok'};
+  for(const item of findings){const row=node('li',undefined,'mem-finding');row.style.setProperty('--lvl',`var(--${item.level==='info'?'accent':item.level})`);
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));
+    row.append(node('span',names[item.level],'sev'+(item.level==='warning'||item.level==='serious'?' dark':'')),body);list.append(row)}}
+
+function renderMemoryTiles(m){const v=m.values||{},r=live.resources?.available?live.resources:null,memory=r?.memory||{};
+  const tiles=[],tile=(label,value,sub,bad)=>tiles.push([label,value,sub,bad]);
+  tile('Virtual size (VmSize)',bytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${bytes(v.address_space_limit_bytes)} · peak ${bytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${bytes(v.vm_peak_bytes)}`);
+  const growth=memorySlope(resourcePoints().filter(point=>point.t>=Date.now()/1000-600),'rss_bytes')??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
+  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,growth>=2**20);
+  const split=[memory.anon,memory.file,memory.shmem];
+  if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GB',2**30]:largest>=2**20?['MB',2**20]:['KB',2**10];
+    tile('Anonymous / file / shared',split.map(value=>isNum(value)?number(value/unit[1],value/unit[1]>=10?0:1):'—').join(' / '),`${unit[0]}: RssAnon / File / Shmem`)}
+  else tile('Anonymous / file / shared','—','needs resource samples');
+  const vmaShare=v.max_map_count>0&&isNum(v.vma_count)?100*v.vma_count/v.max_map_count:null;
+  tile('Mappings (VMAs)',isNum(v.vma_count)?v.vma_count.toLocaleString():'—',isNum(vmaShare)?`${pct(vmaShare)} of vm.max_map_count`:'limit unknown',vmaShare>=75);
+  const faults=memoryFaultRate(),before=buffer.find(point=>point.t>=(buffer.at(-1)?.t||0)-600);
+  tile('Major faults',isNum(faults)?number(faults)+' /s':'—',isNum(faults)&&isNum(before?.mf)&&buffer.at(-1).t-before.t>=300?`was ${number(before.mf)} /s ${duration(buffer.at(-1).t-before.t)} ago`:`${number(v.major_faults,0)} since start`,faults>=10);
+  const psi=memoryPressure(r),full=r?stall(r.pressure?.[scopeOf(r)]?.memory?.full):null;
+  tile('Memory pressure (PSI some)',pct(psi),r?`${scopeOf(r)} full ${pct(full)}`:'needs resource samples',psi>=5);
+  const host=element('memory-tiles');host.replaceChildren();
+  for(const [label,value,sub,bad] of tiles){const box=node('div',undefined,'card tile');box.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'+(bad?' bad':'')));host.append(box)}}
+
+function renderMemoryMap(rows){const host=element('memory-amap');host.replaceChildren();
+  if(!rows.length){host.append(node('p','No layout yet. It arrives with the next memory-map sample.','muted'));return}
+  const largest=Math.log2(Math.max(...rows.filter(row=>!row.gap).map(row=>row.size))),scale=size=>Math.max(0,Math.min(1,(Math.log2(Math.max(size,4096))-12)/Math.max(1,largest-12)));
+  for(const row of rows){
+    if(row.gap){host.append(node('div','⋮','addr'),node('div',row.gap>=2**52?'kernel half of the address space':`≈ ${bytes(row.gap)} not mapped`,'agap'));continue}
+    const [color,onDark]=MEMORY_KINDS[row.cat],bar=node('button',undefined,'arow'+(onDark?' on-dark':''));
+    bar.style.setProperty('--kind',color);bar.style.height=Math.round(24+20*scale(row.size))+'px';bar.setAttribute('aria-pressed',String(row.key===memorySelected));
+    const band=node('div',undefined,'band');band.style.width=(100*scale(row.size)).toFixed(1)+'%';
+    bar.append(band,node('span',memoryRowName(row),'name'),node('span',`${memoryPerms(row)} · ${bytes(row.size)}${memoryGrows(row.cat)}`,'meta'));
+    bar.dataset.hint=`${memoryRowName(row)}\n0x${row.lo.toString(16)} – 0x${row.hi.toString(16)}\n${row.members.length} region(s), ${row.vmas} VMAs`;
+    bar.onclick=()=>{memorySelected=row.key;for(const other of host.querySelectorAll('.arow'))other.setAttribute('aria-pressed',String(other===bar));renderMemoryZoom(row)};
+    host.append(node('div',row.lo.toString(16),'addr'),bar)}}
+
+function renderMemoryZoom(row){const v=live.memory?.values||{};
+  element('memory-zoom-name').textContent=row?memoryRowName(row):'—';
+  const facts=element('memory-zoom-facts'),grid=element('memory-grid'),body=element('memory-regions'),charts=element('memory-charts');
+  facts.replaceChildren();grid.replaceChildren();body.replaceChildren();
+  renderMemoryCharts(charts);
+  if(!row){element('memory-zoom-sub').textContent='';element('memory-grid-caption').textContent='No layout yet.';return}
+  const span=Number(row.hi-row.lo);
+  element('memory-zoom-sub').textContent=`0x${row.lo.toString(16)} – 0x${row.hi.toString(16)} · ${memoryPerms(row)}${memoryGrows(row.cat)}`;
+  const fact=(label,value)=>{const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item)};
+  fact('Size (mapped)',bytes(row.size));fact('Address span',bytes(span));
+  fact('Regions / VMAs',`${row.members.length} / ${row.vmas}`);fact('Share of VmSize',v.vm_size_bytes>0?pct(100*row.size/v.vm_size_bytes):'—');
+  fact('Not mapped inside',bytes(span-row.size));fact('Largest region',bytes(Math.max(...row.members.map(region=>region.size))));
+  const key=row.cat==='heap'?'heap':row.cat==='stack'?'stack':null,points=memoryHistory.filter(point=>isNum(point[key]));
+  fact(row.cat==='heap'?'Break moved':row.cat==='stack'?'Stack grew':'Grows',key?(points.length>=2?`${signed(points.at(-1)[key]-points[0][key])} in ${duration(points.at(-1).t-points[0].t)}`:'collecting…'):'no (fixed size)');
+  fact('Page size','4 KB');
+  // At most 512 squares of whole pages, high addresses on the top row.
+  const cell=Math.max(4096,Math.ceil(span/512/4096)*4096),count=Math.ceil(span/cell),columns=64,lines=Math.ceil(count/columns);
+  element('memory-grid-caption').textContent=`Top = high address. One square = ${bytes(cell)} (${cell/4096} page${cell===4096?'':'s'}), ${count} squares.`;
+  const offset=region=>[Number(region.lo-row.lo),Number(region.hi-row.lo)];
+  const members=row.members.map(region=>[region,...offset(region)]);
+  const previous=memoryPrevious?memoryRegions(memoryPrevious).filter(region=>region.hi>row.lo&&region.lo<row.hi).map(offset):null;
+  for(let line=lines-1;line>=0;line--)for(let column=0;column<columns;column++){const index=line*columns+column,square=node('i');
+    if(index>=count){square.className='pad';grid.append(square);continue}
+    const from=index*cell,to=Math.min(span,from+cell);let best=null,covered=0;
+    for(const [region,lo,hi] of members){const overlap=Math.min(hi,to)-Math.max(lo,from);if(overlap>covered){covered=overlap;best=region}}
+    if(!best){square.className='cell-none';square.dataset.hint='not mapped'}
+    else{square.style.setProperty('--kind',MEMORY_KINDS[best.cat][0]);if(best.cat==='guard')square.className='cell-guard';
+      if(previous&&!previous.some(([lo,hi])=>lo<to&&hi>from))square.classList.add('cell-new');
+      square.dataset.hint=`${memoryRegionName(best)||best.cat} · ${best.permissions}\n0x${(row.lo+BigInt(from)).toString(16)}`}
+    grid.append(square)}
+  for(const region of row.members.slice(0,300)){const tr=node('tr'),name=node('td',memoryRegionName(region)||region.cat);name.dataset.hint=region.name;
+    tr.append(name,node('td',region.start,'mono'),node('td',bytes(region.size),'num'),node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(tr)}}
+
+// A small chart scaled from the lowest to the highest value, so steps of a
+// page stay visible.
+function memoryChart(title,points,key,color){const box=node('div',undefined,'mem-chart'),cap=node('div',undefined,'cap'),values=points.filter(point=>isNum(point[key]));
+  const slope=memorySlope(values,key);cap.append(node('h3',title),node('span',isNum(slope)?`${signed(slope)} / min`:''));
+  box.append(cap);
+  if(values.length<2){const wait=node('div',points.length>=2&&!values.length?'Not in the layout':'Collecting…','chart-empty');wait.style.height='84px';box.append(wait);return box}
+  const width=300,height=84,svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,preserveAspectRatio:'none'});box.append(svg);
+  const t0=values[0].t,t1=values.at(-1).t,low=Math.min(...values.map(point=>point[key])),high=Math.max(...values.map(point=>point[key])),range=high-low||1;
+  const x=t=>(t1>t0?(t-t0)/(t1-t0):0)*width,y=value=>high===low?height/2:height-10-(value-low)/range*(height-26);
+  // Steps, not slopes: the value holds until the next sample.
+  let path='';values.forEach((point,index)=>{path+=index?` ${x(point.t).toFixed(1)},${y(values[index-1][key]).toFixed(1)} ${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`:`${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`});
+  svg.append(svgNode('polyline',{points:path,fill:'none',stroke:color,'stroke-width':2,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
+  box.append(node('div',`${bytes(values[0][key])} → ${bytes(values.at(-1)[key])}`,'range'));return box}
+function renderMemoryCharts(host){host.replaceChildren();
+  host.append(memoryChart('Heap size ↑',memoryHistory,'heap','var(--k-heap)'),memoryChart('Main stack ↓',memoryHistory,'stack','var(--k-stack)'),memoryChart('Resident anonymous',memoryHistory,'anon','var(--k-anon)'))}
+
 function renderMemory(){const m=live.memory,empty=element('memory-empty'),content=element('memory-content');
   if(!m||!m.available){empty.hidden=false;content.hidden=true;empty.textContent=m?.reason||'This collector does not report memory-map samples.';return}
   empty.hidden=true;content.hidden=false;
@@ -1277,43 +1932,38 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   if(!historical&&m.layout_id&&memoryLayout?.id!==m.layout_id&&!memoryLayoutLoading)refreshMemoryLayout();
   const layout=historical?memoryLayout:memoryLayoutFor(m);
   const v=m.values||{},now=viewNow(),flags=m.flags||{};
-  element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
-  const tiles=[['Address space',bytes(v.vm_size_bytes),`peak ${bytes(v.vm_peak_bytes)} · data ${bytes(v.vm_data_bytes)}`],
-    ['Mappings (VMAs)',isNum(v.vma_count)?String(v.vma_count):'—',isNum(v.max_map_count)&&isNum(v.vma_count)?`${pct(100*v.vma_count/v.max_map_count)} of max_map_count ${v.max_map_count}`:'limit unknown'],
-    ['Page tables',bytes(v.vm_pte_bytes),`locked ${bytes(v.vm_locked_bytes)}`],
-    ['Page faults',isNum(v.major_faults)?number(v.major_faults,0)+' major':'—',`${number(v.minor_faults,0)} minor, since start`],
-    ['Longest maps read',microseconds(v.maps_read_max_us),`${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} in total; one read holds the target's memory-map lock once`]];
-  const host=element('memory-tiles');host.replaceChildren();
-  for(const [label,value,sub] of tiles){const tile=node('div',undefined,'card tile');tile.append(node('div',label,'label'),node('div',value,'value'),node('div',sub,'sub'));host.append(tile)}
-  const regions=layout?layout.regions:[],stack=regions.find(region=>region.kind==='stack');
+  element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s; the longest maps read took ${microseconds(v.maps_read_max_us)}. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
+  const regions=memoryRegions(layout),rows=memoryRows(regions),stack=regions.find(region=>region.cat==='stack');
+  recordMemory(m,regions,!!layout&&layout.id===m.layout_id);
+  renderMemoryTiles(m);renderMemoryFindings(assessMemory(m,regions,rows));
   const limits=element('memory-limits');limits.replaceChildren();
   limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
   limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${bytes(v.vm_size_bytes)} / ${bytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,bytes(v.vm_size_bytes)));
   if(stack)limits.append(isNum(v.stack_limit_bytes)?meter('Main stack','RLIMIT_STACK; the [stack] mapping',stack.size,v.stack_limit_bytes,`${bytes(stack.size)} / ${bytes(v.stack_limit_bytes)}`):meter('Main stack','no RLIMIT_STACK limit',null,0,bytes(stack.size)));
+  const facts=element('memory-facts');facts.replaceChildren();
+  for(const [label,value] of [['Peak virtual size',bytes(v.vm_peak_bytes)],['Data + heap (VmData)',bytes(v.vm_data_bytes)],['Page tables',bytes(v.vm_pte_bytes)],['Locked',bytes(v.vm_locked_bytes)],
+    ['Page faults since start',`${number(v.major_faults,0)} major · ${number(v.minor_faults,0)} minor`],['Longest maps read',`${microseconds(v.maps_read_max_us)} (${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} total)`]]){
+    const item=node('div');item.append(node('dt',label),node('dd',value));facts.append(item)}
   const notes=[];
   if(flags.maps_hidden)notes.push('The sampler cannot read /proc/PID/maps: run it as the target\'s user. The target may also be non-dumpable.');
   if(flags.maps_partial)notes.push('The last read of /proc/PID/maps stopped early, for example because the target exited.');
   if(layout?.flags?.regions_truncated)notes.push(`Only the first ${regions.length} regions are shown; the rest are counted in the mapping total.`);
-  if(replayAt!==null)notes.push('Historical view: the layout below is the latest one, not the one at the replay time.');
+  if(replayAt!==null)notes.push('Historical view: the layout is the latest one, not the one at the replay time.');
   element('memory-notes').textContent=notes.join(' ');
   element('memory-region-count').textContent=layout?`${regions.length} regions · updated ${ago(Date.now()/1000-layout.updated)}`:'';
-  // Rebuild the table only for another layout; a poll changes nothing in it.
-  if(layout!==memoryRenderedLayout&&!element('memory-regions').matches(':hover')){memoryRenderedLayout=layout;renderMemoryRegions(regions)}}
-function renderMemoryRegions(regions){const body=element('memory-regions');body.replaceChildren();
-  if(!regions.length){const row=node('tr'),cell=node('td','No layout yet. It arrives with the next memory-map sample.');cell.colSpan=7;row.append(cell);body.append(row);return}
-  const sorted=element('memory-largest').checked?regions.slice().sort((a,b)=>b.size-a.size):regions;
-  const largest=Math.log2(Math.max(...regions.map(region=>region.size)));
-  for(const region of sorted){const row=node('tr'),name=node('td',memoryRegionName(region));name.title=region.name;
-    const bar=node('div',undefined,'region-bar');bar.style.width=Math.max(1,100*(Math.log2(region.size)-11)/Math.max(1,largest-11))+'%';
-    const barCell=node('td');barCell.style.minWidth='90px';barCell.append(bar);
-    row.append(name,node('td',region.kind),node('td',region.start,'mono'),node('td',bytes(region.size),'num'),barCell,node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(row)}}
-element('memory-largest').onchange=()=>renderMemoryRegions(memoryRenderedLayout?.regions||[]);
+  // Rebuild the map only for another layout, or when the target's comm
+  // arrives or changes (it names the program image); a poll changes nothing
+  // else in it. The charts follow every poll.
+  if((layout!==memoryRenderedLayout||memoryComm()!==memoryRenderedComm)&&!element('memory-amap').matches(':hover')){memoryRenderedLayout=layout;memoryRenderedComm=memoryComm();
+    const bars=rows.filter(row=>!row.gap);if(!bars.some(row=>row.key===memorySelected))memorySelected=(bars.find(row=>row.cat==='heap')||bars.reduce((best,row)=>row.size>(best?.size||0)?row:best,null))?.key??null;
+    renderMemoryMap(rows);renderMemoryZoom(bars.find(row=>row.key===memorySelected))}
+  else renderMemoryCharts(element('memory-charts'))}
 
 // ---------- Main loop ----------
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
   const state=replayAt!==null?['warning','Historical']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
-  dot.className='status-dot '+state[0];dot.title=state[1];
+  dot.className='status-dot '+state[0];dot.dataset.hint=state[1];
   element('target-name').textContent=health.target_absent===null?'No target yet':targetName();
   element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
   document.title=(health.pid?targetName()+' · ':'')+'Triangulator';
@@ -1330,7 +1980,7 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     events('alerts',live.alerts||[]);events('recent',live.recent_alerts||[]);
     if(!selected&&location.hash.startsWith('#thread=')){const thread=(live.threads||[]).find(item=>item.tid===Number(location.hash.slice(8)));if(thread)openThread(thread)}}
   catch(error){if(replayAt!==null)return;element('error').textContent='⚠ Collector unavailable. Displayed data is stale.';element('live-dot').className='status-dot critical'}
-  finally{setTimeout(refresh,1000)}}
+  finally{refreshHelp();setTimeout(refresh,1000)}}
 
 for(const button of document.querySelectorAll('[data-window]'))button.onclick=()=>{windowSecs=Number(button.dataset.window);for(const other of document.querySelectorAll('[data-window]'))other.setAttribute('aria-pressed',String(other===button));if(live.health)renderOverview()};
 element('family-mode').onchange=()=>renderFamilies(live.threads||[]);
@@ -1341,11 +1991,12 @@ element('settings-reset').onclick=()=>{if(confirm('Discard dashboard changes and
 element('clear-filters').onclick=()=>{stateFilter='';wchanFilter='';element('group').value='';element('search').value='';setActivity('active');renderWchans(live.threads||[])};
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&selected)closeThread();else if(event.key==='/'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){event.preventDefault();element('search').focus();element('search').scrollIntoView({block:'center',behavior:'smooth'})}});
 const themes=['auto','light','dark'];
-function applyTheme(theme){if(theme==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;element('theme').title='Theme: '+(theme==='auto'?'follow system':theme);element('theme').textContent={auto:'◐',light:'☀',dark:'☾'}[theme];try{localStorage.setItem('triangulator:theme',theme)}catch{}}
+function applyTheme(theme){if(theme==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=theme;element('theme').dataset.hint='Theme: '+(theme==='auto'?'follow system':theme);element('theme').textContent={auto:'◐',light:'☀',dark:'☾'}[theme];try{localStorage.setItem('triangulator:theme',theme)}catch{}}
 element('theme').onclick=()=>{let current='auto';try{current=localStorage.getItem('triangulator:theme')||'auto'}catch{}applyTheme(themes[(themes.indexOf(current)+1)%themes.length]);if(live.health)renderOverview()};
 try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTheme('auto')}
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
+initHelp();
 refresh();
 loadTarget();
 pollResources();
