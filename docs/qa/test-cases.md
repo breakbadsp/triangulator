@@ -35,7 +35,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-117 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Listen page](runs/20261009T035640Z-v0.1.0/evidence/listen-full.txt) |
 | QA-118 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Churn page](runs/20261009T035640Z-v0.1.0/evidence/thread-churn.txt) |
 | QA-119 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Thread-growth page](runs/20261009T035640Z-v0.1.0/evidence/thread-leak.txt) |
-| QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Final stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final.txt) |
+| QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Final stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final.txt), [resumed page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final-resumed.txt) |
 
 ## QA-001: Package installation and live dashboard
 

@@ -51,8 +51,8 @@ The client must support delegation and have access to the requested model.
 ## Triangulator suite
 
 Use [manual test cases](qa/test-cases.md). The cases cover documented installation
-and dashboard behavior, plus the PR #47 bug lab. They have not been executed by
-this change.
+and dashboard behavior, plus the PR #47 bug lab. The table links the latest
+result for each case to its versioned run record.
 Historical observations in `docs/bug-lab-report.md` and
 `docs/buggy-workload-evaluation.md` remain separate.
 
