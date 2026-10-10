@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 640" width="1320" height="640" role="img" aria-labelledby="t d">
+<title id="t">Inside the Triangulator collector</title>
+<desc id="d">UDP datagrams from the sampler are received and checked, assembled into ticks by session and sequence, turned into per-thread state, then split into five-second rollups stored in SQLite day files and a ten-minute in-memory window. Health and resource samples join a JSON snapshot published every half second, which the HTTP server serves to the dashboard.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a0f1f"/><stop offset="1" stop-color="#121c3b"/></linearGradient>
+<pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#7f9bff" fill-opacity="0.12"/></pattern>
+<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 9 5 0 9z" fill="#8aa4ff" fill-opacity="0.8"/></marker>
+<clipPath id="round"><rect width="1320" height="640" rx="20"/></clipPath>
+</defs>
+<style>
+text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; fill: #dbe4ff; }
+.h { font-size: 17px; font-weight: 700; }
+.s { font-size: 13px; fill: #9db0d6; }
+.m { font-size: 12px; fill: #9db0d6; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.zone { font-size: 12px; font-weight: 700; letter-spacing: 2.4px; fill: #7f93c4; }
+.n { font-size: 12px; font-weight: 700; fill: #0a0f1f; }
+.box { fill: #101a38; stroke-width: 1.6; }
+@media (prefers-reduced-motion: reduce) { .motion { display: none; } }
+</style>
+<g clip-path="url(#round)"><rect width="1320" height="640" fill="url(#bg)"/><rect width="1320" height="640" fill="url(#dots)"/>
+<text class="h" x="30" y="40" style="font-size:22px">Inside the collector</text>
+<text class="s" x="30" y="58">One pass from raw UDP chunks to stored history and a live snapshot. Single C++ binary.</text>
+<rect x="250" y="76" width="1046" height="500" rx="16" fill="none" stroke="#6b7aa5" stroke-opacity="0.5" stroke-dasharray="6 6"/>
+<text class="zone" x="270" y="100">COLLECTOR</text>
+<rect class="box" x="24" y="130" width="160" height="120" rx="12" stroke="#60a5fa" stroke-opacity="0.8"/>
+<text class="h" x="40" y="159">Sampler</text>
+<text class="m" x="40" y="182">thread + resource</text>
+<text class="m" x="40" y="199">samples</text>
+<text class="m" x="40" y="216">10 per datagram</text>
+<path id="pin" d="M184 190H261" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<text class="h" x="222" y="168" text-anchor="middle" style="font-size:14px">UDP</text><text class="m" x="222" y="182" text-anchor="middle">:9400</text>
+<rect class="box" x="261" y="130" width="170" height="120" rx="12" stroke="#60a5fa" stroke-opacity="0.8"/>
+<circle cx="281" cy="154" r="10" fill="#60a5fa"/><text class="n" x="281" y="158" text-anchor="middle">1</text>
+<text class="h" x="299" y="159">Receive</text>
+<text class="m" x="277" y="182">check sender</text>
+<text class="m" x="277" y="199">decode packet</text>
+<rect class="box" x="471" y="130" width="170" height="120" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<circle cx="491" cy="154" r="10" fill="#34d399"/><text class="n" x="491" y="158" text-anchor="middle">2</text>
+<text class="h" x="509" y="159">Assemble</text>
+<text class="m" x="487" y="182">session + sequence</text>
+<text class="m" x="487" y="199">dedupe · reorder</text>
+<text class="m" x="487" y="216">partial: bounded wait</text>
+<rect class="box" x="681" y="130" width="170" height="120" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<circle cx="701" cy="154" r="10" fill="#34d399"/><text class="n" x="701" y="158" text-anchor="middle">3</text>
+<text class="h" x="719" y="159">Thread state</text>
+<text class="m" x="697" y="182">counter deltas</text>
+<text class="m" x="697" y="199">name-prefix groups</text>
+<text class="m" x="697" y="216">wait-channel class</text>
+<rect class="box" x="891" y="130" width="170" height="120" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<circle cx="911" cy="154" r="10" fill="#34d399"/><text class="n" x="911" y="158" text-anchor="middle">4</text>
+<text class="h" x="929" y="159">Rollups</text>
+<text class="m" x="907" y="182">per thread</text>
+<text class="m" x="907" y="199">5-second windows</text>
+<path d="M1101 152V236A85 12 0 0 0 1271 236V152" fill="#101a38" stroke="#fbbf24" stroke-opacity="0.8" stroke-width="1.6"/>
+<ellipse cx="1186" cy="152" rx="85" ry="12" fill="#16224a" stroke="#fbbf24" stroke-opacity="0.8" stroke-width="1.6"/>
+<text class="h" x="1117" y="188">5  SQLite</text>
+<text class="m" x="1117" y="208">one file / UTC day</text>
+<text class="m" x="1117" y="225">rollups, opt. raw</text>
+<path id="p0" d="M431 190H471" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-0.00s" repeatCount="indefinite"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.00s" repeatCount="indefinite"/></rect>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-0.53s" repeatCount="indefinite"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.53s" repeatCount="indefinite"/></rect>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.6s" begin="-1.07s" repeatCount="indefinite"><mpath href="#p0"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-1.07s" repeatCount="indefinite"/></rect>
+<path id="p1" d="M641 190H681" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="1.6s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#p1"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="1.6s" begin="-0.53s" repeatCount="indefinite" rotate="auto"><mpath href="#p1"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-0.53s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="1.6s" begin="-1.07s" repeatCount="indefinite" rotate="auto"><mpath href="#p1"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.6s" begin="-1.07s" repeatCount="indefinite"/></circle>
+<path id="p2" d="M851 190H891" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="2.4s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#p2"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="2.4s" begin="-1.20s" repeatCount="indefinite" rotate="auto"><mpath href="#p2"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-1.20s" repeatCount="indefinite"/></circle>
+<path id="p3" d="M1061 190H1101" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="2.4s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#p3"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="2.4s" begin="-1.20s" repeatCount="indefinite" rotate="auto"><mpath href="#p3"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-1.20s" repeatCount="indefinite"/></circle>
+<rect x="277" y="216" width="24" height="18" rx="4" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="fill-opacity" values="0.3;0.9;0.3" dur="1.6s" repeatCount="indefinite"/></rect>
+<path d="M283 225l4 4 8-8" fill="none" stroke="#0a0f1f" stroke-width="2"><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.3;0.5;0.9;1" dur="1.6s" repeatCount="indefinite"/></path>
+<rect x="539" y="226" width="20" height="14" rx="3" fill="#60a5fa" fill-opacity="0.85"><animate attributeName="x" values="539;539;487;487;539" keyTimes="0;0.15;0.45;0.9;1" dur="3.6s" repeatCount="indefinite"/></rect>
+<rect x="487" y="226" width="20" height="14" rx="3" fill="#34d399" fill-opacity="0.85"><animate attributeName="x" values="487;487;513;513;487" keyTimes="0;0.15;0.45;0.9;1" dur="3.6s" repeatCount="indefinite"/></rect>
+<rect x="513" y="226" width="20" height="14" rx="3" fill="#fbbf24" fill-opacity="0.85"><animate attributeName="x" values="513;513;539;539;513" keyTimes="0;0.15;0.45;0.9;1" dur="3.6s" repeatCount="indefinite"/></rect>
+<text class="m" x="569" y="237">1 2 3</text>
+<rect x="697" y="228" width="9" height="10" rx="2" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="height" values="10;24;10" dur="2.0s" repeatCount="indefinite"/><animate attributeName="y" values="228;214;228" dur="2.0s" repeatCount="indefinite"/></rect>
+<rect x="711" y="216" width="9" height="22" rx="2" fill="#34d399" fill-opacity="0.85"><animate attributeName="height" values="22;12;22" dur="2.3s" repeatCount="indefinite"/><animate attributeName="y" values="216;226;216" dur="2.3s" repeatCount="indefinite"/></rect>
+<rect x="725" y="222" width="9" height="16" rx="2" fill="#34d399" fill-opacity="0.85"><animate attributeName="height" values="16;18;16" dur="2.6s" repeatCount="indefinite"/><animate attributeName="y" values="222;220;222" dur="2.6s" repeatCount="indefinite"/></rect>
+<rect x="739" y="212" width="9" height="26" rx="2" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="height" values="26;8;26" dur="2.9s" repeatCount="indefinite"/><animate attributeName="y" values="212;230;212" dur="2.9s" repeatCount="indefinite"/></rect>
+<rect x="753" y="226" width="9" height="12" rx="2" fill="#34d399" fill-opacity="0.85"><animate attributeName="height" values="12;22;12" dur="3.2s" repeatCount="indefinite"/><animate attributeName="y" values="226;216;226" dur="3.2s" repeatCount="indefinite"/></rect>
+<rect x="767" y="218" width="9" height="20" rx="2" fill="#34d399" fill-opacity="0.85"><animate attributeName="height" values="20;14;20" dur="3.5s" repeatCount="indefinite"/><animate attributeName="y" values="218;224;218" dur="3.5s" repeatCount="indefinite"/></rect>
+<rect x="781" y="230" width="9" height="8" rx="2" fill="#f26a2e" fill-opacity="0.85"><animate attributeName="height" values="8;26;8" dur="3.8s" repeatCount="indefinite"/><animate attributeName="y" values="230;212;230" dur="3.8s" repeatCount="indefinite"/></rect>
+<rect x="907" y="226" width="130" height="12" rx="6" fill="none" stroke="#34d399" stroke-opacity="0.6"/>
+<rect x="907" y="226" width="0" height="12" rx="6" fill="#34d399" fill-opacity="0.8"><animate attributeName="width" values="0;130;130;0" keyTimes="0;0.8;0.95;1" dur="3.6s" repeatCount="indefinite"/></rect>
+<rect class="box" x="261" y="380" width="170" height="120" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<text class="h" x="277" y="409">Health</text>
+<text class="m" x="277" y="432">sampler silence</text>
+<text class="m" x="277" y="449">target absence</text>
+<text class="m" x="277" y="466">loss, last minute</text>
+<rect class="box" x="471" y="380" width="170" height="120" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<text class="h" x="487" y="409">Resources</text>
+<text class="m" x="487" y="432">TRES: reassemble</text>
+<text class="m" x="487" y="449">PSI · fds · sockets</text>
+<text class="m" x="487" y="466">rates per interval</text>
+<rect class="box" x="681" y="380" width="170" height="120" rx="12" stroke="#fbbf24" stroke-opacity="0.8"/>
+<text class="h" x="697" y="409">Live window</text>
+<text class="m" x="697" y="432">bounded memory</text>
+<text class="m" x="697" y="449">last 10 minutes</text>
+<text class="m" x="697" y="466">10 s metrics</text>
+<rect class="box" x="891" y="380" width="170" height="120" rx="12" stroke="#a78bfa" stroke-opacity="0.8"/>
+<text class="h" x="907" y="409">Snapshot</text>
+<text class="m" x="907" y="432">JSON every 0.5 s</text>
+<text class="m" x="907" y="449">threads · groups</text>
+<text class="m" x="907" y="466">· health</text>
+<rect class="box" x="1101" y="380" width="170" height="120" rx="12" stroke="#a78bfa" stroke-opacity="0.8"/>
+<text class="h" x="1117" y="409">HTTP server</text>
+<text class="m" x="1117" y="432">/api/live</text>
+<text class="m" x="1117" y="449">/api/history</text>
+<text class="m" x="1117" y="466">/api/replay</text>
+<circle cx="405" cy="406" r="5" fill="#34d399"><animate attributeName="r" values="4;7;4" dur="1.2s" repeatCount="indefinite"/><animate attributeName="fill-opacity" values="1;0.35;1" dur="1.2s" repeatCount="indefinite"/></circle>
+<rect x="697" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="711" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="725" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="739" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="753" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="767" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="781" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="795" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="809" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="823" y="478" width="10" height="12" rx="2" fill="#fbbf24" fill-opacity="0.25"/>
+<rect x="697" y="478" width="10" height="12" rx="2" fill="#fbbf24"><animate attributeName="x" values="697;711;725;739;753;767;781;795;809;823" dur="3s" calcMode="discrete" repeatCount="indefinite"/></rect>
+<circle cx="1035" cy="406" r="6" fill="none" stroke="#a78bfa" stroke-width="2"><animate attributeName="r" values="4;14" dur="1s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1s" repeatCount="indefinite"/></circle><circle cx="1035" cy="406" r="4" fill="#a78bfa"/>
+<text class="m" x="907" y="487">{ "threads": [ … ] }</text>
+<polyline fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" points="1117,489 1135,485 1153,487 1171,482 1189,485 1207,480 1225,483 1243,479"><animate attributeName="points" dur="3.2s" repeatCount="indefinite" values="1117,489 1135,485 1153,487 1171,482 1189,485 1207,480 1225,483 1243,479;1117,487 1135,488 1153,483 1171,486 1189,481 1207,484 1225,482 1243,485;1117,489 1135,485 1153,487 1171,482 1189,485 1207,480 1225,483 1243,479"/></polyline>
+<path id="f_proc_live" d="M766 250V380" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="1.8s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_proc_live"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.8s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#34d399"><animateMotion dur="1.8s" begin="-0.90s" repeatCount="indefinite" rotate="auto"><mpath href="#f_proc_live"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.8s" begin="-0.90s" repeatCount="indefinite"/></circle>
+<path id="f_live_snap" d="M851 440H891" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="1.4s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_live_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="1.4s" begin="-0.70s" repeatCount="indefinite" rotate="auto"><mpath href="#f_live_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.70s" repeatCount="indefinite"/></circle>
+<path id="f_snap_http" d="M1061 440H1101" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#a78bfa"><animateMotion dur="1.2s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_snap_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.2s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#a78bfa"><animateMotion dur="1.2s" begin="-0.60s" repeatCount="indefinite" rotate="auto"><mpath href="#f_snap_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.2s" begin="-0.60s" repeatCount="indefinite"/></circle>
+<path id="f_db_http" d="M1186 260V380" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="1.9s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_db_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.9s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#fbbf24"><animateMotion dur="1.9s" begin="-0.95s" repeatCount="indefinite" rotate="auto"><mpath href="#f_db_http"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.9s" begin="-0.95s" repeatCount="indefinite"/></circle>
+<text class="m" x="1196" y="319">history</text>
+<path id="f_rx_health" d="M346 250V380" fill="none" stroke="#34d399" stroke-opacity="0.8" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ah)"/>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="2.2s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_rx_health"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.2s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="2.2s" begin="-1.10s" repeatCount="indefinite" rotate="auto"><mpath href="#f_rx_health"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.2s" begin="-1.10s" repeatCount="indefinite"/></circle>
+<text class="m" x="336" y="319" text-anchor="end">last seen</text>
+<path id="f_rx_res" d="M401 250C401 320 511 310 511 380" fill="none" stroke="#34d399" stroke-opacity="0.8" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ah)"/>
+<circle class="motion" r="3.2" fill="#60a5fa"><animateMotion dur="2.4s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_rx_res"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="3.2" fill="#60a5fa"><animateMotion dur="2.4s" begin="-1.20s" repeatCount="indefinite" rotate="auto"><mpath href="#f_rx_res"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="2.4s" begin="-1.20s" repeatCount="indefinite"/></circle>
+<text class="m" x="523" y="302">TRES</text>
+<path id="f_h_snap" d="M346 500V522H951V500" fill="none" stroke="#8aa4ff" stroke-opacity="0.7" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ah)"/>
+<path id="f_r_snap" d="M556 500V542H1001V500" fill="none" stroke="#8aa4ff" stroke-opacity="0.7" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#ah)"/>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="3.2s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_h_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="3.2s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="3.2s" begin="-1.60s" repeatCount="indefinite" rotate="auto"><mpath href="#f_h_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="3.2s" begin="-1.60s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="3.6s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_r_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="3.6s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="3.2" fill="#34d399"><animateMotion dur="3.6s" begin="-1.80s" repeatCount="indefinite" rotate="auto"><mpath href="#f_r_snap"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="3.6s" begin="-1.80s" repeatCount="indefinite"/></circle>
+<text class="m" x="766" y="516" text-anchor="middle">health</text>
+<text class="m" x="766" y="536" text-anchor="middle">resource rates</text>
+<path id="f_out" d="M1251 500V534" fill="none" stroke="#a78bfa" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle class="motion" r="4.2" fill="#a78bfa"><animateMotion dur="1.2s" begin="-0.00s" repeatCount="indefinite" rotate="auto"><mpath href="#f_out"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.2s" begin="-0.00s" repeatCount="indefinite"/></circle>
+<circle class="motion" r="4.2" fill="#a78bfa"><animateMotion dur="1.2s" begin="-0.60s" repeatCount="indefinite" rotate="auto"><mpath href="#f_out"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.2s" begin="-0.60s" repeatCount="indefinite"/></circle>
+<text class="s" x="1281" y="552" text-anchor="end">Browser dashboard</text>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.4s" begin="-0.00s" repeatCount="indefinite"><mpath href="#pin"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.00s" repeatCount="indefinite"/></rect>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.4s" begin="-0.35s" repeatCount="indefinite"><mpath href="#pin"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.35s" repeatCount="indefinite"/></rect>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.4s" begin="-0.70s" repeatCount="indefinite"><mpath href="#pin"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-0.70s" repeatCount="indefinite"/></rect>
+<rect class="motion" x="-8" y="-4.5" width="16" height="9" rx="3" fill="#60a5fa"><animateMotion dur="1.4s" begin="-1.05s" repeatCount="indefinite"><mpath href="#pin"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="1.4s" begin="-1.05s" repeatCount="indefinite"/></rect>
+<text class="s" x="30" y="614">Blue: raw datagrams. Green: thread state. Amber: stored rollups. Violet: views for the browser.</text>
+<text class="s" x="1290" y="614" text-anchor="end">Ports and timings are defaults.</text>
+</g></svg>
