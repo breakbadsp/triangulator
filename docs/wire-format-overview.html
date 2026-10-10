@@ -6,31 +6,43 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --bg:#0f1419; --panel:#161d26; --line:#2a3541; --fg:#d8e0ea; --dim:#8696a8;
-    --tmon:#4cc2ff; --tres:#ffb454; --tvma:#b58cff; --tsio:#5fdc9b; --bad:#ff6b6b;
+    color-scheme: dark;
+    --bg:#0f1218; --panel:#171c26; --panel2:#1d2431; --line:#2b3446; --fg:#e6eaf2; --dim:#93a0b8;
+    --tmon:#4da3ff; --tres:#3ecf8e; --tvma:#ff9f43; --tsio:#b78cff; --bad:#ff5d6c; --ok:#3ecf8e;
   }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg);
          font:14px/1.5 system-ui,sans-serif; }
   header, main { max-width:1100px; margin:0 auto; padding:0 16px; }
   header { padding-top:24px; }
+  nav { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); }
+  nav .in { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; }
+  nav a { background:var(--panel); color:var(--fg); border:1px solid var(--line); padding:6px 14px;
+          border-radius:8px; text-decoration:none; }
+  nav a:hover, nav a.on { background:var(--tmon); color:#04101f; border-color:var(--tmon); font-weight:600; }
+  section { scroll-margin-top:60px; }
   h1 { margin:0 0 4px; font-size:22px; }
   h2 { margin:32px 0 8px; font-size:17px; }
   p.lead { color:var(--dim); margin:0 0 12px; max-width:800px; }
   code, .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:99px; font:700 12px ui-monospace,monospace; color:#06111c; }
+  .log { font:12px/1.5 ui-monospace,monospace; background:#0b0e14; border-radius:8px; padding:8px 10px;
+         height:120px; overflow:auto; color:var(--dim); margin-top:10px; }
+  .log b { color:var(--fg); }
+  input[type=range] { accent-color:var(--tmon); }
   .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:8px 0; color:var(--dim); }
   .controls label { display:flex; gap:6px; align-items:center; }
-  button { background:#223040; color:var(--fg); border:1px solid var(--line);
-           border-radius:6px; padding:5px 12px; cursor:pointer; font:inherit; }
-  button:hover { background:#2c4057; }
-  canvas { width:100%; display:block; border-radius:6px; background:#0b1015; }
+  button { background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+           border-radius:8px; padding:6px 12px; cursor:pointer; font:inherit; transition:border-color .15s, background .15s; }
+  button:hover { border-color:var(--tmon); }
+  canvas { width:100%; display:block; border-radius:10px; background:var(--panel2); border:1px solid var(--line); }
   .legend { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
   .chip { border:1px solid; border-radius:14px; padding:2px 10px; cursor:pointer;
           font-family:ui-monospace,monospace; font-size:12.5px; background:transparent; color:var(--fg); }
   .chip small { color:var(--dim); font-family:system-ui; }
   .tabs { display:flex; gap:6px; margin-bottom:10px; }
-  .tabs button.on { background:#34506d; border-color:#5b83ad; }
+  .tabs button.on { background:#16314d; border-color:#fff; }
   .grid8 { display:flex; flex-direction:column; gap:3px; margin:8px 0; }
   .row8 { display:flex; gap:2px; height:30px; }
   .rowlabel { width:34px; color:var(--dim); font-size:11px; line-height:30px; flex:none; }
@@ -41,7 +53,7 @@
   table { border-collapse:collapse; width:100%; margin-top:8px; }
   td, th { text-align:left; padding:3px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--dim); font-weight:500; }
-  tr.hl td { background:#22303f; }
+  tr.hl td { background:#243049; }
   .stack { display:flex; height:34px; border-radius:5px; overflow:hidden; margin:8px 0; }
   .stack div { display:flex; align-items:center; justify-content:center; font-size:12px; color:#06101a; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -51,9 +63,9 @@
   .hex span { padding:0 1px; border-radius:2px; color:#06101a; }
   ol.steps { padding-left:20px; margin:6px 0; }
   ol.steps li { padding:3px 6px; border-radius:4px; color:var(--dim); }
-  ol.steps li.on { background:#22303f; color:var(--fg); }
+  ol.steps li.on { background:#16314d; color:var(--fg); box-shadow:inset 3px 0 var(--tmon); }
   .note { color:var(--dim); font-size:13px; }
-  .ok { color:var(--tsio); } .no { color:var(--bad); }
+  .ok { color:var(--ok); } .no { color:var(--bad); }
   footer { max-width:1100px; margin:32px auto; padding:0 16px; color:var(--dim); font-size:12.5px; }
 </style>
 </head>
@@ -67,9 +79,10 @@
   <code>common/wire.hpp</code>, <code>common/resource_wire.hpp</code>,
   <code>common/memory_wire.hpp</code>, <code>socket_sampler/protocol.hpp</code>.</p>
 </header>
+<nav><div class="in"><a href="#s1">1. Big picture</a><a href="#s2">2. Byte layouts</a><a href="#s3">3. Encode / decode</a><a href="#s4">4. How the pieces fit</a></div></nav>
 <main>
 
-<h2>1. The big picture (animated)</h2>
+<h2 id="s1">1. The big picture (animated)</h2>
 <div class="panel">
   <div class="controls">
     <button id="play">Pause</button>
@@ -81,18 +94,20 @@
   </div>
   <canvas id="flow" width="1040" height="470"></canvas>
   <div class="legend" id="legend"></div>
-  <div class="note">Hover a datagram for its size. Raise packet loss to watch a sample arrive
+  <div class="log" id="log"></div>
+  <div class="note">Hover a datagram for its size, and <b>click one in flight to drop it</b> (UDP does that
+  anyway). Raise packet loss to watch a sample arrive
   incomplete: the collector keeps what it got and counts the hole. Demo timings are compressed
   (real defaults: TMON every interval, TRES every 5 s, TVMA every 30 s).</div>
 </div>
 
-<h2>2. Byte layout of each header and payload row</h2>
+<h2 id="s2">2. Byte layout of each header and payload row</h2>
 <div class="panel">
   <div class="tabs" id="tabs"></div>
   <div id="layout"></div>
 </div>
 
-<h2>3. Encode → bytes → decode, step by step</h2>
+<h2 id="s3">3. Encode → bytes → decode, step by step</h2>
 <div class="panel">
   <div class="controls">
     <button id="encbtn">Encode sample header</button>
@@ -113,7 +128,7 @@
   </div>
 </div>
 
-<h2>4. How the pieces fit</h2>
+<h2 id="s4">4. How the pieces fit</h2>
 <div class="panel">
   <table>
     <tr><th>Magic</th><th>Who sends</th><th>Header</th><th>Payload rows</th><th>Parts</th><th>Rate</th></tr>
@@ -143,7 +158,7 @@ If a header changes, update this file together with <code>tests/wire.py</code>.<
 <script>
 "use strict";
 // ---------- format definitions (mirrors the C++ structs) ----------
-const C = {TMON:"#4cc2ff", TRES:"#ffb454", TVMA:"#b58cff", TSIO:"#5fdc9b"};
+const C = {TMON:"#4da3ff", TRES:"#3ecf8e", TVMA:"#ff9f43", TSIO:"#b78cff"};
 const PAL = ["#7fd1ff","#ffd27f","#b9f5c8","#f5b9d6","#c9b8ff","#ffe08a","#9fe3d6","#ffb3a1","#d4e79e","#a8c4ff","#f2c6ff","#ffcf9f","#9ad7ff","#e3e3a0"];
 const f = (name, off, size, type, desc, sample) => ({name, off, size, type, desc, sample});
 const FORMATS = {
@@ -519,6 +534,12 @@ const state = {t:0, playing:true, speed:1, threads:25, loss:0, dgrams:[], hover:
                memCycle:0, queue:[]};
 const asm = {};
 for (const k of Object.keys(ROWS)) asm[k] = {seq:-1, total:0, got:[], done:false, flagged:false, last:0, ok:0, bad:0, flash:0, sizes:[]};
+const logEl = document.getElementById("log");
+function log(m) {
+  logEl.insertAdjacentHTML("beforeend", `<div>t=${state.t.toFixed(1)}s ${m}</div>`);
+  while (logEl.children.length > 60) logEl.firstChild.remove();
+  logEl.scrollTop = logEl.scrollHeight;
+}
 const INTERVAL = {TMON:1.0, TRES:4.0, TVMA:8.0, TSIO:3.0};
 
 function schedule(kind, items) { // items: [{part,total,bytes,label}] sent as a burst
@@ -526,6 +547,7 @@ function schedule(kind, items) { // items: [{part,total,bytes,label}] sent as a 
   items.forEach((it, i) => {
     state.queue.push({at: state.t + i * 0.09, kind, seq, ...it});
   });
+  log(`<b style="color:${C[kind]}">${kind}</b> seq ${seq}: sender splits the sample into ${items.length} datagram(s) (${items.map(i => i.bytes).join(" + ")} B)`);
 }
 function emit(kind) {
   if (kind === "TMON") {
@@ -558,11 +580,11 @@ function arrive(d) {
   const a = asm[d.kind];
   if (a.seq !== d.seq) {
     if (a.seq >= 0 && !a.done && !a.flagged && d.kind !== "TSIO") { a.bad++; }
-    a.seq = d.seq; a.total = d.total; a.got = new Array(d.total).fill(false); a.sizes = new Array(d.total).fill(0);
+    a.seq = d.seq; a.total = d.total; a.got = new Array(d.total).fill(false); a.gotAt = new Array(d.total).fill(0); a.sizes = new Array(d.total).fill(0);
     a.done = false; a.flagged = false;
   }
-  a.got[d.part] = true; a.sizes[d.part] = d.bytes; a.last = state.t;
-  if (a.got.every(Boolean)) { a.done = true; a.ok++; a.flash = 1; }
+  a.got[d.part] = true; a.gotAt[d.part] = state.t; a.sizes[d.part] = d.bytes; a.last = state.t;
+  if (a.got.every(Boolean)) { a.done = true; a.ok++; a.flash = 1; if (d.kind !== "TSIO") log(`<b>${d.kind}</b> seq ${d.seq}: all ${d.total} part(s) arrived, sample complete`); }
 }
 function update(dt) {
   state.t += dt;
@@ -584,76 +606,94 @@ function update(dt) {
     a.flash = Math.max(0, a.flash - dt * 1.5);
     if (k !== "TSIO" && a.seq >= 0 && !a.done && !a.flagged && state.t - a.last > 0.9 + 0.2) {
       a.flagged = true; a.bad++;
+      log(`<b style="color:#ff5d6c">${k}</b> seq ${a.seq}: ${a.got.filter(x => !x).length} of ${a.total} part(s) missing after the grace period, keeping what arrived`);
     }
   }
 }
 function box(x, y, w, h, stroke, fill) {
   ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 12); ctx.fill(); ctx.stroke();
 }
 function text(s, x, y, color = "#d8e0ea", size = 12, align = "left", font = "system-ui") {
   ctx.fillStyle = color; ctx.font = `${size}px ${font}`; ctx.textAlign = align; ctx.fillText(s, x, y);
 }
 function draw() {
   ctx.clearRect(0, 0, 1040, 470);
-  // sampler box
-  box(20, 30, 220, 255, "#2a3541", "#101820"); text("sampler", 30, 50, "#8696a8", 12);
-  box(20, 330, 220, 85, "#2a3541", "#101820"); text("socket_sampler (eBPF)", 30, 350, "#8696a8", 12);
-  // lane + UDP
-  ctx.fillStyle = "#121a22"; ctx.fillRect(X_SEND, 20, X_RECV - X_SEND, 410);
-  text("UDP :9400 — one-way, no ACK, no retry", X_MID, 18, "#8696a8", 12, "center");
-  ctx.strokeStyle = "#1e2933"; ctx.setLineDash([4, 6]);
-  for (const k in ROWS) { ctx.beginPath(); ctx.moveTo(X_SEND, ROWS[k].y); ctx.lineTo(X_RECV, ROWS[k].y); ctx.stroke(); }
-  ctx.setLineDash([]);
-  // collector
-  box(X_RECV, 20, 280, 410, "#2a3541", "#101820"); text("collector: demux by magic, reassemble by sequence", X_RECV + 10, 38, "#8696a8", 11);
+  // node cards
+  box(20, 30, 220, 255, "#2b3446", "#171c26"); text("sampler", 32, 52, "#e6eaf2", 13);
+  box(20, 330, 220, 85, "#2b3446", "#171c26"); text("socket_sampler (eBPF)", 32, 352, "#e6eaf2", 13);
+  // UDP lane
+  const g = ctx.createLinearGradient(X_SEND, 0, X_RECV, 0);
+  g.addColorStop(0, "rgba(77,163,255,0.03)"); g.addColorStop(0.5, "rgba(77,163,255,0.08)"); g.addColorStop(1, "rgba(77,163,255,0.03)");
+  ctx.fillStyle = g; ctx.fillRect(X_SEND, 20, X_RECV - X_SEND, 410);
+  text("UDP :9400, one-way, no ACK, no retry", X_MID, 16, "#93a0b8", 12, "center");
+  for (const k in ROWS) {
+    ctx.strokeStyle = C[k] + "44"; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(X_SEND, ROWS[k].y + 3); ctx.lineTo(X_RECV, ROWS[k].y + 3); ctx.stroke();
+  }
+  // collector card
+  box(X_RECV, 20, 280, 410, "#2b3446", "#171c26");
+  text("collector: demux by magic, reassemble by sequence", X_RECV + 10, 38, "#93a0b8", 11);
   for (const k in ROWS) {
     const R = ROWS[k], col = C[k];
-    text(R.label, 30, R.y + 4, col, 12);
-    if (k === "TMON") text(`${state.threads} threads → ${Math.max(1, Math.ceil(state.threads / 10))} datagram(s)`, 30, R.y + 20, "#566677", 11);
-    // reassembly slots
+    text(R.label, 32, R.y + 4, col, 13);
+    if (k === "TMON") text(`${state.threads} threads → ${Math.max(1, Math.ceil(state.threads / 10))} datagram(s)`, 32, R.y + 20, "#93a0b8", 11);
     const a = asm[k];
-    text(`${a.seq >= 0 ? "seq " + a.seq : "—"}`, X_RECV + 12, R.y - 14, "#8696a8", 11, "left", "monospace");
+    text(`${a.seq >= 0 ? "seq " + a.seq : "—"}`, X_RECV + 12, R.y - 14, "#93a0b8", 11, "left", "monospace");
     const n = Math.max(1, a.total), maxW = 250, sw = Math.min(26, (maxW - 4 * (n - 1)) / n);
     for (let i = 0; i < n; i++) {
-      const x = X_RECV + 12 + i * (sw + 4), y = R.y - 6;
-      const got = a.got[i];
-      ctx.fillStyle = got ? col : "#0b1015"; ctx.strokeStyle = a.flagged && !got ? "#ff6b6b" : col;
-      ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(x, y, sw, 22, 3); ctx.fill(); ctx.stroke();
-      if (a.flagged && !got) text("✕", x + sw / 2, y + 16, "#ff6b6b", 12, "center");
+      const x = X_RECV + 12 + i * (sw + 4), y = R.y - 6, got = a.got[i];
+      const pop = got ? Math.max(0, 1 - (state.t - a.gotAt[i]) / 0.35) : 0;
+      ctx.save();
+      if (got) { ctx.shadowColor = col; ctx.shadowBlur = 6 + 12 * pop; }
+      ctx.fillStyle = got ? col : "#0f1218"; ctx.strokeStyle = a.flagged && !got ? "#ff5d6c" : col;
+      ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(x, y - 3 * pop, sw, 22 + 3 * pop, 4); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      if (a.flagged && !got) text("✕", x + sw / 2, y + 16, "#ff5d6c", 12, "center");
     }
     const status = k === "TSIO" ? "each datagram stored alone"
       : a.flagged ? "incomplete: hole kept, counted"
       : a.done ? "complete ✓" : (a.seq >= 0 ? "waiting for parts…" : "");
-    const scol = a.flagged ? "#ff6b6b" : (a.done ? "#5fdc9b" : "#8696a8");
-    text(status, X_RECV + 12, R.y + 36, scol, 11);
-    text(`ok ${a.ok}   incomplete ${a.bad}`, X_RECV + 270, R.y + 52, "#566677", 11, "right", "monospace");
-    if (a.flash > 0) { ctx.strokeStyle = `rgba(95,220,155,${a.flash})`; ctx.lineWidth = 2; ctx.strokeRect(X_RECV + 6, R.y - 22, 268, 64); }
+    text(status, X_RECV + 12, R.y + 36, a.flagged ? "#ff5d6c" : (a.done ? "#3ecf8e" : "#93a0b8"), 11);
+    text(`ok ${a.ok}   incomplete ${a.bad}`, X_RECV + 270, R.y + 52, "#93a0b8", 11, "right", "monospace");
+    if (a.flash > 0) { ctx.strokeStyle = `rgba(62,207,142,${a.flash})`; ctx.lineWidth = 2; ctx.strokeRect(X_RECV + 6, R.y - 22, 268, 64); }
   }
-  // datagrams
+  // datagrams: glowing rounded packets with a tail
   state.hover = null;
   for (const d of state.dgrams) {
     const p = Math.min(1, (state.t - d.born) / d.flight);
-    const R = ROWS[d.kind], x = X_SEND + (X_RECV - X_SEND - 46) * p, y = R.y - 9;
-    let alpha = 1;
-    if (d.lost && p >= d.lostAt) alpha = Math.max(0, 1 - (p - d.lostAt) / 0.4);
+    const R = ROWS[d.kind], x = X_SEND + (X_RECV - X_SEND - 46) * p;
+    let y = R.y - 6, alpha = 1;
+    if (d.lost && p >= d.lostAt) {
+      const q = (p - d.lostAt) / 0.4;
+      alpha = Math.max(0, 1 - q); y += q * 40;
+    }
     if (d.lost && p > d.lostAt + 0.4) continue;
     if (d.done && !d.lost) continue;
-    const w = 46, h = 18, jitter = (d.part % 2) * 0;
+    const w = 46, h = 18, col = d.lost && p >= d.lostAt ? "#ff5d6c" : C[d.kind];
+    ctx.save(); ctx.globalAlpha = alpha;
+    const tail = ctx.createLinearGradient(x - 34, 0, x, 0);
+    tail.addColorStop(0, col + "00"); tail.addColorStop(1, col + "66");
+    ctx.fillStyle = tail; ctx.fillRect(x - 34, y + 4, 34, h - 8);
+    ctx.shadowColor = col; ctx.shadowBlur = 12; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 5); ctx.fill();
+    ctx.restore();
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = C[d.kind]; ctx.beginPath(); ctx.roundRect(x, y + jitter, w, h, 4); ctx.fill();
-    text(d.label, x + w / 2, y + 13, "#06101a", 11, "center", "monospace");
-    if (d.lost && p >= d.lostAt) text("✕", x + w / 2, y - 4, "#ff6b6b", 14, "center");
+    text(d.label, x + w / 2, y + 13, "#06111c", 11, "center", "monospace");
     ctx.globalAlpha = 1;
-    if (mouse && mouse.x > x && mouse.x < x + w && mouse.y > y && mouse.y < y + h) state.hover = {d, x, y};
+    if (d.lost && p >= d.lostAt) text("✕", x + w / 2, y - 4, "#ff5d6c", 14, "center");
+    else if (!d.lost || p < d.lostAt) {
+      if (mouse && mouse.x > x && mouse.x < x + w && mouse.y > y - 4 && mouse.y < y + h + 4) state.hover = {d, x, y};
+    }
   }
+  cv.style.cursor = state.hover ? "pointer" : "default";
   if (state.hover) {
     const {d, x, y} = state.hover;
-    const s = `${d.kind} seq ${d.seq} · part ${d.part + 1}/${d.total} · ${d.bytes} B${d.lost ? " · LOST" : ""}`;
-    ctx.font = "12px monospace"; const w = ctx.measureText(s).width + 14;
-    box(Math.min(x, 1040 - w - 4), y - 32, w, 24, "#5b83ad", "#1a2736"); text(s, Math.min(x, 1040 - w - 4) + 7, y - 15, "#fff", 12, "left", "monospace");
+    const s = `${d.kind} seq ${d.seq} · part ${d.part + 1}/${d.total} · ${d.bytes} B · click to drop`;
+    ctx.font = "12px monospace"; const w = ctx.measureText(s).width + 14, tx = Math.min(x, 1040 - w - 4);
+    box(tx, y - 34, w, 24, "#4da3ff", "#1d2431"); text(s, tx + 7, y - 17, "#fff", 12, "left", "monospace");
   }
-  text(`t = ${state.t.toFixed(1)} s`, 1030, 462, "#566677", 11, "right", "monospace");
+  text(`t = ${state.t.toFixed(1)} s`, 1030, 462, "#93a0b8", 11, "right", "monospace");
 }
 let mouse = null, last = performance.now();
 cv.addEventListener("mousemove", e => {
@@ -661,6 +701,12 @@ cv.addEventListener("mousemove", e => {
   mouse = {x:(e.clientX - r.left) * 1040 / r.width, y:(e.clientY - r.top) * 470 / r.height};
 });
 cv.addEventListener("mouseleave", () => mouse = null);
+cv.addEventListener("click", () => {
+  const h = state.hover; if (!h) return;
+  const d = h.d, p = Math.min(1, (state.t - d.born) / d.flight);
+  d.lost = true; d.lostAt = p;
+  log(`<b style="color:#ff5d6c">${d.kind}</b> seq ${d.seq} part ${d.part + 1}/${d.total} dropped in flight by you`);
+});
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (state.playing) update(dt * state.speed);
