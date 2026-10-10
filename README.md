@@ -144,6 +144,10 @@ control script on the sampler host.
 </p>
 
 <p align="center">
+  <img src="docs/assets/collector-internals.svg" alt="Animated collector internals: UDP datagrams are received, assembled into ticks, turned into per-thread state, rolled up into five-second windows stored in SQLite day files, and kept in a ten-minute live window. Health and resource samples join a snapshot published every half second and served over HTTP." width="100%">
+</p>
+
+<p align="center">
   <img src="docs/assets/features.svg" alt="Animated cards: thread states change, wait timelines scroll, pressure meters rise and fall" width="100%">
 </p>
 
