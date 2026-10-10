@@ -19,8 +19,8 @@
   nav .in { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; }
   nav a { background:var(--panel); color:var(--fg); border:1px solid var(--line); padding:6px 14px;
           border-radius:8px; text-decoration:none; }
-  nav a:hover, nav a.on { background:var(--tmon); color:#04101f; border-color:var(--tmon); font-weight:600; }
-  section { scroll-margin-top:60px; }
+  nav a:hover { background:var(--tmon); color:#04101f; border-color:var(--tmon); font-weight:600; }
+  h2[id] { scroll-margin-top:60px; }
   h1 { margin:0 0 4px; font-size:22px; }
   h2 { margin:32px 0 8px; font-size:17px; }
   p.lead { color:var(--dim); margin:0 0 12px; max-width:800px; }
@@ -617,7 +617,9 @@ function arrive(d) {
   if (d.kind === "TVMA" && d.part === 0) log(`<b>TVMA</b> seq ${d.seq}: summary updated separately`);
   const complete = d.kind === "TVMA" && a.total > 1 ? a.got.slice(1).every(Boolean) : a.got.every(Boolean);
   if (complete && !a.done) {
-    a.done = true; a.flagged = false; a.ok++; a.flash = 1;
+    a.done = true; a.flagged = false; a.flash = 1;
+    // TVMA counts published layouts only, like the collector.
+    if (d.kind !== "TVMA" || a.total > 1) a.ok++;
     log(`<b>${d.kind}</b> seq ${d.seq}: ${d.kind === "TVMA" ? (a.total > 1 ? "all region parts arrived; layout updated" : "summary updated; layout unchanged") : "all parts arrived; sample complete"}`);
   }
 }
@@ -694,7 +696,7 @@ function draw() {
       : a.done ? (k === "TVMA" ? (a.total > 1 ? "layout updated" : "summary updated; layout unchanged") : "complete ✓")
       : (a.seq >= 0 ? "waiting for parts…" : "");
     text(status, X_RECV + 12, R.y + 36, a.flagged ? "#ff5d6c" : (a.done ? "#3ecf8e" : "#93a0b8"), 11);
-    text(k === "TSIO" ? `datagrams stored ${a.ok}` : `complete ${a.ok}   incomplete ${a.bad}`, X_RECV + 270, R.y + 52, "#93a0b8", 11, "right", "monospace");
+    text(k === "TSIO" ? `datagrams stored ${a.ok}` : k === "TVMA" ? `layouts ${a.ok}   incomplete ${a.bad}` : `complete ${a.ok}   incomplete ${a.bad}`, X_RECV + 270, R.y + 52, "#93a0b8", 11, "right", "monospace");
     if (a.flash > 0) { ctx.strokeStyle = `rgba(62,207,142,${a.flash})`; ctx.lineWidth = 2; ctx.strokeRect(X_RECV + 6, R.y - 22, 268, 64); }
   }
   // datagrams: glowing rounded packets with a tail
@@ -743,6 +745,7 @@ cv.addEventListener("mouseleave", () => mouse = null);
 cv.addEventListener("click", () => {
   const h = state.hover; if (!h) return;
   const d = h.d, p = Math.min(1, (state.t - d.born) / d.flight);
+  if (d.lost) return;  // random loss already drops this datagram
   d.lost = true; d.lostAt = p;
   log(`<b style="color:#ff5d6c">${d.kind}</b> seq ${d.seq} part ${d.part + 1}/${d.total} dropped in flight by you`);
 });

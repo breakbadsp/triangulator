@@ -243,8 +243,8 @@ Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
 
 How the datagrams are laid out and split into parts: open the animated
 [wire format overview](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-overview.html).
-GitHub shows HTML files as source, so these links use the htmlpreview.github.io
-service to run them. Or open `docs/wire-format-overview.html` in a browser after
+GitHub shows HTML files as source, so this link uses the htmlpreview.github.io
+service to run it. Or open `docs/wire-format-overview.html` in a browser after
 cloning.
 
 ## Deploy by copying

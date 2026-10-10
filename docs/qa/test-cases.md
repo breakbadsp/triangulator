@@ -228,21 +228,26 @@ Feature: Wire format documentation. Priority: Medium. Case revision: 1.
 Preconditions: Open `docs/wire-format-overview.html` from the source checkout
 in a browser. This page needs no running collector.
 
-1. Check both README wire format links. Both must open this page.
+1. Check both README wire format links. Both must open this page. Select
+   each section link in the top bar.
 2. Select TMON, TRES, TVMA, and TSIO. Check the header and row sizes against
    the source headers. Encode each example header, then read its fields.
 3. Change the thread count to 1, 10, 11, and 60. Check the event log.
 4. Set packet loss to 50%. Check the loss states. Pause and resume the animation.
-5. Drop a TRES summary. Drop a TVMA summary and let all region parts arrive.
-   In a separate TVMA sample, drop a region part.
+5. With packet loss at 0%, click datagrams in flight to drop them. Drop a TRES
+   summary. Drop a TVMA summary and let all region parts arrive. In a separate
+   TVMA sample, drop a region part.
 
-Expected results: The only wire format page is the overview. Header sizes are
+Expected results: The only wire format page is the overview. Each section
+heading appears below the top bar after its link is selected. Header sizes are
 48, 64, 64, and 80 B. Row sizes are 112, 160, 64, and 80 B respectively;
 a complete TSIO datagram is 160 B. The example header fields match their
 encoded bytes. The demo identifies header examples and illustrative timings.
 TMON uses 1, 1, 2, and 6 chunks for these thread counts. TRES discards a sample
 without its summary. TVMA updates a layout when all region parts arrive, even
-without its summary; missing region parts preserve the previous layout.
+without its summary; missing region parts preserve the previous layout. Each
+clicked datagram drops once, and the event log records the drop. The TVMA
+layout count excludes summary-only samples.
 TSIO counts received datagrams separately. The browser has no script errors.
 
 Source: [Wire format overview](../wire-format-overview.html).
