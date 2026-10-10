@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Triangulator wire formats: big picture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg:#0f1419; --panel:#161d26; --line:#2a3541; --fg:#d8e0ea; --dim:#8696a8;
+    --tmon:#4cc2ff; --tres:#ffb454; --tvma:#b58cff; --tsio:#5fdc9b; --bad:#ff6b6b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 system-ui,sans-serif; }
+  header, main { max-width:1100px; margin:0 auto; padding:0 16px; }
+  header { padding-top:24px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  h2 { margin:32px 0 8px; font-size:17px; }
+  p.lead { color:var(--dim); margin:0 0 12px; max-width:800px; }
+  code, .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .controls { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin:8px 0; color:var(--dim); }
+  .controls label { display:flex; gap:6px; align-items:center; }
+  button { background:#223040; color:var(--fg); border:1px solid var(--line);
+           border-radius:6px; padding:5px 12px; cursor:pointer; font:inherit; }
+  button:hover { background:#2c4057; }
+  canvas { width:100%; display:block; border-radius:6px; background:#0b1015; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .chip { border:1px solid; border-radius:14px; padding:2px 10px; cursor:pointer;
+          font-family:ui-monospace,monospace; font-size:12.5px; background:transparent; color:var(--fg); }
+  .chip small { color:var(--dim); font-family:system-ui; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; }
+  .tabs button.on { background:#34506d; border-color:#5b83ad; }
+  .grid8 { display:flex; flex-direction:column; gap:3px; margin:8px 0; }
+  .row8 { display:flex; gap:2px; height:30px; }
+  .rowlabel { width:34px; color:var(--dim); font-size:11px; line-height:30px; flex:none; }
+  .seg { border-radius:3px; display:flex; align-items:center; justify-content:center;
+         font-size:11px; color:#06101a; overflow:hidden; white-space:nowrap; min-width:0;
+         transition:filter .15s, outline-color .15s; outline:2px solid transparent; }
+  .seg.hl { outline-color:#fff; filter:brightness(1.25); }
+  table { border-collapse:collapse; width:100%; margin-top:8px; }
+  td, th { text-align:left; padding:3px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; }
+  tr.hl td { background:#22303f; }
+  .stack { display:flex; height:34px; border-radius:5px; overflow:hidden; margin:8px 0; }
+  .stack div { display:flex; align-items:center; justify-content:center; font-size:12px; color:#06101a; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:800px){ .two{ grid-template-columns:1fr; } }
+  pre { margin:0; white-space:pre-wrap; }
+  .hex { line-height:1.7; }
+  .hex span { padding:0 1px; border-radius:2px; color:#06101a; }
+  ol.steps { padding-left:20px; margin:6px 0; }
+  ol.steps li { padding:3px 6px; border-radius:4px; color:var(--dim); }
+  ol.steps li.on { background:#22303f; color:var(--fg); }
+  .note { color:var(--dim); font-size:13px; }
+  .ok { color:var(--tsio); } .no { color:var(--bad); }
+  footer { max-width:1100px; margin:32px auto; padding:0 16px; color:var(--dim); font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Triangulator wire formats</h1>
+  <p class="lead">One sampler (plus an optional socket sampler) sends fixed-size binary
+  datagrams over UDP to the collector. Every datagram starts with a 4-byte magic that
+  says what it is. Big samples are split into <b>parts</b> (chunks) that share a header and
+  are put back together by the collector. Source of truth:
+  <code>common/wire.hpp</code>, <code>common/resource_wire.hpp</code>,
+  <code>common/memory_wire.hpp</code>, <code>socket_sampler/protocol.hpp</code>.</p>
+</header>
+<main>
+
+<h2>1. The big picture (animated)</h2>
+<div class="panel">
+  <div class="controls">
+    <button id="play">Pause</button>
+    <label>Speed <input id="speed" type="range" min="0.25" max="3" step="0.25" value="1"></label>
+    <label>Threads in target <input id="threads" type="range" min="1" max="60" value="25">
+      <span id="threadsv" class="mono">25</span></label>
+    <label>Packet loss <input id="loss" type="range" min="0" max="50" value="0">
+      <span id="lossv" class="mono">0%</span></label>
+  </div>
+  <canvas id="flow" width="1040" height="470"></canvas>
+  <div class="legend" id="legend"></div>
+  <div class="note">Hover a datagram for its size. Raise packet loss to watch a sample arrive
+  incomplete: the collector keeps what it got and counts the hole. Demo timings are compressed
+  (real defaults: TMON every interval, TRES every 5 s, TVMA every 30 s).</div>
+</div>
+
+<h2>2. Byte layout of each header and payload row</h2>
+<div class="panel">
+  <div class="tabs" id="tabs"></div>
+  <div id="layout"></div>
+</div>
+
+<h2>3. Encode → bytes → decode, step by step</h2>
+<div class="panel">
+  <div class="controls">
+    <button id="encbtn">Encode sample header</button>
+    <button id="decbtn">Decode &amp; validate</button>
+    <span class="note">Uses the tab selected above. Little-endian, no padding, no byte swapping.</span>
+  </div>
+  <div class="two">
+    <div>
+      <b>Sender (sampler)</b>
+      <ol class="steps" id="encsteps"></ol>
+      <b>Receiver (collector)</b>
+      <ol class="steps" id="decsteps"></ol>
+    </div>
+    <div>
+      <div class="mono hex panel" id="hex">Press “Encode sample header”.</div>
+      <div class="mono panel" id="decout" style="margin-top:8px">&nbsp;</div>
+    </div>
+  </div>
+</div>
+
+<h2>4. How the pieces fit</h2>
+<div class="panel">
+  <table>
+    <tr><th>Magic</th><th>Who sends</th><th>Header</th><th>Payload rows</th><th>Parts</th><th>Rate</th></tr>
+    <tr><td class="mono" style="color:var(--tmon)">TMON v2</td><td>sampler</td><td>48 B</td>
+        <td>112 B per thread, max 10/datagram</td>
+        <td>chunk / chunks (u8): up to 255 datagrams = 2550 threads</td><td>every interval (100–5000 ms)</td></tr>
+    <tr><td class="mono" style="color:var(--tres)">TRES v1</td><td>sampler</td><td>64 B</td>
+        <td>part 0: 130×u64 + 128 B cgroup path (1232 B). parts 1..: ≤6 sockets × 160 B</td>
+        <td>part / parts (u8): 1 + ⌈sockets/6⌉, ≤24 sockets so ≤5 parts</td><td>5 s default (1–60)</td></tr>
+    <tr><td class="mono" style="color:var(--tvma)">TVMA v1</td><td>sampler</td><td>64 B</td>
+        <td>part 0: 17×u64 (200 B). parts 1..: ≤20 regions × 64 B</td>
+        <td>part / parts: 1 + ⌈regions/20⌉, ≤1000 regions so ≤51 parts. Regions only sent when layout changed or on periodic refresh</td><td>30 s default (1–3600)</td></tr>
+    <tr><td class="mono" style="color:var(--tsio)">TSIO v1</td><td>socket_sampler (eBPF)</td><td>80 B common + 24 B key + 56 B counters = 160 B</td>
+        <td>one counter row per datagram</td>
+        <td>index / count (u32); index 0 is a heartbeat with zeroed tail. Sent ~150 µs apart</td><td>per snapshot</td></tr>
+  </table>
+  <p class="note">Every datagram is kept under 1400 bytes (<code>static_assert</code>) so it fits one
+  1500-byte Ethernet MTU without IP fragmentation. “Parts” are our own application-level split;
+  losing one part never blocks the others. No retransmission, no ACKs.
+  TMON, TRES and TVMA share a <code>session</code> (random u64 per sampler start) so the
+  collector can match streams and reject late datagrams from an old session.</p>
+</div>
+</main>
+<footer>Generated from repo source (wire.hpp v2, resource_wire.hpp v1, memory_wire.hpp v1, socket_sampler/protocol.hpp v1).
+If a header changes, update this file together with <code>tests/wire.py</code>.</footer>
+
+<script>
+"use strict";
+// ---------- format definitions (mirrors the C++ structs) ----------
+const C = {TMON:"#4cc2ff", TRES:"#ffb454", TVMA:"#b58cff", TSIO:"#5fdc9b"};
+const PAL = ["#7fd1ff","#ffd27f","#b9f5c8","#f5b9d6","#c9b8ff","#ffe08a","#9fe3d6","#ffb3a1","#d4e79e","#a8c4ff","#f2c6ff","#ffcf9f","#9ad7ff","#e3e3a0"];
+const f = (name, off, size, type, desc, sample) => ({name, off, size, type, desc, sample});
+const FORMATS = {
+  TMON: {
+    title:"TMON: thread tick (common/wire.hpp)", color:C.TMON,
+    header:[
+      f("magic",0,4,"str","'TMON': tells the collector what this is","TMON"),
+      f("version",4,1,"u8","2; anything else is rejected",2),
+      f("flags",5,1,"u8","bit0 TargetAbsent (heartbeat, no records), bit1 StatusFallback",0),
+      f("chunk",6,1,"u8","this datagram's index, 0-based",1),
+      f("chunks",7,1,"u8","how many datagrams make up this tick",3),
+      f("session",8,8,"u64","random per sampler start",0x1122334455667788n),
+      f("sequence",16,4,"u32","tick counter, same in every chunk of a tick",4217),
+      f("records",20,2,"u16","records in THIS datagram (≤10)",10),
+      f("reserved",22,2,"zero","must be 0",0),
+      f("monotonic_ns",24,8,"u64","CLOCK_MONOTONIC at sample",123456789012345n),
+      f("wall_ns",32,8,"u64","CLOCK_REALTIME at sample",1760000000000000000n),
+      f("interval_ms",40,4,"u32","sampling interval (100..5000)",1000),
+      f("pid",44,4,"u32","target pid; 0 only for TargetAbsent",31337),
+    ],
+    row:{name:"Record (one thread)", size:112, fields:[
+      f("tid",0,4,"u32","thread id (1..4194304)",31340),
+      f("state",4,1,"chr","R S D T t … printable ASCII","S"),
+      f("flags",5,1,"u8","bit0 IoUnavailable",0),
+      f("processor",6,2,"u16","CPU last run on",3),
+      f("utime",8,8,"u64","user ticks",5120n),
+      f("stime",16,8,"u64","system ticks",880n),
+      f("run_delay",24,8,"u64","ns waiting on runqueue",4400000n),
+      f("timeslices",32,8,"u64","times scheduled",91200n),
+      f("major_faults",40,8,"u64","major page faults",2n),
+      f("read_bytes",48,8,"u64","storage bytes read",4096n),
+      f("write_bytes",56,8,"u64","storage bytes written",0n),
+      f("comm",64,16,"str","thread name, NUL-padded","worker-3"),
+      f("wchan",80,32,"str","kernel wait channel, NUL-padded","futex_wait_queue"),
+    ]},
+    parts:"chunk / chunks", unit:"threads", per:10,
+    encode:[
+      "Read /proc for every thread → EncodeSample() fills one wire::Record each",
+      "Split records into chunks of 10: chunks = max(1, ⌈n/10⌉)",
+      "For each chunk build wire::Packet{Header{chunk,chunks,session,sequence,records,clocks,interval,pid}}",
+      "Copy the chunk's records after the header",
+      "sendto(&packet, 48 + count×112) with MSG_DONTWAIT; EAGAIN just drops it",
+      "After all chunks: ++sequence"],
+    decode:[
+      "recvfrom into a buffer bigger than any datagram",
+      "Ingest looks at the first 4 bytes: not TSIO/TRES/TVMA → treat as TMON",
+      "DecodeHeader: size ≥ 48, magic == TMON, version == 2",
+      "memcpy the 48 bytes into wire::Header (no field-by-field parsing)",
+      "Check flags known, reserved zero, chunk < chunks, count ≤ 10, size == 48 + count×112",
+      "Check interval 100..5000, clocks ≠ 0, pid rules for TargetAbsent",
+      "Per record: memcpy 112 B, tid 1..4194304, state printable, no duplicate tid; names cut at first NUL and UTF-8 sanitized",
+      "Monitor::Accept groups by sequence, marks chunk in a bitset, Drain() processes after a grace period"]
+  },
+  TRES: {
+    title:"TRES: resource sample (common/resource_wire.hpp)", color:C.TRES,
+    header:[
+      f("magic",0,4,"str","'TRES'","TRES"),
+      f("version",4,1,"u8","1",1),
+      f("kind",5,1,"u8","1 Summary, 2 Sockets",1),
+      f("part",6,1,"u8","this part, 0 = summary",0),
+      f("parts",7,1,"u8","total parts in the sample (≤5)",4),
+      f("session",8,8,"u64","same session as TMON",0x1122334455667788n),
+      f("sequence",16,4,"u32","resource sample counter",212),
+      f("count",20,2,"u16","130 for summary, else socket rows in this part (1..6)",130),
+      f("reserved",22,2,"zero","must be 0",0),
+      f("monotonic_ns",24,8,"u64","same in all parts",123456789012345n),
+      f("wall_ns",32,8,"u64","same in all parts",1760000000000000000n),
+      f("interval_ms",40,4,"u32","1000..60000",5000),
+      f("pid",44,4,"u32","target pid",31337),
+      f("process_start",48,8,"u64","/proc/PID/stat starttime, detects pid reuse",9988776n),
+      f("flags",56,4,"u32","OtherNetNS 1, DescriptorsHidden 2, ScanTruncated 4, SockDiagFailed 8, SocketsTruncated 16",0),
+      f("reserved_end",60,4,"zero","must be 0",0),
+    ],
+    row:{name:"Socket row (parts 1..)", size:160, fields:[
+      f("kind",0,1,"u8","1 tcp4 2 tcp6 3 udp4 4 udp6 5-7 unix",1),
+      f("state",1,1,"u8","Linux TCP_* numbering",1),
+      f("flags",2,2,"u16","Memory 1, TcpInfo 2, TcpLimited 4, PeerWindow 8",3),
+      f("fd",4,4,"u32","file descriptor",17),
+      f("inode",8,8,"u64","socket inode",884422n),
+      f("local_address",16,16,"raw","network byte order; unix path shares 32 B",""),
+      f("remote_address",32,16,"raw","network byte order",""),
+      f("local_port",48,2,"u16","host-order value",8080),
+      f("remote_port",50,2,"u16","",51234),
+      f("rx_queue … drops",52,60,"raw","15 × u32: queues, rmem/wmem, rcvbuf/sndbuf, rtt, retrans…",""),
+      f("retransmits…ca_state",112,4,"raw","4 × u8",""),
+      f("last_data_recv/sent_ms",116,8,"raw","2 × u32",""),
+      f("reserved",124,4,"zero","must be 0",0),
+      f("busy/rwnd/sndbuf_us",128,24,"raw","3 × u64 TCP limited times",""),
+      f("reserved_end",152,8,"zero","must be 0",0),
+    ]},
+    summary:"Part 0 body: 130 × u64 (PSI, fds, process io, socket queues, TCP states, net_* counters, memory limits, cgroup files, interface counters) then 128 B NUL-terminated cgroup path = 1232 B total. Unknown values are 0xFFFF…FFFF.",
+    parts:"part / parts", unit:"sockets", per:6,
+    encode:[
+      "Sample /proc, sock_diag, cgroup files → 130 summary values + ≤24 fullest sockets",
+      "parts = 1 + ⌈sockets/6⌉",
+      "Build Header (same for all parts) and EncodeSummary: kind=1, part=0, count=130",
+      "EncodeSockets for part 1..: kind=2, part=n, count=rows (copy 6 rows per part)",
+      "Each part sent by its own sendto(); length = 64 + rows×160 (summary 1232)"],
+    decode:[
+      "Magic TRES → resource_wire::Decode",
+      "Check version, known flags, reserved bytes zero, 0 < parts ≤ 5, part < parts",
+      "pid, clocks nonzero; interval 1000..60000",
+      "Summary: part==0, count==130, size==1232, cgroup NUL-terminated",
+      "Sockets: part≥1, 1≤count≤6, size==64+count×160; each row kind 1..7, known flags, reserved zero",
+      "ResourceMonitor assembles by sequence; sample is published once the summary is present; missing socket parts mark it incomplete"]
+  },
+  TVMA: {
+    title:"TVMA: memory map (common/memory_wire.hpp)", color:C.TVMA,
+    header:[
+      f("magic",0,4,"str","'TVMA'","TVMA"),
+      f("version",4,1,"u8","1",1),
+      f("kind",5,1,"u8","1 Summary, 2 Regions",2),
+      f("part",6,1,"u8","0 = summary",1),
+      f("parts",7,1,"u8","total parts (≤51)",4),
+      f("session",8,8,"u64","same session as TMON",0x1122334455667788n),
+      f("sequence",16,4,"u32","memory sample counter",19),
+      f("count",20,2,"u16","17 for summary, else regions in this part (1..20)",20),
+      f("reserved",22,2,"zero","must be 0",0),
+      f("monotonic_ns",24,8,"u64","same in all parts",123456789012345n),
+      f("wall_ns",32,8,"u64","same in all parts",1760000000000000000n),
+      f("interval_ms",40,4,"u32","1000..3600000",30000),
+      f("pid",44,4,"u32","target pid",31337),
+      f("process_start",48,8,"u64","starttime, detects pid reuse",9988776n),
+      f("flags",56,2,"u16","MapsHidden 1, MapsPartial 2, RegionsTruncated 4",0),
+      f("reserved_end",58,6,"zero","must be 0",0),
+    ],
+    row:{name:"Region (parts 1..)", size:64, fields:[
+      f("start",0,8,"u64","start address",0x7f0000000000n),
+      f("end",8,8,"u64","end address (> start)",0x7f0000200000n),
+      f("vma_count",16,4,"u32","VMAs merged into this region",3),
+      f("kind",20,1,"u8","1 anon 2 file 3 heap 4 stack 5 kernel",2),
+      f("permissions",21,1,"u8","r1 w2 x4 shared 8",5),
+      f("reserved",22,2,"zero","must be 0",0),
+      f("name",24,40,"str","tail of path, NUL-padded, last byte NUL","libc.so.6"),
+    ]},
+    summary:"Part 0 body: 17 × u64 (vm_size, vm_peak, vm_data, … minor/major faults, limits, vma_count, maps read timings) = 200 B total.",
+    parts:"part / parts", unit:"regions", per:20,
+    encode:[
+      "Read /proc/PID/{status,stat,limits,maps}; merge adjacent mappings with same kind+name into regions",
+      "Send region parts only if layout changed or on periodic refresh; else summary only",
+      "parts = 1 + ⌈regions/20⌉ (max 1000 regions)",
+      "EncodeSummary: kind=1 part=0 count=17 (200 B)",
+      "EncodeRegions part n: copy 20 regions (the last may be short), length = 64 + rows×64"],
+    decode:[
+      "Magic TVMA → memory_wire::Decode",
+      "Check version, flags, reserved, parts range, pid and clocks (interval 1000..3600000)",
+      "Summary: part 0, count 17, size 200",
+      "Regions: every part except the last must hold exactly 20 (collector places part N at row (N−1)×20, so a gap would corrupt the map)",
+      "Each region: kind 1..5, known permissions, start<end, vma_count>0, name NUL-terminated",
+      "MemoryMonitor publishes the layout when all parts of a sequence arrive; a newer sequence starting early counts incomplete_layouts"]
+  },
+  TSIO: {
+    title:"TSIO: socket I/O counter (socket_sampler/protocol.hpp)", color:C.TSIO,
+    header:[
+      f("magic",0,4,"str","'TSIO'","TSIO"),
+      f("version",4,4,"u32","1",1),
+      f("observer",8,8,"u64","identifies the eBPF observer run",0xabcdef01n),
+      f("sequence",16,8,"u64","snapshot counter",77n),
+      f("monotonic_ns",24,8,"u64","",123456789012345n),
+      f("wall_ns",32,8,"u64","",1760000000000000000n),
+      f("started_ns",40,8,"u64","observer start (≤ monotonic)",100000000000n),
+      f("process_start",48,8,"u64","target starttime",9988776n),
+      f("losses",56,8,"u64","counters the observer lost",0n),
+      f("pid",64,4,"u32","target pid",31337),
+      f("index",68,4,"u32","0 = heartbeat, counters start at 1",2),
+      f("count",72,4,"u32","datagrams in snapshot (rows + 1)",4),
+      f("flags",76,4,"u32","MessageEnabled 1, Stopped 2",1),
+    ],
+    row:{name:"Key + counters (bytes 80..159)", size:80, fields:[
+      f("thread_start",0,8,"u64","thread start time",5555n),
+      f("socket_id",8,8,"u64","socket identity (0 for kind 6)",42n),
+      f("tid",16,4,"u32","thread id",31340),
+      f("kind",20,4,"u32","1 TCP4 2 TCP6 3 unix stream 4 dgram 5 seqpacket 6 marker",1),
+      f("input",24,8,"u64","bytes in",1048576n),
+      f("output",32,8,"u64","bytes out",2048n),
+      f("receives",40,8,"u64","recv calls",300n),
+      f("sends",48,8,"u64","send calls",12n),
+      f("messages",56,8,"u64","message count (kind 6 only)",0n),
+      f("name",64,16,"str","thread name","worker-3"),
+    ]},
+    summary:"Always exactly 160 bytes. Heartbeat (index 0) must have bytes 80..159 all zero. Not part of the TMON/TRES/TVMA session; it has its own observer id.",
+    parts:"index / count", unit:"counters", per:1,
+    encode:[
+      "eBPF programs count bytes/calls per (thread, socket); user space snapshots the table",
+      "count = rows + 1; index 0 is the heartbeat with key/counters zeroed",
+      "For each index: fill Observation, std::bit_cast to a 160-byte array",
+      "sendto() each, sleeping 150 µs between datagrams so the collector can drain its queue"],
+    decode:[
+      "Magic TSIO → socket_metrics::Decode",
+      "size must equal exactly 160; magic+version",
+      "Observer, pid, process_start, started_ns, wall_ns, count nonzero; started ≤ monotonic; index < count; flags ⊆ {1,2}",
+      "Heartbeat: tail bytes all zero. Otherwise tid and thread_start set, kind 1..6, kind 6 vs counters rules",
+      "Sender IP must match the pinned socket-sampler peer; each valid datagram is stored on its own (no reassembly)"]
+  }
+};
+
+// ---------- layout viewer ----------
+let current = "TMON";
+const tabsEl = document.getElementById("tabs"), layoutEl = document.getElementById("layout");
+function tabButtons() {
+  tabsEl.innerHTML = "";
+  for (const k of Object.keys(FORMATS)) {
+    const b = document.createElement("button");
+    b.textContent = k; b.className = k === current ? "on" : "";
+    b.style.borderColor = FORMATS[k].color;
+    b.onclick = () => { current = k; tabButtons(); renderLayout(); resetCodec(); };
+    tabsEl.appendChild(b);
+  }
+}
+function renderGrid(fields, total, cols) {
+  const owner = new Array(total).fill(-1);
+  fields.forEach((fl, i) => { for (let b = fl.off; b < fl.off + fl.size && b < total; b++) owner[b] = i; });
+  const g = document.createElement("div"); g.className = "grid8";
+  for (let r = 0; r < total; r += cols) {
+    const row = document.createElement("div"); row.className = "row8";
+    const lab = document.createElement("div"); lab.className = "rowlabel"; lab.textContent = r;
+    row.appendChild(lab);
+    let b = r;
+    while (b < Math.min(r + cols, total)) {
+      let e = b; while (e + 1 < Math.min(r + cols, total) && owner[e + 1] === owner[b]) e++;
+      const seg = document.createElement("div"); seg.className = "seg";
+      seg.style.flex = String(e - b + 1);
+      seg.style.background = owner[b] < 0 ? "#333" : PAL[owner[b] % PAL.length];
+      seg.dataset.f = owner[b];
+      if (fields[owner[b]] && fields[owner[b]].off === b) seg.textContent = fields[owner[b]].name;
+      else if (fields[owner[b]] && b === r) seg.textContent = "↳";
+      row.appendChild(seg); b = e + 1;
+    }
+    g.appendChild(row);
+  }
+  return g;
+}
+function fieldTable(fields) {
+  const t = document.createElement("table");
+  t.innerHTML = "<tr><th>off</th><th>size</th><th>type</th><th>field</th><th>meaning</th></tr>";
+  fields.forEach((fl, i) => {
+    const tr = document.createElement("tr");
+    tr.dataset.f = i;
+    tr.innerHTML = `<td class="mono">${fl.off}</td><td class="mono">${fl.size}</td><td class="mono">${fl.type}</td>
+      <td class="mono"><span style="color:${PAL[i % PAL.length]}">■</span> ${fl.name}</td><td>${fl.desc}</td>`;
+    t.appendChild(tr);
+  });
+  return t;
+}
+function link(container) {
+  container.querySelectorAll("[data-f]").forEach(el => {
+    el.addEventListener("mouseenter", () => container.querySelectorAll(`[data-f="${el.dataset.f}"]`).forEach(x => x.classList.add("hl")));
+    el.addEventListener("mouseleave", () => container.querySelectorAll(".hl").forEach(x => x.classList.remove("hl")));
+  });
+}
+function stack(parts) {
+  const total = parts.reduce((a, p) => a + p.size, 0);
+  const s = document.createElement("div"); s.className = "stack";
+  for (const p of parts) {
+    const d = document.createElement("div");
+    d.style.flex = String(p.size); d.style.background = p.color; d.textContent = p.label;
+    s.appendChild(d);
+  }
+  return [s, total];
+}
+function renderLayout() {
+  const F = FORMATS[current];
+  layoutEl.innerHTML = "";
+  const h = document.createElement("div");
+  h.innerHTML = `<b style="color:${F.color}">${F.title}</b>`;
+  layoutEl.appendChild(h);
+  const hdrSize = F.header[F.header.length - 1].off + F.header[F.header.length - 1].size;
+  // anatomy of a full datagram
+  const [st, tot] = stack([
+    {size:hdrSize, color:F.color, label:`header ${hdrSize} B`},
+    ...(F.summary ? [] : []),
+    {size:F.row.size * Math.min(F.per, 4), color:"#8aa0b5", label:`rows: ${F.row.size} B each × up to ${F.per}`}]);
+  const cap = document.createElement("div"); cap.className = "note";
+  cap.textContent = current === "TSIO"
+    ? "One datagram = 160 B, always. Header part and key/counters are shown separately below."
+    : `A datagram is the header followed by 0..${F.per} rows. Only the used bytes are sent (e.g. ${hdrSize} + n × ${F.row.size}).`;
+  layoutEl.appendChild(st); layoutEl.appendChild(cap);
+  if (F.summary) { const s = document.createElement("p"); s.className = "note"; s.textContent = F.summary; layoutEl.appendChild(s); }
+  const sec = (title, fields, total, cols) => {
+    const box = document.createElement("div");
+    box.innerHTML = `<h3 style="margin:14px 0 2px;font-size:14px">${title}</h3>`;
+    box.appendChild(renderGrid(fields, total, cols)); box.appendChild(fieldTable(fields));
+    link(box); layoutEl.appendChild(box);
+  };
+  sec(`Header (${hdrSize} bytes, 8 per row, little-endian)`, F.header, hdrSize, 8);
+  sec(`${F.row.name} (${F.row.size} bytes)`, F.row.fields, F.row.size, 8);
+}
+
+// ---------- encode / decode demo (real bytes, little-endian) ----------
+const encEl = document.getElementById("encsteps"), decEl = document.getElementById("decsteps");
+const hexEl = document.getElementById("hex"), decOut = document.getElementById("decout");
+let encBytes = null, encStep = 0, decStep = 0;
+function resetCodec() {
+  encBytes = null; encStep = 0; decStep = 0;
+  const F = FORMATS[current];
+  encEl.innerHTML = F.encode.map(s => `<li>${s}</li>`).join("");
+  decEl.innerHTML = F.decode.map(s => `<li>${s}</li>`).join("");
+  hexEl.textContent = "Press “Encode sample header”."; decOut.innerHTML = "&nbsp;";
+}
+function encodeFields(fields, size) {
+  const buf = new Uint8Array(size), dv = new DataView(buf.buffer);
+  for (const fl of fields) {
+    const v = fl.sample;
+    switch (fl.type) {
+      case "u8": dv.setUint8(fl.off, Number(v)); break;
+      case "u16": dv.setUint16(fl.off, Number(v), true); break;
+      case "u32": dv.setUint32(fl.off, Number(v), true); break;
+      case "u64": dv.setBigUint64(fl.off, BigInt(v), true); break;
+      case "chr": buf[fl.off] = String(v).charCodeAt(0); break;
+      case "str": for (let i = 0; i < String(v).length && i < fl.size; i++) buf[fl.off + i] = String(v).charCodeAt(i); break;
+      default: break; // zero / raw stay 0
+    }
+  }
+  return buf;
+}
+function showHex(buf, fields, upto) {
+  const owner = new Array(buf.length).fill(-1);
+  fields.forEach((fl, i) => { for (let b = fl.off; b < fl.off + fl.size; b++) owner[b] = i; });
+  let html = "";
+  for (let r = 0; r < buf.length; r += 16) {
+    html += String(r).padStart(4, "0") + "  ";
+    for (let b = r; b < Math.min(r + 16, buf.length); b++) {
+      html += `<span style="background:${PAL[owner[b] % PAL.length]}">${buf[b].toString(16).padStart(2, "0")}</span> `;
+    }
+    html += "\n";
+  }
+  hexEl.innerHTML = `<pre>${html}</pre>`;
+}
+function advance(listEl, n) {
+  [...listEl.children].forEach((li, i) => li.classList.toggle("on", i === n));
+}
+document.getElementById("encbtn").onclick = () => {
+  const F = FORMATS[current];
+  const size = F.header[F.header.length - 1].off + F.header[F.header.length - 1].size;
+  encBytes = encodeFields(F.header, size);
+  showHex(encBytes, F.header, size);
+  let i = 0; const n = F.encode.length;
+  const t = setInterval(() => { advance(encEl, i++); if (i > n) { clearInterval(t); advance(encEl, -1); } }, 450);
+  decOut.innerHTML = `<span class="note">${size} header bytes built. Same bytes go on the wire; nothing is re-encoded per field.</span>`;
+};
+document.getElementById("decbtn").onclick = () => {
+  const F = FORMATS[current];
+  if (!encBytes) { decOut.textContent = "Encode first."; return; }
+  const dv = new DataView(encBytes.buffer);
+  const lines = [];
+  for (const fl of F.header) {
+    let v;
+    switch (fl.type) {
+      case "u8": v = dv.getUint8(fl.off); break;
+      case "u16": v = dv.getUint16(fl.off, true); break;
+      case "u32": v = dv.getUint32(fl.off, true); break;
+      case "u64": v = "0x" + dv.getBigUint64(fl.off, true).toString(16); break;
+      case "str": v = JSON.stringify(String.fromCharCode(...encBytes.slice(fl.off, fl.off + fl.size))); break;
+      case "zero": v = [...encBytes.slice(fl.off, fl.off + fl.size)].every(x => x === 0) ? "0 ✓" : "NONZERO ✗"; break;
+      default: v = "";
+    }
+    lines.push(`${fl.name.padEnd(14)} = ${v}`);
+  }
+  decOut.innerHTML = `<pre>${lines.join("\n")}</pre>`;
+  let i = 0; const n = F.decode.length;
+  const t = setInterval(() => { advance(decEl, i++); if (i > n) { clearInterval(t); advance(decEl, -1); } }, 450);
+};
+
+// ---------- animated flow ----------
+const cv = document.getElementById("flow"), ctx = cv.getContext("2d");
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+cv.width = 1040 * DPR; cv.height = 470 * DPR; ctx.scale(DPR, DPR);
+const ROWS = {TMON:{y:70, label:"TMON thread tick"}, TRES:{y:160, label:"TRES resources"},
+              TVMA:{y:250, label:"TVMA memory map"}, TSIO:{y:370, label:"TSIO socket I/O"}};
+const X_SEND = 240, X_RECV = 740, X_MID = 490;
+const state = {t:0, playing:true, speed:1, threads:25, loss:0, dgrams:[], hover:null,
+               next:{TMON:0.5, TRES:1.5, TVMA:2.5, TSIO:3.5}, seq:{TMON:0, TRES:0, TVMA:0, TSIO:0},
+               memCycle:0, queue:[]};
+const asm = {};
+for (const k of Object.keys(ROWS)) asm[k] = {seq:-1, total:0, got:[], done:false, flagged:false, last:0, ok:0, bad:0, flash:0, sizes:[]};
+const INTERVAL = {TMON:1.0, TRES:4.0, TVMA:8.0, TSIO:3.0};
+
+function schedule(kind, items) { // items: [{part,total,bytes,label}] sent as a burst
+  const seq = state.seq[kind]++;
+  items.forEach((it, i) => {
+    state.queue.push({at: state.t + i * 0.09, kind, seq, ...it});
+  });
+}
+function emit(kind) {
+  if (kind === "TMON") {
+    const n = state.threads, chunks = Math.max(1, Math.ceil(n / 10));
+    schedule(kind, Array.from({length:chunks}, (_, c) => {
+      const cnt = Math.min(10, n - c * 10);
+      return {part:c, total:chunks, bytes:48 + cnt * 112, label:`${c + 1}/${chunks}`};
+    }));
+  } else if (kind === "TRES") {
+    const socks = 14, parts = 1 + Math.ceil(socks / 6);
+    schedule(kind, Array.from({length:parts}, (_, p) =>
+      ({part:p, total:parts, bytes: p === 0 ? 1232 : 64 + Math.min(6, socks - (p - 1) * 6) * 160, label:`${p + 1}/${parts}`})));
+  } else if (kind === "TVMA") {
+    const full = (state.memCycle++ % 2) === 0, regions = 47;
+    const parts = full ? 1 + Math.ceil(regions / 20) : 1;
+    schedule(kind, Array.from({length:parts}, (_, p) =>
+      ({part:p, total:parts, bytes: p === 0 ? 200 : 64 + Math.min(20, regions - (p - 1) * 20) * 64, label:`${p + 1}/${parts}`})));
+  } else {
+    const rows = 3, count = rows + 1;
+    schedule(kind, Array.from({length:count}, (_, i) =>
+      ({part:i, total:count, bytes:160, label: i === 0 ? "hb" : String(i)})));
+  }
+}
+function launch(q) {
+  const lost = Math.random() * 100 < state.loss;
+  const flight = 0.9 + (Math.random() - 0.5) * 0.5;
+  state.dgrams.push({...q, born:state.t, flight, lost, lostAt: 0.35 + Math.random() * 0.3, done:false});
+}
+function arrive(d) {
+  const a = asm[d.kind];
+  if (a.seq !== d.seq) {
+    if (a.seq >= 0 && !a.done && !a.flagged && d.kind !== "TSIO") { a.bad++; }
+    a.seq = d.seq; a.total = d.total; a.got = new Array(d.total).fill(false); a.sizes = new Array(d.total).fill(0);
+    a.done = false; a.flagged = false;
+  }
+  a.got[d.part] = true; a.sizes[d.part] = d.bytes; a.last = state.t;
+  if (a.got.every(Boolean)) { a.done = true; a.ok++; a.flash = 1; }
+}
+function update(dt) {
+  state.t += dt;
+  for (const k of Object.keys(ROWS)) {
+    state.next[k] -= dt;
+    if (state.next[k] <= 0) { state.next[k] += INTERVAL[k]; emit(k); }
+  }
+  for (let i = state.queue.length - 1; i >= 0; i--) {
+    if (state.queue[i].at <= state.t) { launch(state.queue[i]); state.queue.splice(i, 1); }
+  }
+  for (const d of state.dgrams) {
+    const p = (state.t - d.born) / d.flight;
+    if (!d.lost && p >= 1 && !d.done) { d.done = true; arrive(d); }
+    if (d.lost && p >= d.lostAt + 0.4) d.done = true;
+  }
+  state.dgrams = state.dgrams.filter(d => state.t - d.born < d.flight + 0.6 || !d.done);
+  for (const k of Object.keys(asm)) {
+    const a = asm[k];
+    a.flash = Math.max(0, a.flash - dt * 1.5);
+    if (k !== "TSIO" && a.seq >= 0 && !a.done && !a.flagged && state.t - a.last > 0.9 + 0.2) {
+      a.flagged = true; a.bad++;
+    }
+  }
+}
+function box(x, y, w, h, stroke, fill) {
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 8); ctx.fill(); ctx.stroke();
+}
+function text(s, x, y, color = "#d8e0ea", size = 12, align = "left", font = "system-ui") {
+  ctx.fillStyle = color; ctx.font = `${size}px ${font}`; ctx.textAlign = align; ctx.fillText(s, x, y);
+}
+function draw() {
+  ctx.clearRect(0, 0, 1040, 470);
+  // sampler box
+  box(20, 30, 220, 255, "#2a3541", "#101820"); text("sampler", 30, 50, "#8696a8", 12);
+  box(20, 330, 220, 85, "#2a3541", "#101820"); text("socket_sampler (eBPF)", 30, 350, "#8696a8", 12);
+  // lane + UDP
+  ctx.fillStyle = "#121a22"; ctx.fillRect(X_SEND, 20, X_RECV - X_SEND, 410);
+  text("UDP :9400 — one-way, no ACK, no retry", X_MID, 18, "#8696a8", 12, "center");
+  ctx.strokeStyle = "#1e2933"; ctx.setLineDash([4, 6]);
+  for (const k in ROWS) { ctx.beginPath(); ctx.moveTo(X_SEND, ROWS[k].y); ctx.lineTo(X_RECV, ROWS[k].y); ctx.stroke(); }
+  ctx.setLineDash([]);
+  // collector
+  box(X_RECV, 20, 280, 410, "#2a3541", "#101820"); text("collector: demux by magic, reassemble by sequence", X_RECV + 10, 38, "#8696a8", 11);
+  for (const k in ROWS) {
+    const R = ROWS[k], col = C[k];
+    text(R.label, 30, R.y + 4, col, 12);
+    if (k === "TMON") text(`${state.threads} threads → ${Math.max(1, Math.ceil(state.threads / 10))} datagram(s)`, 30, R.y + 20, "#566677", 11);
+    // reassembly slots
+    const a = asm[k];
+    text(`${a.seq >= 0 ? "seq " + a.seq : "—"}`, X_RECV + 12, R.y - 14, "#8696a8", 11, "left", "monospace");
+    const n = Math.max(1, a.total), maxW = 250, sw = Math.min(26, (maxW - 4 * (n - 1)) / n);
+    for (let i = 0; i < n; i++) {
+      const x = X_RECV + 12 + i * (sw + 4), y = R.y - 6;
+      const got = a.got[i];
+      ctx.fillStyle = got ? col : "#0b1015"; ctx.strokeStyle = a.flagged && !got ? "#ff6b6b" : col;
+      ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(x, y, sw, 22, 3); ctx.fill(); ctx.stroke();
+      if (a.flagged && !got) text("✕", x + sw / 2, y + 16, "#ff6b6b", 12, "center");
+    }
+    const status = k === "TSIO" ? "each datagram stored alone"
+      : a.flagged ? "incomplete: hole kept, counted"
+      : a.done ? "complete ✓" : (a.seq >= 0 ? "waiting for parts…" : "");
+    const scol = a.flagged ? "#ff6b6b" : (a.done ? "#5fdc9b" : "#8696a8");
+    text(status, X_RECV + 12, R.y + 36, scol, 11);
+    text(`ok ${a.ok}   incomplete ${a.bad}`, X_RECV + 270, R.y + 52, "#566677", 11, "right", "monospace");
+    if (a.flash > 0) { ctx.strokeStyle = `rgba(95,220,155,${a.flash})`; ctx.lineWidth = 2; ctx.strokeRect(X_RECV + 6, R.y - 22, 268, 64); }
+  }
+  // datagrams
+  state.hover = null;
+  for (const d of state.dgrams) {
+    const p = Math.min(1, (state.t - d.born) / d.flight);
+    const R = ROWS[d.kind], x = X_SEND + (X_RECV - X_SEND - 46) * p, y = R.y - 9;
+    let alpha = 1;
+    if (d.lost && p >= d.lostAt) alpha = Math.max(0, 1 - (p - d.lostAt) / 0.4);
+    if (d.lost && p > d.lostAt + 0.4) continue;
+    if (d.done && !d.lost) continue;
+    const w = 46, h = 18, jitter = (d.part % 2) * 0;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = C[d.kind]; ctx.beginPath(); ctx.roundRect(x, y + jitter, w, h, 4); ctx.fill();
+    text(d.label, x + w / 2, y + 13, "#06101a", 11, "center", "monospace");
+    if (d.lost && p >= d.lostAt) text("✕", x + w / 2, y - 4, "#ff6b6b", 14, "center");
+    ctx.globalAlpha = 1;
+    if (mouse && mouse.x > x && mouse.x < x + w && mouse.y > y && mouse.y < y + h) state.hover = {d, x, y};
+  }
+  if (state.hover) {
+    const {d, x, y} = state.hover;
+    const s = `${d.kind} seq ${d.seq} · part ${d.part + 1}/${d.total} · ${d.bytes} B${d.lost ? " · LOST" : ""}`;
+    ctx.font = "12px monospace"; const w = ctx.measureText(s).width + 14;
+    box(Math.min(x, 1040 - w - 4), y - 32, w, 24, "#5b83ad", "#1a2736"); text(s, Math.min(x, 1040 - w - 4) + 7, y - 15, "#fff", 12, "left", "monospace");
+  }
+  text(`t = ${state.t.toFixed(1)} s`, 1030, 462, "#566677", 11, "right", "monospace");
+}
+let mouse = null, last = performance.now();
+cv.addEventListener("mousemove", e => {
+  const r = cv.getBoundingClientRect();
+  mouse = {x:(e.clientX - r.left) * 1040 / r.width, y:(e.clientY - r.top) * 470 / r.height};
+});
+cv.addEventListener("mouseleave", () => mouse = null);
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (state.playing) update(dt * state.speed);
+  draw(); requestAnimationFrame(frame);
+}
+document.getElementById("play").onclick = e => { state.playing = !state.playing; e.target.textContent = state.playing ? "Pause" : "Play"; };
+document.getElementById("speed").oninput = e => state.speed = +e.target.value;
+document.getElementById("threads").oninput = e => { state.threads = +e.target.value; document.getElementById("threadsv").textContent = e.target.value; };
+document.getElementById("loss").oninput = e => { state.loss = +e.target.value; document.getElementById("lossv").textContent = e.target.value + "%"; };
+const legend = document.getElementById("legend");
+for (const k of Object.keys(FORMATS)) {
+  const b = document.createElement("button"); b.className = "chip"; b.style.borderColor = C[k];
+  b.innerHTML = `<b style="color:${C[k]}">${k}</b> <small>${FORMATS[k].title.split(":")[1].split("(")[0]}— click for bytes</small>`;
+  b.onclick = () => { current = k; tabButtons(); renderLayout(); resetCodec(); document.getElementById("tabs").scrollIntoView({behavior:"smooth"}); };
+  legend.appendChild(b);
+}
+tabButtons(); renderLayout(); resetCodec(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
