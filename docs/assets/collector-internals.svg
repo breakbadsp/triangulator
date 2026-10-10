@@ -13,6 +13,7 @@ text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-ser
 .s { font-size: 13px; fill: #9db0d6; }
 .m { font-size: 12px; fill: #9db0d6; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 .zone { font-size: 12px; font-weight: 700; letter-spacing: 2.4px; fill: #7f93c4; }
+.f { font-size: 11px; fill: #7f93c4; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; text-anchor: end; }
 .n { font-size: 12px; font-weight: 700; fill: #0a0f1f; }
 .box { fill: #101a38; stroke-width: 1.6; }
 @media (prefers-reduced-motion: reduce) { .motion { display: none; } }
@@ -22,6 +23,17 @@ text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-ser
 <text class="s" x="30" y="58">One pass from raw UDP chunks to stored history and a live snapshot. Single C++ binary.</text>
 <rect x="250" y="76" width="1046" height="500" rx="16" fill="none" stroke="#6b7aa5" stroke-opacity="0.5" stroke-dasharray="6 6"/>
 <text class="zone" x="270" y="100">COLLECTOR</text>
+<text class="f" x="431" y="124">ingest.hpp · protocol.hpp</text>
+<text class="f" x="641" y="124">engine.hpp</text>
+<text class="f" x="851" y="124">engine.hpp</text>
+<text class="f" x="1061" y="124">engine.hpp → storage.hpp</text>
+<text class="f" x="1271" y="124">storage.hpp</text>
+<text class="f" x="431" y="374">engine.hpp</text>
+<text class="f" x="641" y="374">resources.hpp</text>
+<text class="f" x="851" y="374">engine.hpp</text>
+<text class="f" x="1061" y="374">main.cpp · engine.hpp</text>
+<text class="f" x="1271" y="374">http.hpp</text>
+<text class="m" x="385" y="100">source files in collector/</text>
 <rect class="box" x="24" y="130" width="160" height="120" rx="12" stroke="#60a5fa" stroke-opacity="0.8"/>
 <text class="h" x="40" y="159">Sampler</text>
 <text class="m" x="40" y="182">thread + resource</text>
