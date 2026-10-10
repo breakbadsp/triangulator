@@ -304,6 +304,10 @@ Alerting is a separate module that is not wired up yet
 ([details](#alerting)). More metrics:
 [coverage](docs/linux-monitoring.md), [resource monitoring](docs/resource-monitoring.md),
 [TODO](TODO.md). Also see the [architecture diagrams](docs/architecture.md).
+The UDP wire formats have an
+[animated tour](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-animation.html)
+([source](docs/wire-format-animation.html); GitHub shows HTML as text, so the
+link opens it through htmlpreview.github.io).
 
 # Reference
 
