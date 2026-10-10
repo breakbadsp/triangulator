@@ -6,17 +6,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{
-  --bg:#0f1218;--panel:#171c26;--panel2:#1d2431;--line:#2b3446;--text:#e6eaf2;--dim:#93a0b8;
-  --tmon:#4da3ff;--tres:#3ecf8e;--tvma:#ff9f43;--tsio:#b78cff;--bad:#ff5d6c;--ok:#3ecf8e;
+  --bg:#0f1419;--panel:#161d26;--panel2:#101820;--line:#2a3541;--text:#d8e0ea;--dim:#8696a8;
+  --tmon:#4cc2ff;--tres:#ffb454;--tvma:#b58cff;--tsio:#5fdc9b;--bad:#ff6b6b;--ok:#5fdc9b;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,Segoe UI,sans-serif}
+body{margin:0;background:radial-gradient(1200px 500px at 20% -10%,#14212e 0,var(--bg) 60%) fixed;color:var(--text);font:15px/1.5 system-ui,Segoe UI,sans-serif}
 header{padding:20px 28px 8px}
 h1{margin:0;font-size:22px}
 header p{margin:4px 0 0;color:var(--dim);max-width:900px}
 nav{display:flex;gap:6px;padding:12px 28px;flex-wrap:wrap;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
 nav button{background:var(--panel);color:var(--text);border:1px solid var(--line);padding:7px 14px;border-radius:8px;cursor:pointer;font:inherit}
-nav button.on{background:var(--tmon);color:#04101f;border-color:var(--tmon);font-weight:600}
+nav button{transition:.15s}nav button:hover{border-color:var(--tmon)}nav button.on{background:var(--tmon);color:#04101f;border-color:var(--tmon);font-weight:600;box-shadow:0 0 14px -2px var(--tmon)}
 main{padding:20px 28px 60px;max-width:1250px}
 section{display:none}section.on{display:block}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
@@ -31,9 +31,11 @@ input[type=range]{accent-color:var(--tmon);width:240px}
 .btn:hover{border-color:var(--tmon)}
 .tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;font-weight:700;color:#06111c;font-family:ui-monospace,monospace}
 .tag.TMON{background:var(--tmon)}.tag.TRES{background:var(--tres)}.tag.TVMA{background:var(--tvma)}.tag.TSIO{background:var(--tsio)}
+.tag{box-shadow:0 0 10px -2px currentColor}
 
 /* big picture */
-.stage{position:relative;height:330px;background:var(--panel2);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+canvas{width:100%;display:block;border-radius:10px;background:#0b1015;border:1px solid var(--line)}
+.stageX{position:relative;height:330px;background:var(--panel2);border-radius:10px;overflow:hidden;border:1px solid var(--line)}
 .node{position:absolute;top:20px;bottom:20px;width:200px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px;font-size:13px}
 .node b{display:block;margin-bottom:4px}
 #nSamp{left:14px}#nColl{right:14px}
@@ -52,7 +54,7 @@ input[type=range]{accent-color:var(--tmon);width:240px}
 .rec{width:22px;height:22px;border-radius:4px;font:10px/22px ui-monospace,monospace;text-align:center;color:#06111c;background:var(--tmon)}
 .slots{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 .slot{min-width:90px;border:1px dashed var(--line);border-radius:8px;padding:6px 8px;font-size:12px;text-align:center;color:var(--dim)}
-.slot.got{border-style:solid;border-color:var(--tmon);color:var(--text);background:#16314d}
+.slot{transition:.25s}.slot.got{border-style:solid;border-color:var(--tmon);color:var(--text);background:#16314d;box-shadow:0 0 12px -3px var(--tmon);transform:translateY(-2px)}
 .slot.lost{border-color:var(--bad);color:var(--bad)}
 .log{font:12px/1.5 ui-monospace,monospace;background:#0b0e14;border-radius:8px;padding:8px 10px;height:130px;overflow:auto;color:var(--dim)}
 .log b{color:var(--text)}
@@ -70,6 +72,21 @@ table.f tr{cursor:default}
 .tabs button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
 .tabs button.on{border-color:#fff}
 
+/* layout grid + hex demo */
+.grid8{display:flex;flex-direction:column;gap:3px;margin:10px 0}
+.row8{display:flex;gap:2px;height:32px}
+.rowlabel{width:36px;color:var(--dim);font:11px/32px ui-monospace,monospace;flex:none}
+.seg{border-radius:4px;display:flex;align-items:center;justify-content:center;font:11px ui-monospace,monospace;color:#06101a;overflow:hidden;white-space:nowrap;min-width:0;outline:2px solid transparent;transition:filter .15s,outline-color .15s,transform .15s}
+.seg.hl{outline-color:#fff;filter:brightness(1.25);transform:scaleY(1.12)}
+.stack{display:flex;height:34px;border-radius:6px;overflow:hidden;margin:8px 0}
+.stack div{display:flex;align-items:center;justify-content:center;font-size:12px;color:#06101a}
+.hex{line-height:1.8;background:#0b1015;border:1px solid var(--line);border-radius:8px;padding:10px;min-height:60px;white-space:pre;overflow:auto}
+.hex span{padding:0 2px;border-radius:3px;color:#06101a;margin-right:2px;display:inline-block;animation:pop .35s both}
+@keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.8)}to{opacity:1;transform:none}}
+.decl{font:12.5px/1.7 ui-monospace,monospace;background:#0b1015;border:1px solid var(--line);border-radius:8px;padding:10px;min-height:60px;white-space:pre;overflow:auto}
+.decl div{animation:pop .3s both}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.two{grid-template-columns:1fr}}
 /* parts */
 .dgram{display:flex;margin:6px 0;height:34px;border-radius:6px;overflow:hidden;border:1px solid var(--line);font:11px/34px ui-monospace,monospace}
 .dgram div{text-align:center;overflow:hidden;white-space:nowrap;color:#06111c}
@@ -80,9 +97,9 @@ table.f tr{cursor:default}
 /* pipeline */
 .steps{display:flex;gap:0;flex-wrap:wrap;margin:10px 0}
 .step{flex:1 1 150px;background:var(--panel2);border:1px solid var(--line);padding:10px;font-size:12.5px;opacity:.35;transition:.3s;min-height:150px}
-.step.on{opacity:1;border-color:var(--tmon);background:#16314d}
+.step.on{opacity:1;border-color:var(--tmon);background:#16314d;box-shadow:0 0 14px -6px var(--tmon)}
 .step b{display:block;margin-bottom:4px;color:var(--tmon)}
-.step.recv b{color:var(--tres)}
+.step.recv b{color:var(--tsio)}
 .step pre{margin:6px 0 0;white-space:pre-wrap;font:11px/1.4 ui-monospace,monospace;color:var(--dim)}
 .step.on pre{color:var(--text)}
 </style>
@@ -99,27 +116,21 @@ table.f tr{cursor:default}
 <section id="s0">
   <div class="card">
     <h3>1. Big picture: one UDP port, four datagram kinds</h3>
-    <p class="dim" style="margin:0 0 10px">Everything flows one way (sampler &rarr; collector, no acks, no retransmission). The first 4 bytes of every datagram - the <b>magic</b> - say which kind it is. Time is sped up: pick a speed, and click any packet in flight to drop it (UDP does that anyway).</p>
+    <p class="dim" style="margin:0 0 10px">Everything flows one way (sampler &rarr; collector, no acks, no retransmission). The first 4 bytes of every datagram - the <b>magic</b> - say which kind it is. Big samples are split into parts that the collector puts back together. Timings are compressed; click a packet to drop it, or raise packet loss and watch a sample arrive with a hole.</p>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="bpPlay">Pause</button>
-      <label>Speed <select id="bpSpeed"><option value="1">1x</option><option value="5" selected>5x</option><option value="20">20x</option></select></label>
-      <span><span class="tag TMON">TMON</span> <span class="dim">thread tick, every interval (0.1-5 s)</span></span>
-      <span><span class="tag TRES">TRES</span> <span class="dim">resources, every 5 s</span></span>
-      <span><span class="tag TVMA">TVMA</span> <span class="dim">memory map, every 30 s</span></span>
-      <span><span class="tag TSIO">TSIO</span> <span class="dim">socket I/O, from socket_sampler</span></span>
+      <label>Speed <input id="bpSpeed" type="range" min="0.25" max="3" step="0.25" value="1" style="width:120px"></label>
+      <label>Threads in target <input id="bpThreads" type="range" min="1" max="60" value="25" style="width:140px"> <b id="bpThreadsV" class="mono">25</b></label>
+      <label>Packet loss <input id="bpLoss" type="range" min="0" max="50" value="0" style="width:140px"> <b id="bpLossV" class="mono">0%</b></label>
     </div>
-    <div class="stage" id="stage">
-      <div class="node" id="nSamp"><b>sampler</b><span class="dim">reads /proc, packs structs, <code>sendto()</code> with MSG_DONTWAIT</span><br><br><b>socket_sampler</b><span class="dim">eBPF counters, one datagram per counter</span></div>
-      <div class="node" id="nColl"><b>collector :9400</b>
-        <div class="stat"><span class="tag TMON">TMON</span><i id="cTMON">0</i></div>
-        <div class="stat"><span class="tag TRES">TRES</span><i id="cTRES">0</i></div>
-        <div class="stat"><span class="tag TVMA">TVMA</span><i id="cTVMA">0</i></div>
-        <div class="stat"><span class="tag TSIO">TSIO</span><i id="cTSIO">0</i></div>
-        <div class="stat"><span style="color:var(--bad)">dropped</span><i id="cDrop">0</i></div>
-        <div class="dim" style="margin-top:8px">checks magic &rarr; picks decoder &rarr; reassembles parts</div>
-      </div>
+    <canvas id="flow" width="1100" height="430"></canvas>
+    <div class="row" style="margin-top:8px;font-size:13px">
+      <span><span class="tag TMON">TMON</span> <span class="dim">every interval (0.1-5 s)</span></span>
+      <span><span class="tag TRES">TRES</span> <span class="dim">default every 5 s</span></span>
+      <span><span class="tag TVMA">TVMA</span> <span class="dim">default every 30 s</span></span>
+      <span><span class="tag TSIO">TSIO</span> <span class="dim">socket_sampler snapshots</span></span>
+      <span class="dim">Hover a packet for its size.</span>
     </div>
-    <div class="log" id="bpLog" style="margin-top:10px;height:90px"></div>
   </div>
   <div class="card">
     <h3>Dispatch order in the collector (<code>collector/ingest.hpp</code>)</h3>
@@ -170,8 +181,7 @@ table.f tr{cursor:default}
     <h3>3. Byte layouts</h3>
     <p class="dim" style="margin:0 0 6px">All integers are <b>little-endian</b>, structs have <b>no padding</b> (enforced by <code>static_assert</code>s), strings are NUL-padded fixed arrays. Hover a byte or a row.</p>
     <div class="tabs" id="lyTabs"></div>
-    <div class="bytes" id="lyBytes"></div>
-    <table class="f" id="lyTable"></table>
+    <div id="lyBytes"></div>
     <p class="dim" id="lyNote"></p>
   </div>
 </section>
@@ -218,6 +228,18 @@ table.f tr{cursor:default}
     </div>
     <div class="steps" id="steps"></div>
   </div>
+  <div class="card">
+    <h3>Live demo: real bytes, encode then decode</h3>
+    <p class="dim" style="margin:0 0 10px">Uses the layout selected in tab 3 (<b id="hexWhich"></b>). Values are sample data. Encoding writes each field at its offset, little-endian; decoding reads them back the same way, like <code>memcpy</code> into the struct.</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="encBtn">1. Encode</button>
+      <button class="btn" id="decBtn">2. Decode &amp; validate</button>
+      <button class="btn" id="corBtn">Corrupt a byte</button>
+      <select id="hexPick"></select>
+    </div>
+    <div class="two"><div><b>Bytes on the wire</b><div class="hex mono" id="hexOut">Press Encode.</div></div>
+    <div><b>What the collector reads</b><div class="decl" id="decOut"></div></div></div>
+  </div>
 </section>
 
 </main>
@@ -227,6 +249,7 @@ table.f tr{cursor:default}
 const $=(s,r=document)=>r.querySelector(s);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
 
+const KC={TMON:"#4cc2ff",TRES:"#ffb454",TVMA:"#b58cff",TSIO:"#5fdc9b"};
 /* ---------- nav ---------- */
 const titles=["Big picture","TMON chunks","Byte layouts","TRES / TVMA parts","Encode / decode"];
 const nav=$("#nav");
@@ -254,52 +277,130 @@ function fly(host,cls,text,{top=25,dur=900,from=0,to=null,onArrive=null,onDrop=n
   return p;
 }
 
-/* ---------- 1. big picture ---------- */
-const bp={run:false,timer:null,t:0,count:{TMON:0,TRES:0,TVMA:0,TSIO:0,drop:0},tick:0,rseq:0,mseq:0};
-const stage=$("#stage");
-const lanes={TMON:70,TRES:130,TVMA:190,TSIO:250};
-const laneCls={TMON:"var(--tmon)",TRES:"var(--tres)",TVMA:"var(--tvma)",TSIO:"var(--tsio)"};
-Object.entries(lanes).forEach(([k,y])=>{const l=el("div","lane",`<span style="color:${laneCls[k]}">${k}</span>`);l.style.top=y+"px";stage.append(l)});
-function bpLog(m){const l=$("#bpLog");l.insertAdjacentHTML("beforeend",m+"<br>");l.scrollTop=l.scrollHeight;if(l.children.length>60)l.firstChild.remove()}
-function bpSend(kind,label,delay=0){
-  setTimeout(()=>{
-    if(!bp.run)return;
-    const host=document.createElement("div");host.style.cssText=`position:absolute;left:228px;right:228px;top:${lanes[kind]-7}px;height:16px`;
-    stage.append(host);
-    const sp=+$("#bpSpeed").value;
-    fly(host,kind,label,{top:0,dur:Math.max(350,1100/Math.sqrt(sp)),
-      onArrive:()=>{bp.count[kind]++;$("#c"+kind).textContent=bp.count[kind];host.remove()},
-      onDrop:()=>{bp.count.drop++;$("#cDrop").textContent=bp.count.drop;bpLog(`<b>${label}</b> dropped in flight - collector will see a gap`);setTimeout(()=>host.remove(),600)}});
-  },delay);
+/* ---------- 1. big picture (canvas) ---------- */
+const cv=$("#flow"),cx=cv.getContext("2d");
+const DPR=Math.min(2,window.devicePixelRatio||1);cv.width=1100*DPR;cv.height=430*DPR;cx.scale(DPR,DPR);
+const LANE={TMON:{y:70,name:"TMON thread tick"},TRES:{y:160,name:"TRES resources"},TVMA:{y:250,name:"TVMA memory map"},TSIO:{y:350,name:"TSIO socket I/O"}};
+const XS=250,XR=790,EVERY={TMON:1,TRES:4,TVMA:8,TSIO:3};
+const bp={t:0,play:false,speed:1,threads:25,loss:0,gr:[],queue:[],seq:{TMON:0,TRES:0,TVMA:0,TSIO:0},
+  next:{TMON:.3,TRES:1,TVMA:2,TSIO:3},mem:0,mouse:null,fx:[],raf:0,last:0};
+const asm={};Object.keys(LANE).forEach(k=>asm[k]={seq:-1,total:0,got:[],done:false,flag:false,last:0,ok:0,bad:0,flash:0});
+function bpEmit(k){
+  const seq=bp.seq[k]++;let items;
+  if(k==="TMON"){const n=bp.threads,c=Math.max(1,Math.ceil(n/10));
+    items=Array.from({length:c},(_,i)=>{const r=Math.min(10,n-i*10);return{bytes:48+112*r,label:`${i+1}/${c}`}})}
+  else if(k==="TRES"){const s=14,p=1+Math.ceil(s/6);
+    items=Array.from({length:p},(_,i)=>({bytes:i?64+Math.min(6,s-(i-1)*6)*160:1232,label:`${i+1}/${p}`}))}
+  else if(k==="TVMA"){const full=bp.mem++%2===0,r=47,p=full?1+Math.ceil(r/20):1;
+    items=Array.from({length:p},(_,i)=>({bytes:i?64+Math.min(20,r-(i-1)*20)*64:200,label:p>1?`${i+1}/${p}`:"sum"}))}
+  else{const c=4;items=Array.from({length:c},(_,i)=>({bytes:160,label:i?String(i):"hb"}))}
+  items.forEach((it,i)=>bp.queue.push({at:bp.t+i*.09,kind:k,seq,part:i,total:items.length,...it}));
 }
-function bpStep(){ // one virtual second
-  bp.t++;
-  const threads=23,chunks=Math.ceil(threads/10);
-  if(true){ // TMON every virtual second
-    for(let c=0;c<chunks;c++)bpSend("TMON",`c${c+1}/${chunks}`,c*40);
-    if(bp.t%5===1)bpLog(`t=${bp.t}s <b>TMON</b> tick #${bp.tick}: ${threads} threads &rarr; ${chunks} datagrams (10+10+3 records)`);
-    bp.tick++;
-  }
-  if(bp.t%5===1){
-    const sockets=14,parts=1+Math.ceil(sockets/6);
-    for(let p=0;p<parts;p++)bpSend("TRES",`part ${p}/${parts}`,p*60);
-    bpLog(`t=${bp.t}s <b>TRES</b> sample #${bp.rseq++}: summary + ${sockets} sockets &rarr; ${parts} datagrams`);
-    bp.sockCounters=true;
-    const rows=5;
-    for(let i=0;i<=rows;i++)bpSend("TSIO",i===0?"hb":`#${i}`,i*30);
-    bpLog(`t=${bp.t}s <b>TSIO</b> snapshot: heartbeat + ${rows} counters &rarr; ${rows+1} datagrams`);
-  }
-  if(bp.t%30===1){
-    const regions=45,parts=1+Math.ceil(regions/20);
-    for(let p=0;p<parts;p++)bpSend("TVMA",`part ${p}/${parts}`,p*60);
-    bpLog(`t=${bp.t}s <b>TVMA</b> sample #${bp.mseq++}: summary + ${regions} regions &rarr; ${parts} datagrams`);
-  }
+function bpLaunch(q){
+  const lost=Math.random()*100<bp.loss;
+  bp.gr.push({...q,born:bp.t,flight:.9+(Math.random()-.5)*.4,lost,lostAt:.35+Math.random()*.3,done:false});
 }
-function bpStart(){ if(bp.timer)return; bp.run=true;$("#bpPlay").textContent="Pause";
-  const loop=()=>{ if(!bp.run)return; bpStep(); bp.timer=setTimeout(loop,1000/ +$("#bpSpeed").value)};loop();}
-function bpStop(){bp.run=false;clearTimeout(bp.timer);bp.timer=null;$("#bpPlay").textContent="Play"}
-$("#bpPlay").onclick=()=>bp.run?bpStop():bpStart();
-$("#bpSpeed").onchange=()=>{if(bp.run){bpStop();bpStart()}};
+function bpArrive(d){
+  const a=asm[d.kind];
+  if(a.seq!==d.seq){
+    if(a.seq>=0&&!a.done&&!a.flag&&d.kind!=="TSIO")a.bad++;
+    Object.assign(a,{seq:d.seq,total:d.total,got:new Array(d.total).fill(false),done:false,flag:false});
+  }
+  a.got[d.part]=true;a.last=bp.t;
+  if(a.got.every(Boolean)){a.done=true;a.ok++;a.flash=1}
+}
+function bpUpdate(dt){
+  bp.t+=dt;
+  for(const k in LANE){bp.next[k]-=dt;if(bp.next[k]<=0){bp.next[k]+=EVERY[k];bpEmit(k)}}
+  for(let i=bp.queue.length-1;i>=0;i--)if(bp.queue[i].at<=bp.t){bpLaunch(bp.queue[i]);bp.queue.splice(i,1)}
+  for(const d of bp.gr){
+    const p=(bp.t-d.born)/d.flight;
+    if(!d.lost&&!d.dead&&p>=1&&!d.done){d.done=true;bpArrive(d);bp.fx.push({x:XR,y:LANE[d.kind].y,c:KC[d.kind],t:0})}
+    if(d.lost&&p>=d.lostAt&&!d.fx){d.fx=true;bp.fx.push({x:XS+(XR-XS-46)*d.lostAt,y:LANE[d.kind].y,c:"#ff6b6b",t:0,cross:true})}
+    if((d.lost||d.dead)&&p>=d.lostAt+.4)d.done=true;
+  }
+  bp.gr=bp.gr.filter(d=>!d.done||bp.t-d.born<d.flight+.6);
+  bp.fx.forEach(f=>f.t+=dt);bp.fx=bp.fx.filter(f=>f.t<.7);
+  for(const k in asm){const a=asm[k];a.flash=Math.max(0,a.flash-dt*1.5);
+    if(k!=="TSIO"&&a.seq>=0&&!a.done&&!a.flag&&bp.t-a.last>1.1){a.flag=true;a.bad++}}
+}
+function rbox(x,y,w,h,stroke,fill,r=10){cx.beginPath();cx.roundRect(x,y,w,h,r);if(fill){cx.fillStyle=fill;cx.fill()}if(stroke){cx.strokeStyle=stroke;cx.lineWidth=1.5;cx.stroke()}}
+function txt(s,x,y,c="#d8e0ea",sz=12,al="left",f="system-ui"){cx.fillStyle=c;cx.font=`${sz}px ${f}`;cx.textAlign=al;cx.fillText(s,x,y)}
+function bpDraw(){
+  cx.clearRect(0,0,1100,430);
+  rbox(18,26,216,262,"#2a3541","#101820");txt("sampler",30,48,"#8696a8");
+  txt("reads /proc, fills structs,",30,64,"#566677",11);txt("sendto(MSG_DONTWAIT)",30,78,"#566677",11,"left","monospace");
+  rbox(18,318,216,86,"#2a3541","#101820");txt("socket_sampler (eBPF)",30,340,"#8696a8");
+  // channel
+  const g=cx.createLinearGradient(XS,0,XR,0);g.addColorStop(0,"#101a24");g.addColorStop(1,"#0e1a1c");
+  cx.fillStyle=g;cx.fillRect(XS,20,XR-XS,390);
+  txt("UDP :9400 - one way, no ACK, no retry",(XS+XR)/2,16,"#8696a8",12,"center");
+  cx.setLineDash([4,7]);cx.lineWidth=1;
+  for(const k in LANE){cx.strokeStyle=KC[k]+"55";cx.beginPath();cx.moveTo(XS,LANE[k].y);cx.lineTo(XR,LANE[k].y);cx.stroke()}
+  cx.setLineDash([]);
+  rbox(XR,20,290,390,"#2a3541","#101820");txt("collector: demux by magic, join parts by sequence",XR+10,38,"#8696a8",11);
+  for(const k in LANE){
+    const L=LANE[k],c=KC[k],a=asm[k];
+    txt(L.name,30,L.y+4,c,13);
+    if(k==="TMON")txt(`${bp.threads} threads -> ${Math.max(1,Math.ceil(bp.threads/10))} datagram(s)`,30,L.y+22,"#566677",11);
+    if(k==="TRES")txt("summary + 14 sockets -> 4",30,L.y+22,"#566677",11);
+    if(k==="TVMA")txt("layout sent every 2nd sample",30,L.y+22,"#566677",11);
+    if(k==="TSIO")txt("heartbeat + 3 counters",30,L.y+22,"#566677",11);
+    txt(a.seq>=0?"seq "+a.seq:"-",XR+12,L.y-16,"#8696a8",11,"left","monospace");
+    const n=Math.max(1,a.total),sw=Math.min(28,(262-4*(n-1))/n);
+    for(let i=0;i<n;i++){
+      const x=XR+12+i*(sw+4),y=L.y-8,got=a.got[i];
+      if(got){cx.shadowColor=c;cx.shadowBlur=10}
+      rbox(x,y,sw,24,a.flag&&!got?"#ff6b6b":c,got?c:"#0b1015",4);cx.shadowBlur=0;
+      if(a.flag&&!got)txt("x",x+sw/2,y+17,"#ff6b6b",13,"center");
+    }
+    const st=k==="TSIO"?"each datagram stored alone":a.flag?"incomplete: hole kept, counted":a.done?"complete":(a.seq>=0?"waiting for parts...":"");
+    txt(st,XR+12,L.y+34,a.flag?"#ff6b6b":a.done?"#5fdc9b":"#8696a8",11);
+    txt(`ok ${a.ok}  incomplete ${a.bad}`,XR+278,L.y+52,"#566677",11,"right","monospace");
+    if(a.flash>0){cx.strokeStyle=`rgba(95,220,155,${a.flash})`;cx.lineWidth=2;cx.strokeRect(XR+6,L.y-26,278,70)}
+  }
+  // trails + datagrams
+  bp.hover=null;
+  for(const d of bp.gr){
+    const p=Math.min(1,(bp.t-d.born)/d.flight),L=LANE[d.kind];
+    if(!d.lost&&!d.dead&&d.done)continue;
+    const stop=d.dead?d.deadP:(d.lost?Math.min(p,d.lostAt):p);
+    const x=XS+(XR-XS-46)*stop,y=L.y-9+Math.sin((bp.t+d.part)*6)*1.2;
+    let al=1;const fade=d.dead?d.deadP:d.lostAt;
+    if((d.lost||d.dead)&&p>=fade)al=Math.max(0,1-(p-fade)/.4);
+    cx.globalAlpha=al*.25;cx.fillStyle=KC[d.kind];
+    for(let i=1;i<=4;i++){cx.beginPath();cx.roundRect(x-i*9,y+3,46,12,3);cx.globalAlpha=al*.12/i*2;cx.fill()}
+    cx.globalAlpha=al;cx.shadowColor=KC[d.kind];cx.shadowBlur=12;
+    rbox(x,y,46,18,null,d.lost||d.dead?"#ff6b6b":KC[d.kind],4);cx.shadowBlur=0;
+    txt(d.label,x+23,y+13,"#06101a",11,"center","monospace");cx.globalAlpha=1;
+    d.x=x;d.y=y;
+    if(bp.mouse&&bp.mouse.x>x&&bp.mouse.x<x+46&&bp.mouse.y>y&&bp.mouse.y<y+18)bp.hover=d;
+  }
+  for(const f of bp.fx){const r=f.t*50;cx.globalAlpha=1-f.t/.7;cx.strokeStyle=f.c;cx.lineWidth=2;
+    cx.beginPath();cx.arc(f.x,f.y,r,0,7);cx.stroke();
+    if(f.cross)txt("x",f.x+23,f.y-14-f.t*20,"#ff6b6b",16,"center");cx.globalAlpha=1}
+  if(bp.hover){const d=bp.hover,s=`${d.kind} seq ${d.seq} - part ${d.part+1}/${d.total} - ${d.bytes} B${d.lost||d.dead?" - LOST":""}`;
+    cx.font="12px monospace";const w=cx.measureText(s).width+14,x=Math.min(d.x,1090-w);
+    rbox(x,d.y-34,w,24,"#5b83ad","#1a2736",6);txt(s,x+7,d.y-17,"#fff",12,"left","monospace")}
+  txt(`t = ${bp.t.toFixed(1)} s`,1090,424,"#566677",11,"right","monospace");
+}
+function bpFrame(now){
+  if(!bp.play)return;
+  const dt=Math.min(.1,(now-bp.last)/1000);bp.last=now;
+  bpUpdate(dt*bp.speed);bpDraw();bp.raf=requestAnimationFrame(bpFrame);
+}
+function bpStart(){if(bp.play)return;bp.play=true;bp.last=performance.now();$("#bpPlay").textContent="Pause";bp.raf=requestAnimationFrame(bpFrame)}
+function bpStop(){bp.play=false;cancelAnimationFrame(bp.raf);$("#bpPlay").textContent="Play"}
+$("#bpPlay").onclick=()=>bp.play?bpStop():bpStart();
+$("#bpSpeed").oninput=e=>bp.speed=+e.target.value;
+$("#bpThreads").oninput=e=>{bp.threads=+e.target.value;$("#bpThreadsV").textContent=e.target.value};
+$("#bpLoss").oninput=e=>{bp.loss=+e.target.value;$("#bpLossV").textContent=e.target.value+"%"};
+const cpos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*1100/r.width,y:(e.clientY-r.top)*430/r.height}};
+cv.onmousemove=e=>bp.mouse=cpos(e);cv.onmouseleave=()=>bp.mouse=null;
+cv.onclick=e=>{const m=cpos(e);for(const d of bp.gr){if(d.done||d.lost||d.dead||d.x==null)continue;
+  if(m.x>d.x&&m.x<d.x+46&&m.y>d.y&&m.y<d.y+18){d.dead=true;d.deadP=Math.min(1,(bp.t-d.born)/d.flight);d.lostAt=d.deadP;
+    d.flight=Math.max(d.flight,.01);bp.fx.push({x:d.x+23,y:LANE[d.kind].y,c:"#ff6b6b",t:0,cross:true});break}}};
+bpDraw();
 
 /* ---------- 2. TMON chunks ---------- */
 const th={busy:false,got:new Set(),lost:new Set(),chunks:0,total:0,seq:100};
@@ -347,7 +448,7 @@ $("#thSend").onclick=()=>{
 thDraw();
 
 /* ---------- 3. byte layouts ---------- */
-const COL={magic:"#cfd6e4",ver:"#9aa6bd",flag:"#ffb86b",idx:"#ff7eb6",id:"#b78cff",seq:"#7fd3ff",cnt:"#5eead4",clk:"#4da3ff",val:"#3ecf8e",str:"#facc15",rsv:"#566079",key:"#ff9f43"};
+const COL_OLD={magic:"#cfd6e4",ver:"#9aa6bd",flag:"#ffb86b",idx:"#ff7eb6",id:"#b78cff",seq:"#7fd3ff",cnt:"#5eead4",clk:"#4da3ff",val:"#3ecf8e",str:"#facc15",rsv:"#566079",key:"#ff9f43"};
 // [name,size,type,color,description]
 const L={
 TMON_H:{title:"TMON header (48 B)",size:48,f:[
@@ -406,32 +507,43 @@ TSIO:{title:"TSIO datagram (160 B, always exactly)",size:160,f:[
  ["messages",8,"u64","val","message count (kind 6 only)"],["name",16,"char[16]","str","thread name"]],
  note:"One datagram per counter row, spaced 150 &micro;s apart so the collector can drain its UDP queue. The heartbeat (index 0) must have bytes 80-159 all zero."}
 };
+const PAL=["#7fd1ff","#ffd27f","#b9f5c8","#f5b9d6","#c9b8ff","#ffe08a","#9fe3d6","#ffb3a1","#d4e79e","#a8c4ff","#f2c6ff","#ffcf9f","#9ad7ff","#e3e3a0"];
 let lyKey="TMON_H";
 const lyTabs=$("#lyTabs");
-Object.entries(L).forEach(([k,v])=>{const b=el("button","",v.title.replace(/ \(.*/,""));b.dataset.k=k;b.onclick=()=>{lyKey=k;lyDraw()};lyTabs.append(b)});
+const KIND_OF={TMON_H:"TMON",TMON_R:"TMON",TRES_H:"TRES",TRES_S:"TRES",TVMA_H:"TVMA",TVMA_R:"TVMA",TSIO:"TSIO"};
+Object.entries(L).forEach(([k,v])=>{const b=el("button","",v.title.replace(/ \(.*/,""));b.dataset.k=k;
+  b.style.borderColor=KC[KIND_OF[k]]+"88";b.onclick=()=>{lyKey=k;lyDraw()};lyTabs.append(b)});
 function lyDraw(){
   [...lyTabs.children].forEach(b=>b.classList.toggle("on",b.dataset.k===lyKey));
-  const d=L[lyKey];let off=0;const bytes=$("#lyBytes"),tbl=$("#lyTable");bytes.innerHTML="";
+  const d=L[lyKey],kc=KC[KIND_OF[lyKey]];
+  const fields=[];let off=0;d.f.forEach(f=>{fields.push({name:f[0],off,size:f[1],type:f[2],desc:f[4]});off+=f[1]});
+  const host=$("#lyBytes");host.innerHTML="";host.className="";
+  host.insertAdjacentHTML("beforeend",`<b style="color:${kc}">${d.title}</b>`);
+  const st=el("div","stack");
+  st.innerHTML=`<div style="flex:${off};background:${kc}">${off} bytes, little-endian, no padding</div>`;host.append(st);
+  const grid=el("div","grid8");
+  for(let r=0;r<off;r+=8){
+    const row=el("div","row8",`<div class="rowlabel">${r}</div>`);let b=r;
+    while(b<Math.min(r+8,off)){
+      const fi=fields.findIndex(f=>b>=f.off&&b<f.off+f.size),f=fields[fi];
+      const e=Math.min(r+8,f.off+f.size);
+      const seg=el("div","seg",b===f.off?f.name:"&#8627;");
+      seg.style.flex=String(e-b);seg.style.background=PAL[fi%PAL.length];seg.dataset.f=fi;
+      seg.title=`${f.name} @${f.off}, ${f.size} B, ${f.type}`;row.append(seg);b=e;
+    }
+    grid.append(row);
+  }
+  host.append(grid);
+  const tbl=el("table","f");
   tbl.innerHTML=`<tr><th>offset</th><th>field</th><th>size</th><th>type</th><th>meaning</th></tr>`;
-  d.f.forEach((f,i)=>{
-    const [name,size,type,col,desc]=f;
-    const tr=el("tr","",`<td class="mono">${off}</td><td class="mono"><span style="color:${COL[col]}">&#9632;</span> ${name}</td><td>${size}</td><td class="mono">${type}</td><td class="dim">${desc}</td>`);
-    tbl.append(tr);
-    const cells=[];
-    for(let k=0;k<size;k++){
-      const b=el("div","b",`${off+k}`);b.style.background=COL[col];
-      if(k===0)b.insertAdjacentHTML("beforeend",`<small>${name.length>6?name.slice(0,6)+"…":name}</small>`);
-      cells.push(b);bytes.append(b);}
-    const on=v=>{cells.forEach(c=>c.classList.toggle("hl",v));tr.classList.toggle("hl",v)};
-    cells.forEach(c=>{c.onmouseenter=()=>on(true);c.onmouseleave=()=>on(false);c.title=`${name} @${off} (${size} B)`});
-    tr.onmouseenter=()=>on(true);tr.onmouseleave=()=>on(false);
-    off+=size;
-  });
-  $("#lyNote").innerHTML=`Total ${off} bytes. ${d.note}`;
-  if(off!==d.size)console.warn("size mismatch",lyKey,off,d.size);
+  fields.forEach((f,i)=>{const tr=el("tr","",`<td class="mono">${f.off}</td><td class="mono"><span style="color:${PAL[i%PAL.length]}">&#9632;</span> ${f.name}</td><td>${f.size}</td><td class="mono">${f.type}</td><td class="dim">${f.desc}</td>`);tr.dataset.f=i;tbl.append(tr)});
+  host.append(tbl);
+  host.querySelectorAll("[data-f]").forEach(e=>{
+    e.onmouseenter=()=>host.querySelectorAll(`[data-f="${e.dataset.f}"]`).forEach(x=>x.classList.add("hl"));
+    e.onmouseleave=()=>host.querySelectorAll(".hl").forEach(x=>x.classList.remove("hl"));});
+  $("#lyNote").innerHTML=d.note;
+  hexReset();
 }
-lyDraw();
-
 /* ---------- 4. parts ---------- */
 function partsView(host,{summaryLabel,summaryBytes,rowLabel,rowBytes,perPart,total,max}){
   const rows=Math.min(total,max);const nparts=1+Math.ceil(rows/perPart);
@@ -516,6 +628,79 @@ $("#pdAuto").onclick=()=>{
   pdTimer=setInterval(()=>{if(pd>=S.length-1){clearInterval(pdTimer);pdTimer=null;$("#pdAuto").innerHTML="&#9654; Auto-play";return}pd++;pdDraw()},1600);
 };
 pdDraw();
+
+/* ---------- live encode/decode demo ---------- */
+const SAMPLE={magic:"TMON",version:2,flags:0,chunk:1,chunks:3,session:0x1122334455667788n,sequence:4217,records:10,monotonic_ns:123456789012345n,
+ wall_ns:1760000000000000000n,interval_ms:1000,pid:31337,tid:31340,state:"S",processor:3,utime:5120n,stime:880n,run_delay:4400000n,timeslices:91200n,
+ major_faults:2n,read_bytes:4096n,write_bytes:0n,comm:"worker-3",wchan:"futex_wait_queue",kind:1,part:1,parts:4,count:6,process_start:987654n,
+ observer:42n,started_ns:1000n,losses:0n,index:1,fd:7,inode:123456n,local_port:9400,remote_port:51234,rx_queue:0,tx_queue:0,cgroup_flags:0,
+ start:0x7f0000000000n,end:0x7f0000021000n,vma_count:3,permissions:5,name:"libc.so.6"};
+const SAMPLE_MAGIC={TRES_H:"TRES",TVMA_H:"TVMA",TSIO:"TSIO"};
+function sampleFor(key,name){
+  if(name==="magic")return SAMPLE_MAGIC[key]||"TMON";
+  if(name==="version"&&key==="TSIO")return 1;
+  if(name==="version")return key==="TMON_H"?2:1;
+  if(name==="kind"&&key==="TVMA_H")return 2;
+  if(name==="kind"&&key==="TRES_H")return 2;
+  return SAMPLE[name];
+}
+const hexSt={buf:null,fields:null};
+function fieldsOf(key){const o=[];let off=0;L[key].f.forEach(f=>{o.push({name:f[0],off,size:f[1],type:f[2]});off+=f[1]});return{o,size:off}}
+function hexReset(){
+  hexSt.buf=null;$("#hexWhich").textContent=L[lyKey].title;$("#hexOut").textContent="Press Encode.";$("#decOut").innerHTML="";
+  const pk=$("#hexPick");if(pk.value!==lyKey)pk.value=lyKey;
+}
+Object.entries(L).forEach(([k,v])=>$("#hexPick").append(new Option(v.title.replace(/ \(.*/,""),k)));
+$("#hexPick").onchange=e=>{lyKey=e.target.value;lyDraw()};
+$("#encBtn").onclick=()=>{
+  const {o,size}=fieldsOf(lyKey),buf=new Uint8Array(size),dv=new DataView(buf.buffer);
+  for(const f of o){
+    const v=sampleFor(lyKey,f.name);if(v==null)continue;
+    if(f.type==="u8"||f.type==="char")dv.setUint8(f.off,typeof v==="string"?v.charCodeAt(0):Number(v));
+    else if(f.type==="u16")dv.setUint16(f.off,Number(v),true);
+    else if(f.type==="u32")dv.setUint32(f.off,Number(v),true);
+    else if(f.type==="u64")dv.setBigUint64(f.off,BigInt(v),true);
+    else if(f.type.startsWith("char["))for(let i=0;i<String(v).length&&i<f.size;i++)buf[f.off+i]=String(v).charCodeAt(i);
+  }
+  hexSt.buf=buf;hexSt.fields=o;hexShow();$("#decOut").innerHTML='<span class="dim">Encoded. Now decode it.</span>';
+};
+function hexShow(){
+  const {buf,fields}=hexSt;const own=new Array(buf.length).fill(0);
+  fields.forEach((f,i)=>{for(let b=f.off;b<f.off+f.size;b++)own[b]=i});
+  let h="",n=0;
+  for(let r=0;r<buf.length;r+=16){h+=String(r).padStart(4,"0")+"  ";
+    for(let b=r;b<Math.min(r+16,buf.length);b++){h+=`<span style="background:${PAL[own[b]%PAL.length]};animation-delay:${n++*8}ms">${buf[b].toString(16).padStart(2,"0")}</span>`}h+="\n"}
+  $("#hexOut").innerHTML=h;
+}
+$("#corBtn").onclick=()=>{
+  if(!hexSt.buf){$("#decOut").textContent="Encode first.";return}
+  hexSt.buf[Math.floor(Math.random()*4)]^=0x20; // flips a bit in the magic
+  hexShow();$("#decOut").innerHTML='<span class="dim">A byte in the magic changed. Decode and see.</span>';
+};
+$("#decBtn").onclick=()=>{
+  const out=$("#decOut");out.innerHTML="";
+  if(!hexSt.buf){out.textContent="Encode first.";return}
+  const {buf,fields}=hexSt,dv=new DataView(buf.buffer),lines=[];
+  const magic=String.fromCharCode(...buf.slice(0,4));
+  const want=SAMPLE_MAGIC[lyKey]||"TMON";
+  const hasMagic=fields[0].name==="magic";
+  if(hasMagic&&magic!==want){lines.push(`<div style="color:var(--bad)">magic = ${JSON.stringify(magic)}  (want ${want}) -> REJECTED: "unsupported protocol"</div>`);}
+  else{
+    for(const f of fields){
+      let v;
+      if(f.type==="u8"||f.type==="char")v=f.type==="char"?JSON.stringify(String.fromCharCode(buf[f.off])):dv.getUint8(f.off);
+      else if(f.type==="u16")v=dv.getUint16(f.off,true);
+      else if(f.type==="u32")v=dv.getUint32(f.off,true);
+      else if(f.type==="u64")v="0x"+dv.getBigUint64(f.off,true).toString(16);
+      else if(f.type.startsWith("char["))v=JSON.stringify(String.fromCharCode(...buf.slice(f.off,f.off+f.size)).split("\0")[0]);
+      else v=[...buf.slice(f.off,f.off+f.size)].every(x=>x===0)?"0 ok":"NONZERO";
+      lines.push(`<div><span style="color:${PAL[fields.indexOf(f)%PAL.length]}">&#9632;</span> ${f.name.padEnd(18)} = ${v}</div>`);
+    }
+    lines.push('<div style="color:var(--ok)">all checks passed</div>');
+  }
+  lines.forEach((l,i)=>{const d=el("div","",l);d.firstChild&&(d.firstChild.style.animationDelay=i*60+"ms");d.style.animationDelay=i*60+"ms";out.append(d)});
+};
+lyDraw();
 
 show(+location.hash.slice(1)||0);
 </script>
