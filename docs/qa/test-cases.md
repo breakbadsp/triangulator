@@ -19,6 +19,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-007 | NOT_RUN | - | - | - |
 | QA-008 | NOT_RUN | - | - | - |
 | QA-009 | NOT_RUN | - | - | - |
+| QA-010 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -219,3 +220,34 @@ across conversations. An exited process is reported as stopped. The helper does
 not select the dashboard target or remove unrelated files or processes.
 
 Source: [Bugbench session skill](../../.agents/skills/bugbench-session/SKILL.md).
+
+## QA-010: Wire format overview
+
+Feature: Wire format documentation. Priority: Medium. Case revision: 1.
+
+Preconditions: Open `docs/wire-format-overview.html` from the source checkout
+in a browser. This page needs no running collector.
+
+1. Check both README wire format links. Both must open this page. Select
+   each section link in the top bar.
+2. Select TMON, TRES, TVMA, and TSIO. Check the header and row sizes against
+   the source headers. Encode each example header, then read its fields.
+3. Change the thread count to 1, 10, 11, and 60. Check the event log.
+4. Set packet loss to 50%. Check the loss states. Pause and resume the animation.
+5. With packet loss at 0%, click datagrams in flight to drop them. Drop a TRES
+   summary. Drop a TVMA summary and let all region parts arrive. In a separate
+   TVMA sample, drop a region part.
+
+Expected results: The only wire format page is the overview. Each section
+heading appears below the top bar after its link is selected. Header sizes are
+48, 64, 64, and 80 B. Row sizes are 112, 160, 64, and 80 B respectively;
+a complete TSIO datagram is 160 B. The example header fields match their
+encoded bytes. The demo identifies header examples and illustrative timings.
+TMON uses 1, 1, 2, and 6 chunks for these thread counts. TRES discards a sample
+without its summary. TVMA updates a layout when all region parts arrive, even
+without its summary; missing region parts preserve the previous layout. Each
+clicked datagram drops once, and the event log records the drop. The TVMA
+layout count excludes summary-only samples.
+TSIO counts received datagrams separately. The browser has no script errors.
+
+Source: [Wire format overview](../wire-format-overview.html).
