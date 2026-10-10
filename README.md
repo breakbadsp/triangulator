@@ -242,8 +242,7 @@ Source and limits: [docs/collector-comparison.md](docs/collector-comparison.md).
 </p>
 
 How the datagrams are laid out and split into parts: open the animated
-[wire format overview](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-overview.html)
-or the [animated tour](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-animation.html).
+[wire format overview](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-overview.html).
 GitHub shows HTML files as source, so these links use the htmlpreview.github.io
 service to run them. Or open `docs/wire-format-overview.html` in a browser after
 cloning.
@@ -312,8 +311,8 @@ Alerting is a separate module that is not wired up yet
 [coverage](docs/linux-monitoring.md), [resource monitoring](docs/resource-monitoring.md),
 [TODO](TODO.md). Also see the [architecture diagrams](docs/architecture.md).
 The UDP wire formats have an
-[animated tour](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-animation.html)
-([source](docs/wire-format-animation.html); GitHub shows HTML as text, so the
+[animated overview](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-overview.html)
+([source](docs/wire-format-overview.html); GitHub shows HTML as text, so the
 link opens it through htmlpreview.github.io).
 
 # Reference
