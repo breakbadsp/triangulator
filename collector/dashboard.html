@@ -2176,7 +2176,8 @@ function initSectionNavigation(){
     const headerLine=(getComputedStyle(topbar).position==='sticky'?topbar.getBoundingClientRect().bottom:0)+16;
     const line=Math.max(headerLine,parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)||0)+1;
     let current=0;
-    for(let index=0;index<sections.length;index++)if(sections[index].getBoundingClientRect().top<=line)current=index;
+    // A hidden section (Sockets in replay) has no layout box and reports top 0.
+    for(let index=0;index<sections.length;index++)if(sections[index].getClientRects().length&&sections[index].getBoundingClientRect().top<=line)current=index;
     // The final section can be too short to reach the top of the viewport.
     if(scrollY>0&&Math.ceil(scrollY+innerHeight)>=document.documentElement.scrollHeight)current=links.length-1;
     for(let index=0;index<links.length;index++){

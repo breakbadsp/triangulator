@@ -12,7 +12,7 @@ test('section navigation follows viewport position and layout changes', () => {
     setAttribute(key, value) {this.attrs[key] = value;},
     removeAttribute(key) {delete this.attrs[key];}}));
   let tops = [100, 1000, 2000, 3000, 4000, 5000];
-  const sections = new Map(ids.map((id, index) => [id, {getBoundingClientRect: () => ({top: tops[index]})}]));
+  const sections = new Map(ids.map((id, index) => [id, {hasBox: true, getClientRects() {return this.hasBox ? [{}] : [];}, getBoundingClientRect: () => ({top: tops[index]})}]));
   const listeners = new Map(), frames = [], observed = [];
   let layoutChanged, position = 'sticky', headerBottom = 60;
   const topbar = {getBoundingClientRect: () => ({bottom: headerBottom})}, main = {};
@@ -49,6 +49,11 @@ test('section navigation follows viewport position and layout changes', () => {
   tops[2] = 10; layoutChanged(); frames.shift()(); current('resources');
   tops = [100, 1000, 2000, 3000, 4000, 5000]; context.scrollY = 0;
   update('pageshow'); current('overview');
+  // A hidden section reports top 0 and must not win.
+  const sockets = sections.get('socket-panel');
+  sockets.hasBox = false; tops = [-900, 0, 1000, 2000, 3000, 4000]; context.scrollY = 1000;
+  update('scroll'); current('threads-section');
+  sockets.hasBox = true;
   listeners.get('scroll')(); listeners.get('scroll')();
   assert.equal(frames.length, 1, 'scroll updates use one animation frame');
 });
