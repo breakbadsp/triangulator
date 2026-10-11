@@ -17,9 +17,17 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-005 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Tool errors](runs/20261009T035640Z-v0.1.0/evidence/browser-tool-errors.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | NOT_RUN | - | - | - |
-| QA-008 | NOT_RUN | - | - | - |
+| QA-008 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/browser-tool-errors.txt) |
 | QA-009 | NOT_RUN | - | - | - |
 | QA-010 | NOT_RUN | - | - | - |
+| QA-011 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-012 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-013 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-014 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-015 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/browser-tool-errors.txt) |
+| QA-016 | FAILED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/margin-repro-after.json) |
+| QA-017 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-018 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -251,3 +259,127 @@ layout count excludes summary-only samples.
 TSIO counts received datagrams separately. The browser has no script errors.
 
 Source: [Wire format overview](../wire-format-overview.html).
+
+## QA-011: Memory zoom page size and units
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 2.
+
+Preconditions: Dashboard fixtures with 4 KiB, 64 KiB, and missing page sizes.
+
+1. Select a region in each fixture and inspect the page size and grid caption.
+2. Repeat with invalid page sizes, stale resource data on first load, and
+   resource data from another target.
+3. After valid page metadata arrives, make resource data stale. Then change
+   the target or sampler session and repeat without valid metadata.
+
+Expected results: Binary values use KiB/MiB/GiB. Valid metadata sets the page
+size and cell page count. Missing or invalid metadata on first load shows Unknown and byte
+sizes without page counts. Once valid metadata arrives, its page size stays
+valid for that target and sampler session when resource data becomes stale.
+A new target or session clears the cached value. The grid has at most 512 cells.
+
+## QA-012: Memory growth facts refresh and reset
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+1. Select the heap. Receive two memory samples with an unchanged layout.
+2. Grow and contract the heap, then leave its layout unchanged for a sample.
+3. Repeat with the main stack. Make samples stale, delay a new layout, then
+   change the target or sampler session.
+
+Expected results: Size change and measured interval refresh on each sample.
+Unavailable data does not produce a growth value. A new target or session
+starts a new comparison. Outlines retain their previous-layout meaning.
+
+## QA-013: Largest unmapped gap and unknown coverage
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+1. Select bars with contiguous regions and separated regions. Compare the
+   largest gap with their address ranges, including addresses above `2^53`.
+2. Repeat with partial, truncated, stale, and delayed layouts.
+3. Open help for Largest unmapped gap.
+
+Expected results: The fact shows the longest internal gap, including zero
+for contiguous regions. Incomplete coverage shows Unavailable and unknown
+cells. Help distinguishes address gaps from allocator free blocks.
+
+## QA-014: Memory boundary charts
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+1. Grow and contract the heap. Grow the main stack downward.
+2. Include unchanged samples and a missing layout between valid samples.
+3. Use addresses above `2^53`, then restart the sampler or change the target.
+4. Open both boundary-chart guides.
+
+Expected results: Heap-end and stack-start offsets retain page-sized changes.
+Stack growth moves the start downward. Lines use sampled steps and stop at
+missing samples. History resets for a new target or session. The heap label
+and guide explain page alignment. Resident anonymous remains a separate chart.
+
+## QA-015: Compact memory zoom and thread-stack help
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+1. Open Memory map at desktop and narrow viewport widths.
+2. Use the keyboard to open and close Member regions. Keep it open across
+   a new sample. Open its help and the Thread stacks guide.
+
+Expected results: Facts, legend, and charts remain visible. Chart headings
+and rates have separate lines. Charts stack on narrow screens. The disclosure
+keeps its open state across samples. Help explains reserved size, residency,
+and stack depth as different measurements.
+
+## QA-016: Bounded heap display margin
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+1. Select a heap with an unmapped gap and a neighboring file or anonymous
+   mapping above it. Open Heap display margin help.
+2. Grow the heap within the grid, then past its display end. Contract it.
+3. Change selection and target. Repeat with stale or incomplete layouts.
+
+Expected results: Neighboring mappings retain their colors. The grid range
+remains stable while growth fits. It resets when needed, with at most 1 MiB
+of upper margin and 512 cells. The caption identifies the heap mapping end
+and grid range. Heap facts exclude the margin. Incomplete or stale layouts
+have no margin. Selection and target changes reset the display span.
+
+## QA-017: Late resource samples retain memory history
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+Preconditions: An HTTP dashboard fixture can keep memory.updated constant
+while resource availability changes. It uses matching target and session IDs.
+
+1. Load one memory sample while its resource sample is stale.
+2. Supply a valid resource sample without changing memory.updated.
+3. Supply a second memory sample with valid resources, then a third with
+   stale resources. Inspect the resident-anonymous chart and page caption.
+4. Change the sampler session. Inspect the charts.
+
+Expected results: The first sample starts with Unknown page size. The late
+resource sample adds RSS and anonymous bytes to that same history point.
+Valid page metadata updates the caption. Later resource staleness retains
+the learned page size and earlier resident-anonymous history. A new session
+starts new history with Collecting… .
+
+## QA-018: Live anonymous growth stays distinct from brk heap growth
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+Preconditions: The standard bugbench fixture and an isolated sampler and
+collector run with resource and memory intervals of 1 second. Start healthy
+first. Then select mem-leak, which allocates large blocks through malloc.
+
+1. Keep the live Memory map open on healthy and inspect heap size changes.
+2. Select the owned mem-leak process with the target-control script.
+3. Keep the browser open for at least two resource samples.
+4. Compare Resident anonymous, heap mapping size, and heap boundary offset.
+
+Expected results: Healthy unchanged samples refresh the measured interval
+with zero heap change. The new target starts new browser history. Resident
+anonymous increases for mem-leak. If the allocator uses mmap for these large
+blocks, the brk heap can remain fixed with a zero heap-end offset. The chart
+does not describe resident-anonymous growth as brk heap growth.
