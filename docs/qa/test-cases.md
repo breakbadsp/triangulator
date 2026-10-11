@@ -317,3 +317,18 @@ Expected results: Facts, legend, and charts remain visible. Chart headings
 and rates have separate lines. Charts stack on narrow screens. The disclosure
 keeps its open state across samples. Help explains reserved size, residency,
 and stack depth as different measurements.
+
+## QA-016: Bounded heap display margin
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+1. Select a heap with an unmapped gap and a neighboring file or anonymous
+   mapping above it. Open Heap display margin help.
+2. Grow the heap within the grid, then past its display end. Contract it.
+3. Change selection and target. Repeat with stale or incomplete layouts.
+
+Expected results: Neighboring mappings retain their colors. The grid range
+remains stable while growth fits. It resets when needed, with at most 1 MiB
+of upper margin and 512 cells. The caption identifies the heap mapping end
+and grid range. Heap facts exclude the margin. Incomplete or stale layouts
+have no margin. Selection and target changes reset the display span.

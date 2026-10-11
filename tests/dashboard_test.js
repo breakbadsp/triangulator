@@ -1281,11 +1281,12 @@ test('zoom legend names every kind shown in the grid, in the grid colors', () =>
   // Two 8 KB regions with an unmapped page between them, so every zoom also has a "not mapped" square.
   const legend = kind => app.run(`(()=>{const member=(lo,hi)=>({cat:'${kind}',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
     const members=[member(0x10000n,0x12000n),member(0x13000n,0x15000n)];
+    memoryLayout.regions=members.map(r=>({...r,end:'0x'+r.hi.toString(16),kind:'${kind}'}));
     memoryPrevious=null;renderMemoryZoom({key:'${kind}',cat:'${kind}',vmas:2,size:16384,lo:0x10000n,hi:0x15000n,members});
     return element('memory-grid-legend').children.map(item=>({label:item.children[1],style:item.children[0].style.background,cls:item.children[0].className}))})()`);
   for (const kind of kinds) {
-    const [mapped, gap, ...rest] = legend(kind);
-    assert.equal(rest.length, 0, kind);
+    const entries=legend(kind),gap=entries.find(item=>item.label==='not mapped'),mapped=entries.find(item=>item.label!=='not mapped');
+    assert.equal(entries.length,2,kind);
     assert.equal(mapped.label, app.run(`MEMORY_KIND_LABELS.${kind}`), kind);
     if (kind === 'guard') assert.match(mapped.cls, /cell-guard/);
     else assert.equal(mapped.style, app.run(`MEMORY_KINDS.${kind}[0]`), kind);
@@ -1294,9 +1295,10 @@ test('zoom legend names every kind shown in the grid, in the grid colors', () =>
   // Squares mapped since the previous layout add the marker entry; unchanged layouts do not.
   app.run("memoryPrevious={regions:[{start:'0x10000',end:'0x12000',permissions:'rw-p',kind:'heap',name:''}]}");
   const labels = app.run(`(()=>{const member=(lo,hi)=>({cat:'heap',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
+    memoryLayout.regions=[{start:'0x10000',end:'0x14000',size:16384,vmas:1,kind:'heap',permissions:'rw-p'}];
     renderMemoryZoom({key:'h',cat:'heap',vmas:1,size:16384,lo:0x10000n,hi:0x14000n,members:[member(0x10000n,0x14000n)]});
     return element('memory-grid-legend').children.map(item=>item.children[1])})()`);
-  assert.deepEqual([...labels], ['heap (brk)', 'mapped since the previous layout']);
+  assert.deepEqual([...labels].sort(), ['heap (brk)', 'mapped since the previous layout','not mapped'].sort());
 });
 
 // Memory-map hover help on a live collector. refresh() re-runs renderMemory()
@@ -1448,4 +1450,23 @@ test('memory boundary charts preserve high-address steps and missing samples', (
   assert.match(app.run('chart.children.at(-1).textContent'),/^Offset: 0 B → 0 B$/);
   app.run('live.health.session="new";recordMemory({...live.memory,updated:160},regions,true)');
   assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0]);
+});
+
+test('heap margin stays bounded and stable, includes neighbors, and resets on selection', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`heap=memoryRows(memoryRegions(memoryLayout))[0];span=memoryDisplaySpan(heap);
+    neighbor={start:'0x210000',end:'0x220000',size:65536,vmas:1,kind:'file',permissions:'rw-p',name:'/tmp/data'};
+    memoryLayout.regions.push(neighbor);renderMemoryZoom(heap)`);
+  assert.ok(app.run('span.hi-heap.hi<=1048576n'));
+  assert.ok(app.run("element('memory-grid-legend').children.some(item=>item.children[1]==='file mapping')"));
+  const before = app.run('span.hi');
+  app.run('heap.hi+=65536n;heap.size+=65536');
+  assert.equal(app.run('memoryDisplaySpan(heap).hi'),before);
+  app.run('heap.hi=span.hi+65536n;heap.size=Number(heap.hi-heap.lo)');
+  assert.ok(app.run('memoryDisplaySpan(heap).hi>span.hi'));
+  app.run('memoryDisplaySpan({...heap,cat:"stack"})');
+  assert.equal(app.run('memoryHeapSpan'),null);
+  app.run('live.memory.stale=true');
+  assert.equal(app.run('memoryDisplaySpan(heap).hi'),app.run('heap.hi'));
+  assert.ok(app.elements.get('memory-grid').children.length<=512);
 });

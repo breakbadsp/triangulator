@@ -21,7 +21,7 @@ resource samples, and browser history.
   facts, legend, and charts visible. Make titles readable and stack charts
   vertically on narrow screens. Explain fixed thread-stack reservations and
   the difference between residency and stack depth.
-- [ ] **Heap margin, last.** Add a small, capped display margin above the heap.
+- [x] **Heap margin, last.** Add a small, capped display margin above the heap.
   Check all layout regions for neighboring mappings. Keep heap facts separate
   from the display span and retain the 512-cell limit. Keep the span until
   growth exceeds it; reset it on selection or target changes. Omit the margin
