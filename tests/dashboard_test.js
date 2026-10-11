@@ -1470,6 +1470,30 @@ test('memory boundary charts preserve high-address steps and missing samples', (
   assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0]);
 });
 
+test('heap margin survives layout replacement and a pending layout fetch', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  const before = app.run('memoryHeapSpan.hi');
+  const count = app.elements.get('memory-grid').children.length;
+  // A new layout ID arrives before its maps response. Coverage is unknown
+  // during that poll, but it must not discard the selected heap's span.
+  app.run("live.memory.layout_id='s:2';live.memory.updated=11;renderMemory()");
+  app.run(`memoryLayout={...memoryLayout,id:'s:2',regions:[{
+    ...memoryLayout.regions[0],end:'0x201000',size:1052672}]};renderMemory()`);
+  assert.equal(app.run('memoryHeapSpan.hi'),before);
+  assert.equal(app.elements.get('memory-grid').children.length,count);
+  assert.ok(zoomFacts(app).includes('1.0 MiB'));
+  // A command name update also rebuilds the map without changing selection.
+  app.run("live.threads=[{tid:1,name:'renamed'}];renderMemory()");
+  assert.equal(app.run('memoryHeapSpan.hi'),before);
+  // Growth beyond the retained margin creates a new bounded span.
+  app.run(`live.memory.layout_id='s:3';memoryLayout={...memoryLayout,id:'s:3',
+    regions:[{...memoryLayout.regions[0],end:'0x241000',size:1314816}]};renderMemory()`);
+  assert.ok(app.run('memoryHeapSpan.hi')>before);
+  assert.ok(app.run('memoryHeapSpan.hi-memoryRows(memoryRegions(memoryLayout))[0].hi<=1048576n'));
+  app.run("live.health.session='other';renderMemory()");
+  assert.equal(app.run('memoryHeapSpan'),null);
+});
+
 test('heap margin stays bounded and stable, includes neighbors, and resets on selection', () => {
   const app = dashboard();loadMemoryZoom(app);
   app.run(`heap=memoryRows(memoryRegions(memoryLayout))[0];span=memoryDisplaySpan(heap);
