@@ -1,5 +1,9 @@
 # Memory map
 
+For the gaps between the original zoom mock-up and this implementation, see
+[Memory zoom: gaps and implementation plan](memory-map-gap-plan.md). It lists
+feasibility, Linux permissions, and proposed implementation steps.
+
 The sampler can send the target's virtual address space to the collector. The
 dashboard shows it in the **Memory map** section. Sampling is enabled every
 30 seconds by default. Change the interval in the sampler config:
