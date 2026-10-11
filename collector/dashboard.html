@@ -51,6 +51,7 @@ button:disabled{cursor:wait;opacity:.6}
 nav.tabs{display:flex;flex-wrap:wrap;gap:2px;margin-left:auto}
 nav.tabs a{color:var(--ink-2);text-decoration:none;padding:6px 12px;border-radius:8px}
 nav.tabs a:hover{background:var(--raised);color:var(--ink)}
+nav.tabs a[aria-current=location]{background:var(--accent-wash);color:var(--accent-ink);box-shadow:inset 0 -2px var(--accent)}
 .icon-btn{padding:6px 9px;line-height:1}
 .banner{max-width:1480px;margin:12px auto 0;padding:10px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--critical) 45%,transparent);background:color-mix(in srgb,var(--critical) 10%,var(--surface));display:flex;gap:10px;align-items:center}
 .banner:empty{display:none}
@@ -327,7 +328,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" data-help="target" data-hint="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections"><a href="#overview">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" data-hint="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -638,6 +639,7 @@ function helpTopic(id,title,scope,meaning,example,reading,limits,related=[],alia
   HELP[id]={id,title,scope,meaning,example,reading,limits,related,aliases};
   for(const name of [title,...aliases])helpNames.set(name.toLowerCase(),id);
 }
+helpTopic('section-navigation','Section navigation','Dashboard page','The highlighted tab identifies the section at the top of the visible page.','','Select a tab to go to its section. The highlight changes when you scroll.','At the bottom of the page, the Monitor tab is highlighted.');
 helpTopic('cpu','CPU','One core · percentage','CPU time used, as a percentage of one CPU core.','50% means 0.5 seconds of CPU time per elapsed second.','Compare CPU use with run delay. Process CPU sums all reported threads and can exceed 100%.','A high value can be normal for a busy worker. CPU use alone does not establish a problem.',['delay','pressure','cores'],['Recent live CPU']);
 helpTopic('delay','Run delay','Elapsed time · percentage','Time a thread was ready to run but waited for a CPU.','12% means 120 ms waiting per elapsed second.','Persistent delay can indicate competition for CPU time. Compare CPU use, cgroup CPU pressure, and quota throttling.','Sleep and futex wait are separate measurements. Run delay alone does not identify a cause.',['cpu','pressure','throttle']);
 helpTopic('load','Process load','Process · 1-, 5-, and 15-minute averages','Smoothed demand from CPU use, runnable delay, and threads in uninterruptible kernel wait.','1.00 represents about one core of demand.','Compare the three averages to see whether demand is increasing. The chart window controls what is visible, not the averaging period.','This estimate covers the target process. It is not the host load average. Live averages need observations in this browser tab.',['cpu','delay','kernel'],['1-minute load']);
@@ -2163,6 +2165,37 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
     for(const [cell,key] of memoryGrowthCells)cell.textContent=memoryGrowth(key)}}
 
 // ---------- Main loop ----------
+function initSectionNavigation(){
+  const links=Array.from(document.querySelectorAll('nav.tabs a'));
+  if(!links.length)return;
+  const sections=links.map(link=>document.getElementById(link.hash.slice(1)));
+  const topbar=document.querySelector('.topbar');
+  let pending=false;
+  function update(){
+    pending=false;
+    const headerLine=(getComputedStyle(topbar).position==='sticky'?topbar.getBoundingClientRect().bottom:0)+16;
+    const line=Math.max(headerLine,parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)||0)+1;
+    let current=0;
+    for(let index=0;index<sections.length;index++)if(sections[index].getBoundingClientRect().top<=line)current=index;
+    // The final section can be too short to reach the top of the viewport.
+    if(scrollY>0&&Math.ceil(scrollY+innerHeight)>=document.documentElement.scrollHeight)current=links.length-1;
+    for(let index=0;index<links.length;index++){
+      if(index===current)links[index].setAttribute('aria-current','location');
+      else links[index].removeAttribute('aria-current');
+    }
+  }
+  function schedule(){if(!pending){pending=true;requestAnimationFrame(update)}}
+  addEventListener('scroll',schedule,{passive:true});
+  addEventListener('resize',schedule);
+  addEventListener('hashchange',schedule);
+  addEventListener('pageshow',schedule);
+  // Samples can change section heights without a scroll or window resize.
+  if(typeof ResizeObserver!=='undefined'){
+    const observer=new ResizeObserver(schedule);
+    observer.observe(document.querySelector('main'));observer.observe(topbar);
+  }
+  update();
+}
 function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
   const state=replayAt!==null?['warning','Historical']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
@@ -2200,6 +2233,7 @@ try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTh
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
 initHelp();
+initSectionNavigation();
 refresh();
 loadTarget();
 pollResources();

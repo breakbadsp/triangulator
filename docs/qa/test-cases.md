@@ -29,6 +29,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-017 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-018 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-019 | PASSED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
+| QA-020 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -49,6 +50,29 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Churn page](runs/20261009T035640Z-v0.1.0/evidence/thread-churn.txt) |
 | QA-119 | FAILED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Thread-growth page](runs/20261009T035640Z-v0.1.0/evidence/thread-leak.txt) |
 | QA-120 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Final stopped page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final.txt), [resumed page](runs/20261009T035640Z-v0.1.0/evidence/stopped-final-resumed.txt) |
+
+## QA-020: Current section tab
+
+Feature: Dashboard navigation. Priority: Medium. Case revision: 1.
+
+Preconditions: The dashboard is open with live samples.
+
+1. Open the page at the top. Verify that Summary is highlighted.
+2. Select each section tab. Verify that exactly one tab is highlighted and has
+   `aria-current="location"`. Use the keyboard to select a tab.
+3. Scroll down and up through the sections without selecting tabs. Verify that
+   the highlight follows the section below the header.
+4. Scroll to the bottom. Verify that Monitor is highlighted.
+5. Open a section URL directly. Reload it and use browser Back and Forward.
+   Verify that the highlight agrees with the visible section.
+6. Repeat at a narrow width and in light and dark themes. Resize the window
+   and let live samples change section heights. Verify the highlight again.
+7. Hover over a tab or focus it. Verify that the section navigation help
+   explains the highlight and does not prevent navigation.
+
+Expected results: One tab identifies the current visible section. The highlight
+uses a background, text color, and underline. It follows scrolling, navigation,
+and layout changes. Screen readers can identify the current section.
 
 ## QA-001: Package installation and live dashboard
 
