@@ -1429,3 +1429,23 @@ test('incomplete memory layouts cannot claim unmapped gaps or new mappings', () 
   app.run('live.memory.flags={};memoryLayout.flags={regions_truncated:true};renderMemoryZoom(gapZoom)');
   assert.ok(zoomFacts(app).includes('Unavailable'));
 });
+
+test('memory boundary charts preserve high-address steps and missing samples', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`high=2n**60n;regions=[{cat:'heap',size:4096,lo:high,hi:high+4096n},{cat:'stack',size:4096,lo:high+65536n,hi:high+69632n}];
+    memoryHistory=[];recordMemory({...live.memory,updated:10},regions,true);
+    regions[0].hi+=4096n;regions[1].lo-=4096n;
+    recordMemory({...live.memory,updated:40},regions,true);
+    recordMemory({...live.memory,updated:70},regions,true);
+    recordMemory({...live.memory,updated:100},regions,false);
+    regions[0].hi-=4096n;recordMemory({...live.memory,updated:130},regions,true)`);
+  assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0,4096,4096,null,0]);
+  assert.deepEqual([...app.run("memoryBoundaryPoints('stackStart').map(p=>p.offset)")],[0,-4096,-4096,null,-4096]);
+  // Inspect the actual SVG: the missing sample splits the two valid runs.
+  app.run(`chart=memoryChart('Heap mapping end ↑',memoryBoundaryPoints('heapEnd'),'offset','blue',true)`);
+  const lines = app.run('chart.children[1].children.filter(item=>item.attrs.points)');
+  assert.equal(lines.length,2);
+  assert.match(app.run('chart.children.at(-1).textContent'),/^Offset: 0 B → 0 B$/);
+  app.run('live.health.session="new";recordMemory({...live.memory,updated:160},regions,true)');
+  assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0]);
+});

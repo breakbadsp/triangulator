@@ -290,3 +290,17 @@ Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
 Expected results: The fact shows the longest internal gap, including zero
 for contiguous regions. Incomplete coverage shows Unavailable and unknown
 cells. Help distinguishes address gaps from allocator free blocks.
+
+## QA-014: Memory boundary charts
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+1. Grow and contract the heap. Grow the main stack downward.
+2. Include unchanged samples and a missing layout between valid samples.
+3. Use addresses above `2^53`, then restart the sampler or change the target.
+4. Open both boundary-chart guides.
+
+Expected results: Heap-end and stack-start offsets retain page-sized changes.
+Stack growth moves the start downward. Lines use sampled steps and stop at
+missing samples. History resets for a new target or session. The heap label
+and guide explain page alignment. Resident anonymous remains a separate chart.

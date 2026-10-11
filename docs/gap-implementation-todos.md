@@ -13,7 +13,7 @@ resource samples, and browser history.
   the selected bar. Use `BigInt` for addresses and a current, complete layout.
   Keep **Largest region** separate. Explain that gaps are not allocator free
   blocks.
-- [ ] **Boundary charts.** Plot heap mapping end and main `[stack]` mapping
+- [x] **Boundary charts.** Plot heap mapping end and main `[stack]` mapping
   start as offsets from a baseline. Subtract addresses with `BigInt` and show
   sampled steps. Label the heap end as page-aligned. Keep mapped sizes in
   facts and retain the resident-anonymous chart.

@@ -498,7 +498,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div id="memory-grid-legend" class="legend"></div>
 <p class="mem-hint">Each square shows what <code>/proc/PID/maps</code> has at those addresses. Which pages are resident, dirty or swapped needs <code>/proc/PID/pagemap</code>, which the sampler does not read yet.</p>
 <div id="memory-charts" class="mem-charts"></div>
-<p class="mem-hint">Charts cover the last 15 minutes this page has been open. The heap grows up when the allocator calls <code>brk</code>; the main stack grows down when a page fault touches below it. Both move in whole pages.</p>
+<p class="mem-hint">Boundary charts show byte offsets from the first available sample. The heap end is page-aligned; the main stack start moves down during growth. Charts cover the last 15 minutes this page has been open.</p>
 <div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th data-help="memregions">Region</th><th data-help="memregions">Start</th><th class="num" data-help="memregions">Size</th><th data-help="memregions" data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-help="vmas" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div>
 </div>
 <div class="card"><div class="card-head"><div><h3 data-help="memlimits">Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
@@ -707,6 +707,8 @@ helpTopic('amap','Address space map','Process · mappings, high addresses at the
 helpTopic('memzoom','Region zoom','Selected address-space bar','The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.','A 64 KiB span with 48 KiB mapped has 16 KiB not mapped inside it.','Compare the span with the mapped size to see holes. Unknown coverage is distinct from unmapped space. Squares outlined as new were mapped since the previous layout.','The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.',['amap','memregions','heap'],['Size (mapped)','Address span','Not mapped inside','Largest region','Page size']);
 helpTopic('memgap','Largest unmapped gap','Selected bar · complete current layout','The longest uncovered address interval inside the selected bar.','Two mappings separated by 64 KiB have a 64 KiB gap.','Compare with the total not mapped inside the bar. Unknown coverage is shown separately from unmapped space.','An unmapped gap is not an allocator free block. Incomplete, stale, or historical layouts cannot supply this value.',['memzoom','memregions'],['Largest unmapped gap']);
 helpTopic('heap','Heap size','Process · [heap] mapping over time','The size of the brk heap. It grows up when the allocator calls brk.','','A sustained rise, together with RSS growth, can indicate allocation growth.','Many allocators also use mmap arenas. Size change uses samples collected while this page was open and shows their measured interval. It is not an exact program-break movement.',['anonres','stack','memkinds'],['Heap size ↑','Heap mapping size change']);
+helpTopic('heapend','Heap mapping end','Process · page-aligned heap boundary','The upper address of the heap mapping, plotted as a byte offset from the first available sample in this chart.','An offset of +64 KiB means the mapping end moved up by 64 KiB.','Read steps as sampled changes. The rate uses the measured sample times.','This is not the exact program break. Missing samples leave gaps. History resets when the target or sampler session changes.',['heap','stackstart'],['Heap mapping end ↑']);
+helpTopic('stackstart','Main stack start','Main thread · lower mapping boundary','The lower address of the main stack mapping, plotted as an offset from the first available sample in this chart.','An offset of −64 KiB means the mapping grew down by 64 KiB.','A downward step means a lower mapping start. Read mapped size in the selected stack facts.','The mapping boundary does not measure stack depth. Missing samples leave gaps.',['stack','heapend'],['Main stack start ↓']);
 helpTopic('vmdata','Data + heap (VmData)','Process · VmData from /proc/PID/status','The size of the process\'s private data segments: the brk heap, the data and BSS segments, and private writable mmap memory such as allocator arenas and thread stacks.','','VmData can grow while the [heap] mapping stays fixed, when the allocator uses mmap. Compare it with Heap size and Resident anonymous to see where the growth is.','It counts mapped address space, not resident memory. Memory that was never touched still counts.',['heap','anonres','memkinds'],['Data + heap (VmData)']);
 helpTopic('stack','Main stack','Main thread · [stack] mapping and RLIMIT_STACK','The size of the main thread stack mapping. It grows down when a page fault touches below it.','','Compare with RLIMIT_STACK. Near the limit, deep recursion can crash the process with SIGSEGV.','Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds. Size change shows the measured interval between samples while this page was open.',['heap','memlimits'],['Main stack ↓','Stack mapping size change']);
 helpTopic('anonres','Resident anonymous','Process · RssAnon over time','Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory.','','A sustained slope, shown per minute, is a better growth signal than virtual size.','Swapped anonymous pages leave this total. The chart covers only the time this page was open.',['memkinds','heap','rss']);
@@ -1820,8 +1822,10 @@ async function refreshMemoryLayout(){memoryLayoutLoading=true;
 function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
   return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
 const memoryBytes=value=>bytes(value).replace(/\b(K|M|G|T)B\b/g,'$1iB');
-function memoryPageSize(){const r=live.resources,page=r?.limits?.page_size;
-  return r?.available&&!r.stale&&r.pid===live.memory?.pid&&r.session===live.health?.session&&Number.isSafeInteger(page)&&page>0?page:null}
+function memoryResources(){const r=live.resources;
+  return r?.available&&!r.stale&&r.pid===live.memory?.pid&&r.session===live.health?.session?r:null}
+function memoryPageSize(){const page=memoryResources()?.limits?.page_size;
+  return Number.isSafeInteger(page)&&page>0?page:null}
 function memoryLayoutComplete(layout){const flags=layout?.flags||{};return !!layout&&!flags.maps_hidden&&!flags.maps_partial&&!flags.regions_truncated}
 function memoryCurrentLayout(){const m=live.memory;
   return replayAt===null&&m?.available&&!m.stale&&memoryLayoutComplete(m)&&memoryLayoutComplete(memoryLayout)&&memoryLayout?.id===m.layout_id&&memoryLayout.pid===m.pid&&memoryLayout.id.split(':')[0]===live.health?.session?memoryLayout:null}
@@ -1907,11 +1911,11 @@ const memoryGrows=cat=>cat==='heap'?' · grows ↑':cat==='stack'?' · grows ↓
 // arrives, so the heap chart is not one layout behind.
 function recordMemory(m,regions,fresh){if(replayAt!==null)return;
   resetMemoryTarget(m);fresh=fresh&&!m.stale;
-  const heap=fresh?regions.find(region=>region.cat==='heap')?.size??null:null,
-    stack=fresh?regions.find(region=>region.cat==='stack')?.size??null:null,last=memoryHistory.at(-1);
-  if(last?.t===m.updated){if(fresh){last.heap=heap;last.stack=stack}return}
-  const v=m.values||{};
-  memoryHistory.push({t:m.updated,heap,stack,mf:m.stale?null:v.major_faults??null,rss:live.resources?.memory?.rss??null,anon:live.resources?.memory?.anon??null});
+  const heapRegion=fresh?regions.find(region=>region.cat==='heap'):null,stackRegion=fresh?regions.find(region=>region.cat==='stack'):null,
+    mapping={heap:heapRegion?.size??null,stack:stackRegion?.size??null,heapEnd:heapRegion?.hi??null,stackStart:stackRegion?.lo??null},last=memoryHistory.at(-1);
+  if(last?.t===m.updated){if(fresh)Object.assign(last,mapping);return}
+  const v=m.values||{},r=m.stale?null:memoryResources();
+  memoryHistory.push({t:m.updated,...mapping,mf:m.stale?null:v.major_faults??null,rss:r?.memory?.rss??null,anon:r?.memory?.anon??null});
   while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
 // Change per minute of a value over the points, or null: the least-squares
 // line, so one odd sample at either end does not decide the number.
@@ -2070,19 +2074,30 @@ function renderMemoryZoom(row){const v=live.memory?.values||{};
 
 // A small chart scaled from the lowest to the highest value, so steps of a
 // page stay visible.
-function memoryChart(title,points,key,color){const box=node('div',undefined,'mem-chart'),cap=node('div',undefined,'cap'),values=points.filter(point=>isNum(point[key]));
-  const slope=memorySlope(values,key);cap.append(helpButtonLabel(title,topicForText(title),undefined,'h3'),node('span',isNum(slope)?`${signed(slope)} / min`:''));
+function memoryChart(title,points,key,color,offset=false,available=true){const box=node('div',undefined,'mem-chart'),cap=node('div',undefined,'cap'),values=points.filter(point=>isNum(point[key]));
+  const slope=available?memorySlope(values,key):null;cap.append(helpButtonLabel(title,topicForText(title),undefined,'h3'),node('span',isNum(slope)?`${signed(slope)} / min`:''));
   box.append(cap);
-  if(values.length<2){const wait=node('div',points.length>=2&&!values.length?'Not in the layout':'Collecting…','chart-empty');wait.style.height='84px';box.append(wait);return box}
+  if(!available||values.length<2){const wait=node('div',!available?'Unavailable':points.length>=2&&!values.length?'Not in the layout':'Collecting…','chart-empty');wait.style.height='84px';box.append(wait);return box}
   const width=300,height=84,svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,preserveAspectRatio:'none'});box.append(svg);
   const t0=values[0].t,t1=values.at(-1).t,low=Math.min(...values.map(point=>point[key])),high=Math.max(...values.map(point=>point[key])),range=high-low||1;
   const x=t=>(t1>t0?(t-t0)/(t1-t0):0)*width,y=value=>high===low?height/2:height-10-(value-low)/range*(height-26);
   // Steps, not slopes: the value holds until the next sample.
-  let path='';values.forEach((point,index)=>{path+=index?` ${x(point.t).toFixed(1)},${y(values[index-1][key]).toFixed(1)} ${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`:`${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`});
-  svg.append(svgNode('polyline',{points:path,fill:'none',stroke:color,'stroke-width':2,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
-  box.append(node('div',`${memoryBytes(values[0][key])} → ${memoryBytes(values.at(-1)[key])}`,'range'));return box}
+  let path='',previous=null;
+  const finish=()=>{if(path)svg.append(svgNode('polyline',{points:path,fill:'none',stroke:color,'stroke-width':2,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));path='';previous=null};
+  for(const point of points){if(!isNum(point[key])){finish();continue}
+    path+=previous?` ${x(point.t).toFixed(1)},${y(previous[key]).toFixed(1)} ${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`:`${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`;
+    svg.append(svgNode('circle',{cx:x(point.t),cy:y(point[key]),r:2,fill:color}));previous=point}
+  finish();
+  const format=offset?signed:memoryBytes;
+  box.append(node('div',`${offset?'Offset: ':''}${format(values[0][key])} → ${format(values.at(-1)[key])}`,'range'));return box}
+function memoryBoundaryPoints(key){const base=memoryHistory.find(point=>typeof point[key]==='bigint')?.[key];
+  return memoryHistory.map(point=>{const value=typeof point[key]==='bigint'?Number(point[key]-base):null;
+    return {t:point.t,offset:Number.isSafeInteger(value)?value:null}})}
 function renderMemoryCharts(host){if(helpOwns(host))return;host.replaceChildren();
-  host.append(memoryChart('Heap size ↑',memoryHistory,'heap','var(--k-heap)'),memoryChart('Main stack ↓',memoryHistory,'stack','var(--k-stack)'),memoryChart('Resident anonymous',memoryHistory,'anon','var(--k-anon)'))}
+  const current=!!memoryCurrentLayout();
+  host.append(memoryChart('Heap mapping end ↑',memoryBoundaryPoints('heapEnd'),'offset','var(--k-heap)',true,current),
+    memoryChart('Main stack start ↓',memoryBoundaryPoints('stackStart'),'offset','var(--k-stack)',true,current),
+    memoryChart('Resident anonymous',memoryHistory,'anon','var(--k-anon)',false,replayAt===null&&!live.memory?.stale&&!!memoryResources()))}
 
 function renderMemory(){const m=live.memory,empty=element('memory-empty'),content=element('memory-content');
   if(replayAt===null)resetMemoryTarget(m);
