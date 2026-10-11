@@ -34,7 +34,7 @@ behind*, which decides who has to act.
 ## What is collected
 
 All reads are of files and interfaces readable by the target's own user, as
-the sampler already requires ([no-privilege rule](../README.md#production-setup)).
+the sampler already requires ([no-privilege rule](setup.md#production-setup)).
 
 ### Pressure stall information (PSI)
 

@@ -58,7 +58,7 @@ Historical observations in `docs/bug-lab-report.md` and
 
 Download the matching sampler and collector packages for one version and
 platform. Use the release assets and verify both `.sha256` files. Follow
-[package installation](../README.md#install-from-a-release-package).
+[package installation](setup.md#install-from-a-release-package).
 Use an isolated `TRIANGULATOR_HOME` and unused ports. Do not replace the user's
 `~/triangulator` installation. The startup scripts accept that runtime directory.
 

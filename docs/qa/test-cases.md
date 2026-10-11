@@ -57,7 +57,7 @@ Expected results: The programs start without a compiler. The dashboard loads,
 identifies the selected process, and shows its threads. Browser diagnostics have
 no application error that prevents this behavior.
 
-Source: [Package installation](../../README.md#install-from-a-release-package).
+Source: [Package installation](../setup.md#install-from-a-release-package).
 
 ## QA-002: Change target by PID
 
@@ -73,7 +73,7 @@ available. Two owned processes with different PIDs are running.
 Expected results: The dashboard identifies the second process and displays
 its threads. The saved target remains selected after page reload.
 
-Source: [Target control](../../README.md#quick-start).
+Source: [Target control](../setup.md#quick-start).
 
 ## QA-003: Invalid target input
 
@@ -89,7 +89,7 @@ Preconditions: QA-002 setup is available. A valid target is selected.
 Expected results: Both invalid inputs are rejected with a form validation
 message. The original target remains active and saved.
 
-Source: [Target validation](../../README.md#quick-start).
+Source: [Target validation](../setup.md#quick-start).
 
 ## QA-004: Wait for a named process
 
@@ -108,7 +108,7 @@ Expected results: The name is accepted. The dashboard first reports the target
 as absent, then identifies it and shows threads when it starts. It reports an
 absent target again after the process stops.
 
-Source: [Named targets](../../README.md#quick-start).
+Source: [Named targets](../setup.md#quick-start).
 
 ## QA-005: Thread detail and recorded replay
 
@@ -126,7 +126,7 @@ Expected results: The live drawer shows the selected thread's metrics and
 history. Replay shows the selected recorded time and its thread state. The
 recorded thread history ends at that time. Live updates resume in the live view.
 
-Source: [Dashboard and replay](../../README.md#reference).
+Source: [Dashboard and replay](../setup.md#dashboard).
 
 ## QA-006: Package upgrade preserves configuration and history
 
@@ -146,7 +146,7 @@ Expected results: The newer package starts. Custom configuration and the saved
 target remain. Earlier history is accessible in the browser. Existing logs
 remain. Record both the starting version and the tested upgrade version.
 
-Source: [Package upgrade](../../README.md#install-from-a-release-package).
+Source: [Package upgrade](../setup.md#install-from-a-release-package).
 
 ## QA-007: Contextual help covers every dashboard section
 
