@@ -33,6 +33,10 @@ scripts/start.sh collector
 [Sampler](../sampler/README.md) ·
 [Performance](../docs/collector-comparison.md)
 
+[Dashboard HTTP server animation](../docs/dashboard-http-animation.html) shows
+the HTTP thread, embedded page, live snapshots, and SQLite history requests.
+Download the HTML file and open it in a browser. It needs no build or network.
+
 ## Dashboard help
 
 Pause over a metric, table cell, or chart point for 1.2 seconds to see its
