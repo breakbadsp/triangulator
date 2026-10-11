@@ -6,6 +6,58 @@ const vm = require('node:vm');
 const html = readFileSync(new URL('../collector/dashboard.html', `file://${__filename}`), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
+test('section navigation follows viewport position and layout changes', () => {
+  const ids = ['overview', 'threads-section', 'resources', 'socket-panel', 'memory-map', 'monitor'];
+  const links = ids.map(id => ({hash: '#' + id, attrs: {},
+    setAttribute(key, value) {this.attrs[key] = value;},
+    removeAttribute(key) {delete this.attrs[key];}}));
+  let tops = [100, 1000, 2000, 3000, 4000, 5000];
+  const sections = new Map(ids.map((id, index) => [id, {hasBox: true, getClientRects() {return this.hasBox ? [{}] : [];}, getBoundingClientRect: () => ({top: tops[index]})}]));
+  const listeners = new Map(), frames = [], observed = [];
+  let layoutChanged, position = 'sticky', headerBottom = 60;
+  const topbar = {getBoundingClientRect: () => ({bottom: headerBottom})}, main = {};
+  const context = vm.createContext({
+    document: {querySelectorAll: () => links, getElementById: id => sections.get(id),
+      querySelector: selector => selector === '.topbar' ? topbar : main,
+      documentElement: {scrollHeight: 6000}},
+    getComputedStyle: () => ({position, scrollPaddingTop: position === 'sticky' ? '80px' : '16px'}), scrollY: 0, innerHeight: 800,
+    addEventListener: (name, callback) => listeners.set(name, callback),
+    requestAnimationFrame: callback => frames.push(callback),
+    ResizeObserver: class {constructor(callback) {layoutChanged = callback;} observe(target) {observed.push(target);}},
+  });
+  const source = script.slice(script.indexOf('function initSectionNavigation(){'), script.indexOf('function targetName(){'));
+  vm.runInContext(source + '\ninitSectionNavigation();', context);
+  function current(id) {
+    assert.deepEqual(links.filter(link => link.attrs['aria-current'] === 'location').map(link => link.hash), ['#' + id]);
+  }
+  function update(event) {listeners.get(event)(); frames.shift()();}
+  current('overview');
+  assert.deepEqual(observed, [main, topbar]);
+  tops = [-900, 79.9, 1000, 2000, 3000, 4000]; context.scrollY = 1000;
+  update('hashchange'); current('threads-section');
+  tops = [-1900, -1000, 0, 1000, 2000, 3000]; context.scrollY = 2000;
+  update('scroll'); current('resources');
+  // A restored hash can be unrelated to the section visible after manual scroll.
+  tops = [-900, 0, 1000, 2000, 3000, 4000]; context.scrollY = 1000;
+  update('hashchange'); current('threads-section');
+  tops = [-5100, -4200, -3200, -2200, -1200, 400]; context.scrollY = 5200;
+  update('scroll'); current('monitor');
+  // A wrapped sticky header changes the activation boundary.
+  context.scrollY = 2000; tops = [-1900, -1000, 100, 1000, 2000, 3000];
+  headerBottom = 120; update('resize'); current('resources');
+  position = 'static'; update('resize'); current('threads-section');
+  tops[2] = 10; layoutChanged(); frames.shift()(); current('resources');
+  tops = [100, 1000, 2000, 3000, 4000, 5000]; context.scrollY = 0;
+  update('pageshow'); current('overview');
+  // A hidden section reports top 0 and must not win.
+  const sockets = sections.get('socket-panel');
+  sockets.hasBox = false; tops = [-900, 0, 1000, 2000, 3000, 4000]; context.scrollY = 1000;
+  update('scroll'); current('threads-section');
+  sockets.hasBox = true;
+  listeners.get('scroll')(); listeners.get('scroll')();
+  assert.equal(frames.length, 1, 'scroll updates use one animation frame');
+});
+
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.

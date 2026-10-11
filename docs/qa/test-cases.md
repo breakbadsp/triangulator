@@ -30,6 +30,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-017 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-018 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Observations](runs/20261011T110000Z-ci-5189c47/evidence/qa018-observations.json) |
 | QA-019 | PASSED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
+| QA-020 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -50,6 +51,29 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-020: Current section tab
+
+Feature: Dashboard navigation. Priority: Medium. Case revision: 1.
+
+Preconditions: The dashboard is open with live samples.
+
+1. Open the page at the top. Verify that Summary is highlighted.
+2. Select each section tab. Verify that exactly one tab is highlighted and has
+   `aria-current="location"`. Use the keyboard to select a tab.
+3. Scroll down and up through the sections without selecting tabs. Verify that
+   the highlight follows the section below the header.
+4. Scroll to the bottom. Verify that Monitor is highlighted.
+5. Open a section URL directly. Reload it and use browser Back and Forward.
+   Verify that the highlight agrees with the visible section.
+6. Repeat at a narrow width and in light and dark themes. Resize the window
+   and let live samples change section heights. Verify the highlight again.
+7. Hover over a tab or focus it. Verify that the section navigation help
+   explains the highlight and does not prevent navigation.
+
+Expected results: One tab identifies the current visible section. The highlight
+uses a background, text color, and underline. It follows scrolling, navigation,
+and layout changes. Screen readers can identify the current section.
 
 ## QA-001: Package installation and live dashboard
 
