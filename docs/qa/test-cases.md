@@ -29,6 +29,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-016 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Sequence](runs/20261011T110000Z-ci-5189c47/evidence/qa016-sequence.json) |
 | QA-017 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-018 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Observations](runs/20261011T110000Z-ci-5189c47/evidence/qa018-observations.json) |
+| QA-019 | PASSED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -384,3 +385,27 @@ with zero heap change. The new target starts new browser history. Resident
 anonymous increases for mem-leak. If the allocator uses mmap for these large
 blocks, the brk heap can remain fixed with a zero heap-end offset. The chart
 does not describe resident-anonymous growth as brk heap growth.
+
+## QA-019: Heap span remains stable across bounded changes
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+Preconditions: Serve the dashboard with the versioned QA HTTP fixture. Use a
+complete layout, 4 KiB page metadata, a 1 MiB heap, and a neighboring 64 KiB
+file mapping. Keep the browser open through all fixture changes. Change fixture
+state outside the browser. Wait for at least two dashboard polls per change.
+
+1. Open Memory map. Record the selected heap's grid range and cell count.
+2. Grow the heap by 4 KiB, then contract it to 4 KiB below its original size.
+3. Make memory stale, then fresh. Delay a new layout, then deliver it.
+4. Unmap the neighboring file in the fixture. Grow the heap past its grid end.
+5. Change the fixture target PID and restore the original heap and neighbor.
+
+Expected results: Small growth and contraction keep the original grid range
+and cell count. The heap mapping end, growth fact, and previous-layout legend
+update. The neighbor retains its file-mapping label and color while present.
+Stale or delayed coverage hides the margin. Recovery restores the retained
+span. Growth outside that span creates a new span with at most 1 MiB margin
+and 512 measured cells. Target change resets the span for the new target.
+
+Source: [Original failure and fixture](runs/20261011T090200Z-pr65/index.md).

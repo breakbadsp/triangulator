@@ -102,11 +102,11 @@ dated run record with its package version, steps, and evidence.
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
-| PASSED | 31 | - |
+| PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
 | NOT_RUN | 0 | - |
-| **Total** | **38** | |
+| **Total** | **39** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

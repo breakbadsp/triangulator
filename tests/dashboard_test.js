@@ -923,8 +923,19 @@ test('memory history follows the layout the summary names and the sampler sessio
   assert.equal(app.run('memoryHistory.length'), 1);
   assert.equal(app.run('memoryHistory.at(-1).heap'), 2 << 20);
   // The same PID in a new sampler session starts a new history.
-  app.run(`live.health.session='b';recordMemory(${summary(2)},[],true)`);
+  app.run(`live.health.session='b';resetMemoryTarget({pid:1});recordMemory(${summary(2)},[],true)`);
   assert.equal(app.run('memoryHistory.length'), 1);
+});
+
+test('memory history backfills resident bytes from a later resource sample', () => {
+  const app = dashboard();
+  app.run(`live={health:{session:'a'},threads:[],memory:{pid:1,updated:5,values:{}}}`);
+  app.run('recordMemory(live.memory,[],false)');
+  assert.equal(app.run('memoryHistory.at(-1).anon'), null);
+  app.run(`live.resources={available:true,session:'a',pid:1,memory:{rss:300,anon:200}};recordMemory(live.memory,[],false)`);
+  assert.equal(app.run('memoryHistory.length'), 1);
+  assert.equal(app.run('memoryHistory.at(-1).anon'), 200);
+  assert.equal(app.run('memoryHistory.at(-1).rss'), 300);
 });
 
 test('memory fault rate uses the recording in replay and never live history', () => {
@@ -1047,7 +1058,7 @@ test('a leak with a few non-rising steps is still found, and the tile uses the s
   assert.ok(growthFindings(app).includes(GROWS));
   const tile = JSON.parse(app.run(`(()=>{renderMemoryTiles({values:{}});return JSON.stringify(element('memory-tiles').children.map(box=>box.children.map(child=>child.textContent)))})()`));
   const resident = tile.find(box => box[0] === 'Resident (RSS)');
-  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MB \/ min$/);
+  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MiB \/ min$/);
 });
 
 function helpClock() {
@@ -1275,16 +1286,18 @@ test('each cell has a distinct help target even when it shares a metric topic', 
 
 test('zoom legend names every kind shown in the grid, in the grid colors', () => {
   const app = dashboard();
+  app.run("live={health:{session:'s'},memory:{available:true,pid:1,layout_id:'s:1'}};memoryLayout={id:'s:1',pid:1}");
   const kinds = JSON.parse(app.run('JSON.stringify(Object.keys(MEMORY_KINDS))'));
   assert.deepEqual([...kinds].sort(), ['anonymous', 'code', 'file', 'guard', 'heap', 'kernel', 'library', 'stack']);
   // Two 8 KB regions with an unmapped page between them, so every zoom also has a "not mapped" square.
   const legend = kind => app.run(`(()=>{const member=(lo,hi)=>({cat:'${kind}',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
     const members=[member(0x10000n,0x12000n),member(0x13000n,0x15000n)];
+    memoryLayout.regions=members.map(r=>({...r,end:'0x'+r.hi.toString(16),kind:'${kind}'}));
     memoryPrevious=null;renderMemoryZoom({key:'${kind}',cat:'${kind}',vmas:2,size:16384,lo:0x10000n,hi:0x15000n,members});
     return element('memory-grid-legend').children.map(item=>({label:item.children[1],style:item.children[0].style.background,cls:item.children[0].className}))})()`);
   for (const kind of kinds) {
-    const [mapped, gap, ...rest] = legend(kind);
-    assert.equal(rest.length, 0, kind);
+    const entries=legend(kind),gap=entries.find(item=>item.label==='not mapped'),mapped=entries.find(item=>item.label!=='not mapped');
+    assert.equal(entries.length,2,kind);
     assert.equal(mapped.label, app.run(`MEMORY_KIND_LABELS.${kind}`), kind);
     if (kind === 'guard') assert.match(mapped.cls, /cell-guard/);
     else assert.equal(mapped.style, app.run(`MEMORY_KINDS.${kind}[0]`), kind);
@@ -1293,9 +1306,10 @@ test('zoom legend names every kind shown in the grid, in the grid colors', () =>
   // Squares mapped since the previous layout add the marker entry; unchanged layouts do not.
   app.run("memoryPrevious={regions:[{start:'0x10000',end:'0x12000',permissions:'rw-p',kind:'heap',name:''}]}");
   const labels = app.run(`(()=>{const member=(lo,hi)=>({cat:'heap',lo,hi,size:Number(hi-lo),start:'0x'+lo.toString(16),permissions:'rw-p',vmas:1,name:''});
+    memoryLayout.regions=[{start:'0x10000',end:'0x14000',size:16384,vmas:1,kind:'heap',permissions:'rw-p'}];
     renderMemoryZoom({key:'h',cat:'heap',vmas:1,size:16384,lo:0x10000n,hi:0x14000n,members:[member(0x10000n,0x14000n)]});
     return element('memory-grid-legend').children.map(item=>item.children[1])})()`);
-  assert.deepEqual([...labels], ['heap (brk)', 'mapped since the previous layout']);
+  assert.deepEqual([...labels].sort(), ['heap (brk)', 'mapped since the previous layout','not mapped'].sort());
 });
 
 // Memory-map hover help on a live collector. refresh() re-runs renderMemory()
@@ -1355,4 +1369,146 @@ test('a skipped zoom rebuild is applied once help closes', () => {
   // Unrelated hosts are not held back while the zoom is skipped.
   app.run("helpTimer.request('zoom',{target:element('memory-zoom-facts').children[0].children[0],id:'memzoom'});live.memory.values.vma_count=777;renderMemory()");
   assert.ok(app.run("element('memory-tiles').children.some(box=>box.children.some(child=>child.textContent==='777'))"));
+});
+
+test('memory zoom uses target page size and omits unknown page counts', () => {
+  const app = dashboard();
+  app.run(`live={health:{session:'s'},memory:{pid:1},resources:{available:true,session:'s',pid:1,limits:{page_size:4096}}};
+    zoomRow=memoryRows(memoryRegions({regions:[{start:'0x100000',end:'0x500000',size:4194304,vmas:1,kind:'heap',permissions:'rw-p'}]}))[0]`);
+  for (const page of [4096,65536]) {
+    app.run(`live.resources.limits.page_size=${page};renderMemoryZoom(zoomRow)`);
+    assert.match(app.elements.get('memory-grid-caption').textContent, /KiB.*pages?\)/);
+    assert.ok(app.elements.get('memory-grid').children.length <= 512);
+    assert.equal(app.run('memoryPageSize()'), page);
+  }
+  for (const change of ['delete live.resources.limits.page_size','live.resources.stale=true','live.resources.pid=2','live.resources.session="old"']) {
+    // Nothing learned yet for this target: the page size is unknown.
+    app.run('memoryPage=null;live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}}');
+    app.run(`${change};renderMemoryZoom(zoomRow)`);
+    assert.equal(app.run('memoryPageSize()'), null);
+    assert.doesNotMatch(app.elements.get('memory-grid-caption').textContent, /\(.*page|KiB/);
+    assert.match(app.elements.get('memory-grid-caption').textContent, /One square = \d+ bytes,/);
+    assert.ok(app.elements.get('memory-grid').children.length <= 512);
+  }
+  // Once learned, a late or missing resource sample does not unset it.
+  app.run('memoryPage=null;live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}};memoryPageSize();live.resources.stale=true');
+  assert.equal(app.run('memoryPageSize()'), 4096);
+  app.run('resetMemoryTarget({pid:2})');
+  assert.equal(app.run('memoryPageSize()'), null);
+  assert.equal(app.run('memoryBytes(2**30)'), '1.0 GiB');
+});
+
+function loadMemoryZoom(app) {
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:{available:true,pid:1,updated:10,interval_s:30,layout_id:'s:1',values:{}}};
+    memoryLayout={id:'s:1',pid:1,updated:10,regions:[{start:'0x100000',end:'0x200000',size:1048576,vmas:1,kind:'heap',permissions:'rw-p'}]};renderMemory()`);
+}
+const zoomFacts = app => app.elements.get('memory-zoom-facts').children.map(item => item.children.at(-1).textContent);
+
+test('memory growth refreshes unchanged layouts and rejects stale or other-target history', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run('live.memory.updated=40;renderMemory()');
+  assert.ok(zoomFacts(app).includes('0 B in 30 s'));
+  app.run('live.memory.updated=70;renderMemory()');
+  assert.ok(zoomFacts(app).includes('0 B in 60 s'));
+  app.run('live.memory.stale=true;renderMemory()');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
+  app.run('live.memory.stale=false;live.memory.layout_id="s:2";renderMemory()');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
+  app.run('live.health.session="other";live.memory.layout_id="other:1";memoryLayout.id="other:1";renderMemory()');
+  assert.equal(app.run('memoryHistory.length'),1);
+  assert.ok(zoomFacts(app).includes('Collecting…'));
+  assert.equal(app.run('memoryPrevious'),null);
+  app.run('live.memory.pid=2;live.health.pid=2;memoryLayout.pid=2;renderMemory()');
+  assert.equal(app.run('memoryHistory.length'),1);
+});
+
+test('largest unmapped gap clips and merges exact high-address ranges', () => {
+  const app = dashboard();
+  app.run(`gapBase=2n**60n;gapRow={lo:gapBase,hi:gapBase+100n,members:[
+    {lo:gapBase+80n,hi:gapBase+110n},{lo:gapBase+30n,hi:gapBase+50n},
+    {lo:gapBase-10n,hi:gapBase+10n},{lo:gapBase+40n,hi:gapBase+60n}]}`);
+  assert.equal(app.run('memoryLargestGap(gapRow)'),20n);
+  app.run('gapRow.members.push({lo:gapBase,hi:gapBase+100n})');
+  assert.equal(app.run('memoryLargestGap(gapRow)'),0n);
+  app.run('gapRow.members=[]');
+  assert.equal(app.run('memoryLargestGap(gapRow)'),100n);
+});
+
+test('incomplete memory layouts cannot claim unmapped gaps or new mappings', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`memoryLayout.regions.push({start:'0x300000',end:'0x400000',size:1048576,vmas:1,kind:'heap',permissions:'rw-p'});
+    gapZoom={cat:'heap',lo:0x100000n,hi:0x400000n,size:2097152,vmas:2,members:memoryRegions(memoryLayout)};
+    renderMemoryZoom(gapZoom)`);
+  assert.ok(zoomFacts(app).includes('1.0 MiB'));
+  for (const flag of ['maps_partial','maps_hidden','regions_truncated']) {
+    app.run(`live.memory.flags={${flag}:true};renderMemoryZoom(gapZoom)`);
+    assert.ok(zoomFacts(app).includes('Unavailable'));
+    assert.ok(app.elements.get('memory-grid').children.some(cell=>cell.className==='cell-unknown'));
+    assert.ok(!app.elements.get('memory-grid').children.some(cell=>cell.className==='cell-none'));
+  }
+  app.run('live.memory.flags={};memoryLayout.flags={regions_truncated:true};renderMemoryZoom(gapZoom)');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
+});
+
+test('memory boundary charts preserve high-address steps and missing samples', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`high=2n**60n;regions=[{cat:'heap',size:4096,lo:high,hi:high+4096n},{cat:'stack',size:4096,lo:high+65536n,hi:high+69632n}];
+    memoryHistory=[];recordMemory({...live.memory,updated:10},regions,true);
+    regions[0].hi+=4096n;regions[1].lo-=4096n;
+    recordMemory({...live.memory,updated:40},regions,true);
+    recordMemory({...live.memory,updated:70},regions,true);
+    recordMemory({...live.memory,updated:100},regions,false);
+    regions[0].hi-=4096n;recordMemory({...live.memory,updated:130},regions,true)`);
+  assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0,4096,4096,null,0]);
+  assert.deepEqual([...app.run("memoryBoundaryPoints('stackStart').map(p=>p.offset)")],[0,-4096,-4096,null,-4096]);
+  // Inspect the actual SVG: the missing sample splits the two valid runs.
+  app.run(`chart=memoryChart('Heap mapping end ↑',memoryBoundaryPoints('heapEnd'),'offset','blue',true)`);
+  const lines = app.run('chart.children[1].children.filter(item=>item.attrs.points)');
+  assert.equal(lines.length,2);
+  assert.match(app.run('chart.children.at(-1).textContent'),/^Offset: 0 B → 0 B$/);
+  app.run('live.health.session="new";resetMemoryTarget(live.memory);recordMemory({...live.memory,updated:160},regions,true)');
+  assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0]);
+});
+
+test('heap margin survives layout replacement and a pending layout fetch', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  const before = app.run('memoryHeapSpan.hi');
+  const count = app.elements.get('memory-grid').children.length;
+  // A new layout ID arrives before its maps response. Coverage is unknown
+  // during that poll, but it must not discard the selected heap's span.
+  app.run("live.memory.layout_id='s:2';live.memory.updated=11;renderMemory()");
+  app.run(`memoryLayout={...memoryLayout,id:'s:2',regions:[{
+    ...memoryLayout.regions[0],end:'0x201000',size:1052672}]};renderMemory()`);
+  assert.equal(app.run('memoryHeapSpan.hi'),before);
+  assert.equal(app.elements.get('memory-grid').children.length,count);
+  assert.ok(zoomFacts(app).includes('1.0 MiB'));
+  // A command name update also rebuilds the map without changing selection.
+  app.run("live.threads=[{tid:1,name:'renamed'}];renderMemory()");
+  assert.equal(app.run('memoryHeapSpan.hi'),before);
+  // Growth beyond the retained margin creates a new bounded span.
+  app.run(`live.memory.layout_id='s:3';memoryLayout={...memoryLayout,id:'s:3',
+    regions:[{...memoryLayout.regions[0],end:'0x241000',size:1314816}]};renderMemory()`);
+  assert.ok(app.run('memoryHeapSpan.hi')>before);
+  assert.ok(app.run('memoryHeapSpan.hi-memoryRows(memoryRegions(memoryLayout))[0].hi<=1048576n'));
+  app.run("live.health.session='other';renderMemory()");
+  assert.equal(app.run('memoryHeapSpan'),null);
+});
+
+test('heap margin stays bounded and stable, includes neighbors, and resets on selection', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`heap=memoryRows(memoryRegions(memoryLayout))[0];span=memoryDisplaySpan(heap);
+    neighbor={start:'0x210000',end:'0x220000',size:65536,vmas:1,kind:'file',permissions:'rw-p',name:'/tmp/data'};
+    memoryLayout.regions.push(neighbor);renderMemoryZoom(heap)`);
+  assert.ok(app.run('span.hi-heap.hi<=1048576n'));
+  assert.ok(app.run("element('memory-grid-legend').children.some(item=>item.children[1]==='file mapping')"));
+  const before = app.run('span.hi');
+  app.run('heap.hi+=65536n;heap.size+=65536');
+  assert.equal(app.run('memoryDisplaySpan(heap).hi'),before);
+  app.run('heap.hi=span.hi+65536n;heap.size=Number(heap.hi-heap.lo)');
+  assert.ok(app.run('memoryDisplaySpan(heap).hi>span.hi'));
+  app.run('memoryDisplaySpan({...heap,cat:"stack"})');
+  assert.equal(app.run('memoryHeapSpan'),null);
+  app.run('live.memory.stale=true');
+  assert.equal(app.run('memoryDisplaySpan(heap).hi'),app.run('heap.hi'));
+  assert.ok(app.elements.get('memory-grid').children.length<=512);
 });
