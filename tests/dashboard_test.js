@@ -923,8 +923,19 @@ test('memory history follows the layout the summary names and the sampler sessio
   assert.equal(app.run('memoryHistory.length'), 1);
   assert.equal(app.run('memoryHistory.at(-1).heap'), 2 << 20);
   // The same PID in a new sampler session starts a new history.
-  app.run(`live.health.session='b';recordMemory(${summary(2)},[],true)`);
+  app.run(`live.health.session='b';resetMemoryTarget({pid:1});recordMemory(${summary(2)},[],true)`);
   assert.equal(app.run('memoryHistory.length'), 1);
+});
+
+test('memory history backfills resident bytes from a later resource sample', () => {
+  const app = dashboard();
+  app.run(`live={health:{session:'a'},threads:[],memory:{pid:1,updated:5,values:{}}}`);
+  app.run('recordMemory(live.memory,[],false)');
+  assert.equal(app.run('memoryHistory.at(-1).anon'), null);
+  app.run(`live.resources={available:true,session:'a',pid:1,memory:{rss:300,anon:200}};recordMemory(live.memory,[],false)`);
+  assert.equal(app.run('memoryHistory.length'), 1);
+  assert.equal(app.run('memoryHistory.at(-1).anon'), 200);
+  assert.equal(app.run('memoryHistory.at(-1).rss'), 300);
 });
 
 test('memory fault rate uses the recording in replay and never live history', () => {
@@ -1371,12 +1382,19 @@ test('memory zoom uses target page size and omits unknown page counts', () => {
     assert.equal(app.run('memoryPageSize()'), page);
   }
   for (const change of ['delete live.resources.limits.page_size','live.resources.stale=true','live.resources.pid=2','live.resources.session="old"']) {
-    app.run('live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}}');
+    // Nothing learned yet for this target: the page size is unknown.
+    app.run('memoryPage=null;live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}}');
     app.run(`${change};renderMemoryZoom(zoomRow)`);
     assert.equal(app.run('memoryPageSize()'), null);
-    assert.doesNotMatch(app.elements.get('memory-grid-caption').textContent, /\(.*page/);
+    assert.doesNotMatch(app.elements.get('memory-grid-caption').textContent, /\(.*page|KiB/);
+    assert.match(app.elements.get('memory-grid-caption').textContent, /One square = \d+ bytes,/);
     assert.ok(app.elements.get('memory-grid').children.length <= 512);
   }
+  // Once learned, a late or missing resource sample does not unset it.
+  app.run('memoryPage=null;live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}};memoryPageSize();live.resources.stale=true');
+  assert.equal(app.run('memoryPageSize()'), 4096);
+  app.run('resetMemoryTarget({pid:2})');
+  assert.equal(app.run('memoryPageSize()'), null);
   assert.equal(app.run('memoryBytes(2**30)'), '1.0 GiB');
 });
 
@@ -1448,7 +1466,7 @@ test('memory boundary charts preserve high-address steps and missing samples', (
   const lines = app.run('chart.children[1].children.filter(item=>item.attrs.points)');
   assert.equal(lines.length,2);
   assert.match(app.run('chart.children.at(-1).textContent'),/^Offset: 0 B → 0 B$/);
-  app.run('live.health.session="new";recordMemory({...live.memory,updated:160},regions,true)');
+  app.run('live.health.session="new";resetMemoryTarget(live.memory);recordMemory({...live.memory,updated:160},regions,true)');
   assert.deepEqual([...app.run("memoryBoundaryPoints('heapEnd').map(p=>p.offset)")],[0]);
 });
 
