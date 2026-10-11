@@ -1,0 +1,76 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://127.0.0.1:19652/#memory-map"
+  },
+  "value": {
+    "caption": "Top = high address. One square = 4.0 KiB (1 page), 320 squares.\nHeap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+    "facts": "Size (mapped)\n1.0 MiB\nAddress span\n1.0 MiB\nRegions / VMAs\n1 / 1\nShare of VmSize\n76.2%\nNot mapped inside\n0 B\nLargest unmapped gap\n0 B\nLargest region\n1.0 MiB\nHeap mapping size change\n0 B in 2 min\nPage size\n4.0 KiB",
+    "fileCells": [
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000120000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000121000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000122000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000123000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000124000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000125000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000126000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000127000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000128000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x1000000000129000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012a000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012b000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012c000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012d000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012e000",
+        "kind": "var(--k-file)"
+      },
+      {
+        "hint": "/tmp/neighbor · rw-p\n0x100000000012f000",
+        "kind": "var(--k-file)"
+      }
+    ]
+  }
+}

@@ -25,9 +25,10 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-013 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-014 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-015 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/browser-tool-errors.txt) |
-| QA-016 | FAILED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/margin-repro-after.json) |
+| QA-016 | BLOCKED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
 | QA-017 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-018 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
+| QA-019 | PASSED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
 | QA-101 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Healthy page](runs/20261009T035640Z-v0.1.0/evidence/healthy.txt) |
 | QA-102 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [CPU page](runs/20261009T035640Z-v0.1.0/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Full retry](runs/20261009T035640Z-v0.1.0/evidence/cpu-oversub-retry.txt) |
@@ -383,3 +384,27 @@ with zero heap change. The new target starts new browser history. Resident
 anonymous increases for mem-leak. If the allocator uses mmap for these large
 blocks, the brk heap can remain fixed with a zero heap-end offset. The chart
 does not describe resident-anonymous growth as brk heap growth.
+
+## QA-019: Heap span remains stable across bounded changes
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1.
+
+Preconditions: Serve the dashboard with the versioned QA HTTP fixture. Use a
+complete layout, 4 KiB page metadata, a 1 MiB heap, and a neighboring 64 KiB
+file mapping. Keep the browser open through all fixture changes. Change fixture
+state outside the browser. Wait for at least two dashboard polls per change.
+
+1. Open Memory map. Record the selected heap's grid range and cell count.
+2. Grow the heap by 4 KiB, then contract it to 4 KiB below its original size.
+3. Make memory stale, then fresh. Delay a new layout, then deliver it.
+4. Unmap the neighboring file in the fixture. Grow the heap past its grid end.
+5. Change the fixture target PID and restore the original heap and neighbor.
+
+Expected results: Small growth and contraction keep the original grid range
+and cell count. The heap mapping end, growth fact, and previous-layout legend
+update. The neighbor retains its file-mapping label and color while present.
+Stale or delayed coverage hides the margin. Recovery restores the retained
+span. Growth outside that span creates a new span with at most 1 MiB margin
+and 512 measured cells. Target change resets the span for the new target.
+
+Source: [Original failure and fixture](runs/20261011T090200Z-pr65/index.md).
