@@ -264,3 +264,16 @@ Preconditions: Dashboard fixtures with 4 KiB, 64 KiB, and missing page sizes.
 Expected results: Binary values use KiB/MiB/GiB. Valid metadata sets the page
 size and cell page count. Missing or invalid metadata shows Unknown and byte
 sizes without page counts. The grid has at most 512 cells.
+
+## QA-012: Memory growth facts refresh and reset
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+1. Select the heap. Receive two memory samples with an unchanged layout.
+2. Grow and contract the heap, then leave its layout unchanged for a sample.
+3. Repeat with the main stack. Make samples stale, delay a new layout, then
+   change the target or sampler session.
+
+Expected results: Size change and measured interval refresh on each sample.
+Unavailable data does not produce a growth value. A new target or session
+starts a new comparison. Outlines retain their previous-layout meaning.

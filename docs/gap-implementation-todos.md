@@ -6,7 +6,7 @@ resource samples, and browser history.
 - [x] **Page size and units.** Use `live.resources.limits.page_size` for the
   zoom grid and KiB/MiB/GiB for binary-scaled values. If page size is unknown,
   show cell sizes in bytes. Keep at most 512 cells.
-- [ ] **Growth facts.** Refresh on each memory sample, including unchanged
+- [x] **Growth facts.** Refresh on each memory sample, including unchanged
   layouts. Use **Heap mapping size change** and show the measured interval.
   Keep outlines labeled **mapped since the previous layout**.
 - [ ] **Largest unmapped gap.** Find the longest uncovered interval inside

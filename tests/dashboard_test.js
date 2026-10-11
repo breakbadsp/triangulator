@@ -1376,3 +1376,27 @@ test('memory zoom uses target page size and omits unknown page counts', () => {
   }
   assert.equal(app.run('memoryBytes(2**30)'), '1.0 GiB');
 });
+
+function loadMemoryZoom(app) {
+  app.run(`live={health:{session:'s',pid:1},threads:[],memory:{available:true,pid:1,updated:10,interval_s:30,layout_id:'s:1',values:{}}};
+    memoryLayout={id:'s:1',pid:1,updated:10,regions:[{start:'0x100000',end:'0x200000',size:1048576,vmas:1,kind:'heap',permissions:'rw-p'}]};renderMemory()`);
+}
+const zoomFacts = app => app.elements.get('memory-zoom-facts').children.map(item => item.children.at(-1).textContent);
+
+test('memory growth refreshes unchanged layouts and rejects stale or other-target history', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run('live.memory.updated=40;renderMemory()');
+  assert.ok(zoomFacts(app).includes('0 B in 30 s'));
+  app.run('live.memory.updated=70;renderMemory()');
+  assert.ok(zoomFacts(app).includes('0 B in 60 s'));
+  app.run('live.memory.stale=true;renderMemory()');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
+  app.run('live.memory.stale=false;live.memory.layout_id="s:2";renderMemory()');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
+  app.run('live.health.session="other";live.memory.layout_id="other:1";memoryLayout.id="other:1";renderMemory()');
+  assert.equal(app.run('memoryHistory.length'),1);
+  assert.ok(zoomFacts(app).includes('Collecting…'));
+  assert.equal(app.run('memoryPrevious'),null);
+  app.run('live.memory.pid=2;live.health.pid=2;memoryLayout.pid=2;renderMemory()');
+  assert.equal(app.run('memoryHistory.length'),1);
+});
