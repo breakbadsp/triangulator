@@ -308,8 +308,8 @@ tr.zero td{color:var(--muted)}
 .cell-unknown{background:var(--muted)!important;opacity:.35}
 .cell-guard{background:repeating-linear-gradient(45deg,var(--k-guard) 0 2px,var(--raised) 2px 4px)!important}
 .cell-new{outline:2px solid var(--good);outline-offset:-1px}
-.mem-charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
-.mem-chart .cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;margin-bottom:4px}
+.mem-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:12px;margin-top:14px}
+.mem-chart .cap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-size:12px;margin-bottom:4px}
 .mem-chart .cap span{font-family:ui-monospace,monospace;color:var(--ink-2);white-space:nowrap}
 .mem-chart svg{display:block;width:100%;height:84px;background:var(--surface-2);border-radius:8px}
 .mem-chart .range{font-size:11px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
@@ -496,10 +496,12 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <p id="memory-grid-caption" class="muted" style="font-size:12px;margin:14px 0 6px"></p>
 <div id="memory-grid" class="pagegrid"></div>
 <div id="memory-grid-legend" class="legend"></div>
-<p class="mem-hint">Each square shows what <code>/proc/PID/maps</code> has at those addresses. Which pages are resident, dirty or swapped needs <code>/proc/PID/pagemap</code>, which the sampler does not read yet.</p>
+<p class="mem-hint">Cells show mappings, not resident pages.</p>
 <div id="memory-charts" class="mem-charts"></div>
-<p class="mem-hint">Boundary charts show byte offsets from the first available sample. The heap end is page-aligned; the main stack start moves down during growth. Charts cover the last 15 minutes this page has been open.</p>
-<div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th data-help="memregions">Region</th><th data-help="memregions">Start</th><th class="num" data-help="memregions">Size</th><th data-help="memregions" data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-help="vmas" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div>
+<p class="mem-hint">Boundary offsets start at the first available sample. History covers up to 15 minutes.</p>
+<p class="mem-hint"><span id="memory-thread-stack-help" data-help="threadstacks">Thread stacks</span> can keep a fixed reserved size while residency changes.</p>
+<details id="memory-region-details"><summary id="memory-regions-summary" data-help="memregions">Member regions</summary>
+<div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th data-help="memregions">Region</th><th data-help="memregions">Start</th><th class="num" data-help="memregions">Size</th><th data-help="memregions" data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-help="vmas" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div></details>
 </div>
 <div class="card"><div class="card-head"><div><h3 data-help="memlimits">Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
 </div>
@@ -712,7 +714,8 @@ helpTopic('stackstart','Main stack start','Main thread · lower mapping boundary
 helpTopic('vmdata','Data + heap (VmData)','Process · VmData from /proc/PID/status','The size of the process\'s private data segments: the brk heap, the data and BSS segments, and private writable mmap memory such as allocator arenas and thread stacks.','','VmData can grow while the [heap] mapping stays fixed, when the allocator uses mmap. Compare it with Heap size and Resident anonymous to see where the growth is.','It counts mapped address space, not resident memory. Memory that was never touched still counts.',['heap','anonres','memkinds'],['Data + heap (VmData)']);
 helpTopic('stack','Main stack','Main thread · [stack] mapping and RLIMIT_STACK','The size of the main thread stack mapping. It grows down when a page fault touches below it.','','Compare with RLIMIT_STACK. Near the limit, deep recursion can crash the process with SIGSEGV.','Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds. Size change shows the measured interval between samples while this page was open.',['heap','memlimits'],['Main stack ↓','Stack mapping size change']);
 helpTopic('anonres','Resident anonymous','Process · RssAnon over time','Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory.','','A sustained slope, shown per minute, is a better growth signal than virtual size.','Swapped anonymous pages leave this total. The chart covers only the time this page was open.',['memkinds','heap','rss']);
-helpTopic('memregions','Memory regions','Selected bar · mappings','The regions in the selected bar, with their start address, size, permissions, and VMA count.','r-xp is readable, executable, and private.','Use the name and permissions to tell code, data, and guard regions apart.','Only the first 300 regions are listed. Permissions are the union over the region\'s mappings.',['memzoom','vmas'],['Region','Perms']);
+helpTopic('threadstacks','Thread stacks','Other threads · reserved mappings and residency','Common pthread stacks reserve a fixed address range. The number of resident pages can change inside that range.','','A fixed mapping size does not mean fixed memory use. The main stack boundary chart covers only the main thread.','Other runtimes can manage stacks differently. Residency does not measure current stack depth.',['stack','anonres','memregions']);
+helpTopic('memregions','Memory regions','Selected bar · mappings','The regions in the selected bar, with their start address, size, permissions, and VMA count.','r-xp is readable, executable, and private.','Use the name and permissions to tell code, data, and guard regions apart.','Only the first 300 regions are listed. Permissions are the union over the region\'s mappings.',['memzoom','vmas'],['Region','Perms','Member regions']);
 helpTopic('memlimits','Memory limits & headroom','Process and host limits as labeled','Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters.','','Read each meter\'s denominator. Page tables and locked memory are also charged to the process.','No configured limit is different from an unknown limit. The longest maps read shows the sampler\'s own cost.',['vmas','aslimit','stack'],['Page tables','Locked','Longest maps read']);
 helpTopic('aslimit','Address space limit','Process · RLIMIT_AS','Virtual size compared with the RLIMIT_AS resource limit.','','At the limit, mmap() and malloc() fail even when RAM is free.','RLIMIT_AS counts reserved address space, not RAM.',['vmsize','memlimits'],['Address space']);
 const HELP_DELAY=1200,HELP_CLOSE_DELAY=250;
@@ -916,7 +919,7 @@ function helpKeydown(event){
 }
 function initHelp(){
   tip.hidden=true;
-  for(const label of document.querySelectorAll('h2,h3,th,.kv .k')){
+  for(const label of document.querySelectorAll('h2,h3,th,.kv .k,#memory-regions-summary,#memory-thread-stack-help')){
     const title=helpText(label);let id=label.dataset.help||topicForText(title);
     // Short labels are only meaningful inside their own panel.
     if(label.closest('.hero-side')&&/^(5|15) min/.test(title))id='load';
@@ -1967,7 +1970,7 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(deleted.length)add('info',deleted.some(region=>region.cat==='code'&&region.certain)?'Program replaced on disk':deleted.some(region=>region.cat==='code')?'Executable file replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
   const stack=regions.find(region=>region.cat==='stack');
   if(stack&&v.stack_limit_bytes>0){const share=100*stack.size/v.stack_limit_bytes;
-    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${memoryBytes(stack.size)}; RLIMIT_STACK is ${memoryBytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.`)}
+    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${memoryBytes(stack.size)}; RLIMIT_STACK is ${memoryBytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.`)}
   if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
   const order=['critical','serious','warning','info','good'];
   return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}

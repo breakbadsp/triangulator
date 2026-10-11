@@ -17,7 +17,7 @@ resource samples, and browser history.
   start as offsets from a baseline. Subtract addresses with `BigInt` and show
   sampled steps. Label the heap end as page-aligned. Keep mapped sizes in
   facts and retain the resident-anonymous chart.
-- [ ] **Compact layout and help.** Put member regions in a disclosure. Keep
+- [x] **Compact layout and help.** Put member regions in a disclosure. Keep
   facts, legend, and charts visible. Make titles readable and stack charts
   vertically on narrow screens. Explain fixed thread-stack reservations and
   the difference between residency and stack depth.

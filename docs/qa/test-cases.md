@@ -304,3 +304,16 @@ Expected results: Heap-end and stack-start offsets retain page-sized changes.
 Stack growth moves the start downward. Lines use sampled steps and stop at
 missing samples. History resets for a new target or session. The heap label
 and guide explain page alignment. Resident anonymous remains a separate chart.
+
+## QA-015: Compact memory zoom and thread-stack help
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+1. Open Memory map at desktop and narrow viewport widths.
+2. Use the keyboard to open and close Member regions. Keep it open across
+   a new sample. Open its help and the Thread stacks guide.
+
+Expected results: Facts, legend, and charts remain visible. Chart headings
+and rates have separate lines. Charts stack on narrow screens. The disclosure
+keeps its open state across samples. Help explains reserved size, residency,
+and stack depth as different measurements.

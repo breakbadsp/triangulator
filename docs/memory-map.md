@@ -56,7 +56,7 @@ The section follows the mock-up in
 - **Zoom.** Facts about the selected bar, a grid of squares that shows
   which of its addresses are mapped and which were mapped since the
   previous layout, charts of heap-end and main stack-start address offsets and resident
-  anonymous memory while the page is open, and the bar's regions.
+  anonymous memory while the page is open, and a disclosure for the bar's regions.
 
 The legend under the grid lists only the kinds that have squares in it, in
 the same colors as the squares.
