@@ -1,0 +1,13 @@
+{
+ "id": "117",
+ "name": "listen-full",
+ "pid": 2102871,
+ "started": "2026-10-11T10:17:01.879Z",
+ "hold": 70,
+ "startComm": true,
+ "alive": true,
+ "meta": "PID 2102871 · Live · just now",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

@@ -1,0 +1,13 @@
+{
+ "id": "101",
+ "name": "healthy",
+ "pid": 2144782,
+ "started": "2026-10-11T11:17:36.358Z",
+ "hold": 70,
+ "startComm": true,
+ "alive": true,
+ "meta": "PID 2144782 · Live · just now",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}
