@@ -1,0 +1,655 @@
+# Setup and reference
+
+[← Project overview](../README.md)
+
+[Start](#quick-start) · [Controls](#stop-restart-and-change-settings) · [Files and logs](#active-files-and-logs) · [Packages](#install-from-a-release-package) · [Build](#requirements-and-build) · [Configuration](#configuration) · [Dashboard](#dashboard) · [Services](#production-setup) · [Socket I/O](#socket-io-and-messages-processed)
+
+## Quick start
+
+Run these commands on Linux as the same user as the process to monitor.
+For a source build, install the [build requirements](build-guidelines.md)
+first: a C++23 compiler, Make, static C/C++ runtime libraries, and SQLite
+development files. Target control also requires Python 3.11 or later.
+To use prebuilt binaries, see [Install from a release package](#install-from-a-release-package).
+
+```sh
+git clone https://github.com/breakbadsp/triangulator.git
+cd triangulator
+scripts/start.sh
+scripts/set-target.sh 1234    # Replace 1234 with the process ID to monitor.
+```
+
+Open <http://127.0.0.1:9401>. The dashboard shows the selected process and its
+threads. You can also select **Change target**, enter a process name or PID,
+and select **Monitor**. A unique process name works from the command line:
+
+```sh
+scripts/set-target.sh ghostty
+```
+
+The start script builds and installs the sampler, collector, dashboard, and
+socket report helper under `~/triangulator/`. It starts the collector and
+sampler in the background. The default target is `ghostty`; select your own
+process after startup. A target name that is not running is accepted. The
+sampler waits for it to start. A name that matches several processes is
+refused; use a PID instead. Numeric targets must be running process IDs,
+not thread IDs.
+
+The first start creates the active configuration files. Later starts preserve
+them. Thread sampling runs at 1 Hz, resource sampling every 5 seconds, memory
+sampling every 30 seconds, and dashboard recording every second. Raw sample
+storage is enabled. The collector retains seven days by default. Budget disk
+space for raw samples and recordings; see the
+[storage notes](collector-reference.md#historical-process-inspection).
+The optional eBPF socket observer needs a separate
+[setup step](#socket-io-and-messages-processed). Alert delivery is not available.
+
+### Stop, restart, and change settings
+
+Run these commands from the checkout:
+
+```sh
+scripts/set-rate.sh 5       # Set thread sampling to 5 Hz without a restart.
+scripts/restart.sh         # Rebuild and restart the collector and dashboard.
+scripts/restart.sh sampler # Rebuild and restart the sampler.
+scripts/restart.sh all     # Rebuild and restart both programs.
+scripts/stop.sh            # Stop both programs.
+scripts/start.sh           # Build and start again.
+```
+
+`start.sh` leaves an already running program active. Use `restart.sh` to apply
+code changes. The default restart affects only the collector. It checks the
+build and collector configuration before it stops the old collector.
+Target and rate changes validate the sampler configuration and request a
+reload. A successful reload starts a new sampler session. Rates from 0.2 to
+10 Hz are accepted.
+
+After installation, use `~/triangulator/scripts/start.sh` and the other
+installed scripts from any directory. They use the installed binaries without
+a compiler or checkout. Use the checkout scripts to build and install source
+changes. For systemd operation, use [Production setup](#production-setup).
+
+### Active files and logs
+
+- `~/triangulator/config/sampler.toml`: target, collector address, and sampling intervals.
+- `~/triangulator/config/collector.toml`: listeners, storage, and retention.
+- `~/triangulator/bin/`: installed programs, including the socket report helper.
+- `~/triangulator/data/`: SQLite history and dashboard recordings.
+- `~/triangulator/logs/`: sampler, collector, and optional socket observer logs.
+- `~/triangulator/run/`: process IDs and the sampler control lock.
+- `~/triangulator/scripts/`: installed start, restart, stop, and control commands.
+- `~/triangulator/templates/` and `services/`: configuration templates and user-service files.
+
+The repository's `config/*.toml` files are templates. Edit the active files
+under `~/triangulator/config/`. Restart the affected program after manual edits.
+Set and export `TRIANGULATOR_HOME` before each command to use another runtime
+directory. Separate instances also need different UDP and HTTP ports.
+Relative collector data paths are resolved from the runtime directory.
+
+If startup fails or the dashboard has no samples, read the logs:
+
+```sh
+tail -n 50 ~/triangulator/logs/collector.log
+tail -n 50 ~/triangulator/logs/sampler.log
+```
+
+Check that the target is running as the sampler's user. Check the active
+collector address, UDP listener, and `sampler_ip`. If a port is already in use,
+stop the other instance or select unused ports in both configurations.
+See [build errors](build-guidelines.md#errors-and-remaining-release-work)
+for compiler and library failures.
+
+To start or stop one program, or use an existing custom configuration:
+
+```sh
+scripts/start.sh collector /absolute/path/to/collector.toml
+scripts/start.sh sampler /absolute/path/to/sampler.toml
+scripts/stop.sh collector
+scripts/stop.sh sampler
+```
+
+Build with `make` before the first individual start from a checkout.
+`restart.sh` reuses the configuration of the running program. It refuses to
+stop a copy owned by another user. The target and rate scripts use the running
+sampler's configuration and validate changes before they replace the file.
+They refuse to edit the tracked examples in `config/`.
+
+Dashboard target control requires a local sampler, a loopback HTTP listener,
+Python 3.11 or later, and `scripts/sampler_control.py` in the runtime directory
+or checkout. The sampler and collector must run as the same user with write
+access to the sampler configuration. For a remote sampler, run the target
+control script on the sampler host.
+
+## Virtual memory
+
+The memory map shows Ghostty's virtual address space, resident memory, mappings,
+and page faults. Select a region to inspect its addresses, permissions, and
+mapped size. Findings and limit meters show how close the process is to its
+memory limits.
+
+Memory sampling is enabled every 30 seconds by default. Change
+`memory_interval_s` in `~/triangulator/config/sampler.toml` to use another
+interval or set it to `0` to disable sampling. Then run
+`scripts/restart.sh sampler`.
+See [Memory map](memory-map.md) for sampling cost and measurement limits.
+The grid shows mapped addresses; it does not show which pages are resident.
+
+## Socket I/O
+
+The optional socket observer shows received and sent bytes, rates, totals,
+and a breakdown by thread and socket kind. Message completion counts need an
+application marker. See [Socket I/O and messages processed](#socket-io-and-messages-processed)
+for setup and measurement limits.
+
+## Help beside each metric
+
+Pause over a metric or chart point for 1.2 seconds to read its explanation.
+Select an information button for examples, measurement limits, related topics,
+and chart data tables where available. The guide also lets you turn off help
+on hover or focus. See [Dashboard help](../collector/README.md#dashboard-help).
+
+## Time travel
+
+Dashboard recording is enabled by default. Use **Inspect a moment**. See the
+[recording notes](collector-reference.md#historical-process-inspection).
+
+Select a date and time, then use **Previous** and **Next** to step through
+recorded views. Select **Live** to return to the current process.
+
+## Install from a release package
+
+Each `v*` tag publishes two packages per distro, as static binaries that need
+no compiler or libraries, each with a `.sha256` file:
+
+- `triangulator-sampler-<version>-el9-x86_64.tar.gz`: only the sampler and the
+  control scripts. Install it on the monitored host.
+- `triangulator-collector-<version>-el9-x86_64.tar.gz`: the collector,
+  dashboard and report helper. Install it on the monitoring host.
+
+There are `el8` and `el9` builds of both. Download the two matching archives
+and their `.sha256` files from [GitHub Releases](https://github.com/breakbadsp/triangulator/releases).
+For a single-machine installation, run these commands in the download directory.
+Replace `VERSION` with the asset version, for example `0.1.0`:
+
+```sh
+version=VERSION
+sha256sum -c "triangulator-sampler-$version-el9-x86_64.tar.gz.sha256"
+sha256sum -c "triangulator-collector-$version-el9-x86_64.tar.gz.sha256"
+tar -xzf "triangulator-sampler-$version-el9-x86_64.tar.gz" -C ~
+tar -xzf "triangulator-collector-$version-el9-x86_64.tar.gz" -C ~
+~/triangulator/scripts/start.sh
+~/triangulator/scripts/set-target.sh 1234 # Replace 1234 with your process ID.
+```
+
+Open <http://127.0.0.1:9401>. Use `el8` filenames for an `el8` package.
+The monitoring binaries need no compiler, Python, or Node.js. Target and rate
+control scripts require Python 3.11 or later.
+
+`start.sh` runs the programs the package contains. For separate hosts, extract
+only the required package on each host. The first start creates its active
+configuration. Stop it, set the remote addresses, and start it again:
+
+- Sampler host: set `collector` to the collector's numeric IP and UDP port.
+  Set `target_process` or `target_pid` to the process to monitor. Keep only
+  one target key active; comment out or remove the other key.
+- Collector host: set `udp_host` to an interface that can receive the sampler's
+  datagrams, and `sampler_ip` to the sampler's source IP as seen by the collector.
+  Set `clock_ticks` to `getconf CLK_TCK` from the sampler host.
+- Permit the sampler's traffic to UDP port 9400, or your configured port.
+  Keep HTTP on loopback and use an SSH tunnel for dashboard access:
+
+  ```sh
+  ssh -N -L 9401:127.0.0.1:9401 USER@COLLECTOR_HOST
+  ```
+
+Open <http://127.0.0.1:9401> on the machine with the tunnel. Neither UDP nor
+HTTP has authentication. See [Production setup](#production-setup) for user services.
+
+To upgrade, run `~/triangulator/scripts/stop.sh`, unpack over the same
+directory and start again. The archives have no `config/`, `data/` or `logs/`,
+so these are kept. `scripts/package.sh` builds the archives after `make release`.
+
+Alerting is a separate module that is not wired up yet
+([details](#alerting)). More metrics:
+[coverage](linux-monitoring.md), [resource monitoring](resource-monitoring.md),
+[TODO](../TODO.md). Also see the [architecture diagrams](architecture.md).
+The UDP wire formats have an
+[animated overview](https://htmlpreview.github.io/?https://github.com/breakbadsp/triangulator/blob/master/docs/wire-format-overview.html)
+([source](wire-format-overview.html); GitHub shows HTML as text, so the
+link opens it through htmlpreview.github.io).
+
+## Reference
+
+## Requirements and build
+
+See the [build guidelines](build-guidelines.md) for AlmaLinux package commands,
+compiler setup, static releases, required checks, and known deployment limits.
+
+Linux, GCC/libstdc++ 13+ (C++23: `std::expected`, `std::format`, `std::byteswap`),
+GNU Make 4.2 or later, Bash, coreutils, sed, the compiler's static C/C++
+runtime libraries, and libsqlite3 development files for the collector
+(unless you supply the SQLite amalgamation).
+Static release verification also needs binutils (`readelf`).
+Python 3.11+ is needed only for tests, the optional
+sampler control scripts, alerting, and `make sqlite-amalgamation`.
+It needs no third-party packages.
+Node.js is required for the dashboard tests in `make check`.
+Formatting uses clang-format 22.1.8.
+The basic startup script also uses getconf.
+Binary-only deployments without `scripts/sampler_control.py` serve monitoring
+without Python; the dashboard hides target control there.
+The monitoring binaries need no Node.js.
+
+```sh
+make          # sampler, collector and read-only socket report helper
+make check    # C++, Python, and dashboard tests
+make format   # format C++ code (2 spaces, Allman braces)
+make format-check # verify C++ formatting
+```
+
+To use a different compiler, set `CXX` on the command line or in the
+environment. Do not edit the Makefile. The same variable builds the SQLite
+amalgamation, so no separate C compiler setting exists. Make stops with a clear
+message if the compiler cannot build C++23.
+
+```sh
+make CXX=g++-14                    # for example a newer GCC next to the system one
+CXX=clang++-19 make check
+```
+
+On a system with a compiler toolset (for example GCC Toolset on AlmaLinux 9),
+put the toolset's `bin` directory on `PATH` or give the full path in `CXX`.
+Changing `CXX`, `CXXFLAGS` or the link options rebuilds every program.
+
+The sampler links fully statically by default. The collector and socket report
+helper embed libstdc++ and libgcc, leaving libc and SQLite as shared libraries.
+Builds do not download anything. To build all three programs fully statically:
+
+```sh
+make release                       # requires the system's static SQLite library
+make check STATIC=1                 # test those same release binaries
+```
+
+If your distribution does not ship `libsqlite3.a`, `make release` stops and says
+so. Use the [SQLite amalgamation](https://www.sqlite.org/amalgamation.html)
+instead. `make sqlite-amalgamation` is the only target that uses the network. It
+downloads the amalgamation, checks the published SHA3-256 hash and writes
+`build/sqlite/sqlite3.c`. It needs Python 3. You can also download the files
+yourself and give the path of `sqlite3.c`; `sqlite3.h` must be in the same
+directory:
+
+```sh
+make sqlite-amalgamation
+make release SQLITE_SOURCE=build/sqlite/sqlite3.c
+make check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c
+```
+
+This compiles SQLite directly into the collector and report helper, with dynamic
+extension loading disabled. No separate C compiler is needed. `release` uses
+readelf to reject a dynamic loader or shared-library dependencies and fails if
+static libraries are missing. Use numeric `udp_host` and `http_host` addresses
+in static releases; glibc hostname resolution can require runtime NSS modules.
+The optional eBPF source remains a separate build (`make socket-sampler`) and
+needs libbpf; it is not included in `release`.
+
+Link options are tracked, so changing between normal and release builds rebuilds
+the binaries. `SAMPLER_LDFLAGS` and `RUNTIME_LDFLAGS` can override the defaults
+for development toolchains (for example, `make SAMPLER_LDFLAGS= RUNTIME_LDFLAGS=`).
+
+### Deployment dependencies
+
+Goal: deploying Triangulator means copying binaries, with nothing to install.
+
+- **Sampler: zero dependencies.** It runs on production hosts, so it must be
+  a fully static binary that needs only the Linux kernel: no shared libraries,
+  no interpreter and no packages. Never add a library it would need at run
+  time.
+- **Collector, dashboard and helpers: as few as possible.** They may run on a
+  separate host, so a dependency is tolerated there when it is truly needed,
+  but prefer compiling a dependency in (for example SQLite's single-file
+  source) over requiring a package. The dashboard is built into the collector
+  binary and loads nothing from the network. Optional local dashboard target
+  control reuses the Python development script; deployed binaries without that
+  script continue to serve monitoring without Python.
+- **Build-time only** dependencies (compiler, kernel headers, Python for tests)
+  are fine; they never reach the deployed host. Optional Python helpers need
+  Python wherever they run.
+
+`make release` produces binaries with no shared-library dependencies. Copy the
+collector and socket report helper together so the dashboard can find the helper
+next to the collector. The sampler can be deployed on its own, with its config.
+Static linking does not remove CPU architecture or Linux kernel requirements.
+Remaining work is tracked in [TODO.md](../TODO.md#deployment-dependencies).
+
+## Configuration
+
+- **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
+  booleans and `#` comments. Unknown or duplicate keys and malformed values are
+  rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
+  `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
+  at most 60) sets how often resource samples are sent; they are never more
+  frequent than thread ticks. `memory_interval_s` (default 30; 0 turns it off;
+  at most 3600) sets how often memory-map samples are sent; see
+  [docs/memory-map.md](memory-map.md). `SIGHUP` reloads the file; an invalid file leaves the old
+  settings active, and a successful reload starts a new session. Validate with
+  `build/triangulator-sampler --check-config config/sampler.toml`.
+- **Collector** (`config/collector.toml`): full TOML, read at startup, so restart
+  after changes. Validate with
+  `build/triangulator-collector config/collector.toml --check-config`. The
+  `[alerts]` settings and `deadman_url` are for the alerting module; the collector
+  ignores them with a warning, apart from `[alerts] window_s`, the rollup window.
+  - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
+    format does not carry it.
+
+## Dashboard
+
+The page opens on a **process overview**, built in the browser from `/api/live`
+(nothing extra is sampled or stored):
+
+- **Process load**: 1-, 5- and 15-minute load averages for the target alone,
+  computed like `/proc/loadavg`. Load is CPU in use plus demand waiting for a
+  CPU (run delay) plus threads in uninterruptible kernel wait. The chart splits
+  load into those parts.
+- **Assessment**: rules of thumb that point at likely problems: a thread
+  saturating a core, CPU waiting, kernel (D) stalls, major page faults, stopped
+  threads, thread churn, a thread count that keeps growing (steady growth for
+  two minutes or more; a short pool startup usually stays quiet), sampler silence
+  and packet loss. Warning-level and worse findings from the Memory map
+  section (a mapping count or address space near its limit, growing resident
+  memory, swap, major faults with pressure, the main stack near its limit)
+  join it too; with memory-map sampling off, the assessment leaves memory out.
+- **Thread churn** (an overview tile and an assessment note): threads seen
+  starting and ending in the last minute. This is a **lower bound**. The sampler
+  sees only the threads that exist when it lists the target's tasks, so a thread
+  that starts and exits between two samples is never counted. At the default
+  1 Hz a thread living 10 ms is seen about 1% of the time, so `+0 / −0` means
+  "none seen", not "none happened". Linux has no unprivileged per-process count
+  of threads created (see [docs/thread-monitor-design.md](thread-monitor-design.md#10-known-limitations)),
+  so for thread-per-task code raise the sample rate or count creations in the
+  application. A pool whose threads stay is counted accurately.
+- **Shape of the process**: active versus idle threads, context switches, I/O,
+  thread states over time, CPU by thread family, the busiest wait channels,
+  and CPU by the core each thread last ran on.
+- **Thread map**: one tile per thread, colored by its current state and
+  labelled with its CPU % of one core. Idle threads are faded and blank. The
+  Now / 1 min / 5 min / 15 min switch shows CPU over the last ~10 s or the
+  average over that window; over a window, a tile is faded only if the thread
+  was idle for all of it.
+
+Below it, **Pressure, limits & sockets** shows the latest resource sample and
+its stored history (15 minutes to 24 hours): pressure stall shares for CPU,
+memory and I/O; open descriptors against the limit; the target's queued socket
+bytes; namespace drop and error counters; and the target's fullest sockets,
+each explained ("the app is not reading fast enough", "the peer is not
+reading"). Its findings join the assessment. See
+[docs/resource-monitoring.md](resource-monitoring.md) for how to read it.
+Use **Inspect a moment** to select a local date and time and freeze the whole
+process view at the latest recording at or before that time. **Previous** and
+**Next** step through recordings, including older sampler sessions; **Live**
+returns to the current process. The recorded view includes all threads, their
+states, wait channels, core placement, CPU, run delay, switches, I/O and health.
+Click a thread to open its summary history ending at the recorded time.
+
+Recording is enabled every second by default. Set `replay_interval_s` in the
+collector config (0.5–60 seconds; `0` disables it) to change the interval for
+complete views, independently of `store_raw`. They go to `data_dir/replay/` and use the
+existing `retention_days` setting.
+Older rollups remain readable but cannot reconstruct a complete process view.
+State means the latest sampled observation; rates still cover the preceding
+~10 seconds. The selected recording's timestamp and any recording gap are
+shown explicitly. Live trend charts, load averages and socket totals are hidden
+or unavailable during inspection; thread rollup charts remain available.
+Complete snapshots use substantially more disk space than rollups; see the
+[recording and storage notes](collector-reference.md#historical-process-inspection).
+
+The browser tab keeps these trends for up to 15 minutes, and they survive a
+reload of that tab. The thread table shows active threads by default. Idle
+threads (no CPU, context switches or I/O in the last ~10 s) are listed apart,
+with how long each has been idle, instead of a row of zeros. Click a thread for
+a drawer with its live CPU and stored history (CPU, run delay, state mix,
+I/O). A light/dark switch is in the top bar.
+
+The page also has alert sections and alert settings. It hides them because the
+collector's `/api/live` has no alert fields.
+
+The **Memory map** section shows the latest virtual memory summary and address
+layout when `memory_interval_s` is enabled. Select an address-space bar to zoom
+into its mappings. See [Memory map](memory-map.md) for the values, findings,
+and sampling limits.
+
+Metric explanations and chart guides are available through information buttons.
+See [Dashboard help](../collector/README.md#dashboard-help) for mouse, keyboard,
+and touch controls.
+
+The HTTP listener defaults to loopback. Neither UDP nor HTTP is authenticated, so
+use an SSH tunnel or an authenticating reverse proxy for remote access.
+
+The monitoring API is read-only: `/api/live` and
+`/api/history?session=SESSION&tid=TID&start=UNIX_SECONDS&end=UNIX_SECONDS`
+(at most 2,000 rollups; narrow the interval if `truncated` is true).
+Local target control adds `GET /api/target` and `POST /api/target` with JSON
+`{"target":"NAME_OR_PID"}` and the `X-Triangulator: 1` header. Other non-`GET`
+requests get 501.
+`GET /api/resources?start=UNIX_SECONDS&end=UNIX_SECONDS` returns stored
+resource samples in at most about 1,000 buckets (default the last 15 minutes).
+`/api/replay` returns recording bounds; `/api/replay?at=UNIX_SECONDS` returns
+those bounds and the latest recorded process view at or before that timestamp.
+Add `direction=previous` or `direction=next` to step strictly before or after it.
+A missing recording returns `snapshot: null`; unreadable day files are skipped.
+
+## Production setup
+
+Production hosts need binaries and configs, not a repository checkout.
+Use the same `~/triangulator/` runtime directory as development. Deploy the
+sampler under the monitored process's user account. Deploy the collector
+under its own service account on the collector host.
+
+Create the directories as that account:
+
+```sh
+mkdir -p ~/triangulator/{bin,config,data,logs,run,services}
+```
+
+Copy the sampler binary to `~/triangulator/bin/triangulator-sampler` and its
+config to `~/triangulator/config/sampler.toml` on the application host.
+On the collector host, copy the collector and socket report helper to `bin/`
+and its config to `config/collector.toml`. Set `data_dir = "./data"`.
+Set the sampler's `collector` address and the collector's `udp_host` and
+`sampler_ip` for these hosts. Set `clock_ticks` to the application host's `getconf CLK_TCK`.
+
+If you started the programs with `start.sh`, stop them on each host before
+you enable the user services:
+
+```sh
+~/triangulator/scripts/stop.sh
+```
+
+Then use `systemctl --user` to start, stop, and restart these services.
+
+The units in `deploy/` are user services. Copy the required unit to
+`~/triangulator/services/` on each host. For the sampler:
+
+```sh
+~/triangulator/bin/triangulator-sampler --check-config ~/triangulator/config/sampler.toml
+systemctl --user link ~/triangulator/services/triangulator-sampler.service
+systemctl --user daemon-reload
+systemctl --user enable --now triangulator-sampler
+```
+
+For the collector:
+
+```sh
+~/triangulator/bin/triangulator-collector ~/triangulator/config/collector.toml --check-config
+systemctl --user link ~/triangulator/services/triangulator-collector.service
+systemctl --user daemon-reload
+systemctl --user enable --now triangulator-collector
+```
+
+No root access is needed to install these files or start the user services.
+The units use the account's home directory and write logs under `logs/`.
+Continuous operation after logout requires lingering enabled for that account.
+The systemd registration links are outside the runtime directory; the actual
+service files remain in `~/triangulator/services/`.
+
+The sampler unit runs at niceness 19 with a 5% CPU quota, a 32 MiB memory limit,
+no capabilities. Apply the network rules on the host or management network. Tune the quota after measuring your
+real thread count and rate; overruns skip deadlines. The sampler opens no listening
+socket, sends no signals to the target and writes no files. Messages go to `~/triangulator/logs/sampler.log`.
+
+Checklist before going live (design section 12):
+
+- Run the sampler as the target user. It needs no privileges: `stat`, `schedstat`,
+  `io` and `wchan` are readable by the same user under any Yama `ptrace_scope`.
+  It warns if every sleeping thread's wait channel is hidden. Resource samples
+  also need the target's descriptor links (same user, dumpable process) and the
+  target's network namespace to list its sockets; the dashboard says when either
+  is missing.
+- Check scheduler statistics under load. If they are missing or all zero, set
+  `status_fallback = true` in the sampler config. Zeros alone cannot tell an idle
+  process from disabled accounting, so this is your call. Run-delay percentage is
+  unavailable in fallback mode.
+- Check thread-name prefixes fit Linux's 15-byte limit and the wait-channel names
+  your kernel reports (`cat /proc/PID/task/*/wchan`). Unknown names show as `other`.
+- Restrict UDP by firewall or WireGuard and route it on the management network.
+  Set `sampler_ip`; otherwise the collector pins the first sender it sees.
+- Check the disk budget. Nothing alerts yet (see [Alerting](#alerting)), not
+  even if the collector stops, so watch the collector and sampler units by other
+  means.
+
+## How it behaves
+
+- **Wire format:** 48-byte header and 112-byte records (version 2), little-endian,
+  at most 10 threads per datagram. A tick holds at most 2,550 threads; the rest are
+  dropped with a warning.
+- **Loss and reordering:** chunks are deduplicated and reordered for up to two
+  sample intervals (max two seconds). Partial ticks are still used, and a missing
+  chunk never implies a thread exit. Threads unseen for `max(10 s, 3 intervals)`
+  expire. Packet loss is estimated over the last minute.
+- **Time:** CPU and scheduler deltas use the sampler's monotonic clock. Counter
+  regressions, new sessions and counter-mode changes reset baselines. History needs
+  synchronized wall clocks; offsets over one day fall back to arrival time.
+- **File descriptors:** the sampler raises its soft open-file limit to the hard
+  limit and keeps four `/proc` files open per thread while the budget allows (32
+  are reserved); extra threads reopen their files each tick. Running out of
+  descriptors skips a tick rather than reporting the target absent.
+- **Resource samples:** a summary datagram (version 1, `TRES`) and up to four
+  datagrams of socket rows per sample, sharing the thread session. Parts are
+  reassembled for up to two seconds; rates use the previous sample of the same
+  session and process. Values the sampler could not read stay unavailable,
+  never zero. One `resource_sample` row per sample is stored.
+- **Storage:** live samples expire after ten minutes and are capped by
+  `max_live_samples` (default one million, at most ten million; the collector
+  reserves about 280 bytes of address space per sample at startup). History
+  is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
+  every half second.
+  `store_raw = true` (the default) also saves decoded records. Set it to `false`
+  to keep only rollups. Retention deletes whole day files,
+  keeping today and the previous `retention_days - 1`. Old day files gain new
+  columns when opened.
+
+## Collector
+
+`collector/` is the core collector, written in C++ (`scripts/start.sh`,
+`deploy/triangulator-collector.service`):
+`build/triangulator-collector ~/triangulator/config/collector.toml`.
+[collector/README.md](../collector/README.md) lists what it does.
+
+**Rule:** latency- and performance-critical code (receiving datagrams, building
+per-thread state and rollups, storage, the dashboard API) belongs in C++ or Rust.
+Alerting, notifications, reports and richer dashboard data are separate programs
+that read the SQLite files or the HTTP API. They must stay off the UDP stream and
+out of the collector's main loop. A separate program that needs per-sample data
+at high rates must itself be written in C++ or Rust.
+
+The collector replaced an earlier Python collector, which was removed after the
+C++ one was shown to store identical rollups for several times less CPU and
+memory: see [docs/collector-comparison.md](collector-comparison.md).
+
+## Alerting
+
+Nothing sends alerts at the moment. The collector has no alert rules, no dashboard
+alert settings and no webhook, dead-man or email delivery. Alerting will be a
+separate module that reads the rollups from SQLite or the HTTP API.
+
+`alerting/` holds the Python collector's alerting code, kept as the start of that
+module: alert settings and their validation, the alert state machine (open,
+remind, resolve), the alert event log and webhook/email delivery. It is not
+connected to the collector and does not run. [alerting/README.md](../alerting/README.md)
+describes what is there and what is missing, including each rule's condition.
+
+## Socket I/O and messages processed
+
+The C++ dashboard includes received/sent socket bytes, monitoring-period totals
+and averages, recent minimum/maximum rates, and a breakdown by thread and socket
+kind. Build the optional source with `make socket-sampler`; it requires existing
+BPF tracing privileges and a compatible kernel. Completion counts require an
+explicit application marker called once after successful processing. Setup and
+measurement limits are in [the socket design guide](socket-ingress-design.md).
+Reporting runs in the separate `triangulator-socket-report` executable installed
+next to the collector; `/api/socket-io?pid=PID` exposes the report.
+
+With the collector running, start observation on the target host:
+
+```sh
+scripts/set-target.sh ghostty
+scripts/watch-sockets.sh --sudo ghostty
+# Or use a PID, optionally with an application completion marker:
+scripts/watch-sockets.sh --sudo --marker /absolute/path/to/application TriangulatorMessageProcessed 1234
+```
+
+The wrapper builds the optional source (clang with BPF support and libbpf
+development files are required), resolves the target, and runs in the foreground.
+`--sudo` elevates only the observer; omit it when tracing privileges are already
+available. Ctrl+C stops it. Logs are appended to `~/triangulator/logs/socket-sampler.log`.
+The target must be a process ID (not a thread ID) or a unique process name. The
+collector endpoint defaults to the running sampler's, so both reach the same
+dashboard, or to `~/triangulator/config/sampler.toml` when the sampler is not running;
+override it with `--collector IP:PORT` for a remote collector. If the running
+sampler or its config cannot be inspected, the wrapper requires an explicit
+`--collector` instead of falling back to the local config. The dashboard's
+Socket I/O & message processing panel follows the normal sampler's target PID,
+so use `scripts/set-target.sh` to select the same PID. Choose Received, Sent, or
+Messages processed in that panel.
+Message counts remain unavailable without an application completion marker;
+socket traffic alone cannot tell when a message has finished processing.
+Restart the wrapper when switching targets or when the target process restarts.
+
+## Test workloads and manual QA
+
+Use the [bug lab](../bug-lab/README.md) to run 19 fault scenarios and a healthy
+control. The fixture is separate from the monitoring programs. See the
+[bug lab report](bug-lab-report.md) and
+[workload evaluation](buggy-workload-evaluation.md) for observations and limits.
+
+The [manual QA guide](manual-qa.md) explains package tests in a real
+browser. The [test cases](qa/test-cases.md) cover installation, controls,
+dashboard behavior, and the bug lab. Each executed case records its package
+version and result.
+
+## Layout
+
+- `sampler/`: C++ sampler (`main.cpp` loop, plus headers for config, `/proc`
+  parsing and cache, RAII resources, and the resource probe: `resources.hpp`,
+  `resource_parsing.hpp`, `socket_diag.hpp`).
+- `common/`: code both programs use: the datagram formats (`wire.hpp` for
+  threads, `resource_wire.hpp` for resource samples) and the `FileDescriptor`
+  wrapper (`fd.hpp`). It depends only on
+  the standard library, so neither program depends on the other's directory.
+- `collector/`: C++ core collector, without alerting, and the dashboard page it
+  serves (`dashboard.html`).
+  [collector/README.md](../collector/README.md) lists what it does.
+- `alerting/`: Python alerting code kept for the future alerting module; not
+  wired up (see [alerting/README.md](../alerting/README.md)).
+- `socket_sampler/`: optional C++/eBPF socket and completion-marker source.
+- `metrics/`: separate read-only C++ reporting program.
+- `config/`, `deploy/`: example configuration and systemd units.
+- `scripts/`: runtime startup, restart, stop, target and rate control, and packaging.
+- `bug-lab/` and `examples/buggy-workload/`: separate fault fixtures.
+- `docs/qa/`: manual test cases and versioned run results.
+- `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
+  end-to-end runs of the real sampler and collector, including a real `/proc`
+  check).
+
+## License
+
+MIT. See [LICENSE](../LICENSE).

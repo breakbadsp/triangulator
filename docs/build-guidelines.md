@@ -116,7 +116,7 @@ dnf install -y glibc-static libstdc++-static python3 nodejs
 The startup script preserves existing local configuration files.
 The command-line control scripts and local dashboard target control need Python.
 An absent target name is accepted and waits for the process to start.
-See [configuration](../README.md#configuration) for separate hosts and custom paths.
+See [configuration](setup.md#configuration) for separate hosts and custom paths.
 
 ## Build a fully static release
 
@@ -162,7 +162,7 @@ Copy the collector and `triangulator-socket-report` into the same directory.
 The sampler can run on a separate host with its configuration file.
 The copied monitoring binaries need no Python or Node.js.
 Use numeric UDP and HTTP addresses for static deployments.
-See [production setup](../README.md#production-setup) for the service templates.
+See [production setup](setup.md#production-setup) for the service templates.
 
 ## Required quality checks
 

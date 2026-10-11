@@ -50,7 +50,7 @@ These are planned additions; optional socket monitoring is already implemented.
 ## Deployment dependencies
 
 Goal: deploy by copying binaries. See
-[Deployment dependencies](README.md#deployment-dependencies).
+[Deployment dependencies](docs/setup.md#deployment-dependencies).
 
 - [x] Sampler: zero runtime dependencies. Link it fully statically (glibc,
   libstdc++, libgcc) and replace `getaddrinfo` with `inet_pton`, since only
