@@ -31,6 +31,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-018 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Observations](runs/20261011T110000Z-ci-5189c47/evidence/qa018-observations.json) |
 | QA-019 | PASSED | PR65 957e763 dashboard (CI baadbd7 fixtures) | [Retest](runs/20261011T094600Z-pr65-957e763/index.md) | [Growth](runs/20261011T094600Z-pr65-957e763/evidence/growth.json) |
 | QA-020 | NOT_RUN | - | - | - |
+| QA-021 | NOT_RUN | - | - | - |
+| QA-022 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -51,6 +53,40 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-021: Dashboard HTTP server animation
+
+Feature: HTTP server documentation. Priority: Medium. Case revision: 1.
+
+Preconditions: Download `docs/dashboard-http-animation.html`. Open it in a
+browser with JavaScript enabled. No collector or network is required.
+
+1. Play all nine steps. Inspect the diagram, caption, code, and source name.
+2. Pause during a step. Verify that the data marker and progress stop.
+3. Select Previous, Next, Restart, and each numbered step. Change the speed.
+4. Expand the API route table. Compare its paths with `collector/http.hpp`.
+
+Expected results: Captions and highlighted parts match the selected step.
+The sequence shows embedded HTML, separate HTTP and receive threads, shared
+JSON, SQLite history, and connection closure. Playback ends at step nine.
+Selecting a step pauses playback. Restart returns to step one.
+
+## QA-022: HTTP animation access and small screens
+
+Feature: HTTP server documentation. Priority: Medium. Case revision: 1.
+
+Preconditions: Open the animation in a browser. Enable reduced motion before
+loading the page.
+
+1. Verify that playback starts paused and the moving marker is hidden.
+2. Use Tab and Enter to select playback controls, steps, and the route table.
+3. Set the viewport to 390 pixels wide. Read captions and use each control.
+4. Disable JavaScript and reload. Inspect the diagram and route table.
+
+Expected results: Controls have visible focus and accessible names. Each step
+remains readable. The diagram can scroll horizontally on a small screen.
+Reduced motion hides the marker even during playback. Without JavaScript,
+the static diagram, route table, and source links remain available.
 
 ## QA-020: Current section tab
 
