@@ -1,0 +1,13 @@
+{
+ "id": "119",
+ "name": "thread-leak",
+ "pid": 2115517,
+ "started": "2026-10-11T10:19:40.052Z",
+ "hold": 165,
+ "startComm": true,
+ "alive": true,
+ "meta": "PID 2115517 · Live · just now",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

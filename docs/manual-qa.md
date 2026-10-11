@@ -68,6 +68,20 @@ A failed case keeps its failed run after a later package passes.
 The package version identifies the tested software. The case revision identifies
 the test definition. QA does not change the package version.
 
+## Check results on GitHub
+
+- Open the [README test results](../README.md#test-results) for counts by status
+  and the IDs of failed, blocked, and unrun cases.
+- Open the [current-result table](qa/test-cases.md#current-results). Each row links
+  the latest run and its evidence. Open the [run records](qa/runs/) for steps,
+  environment, package identity, and failure reproduction.
+- The [QA results workflow](https://github.com/breakbadsp/triangulator/actions/workflows/qa-results.yml)
+  runs on every change to these files. It fails when a case lacks a result row, a
+  link is broken, or the README summary is stale. Its job summary shows the counts.
+- Locally, run `scripts/qa_summary.py` to print the counts. After a QA run, run
+  `scripts/qa_summary.py --write-readme` to refresh the README block, then
+  `scripts/qa_summary.py --check`.
+
 ## Sample workload from PR #47
 
 Use [`bug-lab/bugbench.c`](../bug-lab/bugbench.c), introduced by
