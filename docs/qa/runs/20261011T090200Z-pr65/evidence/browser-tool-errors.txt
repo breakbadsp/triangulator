@@ -1,0 +1,19 @@
+T3 Code tab: tab_7. Client: preview-035180eb30c217995da643ac43b0a17d.
+preview_status initially reported available=false. preview_open reported available=true.
+preview_navigate succeeded after test-owned processes stayed alive in an exec session.
+preview_snapshot failed repeatedly with default, explicit tabId, includeImage=false,
+includeImage=true, and save=true: "Preview automation snapshot failed on client preview-035180eb30c217995da643ac43b0a17d."
+preview_recording_start: "Preview automation recordingStart timed out after 15000ms."
+preview_press Enter: "Preview automation press failed on client preview-035180eb30c217995da643ac43b0a17d."
+preview_type target-input: "Preview automation type failed on client preview-035180eb30c217995da643ac43b0a17d."
+preview_resize to1280x800 timed out twice. Resize to390x844 succeeded.
+Several preview_click calls reported success without the intended visible change.
+Examples: selecting2 anonymous regions and Explain Main stack start. A coordinate
+retry after scrolling also left the heap selected. These are execution limits,
+not confirmed product failures. Explain Heap display margin opened its guide.
+Close metric guide by#help-guide-close closed it. A click with name Close ×
+was corrected after inspection showed aria-label="Close metric guide".
+Read-only preview_evaluate supplied actual DOM text and geometry. An initial
+memoryHistory read failed because of BigInt serialization. The corrected read
+serialized BigInt addresses as decimal strings and succeeded.
+No screenshot, video, console, or network diagnostic capture was obtained.
