@@ -1,8 +1,7 @@
 # Memory map
 
-For the gaps between the original zoom mock-up and this implementation, see
-[Memory zoom: gaps and implementation plan](memory-map-gap-plan.md). It lists
-feasibility, Linux permissions, and proposed implementation steps.
+For the completed memory zoom task list, see
+[Gap implementation todos](gap-implementation-todos.md).
 
 The sampler can send the target's virtual address space to the collector. The
 dashboard shows it in the **Memory map** section. Sampling is enabled every
@@ -55,9 +54,12 @@ The section follows the mock-up in
   18 bars: the dashboard merges the smallest neighbours until the map
   fits. Heap, stack, program image and kernel regions are never merged.
 - **Zoom.** Facts about the selected bar, a grid of squares that shows
-  which of its addresses are mapped and which were mapped since the
-  previous layout, charts of the heap size, main stack size and resident
-  anonymous memory while the page is open, and the bar's regions.
+  which addresses are mapped and which were mapped since the
+  previous layout, charts of heap-end and main stack-start address offsets and resident
+  anonymous memory while the page is open, and a disclosure for the bar's regions.
+  Heap zoom adds a display margin of at most 1 MiB. Neighboring mappings keep
+  their own colors. Heap facts exclude this margin. Largest unmapped gap
+  measures only the selected bar and requires a complete current layout.
 
 The legend under the grid lists only the kinds that have squares in it, in
 the same colors as the squares.
