@@ -1275,6 +1275,7 @@ test('each cell has a distinct help target even when it shares a metric topic', 
 
 test('zoom legend names every kind shown in the grid, in the grid colors', () => {
   const app = dashboard();
+  app.run("live={health:{session:'s'},memory:{available:true,pid:1,layout_id:'s:1'}};memoryLayout={id:'s:1',pid:1}");
   const kinds = JSON.parse(app.run('JSON.stringify(Object.keys(MEMORY_KINDS))'));
   assert.deepEqual([...kinds].sort(), ['anonymous', 'code', 'file', 'guard', 'heap', 'kernel', 'library', 'stack']);
   // Two 8 KB regions with an unmapped page between them, so every zoom also has a "not mapped" square.
@@ -1399,4 +1400,32 @@ test('memory growth refreshes unchanged layouts and rejects stale or other-targe
   assert.equal(app.run('memoryPrevious'),null);
   app.run('live.memory.pid=2;live.health.pid=2;memoryLayout.pid=2;renderMemory()');
   assert.equal(app.run('memoryHistory.length'),1);
+});
+
+test('largest unmapped gap clips and merges exact high-address ranges', () => {
+  const app = dashboard();
+  app.run(`gapBase=2n**60n;gapRow={lo:gapBase,hi:gapBase+100n,members:[
+    {lo:gapBase+80n,hi:gapBase+110n},{lo:gapBase+30n,hi:gapBase+50n},
+    {lo:gapBase-10n,hi:gapBase+10n},{lo:gapBase+40n,hi:gapBase+60n}]}`);
+  assert.equal(app.run('memoryLargestGap(gapRow)'),20n);
+  app.run('gapRow.members.push({lo:gapBase,hi:gapBase+100n})');
+  assert.equal(app.run('memoryLargestGap(gapRow)'),0n);
+  app.run('gapRow.members=[]');
+  assert.equal(app.run('memoryLargestGap(gapRow)'),100n);
+});
+
+test('incomplete memory layouts cannot claim unmapped gaps or new mappings', () => {
+  const app = dashboard();loadMemoryZoom(app);
+  app.run(`memoryLayout.regions.push({start:'0x300000',end:'0x400000',size:1048576,vmas:1,kind:'heap',permissions:'rw-p'});
+    gapZoom={cat:'heap',lo:0x100000n,hi:0x400000n,size:2097152,vmas:2,members:memoryRegions(memoryLayout)};
+    renderMemoryZoom(gapZoom)`);
+  assert.ok(zoomFacts(app).includes('1.0 MiB'));
+  for (const flag of ['maps_partial','maps_hidden','regions_truncated']) {
+    app.run(`live.memory.flags={${flag}:true};renderMemoryZoom(gapZoom)`);
+    assert.ok(zoomFacts(app).includes('Unavailable'));
+    assert.ok(app.elements.get('memory-grid').children.some(cell=>cell.className==='cell-unknown'));
+    assert.ok(!app.elements.get('memory-grid').children.some(cell=>cell.className==='cell-none'));
+  }
+  app.run('live.memory.flags={};memoryLayout.flags={regions_truncated:true};renderMemoryZoom(gapZoom)');
+  assert.ok(zoomFacts(app).includes('Unavailable'));
 });

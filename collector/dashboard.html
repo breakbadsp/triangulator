@@ -305,6 +305,7 @@ tr.zero td{color:var(--muted)}
 .pagegrid i{aspect-ratio:1;border-radius:2px;background:var(--kind)}
 .pagegrid i.pad{visibility:hidden}
 .cell-none{background:repeating-linear-gradient(135deg,var(--surface) 0 2px,var(--axis) 2px 4px)!important}
+.cell-unknown{background:var(--muted)!important;opacity:.35}
 .cell-guard{background:repeating-linear-gradient(45deg,var(--k-guard) 0 2px,var(--raised) 2px 4px)!important}
 .cell-new{outline:2px solid var(--good);outline-offset:-1px}
 .mem-charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
@@ -703,7 +704,8 @@ helpTopic('memkinds','Anonymous / file / shared','Process · resident bytes by k
 helpTopic('vmas','Mappings (VMAs)','Process · count and vm.max_map_count','The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit.','','At the limit, mmap() and thread creation can fail with ENOMEM. A steady rise can indicate mappings that are never released.','Adjacent regions can merge or split without a change in memory use.',['memregions','vmsize','memlimits'],['Mappings','Regions / VMAs']);
 helpTopic('memfindings','Memory findings','Fixed rules applied in the browser','Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit.','','Read the severity and detail of each finding, then check the matching tile, limit, or region.','These are rules of thumb, not a diagnosis. They use only the latest samples.',['assessment','memlimits','amap']);
 helpTopic('amap','Address space map','Process · mappings, high addresses at the top','One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar.','','Look for unexpectedly large anonymous or heap regions. Select a bar to zoom into its pages and regions.','Gaps between mappings are shortened. A large bar can use little RAM because mapped is not resident.',['memzoom','memkinds','vmsize'],['Address space map']);
-helpTopic('memzoom','Region zoom','Selected address-space bar','The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.','A 64 KiB span with 48 KiB mapped has 16 KiB not mapped inside it.','Compare the span with the mapped size to see holes. Squares outlined as new were mapped since the previous layout.','The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.',['amap','memregions','heap'],['Size (mapped)','Address span','Not mapped inside','Largest region','Page size']);
+helpTopic('memzoom','Region zoom','Selected address-space bar','The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.','A 64 KiB span with 48 KiB mapped has 16 KiB not mapped inside it.','Compare the span with the mapped size to see holes. Unknown coverage is distinct from unmapped space. Squares outlined as new were mapped since the previous layout.','The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.',['amap','memregions','heap'],['Size (mapped)','Address span','Not mapped inside','Largest region','Page size']);
+helpTopic('memgap','Largest unmapped gap','Selected bar · complete current layout','The longest uncovered address interval inside the selected bar.','Two mappings separated by 64 KiB have a 64 KiB gap.','Compare with the total not mapped inside the bar. Unknown coverage is shown separately from unmapped space.','An unmapped gap is not an allocator free block. Incomplete, stale, or historical layouts cannot supply this value.',['memzoom','memregions'],['Largest unmapped gap']);
 helpTopic('heap','Heap size','Process · [heap] mapping over time','The size of the brk heap. It grows up when the allocator calls brk.','','A sustained rise, together with RSS growth, can indicate allocation growth.','Many allocators also use mmap arenas. Size change uses samples collected while this page was open and shows their measured interval. It is not an exact program-break movement.',['anonres','stack','memkinds'],['Heap size ↑','Heap mapping size change']);
 helpTopic('vmdata','Data + heap (VmData)','Process · VmData from /proc/PID/status','The size of the process\'s private data segments: the brk heap, the data and BSS segments, and private writable mmap memory such as allocator arenas and thread stacks.','','VmData can grow while the [heap] mapping stays fixed, when the allocator uses mmap. Compare it with Heap size and Resident anonymous to see where the growth is.','It counts mapped address space, not resident memory. Memory that was never touched still counts.',['heap','anonres','memkinds'],['Data + heap (VmData)']);
 helpTopic('stack','Main stack','Main thread · [stack] mapping and RLIMIT_STACK','The size of the main thread stack mapping. It grows down when a page fault touches below it.','','Compare with RLIMIT_STACK. Near the limit, deep recursion can crash the process with SIGSEGV.','Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds. Size change shows the measured interval between samples while this page was open.',['heap','memlimits'],['Main stack ↓','Stack mapping size change']);
@@ -1820,8 +1822,9 @@ function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
 const memoryBytes=value=>bytes(value).replace(/\b(K|M|G|T)B\b/g,'$1iB');
 function memoryPageSize(){const r=live.resources,page=r?.limits?.page_size;
   return r?.available&&!r.stale&&r.pid===live.memory?.pid&&r.session===live.health?.session&&Number.isSafeInteger(page)&&page>0?page:null}
+function memoryLayoutComplete(layout){const flags=layout?.flags||{};return !!layout&&!flags.maps_hidden&&!flags.maps_partial&&!flags.regions_truncated}
 function memoryCurrentLayout(){const m=live.memory;
-  return replayAt===null&&m?.available&&!m.stale&&memoryLayout?.id===m.layout_id&&memoryLayout.pid===m.pid&&memoryLayout.id.split(':')[0]===live.health?.session?memoryLayout:null}
+  return replayAt===null&&m?.available&&!m.stale&&memoryLayoutComplete(m)&&memoryLayoutComplete(memoryLayout)&&memoryLayout?.id===m.layout_id&&memoryLayout.pid===m.pid&&memoryLayout.id.split(':')[0]===live.health?.session?memoryLayout:null}
 function memoryZoomIdentity(){const m=live.memory;return JSON.stringify([live.health?.session,m?.pid,m?.updated,m?.layout_id,m?.stale,m?.flags,memoryPageSize(),replayAt])}
 function resetMemoryTarget(m){const key=`${live.health?.session}:${m?.pid??live.health?.pid}`;
   if(memoryHistoryKey!==key){memoryHistory=[];memoryHistoryKey=key;memoryPrevious=null;memorySelected=null;memoryRenderedLayout=undefined}}
@@ -2018,6 +2021,13 @@ function renderMemoryMap(rows){const host=element('memory-amap');host.replaceChi
     bar.onclick=()=>{memorySelected=row.key;for(const other of host.querySelectorAll('.arow'))other.setAttribute('aria-pressed',String(other===bar));renderMemoryZoom(row)};
     host.append(node('div',row.lo.toString(16),'addr'),bar)}}
 
+function memoryLargestGap(row){let cursor=row.lo,largest=0n;
+  for(const region of [...row.members].sort((a,b)=>a.lo<b.lo?-1:a.lo>b.lo?1:0)){
+    const lo=region.lo>row.lo?region.lo:row.lo,hi=region.hi<row.hi?region.hi:row.hi;
+    if(hi<=lo)continue;
+    if(lo>cursor&&lo-cursor>largest)largest=lo-cursor;
+    if(hi>cursor)cursor=hi}
+  return row.hi-cursor>largest?row.hi-cursor:largest}
 function renderMemoryZoom(row){const v=live.memory?.values||{};
   element('memory-zoom-name').textContent=row?memoryRowName(row):'—';
   const facts=element('memory-zoom-facts'),grid=element('memory-grid'),legend=element('memory-grid-legend'),body=element('memory-regions'),charts=element('memory-charts');
@@ -2029,26 +2039,27 @@ function renderMemoryZoom(row){const v=live.memory?.values||{};
   memoryRenderedZoom=memoryZoomIdentity();
   facts.replaceChildren();grid.replaceChildren();legend.replaceChildren();body.replaceChildren();
   if(!row){element('memory-zoom-sub').textContent='';element('memory-grid-caption').textContent='No layout yet.';return}
-  const span=Number(row.hi-row.lo);
+  const span=Number(row.hi-row.lo),complete=!!memoryCurrentLayout();
   element('memory-zoom-sub').textContent=`0x${row.lo.toString(16)} – 0x${row.hi.toString(16)} · ${memoryPerms(row)}${memoryGrows(row.cat)}`;
   const fact=(label,value)=>{const item=node('div');item.append(helpButtonLabel(label,topicForText(label)||'memzoom','help-fact','dt'),node('dd',value));facts.append(item)};
   fact('Size (mapped)',memoryBytes(row.size));fact('Address span',memoryBytes(span));
   fact('Regions / VMAs',`${row.members.length} / ${row.vmas}`);fact('Share of VmSize',v.vm_size_bytes>0?pct(100*row.size/v.vm_size_bytes):'—');
-  fact('Not mapped inside',memoryBytes(span-row.size));fact('Largest region',memoryBytes(Math.max(...row.members.map(region=>region.size))));
+  fact('Not mapped inside',complete?memoryBytes(span-row.size):'Unavailable');
+  fact('Largest unmapped gap',complete?memoryBytes(Number(memoryLargestGap(row))):'Unavailable');fact('Largest region',memoryBytes(Math.max(...row.members.map(region=>region.size))));
   if(row.cat==='heap'||row.cat==='stack')fact(row.cat==='heap'?'Heap mapping size change':'Stack mapping size change',memoryGrowth(row.cat));
   const page=memoryPageSize();fact('Page size',page?memoryBytes(page):'Unknown');
   // At most 512 squares of whole pages, high addresses on the top row.
   const unit=page||1,cell=Math.max(unit,Math.ceil(span/512/unit)*unit),count=Math.ceil(span/cell),columns=64,lines=Math.ceil(count/columns);
-  element('memory-grid-caption').textContent=`Top = high address. One square = ${memoryBytes(cell)}${page?` (${cell/page} page${cell===page?'':'s'})`:''}, ${count} squares.`;
+  element('memory-grid-caption').textContent=`Top = high address. One square = ${memoryBytes(cell)}${page?` (${cell/page} page${cell===page?'':'s'})`:''}, ${count} squares.${complete?'':' Uncovered cells are unknown: layout incomplete, stale, or historical.'}`;
   const offset=region=>[Number(region.lo-row.lo),Number(region.hi-row.lo)];
   const members=row.members.map(region=>[region,...offset(region)]);
   const shown=new Map(),swatch=(label,className,color)=>{const item=node('span'),mark=node('i',undefined,'sw '+className);if(color)mark.style.background=color;item.append(mark,label);return item};
-  const previous=memoryPrevious?memoryRegions(memoryPrevious).filter(region=>region.hi>row.lo&&region.lo<row.hi).map(offset):null;
+  const previous=complete&&memoryLayoutComplete(memoryPrevious)?memoryRegions(memoryPrevious).filter(region=>region.hi>row.lo&&region.lo<row.hi).map(offset):null;
   for(let line=lines-1;line>=0;line--)for(let column=0;column<columns;column++){const index=line*columns+column,square=node('i');
     if(index>=count){square.className='pad';grid.append(square);continue}
     const from=index*cell,to=Math.min(span,from+cell);let best=null,covered=0;
     for(const [region,lo,hi] of members){const overlap=Math.min(hi,to)-Math.max(lo,from);if(overlap>covered){covered=overlap;best=region}}
-    if(!best){square.className='cell-none';square.dataset.hint='not mapped';shown.set('none',swatch('not mapped','cell-none'))}
+    if(!best){const label=complete?'not mapped':'unknown coverage',kind=complete?'cell-none':'cell-unknown';square.className=kind;square.dataset.hint=label;shown.set(kind,swatch(label,kind))}
     else{square.style.setProperty('--kind',MEMORY_KINDS[best.cat][0]);shown.set(MEMORY_KIND_LABELS[best.cat],best.cat==='guard'?swatch(MEMORY_KIND_LABELS.guard,'cell-guard'):swatch(MEMORY_KIND_LABELS[best.cat],'',MEMORY_KINDS[best.cat][0]));if(best.cat==='guard')square.className='cell-guard';
       if(previous&&!previous.some(([lo,hi])=>lo<to&&hi>from)){square.classList.add('cell-new');shown.set('new',swatch('mapped since the previous layout','cell-new','var(--raised)'))}
       square.dataset.hint=`${memoryRegionName(best)||best.cat} · ${best.permissions}\n0x${(row.lo+BigInt(from)).toString(16)}`}
@@ -2083,7 +2094,7 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   const v=m.values||{},now=viewNow(),flags=m.flags||{};
   element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s; the longest maps read took ${microseconds(v.maps_read_max_us)}. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
   const regions=memoryRegions(layout),rows=memoryRows(regions),stack=regions.find(region=>region.cat==='stack');
-  recordMemory(m,regions,!!layout&&layout.id===m.layout_id);
+  recordMemory(m,regions,!!memoryCurrentLayout());
   renderMemoryTiles(m);renderMemoryFindings(assessMemory(m,regions,rows));
   const limits=element('memory-limits'),facts=element('memory-facts');
   if(!helpOwns(limits)){limits.replaceChildren();

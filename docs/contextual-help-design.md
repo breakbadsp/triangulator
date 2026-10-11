@@ -206,7 +206,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Thread filters and table | Group; sort; active/idle/all; TID and generation; wait channel; last ~10 s; CPU; run delay; switches; read/write; major faults; core |
 | Thread drawer | Live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
 | Socket I/O panel | Observer status and coverage; received/sent/messages; total/current/average/recent min/max; filters affect breakdown only; retired threads |
-| Memory map | VmSize and its limit; anonymous/file/shared split; VMAs and vm.max_map_count; findings; address-space bars and kinds; region zoom and page grid; sampler page size and binary units; sampled size change and measured interval; heap, main stack, and resident anonymous charts; region table; memory limits |
+| Memory map | VmSize and its limit; anonymous/file/shared split; VMAs and vm.max_map_count; findings; address-space bars and kinds; region zoom and page grid; sampler page size and binary units; sampled size change and measured interval; largest unmapped gap and unknown coverage; heap, main stack, and resident anonymous charts; region table; memory limits |
 | Optional alerts | Rule meaning; threshold unit and window; trigger/recovery; disable and reset effects; delivery status when present |
 
 Alerts remain in their separate program. Show their help only when that feature

@@ -277,3 +277,16 @@ Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
 Expected results: Size change and measured interval refresh on each sample.
 Unavailable data does not produce a growth value. A new target or session
 starts a new comparison. Outlines retain their previous-layout meaning.
+
+## QA-013: Largest unmapped gap and unknown coverage
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+1. Select bars with contiguous regions and separated regions. Compare the
+   largest gap with their address ranges, including addresses above `2^53`.
+2. Repeat with partial, truncated, stale, and delayed layouts.
+3. Open help for Largest unmapped gap.
+
+Expected results: The fact shows the longest internal gap, including zero
+for contiguous regions. Incomplete coverage shows Unavailable and unknown
+cells. Help distinguishes address gaps from allocator free blocks.

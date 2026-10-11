@@ -9,7 +9,7 @@ resource samples, and browser history.
 - [x] **Growth facts.** Refresh on each memory sample, including unchanged
   layouts. Use **Heap mapping size change** and show the measured interval.
   Keep outlines labeled **mapped since the previous layout**.
-- [ ] **Largest unmapped gap.** Find the longest uncovered interval inside
+- [x] **Largest unmapped gap.** Find the longest uncovered interval inside
   the selected bar. Use `BigInt` for addresses and a current, complete layout.
   Keep **Largest region** separate. Explain that gaps are not allocator free
   blocks.
