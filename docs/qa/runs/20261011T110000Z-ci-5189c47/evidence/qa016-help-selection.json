@@ -1,0 +1,26 @@
+{
+ "helpButtons": [
+  "Explain Largest unmapped gap",
+  "Explain Heap display margin",
+  "Explain Main stack start",
+  "Explain Thread stacks",
+  "Explain Main stack"
+ ],
+ "helpBtn": 1,
+ "help": "Heap zoom · extended display range The grid includes a small margin above the page-aligned heap mapping end. Neighboring mappings keep their own colors. How to read it Watch existing grid cells change as the heap grows. The display span stays fixed until the heap leaves it. Heap facts still describe only the selected heap. Measurement limits The margin is capped at 1 MiB and requires a complete current layout. Selection or target changes reset it. The mapping end is not the exact program break. ",
+ "grown": "Heap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+ "barCount": 0,
+ "rows": [
+  "addr | 1000000001000000",
+  "arow on-dark | [stack] rw-p · 128.0 KiB · grows ↓",
+  "addr | 1000000000200000",
+  "arow | 2 anonymous regions rw-p · 128.0 KiB",
+  "addr | 1000000000120000",
+  "arow | neighbor rw-p · 64.0 KiB",
+  "addr | 1000000000000000",
+  "arow on-dark | [heap] rw-p · 1.3 MiB · grows ↑"
+ ],
+ "otherSel": "Top = high address. One square = 4.0 KiB (1 page), 16 squares.",
+ "backToHeap": "Heap display margin · heap mapping end 0x1000000000141000 · grid 0x1000000000000000 – 0x1000000000192000",
+ "diag": []
+}

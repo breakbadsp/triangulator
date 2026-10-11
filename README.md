@@ -94,6 +94,26 @@ Select **Inspect a moment**, step with **Previous** / **Next**, then select **Li
 
 [Benchmark method, results, and limits](docs/collector-comparison.md)
 
+## Test results
+
+Manual browser QA results are kept in the repository and checked in CI. Each case links to a
+dated run record with its package version, steps, and evidence.
+
+<!-- qa-summary:start -->
+| Status | Cases | Case IDs |
+| --- | ---: | --- |
+| PASSED | 32 | - |
+| FAILED | 2 | QA-007, QA-105 |
+| BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
+| NOT_RUN | 0 | - |
+| **Total** | **39** | |
+<!-- qa-summary:end -->
+
+[All case results](docs/qa/test-cases.md#current-results) ·
+[Run records](docs/qa/runs/) ·
+[CI check](https://github.com/breakbadsp/triangulator/actions/workflows/qa-results.yml) ·
+[How QA runs](docs/manual-qa.md)
+
 ## Documentation
 
 | Task | Links |

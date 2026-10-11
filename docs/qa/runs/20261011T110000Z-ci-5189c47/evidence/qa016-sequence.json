@@ -1,0 +1,46 @@
+{
+ "start": {
+  "caption": "Heap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+  "cells": 320,
+  "nonpad": 320,
+  "sub": "0x1000000000000000 – 0x1000000000100000 · rw-p · grows ↑"
+ },
+ "growWithin": {
+  "caption": "Heap display margin · heap mapping end 0x1000000000101000 · grid 0x1000000000000000 – 0x1000000000140000",
+  "cells": 320,
+  "nonpad": 320,
+  "sub": "0x1000000000000000 – 0x1000000000101000 · rw-p · grows ↑"
+ },
+ "growPast": {
+  "caption": "Heap display margin · heap mapping end 0x1000000000141000 · grid 0x1000000000000000 – 0x1000000000192000",
+  "cells": 448,
+  "nonpad": 402,
+  "sub": "0x1000000000000000 – 0x1000000000141000 · rw-p · grows ↑"
+ },
+ "growFar": {
+  "caption": "Heap display margin · heap mapping end 0x1000000000400000 · grid 0x1000000000000000 – 0x1000000000500000",
+  "cells": 448,
+  "nonpad": 427,
+  "sub": "0x1000000000000000 – 0x1000000000400000 · rw-p · grows ↑"
+ },
+ "contract": {
+  "caption": "Heap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+  "cells": 320,
+  "nonpad": 320,
+  "sub": "0x1000000000000000 – 0x1000000000100000 · rw-p · grows ↑"
+ },
+ "stale": {
+  "caption": "Top = high address. One square = 4.0 KiB (1 page), 256 squares. Uncovered cells are unknown: layout incomplete, stale, or historical.",
+  "cells": 256,
+  "nonpad": 256,
+  "sub": "0x1000000000000000 – 0x1000000000100000 · rw-p · grows ↑"
+ },
+ "partial": {
+  "caption": "Top = high address. One square = 4.0 KiB (1 page), 256 squares. Uncovered cells are unknown: layout incomplete, stale, or historical.",
+  "cells": 256,
+  "nonpad": 256,
+  "sub": "0x1000000000000000 – 0x1000000000100000 · rw-p · grows ↑"
+ },
+ "helpBtn": 0,
+ "diag": []
+}

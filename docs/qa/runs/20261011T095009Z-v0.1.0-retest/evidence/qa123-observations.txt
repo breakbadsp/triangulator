@@ -1,0 +1,26 @@
+{
+ "version": "152.0.7977.82",
+ "qa001": {
+  "target": "bb-healthy",
+  "meta": "PID 2087528 · Live · just now",
+  "threads": "(5)",
+  "err": "",
+  "verdict": "Healthy"
+ },
+ "second": 2089519,
+ "qa002": {
+  "meta": "PID 2089519 · Live · just now",
+  "name": "bb-healthy",
+  "threads": "(5)"
+ },
+ "qa002reload": {
+  "meta": "PID 2089519 · Live · just now",
+  "name": "bb-healthy",
+  "threads": "(5)"
+ },
+ "empty": "Please fill out this field.",
+ "badpid": "no running process with PID 2147483647",
+ "stillTarget": "PID 2089519 · Live · just now",
+ "afterReload": "PID 2089519 · Live · just now"
+}
+DIAG ["console.error: Failed to load resource: the server responded with a status of 404 (Not Found)","http 400: http://127.0.0.1:19861/api/target","console.error: Failed to load resource: the server responded with a status of 400 (Bad Request)"]

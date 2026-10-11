@@ -1,0 +1,15 @@
+{
+ "id": "118",
+ "name": "thread-churn",
+ "pid": 2156926,
+ "started": "2026-10-11T11:40:03.899Z",
+ "hold": 70,
+ "startComm": true,
+ "alive": true,
+ "meta": "PID 2156926 · Live · just now",
+ "churnTile": "Thread churn +0 / −0 lower bound · seen starting / ending, last minute",
+ "churnCard": "Thread churn Process · preceding minute Threads seen starting or ending during the last minute. This is a lower bound: a thread is counted only if a sample catches it alive. At 10/11/2026, 5:11:20 PM A thread that starts and exits between two samples is never seen, and the kernel offers no unprivileged count of threads created. At 2 samples/s, a thread living 10 ms is seen about 2% of the time. Raise the sample rate, or count thread creations inside the application. Select the information button for the guide.",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

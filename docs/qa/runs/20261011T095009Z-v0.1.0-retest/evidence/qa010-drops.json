@@ -1,0 +1,84 @@
+{
+ "tresSummary": {
+  "seq": 0,
+  "total": 4,
+  "kind": "TRES",
+  "part": 0,
+  "hoverTitle": {
+   "kind": "TRES",
+   "seq": 0,
+   "part": 0
+  }
+ },
+ "tresSummaryResult": {
+  "lines": [
+   "t=1.5s TRES seq 0: sender splits the sample into 4 datagram(s) (1232 + 1024 + 1024 + 384 B)",
+   "t=1.6s TRES seq 0 part 1/4 dropped in flight by you",
+   "t=4.4s TRES seq 0: no summary: sample discarded after the grace period"
+  ],
+  "dropLogCount": 1,
+  "asm": {
+   "seq": 2,
+   "total": 4,
+   "flagged": false,
+   "done": true,
+   "ok": 2,
+   "bad": 1
+  }
+ },
+ "tvmaSummary": {
+  "seq": 2,
+  "total": 4,
+  "kind": "TVMA",
+  "part": 0,
+  "hoverTitle": {
+   "kind": "TVMA",
+   "seq": 2,
+   "part": 0
+  }
+ },
+ "tvmaSummaryResult": {
+  "lines": [
+   "t=22.5s TVMA seq 2: sender splits the sample into 4 datagram(s) (200 + 1344 + 1344 + 512 B)",
+   "t=22.6s TVMA seq 2 part 1/4 dropped in flight by you",
+   "t=23.6s TVMA seq 2: all region parts arrived; layout updated"
+  ],
+  "dropLogCount": 1,
+  "asm": {
+   "seq": 3,
+   "total": 1,
+   "flagged": false,
+   "done": true,
+   "ok": 2,
+   "bad": 0
+  }
+ },
+ "tvmaRegion": {
+  "seq": 4,
+  "total": 4,
+  "kind": "TVMA",
+  "part": 1,
+  "hoverTitle": {
+   "kind": "TVMA",
+   "seq": 4,
+   "part": 1
+  }
+ },
+ "tvmaRegionResult": {
+  "lines": [
+   "t=42.5s TVMA seq 4: sender splits the sample into 4 datagram(s) (200 + 1344 + 1344 + 512 B)",
+   "t=42.6s TVMA seq 4 part 2/4 dropped in flight by you",
+   "t=43.4s TVMA seq 4: summary updated separately",
+   "t=45.4s TVMA seq 4: region parts missing; layout unchanged; assembly waits for a newer layout sample"
+  ],
+  "dropLogCount": 1,
+  "asm": {
+   "seq": 4,
+   "total": 4,
+   "flagged": true,
+   "done": false,
+   "ok": 2,
+   "bad": 0
+  }
+ }
+}
