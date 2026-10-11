@@ -702,8 +702,8 @@ helpTopic('vmsize','Virtual size (VmSize)','Process · mapped bytes','The total 
 helpTopic('memkinds','Anonymous / file / shared','Process · resident bytes by kind','Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and RssShmem.','','Growth in anonymous memory usually comes from allocations. File pages can be reclaimed and re-read.','The split comes from resource samples and needs them to be available. Shared pages count in full for each process that maps them.',['rss','anonres','cgroupmem']);
 helpTopic('vmas','Mappings (VMAs)','Process · count and vm.max_map_count','The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit.','','At the limit, mmap() and thread creation can fail with ENOMEM. A steady rise can indicate mappings that are never released.','Adjacent regions can merge or split without a change in memory use.',['memregions','vmsize','memlimits'],['Mappings','Regions / VMAs']);
 helpTopic('memfindings','Memory findings','Fixed rules applied in the browser','Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit.','','Read the severity and detail of each finding, then check the matching tile, limit, or region.','These are rules of thumb, not a diagnosis. They use only the latest samples.',['assessment','memlimits','amap']);
-helpTopic('amap','Address space map','Process · mappings, high addresses at the top','One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KB to the largest bar.','','Look for unexpectedly large anonymous or heap regions. Select a bar to zoom into its pages and regions.','Gaps between mappings are shortened. A large bar can use little RAM because mapped is not resident.',['memzoom','memkinds','vmsize'],['Address space map']);
-helpTopic('memzoom','Region zoom','Selected address-space bar','The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.','A 64 KB span with 48 KB mapped has 16 KB not mapped inside it.','Compare the span with the mapped size to see holes. Squares outlined as new were mapped since the previous layout.','The grid shows mappings, not residency. Which pages are resident, dirty, or swapped is not read.',['amap','memregions','heap'],['Size (mapped)','Address span','Not mapped inside','Largest region','Page size']);
+helpTopic('amap','Address space map','Process · mappings, high addresses at the top','One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar.','','Look for unexpectedly large anonymous or heap regions. Select a bar to zoom into its pages and regions.','Gaps between mappings are shortened. A large bar can use little RAM because mapped is not resident.',['memzoom','memkinds','vmsize'],['Address space map']);
+helpTopic('memzoom','Region zoom','Selected address-space bar','The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.','A 64 KiB span with 48 KiB mapped has 16 KiB not mapped inside it.','Compare the span with the mapped size to see holes. Squares outlined as new were mapped since the previous layout.','The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.',['amap','memregions','heap'],['Size (mapped)','Address span','Not mapped inside','Largest region','Page size']);
 helpTopic('heap','Heap size','Process · [heap] mapping over time','The size of the brk heap. It grows up when the allocator calls brk.','','A sustained rise, together with RSS growth, can indicate allocation growth.','Many allocators also use mmap arenas, which appear as anonymous memory instead. The chart covers only the time this page was open.',['anonres','stack','memkinds'],['Heap size ↑','Break moved']);
 helpTopic('vmdata','Data + heap (VmData)','Process · VmData from /proc/PID/status','The size of the process\'s private data segments: the brk heap, the data and BSS segments, and private writable mmap memory such as allocator arenas and thread stacks.','','VmData can grow while the [heap] mapping stays fixed, when the allocator uses mmap. Compare it with Heap size and Resident anonymous to see where the growth is.','It counts mapped address space, not resident memory. Memory that was never touched still counts.',['heap','anonres','memkinds'],['Data + heap (VmData)']);
 helpTopic('stack','Main stack','Main thread · [stack] mapping and RLIMIT_STACK','The size of the main thread stack mapping. It grows down when a page fault touches below it.','','Compare with RLIMIT_STACK. Near the limit, deep recursion can crash the process with SIGSEGV.','Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds.',['heap','memlimits'],['Main stack ↓','Stack grew']);
@@ -1817,6 +1817,9 @@ async function refreshMemoryLayout(){memoryLayoutLoading=true;
 // one stays on screen until then.
 function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
   return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
+const memoryBytes=value=>bytes(value).replace(/\b(K|M|G|T)B\b/g,'$1iB');
+function memoryPageSize(){const r=live.resources,page=r?.limits?.page_size;
+  return r?.available&&!r.stale&&r.pid===live.memory?.pid&&r.session===live.health?.session&&Number.isSafeInteger(page)&&page>0?page:null}
 function microseconds(value){return isNum(value)?(value>=1000?number(value/1000,1)+' ms':value+' µs'):'—'}
 function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',heap:'[heap]',stack:'[stack]'}[region.kind]??'')}
 // Bar colors, and whether the bar's text is white. Program code and
@@ -1926,7 +1929,7 @@ function rssTrend(){if(replayAt!==null||!live.resources?.available||live.resourc
     const trend={slope,span,rises,steps,steady};
     if(!best||(steady&&(!best.steady||slope>best.slope))||(!steady&&!best.steady))best=trend}
   return best}
-const signed=value=>(value>0?'+':value<0?'−':'')+bytes(Math.abs(value));
+const signed=value=>(value>0?'+':value<0?'−':'')+memoryBytes(Math.abs(value));
 
 function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
   const add=(level,title,detail,topic)=>findings.push({level,title,detail,topic});
@@ -1935,13 +1938,13 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
     if(share>=75){const anonymous=regions.filter(region=>region.cat==='anonymous').reduce((sum,region)=>sum+region.vmas,0),guards=regions.filter(region=>region.cat==='guard').reduce((sum,region)=>sum+region.vmas,0);
       add(share>=90?'critical':'warning','Mapping count is close to the limit',`${v.vma_count} of ${v.max_map_count} (vm.max_map_count). At the limit, mmap and thread creation fail with ENOMEM. ${anonymous} mappings are anonymous and ${guards} are guard pages.`)}}
   if(isNum(v.vm_size_bytes)&&v.address_space_limit_bytes>0){const share=100*v.vm_size_bytes/v.address_space_limit_bytes;
-    if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${bytes(v.vm_size_bytes)} of ${bytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
+    if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${memoryBytes(v.vm_size_bytes)} of ${memoryBytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
   const faults=memoryFaultRate(),psi=memoryPressure(r);
-  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${bytes(r.memory.swap)} is swapped out`:''}.`,'faults');
+  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${memoryBytes(r.memory.swap)} is swapped out`:''}.`,'faults');
   else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`,'faults');
   const trend=rssTrend(),heap=rows.find(row=>row.cat==='heap');
-  if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${bytes(r?.memory?.anon)}${heap?`; heap: ${bytes(heap.size)}`:''}.`);
-  if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${bytes(r.memory.swap)} in swap next to ${bytes(r.memory.rss)} resident. Touching it costs a major fault.`);
+  if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${memoryBytes(r?.memory?.anon)}${heap?`; heap: ${memoryBytes(heap.size)}`:''}.`);
+  if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${memoryBytes(r.memory.swap)} in swap next to ${memoryBytes(r.memory.rss)} resident. Touching it costs a major fault.`);
   // Only code matters: deleted data files (shared memory, temporary files)
   // are normal, and the sampler may cut the start of long names.
   // A guessed program image is reported as an executable file, not as the program.
@@ -1949,7 +1952,7 @@ function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.re
   if(deleted.length)add('info',deleted.some(region=>region.cat==='code'&&region.certain)?'Program replaced on disk':deleted.some(region=>region.cat==='code')?'Executable file replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
   const stack=regions.find(region=>region.cat==='stack');
   if(stack&&v.stack_limit_bytes>0){const share=100*stack.size/v.stack_limit_bytes;
-    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${bytes(stack.size)}; RLIMIT_STACK is ${bytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.`)}
+    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${memoryBytes(stack.size)}; RLIMIT_STACK is ${memoryBytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Thread stacks have a fixed size and are not counted here.`)}
   if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
   const order=['critical','serious','warning','info','good'];
   return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
@@ -1978,11 +1981,11 @@ function renderMemoryFindings(findings){const list=element('memory-findings');if
 
 function renderMemoryTiles(m){if(helpOwns(element('memory-tiles')))return;const v=m.values||{},r=live.resources?.available?live.resources:null,memory=r?.memory||{};
   const tiles=[],tile=(label,value,sub,bad)=>tiles.push([label,value,sub,bad]);
-  tile('Virtual size (VmSize)',bytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${bytes(v.address_space_limit_bytes)} · peak ${bytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${bytes(v.vm_peak_bytes)}`);
+  tile('Virtual size (VmSize)',memoryBytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${memoryBytes(v.address_space_limit_bytes)} · peak ${memoryBytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${memoryBytes(v.vm_peak_bytes)}`);
   const trend=rssTrend(),growth=trend?.slope??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
-  tile('Resident (RSS)',bytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${bytes(Math.abs(growth))} / min`:`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`,trend?trend.steady:growth>=2**20);
+  tile('Resident (RSS)',memoryBytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${memoryBytes(Math.abs(growth))} / min`:`peak ${memoryBytes(memory.peak)} · swap ${memoryBytes(memory.swap)}`,trend?trend.steady:growth>=2**20);
   const split=[memory.anon,memory.file,memory.shmem];
-  if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GB',2**30]:largest>=2**20?['MB',2**20]:['KB',2**10];
+  if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GiB',2**30]:largest>=2**20?['MiB',2**20]:['KiB',2**10];
     tile('Anonymous / file / shared',split.map(value=>isNum(value)?number(value/unit[1],value/unit[1]>=10?0:1):'—').join(' / '),`${unit[0]}: RssAnon / File / Shmem`)}
   else tile('Anonymous / file / shared','—','needs resource samples');
   const vmaShare=v.max_map_count>0&&isNum(v.vma_count)?100*v.vma_count/v.max_map_count:null;
@@ -1998,11 +2001,11 @@ function renderMemoryMap(rows){const host=element('memory-amap');host.replaceChi
   if(!rows.length){host.append(node('p','No layout yet. It arrives with the next memory-map sample.','muted'));return}
   const largest=Math.log2(Math.max(...rows.filter(row=>!row.gap).map(row=>row.size))),scale=size=>Math.max(0,Math.min(1,(Math.log2(Math.max(size,4096))-12)/Math.max(1,largest-12)));
   for(const row of rows){
-    if(row.gap){host.append(node('div','⋮','addr'),node('div',row.gap>=2**52?'kernel half of the address space':`≈ ${bytes(row.gap)} not mapped`,'agap'));continue}
+    if(row.gap){host.append(node('div','⋮','addr'),node('div',row.gap>=2**52?'kernel half of the address space':`≈ ${memoryBytes(row.gap)} not mapped`,'agap'));continue}
     const [color,onDark]=MEMORY_KINDS[row.cat],bar=node('button',undefined,'arow'+(onDark?' on-dark':''));
     bar.style.setProperty('--kind',color);bar.style.height=Math.round(24+20*scale(row.size))+'px';bar.setAttribute('aria-pressed',String(row.key===memorySelected));
     const band=node('div',undefined,'band');band.style.width=(100*scale(row.size)).toFixed(1)+'%';
-    bar.append(band,node('span',memoryRowName(row),'name'),node('span',`${memoryPerms(row)} · ${bytes(row.size)}${memoryGrows(row.cat)}`,'meta'));
+    bar.append(band,node('span',memoryRowName(row),'name'),node('span',`${memoryPerms(row)} · ${memoryBytes(row.size)}${memoryGrows(row.cat)}`,'meta'));
     bar.dataset.hint=`${memoryRowName(row)}\n0x${row.lo.toString(16)} – 0x${row.hi.toString(16)}\n${row.members.length} region(s), ${row.vmas} VMAs`;
     bar.onclick=()=>{memorySelected=row.key;for(const other of host.querySelectorAll('.arow'))other.setAttribute('aria-pressed',String(other===bar));renderMemoryZoom(row)};
     host.append(node('div',row.lo.toString(16),'addr'),bar)}}
@@ -2020,15 +2023,15 @@ function renderMemoryZoom(row){const v=live.memory?.values||{};
   const span=Number(row.hi-row.lo);
   element('memory-zoom-sub').textContent=`0x${row.lo.toString(16)} – 0x${row.hi.toString(16)} · ${memoryPerms(row)}${memoryGrows(row.cat)}`;
   const fact=(label,value)=>{const item=node('div');item.append(helpButtonLabel(label,topicForText(label)||'memzoom','help-fact','dt'),node('dd',value));facts.append(item)};
-  fact('Size (mapped)',bytes(row.size));fact('Address span',bytes(span));
+  fact('Size (mapped)',memoryBytes(row.size));fact('Address span',memoryBytes(span));
   fact('Regions / VMAs',`${row.members.length} / ${row.vmas}`);fact('Share of VmSize',v.vm_size_bytes>0?pct(100*row.size/v.vm_size_bytes):'—');
-  fact('Not mapped inside',bytes(span-row.size));fact('Largest region',bytes(Math.max(...row.members.map(region=>region.size))));
+  fact('Not mapped inside',memoryBytes(span-row.size));fact('Largest region',memoryBytes(Math.max(...row.members.map(region=>region.size))));
   const key=row.cat==='heap'?'heap':row.cat==='stack'?'stack':null,points=memoryHistory.filter(point=>isNum(point[key]));
   fact(row.cat==='heap'?'Break moved':row.cat==='stack'?'Stack grew':'Grows',key?(points.length>=2?`${signed(points.at(-1)[key]-points[0][key])} in ${duration(points.at(-1).t-points[0].t)}`:'collecting…'):'no (fixed size)');
-  fact('Page size','4 KB');
+  const page=memoryPageSize();fact('Page size',page?memoryBytes(page):'Unknown');
   // At most 512 squares of whole pages, high addresses on the top row.
-  const cell=Math.max(4096,Math.ceil(span/512/4096)*4096),count=Math.ceil(span/cell),columns=64,lines=Math.ceil(count/columns);
-  element('memory-grid-caption').textContent=`Top = high address. One square = ${bytes(cell)} (${cell/4096} page${cell===4096?'':'s'}), ${count} squares.`;
+  const unit=page||1,cell=Math.max(unit,Math.ceil(span/512/unit)*unit),count=Math.ceil(span/cell),columns=64,lines=Math.ceil(count/columns);
+  element('memory-grid-caption').textContent=`Top = high address. One square = ${memoryBytes(cell)}${page?` (${cell/page} page${cell===page?'':'s'})`:''}, ${count} squares.`;
   const offset=region=>[Number(region.lo-row.lo),Number(region.hi-row.lo)];
   const members=row.members.map(region=>[region,...offset(region)]);
   const shown=new Map(),swatch=(label,className,color)=>{const item=node('span'),mark=node('i',undefined,'sw '+className);if(color)mark.style.background=color;item.append(mark,label);return item};
@@ -2044,7 +2047,7 @@ function renderMemoryZoom(row){const v=live.memory?.values||{};
     grid.append(square)}
   legend.append(...shown.values());
   for(const region of row.members.slice(0,300)){const tr=node('tr'),name=node('td',memoryRegionName(region)||region.cat);name.dataset.hint=region.name;
-    tr.append(name,node('td',region.start,'mono'),node('td',bytes(region.size),'num'),node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(tr)}}
+    tr.append(name,node('td',region.start,'mono'),node('td',memoryBytes(region.size),'num'),node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(tr)}}
 
 // A small chart scaled from the lowest to the highest value, so steps of a
 // page stay visible.
@@ -2058,7 +2061,7 @@ function memoryChart(title,points,key,color){const box=node('div',undefined,'mem
   // Steps, not slopes: the value holds until the next sample.
   let path='';values.forEach((point,index)=>{path+=index?` ${x(point.t).toFixed(1)},${y(values[index-1][key]).toFixed(1)} ${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`:`${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`});
   svg.append(svgNode('polyline',{points:path,fill:'none',stroke:color,'stroke-width':2,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round'}));
-  box.append(node('div',`${bytes(values[0][key])} → ${bytes(values.at(-1)[key])}`,'range'));return box}
+  box.append(node('div',`${memoryBytes(values[0][key])} → ${memoryBytes(values.at(-1)[key])}`,'range'));return box}
 function renderMemoryCharts(host){if(helpOwns(host))return;host.replaceChildren();
   host.append(memoryChart('Heap size ↑',memoryHistory,'heap','var(--k-heap)'),memoryChart('Main stack ↓',memoryHistory,'stack','var(--k-stack)'),memoryChart('Resident anonymous',memoryHistory,'anon','var(--k-anon)'))}
 
@@ -2076,10 +2079,10 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   const limits=element('memory-limits'),facts=element('memory-facts');
   if(!helpOwns(limits)){limits.replaceChildren();
   limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
-  limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${bytes(v.vm_size_bytes)} / ${bytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,bytes(v.vm_size_bytes)));
-  if(stack)limits.append(isNum(v.stack_limit_bytes)?meter('Main stack','RLIMIT_STACK; the [stack] mapping',stack.size,v.stack_limit_bytes,`${bytes(stack.size)} / ${bytes(v.stack_limit_bytes)}`):meter('Main stack','no RLIMIT_STACK limit',null,0,bytes(stack.size)))}
+  limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${memoryBytes(v.vm_size_bytes)} / ${memoryBytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,memoryBytes(v.vm_size_bytes)));
+  if(stack)limits.append(isNum(v.stack_limit_bytes)?meter('Main stack','RLIMIT_STACK; the [stack] mapping',stack.size,v.stack_limit_bytes,`${memoryBytes(stack.size)} / ${memoryBytes(v.stack_limit_bytes)}`):meter('Main stack','no RLIMIT_STACK limit',null,0,memoryBytes(stack.size)))}
   if(!helpOwns(facts)){facts.replaceChildren();
-  for(const [label,value] of [['Peak virtual size',bytes(v.vm_peak_bytes)],['Data + heap (VmData)',bytes(v.vm_data_bytes)],['Page tables',bytes(v.vm_pte_bytes)],['Locked',bytes(v.vm_locked_bytes)],
+  for(const [label,value] of [['Peak virtual size',memoryBytes(v.vm_peak_bytes)],['Data + heap (VmData)',memoryBytes(v.vm_data_bytes)],['Page tables',memoryBytes(v.vm_pte_bytes)],['Locked',memoryBytes(v.vm_locked_bytes)],
     ['Page faults since start',`${number(v.major_faults,0)} major · ${number(v.minor_faults,0)} minor`],['Longest maps read',`${microseconds(v.maps_read_max_us)} (${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} total)`]]){
     const item=node('div');item.append(helpButtonLabel(label,topicForText(label),'help-fact','dt'),node('dd',value));facts.append(item)}}
   const notes=[];

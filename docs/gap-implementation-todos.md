@@ -3,7 +3,7 @@
 Memory zoom tasks, in implementation order. Use existing memory layouts,
 resource samples, and browser history.
 
-- [ ] **Page size and units.** Use `live.resources.limits.page_size` for the
+- [x] **Page size and units.** Use `live.resources.limits.page_size` for the
   zoom grid and KiB/MiB/GiB for binary-scaled values. If page size is unknown,
   show cell sizes in bytes. Keep at most 512 cells.
 - [ ] **Growth facts.** Refresh on each memory sample, including unchanged

@@ -251,3 +251,16 @@ layout count excludes summary-only samples.
 TSIO counts received datagrams separately. The browser has no script errors.
 
 Source: [Wire format overview](../wire-format-overview.html).
+
+## QA-011: Memory zoom page size and units
+
+Feature: Memory map zoom. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Dashboard fixtures with 4 KiB, 64 KiB, and missing page sizes.
+
+1. Select a region in each fixture and inspect the page size and grid caption.
+2. Repeat with stale resource data and resource data from another target.
+
+Expected results: Binary values use KiB/MiB/GiB. Valid metadata sets the page
+size and cell page count. Missing or invalid metadata shows Unknown and byte
+sizes without page counts. The grid has at most 512 cells.

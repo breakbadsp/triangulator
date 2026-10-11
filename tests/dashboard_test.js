@@ -1047,7 +1047,7 @@ test('a leak with a few non-rising steps is still found, and the tile uses the s
   assert.ok(growthFindings(app).includes(GROWS));
   const tile = JSON.parse(app.run(`(()=>{renderMemoryTiles({values:{}});return JSON.stringify(element('memory-tiles').children.map(box=>box.children.map(child=>child.textContent)))})()`));
   const resident = tile.find(box => box[0] === 'Resident (RSS)');
-  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MB \/ min$/);
+  assert.match(resident[2], /^▲ 1[12][0-9](\.[0-9])? MiB \/ min$/);
 });
 
 function helpClock() {
@@ -1355,4 +1355,24 @@ test('a skipped zoom rebuild is applied once help closes', () => {
   // Unrelated hosts are not held back while the zoom is skipped.
   app.run("helpTimer.request('zoom',{target:element('memory-zoom-facts').children[0].children[0],id:'memzoom'});live.memory.values.vma_count=777;renderMemory()");
   assert.ok(app.run("element('memory-tiles').children.some(box=>box.children.some(child=>child.textContent==='777'))"));
+});
+
+test('memory zoom uses target page size and omits unknown page counts', () => {
+  const app = dashboard();
+  app.run(`live={health:{session:'s'},memory:{pid:1},resources:{available:true,session:'s',pid:1,limits:{page_size:4096}}};
+    zoomRow=memoryRows(memoryRegions({regions:[{start:'0x100000',end:'0x500000',size:4194304,vmas:1,kind:'heap',permissions:'rw-p'}]}))[0]`);
+  for (const page of [4096,65536]) {
+    app.run(`live.resources.limits.page_size=${page};renderMemoryZoom(zoomRow)`);
+    assert.match(app.elements.get('memory-grid-caption').textContent, /KiB.*pages?\)/);
+    assert.ok(app.elements.get('memory-grid').children.length <= 512);
+    assert.equal(app.run('memoryPageSize()'), page);
+  }
+  for (const change of ['delete live.resources.limits.page_size','live.resources.stale=true','live.resources.pid=2','live.resources.session="old"']) {
+    app.run('live.resources={available:true,session:"s",pid:1,limits:{page_size:4096}}');
+    app.run(`${change};renderMemoryZoom(zoomRow)`);
+    assert.equal(app.run('memoryPageSize()'), null);
+    assert.doesNotMatch(app.elements.get('memory-grid-caption').textContent, /\(.*page/);
+    assert.ok(app.elements.get('memory-grid').children.length <= 512);
+  }
+  assert.equal(app.run('memoryBytes(2**30)'), '1.0 GiB');
 });
