@@ -190,6 +190,7 @@ and value. Legend help explains the series without changing its toggle action.
 | --- | --- |
 | Section navigation | Current section highlight; tab selection; updates on scroll; Monitor at the bottom of the page |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
+| Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
 | Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window |
 | Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment |

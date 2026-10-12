@@ -54,7 +54,9 @@ nav.tabs a:hover{background:var(--raised);color:var(--ink)}
 nav.tabs a[aria-current=location]{background:var(--accent-wash);color:var(--accent-ink);box-shadow:inset 0 -2px var(--accent)}
 .icon-btn{padding:6px 9px;line-height:1}
 .banner{max-width:1480px;margin:12px auto 0;padding:10px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--critical) 45%,transparent);background:color-mix(in srgb,var(--critical) 10%,var(--surface));display:flex;gap:10px;align-items:center}
-.banner:empty{display:none}
+.banner:empty,.banner[hidden]{display:none}
+.banner.exited{border-color:color-mix(in srgb,var(--warning) 50%,transparent);background:color-mix(in srgb,var(--warning) 10%,var(--surface))}
+.banner.exited span{flex:1}
 
 main{max-width:1480px;margin:auto;padding:20px 24px 60px}
 section.block{margin-top:30px}
@@ -334,6 +336,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </header>
 <div id="error" class="banner" role="status"></div>
+<div id="exited" class="banner exited" role="status" data-help="exited" hidden><span id="exited-text"></span><button id="exited-live">Show live</button></div>
 
 <main>
 <section id="target-settings" class="card" aria-label="Change target" hidden>
@@ -577,7 +580,13 @@ const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
 let live={},windowSecs=300,activity='active',stateFilter='',wchanFilter='',selected=null,socketData=null,socketMetric='input',settingsInfo=null;
 // Rolling whole-process series: one point per new sample tick.
 let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null,liveMapWindow=0,savedLiveAnalysis=null;
-const viewNow=()=>replayAt??Date.now()/1000;
+// The final view of a target that exited: {at, live}. It stays on screen,
+// with the trends kept in this tab, until the user selects Show live.
+let frozen=null,frozenChecked=false,finalViewChecked=null,settleSince=null;
+// The session the user left with Change target; leaving it is not an exit.
+let leftByChoice=null;
+const liveNow=()=>frozen?.at??Date.now()/1000;
+const viewNow=()=>replayAt??liveNow();
 let buffer=[],bufferSession=null,lastTick=0,previousThreads=null,loadState=null;
 let threadCpu=new Map();
 // Per-thread CPU every 10 s for 15 min, for the thread map's averages. Each
@@ -665,6 +674,7 @@ helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The r
 helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
 helpTopic('target','Process name or PID','Target selection','An exact process name follows matching process restarts. A PID selects one running process.','worker-service selects an exact name; 1234 selects a process ID.','A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.','Linux process names are limited to 15 bytes. A thread ID is not a process ID.',['session','health'],['Change target']);
 helpTopic('replay','Inspect a moment','Recording · local time','Inspect the nearest available recording at or before the selected local date and time.','','Compare the requested time with the returned recording time. Previous and Next move between recordings; Live resumes the live view.','Recording can be disabled. A recording is not an interpolated frame, and old summaries cannot reconstruct a complete snapshot.',['history','health'],['Inspection time','Previous recorded snapshot','Next recorded snapshot','Latest recording','Inspect time','Live']);
+helpTopic('exited','Final view of the target','Target stopped reporting','When the sampler can no longer find the target, the dashboard keeps the last view in which the target was present, with the trends this tab collected (up to 15 minutes), instead of clearing them.','A service crashes at 14:03:12. The summary, threads, resources and memory panels keep the values sampled just before then, and the charts end at that time.','Investigate the final state, open a thread to read its stored history, or use Inspect a moment for earlier recordings. Show live clears the final view and follows the current sampler session.','A tab opened after the exit gets the collector\'s last view but no earlier trends; a collector restart forgets that view. The target also stops reporting when another tab or script changes the target. If the process restarts before the sampler finds it missing, no final view is kept; recordings and thread summaries remain available.',['replay','history','session'],['Show live','Stopped reporting']);
 helpTopic('history','History','Thread · stored five-second summaries','Stored summaries show CPU, run delay, state samples, and I/O for the selected thread generation.','','Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.','Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.',['replay','mix','samples'],['From','To','History range','Chart time window','Load']);
 helpTopic('samples','Samples','Count per stored bucket','The number of observations included in a stored summary bucket.','','Use the count to assess how much data supports the state mix and rates.','A partial bucket or packet loss can reduce the count.',['history','loss']);
 helpTopic('pressure','Pressure stalls (PSI)','Displayed host or cgroup · time share','Pressure stall information measures time tasks waited for CPU, memory, or I/O.','Some: at least one task waited. Full: all non-idle tasks waited at once.','Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.','The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.',['throttle','rss','disk'],['Pressure, limits & sockets','Pressure scope','CPU pressure','Memory pressure','I/O pressure','Cgroup some','Cgroup full','Host some','Host full','Resource','Memory pressure (PSI some)']);
@@ -1235,7 +1245,7 @@ function renderOverview(){
   renderAssessment(threads);renderTiles(threads,points);renderCores(threads);
   if(!steady('mosaic'))renderMosaic(threads);if(!steady('family-bars'))renderFamilies(threads);if(!steady('wchan-bars'))renderWchans(threads);
   element('chart-load').hidden=replayAt!==null;element('chart-states').hidden=replayAt!==null;
-  element('overview-sub').textContent=replayAt!==null?`Recorded process view at ${date(replayAt)}. CPU and I/O rates cover the preceding ~10 seconds; live trends and load averages are unavailable here.`:threads.length?`How ${targetName()} is behaving, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab since '+clock(buffer[0].t)+'.':''}`:'Waiting for the sampler to report the target process.'}
+  element('overview-sub').textContent=replayAt!==null?`Recorded process view at ${date(replayAt)}. CPU and I/O rates cover the preceding ~10 seconds; live trends and load averages are unavailable here.`:frozen&&threads.length?`Final view of ${targetName()} before it stopped reporting at ${clock(frozen.at)}, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab from '+clock(buffer[0].t)+'.':''}`:threads.length?`How ${targetName()} is behaving, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab since '+clock(buffer[0].t)+'.':''}`:'Waiting for the sampler to report the target process.'}
 // Tiles carry a number only when they fit and the thread used CPU; idle
 // threads stay blank and faded rather than printing 0%.
 const MOSAIC_DENSE=300;
@@ -1642,11 +1652,11 @@ function renderResourceSockets(r){
 function renderResources(){const r=live.resources,empty=element('resources-empty'),content=element('resources-content');
   if(!r||!r.available){empty.hidden=false;content.hidden=true;empty.textContent=r?.reason||'This collector does not report resource samples.';return}
   empty.hidden=true;content.hidden=false;
-  const points=resourcePoints(),now=Date.now()/1000,range={from:now-resourceRange,to:now};
+  const points=resourcePoints(),now=liveNow(),range={from:now-resourceRange,to:now};
   element('resources-sub').textContent=`What the threads share: time lost waiting for CPU, memory and I/O, headroom before hard limits, and data stuck in socket buffers. ${r.stale?'Stale: no sample since '+ago(now-r.updated)+'.':'Updated '+ago(now-r.updated)+'.'}`;
   renderResourceTiles(r,points);renderPressure(r,points,range);renderLimits(r);renderQueues(r,points,range);renderNetstack(r,points);
   if(!element('resource-sockets').matches(':hover'))renderResourceSockets(r)}
-async function refreshResources(){try{const end=Date.now()/1000;
+async function refreshResources(){try{const end=liveNow();
     const response=await fetch('/api/resources?'+new URLSearchParams({start:end-resourceRange,end}));
     if(response.ok){resourceHistory=await response.json();if(live.health)renderResources()}}
   catch(error){}}
@@ -1743,12 +1753,53 @@ async function saveTarget(event){event.preventDefault();if(element('target-save'
   element('target-save').disabled=true;element('target-input').disabled=true;targetStatus('Applying…');
   try{const response=await fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify({target})});
     const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to change target');
-    element('target-input').value=data.target;targetStatus(data.message);element('target-status').className='good'}
+    element('target-input').value=data.target;targetStatus(data.message);element('target-status').className='good';
+    leftByChoice=bufferSession;showLive()}
   catch(error){targetStatus(error.message,true)}
   finally{element('target-save').disabled=false;element('target-input').disabled=false}}
 element('target-toggle').onclick=toggleTarget;
 element('target-cancel').onclick=()=>{element('target-settings').hidden=true;element('target-toggle').setAttribute('aria-expanded','false');element('target-toggle').focus()};
 element('target-form').onsubmit=saveTarget;
+
+// ---------- Final view of an exited target ----------
+// When the target disappears, the sampler starts a new session without it.
+// The collector then reports no threads, and ingest() would discard this
+// tab's trends. Keep the last view of the old session instead.
+const FROZEN_KEY='triangulator:frozen';
+function forgetFrozen(){try{sessionStorage.removeItem(FROZEN_KEY)}catch{}}
+// The collector drops the old threads as soon as a new session's first
+// datagram arrives, but reports target_absent only when that tick is
+// processed, up to ~2 s later. Until then the new session has no threads and
+// its absence is not known, so keep the current view for a few seconds.
+const SETTLE_SECS=10;
+function settling(next){const waiting=next.health.session!==bufferSession&&next.health.target_absent!==true&&!(next.threads||[]).length&&bufferSession!==leftByChoice&&buffer.length>0&&live.health?.session===bufferSession&&(live.threads||[]).length>0;
+  if(!waiting){settleSince=null;return false}
+  settleSince??=Date.now()/1000;return Date.now()/1000-settleSince<SETTLE_SECS}
+function targetExited(next){return next.health?.target_absent===true&&next.health.session!==bufferSession&&bufferSession!==leftByChoice&&buffer.length>0&&live.health?.session===bufferSession&&(live.threads||[]).length>0}
+// A tab that was not watching when the target exited uses the collector's
+// copy of the last view in which the target was present.
+function collectorKeptView(next){const kept=next.health?.last_target?.session;return next.health.target_absent===true&&typeof kept==='string'&&kept!==leftByChoice&&kept!==finalViewChecked}
+async function loadFinalView(session){finalViewChecked=session;
+  try{const response=await fetch('/api/last-target');if(!response.ok)return;const view=await response.json();
+    if(view.health?.session!==session||!(view.threads||[]).length||frozen||replayAt!==null)return;
+    live=view;ingest();freeze()}catch{}}
+function renderFrozenView(){renderExited();renderReplayView();renderResources();refreshResources()}
+function freeze(){frozen={at:lastTick,live};finalViewChecked=live.health.session;saveBuffer();
+  try{sessionStorage.setItem(FROZEN_KEY,JSON.stringify(frozen))}catch{forgetFrozen()}
+  renderFrozenView()}
+// A reload keeps the final view while its trends are in session storage.
+function restoreFrozen(){let saved=null;try{saved=JSON.parse(sessionStorage.getItem(FROZEN_KEY)||'null')}catch{}
+  if(!saved?.live?.health||!isNum(saved.at)||saved.live.health.session===latestLive.health.session){forgetFrozen();return}
+  frozen=saved;live=saved.live;ingest();renderFrozenView()}
+function showLive(){if(!frozen)return;frozen=null;forgetFrozen();renderExited();
+  if(replayAt!==null)return;
+  if(selected)closeThread();
+  if(latestLive?.health){live=latestLive;ingest();renderReplayView();renderResources()}
+  refreshResources()}
+function renderExited(){const banner=element('exited');banner.hidden=!frozen;if(!frozen)return;
+  const pid=frozen.live.health?.pid,next=latestLive?.health;
+  element('exited-text').textContent=`${viewTargetName(frozen.live)}${pid?' (PID '+pid+')':''} stopped reporting at ${date(frozen.at)}: it exited or is no longer the target. Showing its final view`+(buffer.length>1?' and the trends this tab kept before then.':'. This tab has no earlier trends; thread history and recordings remain available.')+(next&&next.session!==frozen.live.health.session&&!next.target_absent&&next.pid?` A new process (PID ${next.pid}) is being monitored.`:'')}
+element('exited-live').onclick=showLive;
 
 // Historical inspection uses the same thread/process renderers with an isolated
 // analysis buffer. Recorded frames never overwrite the tab's live trends.
@@ -1791,9 +1842,9 @@ async function inspectTime(at,direction='at'){
 }
 async function returnLive(){const request=++replayRequest;
   if(replayAt===null){element('replay-note').textContent='Live view. Choose a time to inspect a recording.';return}
-  if(!latestLive?.health){try{const response=await fetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
+  if(!frozen&&!latestLive?.health){try{const response=await fetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
   if(request!==replayRequest)return;
-  if(selected)closeThread();replayAt=null;live=latestLive;
+  if(selected)closeThread();replayAt=null;live=frozen?.live??latestLive;
   if(savedLiveAnalysis?.bufferSession===live.health.session){
     ({buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=savedLiveAnalysis);
   }else loadBuffer(live.health.session);
@@ -1943,7 +1994,7 @@ function memorySlope(points,key){const values=points.filter(point=>isNum(point[k
 const RSS_TREND_WINDOWS=[60,120,180],RSS_TREND_MIN_SPAN=30,RSS_TREND_MIN_POINTS=6;
 function rssTrend(){if(replayAt!==null||!live.resources?.available||live.resources.stale)return null;
   const all=resourcePoints();if(!all.length)return null;
-  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||Date.now()/1000-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||liveNow()-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
   if(!isNum(live.health?.pid)||newest.pid!==live.health.pid)return null;
   let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
   const run=all.slice(first).filter(point=>isNum(point.rss_bytes));let best=null;
@@ -2197,16 +2248,22 @@ function initSectionNavigation(){
   }
   update();
 }
-function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
+function targetName(){return viewTargetName(live)}
+function viewTargetName(view){const health=view.health||{};return (view.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
 function renderTop(){const health=live.health,dot=element('live-dot');
-  const state=replayAt!==null?['warning','Historical']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
+  const state=replayAt!==null?['warning','Historical']:frozen?['critical','Stopped reporting']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
   dot.className='status-dot '+state[0];dot.dataset.hint=state[1];
   element('target-name').textContent=health.target_absent===null?'No target yet':targetName();
-  element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
+  element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(frozen&&replayAt===null?' · at '+clock(frozen.at):health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
   document.title=(health.pid?targetName()+' · ':'')+'Triangulator';
   element('error').textContent=health.sampler_silent?'⚠ Sampler is silent. Displayed thread data may be stale.':''}
 async function refresh(){try{const response=await fetch('/api/live');if(!response.ok)throw Error('Collector HTTP error');
-    latestLive=await response.json();if(replayAt!==null)return;
+    latestLive=await response.json();
+    if(latestLive.health&&!frozenChecked){frozenChecked=true;restoreFrozen()}
+    if(replayAt===null&&!frozen&&settling(latestLive)){renderExited();return}
+    if(replayAt===null&&!frozen&&targetExited(latestLive))freeze();
+    if(replayAt===null&&!frozen&&collectorKeptView(latestLive))await loadFinalView(latestLive.health.last_target.session);
+    renderExited();if(replayAt!==null||frozen)return;
     live=latestLive;if(!live.health)return;
     const alerting=Array.isArray(live.alerts);showAlerting(alerting);
     ingest();

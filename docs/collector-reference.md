@@ -88,7 +88,12 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
   Its `memory` object is the latest memory-map summary
-  ([memory-map.md](memory-map.md)).
+  ([memory-map.md](memory-map.md)). While the target is absent, `health`
+  also has `last_target`: the `session`, `pid` and `recorded_at` of the last
+  view in which the target was present with threads.
+- `GET /api/last-target`: that last view, in the `/api/live` format, or
+  `{"available":false}` before a target was seen. Kept in memory only, so a
+  collector restart forgets it ([Final view](#final-view-after-the-target-exits)).
 - `GET /api/memory-map`: the latest complete memory-map layout: regions with
   start and end addresses (hex strings), size, kind, permissions and mapping
   count. Not stored; only the latest layout is kept.
@@ -148,7 +153,7 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
 | `memory.hpp` | `MemoryMonitor`: memory-map summary and layout reassembly, live and layout JSON |
 | `storage.hpp` | SQLite day files, retention, history queries |
-| `http.hpp` | Dashboard server and the `/api/live`, `/api/memory-map`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
+| `http.hpp` | Dashboard server and the `/api/live`, `/api/last-target`, `/api/memory-map`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
 | `replay.hpp` | Recording thread for dashboard views, and the `/api/replay` queries |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
@@ -178,6 +183,23 @@ completion marker is configured, messages processed. See
 [the socket design and setup guide](socket-ingress-design.md) for build
 instructions, permissions, the marker contract, and explicit coverage limits.
 
+
+## Final view after the target exits
+
+When the sampler can no longer find the target, it starts a new session with
+no threads. The collector drops the old threads as soon as the new session's
+first datagram arrives, but reports the absence only when that tick is processed,
+so the dashboard waits up to 10 seconds before it accepts an empty new session.
+The dashboard does not clear the page. It keeps the last view in
+which the target was present, with the trends the tab collected (up to 15
+minutes), and shows a **Show live** banner. Charts and the resource range end at
+the last sample. The view and its trends survive a page reload in the same tab.
+
+A tab opened after the exit reads the final view from `GET /api/last-target`,
+without the earlier trends. Thread history, resource samples and recordings
+remain in SQLite as before. A target change made from the same tab is not
+treated as an exit. If the process restarts before the sampler finds it missing,
+there is no absent session and no final view; use **Inspect a moment**.
 
 ## Historical process inspection
 

@@ -460,6 +460,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(final["health"]["session"], session)
                 self.assertFalse(final["health"]["target_absent"])
                 self.assertEqual(final["threads"][0]["name"], "sleep")
+                self.assertIn(b'id="exited"', page)
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:

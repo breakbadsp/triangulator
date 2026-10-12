@@ -922,6 +922,123 @@ test('returning from replay discards CPU history from an earlier live session', 
   assert.equal(app.run('buffer.length'), 1);
 });
 
+// A live poll that answers /api/live with p_view and /api/last-target with
+// p_kept.
+function polls(view, kept = {available: false}) {
+  return url => url === '/api/live' ? jsonResponse(view())
+    : url === '/api/last-target' ? jsonResponse(kept) : undefined;
+}
+const absent = (session = 'session-2', lastTarget) =>
+  ({health: {session, target_absent: true, pid: 0, ...(lastTarget ? {last_target: lastTarget} : {})}, threads: []});
+
+test('a target that stops reporting leaves its final view and trends on screen until Show live', async () => {
+  let view = absent();
+  const app = dashboard(new Map(), polls(() => view));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.at'), 1100);
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.equal(app.run('buffer.length'), 101);
+  assert.equal(app.run('liveNow()'), 1100);
+  assert.equal(app.elements.get('exited').hidden, false);
+  assert.match(app.elements.get('exited-text').textContent, /stopped reporting/);
+  assert.match(app.elements.get('exited-text').textContent, /trends this tab kept/);
+  assert.match(app.elements.get('target-meta').textContent, /Stopped reporting/);
+  // A new process does not replace the final view by itself.
+  view = {health: {session: 'session-3', target_absent: false, pid: 77}, threads: []};
+  await app.run('refresh()');
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.match(app.elements.get('exited-text').textContent, /new process \(PID 77\)/);
+  app.run('showLive()');
+  assert.equal(app.run('frozen'), null);
+  assert.equal(app.run('live.health.session'), 'session-3');
+  assert.equal(app.run('buffer.length'), 0);
+  assert.equal(app.elements.get('exited').hidden, true);
+  assert.equal(app.storage.has('triangulator:frozen'), false);
+});
+
+test('a new session without threads keeps the view until its absence is known', async () => {
+  // The collector clears threads before the new session's first tick says
+  // whether the target is absent.
+  let view = {health: {session: 'session-2', target_absent: false, pid: 0}, threads: []};
+  const app = dashboard(new Map(), polls(() => view));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('refresh()');
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.equal(app.run('buffer.length'), 101);
+  assert.equal(app.run('frozen'), null);
+  view = absent();
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.at'), 1100);
+  // A session that never reports threads or absence is accepted after a while.
+  const slow = dashboard(new Map(), polls(() => ({health: {session: 'session-2', target_absent: false, pid: 5}, threads: []})));
+  tick(slow, 1000, 50);
+  await slow.run('refresh()');
+  assert.equal(slow.run('live.health.session'), 'session-1');
+  slow.run('settleSince-=SETTLE_SECS');
+  await slow.run('refresh()');
+  assert.equal(slow.run('live.health.session'), 'session-2');
+  assert.equal(slow.run('frozen'), null);
+});
+
+test('a reloaded tab restores the final view and its saved trends', async () => {
+  const app = dashboard(new Map(), polls(() => absent()));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('refresh()');
+  const restored = dashboard(app.storage, polls(() => absent()));
+  await restored.run('refresh()');
+  assert.equal(restored.run('frozen.at'), 1100);
+  assert.equal(restored.run('live.health.session'), 'session-1');
+  assert.equal(restored.run('buffer.length'), 101);
+});
+
+test('changing the target from this tab is not reported as an exit', async () => {
+  const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'session-1'})));
+  tick(app, 1000, 50);
+  app.run('leftByChoice=bufferSession');
+  await app.run('refresh()');
+  assert.equal(app.run('frozen'), null);
+  assert.equal(app.run('live.health.session'), 'session-2');
+  assert.ok(!app.requests.includes('/api/last-target'));
+});
+
+test('a tab opened after the exit uses the collector view once, and Show live keeps it closed', async () => {
+  const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'old-session'}), frame(1000)));
+  // The dashboard's own first poll fetches the view; let it finish.
+  await app.run('refresh()');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.run('frozen.at'), 1000);
+  assert.equal(app.run('live.health.session'), 'old-session');
+  assert.match(app.elements.get('exited-text').textContent, /no earlier trends/);
+  app.run('showLive()');
+  await app.run('refresh()');
+  assert.equal(app.run('frozen'), null);
+  assert.equal(app.requests.filter(url => url === '/api/last-target').length, 1);
+});
+
+test('a collector view from another session or without threads is ignored', async () => {
+  for (const kept of [frame(1000, 'other-session'), {...frame(1000), threads: []}, {available: false}]) {
+    const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'old-session'}), kept));
+    await app.run('refresh()');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(app.requests.includes('/api/last-target'));
+    assert.equal(app.run('frozen'), null);
+  }
+});
+
+test('returning from a recording goes back to the final view', async () => {
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 900, last: 1000, snapshot: frame(1000)}) : polls(() => absent())(url));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('refresh()');
+  await app.run('inspectTime(1000)');
+  assert.equal(app.run('live.health.session'), 'old-session');
+  await app.run('returnLive()');
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.equal(app.run('buffer.length'), 101);
+  assert.ok(app.run('frozen') !== null);
+});
+
 test('memory map rows join neighbours, shorten gaps and stay few', () => {
   const app = dashboard();
   const region = (start, size, kind, permissions, name = '') =>
