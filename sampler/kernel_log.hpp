@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -218,9 +219,10 @@ class KernelLog
 {
  public:
   static constexpr const char* kPath = "/dev/kmsg";
-  // An upper bound on the records read for one report. The kernel's ring
-  // buffer holds far fewer; this only keeps the loop bounded.
-  static constexpr std::size_t kMaxRecords = 1'000'000;
+  // The longest the drain in Collect() may take when the caller gives no
+  // budget. Reading is one read() per record and runs on the sampling
+  // thread, so the time is bounded, not the number of records.
+  static constexpr Nanoseconds kDefaultBudget = 50ms;
 
   // Starts watching a newly found target: later Collect() calls read only
   // the messages logged from now on.
@@ -243,10 +245,14 @@ class KernelLog
   }
 
   // The report for p_target, which has ended. p_threads is the last
-  // tick's records. Ends the watch.
+  // tick's records. Ends the watch. Reads the log for at most p_budget; a
+  // backlog that takes longer is cut off, oldest records first, so the
+  // report can miss the newest messages. The sampler's tick cadence matters
+  // more than a complete report, and the cut is logged.
   [[nodiscard]] exit_wire::Report Collect(
       const TargetIdentity& p_target, std::span<const wire::Record> p_threads,
-      Nanoseconds p_wall)
+      Nanoseconds p_wall, RateLimitedLogger& p_logger,
+      Nanoseconds p_budget = kDefaultBudget)
   {
     exit_wire::Report report{
         .pid_ = static_cast<std::uint32_t>(p_target.pid_),
@@ -270,8 +276,20 @@ class KernelLog
       return report;
     }
     ExitMessages messages{p_target.pid_, p_threads};
-    for (std::size_t count = 0; count < kMaxRecords; ++count)
+    const auto deadline = ClockNow(CLOCK_MONOTONIC) + p_budget;
+    bool drained = false;
+    while (!drained)
     {
+      if (ClockNow(CLOCK_MONOTONIC) >= deadline)
+      {
+        p_logger.Warn(
+            "kernel log backlog not fully read in {} ms; the exit report "
+            "of PID {} may miss the newest messages",
+            std::chrono::duration_cast<std::chrono::milliseconds>(p_budget)
+                .count(),
+            p_target.pid_);
+        break;
+      }
       const auto length = ::read(log_.Get(), record_.data(), record_.size());
       if (length > 0)
       {
@@ -280,11 +298,7 @@ class KernelLog
       }
       // EPIPE: the kernel overwrote records we had not read yet; the next
       // read continues with the oldest one left. EAGAIN: no more records.
-      if (length < 0 && (errno == EINTR || errno == EPIPE))
-      {
-        continue;
-      }
-      break;
+      drained = !(length < 0 && (errno == EINTR || errno == EPIPE));
     }
     messages.CopyTo(report);
     log_.Reset();

@@ -864,14 +864,41 @@ void TestExitMessages()
   RateLimitedLogger logger;
   KernelLog log;
   log.Watch(logger, "/nonexistent/kmsg");
-  const auto missing =
-      log.Collect({.pid_ = 1234, .starttime_ = 7}, threads, Nanoseconds{1});
+  const auto missing = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                                   Nanoseconds{1}, logger);
   Require(missing.kernel_log_ == exit_wire::KernelLog::Unavailable &&
               missing.error_ == ENOENT && missing.line_count_ == 0 &&
               missing.pid_ == 1234 && missing.process_start_ == 7,
           "a missing kernel log gives a report that says so");
   Require(exit_wire::Decode(wire::AsBytes(missing)).has_value(),
           "the report the sampler builds is valid on the wire");
+
+  // A kernel log with a record that was written after the watch began. A
+  // plain file stands in for /dev/kmsg: Watch seeks to its end.
+  const auto fake_log =
+      std::filesystem::temp_directory_path() /
+      std::format("triangulator-kmsg-{}", static_cast<int>(::getpid()));
+  const auto watch_fake_log = [&]
+  {
+    std::ofstream{fake_log, std::ios::trunc} << "6,1,1,-;old[1234]: segfault\n";
+    log.Watch(logger, fake_log.c_str());
+    std::ofstream{fake_log, std::ios::app}
+        << "6,2,2,-;worker[1240]: segfault at 0 ip 0 sp 0 error 6\n";
+  };
+  watch_fake_log();
+  const auto found = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                                 Nanoseconds{1}, logger, 1s);
+  Require(found.kernel_log_ == exit_wire::KernelLog::Read &&
+              found.line_count_ == 1 &&
+              exit_wire::FieldText(found.lines_[0]) ==
+                  "worker[1240]: segfault at 0 ip 0 sp 0 error 6",
+          "only messages logged after the watch began are read");
+  watch_fake_log();
+  const auto cut = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                               Nanoseconds{1}, logger, Nanoseconds{0});
+  std::filesystem::remove(fake_log);
+  Require(cut.kernel_log_ == exit_wire::KernelLog::Read && cut.line_count_ == 0,
+          "a drain with no time left reads nothing but still reports");
 
   const auto self = FindTarget(TargetPid{::getpid()});
   Require(self && *self, "the test process is found");

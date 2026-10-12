@@ -164,9 +164,11 @@ class Sampler
         }
         if (*ended)
         {
+          // As for StepMemory(): a quarter of a tick, at most 50 ms.
           exit_report_ = kernel_log_.Collect(
               *previous_target_, std::span{records_}.first(record_count_),
-              ClockNow(CLOCK_REALTIME));
+              ClockNow(CLOCK_REALTIME), logger_,
+              std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms));
           exit_report_sends_ = kExitReportSends;
         }
       }
