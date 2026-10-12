@@ -30,6 +30,7 @@ Inspect live activity or return to a recorded moment.
 | CPU demand, busy threads, kernel waits | [Dashboard](docs/setup.md#dashboard) · [Metric help](collector/README.md#dashboard-help) |
 | Memory use, address mappings, page faults | [Memory map](docs/memory-map.md) |
 | CPU, memory, and I/O pressure; resource limits | [Resource monitoring](docs/resource-monitoring.md) |
+| Why the process died: segfault, OOM killer | [Process exit reasons](docs/process-exit.md) |
 | Socket bytes, rates, and message completion | [Optional eBPF setup](docs/setup.md#socket-io-and-messages-processed) · [Measurement limits](docs/socket-ingress-design.md) |
 
 ## Quick start
@@ -105,8 +106,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 3 | QA-020, QA-021, QA-022 |
-| **Total** | **42** | |
+| NOT_RUN | 4 | QA-020, QA-021, QA-022, QA-023 |
+| **Total** | **43** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

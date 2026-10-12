@@ -1,7 +1,8 @@
 """Decoder for the sampler's wire format, so the tests can read real sampler datagrams.
 
 This mirrors the layout in common/wire.hpp; change both together. Resource
-samples (common/resource_wire.hpp) are decoded only as far as the tests need."""
+samples (common/resource_wire.hpp) and exit reports (common/exit_wire.hpp)
+are decoded only as far as the tests need."""
 import dataclasses
 import re
 import struct
@@ -168,9 +169,39 @@ def decode_resource(data: bytes) -> ResourcePart:
                         process_start, flags, values, cgroup)
 
 
+EXIT_HEADER = struct.Struct("<4sBBBBIIQQQQ16s")
+EXIT_LINES, EXIT_LINE_SIZE = 6, 192
+KERNEL_LOG = ("read", "unreadable", "unavailable")
+
+
+@dataclasses.dataclass(frozen=True)
+class ExitReport:
+    kernel_log: str
+    pid: int
+    error: int
+    process_start: int
+    wall_ns: int
+    ended_session: int
+    next_session: int
+    comm: str
+    lines: tuple[str, ...]
+
+
+def decode_exit(data: bytes) -> ExitReport:
+    if len(data) != EXIT_HEADER.size + EXIT_LINES * EXIT_LINE_SIZE:
+        raise ValueError("invalid exit-report length")
+    magic, version, kernel_log, count, _, pid, error, start, wall, ended, following, comm = EXIT_HEADER.unpack_from(data)
+    if magic != b"TEND" or version != 1 or kernel_log >= len(KERNEL_LOG) or count > EXIT_LINES:
+        raise ValueError("unsupported exit report")
+    lines = tuple(data[EXIT_HEADER.size + index * EXIT_LINE_SIZE:][:EXIT_LINE_SIZE].split(b"\0", 1)[0].decode()
+                  for index in range(count))
+    return ExitReport(KERNEL_LOG[kernel_log], pid, error, start, wall, ended, following,
+                      comm.split(b"\0", 1)[0].decode(), lines)
+
+
 def receive_tick(receiver, size=1500):
-    """The next thread-tick datagram, skipping resource and memory-map samples."""
+    """The next thread-tick datagram, skipping resource, memory-map and exit-report datagrams."""
     while True:
         data = receiver.recv(size)
-        if not data.startswith((b"TRES", b"TVMA")):
+        if not data.startswith((b"TRES", b"TVMA", b"TEND")):
             return data

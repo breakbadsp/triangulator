@@ -33,6 +33,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-020 | NOT_RUN | - | - | - |
 | QA-021 | NOT_RUN | - | - | - |
 | QA-022 | NOT_RUN | - | - | - |
+| QA-023 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -87,6 +88,42 @@ Expected results: Controls have visible focus and accessible names. Each step
 remains readable. The diagram can scroll horizontally on a small screen.
 Reduced motion hides the marker even during playback. Without JavaScript,
 the static diagram, route table, and source links remain available.
+
+## QA-023: Reason the target process ended
+
+Feature: Process exit reasons. Priority: High. Case revision: 1.
+
+Preconditions: The dashboard is open with live samples. Use an owned test
+process. Run two passes on the target host: one with
+`kernel.dmesg_restrict = 1` and one with `kernel.dmesg_restrict = 0`.
+
+1. With the log restricted, check the sampler log first: when it finds the
+   target, it warns that the kernel log is not readable. Then end the target
+   with `kill -TERM`.
+2. Verify the Last process exit card shows the process name, PID, end time,
+   and "Reason unknown: kernel log not readable". Verify Kernel messages is
+   hidden.
+3. With the log readable, start an owned target that writes through a null
+   pointer after a few seconds, for example `sleep(5); *(volatile int*)0 = 1;`.
+4. Verify the card shows "Segmentation fault" and that Kernel messages
+   contains the segfault line with a thread ID from the threads table.
+5. Verify the Assessment says "Target process ended · Segmentation fault".
+6. Restart the target. Verify the card stays and the Assessment no longer
+   reports the target as absent.
+7. End the target again, then change the target to a PID or name that does
+   not exist. Verify the Assessment says "Target process is absent", not
+   "Target process ended", and the header does not use the ended process's
+   name.
+8. Open Inspect a moment after the exit. Verify the card shows the recorded
+   exit. Return to Live.
+9. Hover over the card heading, the reason, and Kernel messages. Verify each
+   opens its help topic, and that the help says a missing message does not
+   prove the process did not crash.
+
+Expected results: The card names the reason the kernel logged, or says why it
+is unknown. Kernel messages show only lines that name the process or its
+threads. The `process_exit` table in the day file has one row per ended
+process.
 
 ## QA-020: Current section tab
 

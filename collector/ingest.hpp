@@ -1,11 +1,11 @@
 #pragma once
 
-// What the collector does with one received datagram: tells the four
+// What the collector does with one received datagram: tells the five
 // datagram kinds apart by their magic (thread ticks, resource parts,
-// memory-map parts and socket observations), checks the sender, and passes
-// the datagram to the Monitor, the ResourceMonitor, the MemoryMonitor or
-// Storage. The main loop calls Handle() for each
-// datagram. Handle() allocates nothing, except in the one-time log message
+// memory-map parts, exit reports and socket observations), checks the
+// sender, and passes the datagram to the Monitor, the ResourceMonitor, the
+// MemoryMonitor, the ExitMonitor or Storage. The main loop calls Handle() for
+// each datagram. Handle() allocates nothing, except in the one-time log message
 // when it pins the sampler's address.
 
 #include <arpa/inet.h>
@@ -19,11 +19,13 @@
 #include <string>
 #include <string_view>
 
+#include "../common/exit_wire.hpp"
 #include "../common/memory_wire.hpp"
 #include "../common/resource_wire.hpp"
 #include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
 #include "engine.hpp"
+#include "exits.hpp"
 #include "log.hpp"
 #include "memory.hpp"
 #include "protocol.hpp"
@@ -57,10 +59,11 @@ class Ingest
   // addresses; a sender that has none is pinned to the first valid datagram.
   Ingest(const std::optional<std::string>& p_sampler_ip, Monitor& p_monitor,
          ResourceMonitor& p_resources, MemoryMonitor& p_memory,
-         Storage& p_storage, const StorageSink& p_sink)
+         ExitMonitor& p_exits, Storage& p_storage, const StorageSink& p_sink)
       : monitor_(p_monitor),
         resources_(p_resources),
         memory_(p_memory),
+        exits_(p_exits),
         storage_(p_storage),
         sink_(p_sink)
   {
@@ -131,6 +134,28 @@ class Ingest
         }
       }
     }
+    else if (p_data.size() >= 4 &&
+             std::memcmp(p_data.data(), exit_wire::kMagic.data(), 4) == 0)
+    {
+      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      {
+        if (const auto report = exit_wire::Decode(p_data))
+        {
+          Pin(p_peer);
+          if (exits_.Accept(*report))
+          {
+            if (auto stored = storage_.Exit(*report); !stored)
+            {
+              return stored;
+            }
+          }
+        }
+        else
+        {
+          ++monitor_.bad_packets_;
+        }
+      }
+    }
     else if (!sampler_ip_ || p_peer == *sampler_ip_)
     {
       if (const auto packet = Decode(p_data))
@@ -150,6 +175,7 @@ class Ingest
   Monitor& monitor_;
   ResourceMonitor& resources_;
   MemoryMonitor& memory_;
+  ExitMonitor& exits_;
   Storage& storage_;
   const StorageSink& sink_;
   std::optional<PeerText> sampler_ip_;
