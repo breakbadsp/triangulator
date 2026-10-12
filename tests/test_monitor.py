@@ -439,6 +439,27 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                     self.assertEqual(fetch("/api/replay?" + query)[0], 400)
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
                 self.assertIn(b'id="replay-time"', page)
+                # After the target exits, live health names the session of the
+                # last view with the target, and /api/last-target still serves it.
+                self.assertNotIn("last_target", live["health"])
+                target.kill()
+                target.wait(timeout=8)
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    live = json.loads(fetch("/api/live")[1])
+                    if live["health"].get("target_absent"):
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(live["health"]["target_absent"])
+                self.assertNotEqual(live["health"]["session"], session)
+                self.assertEqual(live["health"]["last_target"]["session"], session)
+                self.assertEqual(live["health"]["last_target"]["pid"], target.pid)
+                status, body = fetch("/api/last-target")
+                self.assertEqual(status, 200)
+                final = json.loads(body)
+                self.assertEqual(final["health"]["session"], session)
+                self.assertFalse(final["health"]["target_absent"])
+                self.assertEqual(final["threads"][0]["name"], "sleep")
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:

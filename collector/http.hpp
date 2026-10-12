@@ -48,8 +48,8 @@ inline constexpr unsigned char kDashboardHtml[] = {
       .count();
 }
 
-// The latest /api/live and /api/memory-map payloads, written by the main
-// loop and read by the dashboard thread.
+// The latest /api/live, /api/last-target and /api/memory-map payloads,
+// written by the main loop and read by the dashboard thread.
 class SharedState
 {
  public:
@@ -62,6 +62,19 @@ class SharedState
   {
     std::lock_guard lock{mutex_};
     return live_;
+  }
+  // The last live view in which the target was present with its threads.
+  // It outlives the target, so the dashboard can show it after the target
+  // exits.
+  void SetLastTarget(std::shared_ptr<const std::string> p_view)
+  {
+    std::lock_guard lock{mutex_};
+    last_target_ = std::move(p_view);
+  }
+  [[nodiscard]] std::shared_ptr<const std::string> LastTarget()
+  {
+    std::lock_guard lock{mutex_};
+    return last_target_;
   }
   void SetMemoryMap(std::shared_ptr<const std::string> p_memory_map)
   {
@@ -78,6 +91,8 @@ class SharedState
   std::mutex mutex_;
   std::shared_ptr<const std::string> live_ =
       std::make_shared<const std::string>("{}");
+  std::shared_ptr<const std::string> last_target_ =
+      std::make_shared<const std::string>(R"({"available":false})");
   std::shared_ptr<const std::string> memory_map_ =
       std::make_shared<const std::string>(R"({"available":false})");
 };
@@ -590,6 +605,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/live")
     {
       Respond(p_connection, 200, *state_.Live(), "application/json");
+    }
+    else if (p_request.path_ == "/api/last-target")
+    {
+      Respond(p_connection, 200, *state_.LastTarget(), "application/json");
     }
     else if (p_request.path_ == "/api/memory-map")
     {
