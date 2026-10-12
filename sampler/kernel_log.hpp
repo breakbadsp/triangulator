@@ -48,47 +48,118 @@ namespace triangulator
   return text.substr(0, text.find('\n'));
 }
 
-// Whether p_text names one of p_sorted_ids as a whole number in the forms
-// the kernel uses for a task: "comm[1234]:", "Killed process 1234 (comm)",
-// "pid=1234," and "comm:1234 blocked". A number inside a word, an address or
-// a decimal ("10.1234") does not count.
-[[nodiscard]] inline bool NamesTask(std::string_view p_text,
-                                    std::span<const std::uint32_t> p_sorted_ids)
+// The whole number that starts p_text, when digits end it at a character in
+// p_terminators (or at the end of the text). "1234 (app)" is 1234; "1234abc",
+// "12.5" and an 11-digit number are nothing.
+[[nodiscard]] inline std::optional<std::uint32_t> LeadingId(
+    std::string_view p_text, std::string_view p_terminators)
 {
-  constexpr std::string_view kBefore = "[ =:";
-  constexpr std::string_view kAfter = "] ,):";
-  const auto is_digit = [](char p_char)
+  std::size_t length = 0;
+  while (length < p_text.size() && p_text[length] >= '0' &&
+         p_text[length] <= '9')
   {
-    return p_char >= '0' && p_char <= '9';
+    ++length;
+  }
+  if (length == 0 || length > 10 ||
+      (length < p_text.size() && !p_terminators.contains(p_text[length])))
+  {
+    return std::nullopt;
+  }
+  return ParseNumber<std::uint32_t>(p_text.substr(0, length));
+}
+
+// Whether any occurrence of p_key in p_text is followed by an id from
+// p_sorted_ids. p_word_start asks for a character that cannot belong to a
+// longer name in front of the key, so "pid=" does not match inside "ppid=".
+[[nodiscard]] inline bool KeyNamesId(
+    std::string_view p_text, std::string_view p_key,
+    std::string_view p_terminators, bool p_word_start,
+    std::span<const std::uint32_t> p_sorted_ids)
+{
+  const auto is_name_char = [](char p_char)
+  {
+    return (p_char >= '0' && p_char <= '9') ||
+           (p_char >= 'A' && p_char <= 'Z') ||
+           (p_char >= 'a' && p_char <= 'z') || p_char == '_';
   };
-  std::size_t index = 0;
-  while (index < p_text.size())
+  for (auto at = p_text.find(p_key); at != std::string_view::npos;
+       at = p_text.find(p_key, at + 1))
   {
-    if (!is_digit(p_text[index]))
-    {
-      ++index;
-      continue;
-    }
-    const auto start = index;
-    while (index < p_text.size() && is_digit(p_text[index]))
-    {
-      ++index;
-    }
-    const bool bounded =
-        (start == 0 || kBefore.contains(p_text[start - 1])) &&
-        (index == p_text.size() || kAfter.contains(p_text[index]));
-    if (!bounded || index - start > 10)
+    if (p_word_start && at != 0 && is_name_char(p_text[at - 1]))
     {
       continue;
     }
-    const auto number =
-        ParseNumber<std::uint32_t>(p_text.substr(start, index - start));
-    if (number && std::ranges::binary_search(p_sorted_ids, *number))
+    const auto id = LeadingId(p_text.substr(at + p_key.size()), p_terminators);
+    if (id && std::ranges::binary_search(p_sorted_ids, *id))
     {
       return true;
     }
   }
   return false;
+}
+
+// Whether p_text has "comm[1234]" with an id from p_sorted_ids: the thread
+// name and ID the kernel prints for a fault. A bracket at the start of the
+// text or after a space is not a task.
+[[nodiscard]] inline bool NamesBracketedId(
+    std::string_view p_text, std::span<const std::uint32_t> p_sorted_ids)
+{
+  for (auto at = p_text.find('['); at != std::string_view::npos;
+       at = p_text.find('[', at + 1))
+  {
+    if (at == 0 || p_text[at - 1] == ' ')
+    {
+      continue;
+    }
+    const auto id = LeadingId(p_text.substr(at + 1), "]");
+    if (id && std::ranges::binary_search(p_sorted_ids, *id))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether p_text is the hung-task warning "INFO: task comm:1234 blocked" for
+// an id from p_sorted_ids. The thread name may itself contain ':'.
+[[nodiscard]] inline bool NamesHungTask(
+    std::string_view p_text, std::span<const std::uint32_t> p_sorted_ids)
+{
+  constexpr std::string_view kKey = "task ";
+  for (auto at = p_text.find(kKey); at != std::string_view::npos;
+       at = p_text.find(kKey, at + 1))
+  {
+    auto name = p_text.substr(at + kKey.size());
+    name = name.substr(0, name.find(' '));
+    const auto colon = name.rfind(':');
+    if (colon == std::string_view::npos)
+    {
+      continue;
+    }
+    const auto id = LeadingId(name.substr(colon + 1), "");
+    if (id && std::ranges::binary_search(p_sorted_ids, *id))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether p_text names one of p_sorted_ids as a task, in the forms the
+// kernel uses for one: "comm[1234]: segfault" and "traps: comm[1234] trap",
+// "Killed process 1234 (comm)", "pid=1234," in the OOM killer's summary,
+// "CPU: 1 PID: 1234 Comm: comm" and "INFO: task comm:1234 blocked". Other
+// numbers that equal an id, such as a fault address or a user ID, do not
+// count.
+[[nodiscard]] inline bool NamesTask(std::string_view p_text,
+                                    std::span<const std::uint32_t> p_sorted_ids)
+{
+  return KeyNamesId(p_text, "Killed process ", " )", false, p_sorted_ids) ||
+         KeyNamesId(p_text, "Kill process ", " )", false, p_sorted_ids) ||
+         KeyNamesId(p_text, "pid=", ", ", true, p_sorted_ids) ||
+         KeyNamesId(p_text, "PID: ", " ", false, p_sorted_ids) ||
+         NamesBracketedId(p_text, p_sorted_ids) ||
+         NamesHungTask(p_text, p_sorted_ids);
 }
 
 // Keeps the newest kernel messages that name the ended process or one of

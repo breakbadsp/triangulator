@@ -807,6 +807,18 @@ void TestExitMessages()
   Require(!NamesTask("usb 1-1: new device 10.1234 at 0x1234", ids),
           "decimals and hex do not match");
   Require(!NamesTask("other[99]: segfault at 0", ids), "other pids do not");
+  Require(NamesTask("traps: worker[1240] trap divide error ip:7f sp:7e", ids),
+          "a trap line names the thread in brackets");
+  Require(NamesTask("CPU: 1 PID: 1234 Comm: app Not tainted", ids),
+          "PID: names the process");
+  Require(!NamesTask("oom-kill:constraint=CONSTRAINT_NONE,task=app,pid=99,"
+                     "ppid=1234,uid=1234",
+                     ids),
+          "ppid= and uid= are not the task");
+  Require(!NamesTask("other[99]: segfault at 1234 ip 0 sp 0 error 6", ids),
+          "a fault address equal to a pid is not the task");
+  Require(!NamesTask("[ 1234.5678] something happened to usb 1-1", ids),
+          "a timestamp is not a task");
 
   std::array<wire::Record, 2> threads{};
   threads[0].tid_ = 1234;
@@ -814,6 +826,10 @@ void TestExitMessages()
   ExitMessages messages{1234, threads};
   messages.Offer("4,1,10,-;[   1234]  1000  1234  100  50  0  0  0 app\n");
   messages.Offer("6,2,11,-;other[99]: segfault at 0\n");
+  // Numbers that merely equal the process or a thread ID: the fault address
+  // of another process and a user ID.
+  messages.Offer("6,2,11,-;other[99]: segfault at 1234 ip 0 sp 0 error 6\n");
+  messages.Offer("6,2,11,-;other[99]: segfault at 1240 ip 0 sp 0 error 6\n");
   for (int index = 0; index < 7; ++index)
   {
     messages.Offer(
@@ -828,6 +844,20 @@ void TestExitMessages()
               exit_wire::FieldText(report.lines_[5]) ==
                   "Out of memory: Killed process 1234 (app)",
           "oldest first; the OOM task table and other pids are left out");
+
+  // A process whose PID equals another task's user ID: the OOM killer's
+  // summary for pid 99 must not be taken as its own.
+  std::array<wire::Record, 1> user_threads{};
+  user_threads[0].tid_ = 1000;
+  ExitMessages other_user{1000, user_threads};
+  other_user.Offer(
+      "6,20,5,-;oom-kill:constraint=CONSTRAINT_NONE,task=other,pid=99,"
+      "uid=1000\n");
+  other_user.Offer("6,21,6,-;other[99]: segfault at 1000 ip 0 sp 0 error 6\n");
+  exit_wire::Report unrelated{};
+  other_user.CopyTo(unrelated);
+  Require(unrelated.line_count_ == 0,
+          "messages about another task are not kept for this one");
 
   RateLimitedLogger logger;
   KernelLog log;
