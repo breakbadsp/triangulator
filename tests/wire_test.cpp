@@ -1,5 +1,5 @@
-// Tests for common/wire.hpp, common/resource_wire.hpp and
-// common/memory_wire.hpp alone: encoding then
+// Tests for common/wire.hpp, common/resource_wire.hpp,
+// common/memory_wire.hpp and common/exit_wire.hpp alone: encoding then
 // decoding gives back the same values, and the decoders reject data that is
 // not their format.
 
@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+#include "../common/exit_wire.hpp"
 #include "../common/memory_wire.hpp"
 #include "../common/resource_wire.hpp"
 
@@ -373,6 +374,67 @@ void TestMemoryRoundTrip()
 
 }  // namespace
 
+// Sends an exit report as bytes and reads it back, then checks that the
+// decoder rejects reports with a bad size, status, padding or line count.
+void TestExitReportRoundTrip()
+{
+  exit_wire::Report report{
+      .kernel_log_ = exit_wire::KernelLog::Read,
+      .line_count_ = 2,
+      .pid_ = 1234,
+      .process_start_ = 0x0102030405060708,
+      .wall_ns_ = 1'700'000'000'000'000'000,
+      .comm_ = {'w', 'o', 'r', 'k', 'e', 'r'},
+  };
+  exit_wire::SetLine(report.lines_[0], "worker[1240]: segfault at 0");
+  exit_wire::SetLine(report.lines_[1], std::string(500, 'x'));
+  const auto bytes = wire::AsBytes(report);
+  Require(bytes.size() == 1200, "an exit report is one 1,200-byte datagram");
+  const auto decoded = exit_wire::Decode(bytes);
+  Require(decoded.has_value(), "a valid exit report decodes");
+  Require(decoded->pid_ == 1234 &&
+              decoded->process_start_ == 0x0102030405060708 &&
+              exit_wire::FieldText(decoded->comm_) == "worker" &&
+              exit_wire::FieldText(decoded->lines_[0]) ==
+                  "worker[1240]: segfault at 0" &&
+              exit_wire::FieldText(decoded->lines_[1]).size() ==
+                  exit_wire::kLineSize - 1,
+          "the identity and the lines survive; a long line is cut");
+
+  const auto rejects = [](exit_wire::Report p_report, std::string_view p_why)
+  {
+    Require(!exit_wire::Decode(wire::AsBytes(p_report)), p_why);
+  };
+  Require(!exit_wire::Decode(bytes.first(bytes.size() - 1)),
+          "a short report is rejected");
+  auto changed = report;
+  changed.version_ = 2;
+  rejects(changed, "another version is rejected");
+  changed = report;
+  changed.kernel_log_ = static_cast<exit_wire::KernelLog>(3);
+  rejects(changed, "an unknown kernel-log status is rejected");
+  changed = report;
+  changed.kernel_log_ = exit_wire::KernelLog::Unreadable;
+  changed.error_ = 1;
+  rejects(changed, "an unreadable log has no lines");
+  changed.line_count_ = 0;
+  changed.lines_ = {};
+  Require(exit_wire::Decode(wire::AsBytes(changed)).has_value(),
+          "an unreadable log with its errno and no lines decodes");
+  changed = report;
+  changed.line_count_ = 1;
+  rejects(changed, "a line past line_count must be zero");
+  changed = report;
+  changed.line_count_ = 3;
+  rejects(changed, "a counted line must not be empty");
+  changed = report;
+  changed.pid_ = 0;
+  rejects(changed, "a report needs a pid");
+  changed = report;
+  changed.reserved_ = 1;
+  rejects(changed, "reserved bytes must be zero");
+}
+
 int main()
 {
   try
@@ -384,9 +446,10 @@ int main()
     TestResourceSocketsRoundTrip();
     TestResourceRejectsOtherData();
     TestMemoryRoundTrip();
+    TestExitReportRoundTrip();
     std::puts(
-        "wire tests passed (thread, resource and memory-map round trips, "
-        "rejection)");
+        "wire tests passed (thread, resource, memory-map and exit-report "
+        "round trips, rejection)");
   }
   catch (const std::exception& error)
   {
