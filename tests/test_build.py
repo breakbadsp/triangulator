@@ -29,6 +29,17 @@ class BuildOptionsTests(unittest.TestCase):
             (tools / name).symlink_to(shutil.which(name))
         return tools
 
+    def test_required_thread_library_preserves_custom_libraries(self):
+        for libraries in ("", "-lm"):
+            with self.subTest(libraries=libraries), tempfile.TemporaryDirectory() as directory:
+                self.prepare(directory)
+                result = self.run_make(directory, f"LDLIBS={libraries}")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                options = (Path(directory) / "build/build_options").read_text().split()
+                self.assertIn("-pthread", options)
+                if libraries:
+                    self.assertIn(libraries, options)
+
     def test_build_options_do_not_require_cmp(self):
         with tempfile.TemporaryDirectory() as directory:
             tools = self.prepare(directory)
