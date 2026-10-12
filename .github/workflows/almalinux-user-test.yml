@@ -2,6 +2,11 @@ name: AlmaLinux new user test
 
 on:
   workflow_dispatch:
+    inputs:
+      include_almalinux_10:
+        description: Also test AlmaLinux 10
+        type: boolean
+        default: false
   pull_request:
     paths:
       - Makefile
@@ -42,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ['9', '10']
+        version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Build and test in AlmaLinux

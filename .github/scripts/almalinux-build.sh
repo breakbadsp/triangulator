@@ -35,18 +35,22 @@ system_status=$?
 set -e
 printf '%s\n' "$system_status" > /reports/system-build.status
 tail -n 30 /reports/system-build.log
-# AlmaLinux 9 has GCC 11, which cannot build C++23. The error must say so.
-if [[ "$ALMA_VERSION" == 9 ]]; then
+# AlmaLinux 8 and 9 have older compilers. The error must name C++23.
+if [[ "$ALMA_VERSION" == 8 || "$ALMA_VERSION" == 9 ]]; then
     [[ "$system_status" != 0 ]]
     grep -q 'cannot compile C++23' /reports/system-build.log
 fi
 
-# CRB supplies the static runtime development packages.
-dnf config-manager --set-enabled crb
+# PowerTools on 8 and CRB on 9/10 supply static development packages.
+if [[ "$ALMA_VERSION" == 8 ]]; then
+    dnf config-manager --set-enabled powertools
+else
+    dnf config-manager --set-enabled crb
+fi
 # diffutils (cmp) is not installed by this script: the build must not need it.
 dnf install -y glibc-static libstdc++-static shadow-utils util-linux
 export CXX=c++
-if [[ "$ALMA_VERSION" == 9 ]]; then
+if [[ "$ALMA_VERSION" == 8 || "$ALMA_VERSION" == 9 ]]; then
     dnf module enable -y nodejs:22
     dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel python3.11 nodejs
     mkdir -p /opt/test/bin
@@ -57,7 +61,7 @@ if [[ "$ALMA_VERSION" == 9 ]]; then
 else
     dnf install -y python3 nodejs
 fi
-# Some packages (the AlmaLinux 9 toolset) pull in cmp. Hide it in this disposable
+# Some packages (the GCC toolset) pull in cmp. Hide it in this disposable
 # container, so the build must work without it.
 if cmp_path="$(command -v cmp)"; then mv "$cmp_path" "$cmp_path.disabled"; fi
 if command -v cmp; then echo "cmp must be absent for this test" >&2; exit 1; fi
