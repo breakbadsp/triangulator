@@ -372,8 +372,6 @@ void TestMemoryRoundTrip()
           "a sample without a PID is rejected");
 }
 
-}  // namespace
-
 // Sends an exit report as bytes and reads it back, then checks that the
 // decoder rejects reports with a bad size, status, padding or line count.
 void TestExitReportRoundTrip()
@@ -434,6 +432,8 @@ void TestExitReportRoundTrip()
   changed.reserved_ = 1;
   rejects(changed, "reserved bytes must be zero");
 }
+
+}  // namespace
 
 int main()
 {
