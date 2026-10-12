@@ -498,6 +498,28 @@ test('resource assessment joins the overview assessment', () => {
     'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.');
 });
 
+// The latest exit stays in /api/live after the target changes, so the
+// Assessment must tie it to the absence it describes.
+test('an exit describes only the absence that followed it', () => {
+  const exit = {pid: 100, process_start: 5, name: 'app', ended_at: 1000, reason: 'segfault',
+    kernel_log: 'read', error: null, messages: [], session: 'a', next_session: 'x'};
+  const app = dashboard();
+  const absent = session => app.run(`live={health:{session:${JSON.stringify(session)},target_absent:true,pid:0},
+    threads:[],exit:${JSON.stringify(exit)}}`);
+  absent('x');
+  const titles = () => JSON.parse(app.run('JSON.stringify(assess([],[]).map(item=>item.title))'));
+  assert.deepEqual(titles(), ['Target process ended · Segmentation fault']);
+  assert.equal(app.run('targetName()'), 'app');
+  // A target selected afterwards and never found: the session is another one.
+  absent('y');
+  assert.deepEqual(titles(), ['Target process is absent']);
+  assert.equal(app.run('targetName()'), 'the target');
+  // A running target is not described by the old exit.
+  app.run(`live.health.target_absent=false;live.health.session='x'`);
+  assert.equal(app.run('endedTarget()'), null);
+  assert.ok(!titles().some(title => /absent|ended/.test(title)));
+});
+
 // Threads as the live API reports them. A thread sat in `state` for the whole
 // window, used `cpu` percent of a core, and switched `sw` times a second.
 function lockThread(tid, name, state, {cpu = 0, sw = 0} = {}) {

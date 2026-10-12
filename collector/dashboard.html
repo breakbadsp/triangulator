@@ -1138,7 +1138,7 @@ const LEVEL_ORDER=['critical','serious','warning','info','good'];
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
-  if(health.target_absent&&live.exit)add('critical',`Target process ended · ${exitReason(live.exit)[0]}`,`${live.exit.name||'PID '+live.exit.pid} ended ${ago(viewNow()-live.exit.ended_at)}. See Last process exit.`);
+  if(health.target_absent&&endedTarget())add('critical',`Target process ended · ${exitReason(live.exit)[0]}`,`${live.exit.name||'PID '+live.exit.pid} ended ${ago(viewNow()-live.exit.ended_at)}. See Last process exit.`);
   else if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
   if((health.packet_loss_pct||0)>1)add('warning',`Packet loss ${pct(health.packet_loss_pct)}`,'Some samples were lost between sampler and collector over the last minute; rates may be noisy.');
   const kernel=threads.filter(thread=>thread.state==='kernel');
@@ -2208,7 +2208,13 @@ function initSectionNavigation(){
   }
   update();
 }
-function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:health.target_absent&&live.exit?.name||'the target')}
+function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:endedTarget()?.name||'the target')}
+// The exit that ended the current target, or null. live.exit is the latest exit
+// since the collector started, even after the target changed; its next_session
+// is the sampler session that began when that process ended, which is the
+// session of the absent ticks that follow. A newly selected target that was
+// never found has another session, so it is not described by an old exit.
+function endedTarget(){const health=live.health||{};return health.target_absent&&live.exit&&health.session&&live.exit.next_session===health.session?live.exit:null}
 // Exit reason codes from the collector: label, level, and what it means.
 const EXIT_REASONS={
   segfault:['Segmentation fault','critical','A thread read or wrote memory it may not access. The kernel sent SIGSEGV.'],

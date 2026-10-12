@@ -100,6 +100,9 @@ class SamplerTests(unittest.TestCase):
                 self.assertEqual((report.pid, report.comm, report.lines), (target.pid, "sleep", ()))
                 self.assertIn(report.kernel_log, ("read", "unreadable", "unavailable"))
                 self.assertEqual(report.error == 0, report.kernel_log == "read")
+                # The report names the session the target was sampled in and the session of
+                # the "target absent" ticks, so a dashboard can tie the exit to that absence.
+                self.assertEqual((report.ended_session, report.next_session), (value.session, absent.session))
             finally:
                 sampler.terminate()
                 sampler.communicate(timeout=3)

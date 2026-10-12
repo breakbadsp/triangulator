@@ -56,7 +56,7 @@ flowchart LR
    process. The OOM killer's task table lists every process, so its rows are
    skipped.
 3. It sends one `TEND` datagram ([common/exit_wire.hpp](../common/exit_wire.hpp),
-   1,200 bytes) with each of the next five ticks. Datagrams are not
+   1,216 bytes) with each of the next five ticks. Datagrams are not
    acknowledged, so the copies cover a lost one.
 4. The collector keeps the first copy of each `(pid, process_start)`, works
    out the reason, and stores one `process_exit` row in the day file.
@@ -70,7 +70,8 @@ running.
 collector started, or `null`:
 
 ```json
-{"pid": 1234, "process_start": 812345, "name": "app", "ended_at": 1760337802.5,
+{"pid": 1234, "process_start": 812345, "session": "7311", "next_session": "7312",
+ "name": "app", "ended_at": 1760337802.5,
  "reason": "segfault", "kernel_log": "read", "error": null,
  "messages": ["app[1240]: segfault at 0 ip 000055d0c1e2a1b9 sp 00007ffd5e1e0f30 error 6 in app[55d0c1e29000+2000]"]}
 ```
@@ -81,6 +82,13 @@ collector started, or `null`:
 - `kernel_log`: `read`, `unreadable` or `unavailable`. `error` is the reason the
   log could not be opened.
 - `ended_at`: when the sampler noticed the exit, within one sample interval.
+- `session` and `next_session`: the sampler session the process was sampled in,
+  and the session the sampler started when it saw the exit. Both are decimal
+  text, like `health.session`. The "target absent" ticks that follow the exit
+  carry `next_session`, so the dashboard describes the absence with the exit
+  only while `health.session` equals it. A target selected later that is never
+  found has another session and keeps the normal "Target process is absent"
+  message, because the report says nothing about it.
 
 Recorded moments ([replay](collector-reference.md#historical-process-inspection))
 include the object. Each day file has a `process_exit` table: `ts`, `pid`,

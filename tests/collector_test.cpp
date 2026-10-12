@@ -869,6 +869,8 @@ exit_wire::Report ExitReport(std::uint32_t p_pid,
   exit_wire::Report report{.pid_ = p_pid,
                            .process_start_ = 77,
                            .wall_ns_ = 1'700'000'000'500'000'000,
+                           .ended_session_ = 41,
+                           .next_session_ = 42,
                            .comm_ = {'a', 'p', 'p'}};
   for (const auto line : p_lines)
   {
@@ -916,6 +918,9 @@ void TestExitReports()
               Field(snapshot, "error").IsNull() &&
               Field(snapshot, "messages").AsArray().size() == 1,
           "the live snapshot describes the latest exit");
+  Require(Field(snapshot, "session").AsString() == "41" &&
+              Field(snapshot, "next_session").AsString() == "42",
+          "the snapshot names the ended session and the one that follows");
   RequireNear(Field(snapshot, "ended_at").AsNumber(), 1'700'000'000.5,
               "ended_at is the sampler's wall time");
   Require(exits.Accept(unreadable), "a report for another process is new");

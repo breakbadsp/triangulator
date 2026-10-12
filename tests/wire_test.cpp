@@ -382,16 +382,19 @@ void TestExitReportRoundTrip()
       .pid_ = 1234,
       .process_start_ = 0x0102030405060708,
       .wall_ns_ = 1'700'000'000'000'000'000,
+      .ended_session_ = 11,
+      .next_session_ = 12,
       .comm_ = {'w', 'o', 'r', 'k', 'e', 'r'},
   };
   exit_wire::SetLine(report.lines_[0], "worker[1240]: segfault at 0");
   exit_wire::SetLine(report.lines_[1], std::string(500, 'x'));
   const auto bytes = wire::AsBytes(report);
-  Require(bytes.size() == 1200, "an exit report is one 1,200-byte datagram");
+  Require(bytes.size() == 1216, "an exit report is one 1,216-byte datagram");
   const auto decoded = exit_wire::Decode(bytes);
   Require(decoded.has_value(), "a valid exit report decodes");
   Require(decoded->pid_ == 1234 &&
               decoded->process_start_ == 0x0102030405060708 &&
+              decoded->ended_session_ == 11 && decoded->next_session_ == 12 &&
               exit_wire::FieldText(decoded->comm_) == "worker" &&
               exit_wire::FieldText(decoded->lines_[0]) ==
                   "worker[1240]: segfault at 0" &&
@@ -428,6 +431,12 @@ void TestExitReportRoundTrip()
   changed = report;
   changed.pid_ = 0;
   rejects(changed, "a report needs a pid");
+  changed = report;
+  changed.ended_session_ = 0;
+  rejects(changed, "a report needs the session of the ended target");
+  changed = report;
+  changed.next_session_ = 0;
+  rejects(changed, "a report needs the session that follows");
   changed = report;
   changed.reserved_ = 1;
   rejects(changed, "reserved bytes must be zero");

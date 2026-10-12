@@ -29,7 +29,7 @@ namespace triangulator::exit_wire
 
 inline constexpr std::array<char, 4> kMagic{'T', 'E', 'N', 'D'};
 inline constexpr std::uint8_t kVersion = 1;
-inline constexpr std::size_t kHeaderSize = 48;
+inline constexpr std::size_t kHeaderSize = 64;
 inline constexpr std::size_t kMaxLines = 6;
 inline constexpr std::size_t kLineSize = 192;
 
@@ -64,6 +64,12 @@ struct Report
   std::uint64_t process_start_{};
   // When the sampler noticed the exit (CLOCK_REALTIME).
   std::uint64_t wall_ns_{};
+  // The sampler session the ended target was sampled in, and the session the
+  // sampler started when it saw the exit. The first matches the target's
+  // thread ticks; the second is the session of the "target absent" ticks
+  // that follow, so a dashboard can tell the exit belongs to that absence.
+  std::uint64_t ended_session_{};
+  std::uint64_t next_session_{};
   // The process name (comm) from the last thread tick, NUL-padded.
   std::array<char, 16> comm_{};
   // The newest messages, oldest first. Lines past line_count_ are zero.
@@ -72,7 +78,8 @@ struct Report
 static_assert(wire::WireStruct<Report>);
 static_assert(offsetof(Report, pid_) == 8 &&
               offsetof(Report, process_start_) == 16 &&
-              offsetof(Report, comm_) == 32 &&
+              offsetof(Report, ended_session_) == 32 &&
+              offsetof(Report, comm_) == 48 &&
               offsetof(Report, lines_) == kHeaderSize);
 inline constexpr std::size_t kReportSize = sizeof(Report);
 static_assert(kReportSize == kHeaderSize + kMaxLines * kLineSize);
@@ -96,7 +103,7 @@ inline void SetLine(Line& p_line, std::string_view p_text) noexcept
 }
 
 // Checks the format (length, magic, version, reserved bytes, padding) and
-// that the identity and clock are set.
+// that the identity, clock and sessions are set.
 [[nodiscard]] inline std::expected<Report, std::string_view> Decode(
     std::span<const std::byte> p_data)
 {
@@ -118,7 +125,8 @@ inline void SetLine(Line& p_line, std::string_view p_text) noexcept
   {
     return std::unexpected("invalid exit-report header");
   }
-  if (report.pid_ == 0 || report.wall_ns_ == 0 || report.comm_.back() != '\0')
+  if (report.pid_ == 0 || report.wall_ns_ == 0 || report.ended_session_ == 0 ||
+      report.next_session_ == 0 || report.comm_.back() != '\0')
   {
     return std::unexpected("invalid exit-report identity or clock");
   }

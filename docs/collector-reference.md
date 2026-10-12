@@ -72,8 +72,10 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 **4c. Exit reports** (`exits.hpp`, `ExitMonitor`)
 - Decodes the sampler's report about an ended target
   (`common/exit_wire.hpp`): the kernel log messages that name the process.
-- Keeps the first copy, works out the reason (segfault, OOM killer, …) and
-  writes one `process_exit` row. See [process-exit.md](process-exit.md).
+- Stores the first copy of each exit, works out the reason (segfault, OOM
+  killer, …) and writes one `process_exit` row. `/api/live` shows the newest
+  exit by report time, so a delayed report of an earlier exit is stored but
+  does not replace it. See [process-exit.md](process-exit.md).
 
 **5. Storage** (`storage.hpp`)
 - One SQLite file per UTC day, in WAL mode, with the same tables the retired

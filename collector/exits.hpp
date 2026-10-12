@@ -12,6 +12,7 @@
 #include <cstring>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -139,6 +140,11 @@ class ExitMonitor
     Json result{JsonObject{}};
     result.Set("pid", Json(report.pid_));
     result.Set("process_start", Json(report.process_start_));
+    // Decimal text like health.session, which a double cannot hold exactly.
+    // "session" is the ended target's; "next_session" is the one of the
+    // "target absent" ticks that follow the exit.
+    result.Set("session", Json(std::to_string(report.ended_session_)));
+    result.Set("next_session", Json(std::to_string(report.next_session_)));
     result.Set("name", Json(SanitizeUtf8(exit_wire::FieldText(report.comm_))));
     result.Set("ended_at", Json(static_cast<double>(report.wall_ns_) / 1e9));
     result.Set("reason", Json(ExitReason(report)));

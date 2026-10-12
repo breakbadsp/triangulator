@@ -870,7 +870,11 @@ void TestExitMessages()
               missing.error_ == ENOENT && missing.line_count_ == 0 &&
               missing.pid_ == 1234 && missing.process_start_ == 7,
           "a missing kernel log gives a report that says so");
-  Require(exit_wire::Decode(wire::AsBytes(missing)).has_value(),
+  // The sampler adds the two sessions after Collect(), where it knows them.
+  auto with_sessions = missing;
+  with_sessions.ended_session_ = 1;
+  with_sessions.next_session_ = 2;
+  Require(exit_wire::Decode(wire::AsBytes(with_sessions)).has_value(),
           "the report the sampler builds is valid on the wire");
 
   // A kernel log with a record that was written after the watch began. A

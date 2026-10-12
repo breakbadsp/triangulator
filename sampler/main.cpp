@@ -147,6 +147,7 @@ class Sampler
     if (p_target != previous_target_)
     {
       // records_ still holds the ended target's last tick here.
+      bool reported = false;
       if (previous_target_)
       {
         const auto ended = ProcessEnded(*previous_target_);
@@ -169,12 +170,18 @@ class Sampler
               *previous_target_, std::span{records_}.first(record_count_),
               ClockNow(CLOCK_REALTIME), logger_,
               std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms));
+          exit_report_.ended_session_ = session_;
           exit_report_sends_ = kExitReportSends;
+          reported = true;
         }
       }
       if (auto reset = ResetSession(); !reset)
       {
         return reset;
+      }
+      if (reported)
+      {
+        exit_report_.next_session_ = session_;
       }
       previous_target_ = p_target;
       if (p_target)
