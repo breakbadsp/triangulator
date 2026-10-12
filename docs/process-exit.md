@@ -40,7 +40,7 @@ This lets every local user read kernel messages. Inside a container,
 flowchart LR
     found["Target found<br/>open /dev/kmsg, seek to end"]
     gone["Target gone, a zombie,<br/>or its PID reused"]
-    read["Read new kernel messages<br/>keep the newest 6 that name<br/>the PID or a thread ID"]
+    read["Read new kernel messages<br/>keep the newest 6 that name<br/>the PID or a thread it saw"]
     send["TEND datagram<br/>sent with 5 ticks"]
     collector["Collector<br/>keeps the first copy<br/>process_exit row, /api/live exit"]
     found --> gone --> read --> send --> collector
@@ -51,8 +51,9 @@ flowchart LR
    sampler does not run `dmesg`; it stays one static binary.
 2. When the target disappears, becomes a zombie, or its PID now belongs to
    another process, the sampler reads the messages logged since then. It keeps
-   the newest six that name the process ID or the ID of a thread from the last
-   tick. A segfault names the thread that faulted; the OOM killer names the
+   the newest six that name the process ID or the ID of a thread it has seen
+   since it found the process (up to 2,550 at a time; when more have come and
+   gone, the threads alive in the last tick). A segfault names the thread that faulted; the OOM killer names the
    process. The OOM killer's task table lists every process, so its rows are
    skipped.
 3. It sends one `TEND` datagram ([common/exit_wire.hpp](../common/exit_wire.hpp),
@@ -109,9 +110,10 @@ the sampler matched it.
   "No kernel crash message" for a crash.
 - A thread that started after the sampler's last tick and then crashed is not
   matched. A segfault names the faulting thread (`worker[1240]: segfault`), and
-  the sampler knows only the thread IDs of its last tick, which is up to one
-  sample interval before the exit. Short-lived pool threads make this more
-  likely. The report then also shows "No kernel crash message".
+  the sampler knows the thread IDs of the ticks since it found the process, the
+  newest of which is up to one sample interval before the exit. Short-lived
+  pool threads make this more likely. The report then also shows "No kernel
+  crash message".
 - A crash before the sampler found the process is not read.
 - The sampler reads the kernel log for at most a quarter of a tick, and 50 ms
   at most, after the exit. If the log holds more records than it can read in

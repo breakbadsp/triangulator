@@ -216,6 +216,10 @@ class Sampler
     }
     SendTick(pid, monotonic, wall, std::span{records_}.first(count));
     record_count_ = count;
+    if (p_target)
+    {
+      kernel_log_.Note(std::span{records_}.first(count));
+    }
     if (exit_report_sends_ > 0)
     {
       --exit_report_sends_;

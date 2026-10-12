@@ -170,14 +170,14 @@ namespace triangulator
 class ExitMessages
 {
  public:
-  // p_threads: the last tick's records, whose tids are the threads to match.
-  ExitMessages(int p_pid, std::span<const wire::Record> p_threads)
+  // p_tids: the sorted thread IDs to match, besides the process ID.
+  ExitMessages(int p_pid, std::span<const std::uint32_t> p_tids)
   {
     ids_[id_count_++] = static_cast<std::uint32_t>(p_pid);
-    for (const auto& record :
-         p_threads.first(std::min(p_threads.size(), ids_.size() - id_count_)))
+    for (const auto tid :
+         p_tids.first(std::min(p_tids.size(), ids_.size() - 1)))
     {
-      ids_[id_count_++] = record.tid_;
+      ids_[id_count_++] = tid;
     }
     std::ranges::sort(std::span{ids_}.first(id_count_));
   }
@@ -228,6 +228,7 @@ class KernelLog
   // the messages logged from now on.
   void Watch(RateLimitedLogger& p_logger, const char* p_path = kPath)
   {
+    tid_count_ = 0;
     log_ = FileDescriptor{::open(p_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)};
     error_ = log_ ? 0 : errno;
     if (log_ && ::lseek(log_.Get(), 0, SEEK_END) < 0)
@@ -244,11 +245,46 @@ class KernelLog
     }
   }
 
+  // Remembers the thread IDs of one tick's records. A segfault names the
+  // thread that faulted, and that thread is the first to die, so it can be
+  // missing from the last tick. The IDs seen since Watch() are kept, up to
+  // wire::kMaxThreads. Threads come and go on a long-running process, so
+  // when the union would not fit, only this tick's IDs stay: the threads
+  // alive now are always kept. Allocates nothing.
+  void Note(std::span<const wire::Record> p_records) noexcept
+  {
+    const auto count = std::min(p_records.size(), current_.size());
+    for (std::size_t index = 0; index < count; ++index)
+    {
+      current_[index] = p_records[index].tid_;
+    }
+    const auto now = std::span{current_}.first(count);
+    std::ranges::sort(now);
+    const auto merged_end = std::ranges::set_union(
+        std::span{tids_}.first(tid_count_), now, merged_.begin());
+    const auto merged_count =
+        static_cast<std::size_t>(merged_end.out - merged_.begin());
+    if (merged_count <= tids_.size())
+    {
+      std::copy_n(merged_.begin(), merged_count, tids_.begin());
+      tid_count_ = merged_count;
+      return;
+    }
+    std::ranges::copy(now, tids_.begin());
+    tid_count_ = count;
+  }
+
+  // The thread IDs remembered by Note(), sorted.
+  [[nodiscard]] std::span<const std::uint32_t> Threads() const noexcept
+  {
+    return std::span{tids_}.first(tid_count_);
+  }
+
   // The report for p_target, which has ended. p_threads is the last
-  // tick's records. Ends the watch. Reads the log for at most p_budget; a
-  // backlog that takes longer is cut off, oldest records first, so the
-  // report can miss the newest messages. The sampler's tick cadence matters
-  // more than a complete report, and the cut is logged.
+  // tick's records, used for the process name. Ends the watch. Reads the log
+  // for at most p_budget; a backlog that takes longer is cut off, oldest
+  // records first, so the report can miss the newest messages. The sampler's
+  // tick cadence matters more than a complete report, and the cut is logged.
   [[nodiscard]] exit_wire::Report Collect(
       const TargetIdentity& p_target, std::span<const wire::Record> p_threads,
       Nanoseconds p_wall, RateLimitedLogger& p_logger,
@@ -275,7 +311,7 @@ class KernelLog
       report.error_ = static_cast<std::uint32_t>(error_ ? error_ : EBADF);
       return report;
     }
-    ExitMessages messages{p_target.pid_, p_threads};
+    ExitMessages messages{p_target.pid_, Threads()};
     const auto deadline = ClockNow(CLOCK_MONOTONIC) + p_budget;
     bool drained = false;
     while (!drained)
@@ -309,6 +345,12 @@ class KernelLog
  private:
   FileDescriptor log_;
   int error_ = EBADF;
+  // Sorted thread IDs seen since Watch(); current_ and merged_ are scratch
+  // space for Note().
+  std::array<std::uint32_t, wire::kMaxThreads> tids_{};
+  std::size_t tid_count_ = 0;
+  std::array<std::uint32_t, wire::kMaxThreads> current_{};
+  std::array<std::uint32_t, 2 * wire::kMaxThreads> merged_{};
   // One record per read(). The kernel limits a message to 1 KiB before
   // escaping; this leaves room for escapes and the KEY=VALUE lines.
   std::array<char, 8192> record_{};

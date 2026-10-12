@@ -783,6 +783,65 @@ void TestNextDeadline()
           "a run that fell behind counts from now");
 }
 
+std::array<wire::Record, 3> TickOf(std::uint32_t p_first,
+                                   std::uint32_t p_second,
+                                   std::uint32_t p_third)
+{
+  std::array<wire::Record, 3> records{};
+  records[0].tid_ = p_first;
+  records[1].tid_ = p_second;
+  records[2].tid_ = p_third;
+  return records;
+}
+
+// The thread that faults is the first to die, so it can be missing from the
+// last tick. A regular file stands in for /dev/kmsg: Watch() seeks to its end
+// and Collect() reads what is appended afterwards, here one record.
+void TestThreadIdsSeenBeforeTheLastTick()
+{
+  const auto path =
+      std::filesystem::temp_directory_path() /
+      std::format("triangulator-kmsg-tids-{}", static_cast<int>(::getpid()));
+  std::ofstream{path, std::ios::trunc} << "6,1,1,-;old[1240]: segfault\n";
+  RateLimitedLogger logger;
+  KernelLog log;
+  log.Watch(logger, path.c_str());
+  const auto early = TickOf(1234, 1240, 1250);
+  const auto last = TickOf(1234, 1250, 1260);
+  log.Note(early);
+  log.Note(last);
+  std::ofstream{path, std::ios::app}
+      << "6,2,2,-;worker[1240]: segfault at 0 ip 0 sp 0 error 6\n";
+  const auto report = log.Collect({.pid_ = 1234, .starttime_ = 7}, last,
+                                  Nanoseconds{1}, logger, 1s);
+  std::filesystem::remove(path);
+  Require(report.kernel_log_ == exit_wire::KernelLog::Read &&
+              report.line_count_ == 1 &&
+              exit_wire::FieldText(report.lines_[0]) ==
+                  "worker[1240]: segfault at 0 ip 0 sp 0 error 6",
+          "a thread seen in an earlier tick, not the last, is still matched");
+
+  // A tick full of new threads does not overflow the remembered set, and the
+  // threads alive in the last tick are always kept.
+  log.Watch(logger, "/nonexistent/kmsg");
+  std::vector<wire::Record> first_many(wire::kMaxThreads);
+  std::vector<wire::Record> second_many(wire::kMaxThreads);
+  for (std::size_t index = 0; index < first_many.size(); ++index)
+  {
+    first_many[index].tid_ = static_cast<std::uint32_t>(10'000 + index);
+    second_many[index].tid_ = static_cast<std::uint32_t>(20'000 + index);
+  }
+  log.Note(first_many);
+  log.Note(second_many);
+  const auto recent = log.Threads();
+  Require(recent.size() == second_many.size() &&
+              std::ranges::binary_search(recent, 20'000U) &&
+              std::ranges::binary_search(recent, 20'000U + 2549),
+          "when the union does not fit, the last tick's threads are kept");
+  log.Watch(logger, "/nonexistent/kmsg");
+  Require(log.Threads().empty(), "a new target starts with no threads");
+}
+
 // Feeds /dev/kmsg records in the kernel's own formats to ExitMessages and
 // checks which ones it keeps for the ended process (pid 1234, thread 1240).
 void TestExitMessages()
@@ -825,7 +884,8 @@ void TestExitMessages()
   std::array<wire::Record, 2> threads{};
   threads[0].tid_ = 1234;
   threads[1].tid_ = 1240;
-  ExitMessages messages{1234, threads};
+  const std::array<std::uint32_t, 2> tids{1234, 1240};
+  ExitMessages messages{1234, tids};
   messages.Offer("4,1,10,-;[   1234]  1000  1234  100  50  0  0  0 app\n");
   messages.Offer("6,2,11,-;other[99]: segfault at 0\n");
   // Numbers that merely equal the process or a thread ID: the fault address
@@ -849,9 +909,8 @@ void TestExitMessages()
 
   // A process whose PID equals another task's user ID: the OOM killer's
   // summary for pid 99 must not be taken as its own.
-  std::array<wire::Record, 1> user_threads{};
-  user_threads[0].tid_ = 1000;
-  ExitMessages other_user{1000, user_threads};
+  const std::array<std::uint32_t, 1> user_tids{1000};
+  ExitMessages other_user{1000, user_tids};
   other_user.Offer(
       "6,20,5,-;oom-kill:constraint=CONSTRAINT_NONE,task=other,pid=99,"
       "uid=1000\n");
@@ -860,6 +919,8 @@ void TestExitMessages()
   other_user.CopyTo(unrelated);
   Require(unrelated.line_count_ == 0,
           "messages about another task are not kept for this one");
+
+  TestThreadIdsSeenBeforeTheLastTick();
 
   RateLimitedLogger logger;
   KernelLog log;
@@ -886,6 +947,7 @@ void TestExitMessages()
   {
     std::ofstream{fake_log, std::ios::trunc} << "6,1,1,-;old[1234]: segfault\n";
     log.Watch(logger, fake_log.c_str());
+    log.Note(threads);
     std::ofstream{fake_log, std::ios::app}
         << "6,2,2,-;worker[1240]: segfault at 0 ip 0 sp 0 error 6\n";
   };
