@@ -452,6 +452,21 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                     self.assertEqual(fetch("/api/replay?" + query)[0], 400)
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
                 self.assertIn(b'id="replay-time"', page)
+                # An ended target appears in /api/live as the latest exit.
+                self.assertIsNone(live["exit"])
+                target.kill()
+                target.wait(timeout=3)
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline and not live.get("exit"):
+                    time.sleep(0.2)
+                    live = json.loads(fetch("/api/live")[1])
+                ended = live["exit"]
+                self.assertEqual((ended["pid"], ended["name"]), (target.pid, "sleep"))
+                self.assertTrue(live["health"]["target_absent"])
+                self.assertIn((ended["kernel_log"], ended["reason"]),
+                              (("read", "not_reported"), ("unreadable", "log_unreadable"),
+                               ("unavailable", "log_unavailable")))
+                self.assertEqual(ended["messages"], [])
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:
@@ -461,13 +476,15 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 target.wait(timeout=8)
             self.assertIn("Alerting is not part of the C++ collector", stderr)
             self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
-            stored = 0
+            stored, exits = 0, []
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM raw_sample").fetchone()[0], 0)
                     stored += connection.execute("SELECT COUNT(*) FROM resource_sample").fetchone()[0]
+                    exits += connection.execute("SELECT pid FROM process_exit").fetchall()
             self.assertGreaterEqual(stored, 2)
+            self.assertEqual(exits, [(target.pid,)])
 
 
     def test_unusable_data_dir_stops_at_startup(self):

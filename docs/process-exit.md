@@ -1,0 +1,98 @@
+# Why the target process ended
+
+When the target process ends, the dashboard's Summary shows a **Last process
+exit** card with the reason and the kernel messages behind it. The Assessment
+says "Target process ended · Segmentation fault" instead of only "Target process
+is absent".
+
+| Reason | Kernel message the sampler found |
+| --- | --- |
+| Segmentation fault | `app[1240]: segfault at 0 ip … error 6 in app[…]` |
+| Killed by the out-of-memory killer | `Out of memory: Killed process 1234 (app) …` or `oom-kill:…,pid=1234,…` |
+| General protection fault | `traps: app[1240] general protection fault ip:… sp:… error:0` |
+| Divide error | `traps: app[1240] trap divide error ip:…` |
+| Invalid instruction | `traps: app[1240] trap invalid opcode ip:…` |
+| Breakpoint trap | `traps: app[1240] trap int3 ip:…` |
+| No kernel crash message | None: a normal exit, `abort()`, or a signal from another process (`SIGTERM`, `kill -9`) |
+| Reason unknown | The sampler could not read the kernel log |
+
+## Setup: allow reading the kernel log
+
+The sampler reads `/dev/kmsg`, the file `dmesg` reads. With
+`kernel.dmesg_restrict = 1`, only processes with `CAP_SYSLOG` may read it. That
+is the default on Ubuntu, Debian and Arch. The sampler still runs without
+privileges; it logs a warning, and the dashboard shows "Reason unknown: kernel
+log not readable".
+
+To show reasons, an administrator allows reading the log on the target host:
+
+```sh
+sudo sysctl kernel.dmesg_restrict=0
+echo 'kernel.dmesg_restrict = 0' | sudo tee /etc/sysctl.d/50-dmesg.conf
+```
+
+This lets every local user read kernel messages. Inside a container,
+`/dev/kmsg` is often missing; the dashboard then shows "kernel log unavailable".
+
+## How it works
+
+```mermaid
+flowchart LR
+    found["Target found<br/>open /dev/kmsg, seek to end"]
+    gone["Target gone, a zombie,<br/>or its PID reused"]
+    read["Read new kernel messages<br/>keep the newest 6 that name<br/>the PID or a thread ID"]
+    send["TEND datagram<br/>sent with 5 ticks"]
+    collector["Collector<br/>keeps the first copy<br/>process_exit row, /api/live exit"]
+    found --> gone --> read --> send --> collector
+```
+
+1. When the sampler finds a target, it opens `/dev/kmsg` and moves to the end,
+   so older messages about a process that had the same PID are skipped. The
+   sampler does not run `dmesg`; it stays one static binary.
+2. When the target disappears, becomes a zombie, or its PID now belongs to
+   another process, the sampler reads the messages logged since then. It keeps
+   the newest six that name the process ID or the ID of a thread from the last
+   tick. A segfault names the thread that faulted; the OOM killer names the
+   process. The OOM killer's task table lists every process, so its rows are
+   skipped.
+3. It sends one `TEND` datagram ([common/exit_wire.hpp](../common/exit_wire.hpp),
+   1,200 bytes) with each of the next five ticks. Datagrams are not
+   acknowledged, so the copies cover a lost one.
+4. The collector keeps the first copy of each `(pid, process_start)`, works
+   out the reason, and stores one `process_exit` row in the day file.
+
+A target change on `SIGHUP` sends no report while the old process is still
+running.
+
+## API and storage
+
+`GET /api/live` has an `exit` object for the latest ended target since the
+collector started, or `null`:
+
+```json
+{"pid": 1234, "process_start": 812345, "name": "app", "ended_at": 1760337802.5,
+ "reason": "segfault", "kernel_log": "read", "error": null,
+ "messages": ["app[1240]: segfault at 0 ip 000055d0c1e2a1b9 sp 00007ffd5e1e0f30 error 6 in app[55d0c1e29000+2000]"]}
+```
+
+- `reason`: `segfault`, `oom`, `gp_fault`, `divide_error`, `invalid_opcode`,
+  `breakpoint`, `fatal_signal`, `not_reported`, `log_unreadable` or
+  `log_unavailable`.
+- `kernel_log`: `read`, `unreadable` or `unavailable`. `error` is the reason the
+  log could not be opened.
+- `ended_at`: when the sampler noticed the exit, within one sample interval.
+
+Recorded moments ([replay](collector-reference.md#historical-process-inspection))
+include the object. Each day file has a `process_exit` table: `ts`, `pid`,
+`process_start`, `name`, `reason`, `kernel_log` and `messages` (one per line).
+
+## Limits
+
+- The sampler is not the target's parent, so it cannot read the exit status.
+  Exits that the kernel does not log, such as `exit(1)`, `abort()` and
+  `kill -9`, show as "No kernel crash message".
+- A crash before the sampler found the process is not read.
+- After a collector restart, the card is empty until the next exit. The
+  `process_exit` table keeps earlier exits.
+- Messages are cut at 191 bytes. Kernel messages show unprintable bytes as
+  `\xNN`.

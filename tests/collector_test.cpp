@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "../collector/engine.hpp"
+#include "../collector/exits.hpp"
 #include "../collector/memory.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
@@ -860,6 +861,89 @@ void TestStorageReportsErrors()
       "History skips a day file it can't read");
 }
 
+// ---------- Exit reports ----------
+
+exit_wire::Report ExitReport(std::uint32_t p_pid,
+                             std::initializer_list<std::string_view> p_lines)
+{
+  exit_wire::Report report{.pid_ = p_pid,
+                           .process_start_ = 77,
+                           .wall_ns_ = 1'700'000'000'500'000'000,
+                           .comm_ = {'a', 'p', 'p'}};
+  for (const auto line : p_lines)
+  {
+    exit_wire::SetLine(report.lines_[report.line_count_++], line);
+  }
+  return report;
+}
+
+// Classifies kernel messages, keeps one copy of a repeated report, shows the
+// latest in the live snapshot and stores one process_exit row.
+void TestExitReports()
+{
+  Require(
+      ExitReason(ExitReport(1, {"app[2]: segfault at 0 ip 1"})) == "segfault",
+      "a segfault");
+  Require(ExitReason(ExitReport(
+              1, {"app[2]: segfault at 0",
+                  "Out of memory: Killed process 1 (app)"})) == "oom",
+          "the OOM killer wins over other messages");
+  Require(ExitReason(ExitReport(1, {"traps: app[2] general protection fault "
+                                    "ip:1 sp:2 error:0"})) == "gp_fault",
+          "a general protection fault");
+  Require(ExitReason(ExitReport(1, {"traps: app[2] trap divide error ip:1"})) ==
+              "divide_error",
+          "a divide error");
+  Require(
+      ExitReason(ExitReport(1, {"INFO: task app:2 blocked"})) == "not_reported",
+      "other messages are not a reason");
+  auto unreadable = ExitReport(1, {});
+  unreadable.kernel_log_ = exit_wire::KernelLog::Unreadable;
+  unreadable.error_ = EPERM;
+  Require(ExitReason(unreadable) == "log_unreadable", "an unreadable log");
+
+  ExitMonitor exits;
+  Require(exits.Snapshot().IsNull(), "no exit before the first report");
+  const auto report = ExitReport(1234, {"app[1240]: segfault at 0"});
+  Require(exits.Accept(report), "a new report is kept");
+  Require(!exits.Accept(report), "a copy of it is not");
+  const auto snapshot = exits.Snapshot();
+  Require(Field(snapshot, "pid").AsInt() == 1234 &&
+              Field(snapshot, "name").AsString() == "app" &&
+              Field(snapshot, "reason").AsString() == "segfault" &&
+              Field(snapshot, "kernel_log").AsString() == "read" &&
+              Field(snapshot, "error").IsNull() &&
+              Field(snapshot, "messages").AsArray().size() == 1,
+          "the live snapshot describes the latest exit");
+  RequireNear(Field(snapshot, "ended_at").AsNumber(), 1'700'000'000.5,
+              "ended_at is the sampler's wall time");
+  Require(exits.Accept(unreadable), "a report for another process is new");
+  Require(Field(exits.Snapshot(), "error").AsString() == std::strerror(EPERM),
+          "an unreadable log reports why");
+
+  TempDirectory directory;
+  auto storage = Storage::Create(directory.Path(), 7);
+  Require(storage.has_value(), "storage opens");
+  Require(storage->Exit(report).has_value() &&
+              storage->Exit(report).has_value() &&
+              storage->Flush(1'700'000'001).has_value(),
+          "an exit stores; a copy is ignored");
+  auto database = OpenDatabase(directory.Path() / "2023-11-14.sqlite3", true);
+  Require(database.has_value(), "the day file opens");
+  auto rows = Prepare(database->get(),
+                      "SELECT pid, name, reason, kernel_log, messages, "
+                      "count(*) FROM process_exit");
+  Require(rows.has_value() && ::sqlite3_step(rows->get()) == SQLITE_ROW,
+          "process_exit has a row");
+  Require(::sqlite3_column_int64(rows->get(), 0) == 1234 &&
+              ColumnText(rows->get(), 1) == "app" &&
+              ColumnText(rows->get(), 2) == "segfault" &&
+              ColumnText(rows->get(), 3) == "read" &&
+              ColumnText(rows->get(), 4) == "app[1240]: segfault at 0" &&
+              ::sqlite3_column_int64(rows->get(), 5) == 1,
+          "one row holds the exit and its messages");
+}
+
 // ---------- Resource samples ----------
 
 // A resource sample header taken p_sequence * 5 s after the start.
@@ -1545,9 +1629,11 @@ int main()
     TestMemoryMapLayout();
     TestMemoryMapLayoutOrder();
     TestMemoryMapSessions();
+    TestExitReports();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
-        "sessions, rollups, storage, health, resource samples, memory map)");
+        "sessions, rollups, storage, health, resource samples, memory map, "
+        "exit reports)");
   }
   catch (const std::exception& error)
   {

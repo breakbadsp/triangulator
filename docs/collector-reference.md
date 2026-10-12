@@ -69,12 +69,19 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Keeps the latest sample for `/api/live` and writes one `resource_sample`
   row per sample. Like the thread side, it evaluates no alert rules.
 
+**4c. Exit reports** (`exits.hpp`, `ExitMonitor`)
+- Decodes the sampler's report about an ended target
+  (`common/exit_wire.hpp`): the kernel log messages that name the process.
+- Keeps the first copy, works out the reason (segfault, OOM killer, …) and
+  writes one `process_exit` row. See [process-exit.md](process-exit.md).
+
 **5. Storage** (`storage.hpp`)
 - One SQLite file per UTC day, in WAL mode, with the same tables the retired
   Python collector wrote, so old files stay readable. Any other tool can read
   them.
 - Writes the thread summaries, plus raw samples if `store_raw = true`, and
-  the resource samples (`resource_sample`; older day files gain the table). The
+  the resource samples (`resource_sample`; older day files gain the table),
+  and one `process_exit` row per ended target. The
   `alert_event` table exists but stays empty.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
@@ -88,7 +95,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
   Its `memory` object is the latest memory-map summary
-  ([memory-map.md](memory-map.md)).
+  ([memory-map.md](memory-map.md)). Its `exit` object is why the latest
+  target ended, or `null` ([process-exit.md](process-exit.md)).
 - `GET /api/memory-map`: the latest complete memory-map layout: regions with
   start and end addresses (hex strings), size, kind, permissions and mapping
   count. Not stored; only the latest layout is kept.
