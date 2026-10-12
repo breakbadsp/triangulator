@@ -900,6 +900,7 @@ void TestExitReports()
   auto unreadable = ExitReport(1, {});
   unreadable.kernel_log_ = exit_wire::KernelLog::Unreadable;
   unreadable.error_ = EPERM;
+  unreadable.wall_ns_ += 1'000'000'000;
   Require(ExitReason(unreadable) == "log_unreadable", "an unreadable log");
 
   ExitMonitor exits;
@@ -920,6 +921,34 @@ void TestExitReports()
   Require(exits.Accept(unreadable), "a report for another process is new");
   Require(Field(exits.Snapshot(), "error").AsString() == std::strerror(EPERM),
           "an unreadable log reports why");
+
+  // Reports A, B and a late copy of A: the live exit stays B, the newest, and
+  // an earlier exit whose first report arrives late is still new.
+  ExitMonitor ordered;
+  auto first = ExitReport(10, {"app[10]: segfault at 0"});
+  auto second = ExitReport(20, {"app[20]: segfault at 0"});
+  second.wall_ns_ = first.wall_ns_ + 1;
+  auto delayed = ExitReport(30, {"app[30]: segfault at 0"});
+  delayed.wall_ns_ = first.wall_ns_ - 1'000'000'000;
+  Require(ordered.Accept(first) && ordered.Accept(second),
+          "two exits are both new");
+  Require(!ordered.Accept(first), "a late copy of the first is not new");
+  Require(Field(ordered.Snapshot(), "pid").AsInt() == 20,
+          "a late copy does not replace a newer exit");
+  Require(
+      ordered.Accept(delayed) && Field(ordered.Snapshot(), "pid").AsInt() == 20,
+      "an earlier exit seen for the first time is stored, not shown");
+  Require(!ordered.Accept(delayed) && !ordered.Accept(second),
+          "copies of every kept exit are ignored");
+  for (std::uint32_t pid = 100; pid < 140; ++pid)
+  {
+    auto flood = ExitReport(pid, {});
+    flood.wall_ns_ = second.wall_ns_ + pid;
+    Require(ordered.Accept(flood), "each of many exits is new");
+    Require(!ordered.Accept(flood), "and its copy is not");
+  }
+  Require(Field(ordered.Snapshot(), "pid").AsInt() == 139,
+          "the newest of many exits is shown");
 
   TempDirectory directory;
   auto storage = Storage::Create(directory.Path(), 7);
