@@ -454,6 +454,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertIn(b'id="replay-time"', page)
                 # An ended target appears in /api/live as the latest exit.
                 self.assertIsNone(live["exit"])
+                self.assertIn(b'id="process-exit"', page)
                 target.kill()
                 target.wait(timeout=3)
                 deadline = time.monotonic() + 5

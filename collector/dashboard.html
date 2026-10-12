@@ -116,6 +116,7 @@ section.block{margin-top:30px}
 .verdict .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
 .verdict .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
 .profile{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.55}
+.exit-log{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Bar lists */
 .bars{display:flex;flex-direction:column;gap:3px}
@@ -351,6 +352,13 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
 
 <div id="tiles" class="tiles" style="margin-bottom:14px"></div>
+
+<section id="process-exit" class="card" aria-labelledby="exit-title" hidden style="margin-bottom:14px">
+<div class="card-head"><div><h3 id="exit-title" data-help="exitreason">Last process exit</h3><p id="exit-sub"></p></div></div>
+<div class="verdict"><span id="exit-reason" class="badge" data-help="exitreason"></span></div>
+<p id="exit-explain" class="profile"></p>
+<details id="exit-details"><summary data-help="exitmessages">Kernel messages</summary><pre id="exit-messages" class="exit-log mono"></pre></details>
+</section>
 
 <div class="grid g-hero">
 <div class="card">
@@ -701,6 +709,8 @@ helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU 
 helpTopic('demand','Waiting for CPU','Process · percentage of runnable demand','Run delay as a share of CPU time plus run delay, summed across reported threads.','With 0.75 seconds on CPU and 0.25 seconds waiting, the share is 25%.','Compare this share with the thread-table Run delay metric, whose denominator is elapsed time.','Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.',['delay','cpucores','pressure']);
 helpTopic('packetcounts','Bad · duplicate · late','Sampler packets · counters','Packets rejected as invalid, received more than once, or received too late for normal assembly.','','Compare these counters with loss and sample age.','These are monitor transport counters, not application socket errors.',['loss','health']);
 helpTopic('rawsamples','Raw samples held','Collector · observation count','The number of raw thread observations retained in the collector buffer.','','Use this count when checking collector retention and buffer behavior.','This is not a count of active threads or stored history buckets.',['health','history']);
+helpTopic('exitreason','Last process exit','Ended target process · kernel log','Why the most recent target process ended, from the kernel log messages that name the process or one of its threads.','"Segmentation fault" means a thread accessed memory it may not use, and the kernel sent SIGSEGV.','Read the reason first, then the kernel messages. The time is when the sampler noticed the exit, within one sample interval.','The kernel logs only the faults it handles and the out-of-memory killer. A normal exit, abort(), and a signal from another process leave no message. Reading the log needs kernel.dmesg_restrict = 0 on the target host. The card shows the latest exit since the collector started.',['exitmessages','health'],['Reason the process ended']);
+helpTopic('exitmessages','Kernel messages','Ended target process · up to six lines','The newest kernel log lines that name the ended process or one of its threads, oldest first.','"app[1240]: segfault at 0 ip … error 6 in app[…]" names thread 1240, the bad address, and the code that faulted.','Thread IDs in brackets match the TID column in the threads table. The address after "in" identifies the binary or library.','Only messages logged after the sampler found the process are read. Long lines are cut at 191 bytes. The out-of-memory task table is left out.',['exitreason']);
 helpTopic('overview','Process overview','Target process · summed thread observations','A summary of the target process, computed from its reported threads.','','Use load, CPU use, state counts, and wait channels together. Live overview trends are retained in this browser tab for up to 15 minutes. Recorded views show one saved process view.','Browser trends are not the same as stored thread history. Missing observations can limit every total.',['load','cpu','health']);
 helpTopic('memmap','Memory map','Target process · virtual address space','The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits.','','Start with the findings and limits, then select a region in the address-space view to zoom in. Compare mapped sizes with RSS.','Mapped memory is not resident memory. A layout is sampled less often than threads, so short-lived mappings can be missed.',['amap','vmsize','rss']);
 helpTopic('vmsize','Virtual size (VmSize)','Process · mapped bytes','The total size of every mapping in the address space, whether or not it is in RAM.','A 1 GB reservation that is never touched adds 1 GB here and almost nothing to RSS.','Compare with RLIMIT_AS and the peak. Large values are common for runtimes that reserve address space up front.','Virtual size is not memory use. Growth alone does not establish a leak.',['aslimit','rss','vmas'],['Peak virtual size','Share of VmSize']);
@@ -1128,7 +1138,8 @@ const LEVEL_ORDER=['critical','serious','warning','info','good'];
 function assess(threads,points){
   const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
-  if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
+  if(health.target_absent&&live.exit)add('critical',`Target process ended · ${exitReason(live.exit)[0]}`,`${live.exit.name||'PID '+live.exit.pid} ended ${ago(viewNow()-live.exit.ended_at)}. See Last process exit.`);
+  else if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
   if((health.packet_loss_pct||0)>1)add('warning',`Packet loss ${pct(health.packet_loss_pct)}`,'Some samples were lost between sampler and collector over the last minute; rates may be noisy.');
   const kernel=threads.filter(thread=>thread.state==='kernel');
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
@@ -1232,7 +1243,7 @@ function renderOverview(){
   for(const state of stackStates){const count=(counts[state]||0)+(state==='other'?counts.no_access||0:0);if(!count&&!points.some(point=>point.s[state]))continue;const item=node('span');item.append(node('i',undefined,'sw '+state),state==='other'?'Other / no access':labels[state],node('b',String(count)));stateLegend.append(item)}
   // Live panels hold still under the pointer, so clicks and tooltips land.
   const steady=id=>replayAt===null&&element(id).matches(':hover');
-  renderAssessment(threads);renderTiles(threads,points);renderCores(threads);
+  renderAssessment(threads);renderExit();renderTiles(threads,points);renderCores(threads);
   if(!steady('mosaic'))renderMosaic(threads);if(!steady('family-bars'))renderFamilies(threads);if(!steady('wchan-bars'))renderWchans(threads);
   element('chart-load').hidden=replayAt!==null;element('chart-states').hidden=replayAt!==null;
   element('overview-sub').textContent=replayAt!==null?`Recorded process view at ${date(replayAt)}. CPU and I/O rates cover the preceding ~10 seconds; live trends and load averages are unavailable here.`:threads.length?`How ${targetName()} is behaving, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab since '+clock(buffer[0].t)+'.':''}`:'Waiting for the sampler to report the target process.'}
@@ -2197,7 +2208,27 @@ function initSectionNavigation(){
   }
   update();
 }
-function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:'the target')}
+function targetName(){const health=live.health||{};return (live.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:health.target_absent&&live.exit?.name||'the target')}
+// Exit reason codes from the collector: label, level, and what it means.
+const EXIT_REASONS={
+  segfault:['Segmentation fault','critical','A thread read or wrote memory it may not access. The kernel sent SIGSEGV.'],
+  oom:['Killed by the out-of-memory killer','critical','The host or the process\'s cgroup ran out of memory. The kernel ended the process with SIGKILL.'],
+  gp_fault:['General protection fault','critical','The CPU rejected a memory access, often through a corrupted pointer. The kernel sent SIGSEGV.'],
+  divide_error:['Divide error','critical','An integer division by zero or overflow. The kernel sent SIGFPE.'],
+  invalid_opcode:['Invalid instruction','critical','The CPU could not run an instruction, for example __builtin_trap() or a corrupted jump. The kernel sent SIGILL.'],
+  breakpoint:['Breakpoint trap','critical','The process ran a breakpoint instruction with no debugger attached. The kernel sent SIGTRAP.'],
+  fatal_signal:['Fatal signal','critical','The kernel logged an unexpected fatal signal for the process.'],
+  not_reported:['No kernel crash message','warning','The kernel logged no crash. The process probably exited by itself, called abort(), or another process ended it (SIGTERM, SIGKILL).'],
+  log_unreadable:['Reason unknown: kernel log not readable','warning','The sampler may not read the kernel log. Set kernel.dmesg_restrict = 0 on the target host to show the reason next time.'],
+  log_unavailable:['Reason unknown: kernel log unavailable','warning','The sampler could not open /dev/kmsg, for example inside a container.']};
+const exitReason=ended=>EXIT_REASONS[ended.reason]||[ended.reason,'warning',''];
+function renderExit(){const ended=live.exit,card=element('process-exit');card.hidden=!ended;if(!ended||helpOwns(card))return;
+  const [label,level,meaning]=exitReason(ended);
+  const badge=element('exit-reason');badge.textContent=label;badge.style.setProperty('--lvl',`var(--${level})`);
+  element('exit-sub').textContent=`${ended.name||'Process'} · PID ${ended.pid} · ended ${date(ended.ended_at)} (${ago(viewNow()-ended.ended_at)})`;
+  element('exit-explain').textContent=meaning+(ended.error?` (${ended.error})`:'');
+  element('exit-details').hidden=ended.kernel_log!=='read';
+  element('exit-messages').textContent=ended.messages.length?ended.messages.join('\n'):'No kernel messages name this process.'}
 function renderTop(){const health=live.health,dot=element('live-dot');
   const state=replayAt!==null?['warning','Historical']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
   dot.className='status-dot '+state[0];dot.dataset.hint=state[1];
