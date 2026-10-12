@@ -13,29 +13,29 @@
 
 // One thread burns CPU. The other threads remain asleep. The benchmark
 // stops this process with SIGTERM after it has measured the sampler.
-int main(int p_argc, char* p_argv[])
+int main(int p_argc, char** p_argv)
 {
-  try
+  int thread_count = 500;
+  if (p_argc == 2)
   {
-    int thread_count = 500;
-    if (p_argc > 2)
+    const std::string_view argument{p_argv[1]};
+    const auto parsed = std::from_chars(
+        argument.data(), argument.data() + argument.size(), thread_count);
+    if (parsed.ec != std::errc{} ||
+        parsed.ptr != argument.data() + argument.size() || thread_count < 1 ||
+        thread_count > 500)
     {
-      std::fputs("usage: benchmark-target [threads: 1..1000]\n", stderr);
+      std::fputs("benchmark target: thread count must be 1..500\n", stderr);
       return 1;
     }
-    if (p_argc == 2)
-    {
-      const std::string_view argument{p_argv[1]};
-      const auto parsed = std::from_chars(
-          argument.data(), argument.data() + argument.size(), thread_count);
-      if (parsed.ec != std::errc{} ||
-          parsed.ptr != argument.data() + argument.size() || thread_count < 1 ||
-          thread_count > 1000)
-      {
-        std::fputs("threads must be an integer from 1 to 1000\n", stderr);
-        return 1;
-      }
-    }
+  }
+  else if (p_argc != 1)
+  {
+    std::fputs("usage: benchmark-target [THREADS]\n", stderr);
+    return 1;
+  }
+  try
+  {
     std::latch ready{thread_count};
     std::vector<std::jthread> sleepers;
     sleepers.reserve(static_cast<std::size_t>(thread_count - 1));

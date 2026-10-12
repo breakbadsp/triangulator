@@ -63,7 +63,7 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
   <img src="docs/assets/architecture.svg" alt="The sampler reads /proc and sends UDP to the collector. The collector stores SQLite day files and serves the dashboard over HTTP. Alerting is not connected." width="100%">
 </p>
 
-[Architecture](docs/architecture.md) · [Sampler design](docs/thread-monitor-design.md) ·
+[Sampler benchmark](docs/sampler-benchmark.html) · [Architecture](docs/architecture.md) · [Sampler design](docs/thread-monitor-design.md) ·
 [Collector and API](docs/collector-reference.md) · [Deployment](docs/setup.md#production-setup)
 
 <details>
@@ -94,40 +94,82 @@ Select **Inspect a moment**, step with **Previous** / **Next**, then select **Li
 
 [Benchmark method, results, and limits](docs/collector-comparison.md)
 
-### Sampler with 500 target threads
+### Sampler performance lab
 
-Measured on 2026-10-12 with **500 native threads: one busy thread and 499 sleeping
-threads**. The target used about 99.8% of one core. The host had an Intel Core
-i5-9500 with six cores, Linux `7.2.5-3-omarchy`, and GCC 16.2.1. The sampler used
-source `c92dcac`, `-O2`, and static linking.
+[![Measured sampler latency and throughput for 100, 300, and 500 native threads at 10 Hz](docs/assets/sampler-benchmark.svg)](docs/sampler-benchmark.html)
 
-| Rate | Sampler CPU (% of one core) | Mean RSS (MiB) | Max observed RSS (MiB) |
-| --- | ---: | ---: | ---: |
-| 1 Hz | 0.428% | 2.03 | 2.03 |
-| 2 Hz | 0.843% | 2.03 | 2.03 |
-| 5 Hz | 2.098% | 2.03 | 2.03 |
-| 10 Hz | 4.107% | 2.03 | 2.03 |
+[**Open the interactive benchmark page**](docs/sampler-benchmark.html).
+Download the HTML file and open it in a browser, or serve the repository with
+`python3 -m http.server 8000` and visit
+`http://localhost:8000/docs/sampler-benchmark.html`. The page works offline.
+Select **1, 2, 5, or 10 Hz** to compare latency, delivered thread records per
+second, CPU, and resident memory. Inspect the frequency grid and all 12 cases.
 
-CPU and mean RSS are averages of three 60-second runs per frequency. Each run
-starts after a 5-second warm-up. CPU uses `/proc/PID/schedstat` execution time;
-100% means one full core. RSS is resident process memory from
-`/proc/PID/smaps_rollup`, read once per second and at the end. It excludes kernel
-allocations. These results apply to this host and workload.
-
-The sampler uses a target PID and the default settings: resources every 5 seconds,
-memory maps every 30 seconds, and `status_fallback = false`. A loopback UDP
-receiver checks all 500 thread IDs, sample continuity, and the actual frequency.
-All 12 runs completed without lost thread samples or sampler warnings.
-
-Repeat the full benchmark in about 13 minutes:
+Measured with 100, 300, and 500 native threads: one busy thread; all others
+sleep. Each case has three 30-second trials after at least five seconds of
+warm-up. Latency includes `/proc` reads and loopback UDP delivery. Throughput
+is the delivered rate at the configured frequency. Results apply to this host
+and workload. The page defines each metric and its limits.
 
 ```sh
-make benchmark-sampler
+make benchmark-sampler-matrix  # About 22 minutes; writes build/sampler-benchmark.json
 ```
 
-The test prints a table and writes `build/sampler-overhead.json`.
-[Recorded measurements](docs/sampler-overhead.json) ·
-[Test driver](tests/benchmark_sampler.py) · [Target workload](tests/benchmark_target.cpp)
+[Raw trials and host details](docs/sampler-benchmark.json) ·
+[Benchmark driver](tests/benchmark_sampler.py) ·
+[Native thread workload](tests/benchmark_target.cpp)
+
+The original 500-thread CPU and memory benchmark from PR #71 remains available:
+`make benchmark-sampler`. Its three 60-second trials per frequency take about
+13 minutes. [Original measurements](docs/sampler-overhead.json).
+
+### Thread sampling throughput and latency
+
+Measured directly on the same host on 2026-10-12. Each target has one busy
+thread; its remaining threads sleep. Each row contains **30,000 timed batches**:
+three repeats of 10,000 batches, each after a 5-second warm-up.
+
+| Threads | Thread records/s | Mean batch (ms) | p50 (ms) | p90 (ms) | p99 (ms) | p100 (ms) | Mean/thread (µs) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 64,539 | 0.015 | 0.015 | 0.015 | 0.031 | 0.054 | 15.494 |
+| 100 | 160,215 | 0.624 | 0.614 | 0.656 | 0.747 | 1.106 | 6.242 |
+| 200 | 154,751 | 1.292 | 1.244 | 1.437 | 1.669 | 4.974 | 6.462 |
+| 300 | 149,685 | 2.004 | 1.901 | 2.337 | 2.641 | 5.725 | 6.681 |
+| 500 | 153,726 | 3.253 | 3.152 | 3.525 | 4.435 | 9.008 | 6.505 |
+
+A batch validates the PID, scans the thread list, reads each thread's `stat`,
+`schedstat`, `io`, and `wchan`, and constructs its sample record. The benchmark
+uses the production sampler functions and keeps their file descriptors open.
+`CLOCK_MONOTONIC` measures each batch. Timing ends when the thread records are
+complete. UDP, collector processing, resource scans, and memory-map scans are
+outside this measurement.
+
+Throughput is total thread records divided by total timed sampling duration.
+The loop runs without a frequency limit. Percentiles use the nearest rank across
+all three repeats; **p100 is the observed maximum**. Mean/thread is mean batch
+time divided by the thread count, including the shared batch costs. All five
+thread counts were measured directly. Keep host load comparable between runs.
+
+Run the sampling benchmark:
+
+```sh
+make benchmark-sampling
+```
+
+After a performance change, rebuild and compare with the saved baseline:
+
+```sh
+make build/benchmark-sampling build/benchmark-target
+python3 tests/benchmark_sampling.py --compare docs/sampling-performance.json
+```
+
+The test writes `build/sampling-performance.json` and prints throughput and
+latency changes. It rejects comparisons with different case settings, host
+metadata, build options, or target binaries. The saved results include summaries
+for each repeat, pooled percentiles, source and binary hashes, and the method.
+[Saved baseline](docs/sampling-performance.json) ·
+[Test driver](tests/benchmark_sampling.py) · [Timed sampling path](tests/benchmark_sampling.cpp)
+
 
 ## Test results
 
@@ -140,8 +182,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 3 | QA-020, QA-021, QA-022 |
-| **Total** | **42** | |
+| NOT_RUN | 5 | QA-020, QA-021, QA-022, QA-023, QA-024 |
+| **Total** | **44** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
@@ -157,7 +199,7 @@ dated run record with its package version, steps, and evidence.
 | Configure and deploy | [Configuration](docs/setup.md#configuration) · [Systemd services](docs/setup.md#production-setup) · [Files and logs](docs/setup.md#active-files-and-logs) |
 | Understand measurements | [Linux metric coverage](docs/linux-monitoring.md) · [Resources](docs/resource-monitoring.md) · [Memory](docs/memory-map.md) · [Sockets](docs/socket-ingress-design.md) |
 | Inspect data | [Dashboard](docs/setup.md#dashboard) · [Collector, storage, and API](docs/collector-reference.md) |
-| Understand the code | [Architecture](docs/architecture.md) · [HTTP server animation](docs/dashboard-http-animation.html) · [Repository layout](docs/setup.md#layout) · [C++ standards](docs/cpp-coding-standards.md) |
+| Understand the code | [Sampler benchmark](docs/sampler-benchmark.html) · [Architecture](docs/architecture.md) · [HTTP server animation](docs/dashboard-http-animation.html) · [Repository layout](docs/setup.md#layout) · [C++ standards](docs/cpp-coding-standards.md) |
 | Test and contribute | [Bug lab](bug-lab/README.md) · [Manual QA](docs/manual-qa.md) · [Test cases](docs/qa/test-cases.md) · [Planned work](TODO.md) |
 
 **Limits:** Socket observation requires optional eBPF setup. Message counts require an application marker.

@@ -290,8 +290,8 @@ def main():
     if (not math.isfinite(args.duration) or args.duration < 2
             or not math.isfinite(args.warmup) or args.warmup < 0 or args.repeats < 1):
         parser.error("duration must be at least 2; warmup must be nonnegative; repeats must be positive")
-    if any(not 1 <= count <= 1000 for count in args.threads) or len(set(args.threads)) != len(args.threads):
-        parser.error("threads must be distinct integers from 1 to 1000")
+    if any(not 1 <= count <= 500 for count in args.threads) or len(set(args.threads)) != len(args.threads):
+        parser.error("threads must be distinct integers from 1 to 500")
     if len(set(args.rates)) != len(args.rates):
         parser.error("rates must be distinct")
     binary = args.binary.resolve()

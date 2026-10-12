@@ -121,8 +121,8 @@ class SamplerBenchmarkTests(unittest.TestCase):
                 stream.receive()
 
     def test_invalid_target_count(self):
-        for value in ("0", "1001", "-1", "100x"):
+        for value in ("0", "501", "-1", "100x"):
             result = subprocess.run([str(benchmark_sampler.TARGET), value],
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 1)
-            self.assertIn("threads must be", result.stderr)
+            self.assertIn("thread count must be", result.stderr)
