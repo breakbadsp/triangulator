@@ -12,8 +12,10 @@ done
 
 # Git is a checkout dependency. Install it before the first build attempt.
 dnf install -y git
-# Trust only the mounted checkout and its Git directory.
-git -c safe.directory=/source -c safe.directory=/source/.git clone --no-local /source /work
+# Older Git versions need these entries in the container global configuration.
+git config --global --add safe.directory /source
+git config --global --add safe.directory /source/.git
+git clone --no-local /source /work
 cd /work
 git rev-parse HEAD > /reports/commit.txt
 set +e
