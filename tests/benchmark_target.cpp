@@ -1,4 +1,5 @@
 #include <atomic>
+#include <charconv>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
@@ -6,20 +7,39 @@
 #include <latch>
 #include <mutex>
 #include <stop_token>
+#include <string_view>
 #include <thread>
 #include <vector>
 
-// One thread burns CPU. The other 499 threads remain asleep. The benchmark
+// One thread burns CPU. The other threads remain asleep. The benchmark
 // stops this process with SIGTERM after it has measured the sampler.
-int main()
+int main(int p_argc, char** p_argv)
 {
+  int thread_count = 500;
+  if (p_argc == 2)
+  {
+    const std::string_view argument{p_argv[1]};
+    const auto parsed = std::from_chars(
+        argument.data(), argument.data() + argument.size(), thread_count);
+    if (parsed.ec != std::errc{} ||
+        parsed.ptr != argument.data() + argument.size() || thread_count < 1 ||
+        thread_count > 500)
+    {
+      std::fputs("benchmark target: thread count must be 1..500\n", stderr);
+      return 1;
+    }
+  }
+  else if (p_argc != 1)
+  {
+    std::fputs("usage: benchmark-target [THREADS]\n", stderr);
+    return 1;
+  }
   try
   {
-    constexpr int kThreads = 500;
-    std::latch ready{kThreads};
+    std::latch ready{thread_count};
     std::vector<std::jthread> sleepers;
-    sleepers.reserve(kThreads - 1);
-    for (int index = 1; index < kThreads; ++index)
+    sleepers.reserve(static_cast<std::size_t>(thread_count - 1));
+    for (int index = 1; index < thread_count; ++index)
     {
       sleepers.emplace_back(
           [ready_latch = &ready](std::stop_token p_stop)
@@ -37,7 +57,7 @@ int main()
     }
     ready.count_down();
     ready.wait();
-    std::puts("500 threads ready");
+    std::printf("%d threads ready\n", thread_count);
     std::fflush(stdout);
     std::atomic<std::uint64_t> state{1};
     while (true)

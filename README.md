@@ -129,6 +129,53 @@ The test prints a table and writes `build/sampler-overhead.json`.
 [Recorded measurements](docs/sampler-overhead.json) ·
 [Test driver](tests/benchmark_sampler.py) · [Target workload](tests/benchmark_target.cpp)
 
+### Thread sampling throughput and latency
+
+Measured directly on the same host on 2026-10-12. Each target has one busy
+thread; its remaining threads sleep. Each row contains **30,000 timed batches**:
+three repeats of 10,000 batches, each after a 5-second warm-up.
+
+| Threads | Thread records/s | Mean batch (ms) | p50 (ms) | p90 (ms) | p99 (ms) | p100 (ms) | Mean/thread (µs) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 64,539 | 0.015 | 0.015 | 0.015 | 0.031 | 0.054 | 15.494 |
+| 100 | 160,215 | 0.624 | 0.614 | 0.656 | 0.747 | 1.106 | 6.242 |
+| 200 | 154,751 | 1.292 | 1.244 | 1.437 | 1.669 | 4.974 | 6.462 |
+| 300 | 149,685 | 2.004 | 1.901 | 2.337 | 2.641 | 5.725 | 6.681 |
+| 500 | 153,726 | 3.253 | 3.152 | 3.525 | 4.435 | 9.008 | 6.505 |
+
+A batch validates the PID, scans the thread list, reads each thread's `stat`,
+`schedstat`, `io`, and `wchan`, and constructs its sample record. The benchmark
+uses the production sampler functions and keeps their file descriptors open.
+`CLOCK_MONOTONIC` measures each batch. Timing ends when the thread records are
+complete. UDP, collector processing, resource scans, and memory-map scans are
+outside this measurement.
+
+Throughput is total thread records divided by total timed sampling duration.
+The loop runs without a frequency limit. Percentiles use the nearest rank across
+all three repeats; **p100 is the observed maximum**. Mean/thread is mean batch
+time divided by the thread count, including the shared batch costs. All five
+thread counts were measured directly. Keep host load comparable between runs.
+
+Run the sampling benchmark:
+
+```sh
+make benchmark-sampling
+```
+
+After a performance change, rebuild and compare with the saved baseline:
+
+```sh
+make build/benchmark-sampling build/benchmark-target
+python3 tests/benchmark_sampling.py --compare docs/sampling-performance.json
+```
+
+The test writes `build/sampling-performance.json` and prints throughput and
+latency changes. It rejects comparisons with different case settings, host
+metadata, build options, or target binaries. The saved results include summaries
+for each repeat, pooled percentiles, source and binary hashes, and the method.
+[Saved baseline](docs/sampling-performance.json) ·
+[Test driver](tests/benchmark_sampling.py) · [Timed sampling path](tests/benchmark_sampling.cpp)
+
 ## Test results
 
 Manual browser QA results are kept in the repository and checked in CI. Each case links to a
