@@ -146,10 +146,6 @@ check: all build/buggy-workload build/benchmark-target build/benchmark-sampling 
 build/benchmark-target: tests/benchmark_target.cpp build/compiler_ok Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
-.PHONY: benchmark-sampler
-benchmark-sampler: build/triangulator-sampler build/benchmark-target
-	python3 tests/benchmark_sampler.py
-
 # Three 30-second trials per count/rate pair, after a 5-second warm-up.
 .PHONY: benchmark-sampler-matrix
 benchmark-sampler-matrix: build/triangulator-sampler build/benchmark-target

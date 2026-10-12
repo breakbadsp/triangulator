@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Measure sampler CPU, RSS, complete-sample latency, and delivered throughput.
 
-Use `make benchmark-sampler` for the original 500-thread CPU/RSS benchmark.
 Use `make benchmark-sampler-matrix` for 100, 300, and 500 threads at four rates.
 One target thread burns CPU. All other target threads sleep. No root is needed.
+Latency uses kernel receive timestamps (`SO_TIMESTAMPNS_NEW`), which need
+Linux 5.1 or later (or a vendor backport). Older kernels, such as the 4.18
+kernel in AlmaLinux 8, fail with "kernel receive timestamp is missing".
 """
 
 import argparse
@@ -31,8 +33,11 @@ ROOT = Path(__file__).resolve().parents[1]
 RATES = (1, 2, 5, 10)
 TARGET_THREADS = 500
 TARGET = ROOT / "build/benchmark-target"
-# Linux UAPI asm-generic/socket.h. NEW uses two signed 64-bit integers on
-# both 32- and 64-bit hosts. Python does not expose this constant everywhere.
+MEMORY_INTERVAL_S = 30
+# Linux UAPI asm-generic/socket.h (x86 and arm64; alpha, mips, sparc, and
+# parisc use other values). NEW uses two signed 64-bit integers on both 32- and
+# 64-bit hosts and needs Linux 5.1 or later. Python does not expose this
+# constant everywhere.
 SO_TIMESTAMPNS_NEW = 64
 TIMESPEC = struct.Struct("=qq")
 
@@ -127,12 +132,13 @@ class SampleStream:
         if self.last is not None:
             if packet.session != self.last.session or packet.sequence != self.last.sequence + 1:
                 raise RuntimeError("thread samples were lost or the sampler session changed")
-            gap_ns = packet.monotonic_ns - self.last.monotonic_ns
-            if not 0 < gap_ns <= 1.5e9 / self.rate:
-                raise RuntimeError("sample deadline was missed")
+            # A late tick is an observation, not a failure: collect() counts it.
+            # Only a backwards clock or a lost tick (sequence check above) aborts.
+            if packet.monotonic_ns <= self.last.monotonic_ns:
+                raise RuntimeError("sample monotonic time did not advance")
         latency_ns = max(self.arrivals) - packet.wall_ns
-        if not 0 <= latency_ns < 1e9 / self.rate:
-            raise RuntimeError("invalid sample latency or sample deadline was missed")
+        if latency_ns < 0:
+            raise RuntimeError("sample arrived before it was stamped")
         self.last = packet
         self.parts.clear()
         self.arrivals.clear()
@@ -148,6 +154,15 @@ def wait_sample(stream, sampler, target, deadline):
             if sample is not None:
                 return sample
     raise RuntimeError("sampler did not send a complete thread sample in time")
+
+
+def count_late(packets, latencies_ms, rate):
+    """Count ticks that started over 1.5 periods after the previous tick and
+    complete-sample latencies of at least one period. Both are reported, not
+    rejected, so a bad tail appears in the distribution."""
+    late_ticks = sum(b.monotonic_ns - a.monotonic_ns > 1.5e9 / rate
+                     for a, b in zip(packets, packets[1:]))
+    return late_ticks, sum(value >= 1e3 / rate for value in latencies_ms)
 
 
 def collect(stream, sampler, target, duration_s):
@@ -198,6 +213,7 @@ def collect(stream, sampler, target, duration_s):
     clock_error_ns = abs((packets[-1].wall_ns - packets[0].wall_ns) - elapsed_ns)
     if clock_error_ns > 100_000:
         raise RuntimeError("wall clock changed relative to the monotonic clock")
+    late_ticks, latencies_over_period = count_late(packets, latencies, stream.rate)
     cpu_percent = lambda start, end: 100 * (end[1] - start[1]) / (end[0] - start[0])
     thread_count = len(stream.thread_ids)
     return {
@@ -214,6 +230,7 @@ def collect(stream, sampler, target, duration_s):
         "latency_p50_ms": statistics.median(latencies),
         "latency_p95_ms": percentile(latencies, 95), "latency_max_ms": max(latencies),
         "latency_ms": list(latencies), "clock_error_ns": clock_error_ns,
+        "late_ticks": late_ticks, "latencies_over_period": latencies_over_period,
         "max_tick_gap_ms": max(b.monotonic_ns - a.monotonic_ns
                                for a, b in zip(packets, packets[1:])) / 1e6,
         "datagrams": dict(datagrams), "received_udp_payload_bytes": received_bytes,
@@ -238,7 +255,7 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
         config.write_text(
             f'target_pid = {target.pid}\nrate_hz = {rate}\n'
             f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
-            'status_fallback = false\nresource_interval_s = 5\nmemory_interval_s = 30\n')
+            f'status_fallback = false\nresource_interval_s = 5\nmemory_interval_s = {MEMORY_INTERVAL_S}\n')
         with open(Path(directory) / "sampler.log", "w+") as log, \
                 child([str(binary), str(config)], stdout=subprocess.DEVNULL, stderr=log) as sampler:
             try:
@@ -251,8 +268,10 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
                     wait_sample(stream, sampler, target, warmup_end + 2 / rate)
                 result = collect(stream, sampler, target, duration_s)
                 result["receive_buffer_bytes"] = receiver.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
-                if duration_s >= 30 and not all(result["datagrams"].get(kind)
-                                               for kind in ("TRES", "TVMA")):
+                # Count from launch (warm-up included): the memory-map timer starts
+                # when the sampler starts, so one interval fits with margin.
+                if warmup_s + duration_s > MEMORY_INTERVAL_S and not all(
+                        stream.datagrams[kind] for kind in ("TRES", "TVMA")):
                     raise RuntimeError("resource or memory-map samples were missing")
                 log.flush()
                 log.seek(0)
@@ -285,7 +304,7 @@ def main():
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--threads", type=int, nargs="+", default=[500])
     parser.add_argument("--rates", type=int, nargs="+", choices=RATES, default=list(RATES))
-    parser.add_argument("--output", type=Path, default=ROOT / "build/sampler-overhead.json")
+    parser.add_argument("--output", type=Path, default=ROOT / "build/sampler-benchmark.json")
     args = parser.parse_args()
     if (not math.isfinite(args.duration) or args.duration < 2
             or not math.isfinite(args.warmup) or args.warmup < 0 or args.repeats < 1):
@@ -313,7 +332,7 @@ def main():
         "allowed_cpus": sorted(os.sched_getaffinity(0)), "python": platform.python_version(),
         "duration_s": args.duration, "warmup_s": args.warmup, "repeats": args.repeats,
         "thread_counts": args.threads, "rates_hz": args.rates,
-        "busy_threads": 1, "resource_interval_s": 5, "memory_interval_s": 30,
+        "busy_threads": 1, "resource_interval_s": 5, "memory_interval_s": MEMORY_INTERVAL_S,
         "status_fallback": False, "runs": [],
         "cpu_method": "100 * delta schedstat runtime_ns / delta monotonic_ns; sum all target threads",
         "memory_method": "smaps_rollup Rss each second and at end; MiB = 1024 KiB; excludes kernel allocations",

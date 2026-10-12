@@ -22,7 +22,7 @@ class SamplerBenchmarkTests(unittest.TestCase):
             output = Path(directory) / "results.json"
             result = subprocess.run(
                 [sys.executable, str(Path(benchmark_sampler.__file__)),
-                 "--duration", "2", "--warmup", "0.2", "--repeats", "1",
+                 "--threads", "500", "--duration", "2", "--warmup", "0.2", "--repeats", "1",
                  "--output", str(output)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stderr)
             report = json.loads(output.read_text())
@@ -37,6 +37,8 @@ class SamplerBenchmarkTests(unittest.TestCase):
                 self.assertGreaterEqual(run["sampler_rss_max_mib"], run["sampler_rss_mean_mib"])
                 self.assertGreaterEqual(run["rss_observations"], 3)
                 self.assertGreaterEqual(run["thread_ticks"], 2)
+                self.assertIn("late_ticks", run)
+                self.assertIn("latencies_over_period", run)
                 self.assertAlmostEqual(run["observed_rate_hz"], run["rate_hz"], delta=0.1 * run["rate_hz"])
                 self.assertIn(f"| 500 | {run['rate_hz']} Hz |", result.stdout)
                 self.assertEqual(len(run["latency_ms"]), run["thread_ticks"])
@@ -109,15 +111,27 @@ class SamplerBenchmarkTests(unittest.TestCase):
                     for _ in packets:
                         stream.receive()
 
-    def test_missed_deadline_is_rejected(self):
+    def test_late_tick_is_counted_not_rejected(self):
         stream, decoder = self.stream([self.packet(), self.packet(chunk=1),
-                                      replace(self.packet(sequence=1), monotonic_ns=3 * 10**9),
-                                      replace(self.packet(chunk=1, sequence=1), monotonic_ns=3 * 10**9)])
+                                      replace(self.packet(sequence=1), monotonic_ns=5 * 10**9),
+                                      replace(self.packet(chunk=1, sequence=1), monotonic_ns=5 * 10**9)])
+        with decoder:
+            samples = [stream.receive() for _ in range(4)]
+        packets = [sample[0] for sample in samples if sample]
+        self.assertEqual(len(packets), 2)
+        # Gap 4 s at 1 Hz exceeds 1.5 periods. Latencies of 1 s and over count too.
+        self.assertEqual(benchmark_sampler.count_late(packets, [4, 1000], 1), (1, 1))
+        self.assertEqual(benchmark_sampler.count_late(packets, [4, 999], 1), (1, 0))
+
+    def test_clock_going_backwards_is_rejected(self):
+        stream, decoder = self.stream([self.packet(), self.packet(chunk=1),
+                                      replace(self.packet(sequence=1), monotonic_ns=10**9),
+                                      replace(self.packet(chunk=1, sequence=1), monotonic_ns=10**9)])
         with decoder:
             stream.receive()
             stream.receive()
             stream.receive()
-            with self.assertRaisesRegex(RuntimeError, "deadline"):
+            with self.assertRaisesRegex(RuntimeError, "did not advance"):
                 stream.receive()
 
     def test_invalid_target_count(self):
