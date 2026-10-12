@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <type_traits>
 
+#include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
@@ -780,6 +781,74 @@ void TestNextDeadline()
           "a run that fell behind counts from now");
 }
 
+// Feeds /dev/kmsg records in the kernel's own formats to ExitMessages and
+// checks which ones it keeps for the ended process (pid 1234, thread 1240).
+void TestExitMessages()
+{
+  Require(KmsgText("6,100,5000,-;hello\n SUBSYSTEM=x\n") == "hello",
+          "the text is between ';' and the first newline");
+  Require(!KmsgText("no separator"), "a record without ';' has no text");
+
+  const std::array<std::uint32_t, 2> ids{1234, 1240};
+  Require(NamesTask("worker[1240]: segfault at 0 ip 0 sp 0 error 6", ids),
+          "a segfault names the faulting thread in brackets");
+  Require(
+      NamesTask("Out of memory: Killed process 1234 (app) total-vm:1kB", ids),
+      "the OOM killer names the process");
+  Require(NamesTask("oom-kill:constraint=CONSTRAINT_NONE,task=app,pid=1234,"
+                    "uid=1000",
+                    ids),
+          "pid=N names the process");
+  Require(
+      NamesTask("INFO: task app:1240 blocked for more than 120 seconds.", ids),
+      "comm:tid names a thread");
+  Require(!NamesTask("other[12345]: segfault at 1234abc", ids),
+          "a longer number or a number inside a word does not match");
+  Require(!NamesTask("usb 1-1: new device 10.1234 at 0x1234", ids),
+          "decimals and hex do not match");
+  Require(!NamesTask("other[99]: segfault at 0", ids), "other pids do not");
+
+  std::array<wire::Record, 2> threads{};
+  threads[0].tid_ = 1234;
+  threads[1].tid_ = 1240;
+  ExitMessages messages{1234, threads};
+  messages.Offer("4,1,10,-;[   1234]  1000  1234  100  50  0  0  0 app\n");
+  messages.Offer("6,2,11,-;other[99]: segfault at 0\n");
+  for (int index = 0; index < 7; ++index)
+  {
+    messages.Offer(
+        std::format("4,{},12,-;app[1240]: trap {}\n", 3 + index, index));
+  }
+  messages.Offer("3,10,13,-;Out of memory: Killed process 1234 (app)\n");
+  exit_wire::Report report{};
+  messages.CopyTo(report);
+  Require(report.line_count_ == exit_wire::kMaxLines,
+          "only the newest six messages are kept");
+  Require(exit_wire::FieldText(report.lines_[0]) == "app[1240]: trap 2" &&
+              exit_wire::FieldText(report.lines_[5]) ==
+                  "Out of memory: Killed process 1234 (app)",
+          "oldest first; the OOM task table and other pids are left out");
+
+  RateLimitedLogger logger;
+  KernelLog log;
+  log.Watch(logger, "/nonexistent/kmsg");
+  const auto missing =
+      log.Collect({.pid_ = 1234, .starttime_ = 7}, threads, Nanoseconds{1});
+  Require(missing.kernel_log_ == exit_wire::KernelLog::Unavailable &&
+              missing.error_ == ENOENT && missing.line_count_ == 0 &&
+              missing.pid_ == 1234 && missing.process_start_ == 7,
+          "a missing kernel log gives a report that says so");
+  Require(exit_wire::Decode(wire::AsBytes(missing)).has_value(),
+          "the report the sampler builds is valid on the wire");
+
+  const auto self = FindTarget(TargetPid{::getpid()});
+  Require(self && *self && !ProcessEnded(**self),
+          "a running process has not ended");
+  Require(ProcessEnded(
+              {.pid_ = (*self)->pid_, .starttime_ = (*self)->starttime_ + 1}),
+          "a PID that now belongs to another process has ended");
+}
+
 int main()
 {
   try
@@ -797,9 +866,11 @@ int main()
     TestMemoryProbe();
     TestMemoryProbePartialMaps();
     TestNextDeadline();
+    TestExitMessages();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
-        "RAII, descriptor budget, resource parsing and probe, memory map)");
+        "RAII, descriptor budget, resource parsing and probe, memory map, "
+        "exit messages)");
   }
   catch (const std::exception& error)
   {

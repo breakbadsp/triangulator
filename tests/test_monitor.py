@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_resource, receive_tick
+from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_exit, decode_resource, receive_tick
 
 
 def wait_until_asleep(pid, timeout=5):
@@ -87,6 +87,19 @@ class SamplerTests(unittest.TestCase):
                 self.assertEqual(absent.flags, 3)
                 self.assertEqual(absent.records, ())
                 self.assertNotEqual(absent.session, value.session)
+                # The ended target gets one exit report, sent with several ticks. Another
+                # process sent SIGTERM, which the kernel does not log.
+                reports = []
+                for _ in range(20):
+                    data = receiver.recv(1500)
+                    if data.startswith(b"TEND"):
+                        reports.append(decode_exit(data))
+                self.assertEqual(len(reports), 5)
+                self.assertEqual(len(set(reports)), 1)
+                report = reports[0]
+                self.assertEqual((report.pid, report.comm, report.lines), (target.pid, "sleep", ()))
+                self.assertIn(report.kernel_log, ("read", "unreadable", "unavailable"))
+                self.assertEqual(report.error == 0, report.kernel_log == "read")
             finally:
                 sampler.terminate()
                 sampler.communicate(timeout=3)

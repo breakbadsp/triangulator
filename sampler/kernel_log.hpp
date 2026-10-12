@@ -1,0 +1,248 @@
+#pragma once
+
+// Why did the target end? The sampler is not the target's parent, so it
+// cannot wait() for its exit status. When the kernel kills a process, it
+// logs why: a segfault, a general protection fault, a divide error or the
+// out-of-memory killer. This reads those messages from /dev/kmsg, the file
+// dmesg reads, without starting dmesg: the sampler stays one static binary.
+//
+// The log is opened when a target is found and positioned at its end, so
+// messages about an earlier process with the same PID are not read. When
+// kernel.dmesg_restrict = 1 (the default on Ubuntu, Debian and Arch), only
+// CAP_SYSLOG may read it; the report then says so and has no messages.
+
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <optional>
+#include <ranges>
+#include <span>
+#include <string_view>
+
+#include "../common/exit_wire.hpp"
+#include "../common/fd.hpp"
+#include "io.hpp"
+#include "proc.hpp"
+
+namespace triangulator
+{
+
+// The message text of one /dev/kmsg record, which is
+// "PRIORITY,SEQUENCE,MICROSECONDS,FLAGS[,...];TEXT\n" and may be followed by
+// " KEY=VALUE\n" lines. nullopt when the record has no ';'.
+[[nodiscard]] inline std::optional<std::string_view> KmsgText(
+    std::string_view p_record) noexcept
+{
+  const auto start = p_record.find(';');
+  if (start == std::string_view::npos)
+  {
+    return std::nullopt;
+  }
+  const auto text = p_record.substr(start + 1);
+  return text.substr(0, text.find('\n'));
+}
+
+// Whether p_text names one of p_sorted_ids as a whole number in the forms
+// the kernel uses for a task: "comm[1234]:", "Killed process 1234 (comm)",
+// "pid=1234," and "comm:1234 blocked". A number inside a word, an address or
+// a decimal ("10.1234") does not count.
+[[nodiscard]] inline bool NamesTask(std::string_view p_text,
+                                    std::span<const std::uint32_t> p_sorted_ids)
+{
+  constexpr std::string_view kBefore = "[ =:";
+  constexpr std::string_view kAfter = "] ,):";
+  const auto is_digit = [](char p_char)
+  {
+    return p_char >= '0' && p_char <= '9';
+  };
+  std::size_t index = 0;
+  while (index < p_text.size())
+  {
+    if (!is_digit(p_text[index]))
+    {
+      ++index;
+      continue;
+    }
+    const auto start = index;
+    while (index < p_text.size() && is_digit(p_text[index]))
+    {
+      ++index;
+    }
+    const bool bounded =
+        (start == 0 || kBefore.contains(p_text[start - 1])) &&
+        (index == p_text.size() || kAfter.contains(p_text[index]));
+    if (!bounded || index - start > 10)
+    {
+      continue;
+    }
+    const auto number =
+        ParseNumber<std::uint32_t>(p_text.substr(start, index - start));
+    if (number && std::ranges::binary_search(p_sorted_ids, *number))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Keeps the newest kernel messages that name the ended process or one of
+// its threads: a segfault names the thread that faulted, the OOM killer
+// names the process.
+class ExitMessages
+{
+ public:
+  // p_threads: the last tick's records, whose tids are the threads to match.
+  ExitMessages(int p_pid, std::span<const wire::Record> p_threads)
+  {
+    ids_[id_count_++] = static_cast<std::uint32_t>(p_pid);
+    for (const auto& record :
+         p_threads.first(std::min(p_threads.size(), ids_.size() - id_count_)))
+    {
+      ids_[id_count_++] = record.tid_;
+    }
+    std::ranges::sort(std::span{ids_}.first(id_count_));
+  }
+
+  void Offer(std::string_view p_record)
+  {
+    const auto text = KmsgText(p_record);
+    // Lines that start with '[' are rows of the OOM killer's task table,
+    // which lists every process, not only the one it kills.
+    if (!text || text->empty() || text->front() == '[' ||
+        !NamesTask(*text, std::span{ids_}.first(id_count_)))
+    {
+      return;
+    }
+    exit_wire::SetLine(lines_[matched_ % lines_.size()], *text);
+    ++matched_;
+  }
+
+  // Writes the kept messages into p_report, oldest first.
+  void CopyTo(exit_wire::Report& p_report) const noexcept
+  {
+    const auto count = std::min(matched_, lines_.size());
+    for (std::size_t index = 0; index < count; ++index)
+    {
+      p_report.lines_[index] =
+          lines_[(matched_ - count + index) % lines_.size()];
+    }
+    p_report.line_count_ = static_cast<std::uint8_t>(count);
+  }
+
+ private:
+  std::array<std::uint32_t, wire::kMaxThreads + 1> ids_{};
+  std::size_t id_count_ = 0;
+  std::array<exit_wire::Line, exit_wire::kMaxLines> lines_{};
+  std::size_t matched_ = 0;
+};
+
+class KernelLog
+{
+ public:
+  static constexpr const char* kPath = "/dev/kmsg";
+  // An upper bound on the records read for one report. The kernel's ring
+  // buffer holds far fewer; this only keeps the loop bounded.
+  static constexpr std::size_t kMaxRecords = 1'000'000;
+
+  // Starts watching a newly found target: later Collect() calls read only
+  // the messages logged from now on.
+  void Watch(RateLimitedLogger& p_logger, const char* p_path = kPath)
+  {
+    log_ = FileDescriptor{::open(p_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)};
+    error_ = log_ ? 0 : errno;
+    if (log_ && ::lseek(log_.Get(), 0, SEEK_END) < 0)
+    {
+      error_ = errno;
+      log_.Reset();
+    }
+    if (error_ == EPERM || error_ == EACCES)
+    {
+      p_logger.Warn(
+          "kernel log ({}) not readable: {}; exit reports will have no "
+          "kernel messages. Set kernel.dmesg_restrict = 0 to allow it",
+          p_path, std::strerror(error_));
+    }
+  }
+
+  // The report for p_target, which has ended. p_threads is the last
+  // tick's records. Ends the watch.
+  [[nodiscard]] exit_wire::Report Collect(
+      const TargetIdentity& p_target, std::span<const wire::Record> p_threads,
+      Nanoseconds p_wall)
+  {
+    exit_wire::Report report{
+        .pid_ = static_cast<std::uint32_t>(p_target.pid_),
+        .process_start_ = p_target.starttime_,
+        .wall_ns_ = static_cast<std::uint64_t>(p_wall.count()),
+    };
+    const auto main_thread =
+        std::ranges::find(p_threads, static_cast<std::uint32_t>(p_target.pid_),
+                          &wire::Record::tid_);
+    if (main_thread != p_threads.end())
+    {
+      std::ranges::copy(main_thread->comm_ | std::views::take(15),
+                        report.comm_.begin());
+    }
+    if (!log_)
+    {
+      report.kernel_log_ = error_ == EPERM || error_ == EACCES
+                               ? exit_wire::KernelLog::Unreadable
+                               : exit_wire::KernelLog::Unavailable;
+      report.error_ = static_cast<std::uint32_t>(error_ ? error_ : EBADF);
+      return report;
+    }
+    ExitMessages messages{p_target.pid_, p_threads};
+    for (std::size_t count = 0; count < kMaxRecords; ++count)
+    {
+      const auto length = ::read(log_.Get(), record_.data(), record_.size());
+      if (length > 0)
+      {
+        messages.Offer({record_.data(), static_cast<std::size_t>(length)});
+        continue;
+      }
+      // EPIPE: the kernel overwrote records we had not read yet; the next
+      // read continues with the oldest one left. EAGAIN: no more records.
+      if (length < 0 && (errno == EINTR || errno == EPIPE))
+      {
+        continue;
+      }
+      break;
+    }
+    messages.CopyTo(report);
+    log_.Reset();
+    error_ = EBADF;
+    return report;
+  }
+
+ private:
+  FileDescriptor log_;
+  int error_ = EBADF;
+  // One record per read(). The kernel limits a message to 1 KiB before
+  // escaping; this leaves room for escapes and the KEY=VALUE lines.
+  std::array<char, 8192> record_{};
+};
+
+// Whether p_target has ended: its /proc entry is gone, it is a zombie, or
+// the PID now belongs to another process. False when the check could not be
+// made for lack of file descriptors.
+[[nodiscard]] inline bool ProcessEnded(const TargetIdentity& p_target)
+{
+  std::array<char, 4096> buffer{};
+  const auto descriptor =
+      OpenReadonly(FixedString{"/proc/{}/stat", p_target.pid_}.CStr());
+  if (!descriptor && DescriptorsExhausted(errno))
+  {
+    return false;
+  }
+  const auto stat = ReadAtStart(descriptor, buffer).and_then(ParseStat);
+  return !stat || stat->state_ == 'Z' || stat->state_ == 'X' ||
+         stat->starttime_ != p_target.starttime_;
+}
+
+}  // namespace triangulator

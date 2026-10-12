@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "kernel_log.hpp"
 #include "memory.hpp"
 #include "proc.hpp"
 #include "resources.hpp"
@@ -145,11 +146,23 @@ class Sampler
   {
     if (p_target != previous_target_)
     {
+      // records_ still holds the ended target's last tick here.
+      if (previous_target_ && ProcessEnded(*previous_target_))
+      {
+        exit_report_ = kernel_log_.Collect(
+            *previous_target_, std::span{records_}.first(record_count_),
+            ClockNow(CLOCK_REALTIME));
+        exit_report_sends_ = kExitReportSends;
+      }
       if (auto reset = ResetSession(); !reset)
       {
         return reset;
       }
       previous_target_ = p_target;
+      if (p_target)
+      {
+        kernel_log_.Watch(logger_);
+      }
     }
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
     const auto wall = ClockNow(CLOCK_REALTIME);
@@ -177,6 +190,12 @@ class Sampler
       }
     }
     SendTick(pid, monotonic, wall, std::span{records_}.first(count));
+    record_count_ = count;
+    if (exit_report_sends_ > 0)
+    {
+      --exit_report_sends_;
+      SendPart(wire::AsBytes(exit_report_), "exit report");
+    }
     // Resource samples ride on thread ticks. Half a tick of slack keeps
     // wake-up jitter from pushing one to the following tick.
     const auto resource_interval = ResourceInterval();
@@ -439,9 +458,17 @@ class Sampler
     }
   }
 
+  // Datagrams are not acknowledged, so an exit report goes out with this
+  // many ticks; the collector keeps the first copy that arrives.
+  static constexpr int kExitReportSends = 5;
+
   RuntimeConfig config_;
   ThreadCache threads_;
   std::array<wire::Record, wire::kMaxThreads> records_{};
+  std::size_t record_count_ = 0;  // records_ filled by the last tick
+  KernelLog kernel_log_;
+  exit_wire::Report exit_report_{};
+  int exit_report_sends_ = 0;
   RateLimitedLogger logger_;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
