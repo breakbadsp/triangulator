@@ -7,7 +7,8 @@ endif
 CXXFLAGS ?= -O2 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS ?=
 LDFLAGS ?=
-LDLIBS ?=
+# glibc before 2.34 keeps pthread symbols in a separate library.
+LDLIBS ?= -pthread
 READELF ?= readelf
 # The production-host sampler always needs only the kernel. Other programs
 # embed the C++ runtime; STATIC=1 also embeds libc and SQLite.
