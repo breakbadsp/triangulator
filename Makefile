@@ -150,6 +150,11 @@ build/benchmark-target: tests/benchmark_target.cpp build/compiler_ok Makefile
 benchmark-sampler: build/triangulator-sampler build/benchmark-target
 	python3 tests/benchmark_sampler.py
 
+# Three 30-second trials per count/rate pair, after a 5-second warm-up.
+.PHONY: benchmark-sampler-matrix
+benchmark-sampler-matrix: build/triangulator-sampler build/benchmark-target
+	python3 tests/benchmark_sampler.py --threads 100 300 500 --duration 30 --output build/sampler-benchmark.json
+
 format:
 	$(CLANG_FORMAT) -i $(CPP_SOURCES)
 
