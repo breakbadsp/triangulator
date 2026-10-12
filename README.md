@@ -111,6 +111,13 @@ warm-up. Latency includes `/proc` reads and loopback UDP delivery. Throughput
 is the delivered rate at the configured frequency. Results apply to this host
 and workload. The page defines each metric and its limits.
 
+The driver timestamps datagrams with the kernel (`SO_TIMESTAMPNS_NEW`), so it
+needs Linux 5.1 or later (or a vendor backport). On older kernels, such as the
+4.18 kernel in AlmaLinux 8, it stops with "kernel receive timestamp is missing".
+A tick that starts late or has latency over one period is counted
+(`late_ticks`, `latencies_over_period`) and stays in the percentiles. Only a
+lost or incomplete tick stops the run.
+
 ```sh
 make benchmark-sampler-matrix  # About 22 minutes; writes build/sampler-benchmark.json
 ```
@@ -118,10 +125,6 @@ make benchmark-sampler-matrix  # About 22 minutes; writes build/sampler-benchmar
 [Raw trials and host details](docs/sampler-benchmark.json) ·
 [Benchmark driver](tests/benchmark_sampler.py) ·
 [Native thread workload](tests/benchmark_target.cpp)
-
-The original 500-thread CPU and memory benchmark from PR #71 remains available:
-`make benchmark-sampler`. Its three 60-second trials per frequency take about
-13 minutes. [Original measurements](docs/sampler-overhead.json).
 
 ### Thread sampling throughput and latency
 
@@ -169,7 +172,6 @@ metadata, build options, or target binaries. The saved results include summaries
 for each repeat, pooled percentiles, source and binary hashes, and the method.
 [Saved baseline](docs/sampling-performance.json) ·
 [Test driver](tests/benchmark_sampling.py) · [Timed sampling path](tests/benchmark_sampling.cpp)
-
 
 ## Test results
 

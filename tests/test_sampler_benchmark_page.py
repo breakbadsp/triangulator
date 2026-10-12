@@ -80,3 +80,14 @@ class BenchmarkPageTests(unittest.TestCase):
         self.assertEqual(snapshot["cells"], renderer.summarize(report))
         self.assertNotIn("</script>", encoded)
         self.assertEqual(snapshot["meta"]["build_options"], report["build_options"])
+
+    def test_committed_page_and_infographic_match_the_renderer(self):
+        import json
+        report = json.loads((ROOT / "docs/sampler-benchmark.json").read_text())
+        sampling = json.loads((ROOT / "docs/sampling-performance.json").read_text())
+        self.assertEqual((ROOT / "docs/sampler-benchmark.html").read_text(),
+                         renderer.render_page(report, sampling),
+                         "run scripts/render_sampler_benchmark.py")
+        self.assertEqual((ROOT / "docs/assets/sampler-benchmark.svg").read_text(),
+                         renderer.infographic(renderer.summarize(report), report),
+                         "run scripts/render_sampler_benchmark.py")

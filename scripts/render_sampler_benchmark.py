@@ -131,14 +131,14 @@ def native_section(report):
     return f'''<section class="section-rule" aria-labelledby="native-title">
 <div class="section-top"><div><div class="eyebrow">Sampling loop / No frequency limit</div>
 <h2 id="native-title">About {round(statistics.mean(row["throughput_threads_s"] for row in cells)/10000)*10000:,} thread records per second.</h2></div></div>
-<p class="hint">A separate benchmark from PR #71 times the production thread-reading functions in a continuous loop.
+<p class="hint">A separate benchmark (<code>make benchmark-sampling</code>) times the production thread-reading functions in a continuous loop.
 Each count has {report['iterations'] * report['repeats']:,} timed batches. This measures the sampling path before UDP delivery.</p>
 <div class="chart-grid"><div class="panel"><h3>Sampling-path latency</h3>
 <p class="panel-sub">Milliseconds per batch · production /proc functions</p>{graph(False)}
 <div class="legend"><span><i style="--color:var(--green)"></i>p50</span><span><i style="--color:var(--orange)"></i>p99</span></div></div>
 <div class="panel"><h3>Sampling-path throughput</h3><p class="panel-sub">Thread records per second · continuous loop</p>{graph(True)}
 <p class="chart-note">Total records divided by total timed sampling duration.</p></div></div>
-<div class="table-wrap"><table><caption>Direct sampling-loop results from PR #71. UDP, auxiliary sampling, and collector work are outside this measurement.</caption>
+<div class="table-wrap"><table><caption>Direct sampling-loop results from <code>docs/sampling-performance.json</code>. UDP, auxiliary sampling, and collector work are outside this measurement.</caption>
 <thead><tr><th scope="col">Threads</th><th scope="col">Records/s</th><th scope="col">p50 · ms</th><th scope="col">p99 · ms</th><th scope="col">Mean · ms</th><th scope="col">Batches</th></tr></thead><tbody>{table}</tbody></table></div>
 <details><summary>Sampling-loop method and evidence</summary><p>The timed batch calls FindTarget, Rescan, and TakeSample,
 then retains each complete thread record. It reuses cached file descriptors. CLOCK_MONOTONIC measures each batch.
