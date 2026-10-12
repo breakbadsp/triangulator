@@ -96,10 +96,27 @@ include the object. Each day file has a `process_exit` table: `ts`, `pid`,
 
 ## Limits
 
+An operator who sees "No kernel crash message" cannot conclude that the process
+did not crash. The reason is complete only when the kernel logged the crash and
+the sampler matched it.
+
 - The sampler is not the target's parent, so it cannot read the exit status.
   Exits that the kernel does not log, such as `exit(1)`, `abort()` and
   `kill -9`, show as "No kernel crash message".
+- The kernel can skip the message for a real segfault. It rate-limits the
+  user-fault message (`printk_ratelimit`), so messages are dropped during a
+  crash storm, and `debug.exception-trace = 0` turns the message off. Both give
+  "No kernel crash message" for a crash.
+- A thread that started after the sampler's last tick and then crashed is not
+  matched. A segfault names the faulting thread (`worker[1240]: segfault`), and
+  the sampler knows only the thread IDs of its last tick, which is up to one
+  sample interval before the exit. Short-lived pool threads make this more
+  likely. The report then also shows "No kernel crash message".
 - A crash before the sampler found the process is not read.
+- The sampler reads the kernel log for at most a quarter of a tick, and 50 ms
+  at most, after the exit. If the log holds more records than it can read in
+  that time, the newest messages can be missing, and the sampler logs a
+  warning.
 - After a collector restart, the card is empty until the next exit. The
   `process_exit` table keeps earlier exits.
 - Messages are cut at 191 bytes. Kernel messages show unprintable bytes as

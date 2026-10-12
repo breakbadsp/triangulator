@@ -97,8 +97,9 @@ Preconditions: The dashboard is open with live samples. Use an owned test
 process. Run two passes on the target host: one with
 `kernel.dmesg_restrict = 1` and one with `kernel.dmesg_restrict = 0`.
 
-1. With the log restricted, end the target with `kill -TERM`. Verify the
-   sampler log warns that the kernel log is not readable.
+1. With the log restricted, check the sampler log first: when it finds the
+   target, it warns that the kernel log is not readable. Then end the target
+   with `kill -TERM`.
 2. Verify the Last process exit card shows the process name, PID, end time,
    and "Reason unknown: kernel log not readable". Verify Kernel messages is
    hidden.
@@ -109,10 +110,15 @@ process. Run two passes on the target host: one with
 5. Verify the Assessment says "Target process ended · Segmentation fault".
 6. Restart the target. Verify the card stays and the Assessment no longer
    reports the target as absent.
-7. Open Inspect a moment after the exit. Verify the card shows the recorded
+7. End the target again, then change the target to a PID or name that does
+   not exist. Verify the Assessment says "Target process is absent", not
+   "Target process ended", and the header does not use the ended process's
+   name.
+8. Open Inspect a moment after the exit. Verify the card shows the recorded
    exit. Return to Live.
-8. Hover over the card heading, the reason, and Kernel messages. Verify each
-   opens its help topic.
+9. Hover over the card heading, the reason, and Kernel messages. Verify each
+   opens its help topic, and that the help says a missing message does not
+   prove the process did not crash.
 
 Expected results: The card names the reason the kernel logged, or says why it
 is unknown. Kernel messages show only lines that name the process or its
