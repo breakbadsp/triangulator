@@ -94,6 +94,41 @@ Select **Inspect a moment**, step with **Previous** / **Next**, then select **Li
 
 [Benchmark method, results, and limits](docs/collector-comparison.md)
 
+### Sampler with 500 target threads
+
+Measured on 2026-10-12 with **500 native threads: one busy thread and 499 sleeping
+threads**. The target used about 99.8% of one core. The host had an Intel Core
+i5-9500 with six cores, Linux `7.2.5-3-omarchy`, and GCC 16.2.1. The sampler used
+source `c92dcac`, `-O2`, and static linking.
+
+| Rate | Sampler CPU (% of one core) | Mean RSS (MiB) | Max observed RSS (MiB) |
+| --- | ---: | ---: | ---: |
+| 1 Hz | 0.428% | 2.03 | 2.03 |
+| 2 Hz | 0.843% | 2.03 | 2.03 |
+| 5 Hz | 2.098% | 2.03 | 2.03 |
+| 10 Hz | 4.107% | 2.03 | 2.03 |
+
+CPU and mean RSS are averages of three 60-second runs per frequency. Each run
+starts after a 5-second warm-up. CPU uses `/proc/PID/schedstat` execution time;
+100% means one full core. RSS is resident process memory from
+`/proc/PID/smaps_rollup`, read once per second and at the end. It excludes kernel
+allocations. These results apply to this host and workload.
+
+The sampler uses a target PID and the default settings: resources every 5 seconds,
+memory maps every 30 seconds, and `status_fallback = false`. A loopback UDP
+receiver checks all 500 thread IDs, sample continuity, and the actual frequency.
+All 12 runs completed without lost thread samples or sampler warnings.
+
+Repeat the full benchmark in about 13 minutes:
+
+```sh
+make benchmark-sampler
+```
+
+The test prints a table and writes `build/sampler-overhead.json`.
+[Recorded measurements](docs/sampler-overhead.json) ·
+[Test driver](tests/benchmark_sampler.py) · [Target workload](tests/benchmark_target.cpp)
+
 ## Test results
 
 Manual browser QA results are kept in the repository and checked in CI. Each case links to a
@@ -105,8 +140,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 1 | QA-020 |
-| **Total** | **40** | |
+| NOT_RUN | 3 | QA-020, QA-021, QA-022 |
+| **Total** | **42** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

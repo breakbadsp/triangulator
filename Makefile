@@ -34,7 +34,7 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
-CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
+CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
@@ -134,7 +134,7 @@ build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/buggy-workload build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
+check: all build/buggy-workload build/benchmark-target build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
 	./build/wire-test
 	./build/sampler-test
 	./build/allocation-test
@@ -142,6 +142,13 @@ check: all build/buggy-workload build/wire-test build/sampler-test build/allocat
 	./build/collector-test
 	./build/socket-metrics-test
 	python3 -m unittest discover -s tests -v
+
+build/benchmark-target: tests/benchmark_target.cpp build/compiler_ok Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
+
+.PHONY: benchmark-sampler
+benchmark-sampler: build/triangulator-sampler build/benchmark-target
+	python3 tests/benchmark_sampler.py
 
 format:
 	$(CLANG_FORMAT) -i $(CPP_SOURCES)
