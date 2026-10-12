@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -705,9 +706,16 @@ class Storage
       return begun;
     }
     FixedText<SanitizedSize(16)> name;
-    SanitizeInto(exit_wire::FieldText(p_report.comm_), name);
-    ExitMessagesText messages;
-    SanitizeInto(JoinedMessages(p_report).View(), messages);
+    const bool name_fitted =
+        SanitizeInto(exit_wire::FieldText(p_report.comm_), name);
+    // Sized for the longest sanitized text, so /api/live and the table show
+    // the same messages.
+    FixedText<SanitizedSize(kExitMessagesBytes)> messages;
+    const bool messages_fitted =
+        SanitizeInto(JoinedMessages(p_report).View(), messages);
+    assert(name_fitted && messages_fitted);
+    static_cast<void>(name_fitted);
+    static_cast<void>(messages_fitted);
     Binder{file.exit_.get()}
         .Add(ts)
         .Add(std::int64_t{p_report.pid_})
