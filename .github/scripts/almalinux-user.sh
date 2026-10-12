@@ -45,7 +45,8 @@ with urllib.request.urlopen(base, timeout=2) as response:
 print('Startup, target change, rate change, dashboard and live samples passed.')
 PY
 scripts/stop.sh
-make -j2 check 2>&1 | tee /reports/check.log
+# Required thread linkage must survive caller-supplied libraries.
+make -j2 check LDLIBS=-lm 2>&1 | tee /reports/check.log
 
 mkdir -p /reports/normal /reports/release
 cp build/triangulator-{sampler,collector,socket-report} /reports/normal/

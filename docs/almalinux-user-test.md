@@ -2,20 +2,24 @@
 
 The `AlmaLinux new user test` workflow runs on GitHub-hosted Linux runners.
 It does not need Docker access or `sudo` on your computer.
-It tests the official `almalinux:9` and `almalinux:10` container images.
+It tests the official `almalinux:8` and `almalinux:9` container images.
+Manual runs can also test `almalinux:10`.
 
 ## Run the test
 
 The workflow starts on pull requests that change the workflow, its scripts,
 build files, source files, configuration, tests, or build guidelines.
+Pull requests test AlmaLinux 8 and 9. AlmaLinux 10 runs only when selected
+for a manual run.
 To start it by hand:
 
 1. Open the repository's **Actions** page.
 2. Select **AlmaLinux new user test**.
 3. Select **Run workflow**.
 4. Select the branch to test.
-5. Start the workflow.
-6. Download the artifacts from the completed run.
+5. Select **Also test AlmaLinux 10** if needed.
+6. Start the workflow.
+7. Download the artifacts from the completed run.
 
 Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 
@@ -26,10 +30,11 @@ Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 3. Run `scripts/start.sh` before installing build dependencies.
    It must stop with `required command not found` and create no local files.
 4. Try `make` with the distribution's default compiler.
-   On AlmaLinux 9, it must stop with `cannot compile C++23`.
+   On AlmaLinux 8 and 9, it must stop with `cannot compile C++23`.
 5. Install the compiler, static runtime libraries, and test tools.
    The test does not install `diffutils` (`cmp`). It hides `cmp` if another
-   package installs it. The test does not change `PATH` for the compiler. On AlmaLinux 9, it sets `CXX` to the GCC Toolset 14 compiler.
+   package installs it. The test does not change `PATH` for the compiler.
+   On AlmaLinux 8 and 9, it sets `CXX` to the GCC Toolset 14 compiler.
 6. Run the startup scripts as an ordinary user.
 7. Monitor a `sleep` process owned by that user.
 8. Change the target and sampling rate with the control scripts.
@@ -68,9 +73,10 @@ The build needs Git, Make 4.2 or later, GCC/libstdc++ 13 or later,
 `sqlite-devel`, `glibc-static`, and `libstdc++-static`.
 The scripts also use Bash, coreutils, sed, and `getconf`.
 The compiler installation supplies binutils, including `readelf`.
-The test enables the AlmaLinux CRB repository for static development packages.
+The test enables PowerTools on AlmaLinux 8 and CRB on AlmaLinux 9 and 10
+for static development packages.
 
-AlmaLinux 9 also needs `gcc-toolset-14-gcc-c++`,
+AlmaLinux 8 and 9 also need `gcc-toolset-14-gcc-c++`,
 `gcc-toolset-14-libstdc++-devel`, and Python 3.11 for the tests.
 The test gives the toolset compiler to Make with `CXX`.
 It puts a Python 3.11 alias on `PATH` and does not replace the operating
@@ -94,7 +100,7 @@ tool selection, static release instructions, and required quality checks.
 Make compares saved build options without `cmp`.
 The sampler now accepts `-h` and `--help` without reading a configuration file.
 The dashboard tests now fail when Node.js is absent.
-The AlmaLinux 9 workflow selects Node.js 22 explicitly.
+The AlmaLinux 8 and 9 tests select Node.js 22 explicitly.
 
 ## Remaining improvements
 
