@@ -1,12 +1,14 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
@@ -872,11 +874,38 @@ void TestExitMessages()
           "the report the sampler builds is valid on the wire");
 
   const auto self = FindTarget(TargetPid{::getpid()});
-  Require(self && *self && !ProcessEnded(**self),
-          "a running process has not ended");
-  Require(ProcessEnded(
-              {.pid_ = (*self)->pid_, .starttime_ = (*self)->starttime_ + 1}),
+  Require(self && *self, "the test process is found");
+  const auto running = ProcessEnded(**self);
+  Require(running && !*running, "a running process has not ended");
+  const auto reused = ProcessEnded(
+      {.pid_ = (*self)->pid_, .starttime_ = (*self)->starttime_ + 1});
+  Require(reused && *reused,
           "a PID that now belongs to another process has ended");
+  const auto gone = ProcessEnded({.pid_ = 0x7ffffff0, .starttime_ = 1});
+  Require(gone && *gone, "a PID with no /proc entry has ended");
+
+  // With no descriptors left, the check cannot be made. It must say so, and
+  // not report that the process is still running.
+  rlimit saved{};
+  Require(::getrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is readable");
+  rlimit low = saved;
+  low.rlim_cur = std::min<rlim_t>(saved.rlim_cur, 64);
+  Require(::setrlimit(RLIMIT_NOFILE, &low) == 0, "the limit can be lowered");
+  std::vector<FileDescriptor> held;
+  for (;;)
+  {
+    FileDescriptor descriptor{::open("/dev/null", O_RDONLY | O_CLOEXEC)};
+    if (!descriptor)
+    {
+      break;
+    }
+    held.push_back(std::move(descriptor));
+  }
+  const auto exhausted = ProcessEnded(**self);
+  held.clear();
+  Require(::setrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is restored");
+  Require(!exhausted && exhausted.error() == EMFILE,
+          "running out of descriptors is an error, not an answer");
 }
 
 int main()

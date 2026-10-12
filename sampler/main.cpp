@@ -147,12 +147,28 @@ class Sampler
     if (p_target != previous_target_)
     {
       // records_ still holds the ended target's last tick here.
-      if (previous_target_ && ProcessEnded(*previous_target_))
+      if (previous_target_)
       {
-        exit_report_ = kernel_log_.Collect(
-            *previous_target_, std::span{records_}.first(record_count_),
-            ClockNow(CLOCK_REALTIME));
-        exit_report_sends_ = kExitReportSends;
+        const auto ended = ProcessEnded(*previous_target_);
+        if (!ended)
+        {
+          // Without descriptors the check cannot be made. Keep the old
+          // target and its last tick, skip this tick as for a failed
+          // lookup, and ask again at the next one, so the report is not
+          // lost.
+          logger_.Warn(
+              "cannot tell whether PID {} ended: {}; tick skipped, will "
+              "check again",
+              previous_target_->pid_, std::strerror(ended.error()));
+          return {};
+        }
+        if (*ended)
+        {
+          exit_report_ = kernel_log_.Collect(
+              *previous_target_, std::span{records_}.first(record_count_),
+              ClockNow(CLOCK_REALTIME));
+          exit_report_sends_ = kExitReportSends;
+        }
       }
       if (auto reset = ResetSession(); !reset)
       {

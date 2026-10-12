@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <expected>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -300,16 +301,18 @@ class KernelLog
 };
 
 // Whether p_target has ended: its /proc entry is gone, it is a zombie, or
-// the PID now belongs to another process. False when the check could not be
-// made for lack of file descriptors.
-[[nodiscard]] inline bool ProcessEnded(const TargetIdentity& p_target)
+// the PID now belongs to another process. The error is errno when the check
+// could not be made for lack of file descriptors; the caller must not take
+// that as "still running".
+[[nodiscard]] inline std::expected<bool, int> ProcessEnded(
+    const TargetIdentity& p_target)
 {
   std::array<char, 4096> buffer{};
   const auto descriptor =
       OpenReadonly(FixedString{"/proc/{}/stat", p_target.pid_}.CStr());
   if (!descriptor && DescriptorsExhausted(errno))
   {
-    return false;
+    return std::unexpected(errno);
   }
   const auto stat = ReadAtStart(descriptor, buffer).and_then(ParseStat);
   return !stat || stat->state_ == 'Z' || stat->state_ == 'X' ||
