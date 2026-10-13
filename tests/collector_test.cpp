@@ -1001,8 +1001,9 @@ process_wire::Packet ProcessPacket(std::uint32_t p_pid, std::uint64_t p_wall_s)
   return packet;
 }
 
-// Keeps the newest process info for the live snapshot, shows unreadable
-// values as null, and ignores a late datagram of an earlier read.
+// Keeps the newest session's process info for the live snapshot, shows
+// unreadable values as null, ignores a late datagram of a retired session, and
+// accepts a new session whose wall time is earlier (the clock moved back).
 void TestProcessInfo()
 {
   ProcessMonitor process;
@@ -1059,6 +1060,15 @@ void TestProcessInfo()
               Field(replaced, "cap_effective").AsString() == "1fffffffff" &&
               Field(replaced, "oom_score_adj").AsInt() == -500,
           "security settings are reported when read");
+
+  auto clock_back = ProcessPacket(9012, 1'699'999'940);
+  clock_back.session_ = 43;
+  process.Accept(clock_back);
+  process.Accept(later);
+  const auto after_clock_back = process.Snapshot();
+  Require(Field(after_clock_back, "pid").AsInt() == 9012 &&
+              Field(after_clock_back, "session").AsString() == "43",
+          "a new session replaces the info even with an earlier wall time");
 }
 
 // ---------- Resource samples ----------

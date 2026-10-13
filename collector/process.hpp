@@ -5,8 +5,9 @@
 // for /api/live, so each recorded snapshot carries it and a replayed moment
 // shows the process as it was. It is not stored on its own. The sampler sends
 // the same datagram every process_wire::kRepeatSeconds, so a copy only
-// refreshes it.
+// refreshes it. A late datagram of a retired session is ignored.
 
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <optional>
@@ -14,6 +15,7 @@
 #include <utility>
 
 #include "../common/process_wire.hpp"
+#include "bounded.hpp"
 #include "json.hpp"
 
 namespace triangulator::collector
@@ -22,15 +24,22 @@ namespace triangulator::collector
 class ProcessMonitor
 {
  public:
-  // Keeps p_packet when it is as new as the one held, by the time the sampler
-  // read it. A late datagram of an earlier session, or of an earlier target,
-  // does not replace a newer one. Allocates nothing.
+  // Keeps p_packet unless it belongs to a retired session. The sampler reads
+  // the info once per session and a new target starts a new session, so the
+  // first datagram of another session replaces the info and retires the old
+  // session, as the thread monitor does. Session order is not taken from
+  // wall time: the sampler host's clock can move backward. Allocates nothing.
   void Accept(const process_wire::Packet& p_packet) noexcept
   {
-    if (!latest_ || p_packet.wall_ns_ >= latest_->wall_ns_)
+    if (latest_ && p_packet.session_ != latest_->session_)
     {
-      latest_ = p_packet;
+      if (IsRetired(p_packet.session_))
+      {
+        return;
+      }
+      retired_sessions_.PushBack(latest_->session_);
     }
+    latest_ = p_packet;
   }
 
   // The newest info for /api/live, or null before the first datagram.
@@ -116,7 +125,23 @@ class ProcessMonitor
     return Json();
   }
 
+  [[nodiscard]] bool IsRetired(std::uint64_t p_session) const noexcept
+  {
+    for (std::size_t index = 0; index < retired_sessions_.Size(); ++index)
+    {
+      if (retired_sessions_[index] == p_session)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Sessions remembered, to reject late datagrams from them.
+  static constexpr std::size_t kMaxRetiredSessions = 128;
+
   std::optional<process_wire::Packet> latest_;
+  Ring<std::uint64_t, kMaxRetiredSessions> retired_sessions_;
 };
 
 }  // namespace triangulator::collector
