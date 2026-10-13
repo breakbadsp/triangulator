@@ -386,22 +386,28 @@ void TestExitReportRoundTrip()
       .ended_session_ = 11,
       .next_session_ = 12,
       .comm_ = {'w', 'o', 'r', 'k', 'e', 'r'},
+      // SIGSEGV with a core dump, as waitpid(2) reports it.
+      .wait_status_ = 0x8b,
+      .exit_status_ = exit_wire::ExitStatus::Known,
   };
   exit_wire::SetLine(report.lines_[0], "worker[1240]: segfault at 0");
   exit_wire::SetLine(report.lines_[1], std::string(500, 'x'));
   const auto bytes = wire::AsBytes(report);
-  Require(bytes.size() == 1216, "an exit report is one 1,216-byte datagram");
+  Require(bytes.size() == 1224, "an exit report is one 1,224-byte datagram");
   const auto decoded = exit_wire::Decode(bytes);
   Require(decoded.has_value(), "a valid exit report decodes");
   Require(decoded->pid_ == 1234 &&
               decoded->process_start_ == 0x0102030405060708 &&
               decoded->ended_session_ == 11 && decoded->next_session_ == 12 &&
               exit_wire::FieldText(decoded->comm_) == "worker" &&
+              decoded->wait_status_ == 0x8b &&
+              decoded->exit_status_ == exit_wire::ExitStatus::Known &&
               exit_wire::FieldText(decoded->lines_[0]) ==
                   "worker[1240]: segfault at 0" &&
               exit_wire::FieldText(decoded->lines_[1]).size() ==
                   exit_wire::kLineSize - 1,
-          "the identity and the lines survive; a long line is cut");
+          "the identity, the status and the lines survive; a long line is "
+          "cut");
 
   const auto rejects = [](exit_wire::Report p_report, std::string_view p_why)
   {
@@ -410,8 +416,26 @@ void TestExitReportRoundTrip()
   Require(!exit_wire::Decode(bytes.first(bytes.size() - 1)),
           "a short report is rejected");
   auto changed = report;
-  changed.version_ = 2;
+  changed.version_ = 1;
   rejects(changed, "another version is rejected");
+  changed = report;
+  changed.exit_status_ = static_cast<exit_wire::ExitStatus>(2);
+  rejects(changed, "an unknown exit-status kind is rejected");
+  changed = report;
+  changed.exit_status_ = exit_wire::ExitStatus::Unknown;
+  rejects(changed, "an unknown status must be zero");
+  changed.wait_status_ = 0;
+  Require(exit_wire::Decode(wire::AsBytes(changed)).has_value(),
+          "a report without the exit status decodes");
+  changed = report;
+  changed.wait_status_ = 0x10000;
+  rejects(changed, "a status past 16 bits is rejected");
+  changed = report;
+  changed.wait_status_ = -1;
+  rejects(changed, "a negative status is rejected");
+  changed = report;
+  changed.padding_[1] = 1;
+  rejects(changed, "padding must be zero");
   changed = report;
   changed.kernel_log_ = static_cast<exit_wire::KernelLog>(3);
   rejects(changed, "an unknown kernel-log status is rejected");

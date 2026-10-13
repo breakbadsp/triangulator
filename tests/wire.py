@@ -169,7 +169,7 @@ def decode_resource(data: bytes) -> ResourcePart:
                         process_start, flags, values, cgroup)
 
 
-EXIT_HEADER = struct.Struct("<4sBBBBIIQQQQ16s")
+EXIT_HEADER = struct.Struct("<4sBBBBIIQQQQ16siB3x")
 EXIT_LINES, EXIT_LINE_SIZE = 6, 192
 KERNEL_LOG = ("read", "unreadable", "unavailable")
 
@@ -185,18 +185,21 @@ class ExitReport:
     next_session: int
     comm: str
     lines: tuple[str, ...]
+    # The waitpid(2) status, or None when the sampler could not read it.
+    wait_status: int | None
 
 
 def decode_exit(data: bytes) -> ExitReport:
     if len(data) != EXIT_HEADER.size + EXIT_LINES * EXIT_LINE_SIZE:
         raise ValueError("invalid exit-report length")
-    magic, version, kernel_log, count, _, pid, error, start, wall, ended, following, comm = EXIT_HEADER.unpack_from(data)
-    if magic != b"TEND" or version != 1 or kernel_log >= len(KERNEL_LOG) or count > EXIT_LINES:
+    (magic, version, kernel_log, count, _, pid, error, start, wall, ended, following, comm, status,
+     known) = EXIT_HEADER.unpack_from(data)
+    if magic != b"TEND" or version != 2 or kernel_log >= len(KERNEL_LOG) or count > EXIT_LINES or known > 1:
         raise ValueError("unsupported exit report")
     lines = tuple(data[EXIT_HEADER.size + index * EXIT_LINE_SIZE:][:EXIT_LINE_SIZE].split(b"\0", 1)[0].decode()
                   for index in range(count))
     return ExitReport(KERNEL_LOG[kernel_log], pid, error, start, wall, ended, following,
-                      comm.split(b"\0", 1)[0].decode(), lines)
+                      comm.split(b"\0", 1)[0].decode(), lines, status if known else None)
 
 
 def receive_tick(receiver, size=1500):
