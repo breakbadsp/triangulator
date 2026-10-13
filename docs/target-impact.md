@@ -8,7 +8,7 @@ This page records how the burst looks and what the target feels. Run
 
 ## Result
 
-- **Burst length:** 4.4 ms at 500 threads, once per tick. At
+- **Thread-sample latency:** 4.4 ms at 500 threads, once per tick. At
   10 Hz the sampler uses 4.4% of one core; at 1 Hz, 0.45%. The 95th percentile and
   maximum (9–32 ms) were as noisy on this desktop host as the idle baseline, so do not
   read a tail guarantee from them.
@@ -16,13 +16,13 @@ This page records how the burst looks and what the target feels. Run
   host's own noise, at 1 or 10 Hz, on any probe.
 - **Sampler sharing a core with a busy thread:** at 10 Hz that thread lost 6.7% of its
   time, against 1.7% without the sampler, and saw about 1900 stalls of 1 ms or more per
-  minute, against 41. Each 8 ms burst (half the core, so twice as long) is cut into
-  several stalls. At 1 Hz the difference was within noise.
+  minute, against 41. Each 8 ms thread sample (half the core, so twice as long) is cut
+  into several stalls. At 1 Hz the difference was within noise.
 - **Sampler sharing a core with a sleeping, latency-sensitive thread:** its 1 ms timer
   wake-ups were 1 ms or more late about twice as often (927 per minute against 475; 694
   against 346 in an earlier run) and the 99th percentile doubled.
 - **Lowering the priority does not fix sharing.** At `nice 19` next to a busy thread, the
-  sampler fell to 3.1 Hz with 250 ms bursts, so samples are lost, and the busy thread
+  sampler fell to 3.1 Hz with 250 ms thread samples, so samples are lost, and the busy thread
   still lost 3.3% of its time. Next to a sleeping thread, `nice 19` did not improve the
   wake-up delays (967 per minute).
 - **Locks:** the signal-lock probe and the address-space-lock probe (the locks the
@@ -50,8 +50,11 @@ threshold counters and power-of-two histograms.
 The driver, `tests/benchmark_target_impact.py`, starts the victim, then the real sampler
 at the chosen rate and core, waits for a warm-up, and runs the probes for 30 s. Each
 scenario runs three times in rotating order, after the `off` scenario that has no
-sampler. The burst is the time from a tick's stamp to the arrival of its last datagram
-(rescan, reads, encoding, loopback UDP). CPU is the sampler's scheduler runtime.
+sampler. Thread-sample latency is the time from a tick's stamp to the arrival of its
+last thread-sample datagram (rescan, reads, encoding, loopback UDP). It excludes the
+resource and memory-map work that the sampler does after the thread sample in the same
+tick, so the extra memory-map reads of `maps-1s` do not appear in it; they appear in the
+CPU column and the probes. CPU is the sampler's scheduler runtime.
 
 ## Results
 
@@ -63,7 +66,7 @@ Sampler (`apart` is its own core; `shared-spin` and `shared-wake` share the spin
 wake probes' core; `nice19` runs the sampler at that niceness; `maps-1s` reads the memory
 map every second instead of every 30 s):
 
-| Scenario | Rate (Hz) | CPU (% of one core) | Burst p50 (ms) | Burst p95 (ms) | Burst max (ms) |
+| Scenario | Rate (Hz) | CPU (% of one core) | Thread-sample latency p50 (ms) | p95 (ms) | Max (ms) |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | apart-1hz | 1.00 | 0.45 | 4.4 | 18.2 | 29.1 |
 | apart-10hz | 10.00 | 4.43 | 4.4 | 9.4 | 24.9 |

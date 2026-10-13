@@ -135,7 +135,7 @@ class DriverTests(unittest.TestCase):
             self.assertEqual(set(rows), {"off", "apart-10hz"})
             self.assertNotIn("sampler", rows["off"])
             self.assertGreater(rows["apart-10hz"]["sampler"]["cpu_percent"], 0)
-            self.assertGreater(rows["apart-10hz"]["sampler"]["burst_max_ms"], 0)
+            self.assertGreater(rows["apart-10hz"]["sampler"]["sample_latency_max_ms"], 0)
             for row in rows.values():
                 self.assertEqual(row["probe_seconds"], 2)
                 self.assertEqual(set(row["probes"]), set(impact.PROBES))

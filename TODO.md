@@ -53,7 +53,7 @@ CPU use is small: 4.4% of one core at 500 threads and 10 Hz, 0.45% at 1 Hz.
 What remains is how the sampler's work arrives and what the target feels.
 
 - [x] Measure burstiness and the effect on the target on a development host
-  ([results](docs/target-impact.md)). The burst is 4.4 ms at 500 threads. On its own
+  ([results](docs/target-impact.md)). A thread sample takes 4.4 ms at 500 threads. On its own
   core the sampler had no measurable effect; sharing a core did. Lowering priority did
   not help.
 - [ ] Repeat on production-class hosts (Xeon, RHEL 8 and 9 kernels), ideally with

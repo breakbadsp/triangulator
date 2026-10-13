@@ -6,8 +6,9 @@ threads plus four probe threads, each pinned to its own core, that measure CPU t
 lost to other work (spin), wake-up lateness (wake), signal-lock waits (lock) and
 address-space-lock waits (mmap). Each scenario runs the real sampler against it,
 pinned apart from the probes or sharing a probe's core, and is compared with the
-`off` scenario, which has no sampler. Sampler CPU and tick duration (the burst
-length) come from the same runs. Needs six CPUs, or pass --cpus (repeats allowed,
+`off` scenario, which has no sampler. Sampler CPU and thread-sample latency come
+from the same runs; the latency excludes the resource and memory-map work that
+follows the thread sample in a tick. Needs six CPUs, or pass --cpus (repeats allowed,
 but results are then not isolated). No root is needed. Latency uses the receiver of
 benchmark_sampler.py, so it needs Linux 5.1 or later.
 """
@@ -153,8 +154,9 @@ def summarize(runs):
             row["sampler"] = {
                 "cpu_percent": statistics.mean(run["sampler"]["sampler_cpu_percent"] for run in group),
                 "observed_rate_hz": statistics.mean(run["sampler"]["observed_rate_hz"] for run in group),
-                "burst_p50_ms": statistics.median(latencies),
-                "burst_p95_ms": percentile(latencies, 95), "burst_max_ms": max(latencies),
+                "sample_latency_p50_ms": statistics.median(latencies),
+                "sample_latency_p95_ms": percentile(latencies, 95),
+                "sample_latency_max_ms": max(latencies),
                 "late_ticks": sum(run["sampler"]["late_ticks"] for run in group)}
         rows.append(row)
     return rows
@@ -166,14 +168,15 @@ def per_minute(row, count):
 
 def render(summary):
     us = lambda ns: f"{ns / 1000:,.1f}"
-    out = ["Sampler (single core): the burst is the time from a tick's stamp to its last datagram.",
-           "", "| Scenario | Rate (Hz) | CPU (% of one core) | Burst p50 (ms) | Burst p95 (ms) | Burst max (ms) | Late ticks |",
+    out = ["Sampler (single core): thread-sample latency is the time from a tick's stamp to its last",
+           "thread-sample datagram. It excludes resource and memory-map work, which follows in the tick.",
+           "", "| Scenario | Rate (Hz) | CPU (% of one core) | Latency p50 (ms) | Latency p95 (ms) | Latency max (ms) | Late ticks |",
            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for row in summary:
         if "sampler" in row:
             s = row["sampler"]
-            out.append(f"| {row['scenario']} | {s['observed_rate_hz']:.2f} | {s['cpu_percent']:.3f} | {s['burst_p50_ms']:.2f} | "
-                       f"{s['burst_p95_ms']:.2f} | {s['burst_max_ms']:.2f} | {s['late_ticks']} |")
+            out.append(f"| {row['scenario']} | {s['observed_rate_hz']:.2f} | {s['cpu_percent']:.3f} | {s['sample_latency_p50_ms']:.2f} | "
+                       f"{s['sample_latency_p95_ms']:.2f} | {s['sample_latency_max_ms']:.2f} | {s['late_ticks']} |")
     out += ["", "Spin probe: CPU time lost in gaps of 10 us or more between clock reads.", "",
             "| Scenario | Time lost (% of probe time) | Gaps ≥100 µs per min | Gaps ≥1 ms per min | Gaps ≥10 ms per min | Max gap (µs) |",
             "| --- | ---: | ---: | ---: | ---: | ---: |"]
@@ -248,7 +251,9 @@ def main():
             "lock": "duration of two pthread_sigmask calls that change the mask (process signal lock)",
             "mmap": "duration of mmap plus munmap of one anonymous page (address-space lock)",
             "percentiles": "upper bound of power-of-two buckets, capped at the observed maximum; counts are exact",
-            "burst": "last SO_TIMESTAMPNS_NEW kernel arrival minus the tick's wall stamp: rescan, reads, encode, loopback UDP",
+            "sample_latency": ("last thread-sample (TMON) SO_TIMESTAMPNS_NEW kernel arrival minus the tick's wall "
+                               "stamp: rescan, reads, encode, loopback UDP; excludes the resource (TRES) and "
+                               "memory-map (TVMA) work that follows in the same tick"),
         },
     }
     # Rotate the scenario order across repeats to reduce order bias.
