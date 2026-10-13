@@ -244,6 +244,26 @@ test('summary points record RSS and VmSize only from current samples', () => {
   assert.equal(app.run('axisBytes(niceBytes(2.2*2**30)/2)'), '2.5 GiB');
 });
 
+// With memory sampling off the load chart still supplies points, so the
+// memory charts must get no points and a reason instead of drawing bare axes.
+test('summary memory charts explain sampling that is off or missing', () => {
+  const app = dashboard();
+  app.run('timeChart=(host,options)=>{host.chart=options}');
+  const render = (resources, memory) => {
+    app.run(`live={health:{session:'s',pid:7},threads:[],resources:${JSON.stringify(resources)},memory:${JSON.stringify(memory)}};
+      buffer.length=0;for(const t of [1,2,3])buffer.push({t,cpu:5,s:{},rss:null,vm:null});renderOverview()`);
+    const chart = id => app.elements.get(id).chart;
+    return ['chart-rss', 'chart-vm'].map(id => [chart(id).points.length, chart(id).empty]);
+  };
+  assert.deepEqual(render({available: false, reason: 'Resource sampling is off.'}, undefined),
+    [[0, 'Resource sampling is off.'], [0, 'This collector does not report memory-map samples.']]);
+  assert.deepEqual(render({available: true, stale: true}, {available: true, stale: true}),
+    [[0, 'Waiting for resource samples…'], [0, 'Waiting for memory samples…']]);
+  app.run('buffer[1].rss=2**20');
+  app.run('renderOverview()');
+  assert.equal(app.elements.get('chart-rss').chart.points.length, 3);
+});
+
 test('unknown rates stay gaps and resumed samples keep bounded decay', () => {
   const app = dashboard();
   tick(app, 1000, 100);

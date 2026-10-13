@@ -1263,8 +1263,12 @@ function renderOverview(){
   const bands=LOAD_BANDS.filter(band=>band.label!=='Blocked in kernel (D)'||points.some(point=>point.s.kernel));
   timeChart(element('chart-load'),{points,stacked:true,series:bands,overlay:{label:'1-min load average',color:'var(--ink-2)',get:point=>point.l1},format:value=>isNum(value)?String(+value.toFixed(2)):'—',height:210,minMax:.05,...range});
   const now=points.at(-1);
-  timeChart(element('chart-rss'),{points,series:[{label:'Resident (RSS)',color:'var(--series-1)',get:point=>point.rss}],format:axisBytes,nice:niceBytes,helpId:'rss',height:100,minMax:2**20,...range,empty:'Waiting for resource samples…'});
-  timeChart(element('chart-vm'),{points,series:[{label:'Virtual size (VmSize)',color:'var(--series-2)',get:point=>point.vm}],format:axisBytes,nice:niceBytes,helpId:'vmsize',height:100,minMax:2**20,...range,empty:'Waiting for memory samples…'});
+  // The load chart supplies the points, so with sampling off or every sample
+  // stale the memory charts would draw empty axes. Show why instead.
+  const memoryChart=(id,key,source,label,color,helpId,missing,waiting)=>timeChart(element(id),{points:points.some(point=>isNum(point[key]))?points:[],series:[{label,color,get:point=>point[key]}],format:axisBytes,nice:niceBytes,helpId,height:100,minMax:2**20,...range,
+    empty:source?.available?waiting:source?.reason||missing});
+  memoryChart('chart-rss','rss',live.resources,'Resident (RSS)','var(--series-1)','rss','This collector does not report resource samples.','Waiting for resource samples…');
+  memoryChart('chart-vm','vm',live.memory,'Virtual size (VmSize)','var(--series-2)','vmsize','This collector does not report memory-map samples.','Waiting for memory samples…');
   element('overview-rss').textContent=memoryBytes(now?.rss);element('overview-vm').textContent=memoryBytes(now?.vm);
   const legend=element('load-legend');legend.replaceChildren();
   for(const band of bands){const item=node('span');item.dataset.help=band.label==='Waiting for CPU'?'load':band.label==='On CPU'?'cpucores':'kernel';const swatch=node('i',undefined,'sw');swatch.style.background=band.color;item.append(swatch,band.label,node('b',now&&isNum(band.get(now))?band.get(now).toFixed(2):'—'));legend.append(item)}
