@@ -13,6 +13,7 @@
 #include "kernel_log.hpp"
 #include "memory.hpp"
 #include "proc.hpp"
+#include "process_info.hpp"
 #include "resources.hpp"
 #include "schedule.hpp"
 
@@ -262,7 +263,39 @@ class Sampler
     {
       memory_deferred_ = resources_due;
     }
+    if (p_target)
+    {
+      StepProcessInfo(*p_target, monotonic);
+    }
     return {};
+  }
+
+  // Sends what the target is (command line, executable, owner and so on).
+  // It is read when the session starts, as it hardly changes, and sent again
+  // every kProcessInfoInterval: datagrams are not acknowledged, and a
+  // collector that started later has not seen it. One small datagram of
+  // cached bytes, so it adds no /proc reads after the first.
+  void StepProcessInfo(const TargetIdentity& p_target, Nanoseconds p_monotonic)
+  {
+    // Half a tick of slack, as for resources.
+    if (p_monotonic + config_.settings_.Interval() / 2 < next_process_info_)
+    {
+      return;
+    }
+    if (!process_info_read_)
+    {
+      process_info_ =
+          process_info_probe_.Read(p_target.pid_, p_target.starttime_);
+      process_info_.session_ = session_;
+      process_info_.monotonic_ns_ =
+          static_cast<std::uint64_t>(p_monotonic.count());
+      process_info_.wall_ns_ =
+          static_cast<std::uint64_t>(ClockNow(CLOCK_REALTIME).count());
+      process_info_read_ = true;
+    }
+    SendPart(process_wire::Encode(process_info_), "process info");
+    next_process_info_ =
+        NextDeadline(next_process_info_, p_monotonic, kProcessInfoInterval);
   }
 
   // Time between memory-map samples, as for ResourceInterval().
@@ -431,6 +464,8 @@ class Sampler
     memory_sequence_ = 0;
     next_memory_ = Nanoseconds{0};
     next_layout_ = Nanoseconds{0};
+    process_info_read_ = false;
+    next_process_info_ = Nanoseconds{0};
     return {};
   }
 
@@ -502,6 +537,10 @@ class Sampler
   // many ticks; the collector keeps the first copy that arrives.
   static constexpr int kExitReportSends = 5;
 
+  // How often the cached process info is sent again.
+  static constexpr Nanoseconds kProcessInfoInterval =
+      std::chrono::seconds{process_wire::kRepeatSeconds};
+
   RuntimeConfig config_;
   ThreadCache threads_;
   std::array<wire::Record, wire::kMaxThreads> records_{};
@@ -524,6 +563,10 @@ class Sampler
   Nanoseconds next_memory_{0};
   Nanoseconds next_layout_{0};
   bool memory_deferred_ = false;
+  ProcessInfoProbe process_info_probe_;
+  process_wire::Packet process_info_{};
+  bool process_info_read_ = false;  // process_info_ is this session's
+  Nanoseconds next_process_info_{0};
 };
 
 }  // namespace

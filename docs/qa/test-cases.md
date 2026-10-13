@@ -38,6 +38,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-025 | NOT_RUN | - | - | - |
 | QA-026 | NOT_RUN | - | - | - |
 | QA-027 | NOT_RUN | - | - | - |
+| QA-028 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -619,3 +620,37 @@ separates simulated or instrumented results from native timing. Missing events
 are unavailable, not zero. The agent preserves production source and build
 defaults. The PGO plan uses representative training, independent validation,
 matching executable profiles, and correctness checks.
+
+## QA-028: Process details card
+
+Feature: Dashboard process details. Priority: Medium. Case revision: 1.
+
+Preconditions: Run the sampler as the target's user with no extra privileges.
+Start a test process from a known directory with arguments, such as
+`python3 -c 'import time; time.sleep(1e6)' --port 8080`. Pin one copy to two
+cores with `taskset -c 0,1`. Open the dashboard Summary section.
+
+1. Find **Process details** under the summary tiles. Compare each value with
+   `/proc/PID/cmdline`, `exe`, `cwd`, `stat` and `status`, and with `ps`.
+2. Check Started and the run time against `ps -o lstart,etime -p PID`.
+3. Pause on each label for 1.2 seconds, then open its information button.
+4. Start the target as another user, or replace its executable on disk while it
+   runs. Wait up to 10 seconds. Check Executable and Working directory.
+5. Start a target with a command line over 380 characters.
+6. Restart the target, or select another with **Change target**. Watch the card.
+7. Inspect a recorded moment, then return to **Live**. Stop the target and open
+   the final view.
+
+Expected results: The card shows the command line, executable, working
+directory, start time with run time, parent PID, user and group IDs, and allowed
+CPUs, as the target has them (for example `0-1` after taskset). The start time
+agrees with `ps` to about a second. Each label has a help card and a guide
+that names its limits. Values the sampler may not read show **Not available**
+with the reason for a hidden path. A replaced executable ends with
+`(deleted)`. A long command line ends with `…`. After a target change the card
+is hidden until the new process's values arrive, and never shows the previous
+process. A recorded moment shows the process as recorded, with run time counted
+to the recording time. The final view keeps the card, with run time counted to
+the stop time. The card never shows capabilities, seccomp or OOM score, which
+only `/api/live` carries.
+

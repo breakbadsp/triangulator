@@ -1,7 +1,7 @@
 // Tests for common/wire.hpp, common/resource_wire.hpp,
-// common/memory_wire.hpp and common/exit_wire.hpp alone: encoding then
-// decoding gives back the same values, and the decoders reject data that is
-// not their format.
+// common/memory_wire.hpp, common/process_wire.hpp and common/exit_wire.hpp
+// alone: encoding then decoding gives back the same values, and the decoders
+// reject data that is not their format.
 
 #include "../common/wire.hpp"
 
@@ -17,6 +17,7 @@
 
 #include "../common/exit_wire.hpp"
 #include "../common/memory_wire.hpp"
+#include "../common/process_wire.hpp"
 #include "../common/resource_wire.hpp"
 
 namespace
@@ -466,6 +467,92 @@ void TestExitReportRoundTrip()
   rejects(changed, "reserved bytes must be zero");
 }
 
+// Sends a process-identity datagram as bytes and reads it back, then checks
+// that the decoder rejects a bad size, version, flag, mode or terminator.
+void TestProcessRoundTrip()
+{
+  process_wire::Packet packet{.session_ = 5,
+                              .monotonic_ns_ = 6,
+                              .wall_ns_ = 1'700'000'000'000'000'000,
+                              .process_start_ = 12345,
+                              .started_wall_ns_ = 1'699'999'000'000'000'000,
+                              .pid_ = 321,
+                              .parent_pid_ = 1,
+                              .uid_real_ = 1000,
+                              .uid_effective_ = 0,
+                              .gid_real_ = 1000,
+                              .gid_effective_ = 1000,
+                              .cap_effective_ = 0x3000,
+                              .oom_score_adj_ = -500,
+                              .flags_ = process_wire::Flags::ExeDeleted};
+  packet.seccomp_ = 2;
+  packet.no_new_privs_ = 1;
+  Require(!process_wire::CopyStart(packet.command_, std::string(500, 'a')),
+          "a long command line is cut");
+  Require(process_wire::CopyEnd(packet.exe_, "/usr/bin/app") &&
+              process_wire::CopyStart(packet.cwd_, "/srv"),
+          "short text fits");
+  const auto bytes = process_wire::Encode(packet);
+  Require(bytes.size() == process_wire::kPacketSize, "one datagram");
+  const auto decoded = process_wire::Decode(bytes);
+  Require(decoded.has_value(), "a valid datagram decodes");
+  Require(decoded->session_ == 5 && decoded->pid_ == 321 &&
+              decoded->process_start_ == 12345 &&
+              decoded->started_wall_ns_ == 1'699'999'000'000'000'000 &&
+              decoded->parent_pid_ == 1 && decoded->uid_effective_ == 0 &&
+              decoded->cap_effective_ == 0x3000 &&
+              decoded->oom_score_adj_ == -500 && decoded->seccomp_ == 2 &&
+              decoded->no_new_privs_ == 1 &&
+              process_wire::HasFlag(decoded->flags_,
+                                    process_wire::Flags::ExeDeleted) &&
+              process_wire::Text(decoded->exe_) == "/usr/bin/app" &&
+              process_wire::Text(decoded->cwd_) == "/srv" &&
+              process_wire::Text(decoded->command_).size() ==
+                  process_wire::kCommandSize - 1,
+          "every field survives");
+
+  std::array<char, 8> end{};
+  Require(!process_wire::CopyEnd(end, "/usr/bin/application") &&
+              process_wire::Text(end) == "ication",
+          "a long path keeps its end");
+
+  const auto rejects = [](process_wire::Packet p_packet, std::string_view p_why)
+  {
+    Require(!process_wire::Decode(process_wire::Encode(p_packet)), p_why);
+  };
+  Require(!process_wire::Decode(bytes.first(bytes.size() - 1)),
+          "a short datagram is rejected");
+  Require(!process_wire::Decode(wire::AsBytes(wire::Header{})),
+          "another format is rejected");
+  auto changed = packet;
+  changed.version_ = 2;
+  rejects(changed, "another version is rejected");
+  changed = packet;
+  changed.flags_ = static_cast<process_wire::Flags>(128);
+  rejects(changed, "an unknown flag is rejected");
+  changed = packet;
+  changed.seccomp_ = 3;
+  rejects(changed, "an unknown seccomp mode is rejected");
+  changed = packet;
+  changed.no_new_privs_ = 2;
+  rejects(changed, "an unknown no_new_privs value is rejected");
+  changed = packet;
+  changed.reserved_ = 1;
+  rejects(changed, "reserved bytes must be zero");
+  changed = packet;
+  changed.reserved_end_ = {0, 1};
+  rejects(changed, "trailing reserved bytes must be zero");
+  changed = packet;
+  changed.pid_ = 0;
+  rejects(changed, "a datagram needs a PID");
+  changed = packet;
+  changed.wall_ns_ = 0;
+  rejects(changed, "a datagram needs a clock");
+  changed = packet;
+  changed.cwd_.back() = 'x';
+  rejects(changed, "text must end with NUL");
+}
+
 }  // namespace
 
 int main()
@@ -479,10 +566,11 @@ int main()
     TestResourceSocketsRoundTrip();
     TestResourceRejectsOtherData();
     TestMemoryRoundTrip();
+    TestProcessRoundTrip();
     TestExitReportRoundTrip();
     std::puts(
-        "wire tests passed (thread, resource, memory-map and exit-report "
-        "round trips, rejection)");
+        "wire tests passed (thread, resource, memory-map, process-identity and "
+        "exit-report round trips, rejection)");
   }
   catch (const std::exception& error)
   {

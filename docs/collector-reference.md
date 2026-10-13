@@ -79,6 +79,16 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   exit by report time, so a delayed report of an earlier exit is stored but
   does not replace it. See [process-exit.md](process-exit.md).
 
+**4d. Process info** (`process.hpp`, `ProcessMonitor`)
+- Decodes the sampler's `TPIN` datagram (`common/process_wire.hpp`): the
+  target's command line, executable, working directory, start time, parent,
+  user and group IDs, allowed CPUs, and a few security settings.
+- Keeps the newest by the time the sampler read it, for `/api/live` (`process`,
+  null before the first datagram). It is not stored on its own; each recorded
+  dashboard view carries it, so a replayed moment shows the process as recorded.
+  The sampler sends the same datagram again every 10 seconds, so copies only
+  refresh it. The dashboard shows it only while its `session` matches the view.
+
 **5. Storage** (`storage.hpp`)
 - One SQLite file per UTC day, in WAL mode, with the same tables the retired
   Python collector wrote, so old files stay readable. Any other tool can read
@@ -164,6 +174,7 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 | `engine.hpp` | `Monitor`: ticks, per-thread state, summaries, health, live snapshot |
 | `resources.hpp` | `ResourceMonitor`: resource samples, rates, live JSON, stored rows |
 | `memory.hpp` | `MemoryMonitor`: memory-map summary and layout reassembly, live and layout JSON |
+| `process.hpp` | `ProcessMonitor`: the newest process-info datagram, live JSON |
 | `storage.hpp` | SQLite day files, retention, history queries |
 | `http.hpp` | Dashboard server and the `/api/live`, `/api/last-target`, `/api/memory-map`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
