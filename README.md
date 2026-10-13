@@ -185,8 +185,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 7 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026 |
-| **Total** | **46** | |
+| NOT_RUN | 8 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028 |
+| **Total** | **47** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
