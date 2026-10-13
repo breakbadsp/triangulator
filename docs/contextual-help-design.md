@@ -195,6 +195,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Last process exit | Reason and its signal; kernel log readable, unreadable, or unavailable; exit time; kernel messages and thread IDs; exits the kernel does not log or does not report (rate limit, `debug.exception-trace = 0`) |
 | Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window |
 | Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment |
+| Process details | What each value is and where it comes from (cmdline, exe, cwd, start time, parent, user and group, allowed CPUs); read once when monitoring starts; Not available when unreadable; cut text; secrets in the command line; deleted executable |
 | Overview tiles | Active/idle definition; context switches; disk and syscall I/O; major faults; thread churn; socket bytes; messages |
 | State chart and wait bars | Every state; sampled counts; wait channels; filter action; unknown and no access |
 | Thread map | Tile size and color; CPU averaging window; Now versus historical windows; thread selection |

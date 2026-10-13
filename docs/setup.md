@@ -537,6 +537,12 @@ Checklist before going live (design section 12):
   reassembled for up to two seconds; rates use the previous sample of the same
   session and process. Values the sampler could not read stay unavailable,
   never zero. One `resource_sample` row per sample is stored.
+- **Process info:** one datagram (version 1, `TPIN`) with the command line,
+  executable, working directory, start time, parent, user and group IDs and
+  allowed CPUs, read once per sampler session from `/proc` files the target's
+  user can read, and sent again every 10 seconds. The executable and working
+  directory need the sampler to run as the target's user; otherwise they stay
+  unavailable. The collector keeps the newest and does not store it separately.
 - **Storage:** live samples expire after ten minutes and are capped by
   `max_live_samples` (default one million, at most ten million; the collector
   reserves about 280 bytes of address space per sample at startup). History
@@ -632,7 +638,8 @@ version and result.
   parsing and cache, RAII resources, and the resource probe: `resources.hpp`,
   `resource_parsing.hpp`, `socket_diag.hpp`).
 - `common/`: code both programs use: the datagram formats (`wire.hpp` for
-  threads, `resource_wire.hpp` for resource samples) and the `FileDescriptor`
+  threads, `resource_wire.hpp` for resource samples, `process_wire.hpp` for
+  process info) and the `FileDescriptor`
   wrapper (`fd.hpp`). It depends only on
   the standard library, so neither program depends on the other's directory.
 - `collector/`: C++ core collector, without alerting, and the dashboard page it
