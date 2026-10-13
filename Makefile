@@ -36,7 +36,7 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
-CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_sampling.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
+CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
@@ -136,7 +136,7 @@ build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEA
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/buggy-workload build/benchmark-target build/benchmark-sampling build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
+check: all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
 	./build/wire-test
 	./build/sampler-test
 	./build/allocation-test
@@ -147,6 +147,15 @@ check: all build/buggy-workload build/benchmark-target build/benchmark-sampling 
 
 build/benchmark-target: tests/benchmark_target.cpp build/compiler_ok Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
+
+build/benchmark-victim: tests/benchmark_victim.cpp build/compiler_ok Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
+
+# How much the sampler disturbs a target: stalls, wake-up lateness, lock waits.
+# Needs six CPUs; see tests/benchmark_target_impact.py for the options.
+.PHONY: benchmark-target-impact
+benchmark-target-impact: build/triangulator-sampler build/benchmark-victim
+	python3 tests/benchmark_target_impact.py
 
 # Three 30-second trials per count/rate pair, after a 5-second warm-up.
 .PHONY: benchmark-sampler-matrix

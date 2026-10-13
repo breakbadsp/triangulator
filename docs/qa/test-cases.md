@@ -37,7 +37,6 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-024 | NOT_RUN | - | - | - |
 | QA-025 | NOT_RUN | - | - | - |
 | QA-026 | NOT_RUN | - | - | - |
-| QA-027 | NOT_RUN | - | - | - |
 | QA-028 | NOT_RUN | - | - | - |
 | QA-029 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
@@ -587,34 +586,6 @@ visible focus and accessible names. Grid selections retain keyboard focus.
 Reduced motion starts with animations off. The page has no document-wide
 horizontal scroll; the wide table scrolls within its container. Without
 JavaScript, the complete table and measurement method remain available.
-
-## QA-027: Profiling agent preserves measurement scope
-
-Feature: Efficiency profiling agent. Priority: Medium. Case revision: 1.
-
-Preconditions: Use a source checkout with the profiling agent and skill. Record
-the source revision instead of a package version. Use isolated test processes,
-configuration, ports, and data. Have a native benchmark and one compatible
-profiler available. This agent case does not require a browser.
-
-1. Invoke `$profile-efficiency` to compare methods without running workloads.
-2. Request a bounded sampler profile. Check which benchmarks this revision has.
-3. Check native completed-work counts and CPU cost before profiling. Inspect
-   the measured component, raw evidence, self/inclusive attribution, and limits.
-4. Repeat in an environment where `perf` is unavailable. Permit an installed
-   fallback tool. Do not permit package installation or host permission changes.
-5. Inspect the report and source diff. Ask for a PGO experiment plan without
-   authorizing an optimization build.
-
-Expected results: The skill starts one profiling agent, or reports that delegation
-is unavailable. Method comparison and experiment planning do not start workloads
-or builds. Measurement uses available revision-specific benchmarks or labels
-missing coverage. It profiles the C++ component and records completed work,
-binary identity, commands, artifacts, and profiler limits. A fallback report
-separates simulated or instrumented results from native timing. Missing events
-are unavailable, not zero. The agent preserves production source and build
-defaults. The PGO plan uses representative training, independent validation,
-matching executable profiles, and correctness checks.
 
 ## QA-028: Process details card
 
