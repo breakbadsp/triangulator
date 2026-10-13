@@ -287,17 +287,37 @@ std::vector<std::vector<std::byte>> MemorySample(std::uint32_t p_sequence)
   return parts;
 }
 
+// A process-info datagram, as the sampler repeats it.
+std::array<std::byte, process_wire::kPacketSize> ProcessInfoDatagram(
+    std::uint32_t p_sequence)
+{
+  process_wire::Packet packet{
+      .session_ = kSession,
+      .monotonic_ns_ = 1000,
+      .wall_ns_ = (1'700'000'000 + std::uint64_t{p_sequence}) * 1'000'000'000,
+      .process_start_ = 99,
+      .pid_ = 123};
+  process_wire::CopyStart(packet.command_, "/usr/bin/app --port 8080");
+  process_wire::CopyEnd(packet.exe_, "/usr/bin/app");
+  process_wire::CopyEnd(packet.cwd_, "/srv/app");
+  process_wire::CopyStart(packet.cpus_allowed_, "0-3");
+  std::array<std::byte, process_wire::kPacketSize> bytes{};
+  std::ranges::copy(wire::AsBytes(packet), bytes.begin());
+  return bytes;
+}
+
 struct Totals
 {
   Phase threads_{"thread datagrams (decode, ticks, rows)"};
   Phase resources_{"resource datagrams (decode, rows)"};
   Phase memory_{"memory-map datagrams (decode, layout)"};
+  Phase process_{"process-info datagrams (decode, keep)"};
   Phase flush_{"Storage::Flush"};
 
   [[nodiscard]] std::size_t Sum() const
   {
     return threads_.allocations_ + resources_.allocations_ +
-           memory_.allocations_ + flush_.allocations_;
+           memory_.allocations_ + process_.allocations_ + flush_.allocations_;
   }
 };
 
@@ -344,6 +364,13 @@ void Run(Ingest& p_ingest, Monitor& p_monitor, Storage& p_storage,
                 "memory-map datagram");
       }
     }
+    if (sequence % 10 == 0)
+    {
+      const auto datagram = ProcessInfoDatagram(sequence);
+      Counter counter{p_totals.process_};
+      Require(p_ingest.Handle(datagram, peer, now).has_value(),
+              "process-info datagram");
+    }
     {
       Counter counter{p_totals.flush_};
       Require(p_storage.Flush(now).has_value(), "flush");
@@ -369,7 +396,9 @@ std::size_t Measure(bool p_store_raw)
   ResourceMonitor resources{sink};
   MemoryMonitor memory;
   ExitMonitor exits;
-  Ingest ingest{std::nullopt, monitor, resources, memory, exits, storage, sink};
+  ProcessMonitor process;
+  Ingest ingest{std::nullopt, monitor, resources, memory,
+                exits,        process, storage,   sink};
 
   // Warm-up covers startup: the first session, every thread, the first
   // windows and the first resource samples.
@@ -390,8 +419,8 @@ std::size_t Measure(bool p_store_raw)
               memory.Layout().Find("regions")->AsArray().size() == 50,
           "every memory-map layout is complete");
   std::printf("%s\n", p_store_raw ? "store_raw = true" : "store_raw = false");
-  for (const auto* phase :
-       {&steady.threads_, &steady.resources_, &steady.memory_, &steady.flush_})
+  for (const auto* phase : {&steady.threads_, &steady.resources_,
+                            &steady.memory_, &steady.process_, &steady.flush_})
   {
     std::printf("  %-36s %zu\n", phase->name_, phase->allocations_);
   }

@@ -305,6 +305,7 @@ tr.zero td{color:var(--muted)}
 .arow[aria-pressed=true]{outline:3px solid var(--accent);outline-offset:1px}
 .agap{height:18px;margin:2px 0;border-radius:7px;display:grid;place-items:center;font-size:11px;color:var(--muted);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--line) 6px 12px)}
 .facts.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.facts .wide{grid-column:1/-1}.facts dd.wrap{overflow-wrap:anywhere;font-weight:500}
 .pagegrid{display:grid;grid-template-columns:repeat(64,minmax(0,1fr));gap:2px}
 .pagegrid i{aspect-ratio:1;border-radius:2px;background:var(--kind)}
 .pagegrid i.pad{visibility:hidden}
@@ -355,6 +356,11 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
 
 <div id="tiles" class="tiles" style="margin-bottom:14px"></div>
+
+<section id="process-info" class="card" aria-labelledby="process-title" hidden style="margin-bottom:14px">
+<div class="card-head"><div><h3 id="process-title" data-help="procinfo">Process details</h3><p id="process-sub">What the target is. The sampler reads these once when it starts watching the process.</p></div></div>
+<dl id="process-facts" class="facts"></dl>
+</section>
 
 <section id="process-exit" class="card" aria-labelledby="exit-title" hidden style="margin-bottom:14px">
 <div class="card-head"><div><h3 id="exit-title" data-help="exitreason">Last process exit</h3><p id="exit-sub"></p></div></div>
@@ -719,6 +725,14 @@ helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU 
 helpTopic('demand','Waiting for CPU','Process · percentage of runnable demand','Run delay as a share of CPU time plus run delay, summed across reported threads.','With 0.75 seconds on CPU and 0.25 seconds waiting, the share is 25%.','Compare this share with the thread-table Run delay metric, whose denominator is elapsed time.','Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.',['delay','cpucores','pressure']);
 helpTopic('packetcounts','Bad · duplicate · late','Sampler packets · counters','Packets rejected as invalid, received more than once, or received too late for normal assembly.','','Compare these counters with loss and sample age.','These are monitor transport counters, not application socket errors.',['loss','health']);
 helpTopic('rawsamples','Raw samples held','Collector · observation count','The number of raw thread observations retained in the collector buffer.','','Use this count when checking collector retention and buffer behavior.','This is not a count of active threads or stored history buckets.',['health','history']);
+helpTopic('procinfo','Process details','Target process · read when monitoring starts','What the target is: its command line, program file, working directory, start time, parent, owner, and allowed CPUs.','','Use it to confirm that you are watching the intended process, for example the right instance of a name that runs several times.','The sampler reads these values from /proc when it starts watching a process and sends them again every 10 seconds. It does not read them again, so a later change of directory or CPU affinity does not show. Values the sampler may not read show Not available.',['cmdline','exe','started']);
+helpTopic('cmdline','Command line','Target process · /proc/PID/cmdline','The program and arguments the process was started with, joined by spaces.','"/usr/bin/app --port 8080" is the program with one option.','The process name in the page header is cut at 15 characters; the command line is not. The arguments show how this instance was configured.','An argument that contains a space looks like two arguments. A long command line is cut and ends with …. The process can rewrite its own command line. The text is shown as the process has it, so a secret passed as an argument is visible here.',['procinfo','exe']);
+helpTopic('exe','Executable','Target process · /proc/PID/exe','The program file the process is running.','"/usr/bin/app (deleted)" means the file was removed or replaced after the process started.','A (deleted) suffix usually means the program was upgraded while it ran. The process keeps running the old version until it restarts.','Readable only when the sampler runs as the target user and the process allows it. Otherwise it shows Not available. A long path is cut at the start and begins with ….',['procinfo','cwd']);
+helpTopic('cwd','Working directory','Target process · /proc/PID/cwd','The directory that relative file names resolve against.','','It helps explain where relative files, logs, and core dumps go.','The same read limits apply as for Executable. The process can change directory later; the value is the one read at the start.',['procinfo','exe']);
+helpTopic('started','Started','Target process · wall-clock time','When the process started, and how long it had run at the time shown.','"up 3.2 h" means it started about 3.2 hours before the displayed time.','A later start than expected means the process restarted. In a recorded view, the run time is counted to the recording time.','The kernel records the start as ticks after boot. The sampler adds the boot time, so the result is accurate to about a second and moves if the clock was stepped after boot.',['procinfo','session']);
+helpTopic('parentpid','Parent process','Target process · PID','The process that started this one.','','PID 1 means init or systemd started it, or it was adopted when its parent exited. A shell or supervisor PID shows who launched it.','None visible means the parent is outside the target\'s PID namespace, as in a container. The parent can change when the original parent exits; the value is the one read at the start.',['procinfo','target']);
+helpTopic('owner','User & group','Target process · numeric IDs','The numeric user and group the process runs as. Effective IDs are shown only when they differ, as for setuid and setgid programs.','UID 1000 · GID 1000 is usually the first regular user on the host.','Compare it with the user that runs the sampler. The executable, working directory, and wait channels are readable only when the sampler runs as the target user.','Only numbers are shown; names live on the target host and the sampler does not look them up.',['procinfo','exe']);
+helpTopic('allowedcpus','Allowed CPUs','Target process · CPU list','The CPU cores the scheduler may run the process on, also called its affinity.','"0-3,8" allows cores 0 to 3 and core 8.','Compare it with Core placement: threads can only appear on these cores. A short list can explain high CPU use or run delay on a few cores.','This is the mask of the main thread at the start. Other threads can have narrower masks, and a cgroup cpuset can narrow it further. A long list is cut.',['cores','delay']);
 helpTopic('exitreason','Last process exit','Ended target process · kernel log','Why the most recent target process ended, from the kernel log messages that name the process or one of its threads.','"Segmentation fault" means a thread accessed memory it may not use, and the kernel sent SIGSEGV.','Read the reason first, then the kernel messages. The time is when the sampler noticed the exit, within one sample interval.','The kernel logs only the faults it handles and the out-of-memory killer. A normal exit, abort(), and a signal from another process leave no message. A real segfault can also show no message: the kernel rate-limits it, debug.exception-trace = 0 turns it off, and a thread that started after the last sample is not matched. So "No kernel crash message" does not prove the process did not crash. Reading the log needs kernel.dmesg_restrict = 0 on the target host. The card shows the latest exit since the collector started.',['exitmessages','health'],['Reason the process ended']);
 helpTopic('exitmessages','Kernel messages','Ended target process · up to six lines','The newest kernel log lines that name the ended process or one of its threads, oldest first.','"app[1240]: segfault at 0 ip … error 6 in app[…]" names thread 1240, the bad address, and the code that faulted.','Thread IDs in brackets match the TID column in the threads table. The address after "in" identifies the binary or library.','Only messages logged after the sampler found the process are read. Long lines are cut at 191 bytes. The out-of-memory task table is left out.',['exitreason']);
 helpTopic('overview','Process overview','Target process · summed thread observations','A summary of the target process, computed from its reported threads.','','Use load, CPU use, state counts, and wait channels together. Live overview trends are retained in this browser tab for up to 15 minutes. Recorded views show one saved process view.','Browser trends are not the same as stored thread history. Missing observations can limit every total.',['load','cpu','health']);
@@ -1254,7 +1268,7 @@ function renderOverview(){
   for(const state of stackStates){const count=(counts[state]||0)+(state==='other'?counts.no_access||0:0);if(!count&&!points.some(point=>point.s[state]))continue;const item=node('span');item.append(node('i',undefined,'sw '+state),state==='other'?'Other / no access':labels[state],node('b',String(count)));stateLegend.append(item)}
   // Live panels hold still under the pointer, so clicks and tooltips land.
   const steady=id=>replayAt===null&&element(id).matches(':hover');
-  renderAssessment(threads);renderExit();renderTiles(threads,points);renderCores(threads);
+  renderAssessment(threads);renderProcessInfo();renderExit();renderTiles(threads,points);renderCores(threads);
   if(!steady('mosaic'))renderMosaic(threads);if(!steady('family-bars'))renderFamilies(threads);if(!steady('wchan-bars'))renderWchans(threads);
   element('chart-load').hidden=replayAt!==null;element('chart-states').hidden=replayAt!==null;
   element('overview-sub').textContent=replayAt!==null?`Recorded process view at ${date(replayAt)}. CPU and I/O rates cover the preceding ~10 seconds; live trends and load averages are unavailable here.`:frozen&&threads.length?`Final view of ${targetName()} before it stopped reporting at ${clock(frozen.at)}, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab from '+clock(buffer[0].t)+'.':''}`:threads.length?`How ${targetName()} is behaving, summed over its ${threads.length} threads.${buffer.length?' Trends kept in this tab since '+clock(buffer[0].t)+'.':''}`:'Waiting for the sampler to report the target process.'}
@@ -2304,6 +2318,29 @@ const EXIT_REASONS={
   log_unreadable:['Reason unknown: kernel log not readable','warning','The sampler may not read the kernel log. Set kernel.dmesg_restrict = 0 on the target host to show the reason next time.'],
   log_unavailable:['Reason unknown: kernel log unavailable','warning','The sampler could not open /dev/kmsg, for example inside a container.']};
 const exitReason=ended=>EXIT_REASONS[ended.reason]||[ended.reason,'warning',''];
+// What the target is, from the sampler's one-time /proc reads. It belongs to
+// the view's session: while the new session's first datagram has not arrived,
+// the previous target's info is hidden rather than shown for the wrong process.
+function renderProcessInfo(){
+  const info=live.process,card=element('process-info');
+  const show=!!info&&info.session===live.health?.session;
+  card.hidden=!show;if(!show||helpOwns(card))return;
+  const missing='Not available',cut=(text,truncated,atStart)=>truncated?(atStart?'…'+text:text+' …'):text;
+  const path=(value,truncated,hidden)=>value?cut(value,truncated,true):hidden?missing+' (readable only by the process owner)':missing;
+  const reference=frozen&&replayAt===null?frozen.at:viewNow();
+  const user=isNum(info.uid)?`UID ${info.uid}`+(isNum(info.euid)&&info.euid!==info.uid?` (effective ${info.euid})`:''):'UID '+missing;
+  const group=isNum(info.gid)?`GID ${info.gid}`+(isNum(info.egid)&&info.egid!==info.gid?` (effective ${info.egid})`:''):'GID '+missing;
+  const rows=[
+    ['Command line','cmdline',info.command?cut(info.command,info.command_truncated,false):'Empty (a kernel thread or a process that is ending)',true],
+    // The sampler strips the kernel's " (deleted)" suffix and sets exe_deleted.
+    ['Executable','exe',path(info.executable,info.executable_truncated,info.exe_hidden)+(info.executable&&info.exe_deleted?' (deleted)':''),true],
+    ['Working directory','cwd',path(info.working_directory,info.working_directory_truncated,info.cwd_hidden),true],
+    ['Started','started',isNum(info.started_at)?`${date(info.started_at)} · up ${duration(Math.max(0,reference-info.started_at))}`:missing],
+    ['Parent process','parentpid',!isNum(info.parent_pid)?missing:info.parent_pid===0?'None visible (outside its PID namespace)':'PID '+info.parent_pid],
+    ['User & group','owner',`${user} · ${group}`],
+    ['Allowed CPUs','allowedcpus',info.cpus_allowed?cut(info.cpus_allowed,info.cpus_truncated,false):missing]];
+  const facts=element('process-facts');facts.replaceChildren();
+  for(const [label,topic,value,wide] of rows){const item=node('div',undefined,wide?'wide':''),cell=node('dd',value,wide?'wrap mono':'');cell.title=value;item.append(helpButtonLabel(label,topic,'help-fact','dt'),cell);facts.append(item)}}
 function renderExit(){const ended=shownExit(),card=element('process-exit');card.hidden=!ended;if(!ended||helpOwns(card))return;
   const [label,level,meaning]=exitReason(ended);
   const badge=element('exit-reason');badge.textContent=label;badge.style.setProperty('--lvl',`var(--${level})`);
