@@ -34,6 +34,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-021 | NOT_RUN | - | - | - |
 | QA-022 | NOT_RUN | - | - | - |
 | QA-023 | NOT_RUN | - | - | - |
+| QA-024 | NOT_RUN | - | - | - |
+| QA-025 | NOT_RUN | - | - | - |
 | QA-026 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
@@ -540,3 +542,45 @@ span. Growth outside that span creates a new span with at most 1 MiB margin
 and 512 measured cells. Target change resets the span for the new target.
 
 Source: [Original failure and fixture](runs/20261011T090200Z-pr65/index.md).
+
+## QA-024: Sampler benchmark values and frequency controls
+
+Feature: Sampler benchmark documentation. Priority: Medium. Case revision: 1.
+
+Preconditions: Open `docs/sampler-benchmark.html` in a browser. Use the JSON
+file from the same source revision. No sampler or collector is required.
+
+1. Select 1, 2, 5, and 10 Hz. Select each thread count.
+2. Compare the latency cards, chart labels, CPU, RSS, and interval share
+   with the matching table rows and raw trial observations.
+3. Select each frequency grid cell. Change the grid metric to CPU and back.
+4. Open each metric explanation. Check the selected case and units.
+5. Compare the separate sampling-loop charts with `sampling-performance.json`.
+   Verify that their capacity values exclude UDP and use no frequency limit.
+6. Download raw JSON. Expand the method and source disclosures.
+
+Expected results: All selections agree. Latency and throughput charts show
+all four frequencies against 100, 300, and 500 threads. The selected frequency
+has a p95 latency line. The table retains all 12 cases. p50 and p95 use pooled
+observations. Throughput is delivered records per second. CPU is percent of
+one core. Help defines the measurement boundaries and limits.
+
+## QA-025: Sampler benchmark access and offline use
+
+Feature: Sampler benchmark documentation. Priority: Medium. Case revision: 1.
+
+Preconditions: Download the HTML file. Open it without network access. Enable
+reduced motion before loading the page.
+
+1. Use Tab and Enter to select frequency, thread count, grid metric, and cells.
+2. Open help with the keyboard. Close it with Escape. Check returned focus.
+3. Use Pause motion and Enable motion. Check the moving status indicator.
+4. Set a 390-pixel viewport and 200% zoom. Inspect all controls and graphs.
+5. Disable JavaScript and reload. Read the measurement table and method.
+6. Open the benchmark page link and infographic from the README.
+
+Expected results: The page has no external asset dependency. Controls have
+visible focus and accessible names. Grid selections retain keyboard focus.
+Reduced motion starts with animations off. The page has no document-wide
+horizontal scroll; the wide table scrolls within its container. Without
+JavaScript, the complete table and measurement method remain available.
