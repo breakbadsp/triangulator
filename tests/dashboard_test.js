@@ -1017,7 +1017,7 @@ test('a reloaded tab restores the final view and its saved trends', async () => 
 test('changing the target from this tab is not reported as an exit', async () => {
   const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'session-1'})));
   tick(app, 1000, 50);
-  app.run('leftByChoice=bufferSession');
+  app.run('leftByChoice.add(bufferSession)');
   await app.run('refresh()');
   assert.equal(app.run('frozen'), null);
   assert.equal(app.run('live.health.session'), 'session-2');
@@ -1059,6 +1059,118 @@ test('returning from a recording goes back to the final view', async () => {
   assert.equal(app.run('live.health.session'), 'session-1');
   assert.equal(app.run('buffer.length'), 101);
   assert.ok(app.run('frozen') !== null);
+});
+
+test('changing the target from a final view does not freeze the session that was monitored', async () => {
+  let view = absent();
+  const app = dashboard(new Map(), url => url === '/api/target'
+    ? jsonResponse({target: 'other', message: 'Target changed'}) : polls(() => view)(url));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('refresh()');
+  assert.equal(app.run('live.health.session'), 'session-1');
+  // The sampler now monitors session-3; this tab still shows session-1.
+  view = {health: {session: 'session-3', target_absent: false, pid: 77},
+    threads: [{tid: 77, generation: 1, name: 'next', last_sample: 1200, cpu_pct: 5, state: 'sleep'}]};
+  await app.run('refresh()');
+  app.run("element('target-input').value='other'");
+  await app.run('saveTarget({preventDefault(){}})');
+  assert.equal(app.run('frozen'), null);
+  assert.equal(app.run('live.health.session'), 'session-3');
+  for (let time = 1201; time <= 1210; time++) tick(app, time, 5, 'session-3');
+  view = absent('session-4', {session: 'session-3'});
+  await app.run('refresh()');
+  assert.equal(app.run('frozen'), null);
+  assert.equal(app.run('live.health.session'), 'session-4');
+  assert.ok(!app.requests.includes('/api/last-target'));
+});
+
+test('an exit during a recording returns to the final view, not the next process', async () => {
+  let view = {health: {session: 'session-1', target_absent: false, pid: 1},
+    threads: [{tid: 1, generation: 1, name: 'worker', last_sample: 1100, cpu_pct: 50, state: 'sleep'}]};
+  const app = dashboard(new Map(), url => url.startsWith('/api/replay?')
+    ? jsonResponse({first: 900, last: 1000, snapshot: frame(1000)}) : polls(() => view)(url));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  await app.run('inspectTime(1000)');
+  view = absent();
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.at'), 1100);
+  assert.equal(app.run('live.health.session'), 'old-session');
+  // The target restarts before the user selects Live.
+  view = {health: {session: 'session-3', target_absent: false, pid: 77}, threads: []};
+  await app.run('refresh()');
+  await app.run('returnLive()');
+  assert.equal(app.run('live.health.session'), 'session-1');
+  assert.equal(app.run('buffer.length'), 101);
+  assert.equal(app.elements.get('exited').hidden, false);
+});
+
+test('a failed request for the collector view is retried', async () => {
+  let fail = true;
+  const app = dashboard(new Map(), url => url === '/api/live'
+    ? jsonResponse(absent('session-2', {session: 'old-session'}))
+    : url === '/api/last-target' ? (fail ? Promise.resolve({ok: false, json: async () => ({})}) : jsonResponse(frame(1000)))
+    : undefined);
+  await app.run('refresh()');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.run('frozen'), null);
+  fail = false;
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.at'), 1000);
+  assert.ok(app.requests.filter(url => url === '/api/last-target').length >= 2);
+});
+
+test('the final view keeps its memory layout across a reload', async () => {
+  const memory = {available: true, pid: 1, layout_id: 'session-1:4'};
+  const layout = {id: 'session-1:4', pid: 1, available: true, regions: []};
+  const app = dashboard(new Map(), polls(() => absent()));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  app.run(`live.memory=${JSON.stringify(memory)};memoryLayout=${JSON.stringify(layout)}`);
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.layout.id'), 'session-1:4');
+  const restored = dashboard(app.storage, url => url === '/api/memory-map'
+    ? jsonResponse({id: 'session-3:1', pid: 77, available: true, regions: []}) : polls(() => absent())(url));
+  await restored.run('refresh()');
+  assert.equal(restored.run('memoryLayout.id'), 'session-1:4');
+  assert.equal(restored.run('memoryLayoutFor(live.memory).id'), 'session-1:4');
+  assert.ok(!restored.requests.includes('/api/memory-map'));
+});
+
+test('the final view shows the exit report that arrives after it', async () => {
+  let view = absent();
+  const app = dashboard(new Map(), polls(() => view));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  app.run('live.health.pid=1');
+  await app.run('refresh()');
+  assert.equal(app.elements.get('process-exit').hidden, true);
+  const ended = {pid: 1, session: 'session-1', next_session: 'session-2', name: 'worker', ended_at: 1101,
+    reason: 'segfault', kernel_log: 'read', messages: ['worker[1]: segfault']};
+  // An exit of another process is not this view's.
+  view = {...absent(), exit: {...ended, session: 'session-0'}};
+  await app.run('refresh()');
+  assert.equal(app.run('frozenExit()'), null);
+  view = {...absent(), exit: ended};
+  await app.run('refresh()');
+  assert.equal(app.run('frozen.exit.reason'), 'segfault');
+  assert.equal(app.elements.get('process-exit').hidden, false);
+  assert.match(app.elements.get('exited-text').textContent, /Segmentation fault/);
+  assert.ok(app.run('assess(live.threads,buffer)').some(item => /Target process ended/.test(item.title)));
+  // A later exit of another process does not replace it, and a reload keeps it.
+  view = {...absent('session-5'), exit: {...ended, pid: 9, session: 'session-4'}};
+  await app.run('refresh()');
+  assert.equal(app.run('shownExit().pid'), 1);
+  const restored = dashboard(app.storage, polls(() => absent('session-5')));
+  await restored.run('refresh()');
+  assert.equal(restored.run('frozen.exit.reason'), 'segfault');
+});
+
+test('a final view too large for session storage says a reload loses it', async () => {
+  const storage = new Map();
+  const app = dashboard(storage, polls(() => absent()));
+  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
+  storage.set = (key, value) => {if (key === 'triangulator:frozen') throw Error('QuotaExceededError'); Map.prototype.set.call(storage, key, value);};
+  await app.run('refresh()');
+  assert.ok(app.run('frozen') !== null);
+  assert.match(app.elements.get('exited-text').textContent, /too large to keep across a reload/);
 });
 
 test('memory map rows join neighbours, shorten gaps and stay few', () => {

@@ -58,7 +58,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 ## QA-026: Final view after the target exits
 
-Feature: Dashboard target exit. Priority: High. Case revision: 1.
+Feature: Dashboard target exit. Priority: High. Case revision: 2.
 
 Preconditions: Start `bug-lab/bugbench.c` with a busy scenario and monitor its
 PID. Keep the dashboard open for at least five minutes.
@@ -66,17 +66,23 @@ PID. Keep the dashboard open for at least five minutes.
 1. Kill the process. Within a few seconds, verify the **Show live** banner, the
    top-bar state "Stopped reporting", and that threads, summary charts, resource
    charts and the memory map still show the last values. Charts end at the exit.
+   With the kernel log readable, verify the banner, **Last process exit** and the
+   Assessment name the same exit reason (QA-023).
 2. Select the 15 min chart window. Open a thread and check its stored history
    ends at the exit time.
-3. Reload the page. Verify the same final view and trends return.
+3. Start another target, then reload the page. Verify the same final view,
+   trends and memory-map regions return.
 4. Use **Inspect a moment** on an earlier time, then select **Live**. Verify the
-   final view returns, not an empty page.
+   final view returns, not an empty page. Repeat with a live target: open a
+   recording, kill and restart the process, then select **Live**. Verify the
+   final view of the old process appears, not the new process.
 5. Open a new browser tab. Verify it shows the final view without earlier
    trends.
 6. Start a new target. Verify the banner names its PID and the final view stays.
    Select **Show live** and verify the new target appears and the banner closes.
 7. Use **Change target** to select a process name that is not running. Verify no
-   final view appears in that tab.
+   final view appears in that tab. Repeat while a final view is shown and a new
+   target is monitored.
 8. Pause over the banner. Verify its help explains the final view and its limits.
 
 Expected results: The exited process stays inspectable until **Show live**.

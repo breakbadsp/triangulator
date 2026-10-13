@@ -203,12 +203,20 @@ so the dashboard waits up to 10 seconds before it accepts an empty new session.
 The dashboard does not clear the page. It keeps the last view in
 which the target was present, with the trends the tab collected (up to 15
 minutes), and shows a **Show live** banner. Charts and the resource range end at
-the last sample. The view and its trends survive a page reload in the same tab.
+the last sample. The view, its trends and its memory-map layout survive a
+page reload in the same tab. A view too large for the browser's session storage
+(thousands of threads) stays on screen, and the banner says a reload loses it.
+The exit report ([process-exit.md](process-exit.md)) arrives after the final view
+was taken, so the dashboard takes it from later `/api/live` polls when its
+`session` and `pid` match the final view; an exit of another process is not shown
+with it. An exit during **Inspect a moment** freezes the live view saved when
+the recording opened, so **Live** returns to it even if the process restarted.
 
 A tab opened after the exit reads the final view from `GET /api/last-target`,
 without the earlier trends. Thread history, resource samples and recordings
 remain in SQLite as before. A target change made from the same tab is not
-treated as an exit. If the process restarts before the sampler finds it missing,
+treated as an exit, including when the tab shows a final view or a recording
+of an earlier session. If the process restarts before the sampler finds it missing,
 there is no absent session and no final view; use **Inspect a moment**.
 
 ## Historical process inspection
