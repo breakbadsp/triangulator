@@ -64,7 +64,7 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
   <img src="docs/assets/architecture.svg" alt="The sampler reads /proc and sends UDP to the collector. The collector stores SQLite day files and serves the dashboard over HTTP. Alerting is not connected." width="100%">
 </p>
 
-[Sampler benchmark](docs/sampler-benchmark.html) · [Architecture](docs/architecture.md) · [Sampler design](docs/thread-monitor-design.md) ·
+[Sampler benchmark](docs/sampler-benchmark.html) · [Sampler impact on the target](docs/target-impact.md) · [Architecture](docs/architecture.md) · [Sampler design](docs/thread-monitor-design.md) ·
 [Collector and API](docs/collector-reference.md) · [Deployment](docs/setup.md#production-setup)
 
 <details>

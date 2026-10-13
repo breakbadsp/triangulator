@@ -168,7 +168,7 @@ def count_late(packets, latencies_ms, rate):
     return late_ticks, sum(value >= 1e3 / rate for value in latencies_ms)
 
 
-def collect(stream, sampler, target, duration_s):
+def collect(stream, sampler, target, duration_s, rate_tolerance=0.1):
     sampler_start = cpu_snapshot(sampler.pid)
     target_start = cpu_snapshot(target.pid, whole_process=True)
     start_ns = time.monotonic_ns()
@@ -209,7 +209,7 @@ def collect(stream, sampler, target, duration_s):
     packets, latencies = zip(*samples)
     elapsed_ns = packets[-1].monotonic_ns - packets[0].monotonic_ns
     actual_hz = (len(packets) - 1) * 1e9 / elapsed_ns
-    if abs(actual_hz / stream.rate - 1) > 0.1:
+    if abs(actual_hz / stream.rate - 1) > rate_tolerance:
         raise RuntimeError(f"sample frequency was {actual_hz:.3f} Hz, expected {stream.rate} Hz")
     # Compare wall and monotonic clocks across the window. Abort on a wall
     # clock step rather than presenting it as a latency observation.
