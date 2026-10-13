@@ -5,6 +5,7 @@
   "benchmark_sha256": "ae68a7276c60d4ebd8149ecd0666e1b628c177a422c0760877f61205e79f5274",
   "benchmark_driver_sha256": "586dc79f080752871a1f3914b92bfb260720895558c2e19bf77a0fbc6b0db177",
   "workload_sha256": "b2f89f24b4c5287e8492434eb1f1c614968a6bdb405c3133a5b5bd9e210de2f6",
+  "workload_source_sha256": "9b8d140f4c551f5b9327596ffc6f4101d41ef494f3d9d5eae351bf4e359fa9ae",
   "build_options": "c++  -O2 -Wall -Wextra -Werror -Wconversion -Wshadow   -static -static-libstdc++ -static-libgcc -lsqlite3  -O2",
   "cpu_model": "Intel(R) Core(TM) i5-9500 CPU @ 3.00GHz",
   "kernel": "7.2.5-3-omarchy",

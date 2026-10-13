@@ -25,7 +25,7 @@ BINARY = ROOT / "build/benchmark-sampling"
 METRICS = ("throughput_threads_s", "mean_tick_us", "mean_thread_us",
            "p50_tick_us", "p90_tick_us", "p99_tick_us", "p100_tick_us")
 MATCH_FIELDS = ("schema_version", "counts", "iterations", "warmup_s", "repeats",
-                "cpu_model", "kernel", "machine", "allowed_cpus", "build_options", "workload_sha256",
+                "cpu_model", "kernel", "machine", "allowed_cpus", "build_options", "workload_source_sha256",
                 "status_fallback", "descriptor_strategy", "latency_method", "throughput_method",
                 "percentile_method", "mean_thread_method")
 
@@ -127,6 +127,7 @@ def main():
         "benchmark_sha256": hashlib.sha256(BINARY.read_bytes()).hexdigest(),
         "benchmark_driver_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "workload_sha256": hashlib.sha256(TARGET.read_bytes()).hexdigest(),
+        "workload_source_sha256": hashlib.sha256((ROOT / "tests/benchmark_target.cpp").read_bytes()).hexdigest(),
         "build_options": (BINARY.parent / "build_options").read_text().strip(),
         "cpu_model": cpu_model, "kernel": platform.release(), "machine": platform.machine(),
         "allowed_cpus": sorted(os.sched_getaffinity(0)),
