@@ -4,6 +4,10 @@ Use profiling to locate the cost of completed work. Use benchmarks without a
 profiler to validate an improvement. Lower CPU use is useful only when the
 program completes the same work with the same correctness and sample coverage.
 
+[Native sampler results and charts](profiling/runs/20261013T033348Z-a83a97f/report.md)
+identify system CPU and parsing as the first investigation targets. See the
+[performance TODO list](../TODO.md#performance-optimizations) for planned experiments.
+
 ## Profiling agent
 
 The [Efficiency Profiler definition](../.codex/agents/efficiency-profiler.toml)
@@ -70,11 +74,10 @@ build can use `-fno-omit-frame-pointer` with `--call-graph fp`. This changes cod
 generation. Dependencies can still lack frame pointers. Check stack quality and
 measure the build's cost before comparing it with a release build.
 
-Inspect the benchmarks present in the requested revision. The sampler benchmark
-changes in [PR #71](https://github.com/breakbadsp/triangulator/pull/71) and
-[PR #72](https://github.com/breakbadsp/triangulator/pull/72) are not dependencies
-of this agent. At the time this guide was added, they were not merged into master.
-When present, check their current `--help` output:
+Inspect the benchmarks present in the requested revision. The sampler benchmarks
+from [PR #72](https://github.com/breakbadsp/triangulator/pull/72) are now in master.
+The agent also supports older revisions without these drivers. Check the current
+`--help` output when the drivers are present:
 
 ```sh
 python3 tests/benchmark_sampler.py --help

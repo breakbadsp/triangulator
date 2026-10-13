@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -24,6 +25,7 @@
 #include "../common/resource_wire.hpp"
 #include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
+#include "exits.hpp"
 #include "json.hpp"
 #include "protocol.hpp"
 #include "text.hpp"
@@ -59,6 +61,11 @@ CREATE INDEX IF NOT EXISTS socket_heartbeat_received
  ON socket_observation(received) WHERE part=0;
 CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS process_exit (
+ ts REAL NOT NULL, pid INTEGER NOT NULL, process_start INTEGER NOT NULL,
+ name TEXT NOT NULL, reason TEXT NOT NULL, kernel_log TEXT NOT NULL,
+ messages TEXT NOT NULL, PRIMARY KEY(pid, process_start)
 );
 )";
 // The schema matches the day files the retired Python collector wrote, so
@@ -683,6 +690,43 @@ class Storage
     return Run(file.database_.get(), statement);
   }
 
+  // One row per ended process. ts is when the sampler noticed the exit;
+  // messages are the kernel log lines, one per line.
+  [[nodiscard]] SqliteResult Exit(const exit_wire::Report& p_report)
+  {
+    const auto ts = static_cast<double>(p_report.wall_ns_) / 1e9;
+    auto connection = Connection(ts);
+    if (!connection)
+    {
+      return std::unexpected(std::move(connection.error()));
+    }
+    DayFile& file = connection->get();
+    if (auto begun = Begin(file); !begun)
+    {
+      return begun;
+    }
+    FixedText<SanitizedSize(16)> name;
+    const bool name_fitted =
+        SanitizeInto(exit_wire::FieldText(p_report.comm_), name);
+    // Sized for the longest sanitized text, so /api/live and the table show
+    // the same messages.
+    FixedText<SanitizedSize(kExitMessagesBytes)> messages;
+    const bool messages_fitted =
+        SanitizeInto(JoinedMessages(p_report).View(), messages);
+    assert(name_fitted && messages_fitted);
+    static_cast<void>(name_fitted);
+    static_cast<void>(messages_fitted);
+    Binder{file.exit_.get()}
+        .Add(ts)
+        .Add(std::int64_t{p_report.pid_})
+        .Add(static_cast<std::int64_t>(p_report.process_start_))
+        .Add(name.View())
+        .Add(ExitReason(p_report))
+        .Add(KernelLogName(p_report.kernel_log_))
+        .Add(messages.View());
+    return Run(file.database_.get(), file.exit_.get());
+  }
+
   [[nodiscard]] SqliteResult Resource(const ResourceRow& p_row)
   {
     const auto* ts = std::get_if<double>(&p_row[kResourceTsColumn]);
@@ -786,6 +830,7 @@ class Storage
     Statement raw_;
     Statement socket_;
     Statement resource_;
+    Statement exit_;
     bool in_transaction_ = false;
   };
 
@@ -931,6 +976,13 @@ class Storage
       return std::unexpected(std::move(resource.error()));
     }
     file.resource_ = std::move(*resource);
+    auto exit = Prepare(
+        database, "INSERT OR IGNORE INTO process_exit VALUES (?,?,?,?,?,?,?)");
+    if (!exit)
+    {
+      return std::unexpected(std::move(exit.error()));
+    }
+    file.exit_ = std::move(*exit);
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }

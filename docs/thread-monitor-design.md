@@ -59,7 +59,7 @@ system and the sampler, collector and dashboard flows.
 - Send with non-blocking `sendto`. On `EAGAIN` or `ENOBUFS`, drop the datagram.
 - Send over the management network, not the data-path NIC.
 - **Target selection:** pid or exact process name, from the config file. If the name matches several processes or none, the target is treated as absent.
-- **Target absent:** the sampler keeps polling and sends a header-only datagram each tick with the `target_absent` flag. This tells the collector "sampler alive, target gone", which is different from sampler silence.
+- **Target absent:** the sampler keeps polling and sends a header-only datagram each tick with the `target_absent` flag. This tells the collector "sampler alive, target gone", which is different from sampler silence. When the target ended, the sampler also sends an exit report with the kernel log messages that name it ([process-exit.md](process-exit.md)).
 - **Session id:** a random 64-bit value, regenerated when the sampler starts or when the target's `(pid, starttime)` changes. `starttime` is `stat` field 22, so pid reuse is detected.
 - **Access check:** the kernel reports a hidden `wchan` as `0`, the same as a running thread. If every sleeping thread (`S` or `D`) has an empty wait channel, the sampler logs a rate-limited warning and keeps sending; the collector shows those threads as "no access". If `io` is unreadable, the record carries an `io_unavailable` flag.
 - Config file (rate, collector address and port, target), re-read on `SIGHUP`.
