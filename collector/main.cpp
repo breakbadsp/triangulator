@@ -134,6 +134,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ResourceMonitor resources{sink};
   MemoryMonitor memory;
   ExitMonitor exits;
+  ProcessMonitor process;
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -161,8 +162,14 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  Ingest ingest{
-      config.sampler_ip_, monitor, resources, memory, exits, storage, sink};
+  Ingest ingest{config.sampler_ip_,
+                monitor,
+                resources,
+                memory,
+                exits,
+                process,
+                storage,
+                sink};
   std::uint64_t published_layout = 0;
   // Which target the view in /api/last-target describes, and when.
   std::optional<Json> last_target;
@@ -231,6 +238,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       live.Set("resources", resources.Snapshot(now));
       live.Set("memory", memory.Snapshot(now));
       live.Set("exit", exits.Snapshot());
+      live.Set("process", process.Snapshot());
       if (memory.LayoutVersion() != published_layout)
       {
         published_layout = memory.LayoutVersion();

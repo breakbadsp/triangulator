@@ -24,6 +24,7 @@
 #include "../collector/engine.hpp"
 #include "../collector/exits.hpp"
 #include "../collector/memory.hpp"
+#include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
 
@@ -978,6 +979,97 @@ void TestExitReports()
           "one row holds the exit and its messages");
 }
 
+// ---------- Process info ----------
+
+process_wire::Packet ProcessPacket(std::uint32_t p_pid, std::uint64_t p_wall_s)
+{
+  process_wire::Packet packet{.session_ = 41,
+                              .monotonic_ns_ = 5,
+                              .wall_ns_ = p_wall_s * 1'000'000'000,
+                              .process_start_ = 77,
+                              .started_wall_ns_ = 1'699'999'000'500'000'000,
+                              .pid_ = p_pid,
+                              .parent_pid_ = 1,
+                              .uid_real_ = 1000,
+                              .gid_real_ = 100};
+  process_wire::CopyStart(packet.command_, "/usr/bin/app --port 8080");
+  process_wire::CopyEnd(packet.exe_, "/usr/bin/app");
+  process_wire::CopyEnd(packet.cwd_, "/srv/app");
+  process_wire::CopyStart(packet.cpus_allowed_, "0-3,8");
+  packet.flags_ =
+      process_wire::Flags::ExeDeleted | process_wire::Flags::CwdHidden;
+  return packet;
+}
+
+// Keeps the newest session's process info for the live snapshot, shows
+// unreadable values as null, ignores a late datagram of a retired session, and
+// accepts a new session whose wall time is earlier (the clock moved back).
+void TestProcessInfo()
+{
+  ProcessMonitor process;
+  Require(process.Snapshot().IsNull(), "no process info before a datagram");
+  const auto first = ProcessPacket(1234, 1'700'000'000);
+  process.Accept(first);
+  process.Accept(first);
+  const auto snapshot = process.Snapshot();
+  Require(
+      Field(snapshot, "pid").AsInt() == 1234 &&
+          Field(snapshot, "session").AsString() == "41" &&
+          Field(snapshot, "command").AsString() == "/usr/bin/app --port 8080" &&
+          Field(snapshot, "executable").AsString() == "/usr/bin/app" &&
+          Field(snapshot, "working_directory").AsString() == "/srv/app" &&
+          Field(snapshot, "cpus_allowed").AsString() == "0-3,8",
+      "the snapshot describes the process");
+  Require(Field(snapshot, "parent_pid").AsInt() == 1 &&
+              Field(snapshot, "uid").AsInt() == 1000 &&
+              Field(snapshot, "gid").AsInt() == 100 &&
+              Field(snapshot, "euid").IsNull() &&
+              Field(snapshot, "egid").IsNull(),
+          "an id the sampler could not read is null");
+  RequireNear(Field(snapshot, "started_at").AsNumber(), 1'699'999'000.5,
+              "started_at is the process start in wall time");
+  Require(Field(snapshot, "exe_deleted").AsBool() &&
+              Field(snapshot, "cwd_hidden").AsBool() &&
+              !Field(snapshot, "exe_hidden").AsBool() &&
+              !Field(snapshot, "command_truncated").AsBool(),
+          "the flags say what was cut or hidden");
+  Require(Field(snapshot, "seccomp").IsNull() &&
+              Field(snapshot, "no_new_privs").IsNull() &&
+              Field(snapshot, "cap_effective").IsNull() &&
+              Field(snapshot, "oom_score_adj").IsNull(),
+          "security settings that were not read are null");
+
+  auto later = ProcessPacket(5678, 1'700'000'100);
+  later.session_ = 42;
+  later.seccomp_ = std::to_underlying(process_wire::Seccomp::Filter);
+  later.no_new_privs_ = 1;
+  later.cap_effective_ = 0x1fffffffff;
+  later.oom_score_adj_ = -500;
+  later.started_wall_ns_ = 0;
+  process.Accept(later);
+  process.Accept(first);
+  const auto replaced = process.Snapshot();
+  Require(Field(replaced, "pid").AsInt() == 5678 &&
+              Field(replaced, "session").AsString() == "42",
+          "a late datagram of the earlier read does not replace the newer");
+  Require(Field(replaced, "started_at").IsNull(),
+          "an unknown start time is null");
+  Require(Field(replaced, "seccomp").AsString() == "filter" &&
+              Field(replaced, "no_new_privs").AsBool() &&
+              Field(replaced, "cap_effective").AsString() == "1fffffffff" &&
+              Field(replaced, "oom_score_adj").AsInt() == -500,
+          "security settings are reported when read");
+
+  auto clock_back = ProcessPacket(9012, 1'699'999'940);
+  clock_back.session_ = 43;
+  process.Accept(clock_back);
+  process.Accept(later);
+  const auto after_clock_back = process.Snapshot();
+  Require(Field(after_clock_back, "pid").AsInt() == 9012 &&
+              Field(after_clock_back, "session").AsString() == "43",
+          "a new session replaces the info even with an earlier wall time");
+}
+
 // ---------- Resource samples ----------
 
 // A resource sample header taken p_sequence * 5 s after the start.
@@ -1664,10 +1756,11 @@ int main()
     TestMemoryMapLayoutOrder();
     TestMemoryMapSessions();
     TestExitReports();
+    TestProcessInfo();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "
-        "exit reports)");
+        "exit reports, process info)");
   }
   catch (const std::exception& error)
   {

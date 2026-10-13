@@ -13,6 +13,7 @@
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
+#include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
 #include "../sampler/schedule.hpp"
 
@@ -769,6 +770,119 @@ void TestMemoryProbePartialMaps()
 // Checks NextDeadline, which schedules resource and memory-map samples: the
 // first run and a run that fell behind count from now; a run on time keeps
 // the previous deadlines' cadence.
+// Status text as the kernel writes it, with an owner that differs between the
+// real and effective IDs (a setuid program), a security mode and a capability
+// set; then text with missing or invalid lines.
+void TestProcessInfoParsing()
+{
+  using process_wire::Flags;
+  process_wire::Packet packet;
+  ParseProcessStatus(
+      "Name:\tapp\nUid:\t1000\t0\t0\t0\nGid:\t100\t200\t200\t200\n"
+      "NoNewPrivs:\t1\nSeccomp:\t2\nCapEff:\t0000000000003000\n"
+      "Cpus_allowed_list:\t0-3,8\n",
+      packet);
+  Require(packet.uid_real_ == 1000 && packet.uid_effective_ == 0 &&
+              packet.gid_real_ == 100 && packet.gid_effective_ == 200,
+          "the real and effective IDs differ for a setuid program");
+  Require(packet.no_new_privs_ == 1 && packet.seccomp_ == 2 &&
+              packet.cap_effective_ == 0x3000,
+          "security settings");
+  Require(process_wire::Text(packet.cpus_allowed_) == "0-3,8" &&
+              packet.flags_ == Flags::None,
+          "allowed CPUs");
+
+  process_wire::Packet unknown;
+  ParseProcessStatus("Uid:\t1000\nSeccomp:\t9\nNoNewPrivs:\t2\nCapEff:\tzz\n",
+                     unknown);
+  Require(unknown.uid_real_ == process_wire::kUnavailable32 &&
+              unknown.seccomp_ == process_wire::kUnavailable8 &&
+              unknown.no_new_privs_ == process_wire::kUnavailable8 &&
+              unknown.cap_effective_ == process_wire::kUnavailable64 &&
+              unknown.gid_real_ == process_wire::kUnavailable32,
+          "a missing or invalid line stays unavailable");
+  Require(!FindStatusText("Uidx:\t1\n", "Uid"), "a longer key is not the key");
+
+  process_wire::Packet cut;
+  ParseProcessStatus("Cpus_allowed_list:\t" + std::string(100, '1') + "\n",
+                     cut);
+  Require(process_wire::HasFlag(cut.flags_, Flags::CpuListTruncated) &&
+              process_wire::Text(cut.cpus_allowed_).size() ==
+                  process_wire::kCpuListSize - 1,
+          "a long CPU list is cut and flagged");
+
+  const auto replaced = SplitDeleted("/usr/bin/app (deleted)");
+  Require(replaced.deleted_ && replaced.path_ == "/usr/bin/app",
+          "the deleted marker is removed and reported");
+  Require(!SplitDeleted("/usr/bin/app").deleted_, "a normal path");
+
+  std::array<char, 16> command{'a', 'p', 'p', '\0', '-', '-', 'x', '\0', '\0'};
+  Require(JoinCommandLine(std::span{command}.first(9)) == "app --x",
+          "arguments are joined by spaces; trailing NULs are dropped");
+  Require(JoinCommandLine(std::span<char>{}).empty(), "no command line");
+
+  Require(StartedWallNs(250, 100, 1000s, 100s) == 902'500'000'000,
+          "start time is boot wall time plus ticks since boot");
+  Require(StartedWallNs(std::numeric_limits<std::uint64_t>::max() / 4, 100,
+                        1000s, 100s) != 0,
+          "a large tick count does not overflow the product");
+  Require(StartedWallNs(1, 0, 1000s, 100s) == 0 &&
+              StartedWallNs(1, 100, 10s, 100s) == 0,
+          "unusable clocks give zero");
+}
+
+// Reads this test process, whose answers are known, and a process that does
+// not exist.
+void TestProcessInfoProbe()
+{
+  using process_wire::Flags;
+  const int pid = ::getpid();
+  const auto target = FindTarget(TargetPid{pid});
+  Require(target && *target, "the test process is found");
+  ProcessInfoProbe probe;
+  const auto before = ClockNow(CLOCK_REALTIME);
+  const auto packet = probe.Read(pid, (*target)->starttime_);
+  Require(packet.pid_ == static_cast<std::uint32_t>(pid) &&
+              packet.process_start_ == (*target)->starttime_ &&
+              packet.parent_pid_ == static_cast<std::uint32_t>(::getppid()) &&
+              packet.uid_real_ == ::getuid() &&
+              packet.uid_effective_ == ::geteuid() &&
+              packet.gid_real_ == ::getgid(),
+          "identity and owner");
+  std::array<char, 4096> self{};
+  const auto length = ::readlink("/proc/self/exe", self.data(), self.size());
+  Require(length > 0 && process_wire::Text(packet.exe_) ==
+                            std::string_view{self.data(),
+                                             static_cast<std::size_t>(length)},
+          "the executable path");
+  Require(process_wire::Text(packet.cwd_) ==
+              std::filesystem::current_path().string(),
+          "the working directory");
+  Require(process_wire::Text(packet.command_).find("sampler-test") !=
+              std::string_view::npos,
+          "the command line names the test program");
+  Require(packet.flags_ == Flags::None, "nothing hidden or cut for self");
+  Require(packet.oom_score_adj_ != process_wire::kUnavailableAdjust &&
+              packet.cap_effective_ != process_wire::kUnavailable64 &&
+              packet.seccomp_ != process_wire::kUnavailable8 &&
+              process_wire::Text(packet.cpus_allowed_).size() > 0,
+          "security settings and allowed CPUs were read");
+  const auto started =
+      Nanoseconds{static_cast<std::int64_t>(packet.started_wall_ns_)};
+  Require(started > Nanoseconds{0} && started <= before &&
+              before - started < std::chrono::hours{24 * 365},
+          "the start time is wall-clock time in the past");
+
+  const auto missing = probe.Read(0x7fffffff, 1);
+  Require(process_wire::HasFlag(missing.flags_, Flags::ExeHidden) &&
+              process_wire::HasFlag(missing.flags_, Flags::CwdHidden) &&
+              missing.parent_pid_ == process_wire::kUnavailable32 &&
+              missing.uid_real_ == process_wire::kUnavailable32 &&
+              missing.oom_score_adj_ == process_wire::kUnavailableAdjust &&
+              process_wire::Text(missing.command_).empty(),
+          "a missing process has nothing but its identity");
+}
+
 void TestNextDeadline()
 {
   using std::chrono::seconds;
@@ -1017,12 +1131,14 @@ int main()
     TestMemoryParsing();
     TestMemoryProbe();
     TestMemoryProbePartialMaps();
+    TestProcessInfoParsing();
+    TestProcessInfoProbe();
     TestNextDeadline();
     TestExitMessages();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
         "RAII, descriptor budget, resource parsing and probe, memory map, "
-        "exit messages)");
+        "process identity, exit messages)");
   }
   catch (const std::exception& error)
   {
