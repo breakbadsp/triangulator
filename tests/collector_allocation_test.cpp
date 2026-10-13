@@ -368,7 +368,8 @@ std::size_t Measure(bool p_store_raw)
   Monitor monitor{config, 1'700'000'000, sink};
   ResourceMonitor resources{sink};
   MemoryMonitor memory;
-  Ingest ingest{std::nullopt, monitor, resources, memory, storage, sink};
+  ExitMonitor exits;
+  Ingest ingest{std::nullopt, monitor, resources, memory, exits, storage, sink};
 
   // Warm-up covers startup: the first session, every thread, the first
   // windows and the first resource samples.
