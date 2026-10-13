@@ -64,10 +64,18 @@ class VictimTests(unittest.TestCase):
         victim = subprocess.Popen(
             [str(impact.VICTIM), str(threads), str(duration_s), *[str(cpu)] * 4],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-        self.addCleanup(victim.communicate)
-        self.addCleanup(victim.kill)
+        self.addCleanup(self.stop_victim, victim)
         self.assertEqual(victim.stdout.readline().strip(), f"{threads} threads ready")
         return victim
+
+    @staticmethod
+    def stop_victim(victim):
+        # communicate() flushes stdin on Python 3.11 and fails if a test closed
+        # it, so close the pipes and wait directly.
+        victim.kill()
+        victim.wait()
+        for pipe in (victim.stdin, victim.stdout):
+            pipe.close()
 
     def test_probes_report_and_the_thread_set_stays_constant(self):
         cpu = min(impact.ALLOWED_CPUS)
