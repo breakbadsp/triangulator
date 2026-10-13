@@ -221,6 +221,49 @@ test('saved averages survive reload and reset for a new sampler session', () => 
   assert.equal(restored.run('buffer.length'), 1);
 });
 
+// The Summary memory charts keep the latest RSS and VmSize per tick; stale,
+// unavailable or other-session samples are gaps, never zero.
+test('summary points record RSS and VmSize only from current samples', () => {
+  const app = dashboard();
+  const feed = (time, resources, memory) => app.run(`live={health:{session:'s',pid:7},threads:[{tid:1,generation:1,name:'w',last_sample:${time},cpu_pct:5,state:'sleep'}],
+    resources:${JSON.stringify(resources)},memory:${JSON.stringify(memory)}};ingest();[buffer.at(-1).rss,buffer.at(-1).vm]`);
+  assert.deepEqual([...feed(1, {available: true, session: 's', pid: 7, memory: {rss: 3 << 20}}, {available: true, pid: 7, values: {vm_size_bytes: 9 << 20}})], [3 << 20, 9 << 20]);
+  assert.deepEqual([...feed(2, {available: true, stale: true, session: 's', pid: 7, memory: {rss: 1}}, {available: true, stale: true, pid: 7, values: {vm_size_bytes: 1}})], [null, null]);
+  assert.deepEqual([...feed(3, {available: true, session: 'old', pid: 7, memory: {rss: 1}}, {available: false})], [null, null]);
+  // A name target that restarted inside one session: samples for the old PID
+  // must not be plotted against the new process.
+  assert.deepEqual([...feed(4, {available: true, session: 's', pid: 6, memory: {rss: 1}}, {available: true, pid: 6, values: {vm_size_bytes: 1}})], [null, null]);
+  assert.deepEqual([...feed(5, undefined, undefined)], [null, null]);
+  assert.equal(app.run('niceBytes(300*2**20)'), 500 * 2 ** 20);
+  assert.equal(app.run('niceBytes(3*2**30)'), 5 * 2 ** 30);
+  assert.equal(app.run('niceBytes(800)'), 1024);
+  assert.equal(app.run('niceBytes(900*2**20)'), 2 ** 30);
+  assert.equal(app.run('axisBytes(2**30)'), '1 GiB');
+  // A 2.5 top would put 1.25 GiB at the midpoint, labelled 1.3 GiB.
+  assert.equal(app.run('niceBytes(2.2*2**30)'), 5 * 2 ** 30);
+  assert.equal(app.run('axisBytes(niceBytes(2.2*2**30)/2)'), '2.5 GiB');
+});
+
+// With memory sampling off the load chart still supplies points, so the
+// memory charts must get no points and a reason instead of drawing bare axes.
+test('summary memory charts explain sampling that is off or missing', () => {
+  const app = dashboard();
+  app.run('timeChart=(host,options)=>{host.chart=options}');
+  const render = (resources, memory) => {
+    app.run(`live={health:{session:'s',pid:7},threads:[],resources:${JSON.stringify(resources)},memory:${JSON.stringify(memory)}};
+      buffer.length=0;for(const t of [1,2,3])buffer.push({t,cpu:5,s:{},rss:null,vm:null});renderOverview()`);
+    const chart = id => app.elements.get(id).chart;
+    return ['chart-rss', 'chart-vm'].map(id => [chart(id).points.length, chart(id).empty]);
+  };
+  assert.deepEqual(render({available: false, reason: 'Resource sampling is off.'}, undefined),
+    [[0, 'Resource sampling is off.'], [0, 'This collector does not report memory-map samples.']]);
+  assert.deepEqual(render({available: true, stale: true}, {available: true, stale: true}),
+    [[0, 'Waiting for resource samples…'], [0, 'Waiting for memory samples…']]);
+  app.run('buffer[1].rss=2**20');
+  app.run('renderOverview()');
+  assert.equal(app.elements.get('chart-rss').chart.points.length, 3);
+});
+
 test('unknown rates stay gaps and resumed samples keep bounded decay', () => {
   const app = dashboard();
   tick(app, 1000, 100);
