@@ -193,7 +193,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
 | Last process exit | Reason and its signal; kernel log readable, unreadable, or unavailable; exit time; kernel messages and thread IDs; exits the kernel does not log or does not report (rate limit, `debug.exception-trace = 0`) |
-| Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window |
+| Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window; RSS and VmSize charts and their sample steps |
 | Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment |
 | Process details | What each value is and where it comes from (cmdline, exe, cwd, start time, parent, user and group, allowed CPUs); read once when monitoring starts; Not available when unreadable; cut text; secrets in the command line; deleted executable |
 | Overview tiles | Active/idle definition; context switches; disk and syscall I/O; major faults; thread churn; socket bytes; messages |

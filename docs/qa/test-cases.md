@@ -39,6 +39,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-026 | NOT_RUN | - | - | - |
 | QA-027 | NOT_RUN | - | - | - |
 | QA-028 | NOT_RUN | - | - | - |
+| QA-029 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -648,3 +649,23 @@ to the recording time. The final view keeps the card, with run time counted to
 the stop time. The card never shows capabilities, seccomp or OOM score, which
 only `/api/live` carries.
 
+## QA-029: Summary CPU and memory trends
+
+Feature: Summary process load. Priority: Medium. Case revision: 1.
+
+1. Monitor a process whose RSS grows, for example a bug-lab leak workload.
+   Keep the Summary open for at least two minutes.
+2. Switch the chart window between 1 min, 5 min, and 15 min.
+3. Hover each chart. Open help from the Resident memory (RSS) and Virtual size
+   (VmSize) labels.
+4. Inspect a recorded moment, then return to Live.
+5. Restart the sampler without `memory_interval_s`, so memory-map sampling is
+   off.
+
+Expected results: Under the load chart, RSS and VmSize charts share its time
+window. The current values match the Resources and Memory map tiles. RSS steps
+about every 5 s and VmSize about every 30 s. The axes use binary units. Tooltips
+and help open the RSS and VmSize topics, and the help data tables list the
+memory values. The memory charts are hidden in a recorded view, like the load
+chart, and return in Live. With memory-map sampling off, the VmSize chart shows
+the collector's reason instead of empty axes.
