@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <format>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -163,6 +164,8 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   Ingest ingest{
       config.sampler_ip_, monitor, resources, memory, exits, storage, sink};
   std::uint64_t published_layout = 0;
+  // Which target the view in /api/last-target describes, and when.
+  std::optional<Json> last_target;
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -201,10 +204,28 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
       auto health = monitor.Health(now);
+      auto live = monitor.Snapshot(now);
+      const auto* absent = health.Find("target_absent");
+      // A view of the target needs its threads. When a new sampler session
+      // starts, the Monitor drops the old threads at once but reports
+      // target_absent only after the new session's first tick is processed,
+      // so a view without threads can still say the target is present.
+      const bool target_view = absent->IsBool() && !absent->AsBool() &&
+                               !live.Find("threads")->AsArray().empty();
+      if (target_view)
+      {
+        last_target = JsonObject{{"session", *health.Find("session")},
+                                 {"pid", *health.Find("pid")},
+                                 {"recorded_at", now}};
+      }
+      else if (absent->IsBool() && absent->AsBool() && last_target)
+      {
+        // Tells the dashboard which view /api/last-target holds.
+        health.Set("last_target", *last_target);
+      }
       health.Set("sampler_ip", ingest.SamplerIp()
                                    ? Json(ingest.SamplerIp()->View())
                                    : Json(nullptr));
-      auto live = monitor.Snapshot(now);
       live.Set("health", std::move(health));
       resources.Drain(now);
       live.Set("resources", resources.Snapshot(now));
@@ -222,6 +243,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
       if (live.Find("health")->Find("session")->IsString())
       {
         recorder.Offer(now, body);
+      }
+      if (target_view)
+      {
+        state.SetLastTarget(body);
       }
       state.SetLive(std::move(body));
       storage_ok = sink.Status();

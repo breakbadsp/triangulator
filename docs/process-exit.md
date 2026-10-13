@@ -89,7 +89,11 @@ collector started, or `null`:
   carry `next_session`, so the dashboard describes the absence with the exit
   only while `health.session` equals it. A target selected later that is never
   found has another session and keeps the normal "Target process is absent"
-  message, because the report says nothing about it.
+  message, because the report says nothing about it. The
+  [final view](collector-reference.md#final-view-after-the-target-exits) was
+  taken before the exit, so it shows the report whose `session` and `pid`
+  match it, read from a later `/api/live`. `GET /api/last-target` has no
+  report for the same reason.
 
 Recorded moments ([replay](collector-reference.md#historical-process-inspection))
 include the object. Each day file has a `process_exit` table: `ts`, `pid`,

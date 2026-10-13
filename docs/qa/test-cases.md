@@ -37,6 +37,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-024 | NOT_RUN | - | - | - |
 | QA-025 | NOT_RUN | - | - | - |
 | QA-026 | NOT_RUN | - | - | - |
+| QA-027 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -57,6 +58,39 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-026: Final view after the target exits
+
+Feature: Dashboard target exit. Priority: High. Case revision: 2.
+
+Preconditions: Start `bug-lab/bugbench.c` with a busy scenario and monitor its
+PID. Keep the dashboard open for at least five minutes.
+
+1. Kill the process. Within a few seconds, verify the **Show live** banner, the
+   top-bar state "Stopped reporting", and that threads, summary charts, resource
+   charts and the memory map still show the last values. Charts end at the exit.
+   With the kernel log readable, verify the banner, **Last process exit** and the
+   Assessment name the same exit reason (QA-023).
+2. Select the 15 min chart window. Open a thread and check its stored history
+   ends at the exit time.
+3. Start another target, then reload the page. Verify the same final view,
+   trends and memory-map regions return.
+4. Use **Inspect a moment** on an earlier time, then select **Live**. Verify the
+   final view returns, not an empty page. Repeat with a live target: open a
+   recording, kill and restart the process, then select **Live**. Verify the
+   final view of the old process appears, not the new process.
+5. Open a new browser tab. Verify it shows the final view without earlier
+   trends.
+6. Start a new target. Verify the banner names its PID and the final view stays.
+   Select **Show live** and verify the new target appears and the banner closes.
+7. Use **Change target** to select a process name that is not running. Verify no
+   final view appears in that tab. Repeat while a final view is shown and a new
+   target is monitored.
+8. Pause over the banner. Verify its help explains the final view and its limits.
+
+Expected results: The exited process stays inspectable until **Show live**.
+Nothing is cleared silently. A deliberate target change in the same tab is not
+reported as an exit.
 
 ## QA-021: Dashboard HTTP server animation
 
@@ -552,7 +586,7 @@ Reduced motion starts with animations off. The page has no document-wide
 horizontal scroll; the wide table scrolls within its container. Without
 JavaScript, the complete table and measurement method remain available.
 
-## QA-026: Profiling agent preserves measurement scope
+## QA-027: Profiling agent preserves measurement scope
 
 Feature: Efficiency profiling agent. Priority: Medium. Case revision: 1.
 
