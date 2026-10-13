@@ -221,6 +221,23 @@ test('saved averages survive reload and reset for a new sampler session', () => 
   assert.equal(restored.run('buffer.length'), 1);
 });
 
+// The Summary memory charts keep the latest RSS and VmSize per tick; stale,
+// unavailable or other-session samples are gaps, never zero.
+test('summary points record RSS and VmSize only from current samples', () => {
+  const app = dashboard();
+  const feed = (time, resources, memory) => app.run(`live={health:{session:'s'},threads:[{tid:1,generation:1,name:'w',last_sample:${time},cpu_pct:5,state:'sleep'}],
+    resources:${JSON.stringify(resources)},memory:${JSON.stringify(memory)}};ingest();[buffer.at(-1).rss,buffer.at(-1).vm]`);
+  assert.deepEqual([...feed(1, {available: true, session: 's', memory: {rss: 3 << 20}}, {available: true, values: {vm_size_bytes: 9 << 20}})], [3 << 20, 9 << 20]);
+  assert.deepEqual([...feed(2, {available: true, stale: true, session: 's', memory: {rss: 1}}, {available: true, stale: true, values: {vm_size_bytes: 1}})], [null, null]);
+  assert.deepEqual([...feed(3, {available: true, session: 'old', memory: {rss: 1}}, {available: false})], [null, null]);
+  assert.deepEqual([...feed(4, undefined, undefined)], [null, null]);
+  assert.equal(app.run('niceBytes(300*2**20)'), 500 * 2 ** 20);
+  assert.equal(app.run('niceBytes(3*2**30)'), 5 * 2 ** 30);
+  assert.equal(app.run('niceBytes(800)'), 1024);
+  assert.equal(app.run('niceBytes(900*2**20)'), 2 ** 30);
+  assert.equal(app.run('axisBytes(2**30)'), '1 GiB');
+});
+
 test('unknown rates stay gaps and resumed samples keep bounded decay', () => {
   const app = dashboard();
   tick(app, 1000, 100);
