@@ -46,6 +46,17 @@ struct PidfdInfo
 };
 static_assert(sizeof(PidfdInfo) == 64);
 
+// The pidfd_open system call number. Kernel headers before Linux 5.3 (for
+// example AlmaLinux 8, which ships 4.18 headers) do not define
+// SYS_pidfd_open. System calls added since Linux 5.1 share one number on
+// every architecture, and pidfd_open is 434. On an older kernel the call
+// fails with ENOSYS, which Watch() already handles.
+#ifdef SYS_pidfd_open
+inline constexpr long kSysPidfdOpen = SYS_pidfd_open;
+#else
+inline constexpr long kSysPidfdOpen = 434;
+#endif
+
 // PIDFS_IOCTL_MAGIC, request 11.
 inline constexpr unsigned long kPidfdGetInfo = _IOWR(0xFF, 11, PidfdInfo);
 // PIDFD_INFO_EXIT: asks for exit_code, and is set in the returned mask only
@@ -94,7 +105,7 @@ class ExitStatusWatch final
   // was reused in between, the pidfd names another process and is dropped.
   void Watch(const TargetIdentity& p_target)
   {
-    pidfd_.Reset(static_cast<int>(::syscall(SYS_pidfd_open, p_target.pid_, 0)));
+    pidfd_.Reset(static_cast<int>(::syscall(kSysPidfdOpen, p_target.pid_, 0)));
     if (!pidfd_)
     {
       return;
