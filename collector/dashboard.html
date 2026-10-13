@@ -115,9 +115,16 @@ section.block{margin-top:30px}
 .finding .d{font-size:12px;color:var(--ink-2);margin-top:1px}
 .lvl-good .ic{background:var(--good)}.lvl-info .ic{background:var(--muted)}.lvl-warning .ic{background:var(--warning);color:#2a1d00}.lvl-serious .ic{background:var(--serious);color:#2a1100}.lvl-critical .ic{background:var(--critical)}
 .verdict{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.verdict .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
-.verdict .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
+.verdict .badge,.exit-summary .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
+.verdict .badge::before,.exit-summary .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
 .profile{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.55}
+.exit-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;list-style:none}
+.exit-summary::-webkit-details-marker{display:none}
+.exit-summary::before{content:"\25B8";color:var(--muted);width:10px}
+details[open]>.exit-summary::before{content:"\25BE"}
+.exit-summary h3{margin:0}
+details[open]>.exit-summary #exit-brief{display:none}
+#exit-sub{margin:8px 0 10px}
 .exit-log{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Bar lists */
@@ -357,10 +364,12 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div id="tiles" class="tiles" style="margin-bottom:14px"></div>
 
 <section id="process-exit" class="card" aria-labelledby="exit-title" hidden style="margin-bottom:14px">
-<div class="card-head"><div><h3 id="exit-title" data-help="exitreason">Last process exit</h3><p id="exit-sub"></p></div></div>
-<div class="verdict"><span id="exit-reason" class="badge" data-help="exitreason"></span></div>
+<details id="exit-card"><summary class="exit-summary" data-help="exitreason"><h3 id="exit-title">Last process exit</h3><span id="exit-reason" class="badge"></span><span id="exit-brief" class="muted"></span></summary>
+<p id="exit-sub" class="muted"></p>
 <p id="exit-explain" class="profile"></p>
+<p id="exit-status" class="profile" data-help="exitstatus"></p>
 <details id="exit-details"><summary data-help="exitmessages">Kernel messages</summary><pre id="exit-messages" class="exit-log mono"></pre></details>
+</details>
 </section>
 
 <div class="grid g-hero">
@@ -719,7 +728,8 @@ helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU 
 helpTopic('demand','Waiting for CPU','Process · percentage of runnable demand','Run delay as a share of CPU time plus run delay, summed across reported threads.','With 0.75 seconds on CPU and 0.25 seconds waiting, the share is 25%.','Compare this share with the thread-table Run delay metric, whose denominator is elapsed time.','Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.',['delay','cpucores','pressure']);
 helpTopic('packetcounts','Bad · duplicate · late','Sampler packets · counters','Packets rejected as invalid, received more than once, or received too late for normal assembly.','','Compare these counters with loss and sample age.','These are monitor transport counters, not application socket errors.',['loss','health']);
 helpTopic('rawsamples','Raw samples held','Collector · observation count','The number of raw thread observations retained in the collector buffer.','','Use this count when checking collector retention and buffer behavior.','This is not a count of active threads or stored history buckets.',['health','history']);
-helpTopic('exitreason','Last process exit','Ended target process · kernel log','Why the most recent target process ended, from the kernel log messages that name the process or one of its threads.','"Segmentation fault" means a thread accessed memory it may not use, and the kernel sent SIGSEGV.','Read the reason first, then the kernel messages. The time is when the sampler noticed the exit, within one sample interval.','The kernel logs only the faults it handles and the out-of-memory killer. A normal exit, abort(), and a signal from another process leave no message. A real segfault can also show no message: the kernel rate-limits it, debug.exception-trace = 0 turns it off, and a thread that started after the last sample is not matched. So "No kernel crash message" does not prove the process did not crash. Reading the log needs kernel.dmesg_restrict = 0 on the target host. The card shows the latest exit since the collector started.',['exitmessages','health'],['Reason the process ended']);
+helpTopic('exitreason','Last process exit','Ended target process · kernel log and exit status','Why the most recent target process ended: from the kernel log messages that name the process or one of its threads, else from its exit status.','"Segmentation fault" means the kernel logged a memory fault. "Crashed: SIGABRT" means the process called abort(), which the kernel does not log.','Read the reason first, then the exit status and the kernel messages. The time is when the sampler noticed the exit, within one sample interval. The card is open while the ended process is the one the page shows. Once another process is the target, it folds to one line with the reason, the time and the number of exits since the collector started; open it for the details.','The kernel logs only the faults it handles and the out-of-memory killer, and reading the log needs kernel.dmesg_restrict = 0. The exit status names the signal or exit code without that, on Linux 6.15 and later, or when the sampler sees the process as a zombie. "No kernel crash message" means neither was found, so it does not prove the process did not crash. The card shows the latest exit since the collector started.',['exitstatus','exitmessages','health'],['Reason the process ended','Earlier process exit']);
+helpTopic('exitstatus','Exit status','Ended target process · waitpid status','The signal or exit code that ended the process, as its parent would see it from waitpid().','"SIGSEGV (signal 11), core dumped" is a crash. "exit code 3" means the process called exit(3).','A crash signal (SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGTRAP, SIGSYS) is a fault in the process. SIGKILL, SIGTERM and SIGINT usually come from another process. Exit code 0 is a normal exit.','The sampler is not the parent. It reads the status through a pidfd on Linux 6.15 and later, which needs no privileges, or from /proc while the process is a zombie. On older kernels the parent often reaps the process first, and the status is not available. SIGKILL from the out-of-memory killer looks like kill -9 unless the kernel log is readable.',['exitreason','exitmessages']);
 helpTopic('exitmessages','Kernel messages','Ended target process · up to six lines','The newest kernel log lines that name the ended process or one of its threads, oldest first.','"app[1240]: segfault at 0 ip … error 6 in app[…]" names thread 1240, the bad address, and the code that faulted.','Thread IDs in brackets match the TID column in the threads table. The address after "in" identifies the binary or library.','Only messages logged after the sampler found the process are read. Long lines are cut at 191 bytes. The out-of-memory task table is left out.',['exitreason']);
 helpTopic('overview','Process overview','Target process · summed thread observations','A summary of the target process, computed from its reported threads.','','Use load, CPU use, state counts, and wait channels together. Live overview trends are retained in this browser tab for up to 15 minutes. Recorded views show one saved process view.','Browser trends are not the same as stored thread history. Missing observations can limit every total.',['load','cpu','health']);
 helpTopic('memmap','Memory map','Target process · virtual address space','The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits.','','Start with the findings and limits, then select a region in the address-space view to zoom in. Compare mapped sizes with RSS.','Mapped memory is not resident memory. A layout is sampled less often than threads, so short-lived mappings can be missed.',['amap','vmsize','rss']);
@@ -2300,15 +2310,51 @@ const EXIT_REASONS={
   invalid_opcode:['Invalid instruction','critical','The CPU could not run an instruction, for example __builtin_trap() or a corrupted jump. The kernel sent SIGILL.'],
   breakpoint:['Breakpoint trap','critical','The process ran a breakpoint instruction with no debugger attached. The kernel sent SIGTRAP.'],
   fatal_signal:['Fatal signal','critical','The kernel logged an unexpected fatal signal for the process.'],
-  not_reported:['No kernel crash message','warning','The sampler found no crash message for this process. It probably exited by itself, called abort(), or another process ended it (SIGTERM, SIGKILL). A crash can also go unreported: the kernel rate-limits the message, debug.exception-trace = 0 turns it off, and a thread started since the last sample is not matched.'],
+  not_reported:['No kernel crash message','warning','The sampler found no crash message for this process and could not read its exit status. It may have exited by itself, crashed through abort() or a signal handler, or been ended by another process (SIGTERM, SIGKILL).'],
   log_unreadable:['Reason unknown: kernel log not readable','warning','The sampler may not read the kernel log. Set kernel.dmesg_restrict = 0 on the target host to show the reason next time.'],
   log_unavailable:['Reason unknown: kernel log unavailable','warning','The sampler could not open /dev/kmsg, for example inside a container.']};
-const exitReason=ended=>EXIT_REASONS[ended.reason]||[ended.reason,'warning',''];
+// Reasons from the exit status, when no kernel message named one. The status
+// is the signal or exit code that ended the process.
+const CRASH_SIGNALS={
+  SIGSEGV:'A thread accessed memory it may not use. The kernel logged no fault: a signal handler or a language runtime caught it first, or the message was rate-limited.',
+  SIGABRT:'The process called abort(): usually a failed assert(), an uncaught C++ exception, a Rust panic, or the C library finding heap corruption.',
+  SIGBUS:'A memory access the hardware could not complete, often to a memory-mapped file that was truncated.',
+  SIGFPE:'An arithmetic fault, usually an integer division by zero.',
+  SIGILL:'The CPU could not run an instruction, for example __builtin_trap() or a jump into data.',
+  SIGTRAP:'A breakpoint or trap instruction ran with no debugger attached.',
+  SIGSYS:'The process made a system call that its seccomp filter forbids.'};
+const KILL_SIGNALS={
+  SIGKILL:'SIGKILL cannot be caught. It comes from kill -9, a service manager whose stop timed out, or the out-of-memory killer.',
+  SIGTERM:'Another process asked it to stop: kill, systemctl stop, or a shutdown.',
+  SIGINT:'An interrupt, such as Ctrl+C in its terminal.',
+  SIGHUP:'Its terminal closed, or another process sent SIGHUP.'};
+const signalLabel=ended=>ended.signal_name||'signal '+ended.signal;
+function exitReason(ended){
+  if(ended.reason==='crashed')return [`Crashed: ${signalLabel(ended)}`,'critical',CRASH_SIGNALS[ended.signal_name]||'A signal that reports a fault in the process ended it.'];
+  if(ended.reason==='killed')return [`Killed by ${signalLabel(ended)}`,'warning',(KILL_SIGNALS[ended.signal_name]||'Another process sent a signal that ended it.')+(ended.signal_name==='SIGKILL'&&ended.kernel_log!=='read'?' Without the kernel log, an out-of-memory kill looks the same.':'')];
+  if(ended.reason==='exited')return ended.exit_code===0?['Exited normally','good','The process returned from main or called exit(0).']:[`Exited with code ${ended.exit_code}`,'warning','The process called exit() or returned from main with a non-zero code, usually after it logged an error.'];
+  return EXIT_REASONS[ended.reason]||[ended.reason,'warning',''];
+}
+function exitStatusText(ended){
+  if(isNum(ended.signal))return `Exit status: ${signalLabel(ended)} (signal ${ended.signal})${ended.core_dumped?', core dumped':''}.`;
+  if(isNum(ended.exit_code))return `Exit status: exit code ${ended.exit_code}.`;
+  return 'Exit status: not available. The sampler reads it on Linux 6.15 and later, or while the process is a zombie.'}
+// The card is open while its exit describes what the page shows: the target
+// it ended is absent, or the final view is shown. Once another process is the
+// target, it folds to one line, so an old crash does not read as a current
+// failure. A reader's own toggle is kept until the exit or that state changes.
+let exitCardState='';
 function renderExit(){const ended=shownExit(),card=element('process-exit');card.hidden=!ended;if(!ended||helpOwns(card))return;
+  const current=!!(frozen&&replayAt===null)||!!endedTarget(),state=`${ended.pid}:${ended.process_start}:${current}`;
+  if(state!==exitCardState){exitCardState=state;element('exit-card').open=current}
   const [label,level,meaning]=exitReason(ended);
   const badge=element('exit-reason');badge.textContent=label;badge.style.setProperty('--lvl',`var(--${level})`);
-  element('exit-sub').textContent=`${ended.name||'Process'} · PID ${ended.pid} · ended ${date(ended.ended_at)}`+(frozen&&replayAt===null?'':` (${ago(viewNow()-ended.ended_at)})`);
-  element('exit-explain').textContent=meaning+(ended.error?` (${ended.error})`:'');
+  const when=frozen&&replayAt===null?date(ended.ended_at):ago(viewNow()-ended.ended_at),count=ended.count>1?` · ${ended.count} exits since the collector started`:'';
+  element('exit-brief').textContent=`${ended.name||'Process'} · PID ${ended.pid} · ${when}${count}`;
+  element('exit-sub').textContent=`${ended.name||'Process'} · PID ${ended.pid} · ended ${date(ended.ended_at)}`+(frozen&&replayAt===null?'':` (${ago(viewNow()-ended.ended_at)})`)+count;
+  const statusReason=['crashed','killed','exited'].includes(ended.reason);
+  element('exit-explain').textContent=meaning+(ended.error&&!statusReason?` (${ended.error})`:'')+(statusReason&&ended.kernel_log!=='read'?' The kernel log was not readable, so its messages are missing.':'');
+  element('exit-status').textContent=exitStatusText(ended);
   element('exit-details').hidden=ended.kernel_log!=='read';
   element('exit-messages').textContent=ended.messages.length?ended.messages.join('\n'):'No kernel messages name this process.'}
 function renderTop(){const health=live.health,dot=element('live-dot');

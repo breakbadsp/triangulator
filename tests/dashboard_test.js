@@ -520,6 +520,42 @@ test('an exit describes only the absence that followed it', () => {
   assert.ok(!titles().some(title => /absent|ended/.test(title)));
 });
 
+// abort() and a crash handler leave no kernel message, so the reason comes
+// from the exit status. Once another process runs, the card folds to one line
+// so an old crash does not look current; a reader's own toggle is kept.
+test('the exit status names unlogged crashes and an earlier exit folds', () => {
+  const exit = {pid: 100, process_start: 5, name: 'app', ended_at: 1000, reason: 'crashed', signal: 6,
+    signal_name: 'SIGABRT', core_dumped: true, exit_code: null, kernel_log: 'unreadable',
+    error: 'Operation not permitted', messages: [], session: 'a', next_session: 'x', count: 3};
+  const app = dashboard();
+  const reason = value => JSON.parse(app.run(`JSON.stringify(exitReason(${JSON.stringify({...exit, ...value})}).slice(0,2))`));
+  assert.deepEqual(reason({}), ['Crashed: SIGABRT', 'critical']);
+  assert.deepEqual(reason({reason: 'killed', signal: 9, signal_name: 'SIGKILL', core_dumped: false}),
+    ['Killed by SIGKILL', 'warning']);
+  assert.deepEqual(reason({reason: 'exited', signal: null, exit_code: 3}), ['Exited with code 3', 'warning']);
+  assert.deepEqual(reason({reason: 'exited', signal: null, exit_code: 0}), ['Exited normally', 'good']);
+  assert.deepEqual(reason({reason: 'segfault'}), ['Segmentation fault', 'critical']);
+
+  app.run(`live={health:{session:'x',target_absent:true,pid:0},threads:[],exit:${JSON.stringify(exit)}};renderExit()`);
+  const card = app.elements.get('exit-card');
+  assert.equal(card.open, true);
+  assert.equal(app.elements.get('exit-reason').textContent, 'Crashed: SIGABRT');
+  assert.equal(app.elements.get('exit-status').textContent, 'Exit status: SIGABRT (signal 6), core dumped.');
+  assert.match(app.elements.get('exit-explain').textContent, /abort\(\).*kernel log was not readable/);
+  assert.match(app.elements.get('exit-sub').textContent, /3 exits since the collector started/);
+  // The restarted process is the target now.
+  app.run(`live.health={session:'y',target_absent:false,pid:200};renderExit()`);
+  assert.equal(card.open, false);
+  assert.match(app.elements.get('exit-brief').textContent, /^app · PID 100 · .* · 3 exits since the collector started$/);
+  card.open = true;
+  app.run('renderExit()');
+  assert.equal(card.open, true);
+  // The next crash opens it again while its process is absent.
+  app.run(`live={health:{session:'z',target_absent:true,pid:0},threads:[],
+    exit:${JSON.stringify({...exit, pid: 200, next_session: 'z', count: 4})}};renderExit()`);
+  assert.equal(card.open, true);
+});
+
 // Threads as the live API reports them. A thread sat in `state` for the whole
 // window, used `cpu` percent of a core, and switched `sw` times a second.
 function lockThread(tid, name, state, {cpu = 0, sw = 0} = {}) {

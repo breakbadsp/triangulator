@@ -128,37 +128,43 @@ the static diagram, route table, and source links remain available.
 
 ## QA-023: Reason the target process ended
 
-Feature: Process exit reasons. Priority: High. Case revision: 1.
+Feature: Process exit reasons. Priority: High. Case revision: 2.
 
 Preconditions: The dashboard is open with live samples. Use an owned test
-process. Run two passes on the target host: one with
+process on Linux 6.15 or later. Run two passes on the target host: one with
 `kernel.dmesg_restrict = 1` and one with `kernel.dmesg_restrict = 0`.
 
 1. With the log restricted, check the sampler log first: when it finds the
    target, it warns that the kernel log is not readable. Then end the target
    with `kill -TERM`.
 2. Verify the Last process exit card shows the process name, PID, end time,
-   and "Reason unknown: kernel log not readable". Verify Kernel messages is
-   hidden.
+   "Killed by SIGTERM", "Exit status: SIGTERM (signal 15)" and that the kernel
+   log was not readable. Verify Kernel messages is hidden. Start a target
+   that calls `abort()` and verify "Crashed: SIGABRT" with "core dumped".
 3. With the log readable, start an owned target that writes through a null
    pointer after a few seconds, for example `sleep(5); *(volatile int*)0 = 1;`.
 4. Verify the card shows "Segmentation fault" and that Kernel messages
    contains the segfault line with a thread ID from the threads table.
 5. Verify the Assessment says "Target process ended · Segmentation fault".
-6. Restart the target. Verify the card stays and the Assessment no longer
-   reports the target as absent.
+6. Restart the target. Verify the card folds to one line with the reason,
+   the old PID and how long ago, and the Assessment no longer reports the
+   target as absent. Open the line and verify the details. Crash and restart
+   the target three more times. Verify the card opens while each crashed
+   process is absent, folds once the next one runs, and the line counts the
+   exits since the collector started.
 7. End the target again, then change the target to a PID or name that does
    not exist. Verify the Assessment says "Target process is absent", not
    "Target process ended", and the header does not use the ended process's
    name.
 8. Open Inspect a moment after the exit. Verify the card shows the recorded
    exit. Return to Live.
-9. Hover over the card heading, the reason, and Kernel messages. Verify each
-   opens its help topic, and that the help says a missing message does not
-   prove the process did not crash.
+9. Hover over the card heading, the reason, Exit status and Kernel messages.
+   Verify each opens its help topic, and that the help says a missing message
+   does not prove the process did not crash.
 
-Expected results: The card names the reason the kernel logged, or says why it
-is unknown. Kernel messages show only lines that name the process or its
+Expected results: The card names the reason the kernel logged, else the
+signal or exit code that ended the process, or says why it is unknown. An
+earlier exit of a process that has been restarted is one folded line. Kernel messages show only lines that name the process or its
 threads. The `process_exit` table in the day file has one row per ended
 process.
 
