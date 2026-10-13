@@ -455,22 +455,37 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                     self.assertEqual(fetch("/api/replay?" + query)[0], 400)
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
                 self.assertIn(b'id="replay-time"', page)
-                # An ended target appears in /api/live as the latest exit.
+                # After the target exits, live health names the session of the
+                # last view with the target, /api/last-target still serves it,
+                # and /api/live reports the exit.
+                self.assertNotIn("last_target", live["health"])
                 self.assertIsNone(live["exit"])
                 self.assertIn(b'id="process-exit"', page)
                 target.kill()
-                target.wait(timeout=3)
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline and not live.get("exit"):
-                    time.sleep(0.2)
+                target.wait(timeout=8)
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
                     live = json.loads(fetch("/api/live")[1])
+                    if live["health"].get("target_absent") and live.get("exit"):
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(live["health"]["target_absent"])
+                self.assertNotEqual(live["health"]["session"], session)
+                self.assertEqual(live["health"]["last_target"]["session"], session)
+                self.assertEqual(live["health"]["last_target"]["pid"], target.pid)
                 ended = live["exit"]
                 self.assertEqual((ended["pid"], ended["name"]), (target.pid, "sleep"))
-                self.assertTrue(live["health"]["target_absent"])
                 self.assertIn((ended["kernel_log"], ended["reason"]),
                               (("read", "not_reported"), ("unreadable", "log_unreadable"),
                                ("unavailable", "log_unavailable")))
                 self.assertEqual(ended["messages"], [])
+                status, body = fetch("/api/last-target")
+                self.assertEqual(status, 200)
+                final = json.loads(body)
+                self.assertEqual(final["health"]["session"], session)
+                self.assertFalse(final["health"]["target_absent"])
+                self.assertEqual(final["threads"][0]["name"], "sleep")
+                self.assertIn(b'id="exited"', page)
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:

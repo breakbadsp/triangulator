@@ -190,6 +190,7 @@ and value. Legend help explains the series without changing its toggle action.
 | --- | --- |
 | Section navigation | Current section highlight; tab selection; updates on scroll; Monitor at the bottom of the page |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
+| Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
 | Last process exit | Reason and its signal; kernel log readable, unreadable, or unavailable; exit time; kernel messages and thread IDs; exits the kernel does not log or does not report (rate limit, `debug.exception-trace = 0`) |
 | Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window |
