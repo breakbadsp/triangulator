@@ -1100,14 +1100,17 @@ function ingest(){
     let series=threadAvg.get(thread.tid);if(!series||series[0]!==thread.generation){series=[thread.generation];threadAvg.set(thread.tid,series)}
     if(isNum(thread.cpu_pct)&&(series.length<3||tick-series.at(-2)>=AVG_STEP-.5)){series.push(tick,+thread.cpu_pct.toFixed(2));while(series.length>3&&series[1]<tick-BUFFER_SECS)series.splice(1,2)}
     const history=threadCpu.get(thread.tid)||[];history.push({t:tick,v:thread.cpu_pct});while(history.length&&history[0].t<tick-120)history.shift();threadCpu.set(thread.tid,history)}
+  // Memory is sampled less often than threads (RSS every resource interval,
+  // VmSize every memory interval); each point keeps the latest known value.
+  // A name target follows restarts, so a sample counts only when it is from
+  // the current process: RSS checks session and PID, VmSize checks PID (the
+  // memory summary has no session field).
+  const resources=live.resources,memory=live.memory;
+  point.rss=resources?.available&&!resources.stale&&resources.session===health.session&&resources.pid===health.pid?resources.memory?.rss??null:null;
+  point.vm=memory?.available&&!memory.stale&&memory.pid===health.pid?memory.values?.vm_size_bytes??null:null;
   // After a sampler pause of 10 s or more, the collector has one sample per
   // thread in its window and sends null rates. Summing those as 0 would
   // record a fake idle moment, so mark the point's rates unknown instead.
-  // Memory is sampled less often than threads (RSS every resource interval,
-  // VmSize every memory interval); each point keeps the latest known value.
-  const resources=live.resources,memory=live.memory;
-  point.rss=resources?.available&&!resources.stale&&resources.session===health.session?resources.memory?.rss??null:null;
-  point.vm=memory?.available&&!memory.stale?memory.values?.vm_size_bytes??null:null;
   if(!threads.some(thread=>isNum(thread.cpu_pct)))Object.assign(point,{cpu:null,rd:null,sw:null,rb:null,wb:null,mf:null,busy:null,active:null});
   if(previousThreads){for(const id of ids)if(!previousThreads.has(id))point.born++;for(const id of previousThreads)if(!ids.has(id))point.died++}
   previousThreads=ids;
