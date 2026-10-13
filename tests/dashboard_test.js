@@ -239,6 +239,9 @@ test('summary points record RSS and VmSize only from current samples', () => {
   assert.equal(app.run('niceBytes(800)'), 1024);
   assert.equal(app.run('niceBytes(900*2**20)'), 2 ** 30);
   assert.equal(app.run('axisBytes(2**30)'), '1 GiB');
+  // A 2.5 top would put 1.25 GiB at the midpoint, labelled 1.3 GiB.
+  assert.equal(app.run('niceBytes(2.2*2**30)'), 5 * 2 ** 30);
+  assert.equal(app.run('axisBytes(niceBytes(2.2*2**30)/2)'), '2.5 GiB');
 });
 
 test('unknown rates stay gaps and resumed samples keep bounded decay', () => {
