@@ -1,6 +1,6 @@
 // Checks the TigerStyle memory rule for the sampler: after startup, sampling
-// (threads, resources and the memory map) allocates no heap memory. The
-// Makefile links this test statically with
+// (threads, resources, the memory map and the process identity) allocates no
+// heap memory. The Makefile links this test statically with
 // --wrap=malloc,--wrap=calloc,--wrap=realloc. Every one of those calls then
 // goes through the wrappers below, including calls from the C++ library
 // (operator new) and from libc functions such as opendir.
@@ -13,6 +13,7 @@
 
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
+#include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
 
 namespace
@@ -87,6 +88,7 @@ int main()
   ThreadCache reopened{ThreadCache::kReservedDescriptors};
   ResourceProbe probe;
   MemoryProbe memory;
+  ProcessInfoProbe process_info;
   RateLimitedLogger logger;
 
   // Sampling, for several ticks.
@@ -121,6 +123,9 @@ int main()
     const auto layout = memory.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
     Require(layout && layout->summary_[memory_wire::Field("vma_count")] > 0,
             "memory-map sample");
+    Require(process_info.Read(pid, (*target)->starttime_).pid_ ==
+                static_cast<std::uint32_t>(pid),
+            "process identity");
     logger.Warn("allocation test tick {}: warning text uses fixed storage",
                 tick);
   }
