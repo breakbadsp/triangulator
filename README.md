@@ -185,8 +185,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 7 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026 |
-| **Total** | **46** | |
+| NOT_RUN | 8 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-027 |
+| **Total** | **47** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
@@ -203,7 +203,7 @@ dated run record with its package version, steps, and evidence.
 | Understand measurements | [Linux metric coverage](docs/linux-monitoring.md) · [Resources](docs/resource-monitoring.md) · [Memory](docs/memory-map.md) · [Sockets](docs/socket-ingress-design.md) |
 | Inspect data | [Dashboard](docs/setup.md#dashboard) · [Collector, storage, and API](docs/collector-reference.md) |
 | Understand the code | [Sampler benchmark](docs/sampler-benchmark.html) · [Architecture](docs/architecture.md) · [HTTP server animation](docs/dashboard-http-animation.html) · [Repository layout](docs/setup.md#layout) · [C++ standards](docs/cpp-coding-standards.md) |
-| Test and contribute | [Bug lab](bug-lab/README.md) · [Manual QA](docs/manual-qa.md) · [Test cases](docs/qa/test-cases.md) · [Planned work](TODO.md) |
+| Test and contribute | [Bug lab](bug-lab/README.md) · [Efficiency profiling](docs/profiling.md) · [Manual QA](docs/manual-qa.md) · [Test cases](docs/qa/test-cases.md) · [Planned work](TODO.md) |
 
 **Limits:** Socket observation requires optional eBPF setup. Message counts require an application marker.
 [Alert delivery](alerting/README.md) is not connected. UDP and HTTP have no authentication;
