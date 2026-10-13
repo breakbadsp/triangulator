@@ -47,27 +47,6 @@ These are planned additions; optional socket monitoring is already implemented.
   disk/GPU health.
 - [ ] Separate service/log/dependency health helpers.
 
-## Performance optimizations
-
-Priorities follow the [native sampler profile](docs/profiling/runs/20261013T033348Z-a83a97f/report.md).
-These results cover revision `a83a97f` and stable sleeping threads. Use the
-[profiling workflow](docs/profiling.md) to validate each candidate.
-
-- [ ] Repeat the baseline on current master with the merged benchmark drivers.
-  Include busy targets, status fallback, thread churn, and default periodic work.
-- [ ] Measure each per-thread `/proc` read and rescan cost. Test fewer redundant
-  reads and scans while preserving all sample fields and coverage. System CPU
-  accounts for 75–80% of measured CPU time in the larger cases.
-- [ ] Test `ParseStat` token scanning and reverse search. Its call path accounts
-  for 53.7% of sampled user cycles; these are not total CPU percentages.
-- [ ] Test whether less buffer and rescan-array clearing reduces native CPU cost.
-  Keep initialized data, fixed storage, and allocation invariants. Native `memset`
-  shares are 11.2–17.9% of user cycles, below its simulated instruction share.
-- [ ] Test GCC/Clang PGO with representative training and separate validation.
-  Compare CPU per record, memory, throughput, tail latency, and drops before adoption.
-- [ ] Profile collector ingest, SQLite rollups, replay, and concurrent HTTP work
-  with the same input. Rank costs per accepted datagram or completed request.
-
 ## Deployment dependencies
 
 Goal: deploy by copying binaries. See

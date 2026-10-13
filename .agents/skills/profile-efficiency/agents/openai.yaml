@@ -1,4 +1,0 @@
-interface:
-  display_name: "Efficiency Profiler"
-  short_description: "Profile CPU, memory, and I/O costs per unit of work"
-  default_prompt: "Use $profile-efficiency to profile the available sampler benchmarks and rank measured efficiency bottlenecks."
