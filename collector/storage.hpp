@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS raw_sample (
 CREATE TABLE IF NOT EXISTS process_exit (
  ts REAL NOT NULL, pid INTEGER NOT NULL, process_start INTEGER NOT NULL,
  name TEXT NOT NULL, reason TEXT NOT NULL, kernel_log TEXT NOT NULL,
- messages TEXT NOT NULL, PRIMARY KEY(pid, process_start)
+ messages TEXT NOT NULL, wait_status INTEGER, PRIMARY KEY(pid, process_start)
 );
 )";
 // The schema matches the day files the retired Python collector wrote, so
@@ -421,6 +421,23 @@ TableColumns(sqlite3* p_database, std::string_view p_table)
   return {};
 }
 
+// The exit status came after the first release of process_exit; NULL in
+// older rows means it was not recorded.
+[[nodiscard]] inline SqliteResult UpdateExitColumns(sqlite3* p_database)
+{
+  auto existing = TableColumns(p_database, "process_exit");
+  if (!existing)
+  {
+    return std::unexpected(std::move(existing.error()));
+  }
+  if (std::ranges::find(*existing, "wait_status") != existing->end())
+  {
+    return {};
+  }
+  return Execute(p_database,
+                 "ALTER TABLE process_exit ADD COLUMN wait_status INTEGER");
+}
+
 // Binds values to parameters 1, 2, ... in order.
 class Binder
 {
@@ -691,7 +708,8 @@ class Storage
   }
 
   // One row per ended process. ts is when the sampler noticed the exit;
-  // messages are the kernel log lines, one per line.
+  // messages are the kernel log lines, one per line; wait_status is NULL
+  // when the sampler could not read it.
   [[nodiscard]] SqliteResult Exit(const exit_wire::Report& p_report)
   {
     const auto ts = static_cast<double>(p_report.wall_ns_) / 1e9;
@@ -723,7 +741,8 @@ class Storage
         .Add(name.View())
         .Add(ExitReason(p_report))
         .Add(KernelLogName(p_report.kernel_log_))
-        .Add(messages.View());
+        .Add(messages.View())
+        .Add(WaitStatus(p_report));
     return Run(file.database_.get(), file.exit_.get());
   }
 
@@ -918,6 +937,10 @@ class Storage
     {
       return std::unexpected(std::move(updated.error()));
     }
+    if (auto updated = UpdateExitColumns(database); !updated)
+    {
+      return std::unexpected(std::move(updated.error()));
+    }
     std::vector<std::string> existing;
     {
       auto info = Prepare(database, "PRAGMA table_info(thread_rollup)");
@@ -977,7 +1000,9 @@ class Storage
     }
     file.resource_ = std::move(*resource);
     auto exit = Prepare(
-        database, "INSERT OR IGNORE INTO process_exit VALUES (?,?,?,?,?,?,?)");
+        database,
+        "INSERT OR IGNORE INTO process_exit(ts,pid,process_start,name,reason,"
+        "kernel_log,messages,wait_status) VALUES (?,?,?,?,?,?,?,?)");
     if (!exit)
     {
       return std::unexpected(std::move(exit.error()));

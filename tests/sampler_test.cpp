@@ -2,6 +2,8 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/resource.h>
+#include <sys/utsname.h>
+#include <sys/wait.h>
 
 #include <filesystem>
 #include <fstream>
@@ -10,6 +12,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
@@ -1001,6 +1004,148 @@ void TestExitMessages()
           "running out of descriptors is an error, not an answer");
 }
 
+// Whether the kernel keeps the exit status for a pidfd after the parent
+// reaps the process: PIDFD_INFO_EXIT, Linux 6.15 and later.
+bool KernelKeepsExitStatus()
+{
+  utsname name{};
+  if (::uname(&name) != 0)
+  {
+    return false;
+  }
+  std::string_view release{name.release};
+  const auto major = LeadingId(release, ".");
+  const auto minor = LeadingId(release.substr(release.find('.') + 1), ".-+");
+  return major && minor && (*major > 6 || (*major == 6 && *minor >= 15));
+}
+
+// A child process that ends when the test writes to its pipe, so the
+// sampler's watch can start while it runs. Reaps the child when it is not
+// reaped by the test.
+class Child final
+{
+ public:
+  explicit Child(int p_exit_code)
+  {
+    std::array<int, 2> pipe_ends{};
+    if (::pipe(pipe_ends.data()) != 0)
+    {
+      throw std::runtime_error("pipe failed");
+    }
+    pid_ = ::fork();
+    if (pid_ == 0)
+    {
+      ::close(pipe_ends[1]);
+      char byte = 0;
+      static_cast<void>(::read(pipe_ends[0], &byte, 1));
+      ::_exit(p_exit_code);
+    }
+    ::close(pipe_ends[0]);
+    release_.Reset(pipe_ends[1]);
+    if (pid_ < 0)
+    {
+      throw std::runtime_error("fork failed");
+    }
+  }
+  Child(const Child&) = delete;
+  Child& operator=(const Child&) = delete;
+  Child(Child&&) = delete;
+  Child& operator=(Child&&) = delete;
+  ~Child()
+  {
+    if (!reaped_)
+    {
+      ::kill(pid_, SIGKILL);
+      Reap();
+    }
+  }
+  [[nodiscard]] TargetIdentity Identity() const
+  {
+    const auto found = FindTarget(TargetPid{pid_});
+    Require(found && *found, "the child is found");
+    return **found;
+  }
+  void End()
+  {
+    release_.Reset();
+  }
+  // Waits until the child has ended and is a zombie, without reaping it.
+  void AwaitZombie() const
+  {
+    siginfo_t info{};
+    Require(
+        ::waitid(P_PID, static_cast<id_t>(pid_), &info, WEXITED | WNOWAIT) == 0,
+        "the child ends");
+  }
+  int Reap()
+  {
+    int status = 0;
+    static_cast<void>(::waitpid(pid_, &status, 0));
+    reaped_ = true;
+    return status;
+  }
+  [[nodiscard]] int Pid() const
+  {
+    return pid_;
+  }
+
+ private:
+  int pid_ = -1;
+  FileDescriptor release_;
+  bool reaped_ = false;
+};
+
+// Reads exit statuses of real child processes: from /proc while a zombie,
+// through the pidfd once reaped, and none for a PID that was reused.
+void TestExitStatus()
+{
+  std::string stat = "1234 (a b) c) S";
+  for (int field = 4; field <= 51; ++field)
+  {
+    stat += std::format(" {}", field);
+  }
+  Require(ParseExitCode(stat + " 139") == 139,
+          "field 52 is read past a name with spaces and ')'");
+  Require(!ParseExitCode(stat), "a stat without field 52 has no status");
+  Require(!ParseExitCode(stat + " -1") && !ParseExitCode(stat + " 65536"),
+          "a value outside a wait status is not one");
+
+  {
+    Child child{3};
+    ExitStatusWatch watch;
+    const auto identity = child.Identity();
+    watch.Watch(identity);
+    child.End();
+    child.AwaitZombie();
+    const auto status = watch.Collect(identity);
+    Require(status == child.Reap() && status == (3 << 8),
+            "a zombie's status is its exit code");
+  }
+  {
+    Child child{0};
+    ExitStatusWatch watch;
+    const auto identity = child.Identity();
+    watch.Watch(identity);
+    Require(::kill(child.Pid(), SIGKILL) == 0, "the child is killed");
+    Require(child.Reap() == SIGKILL, "the child died of SIGKILL");
+    const auto status = watch.Collect(identity);
+    Require(KernelKeepsExitStatus() ? status == SIGKILL
+                                    : (!status || status == SIGKILL),
+            "a reaped process's status comes from the pidfd");
+  }
+  {
+    Child child{0};
+    ExitStatusWatch watch;
+    auto identity = child.Identity();
+    ++identity.starttime_;
+    watch.Watch(identity);
+    child.End();
+    child.Reap();
+    Require(!watch.Collect(identity),
+            "a PID that belongs to another process is not watched");
+  }
+}
+
 int main()
 {
   try
@@ -1019,10 +1164,11 @@ int main()
     TestMemoryProbePartialMaps();
     TestNextDeadline();
     TestExitMessages();
+    TestExitStatus();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
         "RAII, descriptor budget, resource parsing and probe, memory map, "
-        "exit messages)");
+        "exit messages and status)");
   }
   catch (const std::exception& error)
   {

@@ -71,9 +71,11 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 
 **4c. Exit reports** (`exits.hpp`, `ExitMonitor`)
 - Decodes the sampler's report about an ended target
-  (`common/exit_wire.hpp`): the kernel log messages that name the process.
+  (`common/exit_wire.hpp`): the kernel log messages that name the process,
+  and its exit status when the sampler could read it.
 - Stores the first copy of each exit, works out the reason (segfault, OOM
-  killer, …) and writes one `process_exit` row. `/api/live` shows the newest
+  killer, a crash signal such as `SIGABRT`, a kill, an exit code, …) and writes
+  one `process_exit` row. `/api/live` shows the newest
   exit by report time, so a delayed report of an earlier exit is stored but
   does not replace it. See [process-exit.md](process-exit.md).
 

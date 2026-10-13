@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "exit_status.hpp"
 #include "kernel_log.hpp"
 #include "memory.hpp"
 #include "proc.hpp"
@@ -170,6 +171,11 @@ class Sampler
               *previous_target_, std::span{records_}.first(record_count_),
               ClockNow(CLOCK_REALTIME), logger_,
               std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms));
+          if (const auto status = exit_status_.Collect(*previous_target_))
+          {
+            exit_report_.wait_status_ = *status;
+            exit_report_.exit_status_ = exit_wire::ExitStatus::Known;
+          }
           exit_report_.ended_session_ = session_;
           exit_report_sends_ = kExitReportSends;
           reported = true;
@@ -187,6 +193,11 @@ class Sampler
       if (p_target)
       {
         kernel_log_.Watch(logger_);
+        exit_status_.Watch(*p_target);
+      }
+      else
+      {
+        exit_status_.Stop();
       }
     }
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
@@ -496,6 +507,7 @@ class Sampler
   std::array<wire::Record, wire::kMaxThreads> records_{};
   std::size_t record_count_ = 0;  // records_ filled by the last tick
   KernelLog kernel_log_;
+  ExitStatusWatch exit_status_;
   exit_wire::Report exit_report_{};
   int exit_report_sends_ = 0;
   RateLimitedLogger logger_;

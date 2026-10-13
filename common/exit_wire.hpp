@@ -5,7 +5,9 @@
 // kernel log messages that name the process or one of its threads, such as
 // "worker[1240]: segfault at 0 ..." or "Out of memory: Killed process 1234".
 // They tell why the process ended when the kernel killed it. A process that
-// exits normally, or that another process kills, leaves no kernel message.
+// exits normally, calls abort(), or that another process kills, leaves no
+// kernel message, so the report also carries the exit status when the
+// sampler could read it: the exit code or the signal that ended the process.
 // This header depends only on the standard library.
 //
 // A report is one fixed-size datagram. The sampler sends it with several
@@ -28,8 +30,8 @@ namespace triangulator::exit_wire
 {
 
 inline constexpr std::array<char, 4> kMagic{'T', 'E', 'N', 'D'};
-inline constexpr std::uint8_t kVersion = 1;
-inline constexpr std::size_t kHeaderSize = 64;
+inline constexpr std::uint8_t kVersion = 2;
+inline constexpr std::size_t kHeaderSize = 72;
 inline constexpr std::size_t kMaxLines = 6;
 inline constexpr std::size_t kLineSize = 192;
 
@@ -43,6 +45,19 @@ enum class KernelLog : std::uint8_t
   // Any other failure, such as no /dev/kmsg in a container.
   Unavailable = 2
 };
+
+// Whether the report has the exit status. The sampler is not the target's
+// parent, so it reads the status through a pidfd (Linux 6.15 and later) or,
+// while the process is a zombie, from /proc/PID/stat.
+enum class ExitStatus : std::uint8_t
+{
+  Unknown = 0,
+  Known = 1
+};
+
+// The largest wait status: the exit code in bits 8 to 15, the signal in bits
+// 0 to 6 and the core-dump flag in bit 7, as waitpid(2) reports it.
+inline constexpr std::int32_t kMaxWaitStatus = 0xffff;
 
 // One kernel log message: NUL-padded text, cut to fit. Unprintable bytes
 // stay escaped as the kernel writes them ("\x0a").
@@ -72,6 +87,12 @@ struct Report
   std::uint64_t next_session_{};
   // The process name (comm) from the last thread tick, NUL-padded.
   std::array<char, 16> comm_{};
+  // How the process ended, in waitpid(2) form: WIFSIGNALED, WTERMSIG,
+  // WCOREDUMP and WEXITSTATUS decode it. Zero when exit_status_ is Unknown.
+  std::int32_t wait_status_{};
+  ExitStatus exit_status_{};
+  // Zero. The collector rejects other values.
+  std::array<std::uint8_t, 3> padding_{};
   // The newest messages, oldest first. Lines past line_count_ are zero.
   std::array<Line, kMaxLines> lines_{};
 };
@@ -80,6 +101,7 @@ static_assert(offsetof(Report, pid_) == 8 &&
               offsetof(Report, process_start_) == 16 &&
               offsetof(Report, ended_session_) == 32 &&
               offsetof(Report, comm_) == 48 &&
+              offsetof(Report, wait_status_) == 64 &&
               offsetof(Report, lines_) == kHeaderSize);
 inline constexpr std::size_t kReportSize = sizeof(Report);
 static_assert(kReportSize == kHeaderSize + kMaxLines * kLineSize);
@@ -102,8 +124,9 @@ inline void SetLine(Line& p_line, std::string_view p_text) noexcept
   std::memcpy(p_line.data(), p_text.data(), length);
 }
 
-// Checks the format (length, magic, version, reserved bytes, padding) and
-// that the identity, clock and sessions are set.
+// Checks the format (length, magic, version, reserved bytes, padding), that
+// the identity, clock and sessions are set, and that an exit status is in
+// the range waitpid(2) reports.
 [[nodiscard]] inline std::expected<Report, std::string_view> Decode(
     std::span<const std::byte> p_data)
 {
@@ -120,10 +143,19 @@ inline void SetLine(Line& p_line, std::string_view p_text) noexcept
   const bool read = report.kernel_log_ == KernelLog::Read;
   if (std::to_underlying(report.kernel_log_) >
           std::to_underlying(KernelLog::Unavailable) ||
-      report.reserved_ != 0 || report.line_count_ > kMaxLines ||
-      (read != (report.error_ == 0)) || (!read && report.line_count_ != 0))
+      report.reserved_ != 0 || report.padding_ != decltype(report.padding_){} ||
+      report.line_count_ > kMaxLines || (read != (report.error_ == 0)) ||
+      (!read && report.line_count_ != 0))
   {
     return std::unexpected("invalid exit-report header");
+  }
+  const bool known = report.exit_status_ == ExitStatus::Known;
+  if (std::to_underlying(report.exit_status_) >
+          std::to_underlying(ExitStatus::Known) ||
+      report.wait_status_ < 0 || report.wait_status_ > kMaxWaitStatus ||
+      (!known && report.wait_status_ != 0))
+  {
+    return std::unexpected("invalid exit-report status");
   }
   if (report.pid_ == 0 || report.wall_ns_ == 0 || report.ended_session_ == 0 ||
       report.next_session_ == 0 || report.comm_.back() != '\0')

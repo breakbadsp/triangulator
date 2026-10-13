@@ -879,6 +879,121 @@ exit_wire::Report ExitReport(std::uint32_t p_pid,
   return report;
 }
 
+// The report with a known exit status, in waitpid(2) form.
+exit_wire::Report WithStatus(exit_wire::Report p_report, std::int32_t p_status)
+{
+  p_report.wait_status_ = p_status;
+  p_report.exit_status_ = exit_wire::ExitStatus::Known;
+  return p_report;
+}
+
+// Classifies exit statuses: a kernel message names the reason first; the
+// status names it when there is none, also with the log unreadable. The
+// live snapshot decodes the status.
+void TestExitStatus()
+{
+  constexpr std::int32_t kSegvCore = 11 | 0x80;
+  constexpr std::int32_t kAbortCore = 6 | 0x80;
+  Require(ExitReason(WithStatus(ExitReport(1, {}), kAbortCore)) == "crashed",
+          "abort() leaves no kernel message but is a crash");
+  Require(ExitReason(WithStatus(ExitReport(1, {"app[2]: segfault at 0"}),
+                                kSegvCore)) == "segfault",
+          "a kernel message says more than the signal");
+  Require(ExitReason(WithStatus(
+              ExitReport(1, {"Out of memory: Killed process 1 (app)"}), 9)) ==
+              "oom",
+          "the OOM killer's SIGKILL is not a plain kill");
+  Require(ExitReason(WithStatus(ExitReport(1, {}), 9)) == "killed" &&
+              ExitReason(WithStatus(ExitReport(1, {}), 15)) == "killed",
+          "SIGKILL and SIGTERM are kills");
+  Require(ExitReason(WithStatus(ExitReport(1, {}), 3 << 8)) == "exited" &&
+              ExitReason(WithStatus(ExitReport(1, {}), 0)) == "exited",
+          "a process that returned from main exited");
+  auto unreadable = WithStatus(ExitReport(1, {}), kSegvCore);
+  unreadable.kernel_log_ = exit_wire::KernelLog::Unreadable;
+  unreadable.error_ = EPERM;
+  Require(ExitReason(unreadable) == "crashed",
+          "the status gives the reason when the log is not readable");
+
+  ExitMonitor exits;
+  Require(exits.Accept(unreadable), "a report with a status is kept");
+  auto snapshot = exits.Snapshot();
+  Require(Field(snapshot, "signal").AsInt() == 11 &&
+              Field(snapshot, "signal_name").AsString() == "SIGSEGV" &&
+              Field(snapshot, "core_dumped").AsBool() &&
+              Field(snapshot, "exit_code").IsNull() &&
+              Field(snapshot, "kernel_log").AsString() == "unreadable" &&
+              Field(snapshot, "count").AsInt() == 1,
+          "the snapshot decodes a signal");
+  auto exited = WithStatus(ExitReport(2, {}), 3 << 8);
+  exited.wall_ns_ = unreadable.wall_ns_ + 1;
+  Require(exits.Accept(exited) && !exits.Accept(exited),
+          "a second exit is new; its copy is not");
+  snapshot = exits.Snapshot();
+  Require(Field(snapshot, "exit_code").AsInt() == 3 &&
+              Field(snapshot, "signal").IsNull() &&
+              Field(snapshot, "signal_name").IsNull() &&
+              Field(snapshot, "core_dumped").IsNull() &&
+              Field(snapshot, "count").AsInt() == 2,
+          "the snapshot decodes an exit code and counts exits, not copies");
+  auto unknown = ExitReport(3, {});
+  unknown.wall_ns_ = exited.wall_ns_ + 1;
+  Require(exits.Accept(unknown), "a report without a status is kept");
+  snapshot = exits.Snapshot();
+  Require(Field(snapshot, "exit_code").IsNull() &&
+              Field(snapshot, "signal").IsNull() &&
+              Field(snapshot, "reason").AsString() == "not_reported",
+          "an unknown status is null");
+  Require(SignalName(34).empty() && SignalName(0).empty() &&
+              SignalName(31) == "SIGSYS",
+          "real-time signals have no name");
+
+  // A day file from before the column gains it; its old rows stay.
+  TempDirectory directory;
+  const auto path = directory.Path() / "2023-11-14.sqlite3";
+  {
+    auto old = OpenDatabase(path, false);
+    Require(old.has_value() &&
+                Execute(old->get(),
+                        "CREATE TABLE process_exit (ts REAL NOT NULL, pid "
+                        "INTEGER NOT NULL, process_start INTEGER NOT NULL, "
+                        "name TEXT NOT NULL, reason TEXT NOT NULL, kernel_log "
+                        "TEXT NOT NULL, messages TEXT NOT NULL, PRIMARY "
+                        "KEY(pid, process_start));"
+                        "INSERT INTO process_exit VALUES "
+                        "(1.0,9,9,'old','not_reported','read','')")
+                    .has_value(),
+            "an older day file is written");
+  }
+  auto storage = Storage::Create(directory.Path(), 7);
+  Require(storage.has_value(), "storage opens");
+  Require(storage->Exit(unreadable).has_value() &&
+              storage->Exit(exited).has_value() &&
+              storage->Exit(unknown).has_value() &&
+              storage->Flush(1'700'000'001).has_value(),
+          "exits store in an older day file");
+  auto database = OpenDatabase(path, true);
+  Require(database.has_value(), "the day file opens");
+  auto rows = Prepare(database->get(),
+                      "SELECT pid, reason, wait_status FROM process_exit "
+                      "ORDER BY pid");
+  Require(rows.has_value(), "the status column exists");
+  std::vector<std::string> stored;
+  while (::sqlite3_step(rows->get()) == SQLITE_ROW)
+  {
+    stored.push_back(std::format(
+        "{} {} {}", ::sqlite3_column_int64(rows->get(), 0),
+        ColumnText(rows->get(), 1),
+        ::sqlite3_column_type(rows->get(), 2) == SQLITE_NULL
+            ? std::string{"null"}
+            : std::to_string(::sqlite3_column_int64(rows->get(), 2))));
+  }
+  Require(stored == std::vector<std::string>{"1 crashed 139", "2 exited 768",
+                                             "3 not_reported null",
+                                             "9 not_reported null"},
+          "each row has its status, or null when it was unknown");
+}
+
 // Classifies kernel messages, keeps one copy of a repeated report, shows the
 // latest in the live snapshot and stores one process_exit row.
 void TestExitReports()
@@ -1664,6 +1779,7 @@ int main()
     TestMemoryMapLayoutOrder();
     TestMemoryMapSessions();
     TestExitReports();
+    TestExitStatus();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "

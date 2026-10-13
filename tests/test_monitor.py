@@ -100,6 +100,10 @@ class SamplerTests(unittest.TestCase):
                 self.assertEqual((report.pid, report.comm, report.lines), (target.pid, "sleep", ()))
                 self.assertIn(report.kernel_log, ("read", "unreadable", "unavailable"))
                 self.assertEqual(report.error == 0, report.kernel_log == "read")
+                # The exit status names the signal: through a pidfd on Linux 6.15 and
+                # later, or from /proc while the target is a zombie. Older kernels can
+                # miss it when the test reaps the target first.
+                self.assertIn(report.wait_status, (None, signal.SIGTERM))
                 # The report names the session the target was sampled in and the session of
                 # the "target absent" ticks, so a dashboard can tie the exit to that absence.
                 self.assertEqual((report.ended_session, report.next_session), (value.session, absent.session))
@@ -475,9 +479,18 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(live["health"]["last_target"]["pid"], target.pid)
                 ended = live["exit"]
                 self.assertEqual((ended["pid"], ended["name"]), (target.pid, "sleep"))
-                self.assertIn((ended["kernel_log"], ended["reason"]),
-                              (("read", "not_reported"), ("unreadable", "log_unreadable"),
-                               ("unavailable", "log_unavailable")))
+                # SIGKILL from another process leaves no kernel message. The exit status
+                # names it when the sampler could read it, even with the log restricted.
+                if ended["signal"] is None:
+                    self.assertIn((ended["kernel_log"], ended["reason"]),
+                                  (("read", "not_reported"), ("unreadable", "log_unreadable"),
+                                   ("unavailable", "log_unavailable")))
+                else:
+                    self.assertEqual((ended["reason"], ended["signal"], ended["signal_name"]),
+                                     ("killed", signal.SIGKILL, "SIGKILL"))
+                    self.assertFalse(ended["core_dumped"])
+                self.assertIsNone(ended["exit_code"])
+                self.assertEqual(ended["count"], 1)
                 self.assertEqual(ended["messages"], [])
                 status, body = fetch("/api/last-target")
                 self.assertEqual(status, 200)
@@ -495,15 +508,17 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 target.wait(timeout=8)
             self.assertIn("Alerting is not part of the C++ collector", stderr)
             self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
-            stored, exits = 0, []
+            stored, exits, statuses = 0, [], []
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM raw_sample").fetchone()[0], 0)
                     stored += connection.execute("SELECT COUNT(*) FROM resource_sample").fetchone()[0]
                     exits += connection.execute("SELECT pid FROM process_exit").fetchall()
+                    statuses += connection.execute("SELECT wait_status FROM process_exit").fetchall()
             self.assertGreaterEqual(stored, 2)
             self.assertEqual(exits, [(target.pid,)])
+            self.assertIn(statuses, ([(None,)], [(signal.SIGKILL,)]))
 
 
     def test_unusable_data_dir_stops_at_startup(self):

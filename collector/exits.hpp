@@ -1,7 +1,8 @@
 #pragma once
 
 // Exit reports ("TEND", common/exit_wire.hpp): why the target process ended,
-// from the kernel log messages the sampler found. The collector keeps the
+// from the kernel log messages the sampler found and the exit status it
+// read. The collector keeps the
 // latest report for /api/live and stores each one once in the day file's
 // process_exit table. The sampler sends every report several times; copies
 // have the same PID and process start time and are ignored.
@@ -23,20 +24,76 @@
 namespace triangulator::collector
 {
 
-// A short code for why the process ended, from the kernel messages. The
-// dashboard turns it into a label and an explanation.
-[[nodiscard]] inline std::string_view ExitReason(
+// The wait status, or nullopt when the sampler could not read it.
+[[nodiscard]] inline std::optional<std::int64_t> WaitStatus(
     const exit_wire::Report& p_report)
 {
-  using exit_wire::KernelLog;
-  if (p_report.kernel_log_ == KernelLog::Unreadable)
+  if (p_report.exit_status_ != exit_wire::ExitStatus::Known)
   {
-    return "log_unreadable";
+    return std::nullopt;
   }
-  if (p_report.kernel_log_ == KernelLog::Unavailable)
+  return p_report.wait_status_;
+}
+
+// The parts of a wait status, as WTERMSIG, WCOREDUMP and WEXITSTATUS decode
+// it. A status with no signal is a normal exit with that code.
+struct ExitStatusParts
+{
+  int signal_ = 0;
+  bool core_dumped_ = false;
+  int exit_code_ = 0;
+};
+
+[[nodiscard]] inline ExitStatusParts SplitWaitStatus(std::int32_t p_status)
+{
+  return {.signal_ = p_status & 0x7f,
+          .core_dumped_ = (p_status & 0x80) != 0,
+          .exit_code_ = (p_status >> 8) & 0xff};
+}
+
+// The name of a signal by its Linux number on x86, ARM, RISC-V and
+// PowerPC, or an empty view for a real-time or unknown signal.
+[[nodiscard]] inline std::string_view SignalName(int p_signal)
+{
+  constexpr std::array<std::string_view, 32> kNames{
+      "",        "SIGHUP",  "SIGINT",    "SIGQUIT", "SIGILL",    "SIGTRAP",
+      "SIGABRT", "SIGBUS",  "SIGFPE",    "SIGKILL", "SIGUSR1",   "SIGSEGV",
+      "SIGUSR2", "SIGPIPE", "SIGALRM",   "SIGTERM", "SIGSTKFLT", "SIGCHLD",
+      "SIGCONT", "SIGSTOP", "SIGTSTP",   "SIGTTIN", "SIGTTOU",   "SIGURG",
+      "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",  "SIGIO",
+      "SIGPWR",  "SIGSYS"};
+  if (p_signal <= 0 || std::cmp_greater_equal(p_signal, kNames.size()))
   {
-    return "log_unavailable";
+    return {};
   }
+  return kNames[static_cast<std::size_t>(p_signal)];
+}
+
+// Whether p_signal reports a fault in the process itself, raised by the CPU
+// or by the C library's abort(): SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE,
+// SIGSEGV and SIGSYS. Other signals usually come from another process.
+[[nodiscard]] inline bool IsCrashSignal(int p_signal)
+{
+  constexpr std::array kCrashSignals{4, 5, 6, 7, 8, 11, 31};
+  return std::ranges::contains(kCrashSignals, p_signal);
+}
+
+// The reason from the exit status alone: "crashed", "killed" or "exited".
+[[nodiscard]] inline std::string_view StatusReason(std::int32_t p_status)
+{
+  const auto parts = SplitWaitStatus(p_status);
+  if (parts.signal_ == 0)
+  {
+    return "exited";
+  }
+  return IsCrashSignal(parts.signal_) ? "crashed" : "killed";
+}
+
+// The reason a kernel message gives, such as "segfault" for
+// "app[1240]: segfault at 0 ...", or nullopt when no message names one.
+[[nodiscard]] inline std::optional<std::string_view> LoggedReason(
+    const exit_wire::Report& p_report)
+{
   // The first match wins: the OOM killer's report can mention other
   // faults, never the other way round.
   constexpr std::array<std::pair<std::string_view, std::string_view>, 8>
@@ -58,6 +115,38 @@ namespace triangulator::collector
         return reason;
       }
     }
+  }
+  return std::nullopt;
+}
+
+// A short code for why the process ended. A kernel message comes first: it
+// says more than a signal number, such as the faulting address, or that the
+// out-of-memory killer sent the SIGKILL. Without one, the exit status tells
+// whether the process crashed, was killed or exited, even when the kernel
+// log is not readable. The dashboard turns the code into a label and an
+// explanation.
+[[nodiscard]] inline std::string_view ExitReason(
+    const exit_wire::Report& p_report)
+{
+  using exit_wire::KernelLog;
+  if (p_report.kernel_log_ == KernelLog::Read)
+  {
+    if (const auto logged = LoggedReason(p_report))
+    {
+      return *logged;
+    }
+  }
+  if (p_report.exit_status_ == exit_wire::ExitStatus::Known)
+  {
+    return StatusReason(p_report.wait_status_);
+  }
+  if (p_report.kernel_log_ == KernelLog::Unreadable)
+  {
+    return "log_unreadable";
+  }
+  if (p_report.kernel_log_ == KernelLog::Unavailable)
+  {
+    return "log_unavailable";
   }
   return "not_reported";
 }
@@ -116,6 +205,7 @@ class ExitMonitor
     recent_[next_recent_] = identity;
     next_recent_ = (next_recent_ + 1) % recent_.size();
     recent_count_ = std::min(recent_count_ + 1, recent_.size());
+    ++count_;
     if (!latest_ || p_report.wall_ns_ > latest_->wall_ns_)
     {
       latest_ = p_report;
@@ -124,7 +214,8 @@ class ExitMonitor
   }
 
   // The latest report for /api/live, or null when no target has ended
-  // since the collector started.
+  // since the collector started. "count" is the number of exits since then,
+  // so a dashboard can tell a restart loop from a single exit.
   [[nodiscard]] Json Snapshot() const
   {
     if (!latest_)
@@ -148,12 +239,26 @@ class ExitMonitor
     result.Set("name", Json(SanitizeUtf8(exit_wire::FieldText(report.comm_))));
     result.Set("ended_at", Json(static_cast<double>(report.wall_ns_) / 1e9));
     result.Set("reason", Json(ExitReason(report)));
+    // The exit status, decoded; null when the sampler could not read it.
+    const bool known = report.exit_status_ == exit_wire::ExitStatus::Known;
+    const auto parts = SplitWaitStatus(report.wait_status_);
+    const bool signaled = known && parts.signal_ != 0;
+    const auto signal_name = SignalName(parts.signal_);
+    result.Set("exit_code",
+               known && !signaled ? Json(parts.exit_code_) : Json(nullptr));
+    result.Set("signal", signaled ? Json(parts.signal_) : Json(nullptr));
+    result.Set("signal_name", signaled && !signal_name.empty()
+                                  ? Json(signal_name)
+                                  : Json(nullptr));
+    result.Set("core_dumped",
+               signaled ? Json(parts.core_dumped_) : Json(nullptr));
     result.Set("kernel_log", Json(KernelLogName(report.kernel_log_)));
     result.Set("error",
                report.error_ == 0
                    ? Json(nullptr)
                    : Json(std::strerror(static_cast<int>(report.error_))));
     result.Set("messages", Json(std::move(messages)));
+    result.Set("count", Json(count_));
     return result;
   }
 
@@ -172,6 +277,10 @@ class ExitMonitor
   static constexpr std::size_t kRecentExits = 16;
 
   std::optional<exit_wire::Report> latest_;
+  // Exits accepted since the collector started. A copy that arrives after
+  // its identity has left recent_ counts again, which takes sixteen other
+  // exits within the five ticks of one report.
+  std::uint64_t count_ = 0;
   std::array<Identity, kRecentExits> recent_{};
   std::size_t recent_count_ = 0;
   std::size_t next_recent_ = 0;
