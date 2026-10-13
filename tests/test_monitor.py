@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_resource, receive_tick
+from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_exit, decode_resource, receive_tick
 
 
 def wait_until_asleep(pid, timeout=5):
@@ -87,6 +87,22 @@ class SamplerTests(unittest.TestCase):
                 self.assertEqual(absent.flags, 3)
                 self.assertEqual(absent.records, ())
                 self.assertNotEqual(absent.session, value.session)
+                # The ended target gets one exit report, sent with several ticks. Another
+                # process sent SIGTERM, which the kernel does not log.
+                reports = []
+                for _ in range(20):
+                    data = receiver.recv(1500)
+                    if data.startswith(b"TEND"):
+                        reports.append(decode_exit(data))
+                self.assertEqual(len(reports), 5)
+                self.assertEqual(len(set(reports)), 1)
+                report = reports[0]
+                self.assertEqual((report.pid, report.comm, report.lines), (target.pid, "sleep", ()))
+                self.assertIn(report.kernel_log, ("read", "unreadable", "unavailable"))
+                self.assertEqual(report.error == 0, report.kernel_log == "read")
+                # The report names the session the target was sampled in and the session of
+                # the "target absent" ticks, so a dashboard can tie the exit to that absence.
+                self.assertEqual((report.ended_session, report.next_session), (value.session, absent.session))
             finally:
                 sampler.terminate()
                 sampler.communicate(timeout=3)
@@ -440,20 +456,29 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
                 self.assertIn(b'id="replay-time"', page)
                 # After the target exits, live health names the session of the
-                # last view with the target, and /api/last-target still serves it.
+                # last view with the target, /api/last-target still serves it,
+                # and /api/live reports the exit.
                 self.assertNotIn("last_target", live["health"])
+                self.assertIsNone(live["exit"])
+                self.assertIn(b'id="process-exit"', page)
                 target.kill()
                 target.wait(timeout=8)
                 deadline = time.monotonic() + 10
                 while time.monotonic() < deadline:
                     live = json.loads(fetch("/api/live")[1])
-                    if live["health"].get("target_absent"):
+                    if live["health"].get("target_absent") and live.get("exit"):
                         break
                     time.sleep(0.1)
                 self.assertTrue(live["health"]["target_absent"])
                 self.assertNotEqual(live["health"]["session"], session)
                 self.assertEqual(live["health"]["last_target"]["session"], session)
                 self.assertEqual(live["health"]["last_target"]["pid"], target.pid)
+                ended = live["exit"]
+                self.assertEqual((ended["pid"], ended["name"]), (target.pid, "sleep"))
+                self.assertIn((ended["kernel_log"], ended["reason"]),
+                              (("read", "not_reported"), ("unreadable", "log_unreadable"),
+                               ("unavailable", "log_unavailable")))
+                self.assertEqual(ended["messages"], [])
                 status, body = fetch("/api/last-target")
                 self.assertEqual(status, 200)
                 final = json.loads(body)
@@ -470,13 +495,15 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 target.wait(timeout=8)
             self.assertIn("Alerting is not part of the C++ collector", stderr)
             self.assertFalse((Path(directory) / "data/alert-settings.json").exists())
-            stored = 0
+            stored, exits = 0, []
             for path in (Path(directory) / "data").glob("????-??-??.sqlite3"):
                 with sqlite3.connect(path) as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM alert_event").fetchone()[0], 0)
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM raw_sample").fetchone()[0], 0)
                     stored += connection.execute("SELECT COUNT(*) FROM resource_sample").fetchone()[0]
+                    exits += connection.execute("SELECT pid FROM process_exit").fetchall()
             self.assertGreaterEqual(stored, 2)
+            self.assertEqual(exits, [(target.pid,)])
 
 
     def test_unusable_data_dir_stops_at_startup(self):

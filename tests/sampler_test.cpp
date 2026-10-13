@@ -1,13 +1,16 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
+#include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/resources.hpp"
@@ -780,6 +783,224 @@ void TestNextDeadline()
           "a run that fell behind counts from now");
 }
 
+std::array<wire::Record, 3> TickOf(std::uint32_t p_first,
+                                   std::uint32_t p_second,
+                                   std::uint32_t p_third)
+{
+  std::array<wire::Record, 3> records{};
+  records[0].tid_ = p_first;
+  records[1].tid_ = p_second;
+  records[2].tid_ = p_third;
+  return records;
+}
+
+// The thread that faults is the first to die, so it can be missing from the
+// last tick. A regular file stands in for /dev/kmsg: Watch() seeks to its end
+// and Collect() reads what is appended afterwards, here one record.
+void TestThreadIdsSeenBeforeTheLastTick()
+{
+  const auto path =
+      std::filesystem::temp_directory_path() /
+      std::format("triangulator-kmsg-tids-{}", static_cast<int>(::getpid()));
+  std::ofstream{path, std::ios::trunc} << "6,1,1,-;old[1240]: segfault\n";
+  RateLimitedLogger logger;
+  KernelLog log;
+  log.Watch(logger, path.c_str());
+  const auto early = TickOf(1234, 1240, 1250);
+  const auto last = TickOf(1234, 1250, 1260);
+  log.Note(early);
+  log.Note(last);
+  std::ofstream{path, std::ios::app}
+      << "6,2,2,-;worker[1240]: segfault at 0 ip 0 sp 0 error 6\n";
+  const auto report = log.Collect({.pid_ = 1234, .starttime_ = 7}, last,
+                                  Nanoseconds{1}, logger, 1s);
+  std::filesystem::remove(path);
+  Require(report.kernel_log_ == exit_wire::KernelLog::Read &&
+              report.line_count_ == 1 &&
+              exit_wire::FieldText(report.lines_[0]) ==
+                  "worker[1240]: segfault at 0 ip 0 sp 0 error 6",
+          "a thread seen in an earlier tick, not the last, is still matched");
+
+  // A tick full of new threads does not overflow the remembered set, and the
+  // threads alive in the last tick are always kept.
+  log.Watch(logger, "/nonexistent/kmsg");
+  std::vector<wire::Record> first_many(wire::kMaxThreads);
+  std::vector<wire::Record> second_many(wire::kMaxThreads);
+  for (std::size_t index = 0; index < first_many.size(); ++index)
+  {
+    first_many[index].tid_ = static_cast<std::uint32_t>(10'000 + index);
+    second_many[index].tid_ = static_cast<std::uint32_t>(20'000 + index);
+  }
+  log.Note(first_many);
+  log.Note(second_many);
+  const auto recent = log.Threads();
+  Require(recent.size() == second_many.size() &&
+              std::ranges::binary_search(recent, 20'000U) &&
+              std::ranges::binary_search(recent, 20'000U + 2549),
+          "when the union does not fit, the last tick's threads are kept");
+  log.Watch(logger, "/nonexistent/kmsg");
+  Require(log.Threads().empty(), "a new target starts with no threads");
+}
+
+// Feeds /dev/kmsg records in the kernel's own formats to ExitMessages and
+// checks which ones it keeps for the ended process (pid 1234, thread 1240).
+void TestExitMessages()
+{
+  Require(KmsgText("6,100,5000,-;hello\n SUBSYSTEM=x\n") == "hello",
+          "the text is between ';' and the first newline");
+  Require(!KmsgText("no separator"), "a record without ';' has no text");
+
+  const std::array<std::uint32_t, 2> ids{1234, 1240};
+  Require(NamesTask("worker[1240]: segfault at 0 ip 0 sp 0 error 6", ids),
+          "a segfault names the faulting thread in brackets");
+  Require(
+      NamesTask("Out of memory: Killed process 1234 (app) total-vm:1kB", ids),
+      "the OOM killer names the process");
+  Require(NamesTask("oom-kill:constraint=CONSTRAINT_NONE,task=app,pid=1234,"
+                    "uid=1000",
+                    ids),
+          "pid=N names the process");
+  Require(
+      NamesTask("INFO: task app:1240 blocked for more than 120 seconds.", ids),
+      "comm:tid names a thread");
+  Require(!NamesTask("other[12345]: segfault at 1234abc", ids),
+          "a longer number or a number inside a word does not match");
+  Require(!NamesTask("usb 1-1: new device 10.1234 at 0x1234", ids),
+          "decimals and hex do not match");
+  Require(!NamesTask("other[99]: segfault at 0", ids), "other pids do not");
+  Require(NamesTask("traps: worker[1240] trap divide error ip:7f sp:7e", ids),
+          "a trap line names the thread in brackets");
+  Require(NamesTask("CPU: 1 PID: 1234 Comm: app Not tainted", ids),
+          "PID: names the process");
+  Require(!NamesTask("oom-kill:constraint=CONSTRAINT_NONE,task=app,pid=99,"
+                     "ppid=1234,uid=1234",
+                     ids),
+          "ppid= and uid= are not the task");
+  Require(!NamesTask("other[99]: segfault at 1234 ip 0 sp 0 error 6", ids),
+          "a fault address equal to a pid is not the task");
+  Require(!NamesTask("[ 1234.5678] something happened to usb 1-1", ids),
+          "a timestamp is not a task");
+
+  std::array<wire::Record, 2> threads{};
+  threads[0].tid_ = 1234;
+  threads[1].tid_ = 1240;
+  const std::array<std::uint32_t, 2> tids{1234, 1240};
+  ExitMessages messages{1234, tids};
+  messages.Offer("4,1,10,-;[   1234]  1000  1234  100  50  0  0  0 app\n");
+  messages.Offer("6,2,11,-;other[99]: segfault at 0\n");
+  // Numbers that merely equal the process or a thread ID: the fault address
+  // of another process and a user ID.
+  messages.Offer("6,2,11,-;other[99]: segfault at 1234 ip 0 sp 0 error 6\n");
+  messages.Offer("6,2,11,-;other[99]: segfault at 1240 ip 0 sp 0 error 6\n");
+  for (int index = 0; index < 7; ++index)
+  {
+    messages.Offer(
+        std::format("4,{},12,-;app[1240]: trap {}\n", 3 + index, index));
+  }
+  messages.Offer("3,10,13,-;Out of memory: Killed process 1234 (app)\n");
+  exit_wire::Report report{};
+  messages.CopyTo(report);
+  Require(report.line_count_ == exit_wire::kMaxLines,
+          "only the newest six messages are kept");
+  Require(exit_wire::FieldText(report.lines_[0]) == "app[1240]: trap 2" &&
+              exit_wire::FieldText(report.lines_[5]) ==
+                  "Out of memory: Killed process 1234 (app)",
+          "oldest first; the OOM task table and other pids are left out");
+
+  // A process whose PID equals another task's user ID: the OOM killer's
+  // summary for pid 99 must not be taken as its own.
+  const std::array<std::uint32_t, 1> user_tids{1000};
+  ExitMessages other_user{1000, user_tids};
+  other_user.Offer(
+      "6,20,5,-;oom-kill:constraint=CONSTRAINT_NONE,task=other,pid=99,"
+      "uid=1000\n");
+  other_user.Offer("6,21,6,-;other[99]: segfault at 1000 ip 0 sp 0 error 6\n");
+  exit_wire::Report unrelated{};
+  other_user.CopyTo(unrelated);
+  Require(unrelated.line_count_ == 0,
+          "messages about another task are not kept for this one");
+
+  TestThreadIdsSeenBeforeTheLastTick();
+
+  RateLimitedLogger logger;
+  KernelLog log;
+  log.Watch(logger, "/nonexistent/kmsg");
+  const auto missing = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                                   Nanoseconds{1}, logger);
+  Require(missing.kernel_log_ == exit_wire::KernelLog::Unavailable &&
+              missing.error_ == ENOENT && missing.line_count_ == 0 &&
+              missing.pid_ == 1234 && missing.process_start_ == 7,
+          "a missing kernel log gives a report that says so");
+  // The sampler adds the two sessions after Collect(), where it knows them.
+  auto with_sessions = missing;
+  with_sessions.ended_session_ = 1;
+  with_sessions.next_session_ = 2;
+  Require(exit_wire::Decode(wire::AsBytes(with_sessions)).has_value(),
+          "the report the sampler builds is valid on the wire");
+
+  // A kernel log with a record that was written after the watch began. A
+  // plain file stands in for /dev/kmsg: Watch seeks to its end.
+  const auto fake_log =
+      std::filesystem::temp_directory_path() /
+      std::format("triangulator-kmsg-{}", static_cast<int>(::getpid()));
+  const auto watch_fake_log = [&]
+  {
+    std::ofstream{fake_log, std::ios::trunc} << "6,1,1,-;old[1234]: segfault\n";
+    log.Watch(logger, fake_log.c_str());
+    log.Note(threads);
+    std::ofstream{fake_log, std::ios::app}
+        << "6,2,2,-;worker[1240]: segfault at 0 ip 0 sp 0 error 6\n";
+  };
+  watch_fake_log();
+  const auto found = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                                 Nanoseconds{1}, logger, 1s);
+  Require(found.kernel_log_ == exit_wire::KernelLog::Read &&
+              found.line_count_ == 1 &&
+              exit_wire::FieldText(found.lines_[0]) ==
+                  "worker[1240]: segfault at 0 ip 0 sp 0 error 6",
+          "only messages logged after the watch began are read");
+  watch_fake_log();
+  const auto cut = log.Collect({.pid_ = 1234, .starttime_ = 7}, threads,
+                               Nanoseconds{1}, logger, Nanoseconds{0});
+  std::filesystem::remove(fake_log);
+  Require(cut.kernel_log_ == exit_wire::KernelLog::Read && cut.line_count_ == 0,
+          "a drain with no time left reads nothing but still reports");
+
+  const auto self = FindTarget(TargetPid{::getpid()});
+  Require(self && *self, "the test process is found");
+  const auto running = ProcessEnded(**self);
+  Require(running && !*running, "a running process has not ended");
+  const auto reused = ProcessEnded(
+      {.pid_ = (*self)->pid_, .starttime_ = (*self)->starttime_ + 1});
+  Require(reused && *reused,
+          "a PID that now belongs to another process has ended");
+  const auto gone = ProcessEnded({.pid_ = 0x7ffffff0, .starttime_ = 1});
+  Require(gone && *gone, "a PID with no /proc entry has ended");
+
+  // With no descriptors left, the check cannot be made. It must say so, and
+  // not report that the process is still running.
+  rlimit saved{};
+  Require(::getrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is readable");
+  rlimit low = saved;
+  low.rlim_cur = std::min<rlim_t>(saved.rlim_cur, 64);
+  Require(::setrlimit(RLIMIT_NOFILE, &low) == 0, "the limit can be lowered");
+  std::vector<FileDescriptor> held;
+  for (;;)
+  {
+    FileDescriptor descriptor{::open("/dev/null", O_RDONLY | O_CLOEXEC)};
+    if (!descriptor)
+    {
+      break;
+    }
+    held.push_back(std::move(descriptor));
+  }
+  const auto exhausted = ProcessEnded(**self);
+  held.clear();
+  Require(::setrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is restored");
+  Require(!exhausted && exhausted.error() == EMFILE,
+          "running out of descriptors is an error, not an answer");
+}
+
 int main()
 {
   try
@@ -797,9 +1018,11 @@ int main()
     TestMemoryProbe();
     TestMemoryProbePartialMaps();
     TestNextDeadline();
+    TestExitMessages();
     std::puts(
         "C++ sampler tests passed (parsing, configuration, wire compatibility, "
-        "RAII, descriptor budget, resource parsing and probe, memory map)");
+        "RAII, descriptor budget, resource parsing and probe, memory map, "
+        "exit messages)");
   }
   catch (const std::exception& error)
   {

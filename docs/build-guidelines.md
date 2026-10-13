@@ -31,6 +31,20 @@ The sampler and target process must run as the same user.
 GitHub-hosted runners can create these containers without local Docker access
 or `sudo` on your computer.
 
+### AlmaLinux 8
+
+The default GCC 8 compiler cannot build this project.
+Install GCC Toolset 14 and select Node.js 22 from the module repository.
+
+```sh
+dnf install -y dnf-plugins-core git make coreutils sed binutils gcc-c++ sqlite-devel
+dnf config-manager --set-enabled powertools
+dnf module enable -y nodejs:22
+dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel glibc-static libstdc++-static python3.11 nodejs
+```
+
+PowerTools supplies the static development packages on AlmaLinux 8.
+
 ### AlmaLinux 9
 
 The default GCC 11 compiler cannot build this project.
@@ -67,7 +81,7 @@ dnf install -y glibc-static libstdc++-static python3 nodejs
    cd triangulator
    ```
 
-2. On AlmaLinux 9, select GCC Toolset 14 and Python 3.11 for this shell.
+2. On AlmaLinux 8 and 9, select GCC Toolset 14 and Python 3.11 for this shell.
 
    ```sh
    mkdir -p config/local/build-tools

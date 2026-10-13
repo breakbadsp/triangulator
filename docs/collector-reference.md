@@ -69,12 +69,21 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Keeps the latest sample for `/api/live` and writes one `resource_sample`
   row per sample. Like the thread side, it evaluates no alert rules.
 
+**4c. Exit reports** (`exits.hpp`, `ExitMonitor`)
+- Decodes the sampler's report about an ended target
+  (`common/exit_wire.hpp`): the kernel log messages that name the process.
+- Stores the first copy of each exit, works out the reason (segfault, OOM
+  killer, …) and writes one `process_exit` row. `/api/live` shows the newest
+  exit by report time, so a delayed report of an earlier exit is stored but
+  does not replace it. See [process-exit.md](process-exit.md).
+
 **5. Storage** (`storage.hpp`)
 - One SQLite file per UTC day, in WAL mode, with the same tables the retired
   Python collector wrote, so old files stay readable. Any other tool can read
   them.
 - Writes the thread summaries, plus raw samples if `store_raw = true`, and
-  the resource samples (`resource_sample`; older day files gain the table). The
+  the resource samples (`resource_sample`; older day files gain the table),
+  and one `process_exit` row per ended target. The
   `alert_event` table exists but stays empty.
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
@@ -88,7 +97,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
   Its `memory` object is the latest memory-map summary
-  ([memory-map.md](memory-map.md)). While the target is absent, `health`
+  ([memory-map.md](memory-map.md)). Its `exit` object is why the latest
+  target ended, or `null` ([process-exit.md](process-exit.md)). While the target is absent, `health`
   also has `last_target`: the `session`, `pid` and `recorded_at` of the last
   view in which the target was present with threads.
 - `GET /api/last-target`: that last view, in the `/api/live` format, or

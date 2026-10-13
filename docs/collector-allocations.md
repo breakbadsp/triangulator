@@ -30,14 +30,16 @@ The path starts when the main loop receives a datagram. It includes:
 1. `Ingest::Handle`: decode of the datagram and the sender check.
 2. `Monitor::Accept`, `Monitor::Drain` and `Monitor::Close`.
 3. `ResourceMonitor::Accept` and `ResourceMonitor::Drain`.
-4. The row writes to `Storage`, and `Storage::Flush`.
+4. `ExitMonitor::Accept`. It keeps the report by value.
+5. The row writes to `Storage`, and `Storage::Flush`.
 
 ## What is not covered
 
 These parts still allocate. They are not on the datagram path.
 
 - The refresh every 500 ms: `Monitor::Health`, `Monitor::Snapshot`,
-  `ResourceMonitor::Snapshot` and the JSON text for the dashboard.
+  `ResourceMonitor::Snapshot`, `ExitMonitor::Snapshot` and the JSON text for
+  the dashboard.
 - The HTTP server, the dashboard API and the replay recorder.
 - Startup, and the log line when the collector pins the sampler address.
 - The first row of a new UTC day. It opens the day file.
