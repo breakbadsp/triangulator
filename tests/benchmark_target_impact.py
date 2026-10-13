@@ -124,10 +124,11 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s):
                 while time.monotonic() < warmup_end:
                     wait_sample(stream, sampler, victim, warmup_end + 2 / rate)
                 start()
-                # A sampler that shares a core at low priority may be starved. That is
-                # the result, so it is recorded with its observed rate and not rejected.
+                # A sampler that shares a core at low priority may be starved, at any
+                # rate. That is the result, so it is recorded with its observed rate
+                # and not rejected.
                 sampler_result = collect(stream, sampler, victim, duration_s,
-                                         rate_tolerance=0.9 if nice else 0.1)
+                                         allow_slow=bool(nice))
                 probes = read_probes(victim, 10)
                 log.flush()
                 log.seek(0)

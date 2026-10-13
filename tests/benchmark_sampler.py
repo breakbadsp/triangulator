@@ -168,7 +168,9 @@ def count_late(packets, latencies_ms, rate):
     return late_ticks, sum(value >= 1e3 / rate for value in latencies_ms)
 
 
-def collect(stream, sampler, target, duration_s, rate_tolerance=0.1):
+def collect(stream, sampler, target, duration_s, rate_tolerance=0.1, allow_slow=False):
+    """Measure one window. With allow_slow, a rate below the requested one is
+    recorded instead of rejected, and the trailing tick may take longer."""
     sampler_start = cpu_snapshot(sampler.pid)
     target_start = cpu_snapshot(target.pid, whole_process=True)
     start_ns = time.monotonic_ns()
@@ -197,7 +199,7 @@ def collect(stream, sampler, target, duration_s, rate_tolerance=0.1):
     memory.append(rss_mib(sampler.pid))
     # Read the first complete tick beyond the window. This detects a lost
     # trailing tick and completes a sample split by the measurement boundary.
-    drain_deadline = time.monotonic() + 2 / stream.rate + 1
+    drain_deadline = time.monotonic() + 2 / stream.rate + 1 + (10 if allow_slow else 0)
     while True:
         sample = wait_sample(stream, sampler, target, drain_deadline)
         if sample[0].monotonic_ns >= end_ns:
@@ -209,7 +211,8 @@ def collect(stream, sampler, target, duration_s, rate_tolerance=0.1):
     packets, latencies = zip(*samples)
     elapsed_ns = packets[-1].monotonic_ns - packets[0].monotonic_ns
     actual_hz = (len(packets) - 1) * 1e9 / elapsed_ns
-    if abs(actual_hz / stream.rate - 1) > rate_tolerance:
+    ratio = actual_hz / stream.rate
+    if ratio - 1 > rate_tolerance or (not allow_slow and 1 - ratio > rate_tolerance):
         raise RuntimeError(f"sample frequency was {actual_hz:.3f} Hz, expected {stream.rate} Hz")
     # Compare wall and monotonic clocks across the window. Abort on a wall
     # clock step rather than presenting it as a latency observation.
