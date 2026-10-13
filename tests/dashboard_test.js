@@ -1815,3 +1815,61 @@ test('heap margin stays bounded and stable, includes neighbors, and resets on se
   assert.equal(app.run('memoryDisplaySpan(heap).hi'),app.run('heap.hi'));
   assert.ok(app.elements.get('memory-grid').children.length<=512);
 });
+
+function processFacts(app) {
+  const card = app.elements.get('process-info');
+  const facts = Object.fromEntries(app.elements.get('process-facts').children.map(
+    item => [item.children[0].textContent, item.children[1].textContent]));
+  return {card, facts};
+}
+
+test('process details show the readable facts and say what is not available', () => {
+  const app = dashboard();
+  const info = {session: 's', pid: 1234, started_at: 1700000000, parent_pid: 1, uid: 1000, euid: 1000,
+    gid: 100, egid: 100, command: '/usr/bin/app --port 8080', command_truncated: false,
+    executable: '/usr/bin/app (deleted)', executable_truncated: false, exe_hidden: false,
+    working_directory: '', working_directory_truncated: false, cwd_hidden: true,
+    cpus_allowed: '0-3,8', cpus_truncated: false};
+  // A recorded view counts the run time to the recording time.
+  app.run(`replayAt=1700000000+3*3600;live={health:{session:'s'},process:${JSON.stringify(info)}};renderProcessInfo()`);
+  let {card, facts} = processFacts(app);
+  assert.equal(card.hidden, false);
+  assert.deepEqual(Object.keys(facts), ['Command line', 'Executable', 'Working directory', 'Started',
+    'Parent process', 'User & group', 'Allowed CPUs']);
+  assert.equal(facts['Command line'], '/usr/bin/app --port 8080');
+  assert.equal(facts.Executable, '/usr/bin/app (deleted)');
+  assert.match(facts['Working directory'], /^Not available.*process owner/);
+  assert.match(facts.Started, / · up 3\.0 h$/);
+  assert.equal(facts['Parent process'], 'PID 1');
+  assert.equal(facts['User & group'], 'UID 1000 · GID 100');
+  assert.equal(facts['Allowed CPUs'], '0-3,8');
+  // Every label has a help topic.
+  for (const item of app.elements.get('process-facts').children) {
+    assert.ok(app.run(`!!HELP[${JSON.stringify(item.children[0].dataset.help)}]`), item.children[0].textContent);
+  }
+
+  // Effective IDs show only when they differ; unread values are not zero.
+  Object.assign(info, {euid: 0, gid: null, egid: null, parent_pid: 0, started_at: null, cpus_allowed: '',
+    command: '', command_truncated: true});
+  app.run(`live.process=${JSON.stringify(info)};renderProcessInfo()`);
+  ({facts} = processFacts(app));
+  assert.equal(facts['User & group'], 'UID 1000 (effective 0) · GID Not available');
+  assert.match(facts['Parent process'], /^None visible/);
+  assert.equal(facts.Started, 'Not available');
+  assert.equal(facts['Allowed CPUs'], 'Not available');
+  assert.match(facts['Command line'], /^Empty/);
+
+  // A cut command ends with an ellipsis; a cut path begins with one.
+  Object.assign(info, {command: '/usr/bin/app --long', command_truncated: true,
+    executable: 'bin/app', executable_truncated: true});
+  app.run(`live.process=${JSON.stringify(info)};renderProcessInfo()`);
+  ({facts} = processFacts(app));
+  assert.equal(facts['Command line'], '/usr/bin/app --long …');
+  assert.equal(facts.Executable, '…bin/app');
+
+  // Info read for another session is never shown for this one.
+  app.run("live.health.session='t';renderProcessInfo()");
+  assert.equal(processFacts(app).card.hidden, true);
+  app.run("live.process=null;live.health.session='s';renderProcessInfo()");
+  assert.equal(processFacts(app).card.hidden, true);
+});
