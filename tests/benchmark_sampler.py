@@ -40,6 +40,9 @@ MEMORY_INTERVAL_S = 30
 # constant everywhere.
 SO_TIMESTAMPNS_NEW = 64
 TIMESPEC = struct.Struct("=qq")
+# The sampler warns once when kernel.dmesg_restrict hides /dev/kmsg. That only
+# removes kernel messages from exit reports; sampling is unaffected.
+KMSG_NOTICE = "triangulator: kernel log (/dev/kmsg) not readable: "
 
 
 @contextmanager
@@ -275,7 +278,7 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
                     raise RuntimeError("resource or memory-map samples were missing")
                 log.flush()
                 log.seek(0)
-                if log.read():
+                if any(line and not line.startswith(KMSG_NOTICE) for line in log.read().splitlines()):
                     raise RuntimeError("sampler logged errors or warnings")
                 return result
             except (OSError, ValueError, RuntimeError) as error:
