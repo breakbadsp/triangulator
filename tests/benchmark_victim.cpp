@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 #include <array>
-#include <atomic>
 #include <bit>
 #include <charconv>
 #include <condition_variable>
@@ -270,7 +269,13 @@ int main(int p_argc, char** p_argv)
           });
     }
 
-    std::atomic<std::int64_t> deadline_ns{0};
+    // The probes wait for a deadline set by the start line. The wait also
+    // ends on a stop request: if creating a later probe thread throws, the
+    // destructors of the probes already created request stop and join, and
+    // a wait that ignored the stop request would hang there.
+    std::mutex start_mutex;
+    std::condition_variable_any start_signal;
+    std::int64_t deadline_ns = 0;  // Guarded by start_mutex; 0 is not set.
     std::latch finished{kProbeThreads};
     std::array<Distribution, kProbeThreads> results;
     using Probe = Distribution (*)(const ProbeConfig&);
@@ -284,10 +289,22 @@ int main(int p_argc, char** p_argv)
           [&, index](std::stop_token p_stop)
           {
             ready.count_down();
-            deadline_ns.wait(0);
+            std::int64_t probe_deadline_ns = 0;
+            {
+              std::unique_lock lock{start_mutex};
+              if (!start_signal.wait(lock, p_stop,
+                                     [&]
+                                     {
+                                       return deadline_ns != 0;
+                                     }))
+              {
+                return;
+              }
+              probe_deadline_ns = deadline_ns;
+            }
             results[index] =
                 kProbes[index]({.cpu_ = arguments.probe_cpus_[index],
-                                .deadline_ns_ = deadline_ns.load()});
+                                .deadline_ns_ = probe_deadline_ns});
             finished.count_down();
             SleepUntilStopped(p_stop);
           });
@@ -300,9 +317,12 @@ int main(int p_argc, char** p_argv)
     // A closed stdin before the start line gives the probes a deadline that
     // has already passed, so they finish at once and the threads can stop.
     const auto started = static_cast<bool>(std::getline(std::cin, line));
-    deadline_ns.store(started ? NowNs() + arguments.duration_s_ * kNsPerSecond
-                              : 1);
-    deadline_ns.notify_all();
+    {
+      const std::lock_guard lock{start_mutex};
+      deadline_ns =
+          started ? NowNs() + arguments.duration_s_ * kNsPerSecond : 1;
+    }
+    start_signal.notify_all();
     finished.wait();
     if (!started)
     {
