@@ -2332,7 +2332,8 @@ function renderProcessInfo(){
   const group=isNum(info.gid)?`GID ${info.gid}`+(isNum(info.egid)&&info.egid!==info.gid?` (effective ${info.egid})`:''):'GID '+missing;
   const rows=[
     ['Command line','cmdline',info.command?cut(info.command,info.command_truncated,false):'Empty (a kernel thread or a process that is ending)',true],
-    ['Executable','exe',path(info.executable,info.executable_truncated,info.exe_hidden),true],
+    // The sampler strips the kernel's " (deleted)" suffix and sets exe_deleted.
+    ['Executable','exe',path(info.executable,info.executable_truncated,info.exe_hidden)+(info.executable&&info.exe_deleted?' (deleted)':''),true],
     ['Working directory','cwd',path(info.working_directory,info.working_directory_truncated,info.cwd_hidden),true],
     ['Started','started',isNum(info.started_at)?`${date(info.started_at)} · up ${duration(Math.max(0,reference-info.started_at))}`:missing],
     ['Parent process','parentpid',!isNum(info.parent_pid)?missing:info.parent_pid===0?'None visible (outside its PID namespace)':'PID '+info.parent_pid],

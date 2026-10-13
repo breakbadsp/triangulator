@@ -1827,7 +1827,7 @@ test('process details show the readable facts and say what is not available', ()
   const app = dashboard();
   const info = {session: 's', pid: 1234, started_at: 1700000000, parent_pid: 1, uid: 1000, euid: 1000,
     gid: 100, egid: 100, command: '/usr/bin/app --port 8080', command_truncated: false,
-    executable: '/usr/bin/app (deleted)', executable_truncated: false, exe_hidden: false,
+    executable: '/usr/bin/app', executable_truncated: false, exe_hidden: false, exe_deleted: true,
     working_directory: '', working_directory_truncated: false, cwd_hidden: true,
     cpus_allowed: '0-3,8', cpus_truncated: false};
   // A recorded view counts the run time to the recording time.
@@ -1837,6 +1837,7 @@ test('process details show the readable facts and say what is not available', ()
   assert.deepEqual(Object.keys(facts), ['Command line', 'Executable', 'Working directory', 'Started',
     'Parent process', 'User & group', 'Allowed CPUs']);
   assert.equal(facts['Command line'], '/usr/bin/app --port 8080');
+  // The sampler sends the path without the suffix and sets exe_deleted.
   assert.equal(facts.Executable, '/usr/bin/app (deleted)');
   assert.match(facts['Working directory'], /^Not available.*process owner/);
   assert.match(facts.Started, / · up 3\.0 h$/);
@@ -1861,7 +1862,7 @@ test('process details show the readable facts and say what is not available', ()
 
   // A cut command ends with an ellipsis; a cut path begins with one.
   Object.assign(info, {command: '/usr/bin/app --long', command_truncated: true,
-    executable: 'bin/app', executable_truncated: true});
+    executable: 'bin/app', executable_truncated: true, exe_deleted: false});
   app.run(`live.process=${JSON.stringify(info)};renderProcessInfo()`);
   ({facts} = processFacts(app));
   assert.equal(facts['Command line'], '/usr/bin/app --long …');

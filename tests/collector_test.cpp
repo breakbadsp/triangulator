@@ -993,7 +993,7 @@ process_wire::Packet ProcessPacket(std::uint32_t p_pid, std::uint64_t p_wall_s)
                               .uid_real_ = 1000,
                               .gid_real_ = 100};
   process_wire::CopyStart(packet.command_, "/usr/bin/app --port 8080");
-  process_wire::CopyEnd(packet.exe_, "/usr/bin/app (deleted)");
+  process_wire::CopyEnd(packet.exe_, "/usr/bin/app");
   process_wire::CopyEnd(packet.cwd_, "/srv/app");
   process_wire::CopyStart(packet.cpus_allowed_, "0-3,8");
   packet.flags_ =
@@ -1016,8 +1016,7 @@ void TestProcessInfo()
       Field(snapshot, "pid").AsInt() == 1234 &&
           Field(snapshot, "session").AsString() == "41" &&
           Field(snapshot, "command").AsString() == "/usr/bin/app --port 8080" &&
-          Field(snapshot, "executable").AsString() ==
-              "/usr/bin/app (deleted)" &&
+          Field(snapshot, "executable").AsString() == "/usr/bin/app" &&
           Field(snapshot, "working_directory").AsString() == "/srv/app" &&
           Field(snapshot, "cpus_allowed").AsString() == "0-3,8",
       "the snapshot describes the process");
