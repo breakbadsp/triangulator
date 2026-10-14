@@ -173,7 +173,7 @@ build/collector-allocation-test: tests/collector_allocation_test.cpp $(COLLECTOR
 
 build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) -Wl,--wrap=fsync $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
 CPP_TESTS := build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
 check: all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)

@@ -404,7 +404,8 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             collector_config.write_text(
                 f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
                 f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nstore_raw=false\n'
-                '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n')
+                '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n'
+                '[[watch]]\nprefix="sle"\nwake_ms=1000\n')
             invalid = Path(directory) / "invalid.toml"
             invalid.write_text("[alerts]\nwindow_s=4\n")
             checked = subprocess.run([*CPP_COLLECTOR, str(invalid), "--check-config"], capture_output=True, text=True)
@@ -470,6 +471,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 kinds = {region["kind"] for region in layout["regions"]}
                 self.assertTrue({"stack", "file"} <= kinds, kinds)
                 self.assertEqual(live["threads"][0]["name"], "sleep")
+                # The [[watch]] rule matches the target's thread by name. last_ran is
+                # on the last_sample clock and never after it.
+                self.assertEqual(live["threads"][0]["wake_ms"], 1000)
+                self.assertLessEqual(live["threads"][0]["last_ran"], live["threads"][0]["last_sample"])
+                self.assertEqual(live["health"]["sample_interval_ms"], 100)
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertNotIn("alerts", live)
                 self.assertNotIn("recent_alerts", live)
@@ -562,6 +568,104 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             self.assertEqual(exits, [(target.pid,)])
             self.assertIn(statuses, ([(None,)], [(signal.SIGKILL,)]))
 
+
+    def test_watch_rules_api_guards_save_and_reset(self):
+        """/api/watches: the POST guards of /api/target, all-or-nothing saves, reset, and the saved file."""
+        with tempfile.TemporaryDirectory() as directory:
+            http_port = free_port(socket.SOCK_STREAM)
+            config = Path(directory) / "collector.toml"
+            config.write_text(f'udp_host="127.0.0.1"\nudp_port={free_port(socket.SOCK_DGRAM)}\n'
+                              f'http_port={http_port}\ndata_dir="{directory}/data"\n'
+                              '[[watch]]\nprefix="worker-"\nwake_ms=500\n')
+            saved = Path(directory) / "data/watch-rules.json"
+            base = f"http://127.0.0.1:{http_port}"
+            dashboard = {"X-Triangulator": "1", "Origin": base}
+
+            def request(path, body=None, headers=None):
+                data = json.dumps(body).encode() if body is not None else None
+                if path.endswith("/reset"):
+                    data = b""
+                call = urllib.request.Request(base + path, data=data, headers=headers or {})
+                try:
+                    with urllib.request.urlopen(call, timeout=5) as response:
+                        return response.status, json.loads(response.read())
+                except urllib.error.HTTPError as error:
+                    with error:
+                        return error.code, json.loads(error.read())
+
+            def start():
+                collector = subprocess.Popen([*CPP_COLLECTOR, str(config)], stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.PIPE, text=True)
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    try:
+                        request("/api/watches")
+                        return collector
+                    except OSError:
+                        self.assertIsNone(collector.poll(), "collector exited")
+                        time.sleep(0.02)
+                self.fail("collector did not start")
+
+            def stop(collector):
+                collector.terminate()
+                return collector.communicate(timeout=8)[1]
+
+            limits = {"prefix_max_bytes": 15, "wake_ms_min": 10, "wake_ms_max": 3600000, "max_rules": 64}
+            from_config = {"rules": [{"prefix": "worker-", "wake_ms": 500}], "source": "config",
+                           "saved_error": None, "limits": limits}
+            rules = {"rules": [{"prefix": "worker-io", "wake_ms": 50}, {"prefix": "io-", "wake_ms": 20}]}
+            collector = start()
+            try:
+                self.assertEqual(request("/api/watches"), (200, from_config))
+                for path in ("/api/watches", "/api/watches/reset"):
+                    for headers in ({}, {"X-Triangulator": "1", "Origin": "https://other.example"}):
+                        status, data = request(path, rules, headers)
+                        self.assertEqual((status, data), (403, {"error": "dashboard request required"}))
+                self.assertFalse(saved.exists())
+                status, data = request("/api/watches", rules, dashboard)
+                self.assertEqual((status, data), (200, {**rules, "source": "dashboard", "saved_error": None,
+                                                         "limits": limits}))
+                self.assertEqual(json.loads(saved.read_text()), rules)
+                # All or nothing: the bad second rule keeps the first from being saved.
+                status, data = request("/api/watches", {"rules": [{"prefix": "ok-", "wake_ms": 50},
+                                                                  {"prefix": "bad-", "wake": 50}]}, dashboard)
+                self.assertEqual(status, 400)
+                self.assertIn("watch rule 2", data["error"])
+                self.assertEqual(request("/api/watches")[1]["rules"], rules["rules"])
+                self.assertEqual(json.loads(saved.read_text()), rules)
+                # A full list is larger than the 1 KiB that /api/target needs.
+                full = {"rules": [{"prefix": f"{index:02}-thread-name-", "wake_ms": 3600000} for index in range(64)]}
+                status, data = request("/api/watches", full, {"X-Triangulator": "1"})
+                self.assertEqual((status, data["rules"]), (200, full["rules"]))
+                status, data = request("/api/watches/reset", None, dashboard)
+                self.assertEqual((status, data), (200, from_config))
+                self.assertFalse(saved.exists())
+                request("/api/watches", rules, dashboard)
+            finally:
+                stderr = stop(collector)
+            # The saved list survives a restart and replaces the config rules.
+            collector = start()
+            try:
+                self.assertEqual(request("/api/watches")[1]["source"], "dashboard")
+                self.assertEqual(request("/api/watches")[1]["rules"], rules["rules"])
+            finally:
+                stderr = stop(collector)
+            self.assertIn("Using the watch rules saved from the dashboard", stderr)
+            # An invalid saved file is reported and the config rules apply.
+            saved.write_text('{"rules":[{"prefix":"a","wake_ms":1}]}')
+            collector = start()
+            try:
+                status, data = request("/api/watches")
+                self.assertEqual((data["source"], data["rules"]), ("config", from_config["rules"]))
+                self.assertIn("watch-rules.json: watch rule 1", data["saved_error"])
+            finally:
+                stderr = stop(collector)
+            self.assertIn("WARNING Ignoring the watch rules saved from the dashboard", stderr)
+            # --check-config rejects a misspelt [[watch]] key.
+            config.write_text('[[watch]]\nprefix="worker-"\nwake=500\n')
+            checked = subprocess.run([*CPP_COLLECTOR, str(config), "--check-config"], capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 2)
+            self.assertIn('watch rule 1: unknown key "wake"', checked.stderr)
 
     def test_unusable_data_dir_stops_at_startup(self):
         # data_dir sits under a regular file, so it can't be created. The
