@@ -298,6 +298,8 @@ struct MonitorFixture
   Storage storage_ = MakeStorage(directory_.Path());
   StorageSink sink_{storage_};
   Monitor monitor_{config_, 1'700'000'000, sink_};
+  // The watch rules Threads() and Thread() pass to the snapshot.
+  std::vector<WatchRule> watches_;
 
   static Storage MakeStorage(const std::filesystem::path& p_directory)
   {
@@ -337,7 +339,7 @@ struct MonitorFixture
 
   [[nodiscard]] JsonArray Threads(double p_now) const
   {
-    return Field(monitor_.Snapshot(p_now), "threads").AsArray();
+    return Field(monitor_.Snapshot(p_now, watches_), "threads").AsArray();
   }
 
   [[nodiscard]] Json Thread(double p_now) const
@@ -659,6 +661,87 @@ void TestSequenceWrapIsNotPacketLoss()
   RequireNear(Field(fixture.monitor_.Health(1'700'000'001), "packet_loss_pct")
                   .AsNumber(),
               0, "the sequence number wrapping to 0 is not loss");
+}
+
+// Checks last_ran: it starts at the first sample, stays put while the
+// thread's counters are still, and moves to the sample that shows the
+// thread ran, for each counter that can show it.
+void TestLastRan()
+{
+  MonitorFixture fixture;
+  for (std::uint32_t sequence = 0; sequence <= 5; ++sequence)
+  {
+    fixture.Feed(sequence, MakeRecord());
+  }
+  auto thread = fixture.Thread(1'700'000'005);
+  RequireNear(Field(thread, "last_ran").AsNumber(), 1'700'000'000,
+              "a thread that never ran keeps the time it was first seen");
+  RequireNear(Field(thread, "last_sample").AsNumber(), 1'700'000'005,
+              "while its samples keep coming");
+  auto record = MakeRecord();
+  ++record.timeslices_;
+  fixture.Feed(6, record);
+  fixture.Feed(7, record);
+  RequireNear(Field(fixture.Thread(1'700'000'007), "last_ran").AsNumber(),
+              1'700'000'006,
+              "one more time slice is the sample at which it ran");
+  ++record.stime_;
+  fixture.Feed(8, record);
+  RequireNear(Field(fixture.Thread(1'700'000'008), "last_ran").AsNumber(),
+              1'700'000'008,
+              "CPU time without a switch (a busy loop) counts as running");
+  record.run_delay_ += 1000;
+  fixture.Feed(9, record);
+  RequireNear(Field(fixture.Thread(1'700'000'009), "last_ran").AsNumber(),
+              1'700'000'008, "waiting to run is not running");
+
+  // In status-fallback mode timeslices_ holds voluntary and run_delay_
+  // nonvoluntary context switches; each one shows the thread ran.
+  MonitorFixture fallback;
+  const auto feed = [&](std::uint32_t p_sequence, const Record& p_record)
+  {
+    auto packet = MakePacket(p_sequence, {p_record});
+    packet.flags_ = kStatusFallback;
+    fallback.Feed(packet);
+  };
+  record = MakeRecord();
+  feed(0, record);
+  feed(1, record);
+  RequireNear(Field(fallback.Thread(1'700'000'001), "last_ran").AsNumber(),
+              1'700'000'000, "fallback: still counters, no run");
+  ++record.run_delay_;
+  feed(2, record);
+  RequireNear(Field(fallback.Thread(1'700'000'002), "last_ran").AsNumber(),
+              1'700'000'002, "fallback: a nonvoluntary switch is a run");
+  ++record.timeslices_;
+  feed(3, record);
+  RequireNear(Field(fallback.Thread(1'700'000'003), "last_ran").AsNumber(),
+              1'700'000'003, "fallback: a voluntary switch is a run");
+}
+
+// Checks wake_ms in the live view: it follows the current rules and the
+// thread's current name, so a rename or a rule change shows at once
+// without the thread being treated as new.
+void TestThreadWakeMs()
+{
+  MonitorFixture fixture;
+  fixture.Feed(0, MakeRecord());
+  Require(Field(fixture.Thread(1'700'000'000), "wake_ms").IsNull(),
+          "no rules: wake_ms is null");
+  fixture.watches_ = {{"worker-", 500}, {"worker-io", 50}};
+  Require(Field(fixture.Thread(1'700'000'000), "wake_ms").AsInt() == 500,
+          "new rules apply to a thread already known");
+  auto renamed = MakeRecord();
+  renamed.comm_ = "worker-io-1";
+  fixture.Feed(1, renamed);
+  const auto thread = fixture.Thread(1'700'000'001);
+  Require(Field(thread, "wake_ms").AsInt() == 50,
+          "a renamed thread matches by its new name");
+  Require(Field(thread, "generation").AsInt() == 0,
+          "the rename keeps the thread (same group)");
+  fixture.watches_ = {{"io", 50}};
+  Require(Field(fixture.Thread(1'700'000'001), "wake_ms").IsNull(),
+          "a thread no rule matches has a null wake_ms");
 }
 
 // Parses the stored view a replay query returned.
@@ -1945,6 +2028,8 @@ int main()
     TestLowestRateProducesValidWindows();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
+    TestLastRan();
+    TestThreadWakeMs();
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
     TestResourceResetsLossAndOrder();

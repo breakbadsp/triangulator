@@ -364,7 +364,8 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             collector_config.write_text(
                 f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
                 f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nstore_raw=false\n'
-                '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n')
+                '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n'
+                '[[watch]]\nprefix="sle"\nwake_ms=1000\n')
             invalid = Path(directory) / "invalid.toml"
             invalid.write_text("[alerts]\nwindow_s=4\n")
             checked = subprocess.run([*CPP_COLLECTOR, str(invalid), "--check-config"], capture_output=True, text=True)
@@ -430,6 +431,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 kinds = {region["kind"] for region in layout["regions"]}
                 self.assertTrue({"stack", "file"} <= kinds, kinds)
                 self.assertEqual(live["threads"][0]["name"], "sleep")
+                # The [[watch]] rule matches the target's thread by name. last_ran is
+                # on the last_sample clock and never after it.
+                self.assertEqual(live["threads"][0]["wake_ms"], 1000)
+                self.assertLessEqual(live["threads"][0]["last_ran"], live["threads"][0]["last_sample"])
+                self.assertEqual(live["health"]["sample_interval_ms"], 100)
                 self.assertFalse(live["health"]["sampler_silent"])
                 self.assertNotIn("alerts", live)
                 self.assertNotIn("recent_alerts", live)

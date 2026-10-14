@@ -411,10 +411,10 @@ std::size_t Measure(bool p_store_raw)
   // Health and Snapshot allocate, so they run after the measurement. They
   // show that no chunk was dropped as late and that every thread is live.
   const double end = 1'700'000'000.0 + 90;
-  Require(
-      monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
-          monitor.Snapshot(end).Find("threads")->AsArray().size() == kThreads,
-      "every chunk of every tick is processed");
+  Require(monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
+              monitor.Snapshot(end, {}).Find("threads")->AsArray().size() ==
+                  kThreads,
+          "every chunk of every tick is processed");
   Require(memory.LayoutVersion() == 9 &&
               memory.Layout().Find("regions")->AsArray().size() == 50,
           "every memory-map layout is complete");

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -84,6 +85,27 @@ struct Sample
     return record_;
   }
 };
+
+// True when two consecutive samples of a thread show that it was on a CPU
+// in between. The counters used are the most sensitive ones the sample has:
+// - timeslices_: in normal mode the schedstat count of times the thread was
+//   put on a CPU, so even a 1-microsecond wakeup moves it. In status-fallback
+//   mode the sampler sends voluntary context switches here and nonvoluntary
+//   ones in run_delay_; either kind means the thread had been running.
+// - utime_ + stime_ (clock ticks): they move for a thread that stays on a CPU
+//   without being switched out, such as a busy loop on an idle core.
+// In normal mode run_delay_ is time spent waiting to run, not running, so it
+// is not used there. Both samples have the same mode: Process() treats a
+// mode change as a new thread.
+[[nodiscard]] inline bool RanBetween(const Sample& p_current,
+                                     const Sample& p_previous) noexcept
+{
+  const Record& now = p_current.Get();
+  const Record& before = p_previous.Get();
+  return now.timeslices_ != before.timeslices_ ||
+         CpuTicks(now) != CpuTicks(before) ||
+         (p_current.fallback_ && now.run_delay_ != before.run_delay_);
+}
 
 // State counts in order of first appearance, like Python's Counter. The
 // states are the names Classify returns, kMaxStates at most, so the table is
@@ -379,7 +401,14 @@ class Monitor
 
   // Current threads and group counts. There are no "alerts" fields; the
   // dashboard hides its alert sections when they are missing.
-  [[nodiscard]] Json Snapshot(double p_now) const
+  //
+  // p_watches are the watch rules in force. Each thread's wake_ms comes from
+  // its current name here, not when the thread was first seen, so a renamed
+  // thread or a changed rule list shows in the next snapshot. The collector
+  // reports wake_ms and last_ran only; the dashboard decides whether a
+  // thread is overdue.
+  [[nodiscard]] Json Snapshot(double p_now,
+                              std::span<const WatchRule> p_watches) const
   {
     JsonArray threads;
     // Groups come from the config and have no limit, so they are counted in
@@ -465,6 +494,8 @@ class Monitor
           {"read_bps", Json(IoRate(current, previous, false, elapsed))},
           {"write_bps", Json(IoRate(current, previous, true, elapsed))},
           {"last_sample", sample.wall_},
+          {"last_ran", thread.last_ran_},
+          {"wake_ms", Json(WakeMsFor(p_watches, current.comm_.View()))},
           {"stale", p_now - sample.wall_ > std::max(10.0, interval_ * 3)},
           {"generation", thread.generation_}});
     }
@@ -534,6 +565,11 @@ class Monitor
     std::string_view group_;
     std::int64_t generation_{};
     Sample latest_;
+    // Wall time of the newest sample that showed the thread ran since the
+    // sample before it (RanBetween), or of its first sample, because nothing
+    // earlier is known. So the thread did not run between last_ran_ and
+    // latest_.wall_, and last ran at most one interval before last_ran_.
+    double last_ran_{};
     // The raw history: a list, oldest first, in the Monitor's sample arena.
     std::uint32_t raw_first_ = kNoNode;
     std::uint32_t raw_last_ = kNoNode;
@@ -879,6 +915,7 @@ class Monitor
         state.group_ = group;
         state.generation_ = next;
         state.latest_ = sample;
+        state.last_ran_ = wall;
         static_cast<void>(index_.Insert(position, {tid, slot}));
       }
       auto& thread = threads_[index_[position].slot_];
@@ -894,6 +931,11 @@ class Monitor
         }
       }
       thread.bucket_ = bucket;
+      // A new thread's latest_ is this sample, so this keeps its last_ran_.
+      if (RanBetween(sample, thread.latest_))
+      {
+        thread.last_ran_ = wall;
+      }
       thread.latest_ = sample;
       PushRaw(thread, sample);
       if (thread.window_count_ == 0)

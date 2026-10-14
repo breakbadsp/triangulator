@@ -211,7 +211,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
       auto health = monitor.Health(now);
-      auto live = monitor.Snapshot(now);
+      auto live = monitor.Snapshot(now, config.watches_);
       const auto* absent = health.Find("target_absent");
       // A view of the target needs its threads. When a new sampler session
       // starts, the Monitor drops the old threads at once but reports
