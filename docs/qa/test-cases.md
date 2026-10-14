@@ -39,6 +39,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-026 | NOT_RUN | - | - | - |
 | QA-028 | NOT_RUN | - | - | - |
 | QA-029 | NOT_RUN | - | - | - |
+| QA-030 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -59,6 +60,29 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-030: Default thread sampling rate and saved settings
+
+Feature: Thread sampling rate. Priority: High. Case revision: 1.
+
+Preconditions: Use an isolated runtime directory, unused ports, and an owned
+test process. Use matching sampler and collector packages.
+
+1. Start with no active configuration. Verify that the startup script creates
+   `config/sampler.toml` with `rate_hz = 5.0`. Select the owned process. Receive
+   thread datagrams and verify a 200 ms header interval and about five ticks
+   per second. Count ticks, because one tick can use several datagrams.
+2. Remove `rate_hz` from the active configuration. Restart the sampler. Verify
+   that thread datagrams still have a 200 ms interval.
+3. Set `rate_hz = 1.0`. Restart the programs, then repeat startup with the newer
+   package. Verify that the saved setting remains 1.0 and thread datagrams have
+   a 1000 ms interval. Verify that the resource and memory sampling intervals
+   remain 5 and 30 seconds when their settings are omitted.
+
+Expected results: New configurations and omitted thread rates use 5 Hz.
+An explicit saved rate remains in effect after restart and package upgrade.
+
+Source: [Sampling defaults](../setup.md#install-from-a-release-package).
 
 ## QA-026: Final view after the target exits
 
