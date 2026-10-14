@@ -39,7 +39,7 @@
 <rect x="420" y="148" width="260" height="194" rx="16" fill="#101a38" stroke="#34d399" stroke-opacity="0.65"/>
 <text x="442" y="181" class="title" >Sampler</text>
 <text x="442" y="209" class="small" >Select by process name or PID</text>
-<text x="442" y="241" class="mono" >Threads: 1 Hz default</text>
+<text x="442" y="241" class="mono" >Threads: 5 Hz default</text>
 <text x="442" y="265" class="mono" >Range: 0.2–10 Hz</text>
 <text x="442" y="297" class="small" >Resources: every 5 s by default</text>
 <text x="442" y="319" class="small" >Pressure · I/O · socket queues</text>
