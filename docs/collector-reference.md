@@ -57,7 +57,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Records when each thread last ran (`last_ran`), for
   [watched threads](#watched-threads).
 - Keeps up to 10 minutes of raw samples per thread in memory, capped in total by
-  `max_live_samples`.
+  `max_live_samples`. At the default 5 Hz, the cap holds about 400 seconds for
+  500 threads, so ten minutes fits only up to about 330 threads.
 - At the end of every window (default 5 s), writes one summary row per thread:
   CPU %, run delay %, context switches, read and write bytes per second, major
   page faults, and how many samples the thread spent in each state.
@@ -250,7 +251,8 @@ or busy. Each thread in `/api/live` (and in recordings) has:
   changed. The sample interval is `health.sample_interval_ms`.
 
 The dashboard can replace the rules. They are saved in
-`data_dir/watch-rules.json` (written to a temporary file, then renamed).
+`data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
+the data directory is flushed after the rename or a reset).
 While that file exists, its list replaces the `[[watch]]` list completely,
 even when it is empty; the startup log says so. If it can't be read or is
 invalid at startup, the collector logs a warning and uses the `[[watch]]`
@@ -262,10 +264,14 @@ rules.
   was not used, or is `null`.
 - `POST /api/watches` with `{"rules":[...]}` checks the whole list, saves it
   and applies it at once. It returns the `GET` shape. An invalid list gets
-  400 with `{"error":"..."}` naming the rule; a failed write gets 500. Either
-  way nothing changes.
+  400 with `{"error":"..."}` naming the rule; a failed write gets 500. Errors
+  before the rename leave the file and rules unchanged.
 - `POST /api/watches/reset` deletes the saved file and applies the
   `[[watch]]` rules. It returns the `GET` shape.
+- If the directory flush fails after a save or reset, the rules have already
+  changed. The response is 500 with `{"error":"...","applied":true}`. The error
+  states that persistence could not be confirmed. The rules in memory match
+  the changed file. Retry the operation to confirm persistence before a reboot.
 - Both `POST` requests need the same `X-Triangulator: 1` header and
   same-origin check as `POST /api/target`, or they get 403.
 

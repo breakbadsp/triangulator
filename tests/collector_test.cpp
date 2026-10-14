@@ -4,7 +4,9 @@
 // Monitor, so no sockets or timers are involved.
 
 #include <stdlib.h>
+#include <sys/stat.h>
 
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +31,62 @@
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
 #include "../collector/watch.hpp"
+
+namespace
+{
+
+struct WatchSyncProbe
+{
+  std::size_t file_syncs_{};
+  std::size_t directory_syncs_{};
+  bool fail_file_{};
+  bool fail_directory_{};
+  bool interrupt_directory_{};
+  bool saved_file_exists_{};
+};
+
+WatchSyncProbe g_watch_sync;
+
+}  // namespace
+
+extern "C" int __real_fsync(int p_descriptor);
+
+// Records directory flushes and injects operating errors without requiring
+// a failing disk. Other collector tests use the real fsync operation.
+extern "C" int __wrap_fsync(int p_descriptor)
+{
+  struct stat status{};
+  if (::fstat(p_descriptor, &status) == 0)
+  {
+    if (S_ISDIR(status.st_mode))
+    {
+      ++g_watch_sync.directory_syncs_;
+      g_watch_sync.saved_file_exists_ =
+          ::faccessat(p_descriptor, "watch-rules.json", F_OK, 0) == 0;
+      if (g_watch_sync.interrupt_directory_)
+      {
+        g_watch_sync.interrupt_directory_ = false;
+        errno = EINTR;
+        return -1;
+      }
+      if (g_watch_sync.fail_directory_)
+      {
+        errno = EIO;
+        return -1;
+      }
+    }
+    else
+    {
+      ++g_watch_sync.file_syncs_;
+      if (g_watch_sync.fail_file_)
+      {
+        errno = EIO;
+        return -1;
+      }
+    }
+  }
+  return __real_fsync(p_descriptor);
+}
 
 namespace
 {
@@ -146,7 +204,7 @@ void TestDecodeRoundTrip()
 {
   auto record = MakeRecord();
   record.comm_ = "name ) ( space";
-  record.wchan_ = "";
+  record.wchan_.Clear();
   record.flags_ = kIoUnavailable;
   record.read_bytes_ = std::numeric_limits<std::uint64_t>::max();
   auto packet = MakePacket(123, {record});
@@ -436,7 +494,7 @@ void TestHealthAbsenceAccessAndSilence()
       Field(fixture.monitor_.Health(1'700'000'011), "sampler_silent").AsBool(),
       "no datagram for ten seconds means the sampler is silent");
   auto hidden = MakeRecord();
-  hidden.wchan_ = "";
+  hidden.wchan_.Clear();
   fixture.Feed(12, hidden);
   health = fixture.monitor_.Health(1'700'000'012);
   Require(!Field(health, "sampler_silent").AsBool() &&
@@ -805,7 +863,7 @@ void TestWatchSettingsSaveAndReset()
   {
     const auto result = settings.Replace(body);
     Require(!result && result.error().kind_ == WatchErrorKind::InvalidRules,
-            std::format("body {:?} is rejected", body));
+            std::format("body {} is rejected", DumpJson(Json(body))));
   }
   Require(ReadText(path) == saved_text, "rejected bodies save nothing");
 
@@ -849,6 +907,81 @@ void TestWatchSettingsSaveAndReset()
   Require(!failed && failed.error().kind_ == WatchErrorKind::SaveFailed &&
               unwritable.Current()->rules_ == config_rules,
           "a failed save is reported and changes nothing");
+}
+
+// Checks that save and reset flush the directory after changing its entry.
+// Injected flush errors check unchanged rules before rename, applied rules
+// after rename or deletion, interrupted flushes, and a retried reset.
+void TestWatchDirectorySync()
+{
+  TempDirectory directory;
+  const std::vector<WatchRule> config_rules{{"MsgP", 1000}};
+  const std::vector<WatchRule> saved_rules{{"PrdDist", 2000}};
+  const std::string_view body =
+      R"({"rules":[{"prefix":"PrdDist","wake_ms":2000}]})";
+  WatchSettings settings{config_rules, directory.Path()};
+  const auto path = settings.Path();
+
+  g_watch_sync = {};
+  Require(settings.Replace(body).has_value(), "save succeeds");
+  Require(g_watch_sync.file_syncs_ == 1 && g_watch_sync.directory_syncs_ == 1 &&
+              g_watch_sync.saved_file_exists_,
+          "save flushes the file and its directory after rename");
+  const auto saved_text = ReadText(path);
+
+  g_watch_sync = {.fail_file_ = true};
+  const auto failed_write = settings.Replace(R"({"rules":[]})");
+  Require(!failed_write &&
+              failed_write.error().kind_ == WatchErrorKind::SaveFailed &&
+              g_watch_sync.directory_syncs_ == 0 &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text &&
+              !std::filesystem::exists(path.string() + ".tmp"),
+          "a file flush error leaves the old rules and file unchanged");
+
+  g_watch_sync = {.fail_directory_ = true};
+  const auto failed_save_sync = settings.Replace(R"({"rules":[]})");
+  Require(
+      !failed_save_sync &&
+          failed_save_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+          failed_save_sync.error().message_.contains("rules were applied") &&
+          g_watch_sync.directory_syncs_ == 1 &&
+          settings.Current()->rules_.empty() &&
+          settings.Current()->source_ == WatchSource::Dashboard &&
+          WatchSettings{config_rules, directory.Path()}
+              .Current()
+              ->rules_.empty(),
+      "a directory flush error reports uncertainty and keeps memory "
+      "consistent with the replaced file");
+
+  g_watch_sync = {.interrupt_directory_ = true};
+  Require(settings.Replace(body).has_value() &&
+              g_watch_sync.directory_syncs_ == 2 &&
+              settings.Current()->rules_ == saved_rules,
+          "an interrupted directory flush is retried");
+
+  g_watch_sync = {.fail_directory_ = true};
+  const auto failed_reset_sync = settings.Reset();
+  Require(!failed_reset_sync &&
+              failed_reset_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+              g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_ &&
+              !std::filesystem::exists(path) &&
+              settings.Current()->rules_ == config_rules &&
+              settings.Current()->source_ == WatchSource::Config,
+          "reset flushes after deletion and reports an applied reset on error");
+
+  g_watch_sync = {};
+  Require(settings.Reset().has_value() && g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_,
+          "a retried reset flushes the directory even without a saved file");
+
+  Require(settings.Replace(body).has_value(), "restore saved rules");
+  g_watch_sync = {};
+  Require(settings.Reset().has_value() && g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_,
+          "a successful reset flushes the directory after deletion");
+  g_watch_sync = {};
 }
 
 // Parses the stored view a replay query returned.
@@ -1061,8 +1194,9 @@ void TestWatchConfig()
   {
     const auto result = ParseConfig(good + rule);
     Require(!result && result.error().contains(message),
-            std::format("invalid watch rule {:?} gives {:?}, not {:?}", rule,
-                        message, result ? "success" : result.error()));
+            std::format("invalid watch rule {} gives {}, not {}",
+                        DumpJson(Json(rule)), DumpJson(Json(message)),
+                        DumpJson(Json(result ? "success" : result.error()))));
   }
   std::string many;
   for (std::size_t index = 0; index <= kMaxWatchRules; ++index)
@@ -1098,10 +1232,12 @@ void TestWatchLongestPrefix()
   for (const auto& [name, expected] : cases)
   {
     Require(WakeMsFor(rules, name) == expected,
-            std::format("thread {:?} gets the longest prefix's wake_ms", name));
+            std::format("thread {} gets the longest prefix's wake_ms",
+                        DumpJson(Json(name))));
     const std::vector<WatchRule> reversed(rules.rbegin(), rules.rend());
-    Require(WakeMsFor(reversed, name) == expected,
-            std::format("rule order does not matter for {:?}", name));
+    Require(
+        WakeMsFor(reversed, name) == expected,
+        std::format("rule order does not matter for {}", DumpJson(Json(name))));
   }
   Require(!WakeMsFor({}, "worker-1"), "no rules, no wake_ms");
 }
@@ -2138,6 +2274,7 @@ int main()
     TestLastRan();
     TestThreadWakeMs();
     TestWatchSettingsSaveAndReset();
+    TestWatchDirectorySync();
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
     TestResourceResetsLossAndOrder();

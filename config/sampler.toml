@@ -1,6 +1,6 @@
 target_process = "ghostty"
 # target_pid = 1234
-rate_hz = 1.0
+rate_hz = 5.0
 collector = "127.0.0.1:9400"
 status_fallback = false
 # Seconds between resource samples: pressure, descriptors, socket queues and

@@ -641,8 +641,12 @@ class DashboardServer
     {
       const int code =
           p_result.error().kind_ == WatchErrorKind::InvalidRules ? 400 : 500;
-      RespondJson(p_connection, code,
-                  JsonObject{{"error", p_result.error().message_}});
+      Json error{JsonObject{{"error", p_result.error().message_}}};
+      if (p_result.error().kind_ == WatchErrorKind::SyncFailed)
+      {
+        error.Set("applied", true);
+      }
+      RespondJson(p_connection, code, error);
       return;
     }
     RespondJson(p_connection, 200, watches_.Describe());

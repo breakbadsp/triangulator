@@ -3,7 +3,6 @@
 import json
 import os
 from pathlib import Path
-import resource
 import subprocess
 import sys
 import tempfile
@@ -101,15 +100,15 @@ class VictimTests(unittest.TestCase):
         self.assertEqual(victim.wait(timeout=10), 0)
 
     def test_failed_thread_creation_exits_instead_of_hanging(self):
-        # A small address-space limit makes a later probe thread fail to start.
-        # The probes already started must stop, so the victim reports the error.
-        limit = 24 * 1024 * 1024
+        # Fail after two probe threads start. Address-space limits also prevent
+        # sanitizer initialization, so use the test helper's failure injection.
         result = subprocess.run(
-            [str(impact.VICTIM), "5", "1", "-1", "-1", "-1", "-1"],
+            [str(impact.VICTIM), "10", "1", "-1", "-1", "-1", "-1"],
             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=10,
-            preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_AS, (limit, limit)))
+            env={**os.environ, "TRIANGULATOR_TEST_FAIL_THREAD": "1"})
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("benchmark victim:", result.stderr)
+        self.assertIn("injected thread creation failure", result.stderr)
 
     def test_bad_arguments_are_rejected(self):
         result = subprocess.run([str(impact.VICTIM), "4", "1", "-1", "-1", "-1", "-1"],

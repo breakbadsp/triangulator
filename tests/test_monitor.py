@@ -28,6 +28,46 @@ def wait_until_asleep(pid, timeout=5):
 
 
 class SamplerTests(unittest.TestCase):
+    def test_default_and_explicit_rates_reach_the_wire(self):
+        # Check packet metadata and actual tick spacing with a real target.
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "config/sampler.toml").read_text()
+        for setting, interval_ms in (("omitted", 200), ("template", 200), ("explicit", 1000)):
+            with self.subTest(setting=setting), tempfile.TemporaryDirectory() as directory, \
+                    socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
+                receiver.bind(("127.0.0.1", 0))
+                receiver.settimeout(3)
+                target = subprocess.Popen(["sleep", "20"])
+                sampler = None
+                try:
+                    collector = f"127.0.0.1:{receiver.getsockname()[1]}"
+                    contents = f'target_pid={target.pid}\ncollector="{collector}"\n'
+                    if setting == "template":
+                        contents = template.replace('target_process = "ghostty"',
+                                                    f"target_pid = {target.pid}")
+                        contents = contents.replace("127.0.0.1:9400", collector)
+                    elif setting == "explicit":
+                        contents += "rate_hz=1.0\n"
+                    config = Path(directory) / "sampler.toml"
+                    config.write_text(contents)
+                    sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(config)],
+                                               stderr=subprocess.PIPE, text=True)
+                    packets = [decode(receive_tick(receiver)) for _ in range(4)]
+                    for packet in packets:
+                        self.assertEqual(packet.pid, target.pid)
+                        self.assertEqual(packet.interval_ms, interval_ms)
+                    for previous, current in zip(packets, packets[1:]):
+                        self.assertEqual(current.session, previous.session)
+                        self.assertEqual(current.sequence, previous.sequence + 1)
+                        self.assertAlmostEqual((current.monotonic_ns - previous.monotonic_ns) / 1e6,
+                                               interval_ms, delta=interval_ms * 0.25)
+                finally:
+                    if sampler is not None:
+                        sampler.terminate()
+                        sampler.communicate(timeout=3)
+                    target.terminate()
+                    target.wait(timeout=3)
+
     def test_help_does_not_require_a_config_or_send_samples(self):
         binary = Path(__file__).resolve().parents[1] / "build/triangulator-sampler"
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:

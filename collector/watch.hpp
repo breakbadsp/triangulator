@@ -28,12 +28,13 @@ namespace triangulator::collector
 inline constexpr std::string_view kWatchRulesFile = "watch-rules.json";
 
 // Why a change to the watch rules failed: the request was invalid (HTTP
-// 400), or the saved file could not be written or deleted (HTTP 500).
-// Either way the rules in force did not change.
+// 400), or a file operation failed (HTTP 500). SyncFailed means the rules
+// changed, but the directory change could not be confirmed on disk.
 enum class WatchErrorKind
 {
   InvalidRules = 0,
   SaveFailed,
+  SyncFailed,
 };
 
 struct WatchError
@@ -99,12 +100,56 @@ ParseWatchList(std::string_view p_text)
   return JsonObject{{"rules", std::move(rules)}};
 }
 
+[[nodiscard]] inline std::expected<FileDescriptor, WatchError>
+OpenWatchDirectory(const std::filesystem::path& p_path)
+{
+  const auto directory = p_path.has_parent_path() ? p_path.parent_path()
+                                                  : std::filesystem::path{"."};
+  FileDescriptor file{
+      ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC)};
+  if (!file)
+  {
+    const std::error_code error{errno, std::generic_category()};
+    return std::unexpected(
+        WatchError{WatchErrorKind::SaveFailed,
+                   std::format("cannot open {}: {}", directory.string(),
+                               error.message())});
+  }
+  return file;
+}
+
+// A rename or deletion is durable only after its directory is flushed.
+// The file change has already happened if this operation fails.
+[[nodiscard]] inline std::expected<void, WatchError> SyncWatchDirectory(
+    int p_descriptor, const std::filesystem::path& p_path)
+{
+  while (::fsync(p_descriptor) != 0)
+  {
+    const std::error_code error{errno, std::generic_category()};
+    if (error.value() == EINTR)
+    {
+      continue;
+    }
+    return std::unexpected(WatchError{
+        WatchErrorKind::SyncFailed,
+        std::format("rules were applied, but persistence could not be "
+                    "confirmed for {}: {}",
+                    p_path.string(), error.message())});
+  }
+  return {};
+}
+
 // Replaces p_path with p_text so that a reader, or a crash, sees the old
 // file or the new one, never a mix: write a temporary file next to it,
-// flush it to disk, then rename it over the old one.
-[[nodiscard]] inline std::expected<void, std::string> WriteFileAtomically(
+// flush it to disk, rename it over the old one, then flush the directory.
+[[nodiscard]] inline std::expected<void, WatchError> WriteFileAtomically(
     const std::filesystem::path& p_path, std::string_view p_text)
 {
+  auto directory = OpenWatchDirectory(p_path);
+  if (!directory)
+  {
+    return std::unexpected(std::move(directory.error()));
+  }
   auto temporary = p_path;
   temporary += ".tmp";
   const auto failed = [&](std::string_view p_action)
@@ -112,8 +157,10 @@ ParseWatchList(std::string_view p_text)
     const std::error_code error{errno, std::generic_category()};
     std::error_code ignored;
     std::filesystem::remove(temporary, ignored);
-    return std::unexpected(std::format("cannot {} {}: {}", p_action,
-                                       temporary.string(), error.message()));
+    return std::unexpected(
+        WatchError{WatchErrorKind::SaveFailed,
+                   std::format("cannot {} {}: {}", p_action, temporary.string(),
+                               error.message())});
   };
   FileDescriptor file{::open(temporary.c_str(),
                              O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)};
@@ -143,7 +190,7 @@ ParseWatchList(std::string_view p_text)
   {
     return failed("rename");
   }
-  return {};
+  return SyncWatchDirectory(directory->Get(), p_path);
 }
 
 // The watch rules in force: the [[watch]] rules from collector.toml, or the
@@ -195,7 +242,8 @@ class WatchSettings
   }
 
   // Checks the complete list in p_body ({"rules":[...]}), saves it and puts
-  // it in force. On any error nothing is saved or changed.
+  // it in force. Errors before rename leave the file and rules unchanged.
+  // A directory flush failure reports that the new rules were applied.
   [[nodiscard]] std::expected<void, WatchError> Replace(std::string_view p_body)
   {
     auto rules = ParseWatchList(p_body);
@@ -205,21 +253,25 @@ class WatchSettings
           WatchError{WatchErrorKind::InvalidRules, std::move(rules.error())});
     }
     std::lock_guard update{update_mutex_};
-    if (auto saved =
-            WriteFileAtomically(path_, DumpJson(WatchRulesJson(*rules), 2));
-        !saved)
+    auto saved =
+        WriteFileAtomically(path_, DumpJson(WatchRulesJson(*rules), 2));
+    if (!saved && saved.error().kind_ != WatchErrorKind::SyncFailed)
     {
-      return std::unexpected(
-          WatchError{WatchErrorKind::SaveFailed, std::move(saved.error())});
+      return saved;
     }
     Publish(WatchState{std::move(*rules), WatchSource::Dashboard, {}});
-    return {};
+    return saved;
   }
 
   // Deletes the saved file and puts the config rules back in force.
   [[nodiscard]] std::expected<void, WatchError> Reset()
   {
     std::lock_guard update{update_mutex_};
+    auto directory = OpenWatchDirectory(path_);
+    if (!directory)
+    {
+      return std::unexpected(std::move(directory.error()));
+    }
     std::error_code error;
     std::filesystem::remove(path_, error);
     if (error)
@@ -230,7 +282,9 @@ class WatchSettings
                                  error.message())});
     }
     Publish(WatchState{config_rules_, WatchSource::Config, {}});
-    return {};
+    // Flush even if the file was absent: this also confirms a retried reset
+    // whose earlier directory flush failed after removing the file.
+    return SyncWatchDirectory(directory->Get(), path_);
   }
 
  private:

@@ -50,7 +50,7 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
 
 | Default | Value |
 | --- | --- |
-| Sampling | Threads: 1 Hz · Resources: 5 s · Memory: 30 s |
+| Sampling | Threads: 5 Hz · Resources: 5 s · Memory: 30 s |
 | History | Recordings: 1 s · Retention: 7 days · Raw samples: enabled |
 | Runtime files | `~/triangulator/` |
 
@@ -185,8 +185,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 32 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 9 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029 |
-| **Total** | **48** | |
+| NOT_RUN | 10 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030 |
+| **Total** | **49** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

@@ -42,7 +42,7 @@ text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-ser
 <text class="h" x="78" y="370">Sampler</text>
 <text class="s" x="78" y="390">C++ · static binary · zero dependencies</text>
 <text class="m" x="78" y="414">stat  schedstat  io  wchan</text>
-<text class="m" x="78" y="434">1 Hz default · 0.2–10 Hz</text>
+<text class="m" x="78" y="434">5 Hz default · 0.2–10 Hz</text>
 <path id="p0" d="M205 262V338" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" fill="none" marker-end="url(#ah)"/>
 <text class="m" x="216" y="305">read-only /proc</text>
 <path id="pu" d="M350 395H500" fill="none" stroke="#8aa4ff" stroke-opacity="0.8" stroke-width="1.6" marker-end="url(#ah)"/>

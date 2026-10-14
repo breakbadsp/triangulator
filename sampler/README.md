@@ -28,7 +28,7 @@ Run these commands from the repository root as the target process user.
    scripts/set-rate.sh 5
    ```
 
-The default frequency is 1 Hz. The range is 0.2–10 Hz.
+The default frequency is 5 Hz. The range is 0.2–10 Hz.
 
 ## Run separately
 

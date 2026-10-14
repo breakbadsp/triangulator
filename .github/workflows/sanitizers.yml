@@ -1,0 +1,60 @@
+name: Sanitizer tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - Makefile
+      - .github/workflows/sanitizers.yml
+      - common/**
+      - sampler/**
+      - collector/**
+      - metrics/**
+      - socket_sampler/**
+      - examples/**
+      - scripts/**
+      - tests/**
+      - config/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sanitizers-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.sanitizer }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, thread]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-14 libsqlite3-dev nodejs
+      - name: Set the address layout for ThreadSanitizer
+        if: matrix.sanitizer == 'thread'
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - name: Run the full test suite
+        env:
+          CXX: g++-14
+        run: |
+          set -o pipefail
+          make -j2 check SANITIZER=${{ matrix.sanitizer }} 2>&1 | tee sanitizer-check.log
+      - name: Save test logs and sanitizer reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sanitizer-${{ matrix.sanitizer }}
+          path: |
+            sanitizer-check.log
+            build/sanitizer-reports/
+          retention-days: 14

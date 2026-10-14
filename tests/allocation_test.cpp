@@ -3,7 +3,8 @@
 // heap memory. The Makefile links this test statically with
 // --wrap=malloc,--wrap=calloc,--wrap=realloc. Every one of those calls then
 // goes through the wrappers below, including calls from the C++ library
-// (operator new) and from libc functions such as opendir.
+// (operator new) and from libc functions such as opendir. Sanitizer builds
+// use the runtime allocation hook instead of replacing its allocator.
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -19,12 +20,25 @@
 namespace
 {
 
+#ifdef TRIANGULATOR_SANITIZER
+thread_local std::size_t allocation_count = 0;
+#else
 std::size_t allocation_count = 0;
+#endif
 
 }  // namespace
 
 extern "C"
 {
+#ifdef TRIANGULATOR_SANITIZER
+  // The runtime calls this hook during its own initialization. Do not
+  // instrument the hook or allocate memory from it.
+  __attribute__((no_sanitize("address", "thread", "undefined"))) void
+  __sanitizer_malloc_hook(const volatile void*, std::size_t)
+  {
+    ++allocation_count;
+  }
+#else
   void* __real_malloc(std::size_t p_size);
   void* __real_calloc(std::size_t p_count, std::size_t p_size);
   void* __real_realloc(void* p_block, std::size_t p_size);
@@ -46,6 +60,7 @@ extern "C"
     ++allocation_count;
     return __real_realloc(p_block, p_size);
   }
+#endif
 }
 
 namespace
