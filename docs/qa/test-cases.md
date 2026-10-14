@@ -42,6 +42,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-030 | NOT_RUN | - | - | - |
 | QA-031 | NOT_RUN | - | - | - |
 | QA-032 | NOT_RUN | - | - | - |
+| QA-033 | NOT_RUN | - | - | - |
+| QA-034 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -747,3 +749,82 @@ Screenshots: [stopped waking](../screenshots/watch-assessment-stopped-waking.png
 [busy](../screenshots/watch-assessment-busy.png) and
 [thread details](../screenshots/watch-thread-drawer-overdue.png) from a live run
 of the scenarios; this is not a recorded QA run.
+
+## QA-033: Edit, save and reset watched-thread rules in Settings
+
+Feature: Settings tab, Watched threads. Priority: High. Case revision: 1.
+
+Preconditions: Use an isolated runtime directory, unused ports and matching
+packages. Put one `[[watch]]` rule (`prefix = "worker-"`, `wake_ms = 500`) in
+`collector.toml`. Monitor an owned process that names its threads with a common
+prefix (the bug-lab `lock-convoy` workload names eight threads `worker-N`).
+
+1. Open the dashboard and select **Settings** in the section nav.
+2. Check the source line, the table and **Matching threads now**. Check that
+   **Save** is off and **Reset to config file** is off.
+3. Change the interval to 250. Check that **Save** turns on and an unsaved-edits
+   warning appears. Set it back to 500 and check both turn off again.
+4. Add a rule with prefix `misc-` and 1000 ms. Add another with a prefix
+   longer than 15 bytes (for example `this-prefix-is-way-too-long`), then one
+   with 5 ms, one with `1.5`, and one that repeats `worker-`. Also type `ééééééééé`
+   (nine two-byte characters). Check the message beside each field and **Save**.
+5. Type a prefix that no thread starts with, then one that matches threads of
+   a longer rule. Watch **Matching threads now** while you type.
+6. Fix or remove the invalid rows. Select **Save**. Check the message and the
+   source line. Reload the page and open **Settings**. Restart the collector and
+   check the rules again.
+7. Make an edit and do not save it. Reload the page and check the browser warns.
+   Use **Discard edits**.
+8. Select **Reset to config file** and answer Cancel, then OK. With an unsaved
+   edit pending, check what the question says.
+9. With the saved rules in place, stop the collector, write an invalid
+   `data_dir/watch-rules.json`, and start it again. Open **Settings**.
+10. Make a request the collector refuses, for example by stopping the collector's
+    write access to `data_dir` before **Save**, and check the message.
+
+Expected results: Before any save, the source reads "From the config file
+(collector.toml)." and the table shows the `[[watch]]` rules. Each live thread is
+counted under the longest matching prefix, with a few names; the count updates
+as you type and as threads start and stop. Each problem is shown beside its
+field (empty prefix, more than 15 UTF-8 bytes, same prefix as another rule,
+interval not a whole number or outside 10 to 3,600,000, more than 64 rules).
+**Save** stays off while anything is invalid or nothing changed. After a save the
+page says "Saved and applied.", the source reads "Saved from the dashboard. These
+replace the [[watch]] rules in collector.toml until you reset.", and the rules
+survive a reload and a restart even if collector.toml still lists other rules.
+Reset asks first, keeps the rules if you cancel, and then shows the config file
+rules and source again. A saved file the collector could not read shows a visible
+warning and the config file rules. A refused save shows the collector's message
+unchanged and keeps the edits. The Assessment is not changed by this case.
+
+## QA-034: Settings tab read-only states and help coverage
+
+Feature: Settings tab. Priority: Medium. Case revision: 1.
+
+Preconditions: Use an isolated runtime directory, unused ports and a recorded
+process view (leave `replay_interval_s` at its default).
+
+1. Open **Settings**. Pause on the section title, the **Watched threads** title,
+   the source line, each column heading, a prefix field, an interval field, a
+   **Matching threads now** cell, **Remove**, **Add rule**, **Save**,
+   **Discard edits**, **Reset to config file** and the status line for 1.2
+   seconds. Select the information button for each heading.
+2. Check the section nav: the Settings tab exists, is highlighted when the page is
+   scrolled to the bottom, and its help says so.
+3. Make an unsaved edit, then use **Inspect a moment** to open a recording.
+   Return to **Live**.
+4. Open the Alert settings control (when an alerting program is present) and
+   check that it is unchanged.
+5. Serve the dashboard from a collector build that has no `/api/watches`, or
+   block that URL in the browser, and open **Settings**.
+6. Stop the collector and watch **Settings** with the editor already open.
+
+Expected results: Every heading, column, label, button and message shows a help
+card after 1.2 seconds and has a guide with meaning, example, how to read it and
+limits, with no empty or unrelated topic. While a recorded moment is inspected,
+the card shows a note that Settings cannot be edited, with no editor, and your
+unsaved edit is back after you return to Live. Without `/api/watches`, the card
+shows a note that names the endpoint and says to edit `collector.toml` instead,
+not a broken editor. **Matching threads now** counts no threads in a recording.
+The existing Alert settings behave as before. With the collector stopped, **Save**
+shows "Could not reach the collector" and keeps your edits.
