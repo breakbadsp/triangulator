@@ -2228,6 +2228,7 @@ test('matching threads now counts live threads with the longest prefix, as the c
 test('saving sends the whole list with the guard header and shows the reply or the collector error', async () => {
   const saved = watchReply([{prefix: 'db-', wake_ms: 250}], {source: 'dashboard'});
   const app = await watchApp(watchReply([{prefix: 'worker-', wake_ms: 500}]), () => httpReply(saved));
+  app.run('var refreshed=0; refreshWatchRules=async()=>{refreshed++}');
   app.type(0, 'prefix', 'db-'); app.type(0, 'wake', '250');
   await app.run('saveWatches()');
   assert.equal(app.writes.length, 1);
@@ -2236,6 +2237,7 @@ test('saving sends the whole list with the guard header and shows the reply or t
   assert.equal(app.writes[0].options.headers['Content-Type'], 'application/json');
   assert.deepEqual(JSON.parse(app.writes[0].options.body), {rules: [{prefix: 'db-', wake_ms: 250}]});
   assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  assert.equal(app.run('refreshed'), 1, 'the Assessment re-reads the rules after a save');
   assert.match(app.el('watch-source').textContent, /^Saved from the dashboard\. These replace the \[\[watch\]\] rules in collector\.toml until you reset\.$/);
   assert.equal(app.el('watch-save').disabled, true);
   assert.equal(app.el('watch-reset').disabled, false);

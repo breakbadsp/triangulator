@@ -2584,6 +2584,8 @@ async function loadWatches(){
     if(!watchInfo){watchLoadError=error.message;renderWatchMode();watchRetry=setTimeout(loadWatches,5000)}
   }
 }
+// After a change the Assessment's own copy of the rules is refreshed at once (refreshWatchRules),
+// instead of waiting for its next periodic read.
 // Save and reset share this: POST, show the collector's own error text, and take the reply as the new truth.
 async function changeWatches(url,body,done){
   watchBusy=true;watchStatus('Saving…');updateWatch();
@@ -2595,10 +2597,11 @@ async function changeWatches(url,body,done){
     let data={};try{data=await response.json()}catch{}
     if(!response.ok){applied=data.applied===true;throw Error(data.error||(response.status===403?'The collector refused the change (HTTP 403).':'The change failed (HTTP '+response.status+').'))}
     watchBusy=false;applyWatches(data);watchStatus(done,'good');
+    refreshWatchRules();
   }catch(error){
     watchBusy=false;
     // The collector applied the change but could not confirm it on disk: show what is now in force.
-    if(applied){const reread=await fetch('/api/watches').then(r=>r.json()).catch(()=>null);if(reread?.rules)applyWatches(reread)}
+    if(applied){const reread=await fetch('/api/watches').then(r=>r.json()).catch(()=>null);if(reread?.rules)applyWatches(reread);refreshWatchRules()}
     watchStatus(applied?'Warning: '+error.message:error.message,applied?'warning':'bad');
     updateWatch();
   }
