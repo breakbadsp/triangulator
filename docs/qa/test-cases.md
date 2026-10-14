@@ -665,7 +665,7 @@ Feature: Summary process load. Priority: Medium. Case revision: 1.
 
 Expected results: Under the load chart, RSS and VmSize charts share its time
 window. The current values match the Resources and Memory map tiles. RSS steps
-about every 5 s and VmSize about every 30 s. The axes use binary units. Tooltips
+about every 2 s and VmSize about every 30 s. The axes use binary units. Tooltips
 and help open the RSS and VmSize topics, and the help data tables list the
 memory values. The memory charts are hidden in a recorded view, like the load
 chart, and return in Live. With memory-map sampling off, the VmSize chart shows

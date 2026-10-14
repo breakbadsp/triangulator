@@ -94,6 +94,14 @@ they also count time the sampler waited for the lock or was descheduled.
 
 `status`, `stat` and `limits` take no memory-map lock.
 
+The 30-second default keeps the sampler in this lock for 0.01% to 0.06% of the time for
+targets with 5,000 to 30,000 mappings. On the measured kernel (Linux 7.2.5) a reader at
+100% duty raised the target's `mmap` stalls of 1 ms or more by about 3 to 6 a second,
+and 1 s sampling would be 2% duty on the largest target. Older kernels were not
+measured, and they also hold back page faults. Layout and `VmSize` change slowly, so
+shorter intervals buy little; see
+[target-impact.md](target-impact.md#resource-and-memory-map-intervals).
+
 ## Wire format
 
 `TVMA` datagrams ([common/memory_wire.hpp](../common/memory_wire.hpp)). The

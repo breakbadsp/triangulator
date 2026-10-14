@@ -98,7 +98,12 @@ reads PSI, cgroup limits, descriptors and a sock_diag dump of the network namesp
 (a resource sample). Every `memory_interval_s` it reads `/proc/PID/maps` and four
 small files (a memory-map sample). Both ride on a thread tick, after the thread sample.
 This section measures what one of each costs and what a shorter interval would add.
-Repeat it with `make benchmark-slow-samples` and the commands under "Method".
+Repeat it with `make benchmark-slow-samples` and the commands at the end of the section.
+
+**Result:** resource samples are cheap enough to run every 2 s (the default): 0.23% of
+a core for a target with 500 descriptors, more with many descriptors and sockets. Memory-map samples stay at
+30 s: they cost little CPU, but they take the target's address-space lock, the
+measurement does not cover older kernels, and the data they carry changes slowly.
 
 ### Cost of one sample
 

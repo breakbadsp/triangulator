@@ -2,7 +2,7 @@
 
 Status: implemented, including process memory, cgroup limits and interface
 drops. The ordinary `/proc` sampler sends a **resource sample**
-every `resource_interval_s` seconds (default 5). The collector stores it and
+every `resource_interval_s` seconds (default 2). The collector stores it and
 serves it live, and the dashboard's **Pressure, limits & sockets** section and
 assessment read it. No privileges, eBPF or application changes are needed.
 
@@ -244,12 +244,15 @@ covered by `tests/dashboard_test.js`.
   sockets are not matched and the sample says so. A sock_diag dump stops after
   one million sockets. Dumps skip TIME-WAIT and half-open entries, which no
   descriptor owns. Each dump times out after one second.
-- **Cost.** A sample reads about 20 small files plus one netlink dump per
-  protocol of the whole namespace. On a desktop with about 1,200 sockets in the
-  namespace, a sample took about 3 ms; at the default 5-second interval this is
-  well under 0.1% of a core. The cost grows with the namespace's socket count
-  (TIME-WAIT excluded); lengthen `resource_interval_s` on hosts with very many
-  sockets.
+- **Cost.** A sample reads about 20 small files, every descriptor link of the
+  target, and one netlink dump per protocol of the whole namespace. Measured
+  with 500 threads, in [target-impact.md](target-impact.md#resource-and-memory-map-intervals):
+  4.5 ms for a target with 500 descriptors (0.23% of a core at the default 2-second
+  interval), 7.7 ms with 1,800, and 36 ms with 10,000 descriptors and 10,000
+  sockets in the namespace (1.8% of a core). The cost grows with the descriptor and
+  socket counts (TIME-WAIT excluded). On a host with very many sockets, set
+  `resource_interval_s` to 5 or more. At 1 s the 500-descriptor sample costs 0.45% of
+  a core, so 1 is allowed but not the default.
 
 ## Transport, storage and API
 
@@ -269,7 +272,9 @@ covered by `tests/dashboard_test.js`.
   (`kResourceColumns` in `collector/storage.hpp`), plus the busy sockets as
   compact JSON (about 200 bytes per busy socket, at most eight). Older day
   files gain the table when opened. A sample takes under half a kilobyte when no
-  socket is busy, so the default 5-second interval adds under 10 MB a day.
+  socket is busy. Day files on a development machine held 270 to 420 bytes per
+  row, including the time index, so the default 2-second interval adds about
+  12 to 18 MB a day (5 seconds: 5 to 7 MB), under 130 MB for the default seven days.
 - **Live.** `GET /api/live` has a `resources` object: the latest sample with
   rates, the fullest sockets, namespace counters and limits.
 - **History.** `GET /api/resources?start=UNIX_SECONDS&end=UNIX_SECONDS`
