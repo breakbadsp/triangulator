@@ -132,6 +132,54 @@ The command-line control scripts and local dashboard target control need Python.
 An absent target name is accepted and waits for the process to start.
 See [configuration](setup.md#configuration) for separate hosts and custom paths.
 
+## Run tests with sanitizers
+
+Install the address and thread sanitizer runtimes for the selected compiler.
+Run both sanitizer modes:
+
+```sh
+make -j2 check-sanitizers
+```
+
+The command runs AddressSanitizer with UndefinedBehaviorSanitizer, then
+ThreadSanitizer. Each mode runs all six C++ tests, the Python tests, and the
+dashboard JavaScript tests. The Python and JavaScript interpreters retain their
+normal runtimes. C++ programs that their tests start use sanitizer instrumentation.
+Both allocation tests keep their assertions and use sanitizer allocation hooks.
+The thread mode uses `-O0` to avoid GCC 14 diagnostics in `std::variant` moves.
+Compiler warnings and `-Werror` remain enabled.
+Benchmark fixtures reserve thread slots for sanitizer runtime threads. Their
+measurements include sanitizer overhead and must not replace performance baselines.
+
+To run one mode, use `make check-asan` or `make check-tsan`.
+You can also use `make check SANITIZER=address` or `make check SANITIZER=thread`.
+The build changes to dynamic libc and C++ runtime linkage for these modes.
+`STATIC=1` is rejected. Build options cause a rebuild when the mode changes.
+Run `make check` to return to the normal build.
+The combined command runs the modes in sequence, including with `make -j`.
+Do not run separate build commands concurrently in the same checkout.
+
+Sanitizer errors stop the affected process. Leak detection is enabled for the
+address mode. Reports from all child processes are stored in
+`build/sanitizer-reports/MODE/run-*/`. Any nonempty report fails the check,
+including when a test discards child stderr or accepts a nonzero exit status.
+Caller runtime options are retained, followed by required failure and report options.
+
+The optional eBPF kernel test needs its usual privileges. To instrument its
+user-space programs, run `make check-socket-kernel SANITIZER=address` or
+`make check-socket-kernel SANITIZER=thread`. The kernel BPF object cannot use
+these user-space sanitizer runtimes.
+
+ThreadSanitizer needs a compatible virtual address layout. A startup error such
+as `unexpected memory mapping` is a runtime failure, not a successful check.
+The sanitizer CI job uses a dedicated runner and sets `vm.mmap_rnd_bits=28`
+for the thread mode. Local checks do not change host settings.
+Sanitizers test only executed paths. A successful run does not prove that all
+memory errors or data races are absent. See the
+[AddressSanitizer documentation](https://clang.llvm.org/docs/AddressSanitizer.html)
+and [ThreadSanitizer documentation](https://clang.llvm.org/docs/ThreadSanitizer.html)
+for detection and runtime limits.
+
 ## Build a fully static release
 
 The normal sampler is fully static.

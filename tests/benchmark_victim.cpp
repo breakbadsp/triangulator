@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <format>
 #include <iostream>
@@ -20,8 +21,11 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <vector>
+
+#include "runtime_threads.hpp"
 
 // A target process that measures how much the sampler disturbs it. Besides
 // sleeping threads it runs four probe threads, each pinned to its own core:
@@ -255,8 +259,17 @@ int main(int p_argc, char** p_argv)
   }
   try
   {
-    const auto sleeper_count = arguments.threads_ - 1 - kProbeThreads;
-    std::latch ready{arguments.threads_ - 1};
+    const int runtime_threads = triangulator::RuntimeThreadCount(true);
+    const int worker_threads = arguments.threads_ - runtime_threads;
+    const auto sleeper_count = worker_threads - 1 - kProbeThreads;
+    if (sleeper_count < 0)
+    {
+      std::fputs(
+          "benchmark victim: thread count cannot fit the sanitizer runtime\n",
+          stderr);
+      return 1;
+    }
+    std::latch ready{worker_threads - 1};
     std::vector<std::jthread> sleepers;
     sleepers.reserve(static_cast<std::size_t>(sleeper_count));
     for (int index = 0; index < sleeper_count; ++index)
@@ -285,6 +298,14 @@ int main(int p_argc, char** p_argv)
     probes.reserve(kProbeThreads);
     for (std::size_t index = 0; index < kProbeThreads; ++index)
     {
+      // A small RLIMIT_AS prevents sanitizer initialization. Inject the
+      // thread constructor error after two probes to test their cleanup.
+      if (index == 2 && std::getenv("TRIANGULATOR_TEST_FAIL_THREAD") != nullptr)
+      {
+        throw std::system_error(
+            std::make_error_code(std::errc::resource_unavailable_try_again),
+            "injected thread creation failure");
+      }
       probes.emplace_back(
           [&, index](std::stop_token p_stop)
           {

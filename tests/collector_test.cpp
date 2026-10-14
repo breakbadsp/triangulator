@@ -144,7 +144,7 @@ void TestDecodeRoundTrip()
 {
   auto record = MakeRecord();
   record.comm_ = "name ) ( space";
-  record.wchan_ = "";
+  record.wchan_.Clear();
   record.flags_ = kIoUnavailable;
   record.read_bytes_ = std::numeric_limits<std::uint64_t>::max();
   auto packet = MakePacket(123, {record});
@@ -432,7 +432,7 @@ void TestHealthAbsenceAccessAndSilence()
       Field(fixture.monitor_.Health(1'700'000'011), "sampler_silent").AsBool(),
       "no datagram for ten seconds means the sampler is silent");
   auto hidden = MakeRecord();
-  hidden.wchan_ = "";
+  hidden.wchan_.Clear();
   fixture.Feed(12, hidden);
   health = fixture.monitor_.Health(1'700'000'012);
   Require(!Field(health, "sampler_silent").AsBool() &&

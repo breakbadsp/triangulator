@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+#include "runtime_threads.hpp"
+
 // One thread burns CPU. The other threads remain asleep. The benchmark
 // stops this process with SIGTERM after it has measured the sampler.
 int main(int p_argc, char** p_argv)
@@ -36,10 +38,20 @@ int main(int p_argc, char** p_argv)
   }
   try
   {
-    std::latch ready{thread_count};
+    const int runtime_threads =
+        triangulator::RuntimeThreadCount(thread_count > 1);
+    const int worker_threads = thread_count - runtime_threads;
+    if (worker_threads < 1)
+    {
+      std::fputs(
+          "benchmark target: thread count cannot fit the sanitizer runtime\n",
+          stderr);
+      return 1;
+    }
+    std::latch ready{worker_threads};
     std::vector<std::jthread> sleepers;
-    sleepers.reserve(static_cast<std::size_t>(thread_count - 1));
-    for (int index = 1; index < thread_count; ++index)
+    sleepers.reserve(static_cast<std::size_t>(worker_threads - 1));
+    for (int index = 1; index < worker_threads; ++index)
     {
       sleepers.emplace_back(
           [ready_latch = &ready](std::stop_token p_stop)

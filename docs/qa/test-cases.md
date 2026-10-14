@@ -39,6 +39,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-026 | NOT_RUN | - | - | - |
 | QA-028 | NOT_RUN | - | - | - |
 | QA-029 | NOT_RUN | - | - | - |
+| QA-030 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -646,3 +647,20 @@ and help open the RSS and VmSize topics, and the help data tables list the
 memory values. The memory charts are hidden in a recorded view, like the load
 chart, and return in Live. With memory-map sampling off, the VmSize chart shows
 the collector's reason instead of empty axes.
+
+## QA-030: Complete sanitizer test runs
+
+Feature: Build and test commands. Priority: High. Case revision: 1.
+
+1. Install a supported compiler, its sanitizer runtimes, SQLite development
+   files, Python, and Node.js on Linux.
+2. Run `make -j2 check-sanitizers` from a clean checkout.
+3. Check the address and thread test logs and report directories.
+4. Run `make check`, then `make check SANITIZER=thread STATIC=1`.
+
+Expected results: The sanitizer command runs the address and undefined behavior
+mode, then the thread mode. Both modes run all six C++ tests and the Python and
+dashboard tests. The optional privileged eBPF test retains its existing opt-in
+requirement. The allocation tests report zero allocations. Any sanitizer report
+fails the command. `make check` rebuilds with normal linkage and passes. The
+static sanitizer combination fails with a clear error before compilation.
