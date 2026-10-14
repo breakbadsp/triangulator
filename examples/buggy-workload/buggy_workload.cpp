@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <barrier>
 #include <charconv>
 #include <chrono>
 #include <condition_variable>
@@ -33,6 +32,7 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <latch>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -289,7 +289,7 @@ void StartDeadlock()
   SpawnHeartbeat();
   static std::mutex first;
   static std::mutex second;
-  static std::barrier rendezvous(2);
+  static std::latch rendezvous(2);
   Spawn("worker-a",
         []()
         {

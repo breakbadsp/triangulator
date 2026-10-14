@@ -19,10 +19,46 @@ RUNTIME_LDFLAGS ?= -static-libstdc++ -static-libgcc
 ifeq ($(STATIC),1)
 RUNTIME_LDFLAGS := -static
 endif
+# Sanitizers require dynamic libc and C++ runtimes. AddressSanitizer and
+# ThreadSanitizer must run in separate builds.
+SANITIZER ?=
+ifneq ($(SANITIZER),)
+ifeq ($(filter $(SANITIZER),address thread),)
+$(error SANITIZER must be address or thread)
+endif
+ifneq ($(words $(SANITIZER)),1)
+$(error SANITIZER must be address or thread)
+endif
+ifeq ($(STATIC),1)
+$(error STATIC=1 is incompatible with SANITIZER)
+endif
+override SAMPLER_LDFLAGS :=
+override RUNTIME_LDFLAGS :=
+ifeq ($(SANITIZER),address)
+SANITIZERS := address,undefined
+else
+SANITIZERS := thread
+endif
+SANITIZER_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=$(SANITIZERS) -fno-sanitize-recover=all
+override CXXFLAGS += $(SANITIZER_FLAGS)
+override LDFLAGS += -fsanitize=$(SANITIZERS)
+override CPPFLAGS += -DTRIANGULATOR_SANITIZER
+ifeq ($(SANITIZER),thread)
+override CXXFLAGS += -fPIE
+override LDFLAGS += -pie
+endif
+export SANITIZER
+endif
 # Optional local SQLite amalgamation: no download or vendored source required.
 # It is compiled as C with $(CXX) -x c, so no separate C compiler setting exists.
 SQLITE_SOURCE ?=
 SQLITE_CFLAGS ?= -O2
+ifneq ($(SANITIZER),)
+override SQLITE_CFLAGS += $(SANITIZER_FLAGS)
+ifeq ($(SANITIZER),thread)
+override SQLITE_CFLAGS += -fPIE
+endif
+endif
 CLANG_FORMAT ?= clang-format
 SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COMMON_HEADERS := $(wildcard common/*.hpp)
@@ -36,13 +72,13 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 SOCKET_HEADERS := $(wildcard socket_sampler/*.hpp)
 METRICS_HEADERS := $(wildcard metrics/*.hpp)
-CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
+CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp tests/runtime_threads.hpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/socket_metrics_test.cpp tests/socket_target.cpp \
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
 	$(METRICS_HEADERS) metrics/main.cpp
 
-.PHONY: all check clean format format-check release sqlite-amalgamation FORCE
+.PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release sqlite-amalgamation FORCE
 all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report
 
 # Rebuild when link mode, compiler or flags change, including after release.
@@ -116,39 +152,46 @@ build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) 
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
-# Static, so --wrap also counts allocations made inside libc and libstdc++.
+# Normal builds use static linkage to count libc and libstdc++ allocations.
+# Sanitizer builds use the runtime allocation hook.
 build/allocation-test: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) \
-		-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc $(LDLIBS) -o $@
+		$(if $(SANITIZER),,-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc) $(LDLIBS) -o $@
 
 build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
-# Dynamic libc, so the test's own malloc replaces libc's for every library
-# (see the test). Not static, unlike build/allocation-test.
+# Normal builds replace malloc for every library through dynamic libc.
+# Sanitizer builds retain the runtime allocator and use its allocation hook.
 build/collector-allocation-test: tests/collector_allocation_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) -static-libstdc++ -static-libgcc $(LDLIBS) $(COLLECTOR_LIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(if $(SANITIZER),,-static-libstdc++ -static-libgcc) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
 build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-check: all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
-	./build/wire-test
-	./build/sampler-test
-	./build/allocation-test
-	./build/collector-allocation-test
-	./build/collector-test
-	./build/socket-metrics-test
-	python3 -m unittest discover -s tests -v
+CPP_TESTS := build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
+check: all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
+	python3 tests/run_checks.py $(CPP_TESTS)
 
-build/benchmark-target: tests/benchmark_target.cpp build/compiler_ok Makefile
+check-asan:
+	$(MAKE) check SANITIZER=address
+
+check-tsan:
+	$(MAKE) check SANITIZER=thread
+
+# Run sequentially, including with make -j: both modes use build/.
+check-sanitizers:
+	$(MAKE) check-asan
+	$(MAKE) check-tsan
+
+build/benchmark-target: tests/benchmark_target.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
-build/benchmark-victim: tests/benchmark_victim.cpp build/compiler_ok Makefile
+build/benchmark-victim: tests/benchmark_victim.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
 # How much the sampler disturbs a target: stalls, wake-up lateness, lock waits.
@@ -187,7 +230,7 @@ build/socket.bpf.o: socket_sampler/socket.bpf.cpp socket_sampler/shared.hpp Make
 	mkdir -p build
 	$(BPF_CXX) -target bpf -std=c++20 -O2 -g -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -c $< -o $@
 
-build/triangulator-socket-sampler: socket_sampler/main.cpp $(SOCKET_HEADERS) $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) Makefile
+build/triangulator-socket-sampler: socket_sampler/main.cpp $(SOCKET_HEADERS) $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -lbpf -o $@
 
@@ -195,13 +238,13 @@ build/socket-metrics-test: tests/socket_metrics_test.cpp $(SOCKET_HEADERS) $(MET
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-build/socket-target: tests/socket_target.cpp $(COMMON_HEADERS) Makefile
+build/socket-target: tests/socket_target.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -rdynamic -o $@
 
 .PHONY: check-socket-kernel
 check-socket-kernel: all socket-sampler build/socket-target
-	TRIANGULATOR_BPF_TESTS=1 python3 -m unittest discover -s tests -p test_socket_kernel.py -v
+	TRIANGULATOR_BPF_TESTS=1 python3 tests/run_checks.py --pattern test_socket_kernel.py
 
 build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
 	mkdir -p build

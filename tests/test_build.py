@@ -40,6 +40,46 @@ class BuildOptionsTests(unittest.TestCase):
                 if libraries:
                     self.assertIn(libraries, options)
 
+    def test_sanitizer_modes_replace_static_linkage_and_preserve_warnings(self):
+        for mode, flags in (("address", "address,undefined"), ("thread", "thread")):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                self.prepare(directory)
+                result = self.run_make(directory, f"SANITIZER={mode}", "LDLIBS=-lm",
+                                       "SAMPLER_LDFLAGS=-static", "RUNTIME_LDFLAGS=-static")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                options = (Path(directory) / "build/build_options").read_text().split()
+                self.assertIn(f"-fsanitize={flags}", options)
+                self.assertIn("-fno-sanitize-recover=all", options)
+                self.assertIn("-Werror", options)
+                self.assertIn("-pthread", options)
+                self.assertIn("-lm", options)
+                self.assertNotIn("-static", options)
+                self.assertNotIn("-static-libstdc++", options)
+                self.assertNotIn("-static-libgcc", options)
+                if mode == "thread":
+                    self.assertIn("-fPIE", options)
+                    self.assertIn("-pie", options)
+
+    def test_invalid_sanitizer_and_static_sanitizer_fail_early(self):
+        for arguments in (("SANITIZER=address,thread",), ("SANITIZER=address thread",),
+                          ("SANITIZER=memory",), ("SANITIZER=thread", "STATIC=1")):
+            with self.subTest(arguments=arguments), tempfile.TemporaryDirectory() as directory:
+                self.prepare(directory)
+                result = self.run_make(directory, *arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("SANITIZER", result.stderr)
+
+    def test_sanitizer_mode_changes_update_build_options(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.prepare(directory)
+            saved = []
+            for mode in ("", "address", "thread", ""):
+                result = self.run_make(directory, f"SANITIZER={mode}")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                saved.append((Path(directory) / "build/build_options").read_text())
+            self.assertEqual(saved[0], saved[3])
+            self.assertEqual(len(set(saved)), 3)
+
     def test_build_options_do_not_require_cmp(self):
         with tempfile.TemporaryDirectory() as directory:
             tools = self.prepare(directory)
