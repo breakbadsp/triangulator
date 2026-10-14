@@ -14,6 +14,7 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -825,6 +826,94 @@ void TestReplayConfig()
   Require(ParseConfig("max_live_samples=10000000").has_value() &&
               !ParseConfig("max_live_samples=10000001"),
           "max_live_samples has an upper limit");
+}
+
+// Checks [[watch]] parsing: valid rules keep their order, and each invalid
+// rule fails with a message that names the rule and says what is allowed.
+// Each case is a config with one bad [[watch]] table after a good one.
+void TestWatchConfig()
+{
+  const auto parsed = ParseConfig(
+      "[[watch]]\nprefix = \"worker-\"\nwake_ms = 500\n"
+      "[[watch]]\nprefix = \"worker-io\"\nwake_ms = 3600000\n"
+      "[[watch]]\nprefix = \"x\"\nwake_ms = 10\n");
+  Require(parsed.has_value(), "valid watch rules parse");
+  Require(parsed->watches_ == std::vector<WatchRule>{{"worker-", 500},
+                                                     {"worker-io", 3'600'000},
+                                                     {"x", 10}},
+          "watch rules keep their prefixes, wake_ms and order");
+  Require(ParseConfig("")->watches_.empty(), "watch rules are optional");
+
+  const std::string good = "[[watch]]\nprefix = \"worker-\"\nwake_ms = 500\n";
+  const std::vector<std::pair<std::string, std::string_view>> cases{
+      {"[[watch]]\nprefix = \"a\"\nwake = 500\n",
+       "watch rule 2: unknown key \"wake\"; the allowed keys are prefix and "
+       "wake_ms"},
+      {"[[watch]]\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"\"\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"0123456789abcdef\"\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = 5\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"a\"\n",
+       "watch rule 2 (prefix \"a\"): wake_ms must be a whole number of "
+       "milliseconds from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 9\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 3600001\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 500.5\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = \"500\"\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"worker-\"\nwake_ms = 50\n",
+       "watch rule 2 (prefix \"worker-\"): rule 1 has the same prefix; each "
+       "prefix may appear only once"}};
+  for (const auto& [rule, message] : cases)
+  {
+    const auto result = ParseConfig(good + rule);
+    Require(!result && result.error().contains(message),
+            std::format("invalid watch rule {:?} gives {:?}, not {:?}", rule,
+                        message, result ? "success" : result.error()));
+  }
+  std::string many;
+  for (std::size_t index = 0; index <= kMaxWatchRules; ++index)
+  {
+    many += std::format("[[watch]]\nprefix = \"w{}\"\nwake_ms = 500\n", index);
+  }
+  const auto too_many = ParseConfig(many);
+  Require(!too_many && too_many.error() ==
+                           "too many watch rules (65); at most 64 are allowed",
+          "at most 64 watch rules");
+  const auto not_tables = ParseConfig("watch = 5\n");
+  Require(!not_tables && not_tables.error().contains("[[watch]]"),
+          "watch must be an array of tables");
+  JsonArray with_nul{
+      JsonObject{{"prefix", std::string{"a\0b", 3}}, {"wake_ms", 500}}};
+  Require(!ParseWatchRules(with_nul), "a prefix with a NUL byte is rejected");
+  JsonArray not_object{Json(5)};
+  Require(ParseWatchRules(not_object).error() ==
+              "watch rule 1 must have the keys prefix and wake_ms",
+          "a rule that is not a table or object is rejected");
+}
+
+// Checks that the longest matching prefix wins, whatever the rule order, and
+// that a name no rule matches has no wake_ms.
+void TestWatchLongestPrefix()
+{
+  const std::vector<WatchRule> rules{
+      {"w", 9000}, {"worker-", 500}, {"worker-io", 50}};
+  const std::vector<std::pair<std::string_view, std::optional<std::int64_t>>>
+      cases{{"worker-io-3", 50}, {"worker-io", 50}, {"worker-1", 500},
+            {"worker-", 500},    {"wx", 9000},      {"other", std::nullopt},
+            {"", std::nullopt},  {"worker", 9000}};
+  for (const auto& [name, expected] : cases)
+  {
+    Require(WakeMsFor(rules, name) == expected,
+            std::format("thread {:?} gets the longest prefix's wake_ms", name));
+    const std::vector<WatchRule> reversed(rules.rbegin(), rules.rend());
+    Require(WakeMsFor(reversed, name) == expected,
+            std::format("rule order does not matter for {:?}", name));
+  }
+  Require(!WakeMsFor({}, "worker-1"), "no rules, no wake_ms");
 }
 
 // Storage failures come back as values, not exceptions: a data directory
@@ -1867,6 +1956,8 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestReplayConfig();
+    TestWatchConfig();
+    TestWatchLongestPrefix();
     TestMemoryMapLayout();
     TestMemoryMapLayoutOrder();
     TestMemoryMapSessions();
@@ -1876,7 +1967,7 @@ int main()
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "
-        "exit reports, process info)");
+        "exit reports, process info, watch rules)");
   }
   catch (const std::exception& error)
   {
