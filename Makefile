@@ -214,6 +214,12 @@ build/benchmark-sampling: tests/benchmark_sampling.cpp $(SAMPLER_HEADERS) $(COMM
 benchmark-sampling: build/benchmark-sampling build/benchmark-target
 	python3 tests/benchmark_sampling.py
 
+# Cost of one resource sample and one memory-map sample, from the production
+# probes, for three target shapes.
+.PHONY: benchmark-slow-samples
+benchmark-slow-samples: build/benchmark-sampling build/benchmark-victim
+	python3 tests/benchmark_slow_samples.py
+
 format:
 	$(CLANG_FORMAT) -i $(CPP_SOURCES)
 

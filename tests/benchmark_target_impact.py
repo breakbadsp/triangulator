@@ -27,25 +27,63 @@ import statistics
 import subprocess
 import sys
 import tempfile
+from typing import NamedTuple
 import time
 
 from benchmark_sampler import (KMSG_NOTICE, MEMORY_INTERVAL_S, ROOT, SO_TIMESTAMPNS_NEW,
-                               SampleStream, child, collect, percentile, wait_sample)
+                               SampleStream, child, collect, cpu_snapshot, percentile, wait_sample)
 
 VICTIM = ROOT / "build/benchmark-victim"
+# Reads the whole maps file again and again, 4 KiB per read() like the sampler.
+MAPS_LOOP = """
+import os, sys
+path = f"/proc/{sys.argv[1]}/maps"
+while True:
+    fd = os.open(path, os.O_RDONLY)
+    while os.read(fd, 4096):
+        pass
+    os.close(fd)
+"""
 ALLOWED_CPUS = frozenset(os.sched_getaffinity(0))
 ROLES = ("spin", "wake", "lock", "mmap", "sampler", "driver")
-# name: (rate_hz or None for no sampler, core the sampler uses, memory_interval_s, nice)
+RESOURCE_INTERVAL_S = 5
+
+
+class Scenario(NamedTuple):
+    rate: float | None  # thread rate in Hz; None for no sampler
+    core: str | None  # role whose core the sampler uses
+    memory_interval_s: int = MEMORY_INTERVAL_S
+    nice: int = 0
+    resource_interval_s: int = RESOURCE_INTERVAL_S
+    maps_loop: bool = False  # no sampler; a loop reads /proc/PID/maps without pause
+
+
 SCENARIOS = {
-    "off": (None, None, MEMORY_INTERVAL_S, 0),
-    "apart-1hz": (1, "sampler", MEMORY_INTERVAL_S, 0),
-    "apart-10hz": (10, "sampler", MEMORY_INTERVAL_S, 0),
-    "apart-10hz-maps-1s": (10, "sampler", 1, 0),
-    "shared-spin-1hz": (1, "spin", MEMORY_INTERVAL_S, 0),
-    "shared-spin-10hz": (10, "spin", MEMORY_INTERVAL_S, 0),
-    "shared-spin-10hz-nice19": (10, "spin", MEMORY_INTERVAL_S, 19),
-    "shared-wake-10hz": (10, "wake", MEMORY_INTERVAL_S, 0),
-    "shared-wake-10hz-nice19": (10, "wake", MEMORY_INTERVAL_S, 19),
+    "off": Scenario(None, None),
+    # Upper bound for the memory-map lock: a reader that does nothing but read
+    # maps in the sampler's 4 KiB reads, so the lock is taken at the highest
+    # rate one core can manage. A sampler reading every N seconds holds the lock
+    # a small fraction of that.
+    "maps-loop": Scenario(None, "sampler", maps_loop=True),
+    "apart-1hz": Scenario(1, "sampler"),
+    "apart-10hz": Scenario(10, "sampler"),
+    "apart-10hz-maps-1s": Scenario(10, "sampler", memory_interval_s=1),
+    "shared-spin-1hz": Scenario(1, "spin"),
+    "shared-spin-10hz": Scenario(10, "spin"),
+    "shared-spin-10hz-nice19": Scenario(10, "spin", nice=19),
+    "shared-wake-10hz": Scenario(10, "wake"),
+    "shared-wake-10hz-nice19": Scenario(10, "wake", nice=19),
+    # Resource and memory-map intervals, at the 5 Hz thread rate. The
+    # defaults are apart-5hz; 1 s of maps is a stress test, not a candidate.
+    "apart-5hz": Scenario(5, "sampler"),
+    "apart-5hz-res-2s": Scenario(5, "sampler", resource_interval_s=2),
+    "apart-5hz-res-1s": Scenario(5, "sampler", resource_interval_s=1),
+    "apart-5hz-maps-10s": Scenario(5, "sampler", memory_interval_s=10),
+    "apart-5hz-maps-5s": Scenario(5, "sampler", memory_interval_s=5),
+    "apart-5hz-maps-1s": Scenario(5, "sampler", memory_interval_s=1),
+    "shared-spin-5hz": Scenario(5, "spin"),
+    "shared-spin-5hz-res-1s": Scenario(5, "spin", resource_interval_s=1),
+    "shared-spin-5hz-maps-5s": Scenario(5, "spin", memory_interval_s=5),
 }
 PROBES = ("spin", "wake", "lock", "mmap")
 THRESHOLDS = ("over_10us", "over_100us", "over_1ms", "over_10ms")
@@ -85,12 +123,12 @@ def read_probes(victim, timeout_s):
     return {name: check_probe(report[name]) for name in PROBES}
 
 
-def trial(name, cpus, binary, threads, duration_s, warmup_s):
-    rate, sampler_role, memory_interval_s, nice = SCENARIOS[name]
+def trial(name, cpus, binary, threads, duration_s, warmup_s, victim_options=()):
+    rate, sampler_role, memory_interval_s, nice, resource_interval_s, maps_loop = SCENARIOS[name]
     by_role = dict(zip(ROLES, cpus))
     with tempfile.TemporaryDirectory() as directory, \
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver, \
-            child([str(VICTIM), str(threads), str(duration_s), *map(str, cpus[:4])],
+            child([str(VICTIM), str(threads), str(duration_s), *map(str, cpus[:4]), *victim_options],
                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
                   preexec_fn=lambda: os.sched_setaffinity(0, ALLOWED_CPUS)) as victim:
         if not select.select([victim.stdout], [], [], 10)[0]:
@@ -101,6 +139,16 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s):
         if len(thread_ids) != threads:
             raise RuntimeError("workload thread count differs from the requested count")
         start = lambda: (victim.stdin.write("go\n"), victim.stdin.flush())
+        if rate is None and maps_loop:
+            with child([sys.executable, "-c", MAPS_LOOP, str(victim.pid)],
+                       preexec_fn=lambda: os.sched_setaffinity(0, {by_role[sampler_role]})) as reader:
+                time.sleep(1)
+                reader_start = cpu_snapshot(reader.pid)
+                start()
+                probes = read_probes(victim, duration_s + 10)
+                reader_end = cpu_snapshot(reader.pid)
+                return {"scenario": name, "probes": probes, "maps_loop_cpu_percent":
+                        100 * (reader_end[1] - reader_start[1]) / (reader_end[0] - reader_start[0])}
         if rate is None:
             start()
             return {"scenario": name, "probes": read_probes(victim, duration_s + 10)}
@@ -111,7 +159,7 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s):
         config.write_text(
             f'target_pid = {victim.pid}\nrate_hz = {rate}\n'
             f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
-            f'status_fallback = false\nresource_interval_s = 5\n'
+            f'status_fallback = false\nresource_interval_s = {resource_interval_s}\n'
             f'memory_interval_s = {memory_interval_s}\n')
         sampler_cpu = by_role[sampler_role]
         with open(Path(directory) / "sampler.log", "w+") as log, \
@@ -149,6 +197,8 @@ def summarize(runs):
         row = {"scenario": name, "runs": len(group),
                "probe_seconds": sum(run["duration_s"] for run in group),
                "probes": {probe: merge([run["probes"][probe] for run in group]) for probe in PROBES}}
+        if "maps_loop_cpu_percent" in group[0]:
+            row["maps_loop_cpu_percent"] = statistics.mean(run["maps_loop_cpu_percent"] for run in group)
         if "sampler" in group[0]:
             latencies = [value for run in group for value in run["sampler"]["latency_ms"]]
             row["sampler"] = {
@@ -177,6 +227,9 @@ def render(summary):
             s = row["sampler"]
             out.append(f"| {row['scenario']} | {s['observed_rate_hz']:.2f} | {s['cpu_percent']:.3f} | {s['sample_latency_p50_ms']:.2f} | "
                        f"{s['sample_latency_p95_ms']:.2f} | {s['sample_latency_max_ms']:.2f} | {s['late_ticks']} |")
+    for row in summary:
+        if "maps_loop_cpu_percent" in row:
+            out += ["", f"{row['scenario']}: the maps reader used {row['maps_loop_cpu_percent']:.1f}% of its core."]
     out += ["", "Spin probe: CPU time lost in gaps of 10 us or more between clock reads.", "",
             "| Scenario | Time lost (% of probe time) | Gaps ≥100 µs per min | Gaps ≥1 ms per min | Gaps ≥10 ms per min | Max gap (µs) |",
             "| --- | ---: | ---: | ---: | ---: | ---: |"]
@@ -219,6 +272,9 @@ def main():
     parser.add_argument("--duration", type=int, default=30, help="probe seconds per run (at least 2)")
     parser.add_argument("--warmup", type=float, default=5, help="sampler warm-up seconds per run")
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--victim-options", nargs="*", default=[], metavar="OPTION",
+                        help="give the target mappings, files and sockets, for example "
+                             "mappings=5000 files=300 sockets=100")
     parser.add_argument("--cpus", type=int, nargs="+",
                         help="CPUs for " + ", ".join(ROLES) + " (default: the last six allowed)")
     parser.add_argument("--output", type=Path, default=ROOT / "build/target-impact.json")
@@ -244,7 +300,8 @@ def main():
                            if line.startswith("model name")), platform.machine()),
         "cpu_roles": dict(zip(ROLES, cpus)),
         "threads": args.threads, "duration_s": args.duration, "warmup_s": args.warmup,
-        "repeats": args.repeats, "scenarios": args.scenarios, "runs": [], "summary": [],
+        "repeats": args.repeats, "scenarios": args.scenarios,
+        "victim_options": args.victim_options, "runs": [], "summary": [],
         "methods": {
             "spin": "gap between consecutive CLOCK_MONOTONIC reads; time lost = sum of gaps of 10 us or more",
             "wake": "lateness after clock_nanosleep to an absolute 1 ms deadline, timer slack 1 ns",
@@ -261,7 +318,7 @@ def main():
         offset = repeat % len(args.scenarios)
         for name in args.scenarios[offset:] + args.scenarios[:offset]:
             print(f"Run {repeat + 1}/{args.repeats}: {name}", file=sys.stderr, flush=True)
-            run = trial(name, cpus, binary, args.threads, args.duration, args.warmup)
+            run = trial(name, cpus, binary, args.threads, args.duration, args.warmup, args.victim_options)
             run.update(repeat=repeat + 1, duration_s=args.duration)
             report["runs"].append(run)
             report["summary"] = summarize(report["runs"])
