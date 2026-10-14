@@ -28,6 +28,7 @@
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/watch.hpp"
 
 namespace
 {
@@ -742,6 +743,112 @@ void TestThreadWakeMs()
   fixture.watches_ = {{"io", 50}};
   Require(Field(fixture.Thread(1'700'000'001), "wake_ms").IsNull(),
           "a thread no rule matches has a null wake_ms");
+}
+
+std::string ReadText(const std::filesystem::path& p_path)
+{
+  auto text = ReadFile(p_path);
+  Require(text.has_value(), std::format("{} is readable", p_path.string()));
+  return std::move(*text);
+}
+
+// Checks the dashboard's saved watch rules: a valid list is saved and put in
+// force, survives a restart (a new WatchSettings on the same directory) and
+// replaces the config rules completely; an invalid list changes nothing;
+// reset deletes the file and restores the config rules; and an unusable
+// saved file at startup falls back to the config rules with a reason.
+void TestWatchSettingsSaveAndReset()
+{
+  TempDirectory directory;
+  const std::vector<WatchRule> config_rules{{"worker-", 500},
+                                            {"sender-", 1000}};
+  const auto path = directory.Path() / "watch-rules.json";
+  WatchSettings settings{config_rules, directory.Path()};
+  auto described = settings.Describe();
+  Require(DumpJson(described) ==
+              R"({"rules":[{"prefix":"worker-","wake_ms":500},)"
+              R"({"prefix":"sender-","wake_ms":1000}],"source":"config",)"
+              R"("saved_error":null,"limits":{"prefix_max_bytes":15,)"
+              R"("wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}})",
+          std::format("GET /api/watches shape: {}", DumpJson(described)));
+
+  Require(settings
+              .Replace(R"({"rules":[{"prefix":"worker-io","wake_ms":50},)"
+                       R"({"prefix":"io-","wake_ms":20}]})")
+              .has_value(),
+          "a valid list is accepted");
+  const std::vector<WatchRule> saved_rules{{"worker-io", 50}, {"io-", 20}};
+  Require(settings.Current()->rules_ == saved_rules &&
+              settings.Current()->source_ == WatchSource::Dashboard,
+          "the saved list replaces the config rules at once");
+  Require(std::filesystem::exists(path) &&
+              !std::filesystem::exists(path.string() + ".tmp"),
+          "the list is saved, and the temporary file is gone");
+  const auto saved_text = ReadText(path);
+  Require(WatchSettings{config_rules, directory.Path()}.Current()->rules_ ==
+              saved_rules,
+          "a restart uses the saved list");
+
+  // All or nothing: the second rule is invalid, so the first is not saved.
+  const auto invalid = settings.Replace(
+      R"({"rules":[{"prefix":"ok-","wake_ms":50},{"prefix":"bad-"}]})");
+  Require(!invalid && invalid.error().kind_ == WatchErrorKind::InvalidRules &&
+              invalid.error().message_.starts_with(
+                  R"(watch rule 2 (prefix "bad-"): wake_ms)"),
+          "an invalid list names the bad rule");
+  Require(
+      settings.Current()->rules_ == saved_rules && ReadText(path) == saved_text,
+      "an invalid list changes neither the rules nor the file");
+  for (const std::string_view body :
+       {"", "[]", "{}", R"({"rules":5})", R"({"rules":[],"extra":1})",
+        R"({"rules":[{"prefix":"a","wake_ms":50,"wake":1}]})"})
+  {
+    const auto result = settings.Replace(body);
+    Require(!result && result.error().kind_ == WatchErrorKind::InvalidRules,
+            std::format("body {:?} is rejected", body));
+  }
+  Require(ReadText(path) == saved_text, "rejected bodies save nothing");
+
+  Require(settings.Replace(R"({"rules":[]})").has_value() &&
+              settings.Current()->rules_.empty() &&
+              settings.Current()->source_ == WatchSource::Dashboard,
+          "an empty saved list means no rules, not the config rules");
+
+  Require(settings.Reset().has_value() && !std::filesystem::exists(path),
+          "reset deletes the saved file");
+  Require(settings.Current()->rules_ == config_rules &&
+              settings.Current()->source_ == WatchSource::Config,
+          "reset puts the config rules back in force");
+  Require(settings.Reset().has_value(), "reset without a saved file is fine");
+
+  for (const std::string_view text :
+       {"not json", R"({"rules":[{"prefix":"a","wake_ms":1}]})"})
+  {
+    std::ofstream{path} << text;
+    WatchSettings restarted{config_rules, directory.Path()};
+    const auto state = restarted.Current();
+    Require(state->rules_ == config_rules &&
+                state->source_ == WatchSource::Config && state->saved_error_ &&
+                state->saved_error_->starts_with(path.string()),
+            std::format("an invalid saved file ({}) falls back to the config "
+                        "rules and says why",
+                        text));
+    Require(Field(restarted.Describe(), "saved_error").IsString(),
+            "the API reports the unusable saved file");
+    Require(restarted.Replace(R"({"rules":[]})").has_value() &&
+                !restarted.Current()->saved_error_,
+            "saving a valid list replaces the bad file and clears the error");
+  }
+
+  // A data directory that is a regular file: nothing can be saved there.
+  const auto blocked = directory.Path() / "file";
+  std::ofstream{blocked} << "";
+  WatchSettings unwritable{config_rules, blocked};
+  const auto failed =
+      unwritable.Replace(R"({"rules":[{"prefix":"a","wake_ms":50}]})");
+  Require(!failed && failed.error().kind_ == WatchErrorKind::SaveFailed &&
+              unwritable.Current()->rules_ == config_rules,
+          "a failed save is reported and changes nothing");
 }
 
 // Parses the stored view a replay query returned.
@@ -2030,6 +2137,7 @@ int main()
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();
     TestThreadWakeMs();
+    TestWatchSettingsSaveAndReset();
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
     TestResourceResetsLossAndOrder();
