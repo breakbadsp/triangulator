@@ -658,6 +658,99 @@ function lockHints(threads){
       found.push({level:'info',title:`${waiting.length} of ${kin.length} “${name}” threads mostly wait on a futex but keep waking`,
         detail:`Together they used ${pct(cpu)} of one core and switched ${number(kin.reduce((sum,thread)=>sum+(thread.switches_per_s||0),0),0)} times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.`,action:{state:'futex'}})}
   return found}
+// ---------- Watched threads ----------
+// A watch rule says "threads named PREFIX... wake at least every wake_ms".
+// The collector puts wake_ms and last_ran on each thread; the findings below
+// decide what they mean. Everything is measured between samples
+// (last_sample - last_ran), never against the browser clock, so a paused
+// sampler or a replayed view cannot raise a false alarm.
+// Sampling that cannot be trusted (silent sampler, absent target) and stale
+// threads are skipped.
+const SATURATED_PCT=90;
+// Seconds a watched thread may go without running before it counts as having
+// stopped waking. 2 x wake_ms lets one wake come late under load (a timer that
+// fires late is not a hang). 2 x sample interval covers sampling: last_ran is
+// the newest sample that saw the thread run, and the thread may have run up to
+// one interval earlier, while last_sample may lag the real time by one more.
+// Without that term a 10 ms rule would be flagged by ordinary sampling jitter.
+const watchOverdueS=(wakeMs,intervalMs)=>(2*wakeMs+2*intervalMs)/1000;
+// Without a known interval, assume a slow one: fewer alarms, never more.
+const sampleIntervalMs=()=>{const value=live.health?.sample_interval_ms;return isNum(value)&&value>0?value:1000};
+const isWatched=thread=>isNum(thread.wake_ms)&&thread.wake_ms>0&&isNum(thread.last_ran)&&isNum(thread.last_sample);
+// Seconds the thread did not run before its newest sample.
+const quietFor=thread=>Math.max(0,thread.last_sample-thread.last_ran);
+const quietText=seconds=>seconds<10?seconds.toFixed(1)+' s':duration(seconds);
+const isOverdue=thread=>quietFor(thread)>watchOverdueS(thread.wake_ms,sampleIntervalMs());
+const isBusyWatched=thread=>(thread.cpu_pct||0)>=SATURATED_PCT;
+// The watched threads worth checking now: none when the data is not live.
+function watchedThreads(threads){
+  const health=live.health||{};
+  return health.sampler_silent||health.target_absent?[]:threads.filter(thread=>!thread.stale&&isWatched(thread))}
+// Rules from GET /api/watches, refreshed while live. null: not loaded.
+let watchRules=null,watchRulesAt=0,watchRulesLoading=false;
+const WATCH_RULES_EVERY_MS=10000,WATCH_RULES_RETRY_MS=3000;
+async function refreshWatchRules(){
+  if(watchRulesLoading)return;watchRulesLoading=true;
+  try{const response=await fetch('/api/watches');if(!response.ok)throw Error();
+    const rules=(await response.json()).rules;
+    watchRules=Array.isArray(rules)?rules.filter(rule=>typeof rule?.prefix==='string'&&rule.prefix&&isNum(rule.wake_ms)):null}
+  catch{watchRules=null}
+  finally{watchRulesAt=Date.now();watchRulesLoading=false}}
+// The rule the collector applies to a name: the longest matching prefix.
+const watchRuleFor=(name,rules)=>rules.reduce((best,rule)=>name.startsWith(rule.prefix)&&(!best||rule.prefix.length>best.prefix.length)?rule:best,null);
+// The rule list is older than the threads when a thread's wake_ms differs
+// from what the list gives it, for example just after a rule was saved.
+const watchRulesOutdated=threads=>!watchRules||threads.some(thread=>!thread.stale&&(watchRuleFor(thread.name,watchRules)?.wake_ms??null)!==(isNum(thread.wake_ms)?thread.wake_ms:null));
+// Called after each live poll. Cheap: one request every 10 s, or sooner (but
+// not more than every 3 s) when the rules look out of date.
+function watchRulesTick(threads){
+  if(replayAt!==null||frozen)return;
+  const age=Date.now()-watchRulesAt;
+  if(age>=WATCH_RULES_EVERY_MS||age>=WATCH_RULES_RETRY_MS&&watchRulesOutdated(threads))refreshWatchRules()}
+const andMore=(names,shown)=>names.slice(0,shown).join(', ')+(names.length>shown?` and ${names.length-shown} more`:'');
+function stuckFinding(stuck){
+  stuck=[...stuck].sort((a,b)=>quietFor(b)-quietFor(a));const worst=stuck[0];
+  const lastState=`Last state: ${labels[worst.state]||worst.state}${worst.wchan?' in '+worst.wchan:''}.`;
+  const advice='deadlocked or waiting without a timeout';
+  if(stuck.length===1)return{level:'serious',title:`${worst.name} stopped waking up`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is set to wake at least every ${number(worst.wake_ms,0)} ms, but it has not run for ${quietText(quietFor(worst))}. It may be ${advice}. ${lastState}`}
+  return{level:'serious',title:`${stuck.length} watched threads stopped waking up`,help:'watched',action:{tid:worst.tid},hint:'Open the worst thread',
+    detail:`Each is set to wake regularly but has been quiet much longer than its interval. Worst first: ${andMore(stuck.map(thread=>`${thread.name} (${quietText(quietFor(thread))}, every ${number(thread.wake_ms,0)} ms)`),3)}. They may be ${advice}. Worst thread: ${worst.name}. ${lastState}`}}
+function busyFinding(busy){
+  busy=[...busy].sort((a,b)=>b.cpu_pct-a.cpu_pct);const worst=busy[0],share=kernelShare(worst);
+  const loop='It may be stuck in an infinite or retry loop.'+(share===null?'':` ${pct(100*share)} of its CPU is kernel time with ${number(worst.switches_per_s,0)} context switches/s, which looks like a polling or yield loop.`);
+  if(busy.length===1)return{level:'serious',title:`${worst.name} is running instead of sleeping`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is expected to sleep and wake every ${number(worst.wake_ms,0)} ms, but it uses ${pct(worst.cpu_pct)} of one core. ${loop}`}
+  return{level:'serious',title:`${busy.length} watched threads are running instead of sleeping`,help:'watched',action:{tid:worst.tid},hint:'Open the busiest thread',
+    detail:`They are expected to sleep between wakes, but each uses ${SATURATED_PCT}% of a core or more: ${andMore(busy.map(thread=>`${thread.name} ${pct(thread.cpu_pct)}`),3)}. Worst: ${worst.name}. ${loop}`}}
+// Rules that match no current thread. Only for the live view of a present
+// target: the rule list says nothing reliable about a past or ended view.
+function unmatchedRules(threads){
+  const health=live.health||{};
+  if(replayAt!==null||frozen||health.sampler_silent||health.target_absent||!watchRules||!watchRules.length)return [];
+  const current=threads.filter(thread=>!thread.stale);
+  if(!current.length||watchRulesOutdated(current))return [];
+  const used=new Set(current.map(thread=>watchRuleFor(thread.name,watchRules)?.prefix));
+  return watchRules.filter(rule=>!used.has(rule.prefix))}
+function watchFindings(threads,watched){
+  const found=[],busy=watched.filter(isBusyWatched),stuck=watched.filter(thread=>!isBusyWatched(thread)&&isOverdue(thread));
+  if(stuck.length)found.push(stuckFinding(stuck));
+  if(busy.length)found.push(busyFinding(busy));
+  const missing=unmatchedRules(threads);
+  if(missing.length){const names=missing.map(rule=>`“${rule.prefix}”`);
+    found.push({level:'warning',help:'watched',title:missing.length===1?'A watch rule matches no thread':`${missing.length} watch rules match no thread`,
+      detail:`No thread matches watch rule${missing.length>1?'s':''} ${andMore(names,3)}: the threads may have exited or been renamed. Check the prefix, or remove the rule.`})}
+  if(watched.length&&!stuck.length&&!busy.length){
+    const prefixes=!watchRulesOutdated(watched)&&replayAt===null&&!frozen?[...new Set(watched.map(thread=>watchRuleFor(thread.name,watchRules).prefix))]:[];
+    found.push({level:'info',help:'watched',title:`${watched.length} watched thread${watched.length>1?'s wake':' wakes'} on schedule${prefixes.length?` (${andMore(prefixes,3)})`:''}`,
+      detail:`Each ran within twice its wake interval, so none looks deadlocked or stuck in a loop.`})}
+  return found}
+// The drawer line for a watched thread, or null.
+function watchLine(thread){
+  if(!isWatched(thread))return null;
+  const quiet=quietFor(thread),last=quiet===0?'ran in the latest sample':`last ran ${quietText(quiet)} before the latest sample`;
+  const line=node('div',`Watched: wakes at least every ${number(thread.wake_ms,0)} ms · ${last}`+(!thread.stale&&isOverdue(thread)?' · overdue':''),'muted');
+  line.dataset.help='watched';return line}
 // Load as the kernel defines it, for this process: cores of CPU used, plus
 // cores of demand that waited for a CPU, plus threads in uninterruptible wait.
 // null when the point's rates are unknown (see ingest).
@@ -733,7 +826,8 @@ helpTopic('messages','Messages processed','Application completion markers','Call
 helpTopic('sockettotal','Socket total','Process or breakdown · cumulative bytes','The cumulative number of bytes moved by these sockets since monitoring began. It only grows; the rate columns show how fast.','1.5 GB means about 1.5 gigabytes moved in total, not per second.','Compare it with the rate columns to see whether past traffic or current traffic dominates.','Lost counter updates can make the total a lower bound.',['rates','coverage','socketio']);
 helpTopic('rates','Socket rates','Process or breakdown · per second','Current, average, minimum, and maximum rates over their labeled observation windows.','','Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.','Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.',['coverage','socketio'],['Current rate','Now /s','Average since start','Average /s','Recent minimum','Recent min /s','Recent maximum','Recent max /s']);
 helpTopic('coverage','Data coverage','Available observations','Coverage notes identify missing, partial, stale, or unavailable observations.','','Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.','Do not treat gaps or unreadable values as zero activity.',['health','socketio']);
-helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['health','cpu','pressure'],['What it means']);
+helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Watched-thread rules (see Watched threads) add findings for a thread that stopped waking up, a watched thread that is busy, and a rule that matches no thread. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['watched','health','cpu','pressure'],['What it means']);
+helpTopic('watched','Watched threads','Threads that match a watch rule · wake interval','A watch rule says that threads whose name starts with a prefix wake at least every N milliseconds, as workers that wait with a timeout do. The dashboard compares each such thread with its rule: the finding “stopped waking up” means it has not run for much longer than that interval, “is running instead of sleeping” means it uses 90% of a core or more, and “watch rule matches no thread” means no current thread has that prefix. “Watched: wakes at least every N ms” in a thread\'s details shows its rule and when it last ran.','Rule worker- with 500 ms. worker-3 last ran 4.2 s before the latest sample, so the Assessment says it stopped waking up. Stopped waking means more than twice the interval plus two sample intervals; at 500 ms and 200 ms sampling that is 1.4 s.','The time without running is counted between samples, not against the browser clock, so a paused sampler or a recorded view does not cause an alarm. A stuck thread may be deadlocked or may wait without a timeout: open it and check its wait channel, then take a stack dump to name the lock. A busy one may be in an infinite or retry loop. For a rule with no thread, check the prefix or whether the threads exited or were renamed. When every watched thread ran on time, one line says so.','The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In Inspect a moment and the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.',['assessment','states','wchan','thread'],['Watched','Stopped waking','Watch rule']);
 helpTopic('alerts','Alert settings','Separate alerting program','Rules evaluate observations and manage alert state outside the collector.','','Read the unit and duration for each threshold. Saving applies changes immediately. Disabling a rule resolves its open alerts; Reset restores configured settings.','Alert delivery and rule evaluation are separate. The feature is shown only when an alerting program is available.',['assessment','health'],['Open alerts','Recent alert events','On','Rule','Settings','Save changes','Reset to config file']);
 helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
 
@@ -1199,11 +1293,14 @@ function assess(threads,points){
   const kernel=threads.filter(thread=>thread.state==='kernel');
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
     add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
-  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=90).sort((a,b)=>b.cpu_pct-a.cpu_pct);
-  for(const thread of hot.slice(0,2)){
+  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=SATURATED_PCT).sort((a,b)=>b.cpu_pct-a.cpu_pct);
+  // A busy watched thread gets its own, more specific finding below.
+  const watched=watchedThreads(threads),watchBusy=new Set(watched.filter(isBusyWatched));
+  for(const thread of hot.filter(thread=>!watchBusy.has(thread)).slice(0,2)){
     const share=kernelShare(thread);
     if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
     else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
+  findings.push(...watchFindings(threads,watched));
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
@@ -1247,8 +1344,8 @@ function renderAssessment(threads){
   const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
-    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);if(item.help)row.dataset.help=item.help;
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.hint||(item.action.tid?'Open thread details':'Show these threads');const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
   if(helpOwns(element('tiles')))return;
@@ -1460,6 +1557,7 @@ function renderDrawerLive(){
   const state=element('drawer-state');state.replaceChildren();
   if(!thread){state.append(node('p','This thread is no longer reported; it may have exited. Its stored history is still available below.','muted'));element('drawer-tiles').replaceChildren();}
   else{const line=node('div');line.append(statePill(thread));if(thread.wchan)line.append(node('span',' in ','muted'),node('code',thread.wchan));line.append(node('span',' · last 10 s: ','muted'));line.append(mix(thread.state_mix));line.lastChild.style.display='inline-flex';line.lastChild.style.verticalAlign='middle';state.append(line);
+    const watch=watchLine(thread);if(watch)state.append(watch);
     const tiles=element('drawer-tiles');tiles.replaceChildren();
     // Only metrics with something in them; an idle thread gets its idle time.
     const metrics=[['CPU',thread.cpu_pct,pct],['Run delay',thread.run_delay_pct,pct],['Switches/s',thread.switches_per_s,number],['Read/s',thread.read_bps,bytes],['Write/s',thread.write_bps,bytes],['Maj. faults/s',thread.major_faults_per_s,number]].filter(([,value])=>value>0).map(([key,value,format])=>[key,format(value)]);
@@ -2439,6 +2537,7 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     if(replayAt===null&&!frozen&&collectorKeptView(latestLive))await loadFinalView(latestLive.health.last_target.session);
     renderExited();if(replayAt!==null||frozen)return;
     live=latestLive;if(!live.health)return;
+    watchRulesTick(live.threads||[]);
     const alerting=Array.isArray(live.alerts);showAlerting(alerting);
     ingest();
     const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
