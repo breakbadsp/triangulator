@@ -188,7 +188,7 @@ and value. Legend help explains the series without changing its toggle action.
 
 | Dashboard area | Topics to cover |
 | --- | --- |
-| Section navigation | Current section highlight; tab selection; updates on scroll; Monitor at the bottom of the page |
+| Section navigation | Current section highlight; tab selection; updates on scroll; Settings at the bottom of the page |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
@@ -211,6 +211,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Thread drawer | Watched line (rule interval, last ran, overdue); live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
 | Socket I/O panel | Observer status and coverage; received/sent/messages; total/current/average/recent min/max; filters affect breakdown only; retired threads |
 | Memory map | VmSize and its limit; anonymous/file/shared split; VMAs and vm.max_map_count; findings; address-space bars and kinds; region zoom and page grid; sampler page size and binary units; sampled size change and measured interval; largest unmapped gap and unknown coverage; bounded heap display margin; heap-end and stack-start offsets, sampled steps and gaps, and resident anonymous chart; member-region disclosure; thread-stack reservations and residency; memory limits |
+| Collector settings | Settings tab and what it changes; read-only in a recorded view or on a collector without the endpoint; Watched threads (prefix, wake interval, longest prefix wins); Matching threads now and its names; where the rules come from (config file or dashboard) and a saved file that could not be read; Add rule, Remove, Save, Discard edits, Reset; unsaved edits; a save that was applied but not confirmed on disk |
 | Optional alerts | Rule meaning; threshold unit and window; trigger/recovery; disable and reset effects; delivery status when present |
 
 Alerts remain in their separate program. Show their help only when that feature
