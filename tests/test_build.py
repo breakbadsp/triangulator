@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +16,7 @@ class BuildOptionsTests(unittest.TestCase):
         environment = os.environ.copy()
         environment.pop("MAKEFLAGS", None)
         environment.pop("MFLAGS", None)
+        environment.pop("STATIC", None)
         if path is not None:
             environment["PATH"] = str(path)
         return subprocess.run(
@@ -68,6 +70,16 @@ class BuildOptionsTests(unittest.TestCase):
                 result = self.run_make(directory, *arguments)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("SANITIZER", result.stderr)
+
+    def test_sanitizer_options_do_not_inherit_the_outer_static_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.prepare(directory)
+            with patch.dict(os.environ, {"STATIC": "1", "MAKEFLAGS": "STATIC=1"}):
+                result = self.run_make(directory, "SANITIZER=address")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            options = (Path(directory) / "build/build_options").read_text().split()
+            self.assertIn("-fsanitize=address,undefined", options)
+            self.assertNotIn("-static", options)
 
     def test_sanitizer_mode_changes_update_build_options(self):
         with tempfile.TemporaryDirectory() as directory:
