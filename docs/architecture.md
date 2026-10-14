@@ -49,7 +49,7 @@ interpretation, persistence and dashboard requests happen on the collector host.
 ```mermaid
 flowchart TD
     config["sampler.toml<br/>Target, rate and collector address"]
-    tick["Wake on a monotonic deadline<br/>Default 1 Hz · configurable 0.2–10 Hz"]
+    tick["Wake on a monotonic deadline<br/>Default 5 Hz · configurable 0.2–10 Hz"]
     lookup{"Target found?<br/>PID or exact process name"}
     read["Rescan threads and read /proc<br/>stat · schedstat · io · wchan"]
     pack["Encode raw cumulative counters<br/>Session + tick + timestamps<br/>Up to 10 threads per datagram"]

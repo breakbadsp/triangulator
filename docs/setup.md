@@ -36,7 +36,7 @@ refused; use a PID instead. Numeric targets must be running process IDs,
 not thread IDs.
 
 The first start creates the active configuration files. Later starts preserve
-them. Thread sampling runs at 1 Hz, resource sampling every 5 seconds, memory
+them. Thread sampling runs at 5 Hz, resource sampling every 5 seconds, memory
 sampling every 30 seconds, and dashboard recording every second. Raw sample
 storage is enabled. The collector retains seven days by default. Budget disk
 space for raw samples and recordings; see the
@@ -362,7 +362,7 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   starting and ending in the last minute. This is a **lower bound**. The sampler
   sees only the threads that exist when it lists the target's tasks, so a thread
   that starts and exits between two samples is never counted. At the default
-  1 Hz a thread living 10 ms is seen about 1% of the time, so `+0 / −0` means
+  5 Hz a thread living 10 ms is seen about 5% of the time, so `+0 / −0` means
   "none seen", not "none happened". Linux has no unprivileged per-process count
   of threads created (see [docs/thread-monitor-design.md](thread-monitor-design.md#10-known-limitations)),
   so for thread-per-task code raise the sample rate or count creations in the
@@ -545,9 +545,10 @@ Checklist before going live (design section 12):
   unavailable. The collector keeps the newest and does not store it separately.
 - **Storage:** live samples expire after ten minutes and are capped by
   `max_live_samples` (default one million, at most ten million; the collector
-  reserves about 280 bytes of address space per sample at startup). History
-  is one SQLite file per UTC day (WAL mode) with per-thread rollups, committed
-  every half second.
+  reserves about 280 bytes of address space per sample at startup). At the
+  default 5 Hz, the cap holds about 400 seconds for 500 threads, so ten minutes
+  fits only up to about 330 threads. History is one SQLite file per UTC day
+  (WAL mode) with per-thread rollups, committed every half second.
   `store_raw = true` (the default) also saves decoded records. Set it to `false`
   to keep only rollups. Retention deletes whole day files,
   keeping today and the previous `retention_days - 1`. Old day files gain new

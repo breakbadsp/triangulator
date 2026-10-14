@@ -53,7 +53,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   stopped, other, or no access.
 - Puts each thread in a group by its name prefix (`[[group]]` in the config).
 - Keeps up to 10 minutes of raw samples per thread in memory, capped in total by
-  `max_live_samples`.
+  `max_live_samples`. At the default 5 Hz, the cap holds about 400 seconds for
+  500 threads, so ten minutes fits only up to about 330 threads.
 - At the end of every window (default 5 s), writes one summary row per thread:
   CPU %, run delay %, context switches, read and write bytes per second, major
   page faults, and how many samples the thread spent in each state.

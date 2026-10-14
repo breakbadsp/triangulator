@@ -50,7 +50,7 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
 
 | Default | Value |
 | --- | --- |
-| Sampling | Threads: 1 Hz · Resources: 5 s · Memory: 30 s |
+| Sampling | Threads: 5 Hz · Resources: 5 s · Memory: 30 s |
 | History | Recordings: 1 s · Retention: 7 days · Raw samples: enabled |
 | Runtime files | `~/triangulator/` |
 
