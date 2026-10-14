@@ -39,7 +39,9 @@ SANITIZERS := address,undefined
 else
 SANITIZERS := thread
 endif
-SANITIZER_FLAGS := -O1 -g -fno-omit-frame-pointer -fsanitize=$(SANITIZERS) -fno-sanitize-recover=all
+# GCC 14 reports false maybe-uninitialized warnings in std::variant moves
+# with -O1 and ThreadSanitizer. Keep warnings enabled and use -O0 for this mode.
+SANITIZER_FLAGS := $(if $(filter thread,$(SANITIZER)),-O0,-O1) -g -fno-omit-frame-pointer -fsanitize=$(SANITIZERS) -fno-sanitize-recover=all
 override CXXFLAGS += $(SANITIZER_FLAGS)
 override LDFLAGS += -fsanitize=$(SANITIZERS)
 override CPPFLAGS += -DTRIANGULATOR_SANITIZER

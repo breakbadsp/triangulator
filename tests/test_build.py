@@ -59,6 +59,7 @@ class BuildOptionsTests(unittest.TestCase):
                 self.assertNotIn("-static-libstdc++", options)
                 self.assertNotIn("-static-libgcc", options)
                 if mode == "thread":
+                    self.assertIn("-O0", options)
                     self.assertIn("-fPIE", options)
                     self.assertIn("-pie", options)
 

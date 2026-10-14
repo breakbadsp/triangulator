@@ -146,6 +146,8 @@ ThreadSanitizer. Each mode runs all six C++ tests, the Python tests, and the
 dashboard JavaScript tests. The Python and JavaScript interpreters retain their
 normal runtimes. C++ programs that their tests start use sanitizer instrumentation.
 Both allocation tests keep their assertions and use sanitizer allocation hooks.
+The thread mode uses `-O0` to avoid GCC 14 diagnostics in `std::variant` moves.
+Compiler warnings and `-Werror` remain enabled.
 Benchmark fixtures reserve thread slots for sanitizer runtime threads. Their
 measurements include sanitizer overhead and must not replace performance baselines.
 
