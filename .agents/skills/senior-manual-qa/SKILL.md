@@ -1,6 +1,6 @@
 ---
 name: senior-manual-qa
-description: Invoke Senior Manual QA to test a package in a real browser or maintain manual test scenarios for a new feature.
+description: Invoke Senior Manual QA to test a package in a real browser or define browser checks for a new feature.
 ---
 
 Invoke the saved custom agent `Senior Manual QA`. Its definition is the source

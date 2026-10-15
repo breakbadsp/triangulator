@@ -106,8 +106,7 @@ packet encoding and decoding, and collector state updates.
 - Measure performance changes and report the before and after results.
 - Reuse bounded buffers. The sampler allocates only at startup and reload.
   The collector datagram path allocates only at startup. See
-  [sampler allocation rules](tigerstyle-adaption.md) and
-  [collector allocation rules and exclusions](collector-allocations.md).
+  [allocation constraints](architecture.md#allocation-constraints).
 - Batch SQLite writes in transactions. Prefer contiguous data for iteration.
 - Do not use virtual dispatch or RTTI in per-datagram code.
 - Use `[[likely]]` and `[[unlikely]]` only when supported by a profile.

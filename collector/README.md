@@ -1,49 +1,10 @@
 # Collector
 
-Receive sampler data. Build thread summaries. Store history and serve the dashboard.
+Receives observations, builds summaries, stores history, and serves the dashboard.
+Start at [main.cpp](main.cpp). See the
+[code map](../docs/architecture.md#code-entry-points) for ingestion, storage, and
+HTTP, and [configuration](../config/collector.toml) for settings.
 
-<p align="center">
-  <img src="../docs/assets/collector-flow.svg" alt="Sampler data arrives over UDP. The collector builds thread state and summaries, writes SQLite day files, and serves the dashboard over HTTP." width="100%">
-</p>
-
-## Quick start
-
-1. Run from the repository root:
-
-   ```sh
-   scripts/start.sh
-   ```
-
-2. Open <http://127.0.0.1:9401>.
-
-The script builds and starts both programs with local configuration files.
-
-## Run separately
-
-Use an existing local configuration:
-
-```sh
-make build/triangulator-collector
-build/triangulator-collector ~/triangulator/config/collector.toml --check-config
-scripts/start.sh collector
-```
-
-[Configuration example](../config/collector.toml) ·
-[Collector reference](../docs/collector-reference.md) ·
-[Sampler](../sampler/README.md) ·
-[Performance](../docs/collector-comparison.md)
-
-[Dashboard HTTP server animation](../docs/dashboard-http-animation.html) shows
-the HTTP thread, embedded page, live snapshots, and SQLite history requests.
-Download the HTML file and open it in a browser. It needs no build or network.
-
-## Dashboard help
-
-Pause over a metric, table cell, or chart point for 1.2 seconds to see its
-explanation. Move into the card to read it, or press Escape to close it.
-Select an information button for examples, measurement limits, related topics,
-and a chart data table where available. Keyboard users can focus the information
-button; touch users can tap it. **How to read this page** contains the page guide.
-
-The guide includes **Show help on hover or focus**. This preference is saved in
-the browser. Turning it off keeps explicit guide access available.
+Dashboard metric explanations live in [dashboard.html](dashboard.html).
+Follow the [help rules](../docs/contextual-help-design.md) when changing the UI.
+Use the root [quick start](../README.md#start) or [setup guide](../docs/setup.md).
