@@ -68,13 +68,14 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 ## QA-030: Default thread sampling rate and saved settings
 
-Feature: Thread sampling rate. Priority: High. Case revision: 1.
+Feature: Sampling defaults and saved settings. Priority: High. Case revision: 2.
 
 Preconditions: Use an isolated runtime directory, unused ports, and an owned
 test process. Use matching sampler and collector packages.
 
 1. Start with no active configuration. Verify that the startup script creates
-   `config/sampler.toml` with `rate_hz = 5.0`. Select the owned process. Receive
+   `config/sampler.toml` with `rate_hz = 5.0`, `resource_interval_s = 2`, and
+   `memory_interval_s = 30`. Select the owned process. Receive
    thread datagrams and verify a 200 ms header interval and about five ticks
    per second. Count ticks, because one tick can use several datagrams.
 2. Remove `rate_hz` from the active configuration. Restart the sampler. Verify
@@ -82,10 +83,14 @@ test process. Use matching sampler and collector packages.
 3. Set `rate_hz = 1.0`. Restart the programs, then repeat startup with the newer
    package. Verify that the saved setting remains 1.0 and thread datagrams have
    a 1000 ms interval. Verify that the resource and memory sampling intervals
-   remain 5 and 30 seconds when their settings are omitted.
+   are 2 and 30 seconds when their settings are omitted.
+4. Set `resource_interval_s = 5` and `memory_interval_s = 60`. Restart the
+   programs, then repeat startup with the newer package. Verify that both
+   saved intervals remain in effect.
 
 Expected results: New configurations and omitted thread rates use 5 Hz.
-An explicit saved rate remains in effect after restart and package upgrade.
+Omitted resource and memory intervals use 2 and 30 seconds. Explicit saved
+rates and intervals remain in effect after restart and package upgrade.
 
 Source: [Sampling defaults](../setup.md#install-from-a-release-package).
 
@@ -670,7 +675,7 @@ Feature: Summary process load. Priority: Medium. Case revision: 1.
 
 Expected results: Under the load chart, RSS and VmSize charts share its time
 window. The current values match the Resources and Memory map tiles. RSS steps
-about every 5 s and VmSize about every 30 s. The axes use binary units. Tooltips
+about every 2 s and VmSize about every 30 s. The axes use binary units. Tooltips
 and help open the RSS and VmSize topics, and the help data tables list the
 memory values. The memory charts are hidden in a recorded view, like the load
 chart, and return in Live. With memory-map sampling off, the VmSize chart shows

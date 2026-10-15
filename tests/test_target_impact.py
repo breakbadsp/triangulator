@@ -94,6 +94,24 @@ class VictimTests(unittest.TestCase):
         # The sampler needs the same threads before, during, and after the probes.
         self.assertEqual({path.name for path in threads.iterdir()}, before)
 
+    def test_mappings_files_and_sockets_are_created_before_ready(self):
+        victim = subprocess.Popen(
+            [str(impact.VICTIM), "20", "1", *["-1"] * 4, "mappings=300", "files=20", "sockets=5"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(self.stop_victim, victim)
+        self.assertEqual(victim.stdout.readline().strip(), "20 threads ready")
+        self.assertGreaterEqual(len(Path(f"/proc/{victim.pid}/maps").read_text().splitlines()), 300)
+        # 20 files, the program's own file, 5 TCP pairs, a listener and a UDP socket,
+        # plus the three standard descriptors and the stdin/stdout pipes.
+        self.assertGreaterEqual(len(list(Path(f"/proc/{victim.pid}/fd").iterdir())), 20 + 1 + 10 + 2)
+
+    def test_unknown_or_negative_options_are_rejected(self):
+        for option in ("mappings=-1", "bogus=1", "files"):
+            result = subprocess.run([str(impact.VICTIM), "10", "1", *["-1"] * 4, option],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 1, option)
+            self.assertIn("usage", result.stderr)
+
     def test_closing_stdin_before_the_start_line_does_not_hang(self):
         victim = self.run_victim(10, 1, -1)
         victim.stdin.close()

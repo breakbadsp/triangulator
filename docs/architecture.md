@@ -55,7 +55,7 @@ flowchart TD
     pack["Encode raw cumulative counters<br/>Session + tick + timestamps<br/>Up to 10 threads per datagram"]
     absent["Encode header-only heartbeat<br/>target_absent flag"]
     send["Non-blocking UDP send<br/>No disk buffering or retransmission"]
-    resources["Every resource_interval_s (5 s)<br/>PSI · fds · io · sock_diag queues<br/>namespace drop counters"]
+    resources["Every resource_interval_s (2 s)<br/>PSI · fds · io · sock_diag queues<br/>namespace drop counters"]
     sleep["Wait for the next deadline<br/>Skip missed deadlines after an overrun"]
 
     config -.->|"Startup / valid SIGHUP reload"| tick

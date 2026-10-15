@@ -94,6 +94,15 @@ they also count time the sampler waited for the lock or was descheduled.
 
 `status`, `stat` and `limits` take no memory-map lock.
 
+The measured samples took 3.23 to 18.91 ms for targets with 5,000 to 30,000
+mappings. These times include summary reads and layout processing. They do
+not measure time spent holding the target's lock. On the measured kernel
+(Linux 7.2.5), a continuous maps reader raised the target's `mmap` stalls of
+1 ms or more by about 3 to 6 a second. The tests did not establish the added
+stalls at normal sampling intervals. Older kernels were not measured.
+The default remains 30 seconds; see
+[target-impact.md](target-impact.md#resource-and-memory-map-intervals).
+
 ## Wire format
 
 `TVMA` datagrams ([common/memory_wire.hpp](../common/memory_wire.hpp)). The

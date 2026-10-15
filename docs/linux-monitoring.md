@@ -32,7 +32,7 @@ whole host. The implemented sources are in `sampler/parsing.hpp` and
   privileges): the address-space summary from `/proc/PID/status`, `stat` and
   `limits`, and the layout from `/proc/PID/maps`. See
   [memory-map.md](memory-map.md).
-- **Resource samples** (every `resource_interval_s`, default 5 s, no
+- **Resource samples** (every `resource_interval_s`, default 2 s, no
   privileges): host and cgroup v2 pressure stall information for CPU, memory
   and I/O; open descriptors against the soft and hard limits; process-wide
   `/proc/PID/io` (block-layer and syscall bytes, syscall counts); the target's

@@ -99,7 +99,7 @@ void TestConfig()
   Require(config->Interval() == 5s && config->IntervalMs() == 5000,
           "rate converted to chrono duration");
   Require(config->status_fallback_, "fallback flag");
-  Require(config->resource_interval_s_ == 5, "resource samples default to 5 s");
+  Require(config->resource_interval_s_ == 2, "resource samples default to 2 s");
   const auto resources_off = ParseConfig(
       "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,

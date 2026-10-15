@@ -69,12 +69,12 @@ on the C++ library, libc, PID length, process list, cgroup path, and target sock
   each measured lookup. This replaces PID lookup and excludes the thread scan.
   The count changes with the processes in `/proc`.
 
-At the default sampling rate of 5 Hz and resource interval of 5 seconds, the
+At the default sampling rate of 5 Hz and resource interval of 2 seconds, the
 measured steady PID case has 3 allocation requests per tick, 5 ticks per second,
-plus the resource sample every 5 seconds. That gives:
+plus the resource sample every 2 seconds. That gives:
 
-- No target sockets: `3 × 5 + 36 / 5 = 22.2` allocation requests per second.
-- Two UNIX sockets: `3 × 5 + 40 / 5 = 23` allocation requests per second.
+- No target sockets: `3 × 5 + 36 / 2 = 33` allocation requests per second.
+- Two UNIX sockets: `3 × 5 + 40 / 2 = 35` allocation requests per second.
 
 These rates exclude startup, thread changes, configuration reloads, and errors.
 They do not apply to process-name selection or other machines without a new

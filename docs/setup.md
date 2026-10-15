@@ -36,7 +36,7 @@ refused; use a PID instead. Numeric targets must be running process IDs,
 not thread IDs.
 
 The first start creates the active configuration files. Later starts preserve
-them. Thread sampling runs at 5 Hz, resource sampling every 5 seconds, memory
+them. Thread sampling runs at 5 Hz, resource sampling every 2 seconds, memory
 sampling every 30 seconds, and dashboard recording every second. Raw sample
 storage is enabled. The collector retains seven days by default. Budget disk
 space for raw samples and recordings; see the
@@ -326,7 +326,7 @@ Remaining work is tracked in [TODO.md](../TODO.md#deployment-dependencies).
 - **Sampler** (`config/sampler.toml`): flat `key = value` with quoted strings,
   booleans and `#` comments. Unknown or duplicate keys and malformed values are
   rejected. The collector address must be a numeric IPv4 or `[IPv6]:port` (no DNS).
-  `rate_hz` accepts 0.2–10. `resource_interval_s` (default 5, 0 turns it off,
+  `rate_hz` accepts 0.2–10. `resource_interval_s` (default 2, 0 turns it off,
   at most 60) sets how often resource samples are sent; they are never more
   frequent than thread ticks. `memory_interval_s` (default 30; 0 turns it off;
   at most 3600) sets how often memory-map samples are sent; see
