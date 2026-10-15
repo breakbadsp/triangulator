@@ -1140,6 +1140,28 @@ test('scrolling to the end of the list or the start of the timeline checks an ea
   assert.equal(other.run('replayAt'), null);
 });
 
+test('a long timeline opens recent past times and one step before Live', async () => {
+  const app = historyApp(at => frame(Math.floor(at)), {first: 0, last: 86400});
+  await settle();
+  app.run('past.oldest=0;latestLive=live={health:{session:"session-1",last_seen:86400},threads:[]};renderTimeline()');
+  const range = app.elements.get('timeline-range');
+  assert.equal(Number(range.max) - Number(range.min), 86400);
+  for (const secondsBeforeLive of [300, 1]) {
+    range.value = String(Number(range.max) - secondsBeforeLive);
+    range.oninput();
+    assert.match(app.elements.get('timeline-cursor').textContent, /^Release to view /);
+    range.onchange();
+    await settle();
+    assert.equal(app.run('replayAt'), 86400 - secondsBeforeLive);
+    app.run('returnLive()');
+  }
+  range.value = range.max;
+  range.oninput();
+  assert.equal(app.elements.get('timeline-cursor').textContent, 'Release for live');
+  range.onchange();
+  assert.equal(app.run('replayAt'), null);
+});
+
 test('while live the newest recordings join the list, and errors can be retried', async () => {
   const bounds = {first: 1000, last: 1900};
   const app = historyApp(at => frame(Math.floor(at)), bounds);

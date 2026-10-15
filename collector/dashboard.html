@@ -2134,6 +2134,8 @@ let timelineDragging=false,timelineMarksDrawn='';
 // Now, on the collector's clock: the newest recording or datagram.
 const timelineEnd=()=>Math.max(replayBounds?.last??0,latestLive?.health?.last_seen??0,replayAt??0);
 const timelineStart=()=>Math.max(replayBounds?.first??0,Math.min(past.oldest??Infinity,timelineEnd()-PAST_FIRST_S,replayAt??Infinity));
+// The range step is one second; allow only its rounding at the Live end.
+const timelineAtLive=at=>at>=timelineEnd()-0.5;
 function renderTimeline(){
   const range=element('timeline-range'),recorded=isNum(replayBounds?.first);range.disabled=!recorded;
   if(!recorded){element('timeline-start').textContent='';element('timeline-cursor').textContent='';element('timeline-marks').replaceChildren();timelineMarksDrawn='';return}
@@ -2151,15 +2153,15 @@ function renderTimeline(){
     mark.dataset.hint=`${episode.item.title} · ${clock(episode.first)}`;marks.append(mark)}}
 function openTimelineAt(at){
   const start=timelineStart(),end=timelineEnd();timelineDragging=false;
-  if(at>=end-Math.max(1,(end-start)/200)){returnLive();return}
+  if(timelineAtLive(at)){returnLive();return}
   inspectTime(at);
   if(at<=start+(end-start)/100)loadOlder()}
 const timelineRange=element('timeline-range');
 timelineRange.addEventListener('pointerdown',()=>{timelineDragging=true});
 // A press without a move fires no change event.
 for(const name of ['pointerup','pointercancel','blur'])timelineRange.addEventListener(name,()=>setTimeout(()=>{timelineDragging=false},0));
-timelineRange.oninput=()=>{timelineDragging=true;const at=Number(timelineRange.value),end=timelineEnd();
-  element('timeline-cursor').textContent=at>=end-1?'Release for live':'Release to view '+date(at)};
+timelineRange.oninput=()=>{timelineDragging=true;const at=Number(timelineRange.value);
+  element('timeline-cursor').textContent=timelineAtLive(at)?'Release for live':'Release to view '+date(at)};
 timelineRange.onchange=()=>openTimelineAt(Number(timelineRange.value));
 element('replay-previous').onclick=()=>replayAt===null?inspectTime(replayBounds.last):inspectTime(replayAt,'previous');
 element('replay-next').onclick=()=>inspectTime(replayAt,'next');
