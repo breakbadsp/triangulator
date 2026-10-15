@@ -953,71 +953,55 @@ shows "Could not reach the collector" and keeps your edits. In the final view,
 **Matching threads now** drops to 0 when the process exits and counts the
 restarted threads again, without an edit.
 
-## QA-038: Timeline and past assessments show the dashboard at a past finding
+## QA-038: Timeline and past assessments show a recorded finding
 
-Feature: Timeline. Priority: High. Case revision: 2.
+Feature: Timeline. Priority: High. Case revision: 3.
 
-Preconditions: Use an isolated runtime directory, unused ports and the default
-`replay_interval_s`. Monitor a bug-lab workload that can be switched between a
-healthy state and a CPU spin (or another serious finding) while running.
+Preconditions: Use an isolated runtime, unused ports, and enabled recording.
+Use a bug-lab workload that can switch between healthy activity and a CPU spin.
+Record both states before opening the dashboard.
 
-1. Let the target run healthy for 2 minutes, then cause the CPU spin for about
-   1 minute, then stop it and wait 2 more minutes. Open the dashboard.
-2. Without selecting anything, read the **Timeline** card at the top: the
-   status line under **Past assessments**, the rows and the marks above the bar.
-3. Select the saturated-core row. Scroll through the dashboard. Read the top
-   bar, the note beside **Timeline**, the Assessment card and the thread table.
-4. Select **Back to live** in the top bar.
-5. Drag the timeline handle onto the red or orange mark and release it. Then
-   use **◀** and **▶**. Drag the handle to the right end and release it.
-6. Clear **Serious**, then select it again. Choose each value of **Type**, then
-   **All types**. Check **Info**.
-7. Wait 30 seconds while live.
+1. Read the Timeline marks and Past assessments rows. Compare their times with
+   the controlled CPU spin.
+2. Select the spin finding. Scroll through the dashboard and read the top bar,
+   Assessment, and thread table. Compare them with the selected recording.
+3. Select **Back to live**. Drag the handle onto the finding mark and release
+   it. Use **◀** and **▶**. Release the handle at the right end.
+4. From Live, use one ArrowLeft step on the handle and release it. Then move
+   it to the right end again. Repeat after new live samples arrive.
+5. Change each severity checkbox and the type filter. Compare the visible
+   rows with the timeline marks.
 
-Expected results: The list fills by itself. The status line ends with how many
-recordings were checked, back to when, any times without a recording, and
-"Showing N of M findings". The spin is one serious row per spinning thread,
-typed Threads & CPU, whose first and last times are within ~8 s of the real
-start and end, with a mark at the same place on the bar. Selecting the row
-moves every panel to the row's worst moment without scrolling the page. The
-Assessment card shows the same finding, the row is highlighted and shows its
-detail, the handle sits at that time, and the top bar shows the recorded time
-and "Back to live" wherever the page is scrolled. **Back to live** and releasing at the right
-end both return to live, with the live trends back and the top-bar button
-hidden. Releasing on a mark shows that moment, and the note gives the recording
-time. Filters hide and show rows and marks at once, without checking again.
-While live, the checked count grows and the bar's right end follows now.
+Expected results: The row and mark identify the controlled finding. Selecting
+it moves every panel to its worst recorded moment without scrolling the page.
+The row shows its detail and selection, and the top bar identifies the recorded
+time. The buttons and handle open recordings consistently. The previous step
+opens a recording; the right end returns to Live. Filters change rows and marks
+together. Live trends return when the recorded view closes.
 
-## QA-039: Checking earlier periods, empty states and help coverage
+## QA-039: Earlier Timeline periods, empty states, and help
 
-Feature: Timeline. Priority: Medium. Case revision: 2.
+Feature: Timeline. Priority: Medium. Case revision: 3.
 
-Preconditions: As QA-038 with at least 2 hours of recordings, plus a second
-collector started with `replay_interval_s = 0` in its own runtime directory.
+Preconditions: As QA-038, with at least two hours of recordings. Use a second
+isolated collector with recording disabled.
 
-1. Scroll the past-assessment list to its end, or select **Load earlier**.
-   Repeat twice.
-2. Drag the timeline handle to the left end and release it.
-3. Stop the collector and select **Load earlier**. Start it again and select
-   **Load earlier** once more.
-4. Open the dashboard of the collector with recording disabled.
-5. Pause for 1.2 seconds on the **Timeline** title, the bar, the marks, **◀**,
-   **▶**, **Live**, the top-bar button, **Past assessments**, the Severity
-   checkboxes, **Type**, a row, the status line and **Load earlier**. Select
-   the information button for **Timeline** and **Past assessments**.
-6. Open the dashboard in a narrow window (under 640 px).
+1. Scroll the findings list to its end, select **Load earlier**, and release
+   the handle at the left end. Observe the list position and timeline bounds.
+2. Stop only the test collector. Select **Load earlier**, then restart it and
+   retry. Open the collector with recording disabled.
+3. Hover for 1.2 seconds on the Timeline title, handle, marks, **◀**, **▶**,
+   **Live**, top-bar return button, Past assessments title, severity controls,
+   type filter, row, status line, and **Load earlier**.
+4. Open the Timeline and Past assessments guides with pointer and keyboard.
+   Check Escape and touch access. Check the controls below 640 pixels wide.
 
-Expected results: Each load checks a period twice as long as the one before
-(30 min, then 1 h, then 2 h). The bar's left end and its start time move back,
-and the list keeps its scroll position. Releasing at the left end shows the
-recording there and loads one earlier period. **Load earlier** disappears once
-the oldest recording is reached. With the collector stopped, the status line
-shows an error and says to try again, and the retry works after the collector
-is back. With recording disabled, the bar is disabled and the list says there
-are no recordings to check. Every target shows a help card after 1.2 seconds.
-The guides explain the bar and its ends, the marks, how earlier periods and
-their step work, the filters, and that nothing is stored. On a narrow screen
-the controls wrap and the list scrolls inside the card.
+Expected results: Earlier checks extend the timeline without resetting the
+list position. The error identifies the failed read and permits a retry. The
+collector with recording disabled shows a clear empty state. Help appears for
+every control and explains recording gaps, coarse checks, and missing live
+trends. The guides remain readable with keyboard and touch. Controls wrap on a
+narrow screen, and the list scrolls inside the card.
 
 ## QA-047: Simultaneous live dashboard viewers
 
