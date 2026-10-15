@@ -34,7 +34,8 @@ scripts/start.sh collector
 [Performance](../docs/collector-comparison.md)
 
 [Dashboard HTTP server animation](../docs/dashboard-http-animation.html) shows
-the HTTP thread, embedded page, live snapshots, and SQLite history requests.
+the HTTP listener and workers, embedded page, live snapshots, and SQLite
+history requests.
 Download the HTML file and open it in a browser. It needs no build or network.
 
 ## Multiple viewers

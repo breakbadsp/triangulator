@@ -145,7 +145,10 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   watch rules in force; replace or reset them
   ([Watched threads](#watched-threads)).
 - Other non-`GET` requests get 501.
-- Runs on its own thread, so serving the dashboard never delays receiving data.
+- A listener thread hands each connection to one of up to 64 worker threads,
+  so serving the dashboard never delays receiving data, and a slow client
+  does not hold up other viewers. When all workers are busy, a new connection
+  gets 503.
 
 **7. Recording** (`replay.hpp`, enabled every second by default)
 - Saves the `/api/live` view every `replay_interval_s` seconds to separate day
