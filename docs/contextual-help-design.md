@@ -158,7 +158,7 @@ actual displayed metric during implementation.
 | Recv-Q | Received data waiting to be read from this socket. | Use bytes for connected sockets. For a listener, use connections waiting for `accept()`. Never describe a listener queue as bytes. |
 | Socket sent | Bytes accepted by the observed socket operations. | Acceptance does not prove delivery to the peer. Show observer coverage. Messages processed requires an explicit application completion marker. |
 | Network drops | Selected drop counters from the target's network namespace. | Other processes can contribute. Explain the selected counter, unit, interval, and total separately. Do not attribute every drop to the target. |
-| Inspect a moment | Inspect the nearest available recording at or before the selected local time. | Show requested and returned times, with timezone. A recording is not an interpolated frame. Recording can be disabled; stored summaries cannot reconstruct an exact snapshot. |
+| Timeline | Show the nearest available recording at or before the chosen time. | Show the returned time and any recording gap, and say in the top bar that a recording is shown. A recording is not an interpolated frame. Recording can be disabled; stored summaries cannot reconstruct an exact snapshot. |
 
 Example guide for **Run delay**:
 
@@ -191,10 +191,10 @@ and value. Legend help explains the series without changing its toggle action.
 | Section navigation | Current section highlight; tab selection; updates on scroll; Settings at the bottom of the page |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
-| Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
+| Timeline | Scrubber span (checked period to now); release to open, left end loads earlier, right end returns to live; marks of past findings; nearest earlier recording; ◀/▶ steps; Live and the top-bar Back to live; recording disabled; missing history |
 | Last process exit | Reason and its signal; exit status (signal, core dump, exit code) and when it is not available; kernel log readable, unreadable, or unavailable; exit time; folded line for an earlier exit and the exit count; kernel messages and thread IDs; exits the kernel does not log or does not report (rate limit, `debug.exception-trace = 0`) |
 | Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window; RSS and VmSize charts and their sample steps |
-| Assessment history | What a scan reads and how many recordings; range and step; rows (worst level, first and last time, type, count); opening a moment; severity and type filters; missed short problems, gaps, rules that need live trends; results not stored; download size |
+| Past assessments | What is checked when the page opens and how many recordings; earlier periods and their growing step; newer recordings while live; rows (worst level, first and last time, type, count); opening a moment and the selected row's detail; severity and type filters; missed short problems, gaps, rules that need live trends; results not stored; download size |
 | Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment; watched-thread findings (stopped waking, busy, rule with no thread, on schedule) and their thresholds |
 | Process details | What each value is and where it comes from (cmdline, exe, cwd, start time, parent, user and group, allowed CPUs); read once when monitoring starts; Not available when unreadable; cut text; secrets in the command line; deleted executable |
 | Overview tiles | Active/idle definition; context switches; disk and syscall I/O; major faults; thread churn; socket bytes; messages |

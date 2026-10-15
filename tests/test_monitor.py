@@ -506,7 +506,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 for query in ("at=nan", "at=inf", "at=-1", "at=9999999999999", "at=1&direction=bad", "direction=next"):
                     self.assertEqual(fetch("/api/replay?" + query)[0], 400)
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
-                self.assertIn(b'id="replay-time"', page)
+                self.assertIn(b'id="timeline-range"', page)
                 # After the target exits, live health names the session of the
                 # last view with the target, /api/last-target still serves it,
                 # and /api/live reports the exit.

@@ -84,8 +84,8 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
   <img src="docs/assets/replay.svg" alt="Animated replay: a timeline cursor selects a recorded moment and the thread tiles show the stored states." width="100%">
 </p>
 
-Select **Inspect a moment**, step with **Previous** / **Next**, then select **Live** to return.
-Use **Assessment history** to list past findings by severity and type, then click one to inspect that moment.
+Use the **Timeline** at the top of the dashboard. Click a past finding, or drag the handle back and release it, to see the whole dashboard at that moment.
+Scroll the list of past findings to check further back. Select **Live** to return.
 [Recording and replay limits](docs/collector-reference.md#historical-process-inspection)
 
 ## Performance

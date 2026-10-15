@@ -313,7 +313,7 @@ page reload in the same tab. A view too large for the browser's session storage
 The exit report ([process-exit.md](process-exit.md)) arrives after the final view
 was taken, so the dashboard takes it from later `/api/live` polls when its
 `session` and `pid` match the final view; an exit of another process is not shown
-with it. An exit during **Inspect a moment** freezes the live view saved when
+with it. An exit while a recording is open on the **Timeline** freezes the live view saved when
 the recording opened, so **Live** returns to it even if the process restarted.
 
 A tab opened after the exit reads the final view from `GET /api/last-target`,
@@ -321,11 +321,11 @@ without the earlier trends. Thread history, resource samples and recordings
 remain in SQLite as before. A target change made from the same tab is not
 treated as an exit, including when the tab shows a final view or a recording
 of an earlier session. If the process restarts before the sampler finds it missing,
-there is no absent session and no final view; use **Inspect a moment**.
+there is no absent session and no final view; use the **Timeline**.
 
 ## Historical process inspection
 
-The dashboard's **Inspect a moment** controls freeze the process overview and
+The dashboard's **Timeline** freezes the process overview and
 thread table at one recorded view. Recordings include the process PID/session,
 thread membership and generations, scheduler state classification, wait channel,
 last core, ten-second state mix and rates, group counts and monitor health.
@@ -363,12 +363,18 @@ No matching recording returns `snapshot: null`. Invalid arguments return 400. Th
 preset history ranges at the selected recording. Live trends are kept separate
 and restored on return; historical load averages and socket reports are unavailable.
 
-The dashboard's **Assessment history** uses the same endpoint. For a chosen
-range it requests up to 120 views with `at=…`, spread evenly from the oldest to
-the newest recording in the range, four at a time, and applies the Assessment's
-rules to each in the browser. The collector does not evaluate or store findings.
-A returned view older than the requested slot counts as a recording gap. See
-[the dashboard notes](setup.md#dashboard) for how rows are formed and their limits.
+The Timeline's **Past assessments** list uses the same endpoint.
+
+- For each period it checks, it requests up to 120 views with `at=…`, spread
+  evenly over the period, four at a time.
+- It applies the Assessment's rules to each view in the browser. The collector
+  does not evaluate or store findings.
+- A returned view older than the requested slot counts as a recording gap.
+- While live, it also polls the bounds every 15 seconds and checks the
+  recordings made since the last check.
+
+See [the dashboard notes](setup.md#dashboard) for how rows are formed and their
+limits.
 
 Budget disk space for full JSON views: storage scales with thread count and
 recording frequency, including silent periods. A local 30-second run with

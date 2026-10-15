@@ -150,15 +150,17 @@ on hover or focus. See [Dashboard help](../collector/README.md#dashboard-help).
 
 ## Time travel
 
-Dashboard recording is enabled by default. Use **Inspect a moment**. See the
+Dashboard recording is enabled by default. Use the **Timeline** at the top of
+the dashboard. See the
 [recording notes](collector-reference.md#historical-process-inspection).
 
-Select a date and time, then use **Previous** and **Next** to step through
-recorded views. Select **Live** to return to the current process.
-
-To find past problems, use **Assessment history** below it. Choose a range
-(15 min, 1 h, 6 h or 24 h) to scan the recordings, filter the findings by
-severity and type, and click one to inspect the process at that moment.
+- **Past assessments** lists what the Assessment found earlier. Click a row to
+  see the whole dashboard at that moment.
+- Drag the timeline handle back and release it to see any recorded moment.
+  Release it at the left end to check an earlier period.
+- Scroll to the end of the list to check an earlier period.
+- **◀** and **▶** step one recording. **Live**, or **Back to live** in the top
+  bar, returns to the current process.
 
 ## Install from a release package
 
@@ -387,10 +389,12 @@ bytes; namespace drop and error counters; and the target's fullest sockets,
 each explained ("the app is not reading fast enough", "the peer is not
 reading"). Its findings join the assessment. See
 [docs/resource-monitoring.md](resource-monitoring.md) for how to read it.
-Use **Inspect a moment** to select a local date and time and freeze the whole
-process view at the latest recording at or before that time. **Previous** and
-**Next** step through recordings, including older sampler sessions; **Live**
-returns to the current process. The recorded view includes all threads, their
+The **Timeline** at the top of the dashboard moves the whole process view to a
+recorded moment: the latest recording at or before the time you choose. Drag
+its handle and release it, or select a past finding. **◀** and **▶** step through
+recordings, including older sampler sessions. While a recording is shown, the
+top bar shows the recorded time with **Back to live**; select it or **Live** to
+return to the current process. The recorded view includes all threads, their
 states, wait channels, core placement, CPU, run delay, switches, I/O and health.
 Click a thread to open its summary history ending at the recorded time.
 
@@ -406,23 +410,35 @@ or unavailable during inspection; thread rollup charts remain available.
 Complete snapshots use substantially more disk space than rollups; see the
 [recording and storage notes](collector-reference.md#historical-process-inspection).
 
-**Assessment history** lists what the Assessment found in the past. Select a
-range (15 min, 1 h, 6 h or 24 h) or **Scan recordings**. The browser reads up
-to 120 recordings spread evenly over the range from `/api/replay` and applies
-the Assessment's rules to each one, as **Inspect a moment** would. A finding seen
-in consecutive scanned recordings becomes one row with its worst severity,
-first and last time, and type. Filter rows by severity (Critical, Serious,
-Warning, Info) and type (Monitoring, Threads & CPU, Watched threads,
-Resources & network, Memory). Click a row to inspect the process at the moment
-it was worst. Limits:
+**Past assessments**, in the Timeline card, lists what the Assessment found
+earlier. The browser reads recordings from `/api/replay` and applies the
+Assessment's rules to each one, as it does for a recorded view.
 
-- The step grows with the range: 1 h is checked every 30 s and 24 h every
-  12 minutes. A problem that starts and ends between two checks is not listed.
-- Each recording is judged on its own, so rules that need trends from a live
-  tab (thread growth, thread churn, long futex waits) and the watch rule with
-  no thread do not run.
-- Nothing is stored. Results last until the page is reloaded. A scan downloads
-  every recording it checks, about 330 KB each with 1,000 threads.
+- When the page opens, it checks up to 120 recordings of the last 15 minutes,
+  about one every 8 s.
+- To go further back, scroll to the end of the list, select **Load earlier**, or
+  release the timeline at its left end. Each earlier period is twice as long
+  as the one before (30 min, 1 h, 2 h, 4 h, then 6 h each) and also checks up
+  to 120 recordings. The timeline grows to cover every checked period.
+- While live, recordings made since the last check are added every 15 seconds.
+- A finding seen in consecutive checked recordings becomes one row and one
+  coloured mark on the timeline. The row shows the worst severity, the first
+  and last time, the type, and how many checked recordings had the finding.
+- Filter by severity (Critical, Serious, Warning, Info) and by type
+  (Monitoring, Threads & CPU, Watched threads, Resources & network, Memory).
+- Click a row to move the whole dashboard to the moment the finding was worst.
+
+Limits:
+
+- Older periods are checked more coarsely: every ~15 s for 30 min, ~1 min for
+  2 h and ~3 min for each 6 h period. A problem that starts and ends between
+  two checks is not listed.
+- Each recording is judged on its own, so these rules do not run: the ones that
+  need trends from a live tab (thread growth, thread churn, long futex waits)
+  and the watch rule with no thread.
+- Nothing is stored. A reload checks the recordings again.
+- Every checked recording is downloaded, about 330 KB each with 1,000 threads.
+  Opening the page reads up to 120 of them.
 
 The browser tab keeps these trends for up to 15 minutes, and they survive a
 reload of that tab. The thread table shows active threads by default. Idle

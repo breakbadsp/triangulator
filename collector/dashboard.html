@@ -118,12 +118,31 @@ section.block{margin-top:30px}
 .finding .d{font-size:12px;color:var(--ink-2);margin-top:1px}
 .lvl-good .ic{background:var(--good)}.lvl-info .ic{background:var(--muted)}.lvl-warning .ic{background:var(--warning);color:#2a1d00}.lvl-serious .ic{background:var(--serious);color:#2a1100}.lvl-critical .ic{background:var(--critical)}
 .verdict{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.history-filters{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+/* Timeline */
+.timeline{margin:8px 0 14px}
+.timeline-head{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap}
+.timeline-head h2{margin:0}
+.timeline-head #replay-note{flex:1;min-width:16em;margin:0;font-size:13px}
+.timeline-step{display:flex;gap:6px}
+.scrubber{position:relative;margin:12px 0 2px}
+.timeline-marks{position:relative;height:10px;margin:0 8px;border-radius:3px;background:var(--surface-2)}
+.timeline-marks span{position:absolute;top:0;height:10px;min-width:3px;border-radius:2px;background:var(--lvl)}
+#timeline-range{width:100%;margin:4px 0 0;accent-color:var(--accent)}
+.timeline-ends{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#timeline-cursor{color:var(--ink);font-weight:600}
+.timeline-bounds{font-size:12px;margin:2px 0 10px}
+.past-head{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px}
+.past-head h3{margin:0}
+.history-filters{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
 .history-filters fieldset{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:0;margin:0;padding:0;font-size:13px}
 .history-filters legend{float:left;margin-right:4px;color:var(--ink-2)}
 .history-filters label{font-size:13px}
-.history-list{max-height:520px;overflow:auto}
-.history-list .when{font-size:12px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.history-list{max-height:260px;overflow:auto;gap:4px}
+.history-list .finding{padding:6px 10px}
+.history-list .finding[aria-current=true]{border-color:var(--accent);background:var(--raised)}
+.history-list .when{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.past-foot{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;font-size:12px}
+.history-pill{border-color:var(--warning);background:color-mix(in srgb,var(--warning) 14%,var(--surface));font-size:12px;white-space:nowrap}
 .verdict .badge,.exit-summary .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
 .verdict .badge::before,.exit-summary .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
 .profile{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.55}
@@ -360,6 +379,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" data-help="target" data-hint="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
+<button id="history-pill" class="history-pill" data-help="replay" hidden></button>
 <nav class="tabs" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a><a id="nav-settings" href="#collector-settings">Settings</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" data-hint="Theme: follow system" aria-label="Switch color theme">◐</button>
@@ -375,6 +395,24 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <p id="target-status" role="status" class="muted"></p>
 </section>
 <section id="settings" class="card" aria-label="Alert settings" hidden><h2>Alert settings</h2><p class="muted">Rules run in the alerting module; changes apply immediately and are saved in its data directory. Turning a rule off resolves its open alerts.</p><div class="table-wrap"><table><thead><tr><th>On</th><th>Rule</th><th>Settings</th></tr></thead><tbody id="settings-rows"></tbody></table></div><div class="actions"><button id="settings-save" class="primary">Save changes</button><button id="settings-reset">Reset to config file</button><span id="settings-status" role="status" class="muted"></span></div></section>
+
+<!-- Timeline: move the whole dashboard to a recorded moment. Recordings come
+     from /api/replay; past findings are worked out from them in the browser,
+     with the Assessment's own rules. Nothing new is stored. -->
+<section id="timeline" class="card timeline" aria-labelledby="timeline-title">
+<div class="timeline-head"><h2 id="timeline-title" data-help="replay">Timeline</h2>
+<p id="replay-note" class="muted" role="status">Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time.</p>
+<div class="timeline-step"><button id="replay-previous" disabled aria-label="Previous recorded snapshot">◀</button><button id="replay-next" disabled aria-label="Next recorded snapshot">▶</button><button id="replay-live" aria-pressed="true">Live</button></div></div>
+<div class="scrubber"><div id="timeline-marks" class="timeline-marks" data-help="assesshistory"></div>
+<input id="timeline-range" type="range" min="0" max="1" step="1" value="1" disabled aria-label="Timeline position">
+<div class="timeline-ends"><span id="timeline-start"></span><span id="timeline-cursor"></span><span id="timeline-end">Live</span></div></div>
+<p id="replay-bounds" class="muted timeline-bounds"></p>
+<div class="past-head"><h3 data-help="assesshistory">Past assessments</h3>
+<div class="history-filters"><fieldset id="history-levels" data-help="historyfilters"><legend>Severity</legend><label><input type="checkbox" value="critical" checked> Critical</label><label><input type="checkbox" value="serious" checked> Serious</label><label><input type="checkbox" value="warning" checked> Warning</label><label><input type="checkbox" value="info"> Info</label></fieldset>
+<label data-help="historyfilters">Type <select id="history-type"><option value="">All types</option><option value="monitor">Monitoring</option><option value="threads">Threads &amp; CPU</option><option value="watched">Watched threads</option><option value="resources">Resources &amp; network</option><option value="memory">Memory</option></select></label></div></div>
+<ul id="history-list" class="findings history-list" data-help="assesshistory"></ul>
+<div class="past-foot"><span id="history-status" class="muted" role="status" data-help="assesshistory">Waiting for recordings…</span><button id="history-more" data-help="assesshistory" hidden>Load earlier</button></div>
+</section>
 
 <!-- Whole-process view. Everything here is summed from /api/live in the
      browser and kept for the last 15 minutes; nothing new is sent by the
@@ -420,32 +458,6 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 
 <h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
 
-<section class="card" aria-label="Historical inspection" style="margin-top:14px">
-<div class="section-head"><div><h2>Inspect a moment</h2><p>Choose a local date and time to inspect the recorded process and every thread.</p></div><button id="replay-live" aria-pressed="true">Live</button></div>
-<div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-<input id="replay-time" type="datetime-local" step="0.001" aria-label="Inspection time">
-<button id="replay-open" class="primary">Inspect time</button>
-<button id="replay-previous" disabled aria-label="Previous recorded snapshot">← Previous</button>
-<button id="replay-next" disabled aria-label="Next recorded snapshot">Next →</button>
-<button id="replay-latest">Latest recording</button>
-</div>
-<p id="replay-note" class="muted" role="status">Live view. Recordings begin when this collector receives a sampler session.</p>
-<p id="replay-bounds" class="muted" style="font-size:12px"></p>
-</section>
-
-<!-- Past findings, worked out in the browser by running the Assessment's
-     rules on recordings fetched from /api/replay; nothing is stored. -->
-<section id="assessment-history" class="card" aria-labelledby="history-title" style="margin-top:14px">
-<div class="section-head"><div><h2 id="history-title" data-help="assesshistory">Assessment history</h2><p>Scan the recordings to list what the Assessment found in the past. Click a finding to inspect that moment.</p></div>
-<div class="seg" role="group" aria-label="Assessment history range" data-help="assesshistory"><button data-history-range="900" aria-pressed="true">15 min</button><button data-history-range="3600" aria-pressed="false">1 h</button><button data-history-range="21600" aria-pressed="false">6 h</button><button data-history-range="86400" aria-pressed="false">24 h</button></div></div>
-<div class="toolbar history-filters">
-<button id="history-scan" class="primary" data-help="assesshistory">Scan recordings</button>
-<fieldset id="history-levels" data-help="historyfilters"><legend>Severity</legend><label><input type="checkbox" value="critical" checked> Critical</label><label><input type="checkbox" value="serious" checked> Serious</label><label><input type="checkbox" value="warning" checked> Warning</label><label><input type="checkbox" value="info"> Info</label></fieldset>
-<label data-help="historyfilters">Type <select id="history-type"><option value="">All types</option><option value="monitor">Monitoring</option><option value="threads">Threads &amp; CPU</option><option value="watched">Watched threads</option><option value="resources">Resources &amp; network</option><option value="memory">Memory</option></select></label>
-</div>
-<p id="history-status" class="muted" role="status" data-help="assesshistory">Not scanned yet. Choose a range and select Scan recordings.</p>
-<ul id="history-list" class="findings history-list" data-help="assesshistory"></ul>
-</section>
 
 </section>
 
@@ -848,8 +860,8 @@ helpTopic('interval','Sample interval','Sampler · milliseconds','The configured
 helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The reported share of missing sampler packets in the last minute.','','Compare loss with sample age and incomplete data before drawing conclusions.','Packet loss in the monitor is different from application network drops.',['health','netdrops']);
 helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
 helpTopic('target','Process name or PID','Target selection','An exact process name follows matching process restarts. A PID selects one running process.','worker-service selects an exact name; 1234 selects a process ID.','A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.','Linux process names are limited to 15 bytes. A thread ID is not a process ID.',['session','health'],['Change target']);
-helpTopic('replay','Inspect a moment','Recording · local time','Inspect the nearest available recording at or before the selected local date and time.','','Compare the requested time with the returned recording time. Previous and Next move between recordings; Live resumes the live view.','Recording can be disabled. A recording is not an interpolated frame, and old summaries cannot reconstruct a complete snapshot.',['history','health'],['Inspection time','Previous recorded snapshot','Next recorded snapshot','Latest recording','Inspect time','Live']);
-helpTopic('exited','Final view of the target','Target stopped reporting','When the sampler can no longer find the target, the dashboard keeps the last view in which the target was present, with the trends this tab collected (up to 15 minutes), instead of clearing them. When the sampler reports why the process ended, the banner, Last process exit and the Assessment show that reason.','A service crashes at 14:03:12. The summary, threads, resources and memory panels keep the values sampled just before then, and the charts end at that time.','Investigate the final state, open a thread to read its stored history, or use Inspect a moment for earlier recordings. Show live clears the final view and follows the current sampler session.','A tab opened after the exit gets the collector\'s last view but no earlier trends; a collector restart forgets that view. The target also stops reporting when another tab or script changes the target. If the process restarts before the sampler finds it missing, no final view is kept; recordings and thread summaries remain available. A view with thousands of threads may not fit in browser session storage; the banner then says a reload loses it.',['replay','history','session'],['Show live','Stopped reporting']);
+helpTopic('replay','Timeline','Recordings · collector clock','Moves the whole dashboard to a recorded moment. The bar runs from the oldest time the past-assessment list has checked (at least the last 15 minutes) on the left to now on the right; coloured marks above it show when past findings were present.','Drag the handle to the red mark at 14:03 and release: every panel shows the process as recorded at 14:03, and the top bar shows “14:03:00 · Back to live”.','Release the handle to open the nearest recording at or before that time. Release it at the left end to also check an earlier period, which stretches the bar further back; release it at the right end, or select Live or the top-bar button, to return to the live view. ◀ and ▶ step one recording; from live, ◀ opens the newest recording. Arrow keys move the handle one second, Page Up and Page Down a tenth of the bar. The note beside the title gives the recording time and any recording gap.','A recording is the newest view the collector saved at or before the time, never an interpolated one. Recording can be disabled (replay_interval_s = 0) and old summaries cannot rebuild a view. In a recording, state is the latest sampled observation and rates cover the preceding ~10 seconds; live trends, load averages and socket totals are not available.',['assesshistory','history','health'],['Timeline position','Previous recorded snapshot','Next recorded snapshot','Live','Back to live']);
+helpTopic('exited','Final view of the target','Target stopped reporting','When the sampler can no longer find the target, the dashboard keeps the last view in which the target was present, with the trends this tab collected (up to 15 minutes), instead of clearing them. When the sampler reports why the process ended, the banner, Last process exit and the Assessment show that reason.','A service crashes at 14:03:12. The summary, threads, resources and memory panels keep the values sampled just before then, and the charts end at that time.','Investigate the final state, open a thread to read its stored history, or use the Timeline for earlier recordings. Show live clears the final view and follows the current sampler session.','A tab opened after the exit gets the collector\'s last view but no earlier trends; a collector restart forgets that view. The target also stops reporting when another tab or script changes the target. If the process restarts before the sampler finds it missing, no final view is kept; recordings and thread summaries remain available. A view with thousands of threads may not fit in browser session storage; the banner then says a reload loses it.',['replay','history','session'],['Show live','Stopped reporting']);
 helpTopic('history','History','Thread · stored five-second summaries','Stored summaries show CPU, run delay, state samples, and I/O for the selected thread generation.','','Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.','Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.',['replay','mix','samples'],['From','To','History range','Chart time window','Load']);
 helpTopic('samples','Samples','Count per stored bucket','The number of observations included in a stored summary bucket.','','Use the count to assess how much data supports the state mix and rates.','A partial bucket or packet loss can reduce the count.',['history','loss']);
 helpTopic('pressure','Pressure stalls (PSI)','Displayed host or cgroup · time share','Pressure stall information measures time tasks waited for CPU, memory, or I/O.','Some: at least one task waited. Full: all non-idle tasks waited at once.','Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.','The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.',['throttle','rss','disk'],['Pressure, limits & sockets','Pressure scope','CPU pressure','Memory pressure','I/O pressure','Cgroup some','Cgroup full','Host some','Host full','Resource','Memory pressure (PSI some)']);
@@ -879,9 +891,9 @@ helpTopic('sockettotal','Socket total','Process or breakdown · cumulative bytes
 helpTopic('rates','Socket rates','Process or breakdown · per second','Current, average, minimum, and maximum rates over their labeled observation windows.','','Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.','Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.',['coverage','socketio'],['Current rate','Now /s','Average since start','Average /s','Recent minimum','Recent min /s','Recent maximum','Recent max /s']);
 helpTopic('coverage','Data coverage','Available observations','Coverage notes identify missing, partial, stale, or unavailable observations.','','Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.','Do not treat gaps or unreadable values as zero activity.',['health','socketio']);
 helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Watched-thread rules (see Watched threads) add findings for a thread that stopped waking up, a watched thread that is busy, and a rule that matches no thread. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['watched','health','cpu','pressure'],['What it means']);
-helpTopic('assesshistory','Assessment history','Recordings · chosen range','A list of what the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.','Range 1 h: up to 120 recordings, one every 30 s, are checked. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 8 scanned recordings is one row.','Rows are newest first. Each row shows the worst level it reached, with the wording and time of that worst moment, when it was first and last seen, its type, and how many scanned recordings had it. Select a row to open Inspect a moment at that time: the Assessment card then shows the same finding, and every panel shows the recorded state. Select a range to scan again.','Up to 120 recordings are checked per scan, so the longer the range, the larger the step: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own, like Inspect a moment: rules that need the trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Nothing is stored: results last until the page is reloaded. A scan downloads every checked recording, about 330 KB each with 1,000 threads.',['assessment','replay','historyfilters'],['Scan recordings','Stop scan','Assessment history range']);
-helpTopic('historyfilters','Assessment history filters','Rows in the last scan','Show only rows of the chosen severities and type. The type is the area the rule looks at.','Severity Critical and Serious with type Watched threads lists only watched threads that stopped waking or kept a core busy.','Monitoring: sampler, target and packet loss. Threads & CPU: CPU, run delay, kernel waits, faults, stopped and unreadable threads, lock hints. Watched threads: the watch rules. Resources & network: pressure, limits, descriptors and sockets. Memory: memory-map findings. A row keeps the worst severity it reached. Filters apply at once and do not scan again.','Info is off at first because info findings are notes, not problems. Filters only hide rows; the count in the status line says how many there are in total.',['assesshistory','assessment']);
-helpTopic('watched','Watched threads','Threads that match a watch rule · wake interval','A watch rule says that threads whose name starts with a prefix wake at least every N milliseconds, as workers that wait with a timeout do. The dashboard compares each such thread with its rule: the finding “stopped waking up” means it has not run for much longer than that interval, “is running instead of sleeping” means it uses 90% of a core or more, and “watch rule matches no thread” means no current thread has that prefix. “Watched: wakes at least every N ms” in a thread\'s details shows its rule and when it last ran.','Rule worker- with 500 ms. worker-3 last ran 4.2 s before the latest sample, so the Assessment says it stopped waking up. Stopped waking means more than twice the interval plus two sample intervals; at 500 ms and 200 ms sampling that is 1.4 s.','The time without running is counted between samples, not against the browser clock, so a paused sampler or a recorded view does not cause an alarm. A stuck thread may be deadlocked or may wait without a timeout: open it and check its wait channel, then take a stack dump to name the lock. A busy one may be in an infinite or retry loop. For a rule with no thread, check the prefix or whether the threads exited or were renamed. When every watched thread ran on time, one line says so.','The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In Inspect a moment and the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.',['assessment','states','wchan','thread'],['Watched','Stopped waking','Watch rule']);
+helpTopic('assesshistory','Past assessments','Recordings · checked period','What the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.','When the page opens, up to 120 recordings of the last 15 minutes are checked, one every ~8 s. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 25 checked recordings is one row, and one red mark on the timeline.','Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.','Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.',['replay','assessment','historyfilters'],['Load earlier']);
+helpTopic('historyfilters','Past assessment filters','Rows already checked','Show only past findings of the chosen severities and type, in the list and as timeline marks. The type is the area the rule looks at.','Severity Critical and Serious with type Watched threads lists only watched threads that stopped waking or kept a core busy.','Monitoring: sampler, target and packet loss. Threads & CPU: CPU, run delay, kernel waits, faults, stopped and unreadable threads, lock hints. Watched threads: the watch rules. Resources & network: pressure, limits, descriptors and sockets. Memory: memory-map findings. A row keeps the worst severity it reached. Filters apply at once and read nothing new.','Info is off at first because info findings are notes, not problems. Filters only hide rows; the status line counts all of them.',['assesshistory','assessment']);
+helpTopic('watched','Watched threads','Threads that match a watch rule · wake interval','A watch rule says that threads whose name starts with a prefix wake at least every N milliseconds, as workers that wait with a timeout do. The dashboard compares each such thread with its rule: the finding “stopped waking up” means it has not run for much longer than that interval, “is running instead of sleeping” means it uses 90% of a core or more, and “watch rule matches no thread” means no current thread has that prefix. “Watched: wakes at least every N ms” in a thread\'s details shows its rule and when it last ran.','Rule worker- with 500 ms. worker-3 last ran 4.2 s before the latest sample, so the Assessment says it stopped waking up. Stopped waking means more than twice the interval plus two sample intervals; at 500 ms and 200 ms sampling that is 1.4 s.','The time without running is counted between samples, not against the browser clock, so a paused sampler or a recorded view does not cause an alarm. A stuck thread may be deadlocked or may wait without a timeout: open it and check its wait channel, then take a stack dump to name the lock. A busy one may be in an infinite or retry loop. For a rule with no thread, check the prefix or whether the threads exited or were renamed. When every watched thread ran on time, one line says so.','The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In a recorded view on the Timeline and in the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.',['assessment','states','wchan','thread'],['Watched','Stopped waking','Watch rule']);
 helpTopic('alerts','Alert settings','Separate alerting program','Rules evaluate observations and manage alert state outside the collector.','','Read the unit and duration for each threshold. Saving applies changes immediately. Disabling a rule resolves its open alerts; Reset restores configured settings.','Alert delivery and rule evaluation are separate. The feature is shown only when an alerting program is available.',['assessment','health'],['Open alerts','Recent alert events','On','Rule','Settings','Save changes','Reset to config file']);
 helpTopic('collsettings','Collector settings','Collector · saved on the collector host','Settings that change how the collector behaves, edited here instead of in files on the collector host. Today only the watched-thread rules are editable.','','Each card applies its change at once and says where the value is saved. Settings that need a collector restart will say so beside the control.','The tab is read-only while you inspect a recorded moment, and when the collector is a build without these controls. Other collector settings are still edited in collector.toml.',['watches','replay']);
 helpTopic('watches','Watch rules','Collector · thread name prefixes','Rules that say threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking (a possible deadlock, or a wait with no timeout) or keeps a core busy (a possible infinite loop).','"worker-" every 500 ms watches worker-1, worker-2 and so on. A thread that has not run for much longer than 500 ms is then reported.','Add one rule per group of threads that should keep waking. When several prefixes match, the longest one is used, so "worker-" and "worker-io" can have different intervals. Check Matching threads now before you save.','The collector only reports when each thread last ran. A thread with a long wait by design, or a name that no rule matches, is not watched. A rule does not start or stop anything.',['assessment','thread','states']);
@@ -1138,13 +1150,13 @@ function initHelp(){
     if(label.closest('.hero-side')&&/^(5|15) min/.test(title))id='load';
     if(id)addHelp(label,id);
   }
-  const fields={'target-input':'target','replay-time':'replay',from:'history',to:'history',search:'thread',sort:'active',group:'group','family-mode':'families','pressure-scope':'pressure','sockets-busy-only':'queues','socket-kind':'endpoint','socket-search':'thread'};
+  const fields={'target-input':'target','timeline-range':'replay',from:'history',to:'history',search:'thread',sort:'active',group:'group','family-mode':'families','pressure-scope':'pressure','sockets-busy-only':'queues','socket-kind':'endpoint','socket-search':'thread'};
   for(const el of document.querySelectorAll('input,select,button[data-hint]')){
     // Segmented buttons are named by their group, so "Now" or "5 min" cannot match another topic.
     const name=el.getAttribute('aria-label')||el.closest('[role=group]')?.getAttribute('aria-label')||el.closest('label')?.firstChild?.textContent||helpText(el);
     const id=fields[el.id]||topicForText(name);if(id)el.dataset.help=id;
   }
-  element('target-input').dataset.help='target';element('replay-time').dataset.help='replay';
+  element('target-input').dataset.help='target';element('timeline-range').dataset.help='replay';
   element('live-dot').dataset.help='health';
   element('page-help').onclick=()=>openGuide('page',element('page-help'));
   element('help-guide-close').onclick=()=>closeGuide();element('help-back-thread').onclick=()=>closeGuide();element('help-scrim').onclick=()=>closeGuide();
@@ -1348,8 +1360,8 @@ function kernelShare(thread){
   const share=Math.min(1,thread.system_pct/thread.cpu_pct);
   return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
 const LEVEL_ORDER=['critical','serious','warning','info','good'];
-// Each finding has a type, the area its rule looks at, so Assessment history
-// can filter by it: monitor, threads, watched, resources or memory.
+// Each finding has a type, the area its rule looks at, so the past-assessment
+// list can filter by it: monitor, threads, watched, resources or memory.
 const ofType=(type,items)=>items.map(item=>Object.assign(item,{type}));
 function assess(threads,points){
   const health=live.health,findings=[];let type='monitor';const add=(level,title,detail,action)=>findings.push({type,level,title,detail,action});
@@ -2061,16 +2073,22 @@ function renderReplayView(){
   for(const [name,count] of Object.entries(live.groups||{})){const option=node('option',name+' ('+count+')');option.value=name;group.append(option)}group.value=chosen;
   showAlerting(Array.isArray(live.alerts));renderTop();renderOverview();renderMemory();renderHealth();renderThreads();renderDrawerLive();
 }
-function replayControls(){const historical=replayAt!==null;
+const LIVE_NOTE='Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time.';
+function replayControls(){const historical=replayAt!==null,recorded=isNum(replayBounds?.last);
   renderWatchMode();
   element('replay-live').setAttribute('aria-pressed',String(!historical));
-  element('replay-previous').disabled=!historical||replayAt<=replayBounds?.first;
+  // From live, ◀ opens the newest recording.
+  element('replay-previous').disabled=!recorded||historical&&replayAt<=replayBounds.first;
   element('replay-next').disabled=!historical||replayAt>=replayBounds?.last;
   element('socket-panel').hidden=historical;
   for(const button of document.querySelectorAll('[data-map-window], [data-window]'))button.disabled=historical;
+  // The top bar says when the page shows the past, wherever it is scrolled.
+  const pill=element('history-pill');pill.hidden=!historical;const shown=historical?sameDay(replayAt,Date.now()/1000)?clock(replayAt):date(replayAt):'';
+  pill.textContent=historical?`${shown} · Back to live`:'';pill.setAttribute('aria-label',historical?`Viewing the recording at ${date(replayAt)}. Back to live`:'');
+  renderTimeline();renderHistory();
 }
 function setReplayBounds(data){replayBounds=data;
-  element('replay-bounds').textContent=isNum(data.first)?`Available recordings: ${date(data.first)} – ${date(data.last)}. `+(data.interval_s?`Recording interval: ${data.interval_s} s (limited by dashboard refresh cadence).`:'Recording is disabled.'):'No recorded process snapshots yet. Older thread summaries remain available in thread history.';
+  element('replay-bounds').textContent=isNum(data.first)?`Recordings from ${date(data.first)} to ${date(data.last)}, `+(data.interval_s?`one every ${data.interval_s} s.`:'recording is now disabled.'):'No recordings yet. Recording may be disabled (replay_interval_s = 0); thread history still has older summaries.';
 }
 async function loadReplayBounds(){try{const response=await fetch('/api/replay');if(!response.ok)return;setReplayBounds(await response.json());replayControls()}catch{}}
 async function inspectTime(at,direction='at'){
@@ -2081,21 +2099,20 @@ async function inspectTime(at,direction='at'){
     if(request!==replayRequest)return;
     if(!response.ok)throw Error(data.error||'Unable to read recordings.');
     setReplayBounds(data);
-    if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No process snapshot at or before this time. Choose a time within the available recordings.':'No more recorded snapshots in this direction.';replayControls();return}
+    if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No recording at or before this time. Choose a later time on the timeline.':'No more recorded snapshots in this direction.';replayControls();return}
     if(replayAt===null){saveBuffer();liveMapWindow=mapWindow;
       // Keep live analysis in memory: session storage does not contain CPU samples.
       savedLiveAnalysis={view:live,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}}
     if(selected)closeThread();
     replayAt=data.snapshot.recorded_at;live=data.snapshot;
     loadBuffer(live.health.session);ingest();setMapWindow(0);
-    const inputMs=Math.ceil(replayAt*1000);element('replay-time').value=localInput(inputMs)+'.'+String(inputMs%1000).padStart(3,'0');
     const gap=Math.max(0,at-replayAt);
-    element('replay-note').textContent=`Historical view · recorded ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
+    element('replay-note').textContent=`Recorded view · ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
     replayControls();renderReplayView();
   }catch(error){if(request===replayRequest)element('replay-note').textContent=error.message}
 }
 async function returnLive(){const request=++replayRequest;
-  if(replayAt===null){element('replay-note').textContent='Live view. Choose a time to inspect a recording.';return}
+  if(replayAt===null){element('replay-note').textContent=LIVE_NOTE;return}
   if(!frozen&&!latestLive?.health){try{const response=await fetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
   if(request!==replayRequest)return;
   if(selected)closeThread();replayAt=null;live=frozen?.live??latestLive;
@@ -2103,30 +2120,70 @@ async function returnLive(){const request=++replayRequest;
     ({buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=savedLiveAnalysis);
   }else loadBuffer(live.health.session);
   savedLiveAnalysis=null;ingest();setMapWindow(liveMapWindow);renderReplayView();
-  element('replay-note').textContent='Live view. Choose a time to inspect a recording.';replayControls();
+  element('replay-note').textContent=LIVE_NOTE;replayControls();
 }
 
-element('replay-open').onclick=()=>inspectTime(new Date(element('replay-time').value).getTime()/1000);
-element('replay-time').onkeydown=event=>{if(event.key==='Enter')element('replay-open').onclick()};
-element('replay-previous').onclick=()=>inspectTime(replayAt,'previous');
-element('replay-next').onclick=()=>inspectTime(replayAt,'next');
-element('replay-latest').onclick=async()=>{const request=++replayRequest;await loadReplayBounds();if(request!==replayRequest)return;if(isNum(replayBounds?.last))inspectTime(replayBounds.last);else element('replay-note').textContent='No recorded process snapshots yet.'};
-element('replay-live').onclick=returnLive;
-element('replay-time').value=localInput(Date.now());
-loadReplayBounds();
 
-// ---------- Assessment history ----------
-// Past findings are worked out from the recordings, not stored: a scan fetches
-// up to HISTORY_SAMPLES recorded views spread evenly over the range, runs the
-// Assessment's rules on each exactly as Inspect a moment does, and joins a
-// finding seen in consecutive scanned views into one episode. A finding that
-// starts and ends between two scanned views is missed.
-const HISTORY_SAMPLES=120,HISTORY_PARALLEL=4;
+// ---------- Timeline ----------
+// The scrubber spans the time the past-assessment list has checked, from its
+// oldest checked time to now, so dragging it and scrolling the list move
+// through the same period. Releasing the handle opens the recording at or
+// before that time; releasing it at the left end also loads an earlier period;
+// releasing it at the right end returns to live.
+let timelineDragging=false,timelineMarksDrawn='';
+// Now, on the collector's clock: the newest recording or datagram.
+const timelineEnd=()=>Math.max(replayBounds?.last??0,latestLive?.health?.last_seen??0,replayAt??0);
+const timelineStart=()=>Math.max(replayBounds?.first??0,Math.min(past.oldest??Infinity,timelineEnd()-PAST_FIRST_S,replayAt??Infinity));
+function renderTimeline(){
+  const range=element('timeline-range'),recorded=isNum(replayBounds?.first);range.disabled=!recorded;
+  if(!recorded){element('timeline-start').textContent='';element('timeline-cursor').textContent='';element('timeline-marks').replaceChildren();timelineMarksDrawn='';return}
+  const start=timelineStart(),end=Math.max(timelineEnd(),start+1);
+  range.min=String(start);range.max=String(end);
+  if(!timelineDragging)range.value=String(replayAt??end);
+  element('timeline-start').textContent=date(start);element('timeline-end').textContent=replayAt===null?'Live':'Now · '+clock(end);
+  if(!timelineDragging)element('timeline-cursor').textContent=replayAt===null?'':'Viewing '+date(replayAt);
+  // One mark per shown past finding, in its severity colour, from first to
+  // last seen. Redrawn only when they would move, so a hovered mark stays put.
+  const marks=element('timeline-marks'),shown=shownEpisodes(),drawn=JSON.stringify([start,Math.round(end/5),shown.map(episodeId)]);
+  if(drawn===timelineMarksDrawn||helpOwns(marks))return;timelineMarksDrawn=drawn;marks.replaceChildren();
+  for(const episode of shown){const mark=node('span');const left=(episode.first-start)/(end-start),width=(episode.last-episode.first)/(end-start);
+    mark.style.left=(100*Math.max(0,left))+'%';mark.style.width=(100*Math.max(0,width))+'%';mark.style.setProperty('--lvl',`var(--${episode.level==='info'?'muted':episode.level})`);
+    mark.dataset.hint=`${episode.item.title} · ${clock(episode.first)}`;marks.append(mark)}}
+function openTimelineAt(at){
+  const start=timelineStart(),end=timelineEnd();timelineDragging=false;
+  if(at>=end-Math.max(1,(end-start)/200)){returnLive();return}
+  inspectTime(at);
+  if(at<=start+(end-start)/100)loadOlder()}
+const timelineRange=element('timeline-range');
+timelineRange.addEventListener('pointerdown',()=>{timelineDragging=true});
+// A press without a move fires no change event.
+for(const name of ['pointerup','pointercancel','blur'])timelineRange.addEventListener(name,()=>setTimeout(()=>{timelineDragging=false},0));
+timelineRange.oninput=()=>{timelineDragging=true;const at=Number(timelineRange.value),end=timelineEnd();
+  element('timeline-cursor').textContent=at>=end-1?'Release for live':'Release to view '+date(at)};
+timelineRange.onchange=()=>openTimelineAt(Number(timelineRange.value));
+element('replay-previous').onclick=()=>replayAt===null?inspectTime(replayBounds.last):inspectTime(replayAt,'previous');
+element('replay-next').onclick=()=>inspectTime(replayAt,'next');
+element('replay-live').onclick=returnLive;
+element('history-pill').onclick=returnLive;
+
+// ---------- Past assessments ----------
+// Past findings are worked out from the recordings, not stored. The list
+// checks the last PAST_FIRST_S seconds when the page opens, then an earlier
+// period each time the list is scrolled to its end (or the timeline is
+// released at its left end), each period twice as long as the one before,
+// up to PAST_MAX_CHUNK_S. Each period checks up to PAST_SAMPLES recordings
+// spread evenly over it, so older periods are checked more coarsely. While
+// live, the newest minutes are added every TIMELINE_EVERY_MS. Each recording
+// is judged exactly as the Assessment card judges a recorded view, and a
+// finding seen in consecutive checked recordings becomes one row. A finding
+// that starts and ends between two checked recordings is missed.
+const PAST_SAMPLES=120,PAST_PARALLEL=4,PAST_FIRST_S=900,PAST_MAX_CHUNK_S=21600,TIMELINE_EVERY_MS=15000;
 const HISTORY_TYPES={monitor:'Monitoring',threads:'Threads & CPU',watched:'Watched threads',resources:'Resources & network',memory:'Memory'};
-let pastRange=900,pastScan=0,pastScanning=false,pastResult=null;
-// The findings Inspect a moment shows for one recorded view. The page's view
-// and analysis state are swapped out and put back; nothing awaits in between,
-// so the live view never sees the recorded one.
+// samples: one {at,findings} or null (no recording in its slot) per checked time, oldest first.
+let past={samples:[],episodes:[],oldest:null,newest:null,step:null,chunk:PAST_FIRST_S,loading:false,adding:false,done:false,error:'',selected:null};
+// The findings the Assessment card shows for one recorded view. The page's
+// view and analysis state are swapped out and put back; nothing awaits in
+// between, so the live view never sees the recorded one.
 function assessRecorded(view){
   const saved={live,replayAt,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince};
   try{live=view;replayAt=view.recorded_at;loadBuffer(view.health.session);ingest();return assess(view.threads||[],buffer)}
@@ -2134,64 +2191,96 @@ function assessRecorded(view){
 // The same finding in two views: same type, same title once numbers are
 // ignored ("Packet loss 2.1%" and "Packet loss 3.4%"), and the same thread.
 const findingKey=item=>[item.type,item.title.replace(/\d+(?:[.,]\d+)*/g,'#'),item.action?.tid??''].join('|');
-// samples: one {at,findings} per scanned time, or null when no recording falls
-// in its slot. A missing sample ends every open episode: nothing is known then.
-// An episode keeps its worst level, and the time and wording where it was worst.
+// A missing sample ends every open episode: nothing is known then. An
+// episode keeps its worst level, and the time and wording where it was worst.
 function historyEpisodes(samples){
   const open=new Map(),done=[],rank=level=>LEVEL_ORDER.indexOf(level);
   for(const sample of samples){const seen=new Set();
     for(const item of sample?.findings||[]){const key=findingKey(item);if(item.level==='good'||seen.has(key))continue;seen.add(key);
       let episode=open.get(key);
-      if(!episode){episode={type:item.type,level:item.level,item,at:sample.at,first:sample.at,last:sample.at,count:0};open.set(key,episode)}
+      if(!episode){episode={key,type:item.type,level:item.level,item,at:sample.at,first:sample.at,last:sample.at,count:0};open.set(key,episode)}
       episode.last=sample.at;episode.count++;
       if(rank(item.level)<rank(episode.level))Object.assign(episode,{level:item.level,item,at:sample.at})}
     for(const [key,episode] of open)if(!seen.has(key)){done.push(episode);open.delete(key)}}
   return [...done,...open.values()].sort((a,b)=>b.first-a.first||rank(a.level)-rank(b.level))}
-function setHistoryScanning(on){pastScanning=on;element('history-scan').textContent=on?'Stop scan':'Scan recordings'}
-async function scanHistory(){
-  const scan=++pastScan,current=()=>scan===pastScan,status=element('history-status');
-  pastResult=null;renderHistory();setHistoryScanning(true);status.textContent='Reading the available recordings…';
-  try{
-    const response=await fetch('/api/replay');if(!response.ok)throw Error('Unable to read recordings.');
-    const bounds=await response.json();if(!current())return;
-    if(!isNum(bounds.last)){status.textContent='No recordings to scan yet. Recording may be disabled (replay_interval_s = 0).';return}
-    // Slot i covers (times[i] - step, times[i]]; the newest slot ends at the newest recording.
-    const end=bounds.last,start=Math.max(bounds.first,end-pastRange),step=Math.max(bounds.interval_s||1,(end-start)/(HISTORY_SAMPLES-1));
-    const count=Math.min(HISTORY_SAMPLES,Math.floor((end-start)/step+1e-9)+1),times=Array.from({length:count},(_,index)=>Math.max(start,end-(count-1-index)*step));
-    const samples=new Array(times.length);let next=0,read=0,failed=false;
-    const worker=async()=>{
-      while(current()&&!failed&&next<times.length){const index=next++;
-        try{const reply=await fetch('/api/replay?'+new URLSearchParams({at:times[index],direction:'at'}));const data=await reply.json();
-          if(!reply.ok)throw Error(data.error||'Unable to read recordings.');
-          const view=data.snapshot;if(!current())return;
-          // A view from an earlier slot means a recording gap here.
-          samples[index]=view?.health&&view.recorded_at>times[index]-step?{at:view.recorded_at,findings:assessRecorded(view)}:null}
-        catch(error){failed=true;throw error}
-        read++;if(current())status.textContent=`Scanning recordings… ${read} of ${times.length}`}};
-    await Promise.all(Array.from({length:HISTORY_PARALLEL},worker));
-    if(!current())return;
-    pastResult={episodes:historyEpisodes(samples),start:times[0],end,step,scanned:samples.filter(Boolean).length,gaps:samples.filter(sample=>!sample).length};
-    renderHistory()}
-  catch(error){if(current())status.textContent=(error.message||'Unable to read recordings.')+' Select Scan recordings to try again.'}
-  finally{if(current())setHistoryScanning(false)}}
-const sameDay=(a,b)=>new Date(a*1000).toDateString()===new Date(b*1000).toDateString();
-function renderHistory(){
-  const list=element('history-list');list.replaceChildren();if(!pastResult)return;
+// Fetches and judges the recording for each time; slot i covers
+// (times[i] - step, times[i]], and a view from an earlier slot is a gap.
+async function checkRecordings(times,step){
+  const samples=new Array(times.length);let next=0,failed=false;
+  const worker=async()=>{
+    while(!failed&&next<times.length){const index=next++;
+      try{const reply=await fetch('/api/replay?'+new URLSearchParams({at:times[index],direction:'at'}));const data=await reply.json();
+        if(!reply.ok)throw Error(data.error||'Unable to read recordings.');
+        const view=data.snapshot;
+        samples[index]=view?.health&&view.recorded_at>times[index]-step?{at:view.recorded_at,findings:assessRecorded(view)}:null}
+      catch(error){failed=true;throw error}}};
+  await Promise.all(Array.from({length:Math.min(PAST_PARALLEL,times.length)},worker));
+  return samples}
+// count times ending at end, step apart, none before start.
+const slotTimes=(start,end,step,count)=>Array.from({length:count},(_,index)=>Math.max(start,end-(count-1-index)*step));
+async function loadOlder(){
+  if(past.loading||past.done||!isNum(replayBounds?.last))return;
+  past.loading=true;past.error='';renderHistory();
+  try{const first=past.oldest===null,end=first?replayBounds.last:past.oldest,start=Math.max(replayBounds.first,end-past.chunk);
+    if(!first&&end<=replayBounds.first){past.done=true;return}
+    const step=Math.max(replayBounds.interval_s||1,(end-start)/(PAST_SAMPLES-1));
+    // An earlier period stops one step before the oldest time already checked.
+    const count=Math.min(PAST_SAMPLES,Math.floor((end-start)/step+1e-9)+(first?1:0));
+    const times=first?slotTimes(start,end,step,count):slotTimes(start,end-step,step,count);
+    const samples=count?await checkRecordings(times,step):[];
+    past.samples=[...samples,...past.samples];past.oldest=start;
+    if(first){past.newest=end;past.step=step}
+    past.chunk=Math.min(2*past.chunk,PAST_MAX_CHUNK_S);if(start<=replayBounds.first)past.done=true;
+    past.episodes=historyEpisodes(past.samples)}
+  catch(error){past.error=error.message||'Unable to read recordings.'}
+  finally{past.loading=false;renderHistory();renderTimeline()}}
+// While live, add the recordings made since the newest checked one.
+async function loadNewer(){
+  if(past.adding||past.loading||past.newest===null||!isNum(replayBounds?.last))return;
+  const step=past.step,missing=Math.floor((replayBounds.last-past.newest)/step+1e-9);if(missing<1)return;
+  past.adding=true;
+  try{const count=Math.min(PAST_SAMPLES,missing),end=past.newest+missing*step;
+    const samples=await checkRecordings(slotTimes(past.newest+step,end,step,count),step);
+    // Times skipped because the tab was away for long are a gap.
+    past.samples=[...past.samples,...(missing>count?[null]:[]),...samples];past.newest=end;
+    past.episodes=historyEpisodes(past.samples)}
+  catch{}
+  finally{past.adding=false;renderHistory();renderTimeline()}}
+function shownEpisodes(){
   const levels=new Set([...document.querySelectorAll('#history-levels input')].filter(box=>box.checked).map(box=>box.value)),type=element('history-type').value;
-  const {episodes,start,end,step,scanned,gaps}=pastResult,shown=episodes.filter(episode=>levels.has(episode.level)&&(!type||episode.type===type));
-  element('history-status').textContent=`Scanned ${scanned} recording${scanned===1?'':'s'} from ${date(start)} to ${date(end)}, one every ${duration(step)}.`+(gaps?` ${gaps} scanned time${gaps===1?' had':'s had'} no recording.`:'')+` Showing ${shown.length} of ${episodes.length} finding${episodes.length===1?'':'s'}.`;
-  if(!shown.length){list.append(node('li',episodes.length?'No findings match these filters.':'The Assessment found nothing in the scanned recordings.','muted'));return}
+  return past.episodes.filter(episode=>levels.has(episode.level)&&(!type||episode.type===type))}
+const sameDay=(a,b)=>new Date(a*1000).toDateString()===new Date(b*1000).toDateString();
+const episodeId=episode=>episode.key+'@'+episode.first;
+function renderHistory(){
+  const list=element('history-list'),shown=shownEpisodes(),more=element('history-more');
+  const checked=past.samples.filter(Boolean).length,gaps=past.samples.filter(sample=>!sample).length;
+  more.hidden=past.done||past.oldest===null&&!past.error;more.disabled=past.loading;more.textContent=past.loading?'Loading…':'Load earlier';
+  element('history-status').textContent=past.error?past.error+' Select Load earlier to try again.':
+    past.oldest===null?(past.loading?'Checking the latest recordings…':isNum(replayBounds?.first)?'':'No recordings to check.'):
+    `${past.loading?'Checking an earlier period… ':''}Checked ${checked} recording${checked===1?'':'s'} back to ${date(past.oldest)}${past.done?' (the oldest recording)':''}.`+(gaps?` ${gaps} checked time${gaps===1?' had':'s had'} no recording.`:'')+` Showing ${shown.length} of ${past.episodes.length} finding${past.episodes.length===1?'':'s'}.`;
+  if(helpOwns(list))return;
+  const scroll=list.scrollTop;list.replaceChildren();
+  if(past.oldest!==null&&!shown.length)list.append(node('li',past.episodes.length?'No findings match these filters.':'The Assessment found nothing in the checked recordings.','muted'));
   const icons={info:'i',warning:'!',serious:'▲',critical:'✕'};
-  for(const episode of shown){const row=node('li',undefined,'finding lvl-'+episode.level);const icon=node('span',icons[episode.level],'ic');icon.setAttribute('aria-label',episode.level);
-    const when=date(episode.first)+(episode.last>episode.first?' – '+(sameDay(episode.first,episode.last)?new Date(episode.last*1000).toLocaleTimeString():date(episode.last)):'')+` · ${HISTORY_TYPES[episode.type]||'Other'}`+(episode.count>1?` · in ${episode.count} scanned recordings`:'');
-    const body=node('div');body.append(node('div',episode.item.title,'t'),node('div',episode.item.detail,'d'),node('div',when,'when'));row.append(icon,body);
-    row.dataset.action='1';row.tabIndex=0;row.dataset.hint=`Inspect ${date(episode.at)}`;
-    const run=()=>{inspectTime(episode.at);element('overview').scrollIntoView({behavior:'smooth'})};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()};
-    list.append(row)}}
-element('history-scan').onclick=()=>{if(!pastScanning){scanHistory();return}pastScan++;setHistoryScanning(false);element('history-status').textContent='Scan stopped. Select Scan recordings to start again.'};
-for(const button of document.querySelectorAll('[data-history-range]'))button.onclick=()=>{pastRange=Number(button.dataset.pastRange);for(const other of document.querySelectorAll('[data-history-range]'))other.setAttribute('aria-pressed',String(other===button));scanHistory()};
-for(const box of document.querySelectorAll('#history-levels input'))box.onchange=renderHistory;
-element('history-type').onchange=renderHistory;
+  for(const episode of shown){const row=node('li',undefined,'finding lvl-'+episode.level),current=past.selected===episodeId(episode)&&replayAt===episode.at;
+    const icon=node('span',icons[episode.level],'ic');icon.setAttribute('aria-label',episode.level);
+    const when=date(episode.first)+(episode.last>episode.first?' – '+(sameDay(episode.first,episode.last)?new Date(episode.last*1000).toLocaleTimeString():date(episode.last)):'')+` · ${HISTORY_TYPES[episode.type]||'Other'}`+(episode.count>1?` · in ${episode.count} checked recordings`:'');
+    const body=node('div');body.append(node('div',episode.item.title,'t'),node('div',when,'when'));
+    // The selected row also shows the detail.
+    if(current)body.append(node('div',episode.item.detail,'d'));
+    row.append(icon,body);row.setAttribute('aria-current',String(current));
+    row.dataset.action='1';row.tabIndex=0;row.dataset.hint=`See the dashboard at ${date(episode.at)}`;
+    const run=()=>{past.selected=episodeId(episode);inspectTime(episode.at)};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()};
+    list.append(row)}
+  list.scrollTop=scroll}
+const historyList=element('history-list');
+// Reaching the end of the list loads an earlier period.
+historyList.onscroll=()=>{if(historyList.scrollTop+historyList.clientHeight>=historyList.scrollHeight-24)loadOlder()};
+element('history-more').onclick=loadOlder;
+for(const box of document.querySelectorAll('#history-levels input'))box.onchange=()=>{renderHistory();renderTimeline()};
+element('history-type').onchange=()=>{renderHistory();renderTimeline()};
+async function timelineTick(){await loadReplayBounds();if(past.oldest===null)loadOlder();else if(replayAt===null)loadNewer();setTimeout(timelineTick,TIMELINE_EVERY_MS)}
+timelineTick();
 
 // ---------- Memory map ----------
 // The summary comes from live.memory. The layout is the latest complete one
@@ -2614,7 +2703,7 @@ function watchNamesText(found){
 function setText(target,text){if(target.textContent!==text)target.textContent=text}
 function renderWatchMode(){
   let message='';
-  if(replayAt!==null)message='Settings cannot be edited while you inspect a recorded moment. Select Live in Inspect a moment to edit them.'+(watchDirty()?' Your unsaved edits are kept.':'');
+  if(replayAt!==null)message='Settings cannot be edited while you inspect a recorded moment. Select Live on the Timeline to edit them.'+(watchDirty()?' Your unsaved edits are kept.':'');
   else if(watchMissing)message='This collector has no /api/watches, so watched threads cannot be edited here. Update the collector, or edit the [[watch]] rules in collector.toml and restart it.';
   else if(!watchInfo)message=watchLoadError?`Unable to load the watched-thread rules: ${watchLoadError} Trying again…`:'Loading the watched-thread rules…';
   const note=element('watch-readonly');note.textContent=message;note.hidden=!message;element('watch-editor').hidden=!!message;
@@ -2858,7 +2947,8 @@ function renderTop(){const health=live.health,dot=element('live-dot');
   const state=replayAt!==null?['warning','Historical']:frozen?['critical','Stopped reporting']:health.sampler_silent?['critical','Sampler silent']:health.target_absent?['critical','Target absent']:health.last_seen?['live','Live']:['warning','Waiting'];
   dot.className='status-dot '+state[0];dot.dataset.hint=state[1];
   element('target-name').textContent=health.target_absent===null?'No target yet':targetName();
-  element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(frozen&&replayAt===null?' · at '+clock(frozen.at):health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
+  // A recording's time is in the top-bar button beside it.
+  element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(replayAt!==null?'':frozen?' · at '+clock(frozen.at):health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
   document.title=(health.pid?targetName()+' · ':'')+'Triangulator';
   element('error').textContent=health.sampler_silent?'⚠ Sampler is silent. Displayed thread data may be stale.':''}
 async function refresh(){try{const response=await fetch('/api/live');if(!response.ok)throw Error('Collector HTTP error');
@@ -2871,7 +2961,7 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     if(frozen&&!frozen.exit&&frozenExit()){frozen.exit=frozenExit();saveFrozen();if(replayAt===null)renderReplayView()}
     if(replayAt===null&&!frozen&&collectorKeptView(latestLive))await loadFinalView(latestLive.health.last_target.session);
     // Settings counts the collector's current threads, also while the final view is shown.
-    renderExited();updateWatch();if(replayAt!==null||frozen)return;
+    renderExited();updateWatch();renderTimeline();if(replayAt!==null||frozen)return;
     live=latestLive;if(!live.health)return;
     watchRulesTick(live.threads||[]);
     const alerting=Array.isArray(live.alerts);showAlerting(alerting);

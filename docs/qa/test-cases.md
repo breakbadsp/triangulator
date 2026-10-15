@@ -114,7 +114,7 @@ PID. Keep the dashboard open for at least five minutes.
    ends at the exit time.
 3. Start another target, then reload the page. Verify the same final view,
    trends and memory-map regions return.
-4. Use **Inspect a moment** on an earlier time, then select **Live**. Verify the
+4. Drag the **Timeline** back to an earlier time and release, then select **Live**. Verify the
    final view returns, not an empty page. Repeat with a live target: open a
    recording, kill and restart the process, then select **Live**. Verify the
    final view of the old process appears, not the new process.
@@ -195,7 +195,7 @@ process on Linux 6.15 or later. Run two passes on the target host: one with
    not exist. Verify the Assessment says "Target process is absent", not
    "Target process ended", and the header does not use the ended process's
    name.
-8. Open Inspect a moment after the exit. Verify the card shows the recorded
+8. Open a recording after the exit on the Timeline. Verify the card shows the recorded
    exit. Return to Live.
 9. Hover over the card heading, the reason, Exit status and Kernel messages.
    Verify each opens its help topic, and that the help says a missing message
@@ -764,7 +764,7 @@ with an isolated runtime directory and unused ports. Open the dashboard Summary.
 3. Open one thread from the finding and read the **Watched** line.
 4. Change the rule to `wake_ms` 3600000. Wait for the next refresh.
 5. Pause the sampler (`kill -STOP`) for 30 seconds, then resume it.
-6. Open **Inspect a moment** at a time after step 1 and read the Assessment.
+6. On the **Timeline**, open a recording from after step 1 and read the Assessment.
 7. Remove all rules.
 
 Expected results: One serious finding, "N watched threads stopped waking up" (or
@@ -873,7 +873,7 @@ process view (leave `replay_interval_s` at its default).
    seconds. Select the information button for each heading.
 2. Check the section nav: the Settings tab exists, is highlighted when the page is
    scrolled to the bottom, and its help says so.
-3. Make an unsaved edit, then use **Inspect a moment** to open a recording.
+3. Make an unsaved edit, then use the **Timeline** to open a recording.
    Return to **Live**.
 4. Open the Alert settings control (when an alerting program is present) and
    check that it is unchanged.
@@ -896,60 +896,68 @@ shows "Could not reach the collector" and keeps your edits. In the final view,
 **Matching threads now** drops to 0 when the process exits and counts the
 restarted threads again, without an edit.
 
-## QA-038: Assessment history lists past findings and opens their moment
+## QA-038: Timeline and past assessments show the dashboard at a past finding
 
-Feature: Assessment history. Priority: High. Case revision: 1.
+Feature: Timeline. Priority: High. Case revision: 2.
 
 Preconditions: Use an isolated runtime directory, unused ports and the default
 `replay_interval_s`. Monitor a bug-lab workload that can be switched between a
 healthy state and a CPU spin (or another serious finding) while running.
 
 1. Let the target run healthy for 2 minutes, then cause the CPU spin for about
-   1 minute, then stop it and wait 2 more minutes.
-2. In **Assessment history**, keep **15 min** selected and select **Scan
-   recordings**. Watch the status line while it scans.
-3. Read the rows. Check each one's severity icon, title, detail, time range,
-   type and the count of scanned recordings.
-4. Clear **Serious**, then select it again. Choose each value of **Type**, then
+   1 minute, then stop it and wait 2 more minutes. Open the dashboard.
+2. Without selecting anything, read the **Timeline** card at the top: the
+   status line under **Past assessments**, the rows and the marks above the bar.
+3. Select the saturated-core row. Scroll through the dashboard. Read the top
+   bar, the note beside **Timeline**, the Assessment card and the thread table.
+4. Select **Back to live** in the top bar.
+5. Drag the timeline handle onto the red or orange mark and release it. Then
+   use **◀** and **▶**. Drag the handle to the right end and release it.
+6. Clear **Serious**, then select it again. Choose each value of **Type**, then
    **All types**. Check **Info**.
-5. Select the saturated-core row. Read the **Inspect a moment** note, the
-   Assessment card and the thread table.
-6. Select **Live**. Select **1 h**, then **24 h**.
+7. Wait 30 seconds while live.
 
-Expected results: The status line counts up to the number of recordings and
-ends with how many were scanned, the time range, the step (about 8 s for 15
-min), any scanned times without a recording, and "Showing N of M findings".
-The spin is one serious row, typed Threads & CPU, whose first and last times
-are within one step of the real start and end. Filters hide and show rows at
-once without a new scan, and the status count follows them; Info adds notes such
-as watched threads on schedule. Selecting the row opens the recording at the
-row's worst moment: the Assessment card shows the same finding and the thread
-table shows the spinning thread. The live trends are back after **Live**. Each
-range button starts a new scan with a larger step (about 30 s for 1 h, about
-12 min for 24 h) and is marked as pressed.
+Expected results: The list fills by itself. The status line ends with how many
+recordings were checked, back to when, any times without a recording, and
+"Showing N of M findings". The spin is one serious row per spinning thread,
+typed Threads & CPU, whose first and last times are within ~8 s of the real
+start and end, with a mark at the same place on the bar. Selecting the row
+moves every panel to the row's worst moment without scrolling the page. The
+Assessment card shows the same finding, the row is highlighted and shows its
+detail, the handle sits at that time, and the top bar shows the recorded time
+and "Back to live" wherever the page is scrolled. **Back to live** and releasing at the right
+end both return to live, with the live trends back and the top-bar button
+hidden. Releasing on a mark shows that moment, and the note gives the recording
+time. Filters hide and show rows and marks at once, without checking again.
+While live, the checked count grows and the bar's right end follows now.
 
-## QA-039: Assessment history stop, empty states and help coverage
+## QA-039: Checking earlier periods, empty states and help coverage
 
-Feature: Assessment history. Priority: Medium. Case revision: 1.
+Feature: Timeline. Priority: Medium. Case revision: 2.
 
-Preconditions: As QA-038, plus a second collector started with
-`replay_interval_s = 0` in its own runtime directory.
+Preconditions: As QA-038 with at least 2 hours of recordings, plus a second
+collector started with `replay_interval_s = 0` in its own runtime directory.
 
-1. Select **24 h** and, while it scans, select **Stop scan**.
-2. Scan a range in which the target was healthy throughout.
-3. Stop the collector and select **Scan recordings**.
-4. Open the dashboard of the collector with recording disabled and scan.
-5. Pause for 1.2 seconds on the section title, a range button, **Scan
-   recordings**, the Severity checkboxes, **Type**, the status line and a row.
-   Select the information button for the section title.
-6. Open the dashboard in a narrow window (under 640 px) and scan.
+1. Scroll the past-assessment list to its end, or select **Load earlier**.
+   Repeat twice.
+2. Drag the timeline handle to the left end and release it.
+3. Stop the collector and select **Load earlier**. Start it again and select
+   **Load earlier** once more.
+4. Open the dashboard of the collector with recording disabled.
+5. Pause for 1.2 seconds on the **Timeline** title, the bar, the marks, **◀**,
+   **▶**, **Live**, the top-bar button, **Past assessments**, the Severity
+   checkboxes, **Type**, a row, the status line and **Load earlier**. Select
+   the information button for **Timeline** and **Past assessments**.
+6. Open the dashboard in a narrow window (under 640 px).
 
-Expected results: **Stop scan** ends the scan at once with "Scan stopped", no
-rows, and the button back to **Scan recordings**. A healthy range says the
-Assessment found nothing in the scanned recordings. With the collector stopped,
-the status line shows an error and says to try again; the button is usable.
-With recording disabled, the status line says there are no recordings and
-recording may be disabled. Every target shows a help card after 1.2 seconds;
-the guide explains the scan, the step and its limits, the filters, and that
-nothing is stored. On a narrow screen the controls wrap and the list scrolls
-inside the card.
+Expected results: Each load checks a period twice as long as the one before
+(30 min, then 1 h, then 2 h). The bar's left end and its start time move back,
+and the list keeps its scroll position. Releasing at the left end shows the
+recording there and loads one earlier period. **Load earlier** disappears once
+the oldest recording is reached. With the collector stopped, the status line
+shows an error and says to try again, and the retry works after the collector
+is back. With recording disabled, the bar is disabled and the list says there
+are no recordings to check. Every target shows a help card after 1.2 seconds.
+The guides explain the bar and its ends, the marks, how earlier periods and
+their step work, the filters, and that nothing is stored. On a narrow screen
+the controls wrap and the list scrolls inside the card.

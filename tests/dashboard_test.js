@@ -936,7 +936,7 @@ test('missing recordings and gaps are explicit and never replace a successful vi
   snapshot = null;
   await app.run('inspectTime(900)');
   assert.equal(app.run('replayAt'), 1000);
-  assert.match(app.elements.get('replay-note').textContent, /No process snapshot/);
+  assert.match(app.elements.get('replay-note').textContent, /No recording at or before/);
   await app.run('inspectTime(NaN)');
   assert.match(app.elements.get('replay-note').textContent, /valid time/);
 });
@@ -1028,81 +1028,147 @@ test('history episodes join consecutive findings and end at a recording gap', ()
   ]);
 });
 
-function historyApp(snapshotAt) {
+// A dashboard whose collector has recordings from `first` to `last` (one a
+// second); snapshotAt(at) gives the view for a request. Patch the checkbox
+// query the DOM substitute does not answer.
+function historyApp(snapshotAt, bounds = {first: 1000, last: 1900}) {
   const app = dashboard(new Map(), url => {
-    if (url === '/api/replay') return jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: null});
+    if (url === '/api/replay') return jsonResponse({...bounds, interval_s: 1, snapshot: null});
     if (!url.startsWith('/api/replay?')) return undefined;
     const query = new URLSearchParams(url.split('?')[1]);
-    const view = snapshotAt(Number(query.get('at')));
-    return jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: view});
+    return jsonResponse({...bounds, interval_s: 1, snapshot: snapshotAt(Number(query.get('at')), query.get('direction'))});
   });
-  const boxes = ['critical', 'serious', 'warning', 'info'].map(value => ({value, checked: value !== 'info'}));
-  app.boxes = boxes;
-  app.run('document.querySelectorAll=(original=>selector=>selector==="#history-levels input"?boxes:original(selector))(document.querySelectorAll)');
-  app.run(`var boxes=${JSON.stringify(boxes)}`);
+  app.bounds = bounds;
+  app.run(`var boxes=${JSON.stringify(['critical', 'serious', 'warning', 'info'].map(value => ({value, checked: value !== 'info'})))};
+    document.querySelectorAll=(original=>selector=>selector==="#history-levels input"?boxes:original(selector))(document.querySelectorAll);
+    element("history-list").scrollTop=0;element("history-list").clientHeight=100;element("history-list").scrollHeight=100;`);
   return app;
 }
+const settle = async () => {for (let i = 0; i < 200; i++) await new Promise(resolve => setImmediate(resolve));};
 const historyRows = app => app.elements.get('history-list').children.map(row => row.children?.[1]?.children[0].textContent ?? row.textContent);
+const scanTimes = app => app.requests.filter(url => url.startsWith('/api/replay?') && url.includes('direction=at'))
+  .map(url => Number(new URLSearchParams(url.split('?')[1]).get('at')));
+// A thread is saturated from 1300 to 1500; recordings stop between 1600 and 1700.
+const spinView = at => {
+  const recorded = at >= 1600 && at < 1700 ? 1599 : Math.floor(at);
+  const view = frame(recorded);
+  view.threads[0].cpu_pct = recorded >= 1300 && recorded <= 1500 ? 99 : 5;
+  return view;
+};
 
-test('a scan applies the Assessment to recordings and leaves the live view alone', async () => {
-  // A thread is saturated from 1300 to 1500; recordings stop between 1600 and 1700.
-  const app = historyApp(at => {
-    const recorded = at >= 1600 && at < 1700 ? 1599 : Math.floor(at);
-    const view = frame(recorded);
-    view.threads[0].cpu_pct = recorded >= 1300 && recorded <= 1500 ? 99 : 5;
-    return view;
-  });
+test('past assessments check the latest recordings when the page opens and leave the live view alone', async () => {
+  const app = historyApp(spinView);
   tick(app, 2000, 0);
   app.run('latestLive=live');
   const before = app.run('JSON.stringify({buffer,live,lastTick,bufferSession})');
-  await app.run('scanHistory()');
+  await settle();
   assert.equal(app.run('JSON.stringify({buffer,live,lastTick,bufferSession})'), before, 'the live view and trends are untouched');
   assert.equal(app.run('replayAt'), null);
-  const scans = app.requests.filter(url => url.startsWith('/api/replay?'));
-  assert.equal(scans.length, 120, 'at most 120 recordings per scan');
-  const scanned = scans.map(url => Number(new URLSearchParams(url.split('?')[1]).get('at'))).sort((a, b) => a - b);
-  assert.deepEqual([scanned[0], scanned.at(-1)], [1000, 1900], 'the scan covers the range from its oldest recording to its newest');
+  const times = scanTimes(app).sort((a, b) => a - b);
+  assert.equal(times.length, 120, 'at most 120 recordings per period');
+  assert.deepEqual([times[0], times.at(-1)], [1000, 1900], 'the first period ends at the newest recording');
   assert.deepEqual(historyRows(app), ['old-worker is saturating a core']);
-  const episode = JSON.parse(app.run('JSON.stringify(pastResult.episodes[0])'));
+  const episode = JSON.parse(app.run('JSON.stringify(past.episodes[0])'));
   assert.equal(episode.type, 'threads');
   assert.ok(episode.first >= 1300 && episode.first < 1308 && episode.last <= 1500 && episode.last > 1492, JSON.stringify(episode));
-  const status = app.elements.get('history-status').textContent;
-  assert.match(status, /^Scanned 108 recordings from .* one every 8 s\. 12 scanned times had no recording\. Showing 1 of 1 finding\.$/);
-  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
-  // Filters hide rows without scanning again.
-  app.run('boxes[1].checked=false;renderHistory()');
+  assert.match(app.elements.get('history-status').textContent,
+    /^Checked 108 recordings back to .* \(the oldest recording\)\. 12 checked times had no recording\. Showing 1 of 1 finding\.$/);
+  assert.equal(app.elements.get('history-more').hidden, true, 'nothing earlier to load');
+  // The timeline spans the checked period and marks the finding.
+  const range = app.elements.get('timeline-range');
+  assert.deepEqual([Number(range.min), Number(range.max), Number(range.value)], [1000, 1900, 1900], 'live sits at the right end');
+  const mark = app.elements.get('timeline-marks').children[0];
+  assert.ok(Math.abs(parseFloat(mark.style.left) - 100 * (episode.first - 1000) / 900) < 1e-9);
+  // Filters hide rows and marks without checking again.
+  app.run('boxes[1].checked=false;renderHistory();renderTimeline()');
   assert.deepEqual(historyRows(app), ['No findings match these filters.']);
+  assert.equal(app.elements.get('timeline-marks').children.length, 0);
   app.run('boxes[1].checked=true;element("history-type").value="memory";renderHistory()');
   assert.deepEqual(historyRows(app), ['No findings match these filters.']);
   app.run('element("history-type").value="threads";renderHistory()');
-  // A row opens Inspect a moment at the time it was worst.
-  app.run('element("overview").scrollIntoView=()=>{}');
+  assert.equal(scanTimes(app).length, 120);
+  // A row moves the whole dashboard to the time it was worst and stays selected.
   app.elements.get('history-list').children[0].onclick();
-  await new Promise(resolve => setImmediate(resolve));
+  await settle();
   assert.equal(app.run('replayAt'), episode.at);
   assert.ok(app.run('assess(live.threads,buffer)').some(item => item.title === 'old-worker is saturating a core'));
-  assert.equal(app.requests.filter(url => url.startsWith('/api/replay?')).length, 121);
+  const row = app.elements.get('history-list').children[0];
+  assert.equal(row.attrs['aria-current'], 'true');
+  assert.equal(row.children[1].children.length, 3, 'the selected row shows the detail');
+  const pill = app.elements.get('history-pill');
+  assert.equal(pill.hidden, false);
+  assert.match(pill.textContent, / · Back to live$/);
+  assert.match(pill.attrs['aria-label'], /^Viewing the recording at .*\. Back to live$/);
+  assert.equal(Number(range.value), episode.at);
+  pill.onclick();
+  assert.equal(app.run('replayAt'), null);
+  assert.equal(pill.hidden, true);
 });
 
-test('a scan can be stopped and reports missing recordings and errors', async () => {
-  const app = historyApp(at => frame(Math.floor(at)));
-  tick(app, 2000, 0);
-  const scan = app.run('scanHistory()');
-  assert.equal(app.elements.get('history-scan').textContent, 'Stop scan');
-  app.elements.get('history-scan').onclick();
-  await scan;
-  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
-  assert.match(app.elements.get('history-status').textContent, /^Scan stopped/);
-  assert.deepEqual(app.elements.get('history-list').children, []);
-  assert.ok(app.requests.filter(url => url.startsWith('/api/replay?')).length < 120);
-  app.setFetch(url => jsonResponse({first: null, last: null, interval_s: 1, snapshot: null}));
-  await app.run('scanHistory()');
-  assert.match(app.elements.get('history-status').textContent, /^No recordings to scan yet/);
-  app.setFetch(url => url === '/api/replay' ? jsonResponse({first: 1000, last: 1900, interval_s: 1})
+test('scrolling to the end of the list or the start of the timeline checks an earlier period', async () => {
+  const app = historyApp(at => frame(Math.floor(at)), {first: 0, last: 1900});
+  await settle();
+  assert.equal(scanTimes(app).length, 120);
+  assert.equal(app.run('past.oldest'), 1000);
+  const more = app.elements.get('history-more');
+  assert.equal(more.hidden, false);
+  // The list's end is in view: the next period is twice as long, back to the oldest recording.
+  app.elements.get('history-list').onscroll();
+  assert.equal(more.textContent, 'Loading…');
+  app.elements.get('history-list').onscroll();
+  await settle();
+  const earlier = scanTimes(app).slice(120);
+  assert.equal(earlier.length, 119, 'one load at a time; the period stops before the time already checked');
+  assert.ok(Math.min(...earlier) === 0 && Math.max(...earlier) < 1000, `${Math.min(...earlier)}..${Math.max(...earlier)}`);
+  assert.equal(app.run('past.oldest'), 0);
+  assert.equal(more.hidden, true);
+  assert.match(app.elements.get('history-status').textContent, /\(the oldest recording\)/);
+  assert.equal(Number(app.elements.get('timeline-range').min), 0);
+
+  // Releasing the handle at the left end opens that moment and loads earlier;
+  // at the right end it returns to live.
+  const other = historyApp(at => frame(Math.floor(at)), {first: 0, last: 1900});
+  await settle();
+  other.run('latestLive=live={health:{session:"session-1",last_seen:1900},threads:[]}');
+  other.run('renderTimeline()');
+  const range = other.elements.get('timeline-range');
+  range.value = range.min; range.onchange();
+  await settle();
+  assert.equal(other.run('replayAt'), 1000);
+  assert.equal(other.run('past.oldest'), 0);
+  range.value = range.max; range.onchange();
+  assert.equal(other.run('replayAt'), null);
+});
+
+test('while live the newest recordings join the list, and errors can be retried', async () => {
+  const bounds = {first: 1000, last: 1900};
+  const app = historyApp(at => frame(Math.floor(at)), bounds);
+  await settle();
+  const step = app.run('past.step');
+  bounds.last = 1960;
+  app.advance(15000);
+  await settle();
+  const added = scanTimes(app).slice(120);
+  assert.equal(added.length, Math.floor(60 / step));
+  assert.ok(Math.abs(added[0] - (1900 + step)) < 1e-9);
+  assert.ok(Math.abs(app.run('past.newest') - (1900 + added.length * step)) < 1e-9);
+
+  const failing = historyApp(() => frame(1000));
+  failing.setFetch(url => url === '/api/replay' ? jsonResponse({first: 1000, last: 1900, interval_s: 1})
     : Promise.resolve({ok: false, json: async () => ({error: 'bad at'})}));
-  await app.run('scanHistory()');
-  assert.equal(app.elements.get('history-status').textContent, 'bad at Select Scan recordings to try again.');
-  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
+  failing.run('loadReplayBounds().then(loadOlder)');
+  await settle();
+  assert.equal(failing.elements.get('history-status').textContent, 'bad at Select Load earlier to try again.');
+  assert.equal(failing.elements.get('history-more').hidden, false);
+  failing.setFetch(url => jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: url.includes('?') ? frame(1000) : null}));
+  failing.elements.get('history-more').onclick();
+  await settle();
+  assert.match(failing.elements.get('history-status').textContent, /^Checked /);
+
+  const empty = historyApp(() => null, {first: null, last: null});
+  await settle();
+  assert.equal(empty.elements.get('history-status').textContent, 'No recordings to check.');
+  assert.equal(empty.elements.get('timeline-range').disabled, true);
 });
 
 
