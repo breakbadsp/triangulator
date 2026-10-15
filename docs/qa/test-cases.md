@@ -266,7 +266,7 @@ process.
 
 ## QA-020: Current section tab
 
-Feature: Dashboard navigation. Priority: Medium. Case revision: 1.
+Feature: Dashboard navigation. Priority: Medium. Case revision: 2.
 
 Preconditions: The dashboard is open with live samples.
 
@@ -275,7 +275,7 @@ Preconditions: The dashboard is open with live samples.
    `aria-current="location"`. Use the keyboard to select a tab.
 3. Scroll down and up through the sections without selecting tabs. Verify that
    the highlight follows the section below the header.
-4. Scroll to the bottom. Verify that Monitor is highlighted.
+4. Scroll to the bottom. Verify that Settings is highlighted.
 5. Open a section URL directly. Reload it and use browser Back and Forward.
    Verify that the highlight agrees with the visible section.
 6. Repeat at a narrow width and in light and dark themes. Resize the window
@@ -723,7 +723,7 @@ only `/api/live` carries.
 
 ## QA-029: Summary CPU and memory trends
 
-Feature: Summary process load. Priority: Medium. Case revision: 1.
+Feature: Summary process load. Priority: Medium. Case revision: 2.
 
 1. Monitor a process whose RSS grows, for example a bug-lab leak workload.
    Keep the Summary open for at least two minutes.
@@ -731,8 +731,8 @@ Feature: Summary process load. Priority: Medium. Case revision: 1.
 3. Hover each chart. Open help from the Resident memory (RSS) and Virtual size
    (VmSize) labels.
 4. Inspect a recorded moment, then return to Live.
-5. Restart the sampler without `memory_interval_s`, so memory-map sampling is
-   off.
+5. Set `memory_interval_s = 0` and restart the sampler, so memory-map sampling
+   is off.
 
 Expected results: Under the load chart, RSS and VmSize charts share its time
 window. The current values match the Resources and Memory map tiles. RSS steps
