@@ -194,7 +194,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Inspect a moment | Local time and timezone; nearest earlier recording; Previous/Next; Live; recording disabled; missing history |
 | Last process exit | Reason and its signal; exit status (signal, core dump, exit code) and when it is not available; kernel log readable, unreadable, or unavailable; exit time; folded line for an earlier exit and the exit count; kernel messages and thread IDs; exits the kernel does not log or does not report (rate limit, `debug.exception-trace = 0`) |
 | Process load | Load averages; On CPU now; Waiting for CPU; busiest thread; chart window versus averaging window; RSS and VmSize charts and their sample steps |
-| Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment |
+| Assessment | Meaning of each verdict; exact rule and observed value; scope; limits of the assessment; watched-thread findings (stopped waking, busy, rule with no thread, on schedule) and their thresholds |
 | Process details | What each value is and where it comes from (cmdline, exe, cwd, start time, parent, user and group, allowed CPUs); read once when monitoring starts; Not available when unreadable; cut text; secrets in the command line; deleted executable |
 | Overview tiles | Active/idle definition; context switches; disk and syscall I/O; major faults; thread churn; socket bytes; messages |
 | State chart and wait bars | Every state; sampled counts; wait channels; filter action; unknown and no access |
@@ -208,7 +208,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Network counters | Each counter definition; Now/In range/Total; namespace scope; resets and unavailable values |
 | Fullest sockets | Socket kind/state; local/peer; Recv-Q/Send-Q; listener backlog; buffer fill; drops; RTT; retransmits; coverage |
 | Thread filters and table | Group; sort; active/idle/all; TID and generation; wait channel; last ~10 s; CPU; run delay; switches; read/write; major faults; core |
-| Thread drawer | Live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
+| Thread drawer | Watched line (rule interval, last ran, overdue); live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
 | Socket I/O panel | Observer status and coverage; received/sent/messages; total/current/average/recent min/max; filters affect breakdown only; retired threads |
 | Memory map | VmSize and its limit; anonymous/file/shared split; VMAs and vm.max_map_count; findings; address-space bars and kinds; region zoom and page grid; sampler page size and binary units; sampled size change and measured interval; largest unmapped gap and unknown coverage; bounded heap display margin; heap-end and stack-start offsets, sampled steps and gaps, and resident anonymous chart; member-region disclosure; thread-stack reservations and residency; memory limits |
 | Optional alerts | Rule meaning; threshold unit and window; trigger/recovery; disable and reset effects; delivery status when present |

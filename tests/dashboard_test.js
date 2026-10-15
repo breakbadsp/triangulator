@@ -1953,3 +1953,192 @@ test('process details show the readable facts and say what is not available', ()
   app.run("live.process=null;live.health.session='s';renderProcessInfo()");
   assert.equal(processFacts(app).card.hidden, true);
 });
+
+// Watched threads. A thread is built as the live API reports it: a rule gave it
+// wake_ms, and it last ran `quiet` seconds before its newest sample (at 1000).
+function watchedThread(tid, name, {wake = 500, quiet = 0, cpu = 0.2, state = 'futex', wchan = 'futex_do_wait', ...rest} = {}) {
+  return {tid, name, state, wchan, cpu_pct: cpu, switches_per_s: 1, state_mix: {[state]: 20}, run_delay_pct: 0,
+    read_bps: 0, write_bps: 0, major_faults_per_s: 0, last_sample: 1000, last_ran: 1000 - quiet, wake_ms: wake,
+    stale: false, generation: 0, ...rest};
+}
+
+// Show `threads` to the dashboard and return its findings as [level, title, detail].
+function watchFindings(threads, {health = {}, rules = null, setup = ''} = {}) {
+  const app = dashboard();
+  app.run(`live={health:{session:'s',sample_interval_ms:200,...${JSON.stringify(health)}},threads:${JSON.stringify(threads)}};
+    lastTick=1000;watchRules=${JSON.stringify(rules)};${setup}`);
+  const findings = JSON.parse(app.run('JSON.stringify(assess(live.threads,[]))'));
+  return {app, findings, watch: findings.filter(item => item.help === 'watched')};
+}
+
+test('a watched thread that has not run for over 2 x wake + 2 x sample interval stopped waking', () => {
+  // wake 500 ms, sample interval 200 ms: overdue after 2 x 0.5 + 2 x 0.2 = 1.4 s.
+  const limit = quiet => watchFindings([watchedThread(1, 'worker-1', {quiet})]).watch;
+  assert.equal(limit(1.4).some(item => item.level === 'serious'), false, 'exactly at the limit is on time');
+  assert.equal(limit(1.0).some(item => item.level === 'serious'), false);
+  const [stuck] = limit(4.2);
+  assert.equal(stuck.level, 'serious');
+  assert.equal(stuck.title, 'worker-1 stopped waking up');
+  assert.match(stuck.detail, /TID 1 is set to wake at least every 500 ms, but it has not run for 4\.2 s\. It may be deadlocked or waiting without a timeout\. Last state: Futex wait in futex_do_wait\./);
+  assert.deepEqual(stuck.action, {tid: 1});
+  // The interval term: a 10 ms rule is not flagged by ordinary sampling jitter, a 1 s sampler tolerates more.
+  const fast = quiet => watchFindings([watchedThread(1, 'tick-1', {wake: 10, quiet})]).watch.some(item => item.level === 'serious');
+  assert.equal(fast(0.4), false);
+  assert.equal(fast(0.5), true);
+  const slow = quiet => watchFindings([watchedThread(1, 'tick-1', {wake: 500, quiet})], {health: {sample_interval_ms: 1000}}).watch.some(item => item.level === 'serious');
+  assert.equal(slow(2.9), false);
+  assert.equal(slow(3.1), true);
+  // An unknown sample interval is assumed to be slow, never fast.
+  assert.equal(watchFindings([watchedThread(1, 'tick-1', {quiet: 2.9})], {health: {sample_interval_ms: null}}).watch.some(item => item.level === 'serious'), false);
+});
+
+test('stuck time is measured between samples, not against the clock', () => {
+  const app = dashboard();
+  // The view is long past the samples (paused sampler, a replay): still on time.
+  app.run(`live={health:{session:'s',sample_interval_ms:200},threads:[${JSON.stringify(watchedThread(1, 'worker-1', {quiet: 0.1}))}]};
+    lastTick=1000;watchRules=null;replayAt=2000;frozen=null`);
+  const titles = JSON.parse(app.run('JSON.stringify(assess(live.threads,[]).map(item=>item.title))'));
+  assert.deepEqual(titles.filter(title => /worker-1|watched/.test(title)), ['1 watched thread wakes on schedule']);
+});
+
+test('several stuck threads become one finding, worst first', () => {
+  const threads = [1, 2, 3, 4, 5].map(tid => watchedThread(tid, 'worker-' + tid, {quiet: tid + 1}));
+  threads.push(watchedThread(6, 'io-1', {wake: 100, quiet: 0.1, state: 'sleep', wchan: ''}));
+  const {watch} = watchFindings(threads);
+  const stuck = watch.filter(item => item.level === 'serious');
+  assert.equal(stuck.length, 1);
+  assert.equal(stuck[0].title, '5 watched threads stopped waking up');
+  assert.match(stuck[0].detail, /Worst first: worker-5 \(6\.0 s, every 500 ms\), worker-4 \(5\.0 s, every 500 ms\), worker-3 \(4\.0 s, every 500 ms\) and 2 more\./);
+  assert.deepEqual(stuck[0].action, {tid: 5});
+  assert.equal(watch.some(item => item.level === 'info'), false, 'no "on schedule" line while some thread is stuck');
+});
+
+test('a busy watched thread gets one specific finding instead of the generic one', () => {
+  const {findings, watch} = watchFindings([watchedThread(1, 'worker-spin', {cpu: 99, state: 'running', wchan: ''}),
+    watchedThread(2, 'plain-spin', {cpu: 95, state: 'running', wchan: '', wake: null, last_ran: undefined})]);
+  const titles = findings.map(item => item.title);
+  assert.deepEqual(titles.filter(title => /spin/.test(title)).sort(), ['plain-spin is saturating a core', 'worker-spin is running instead of sleeping']);
+  assert.equal(watch.length, 1);
+  assert.equal(watch[0].level, 'serious');
+  assert.match(watch[0].detail, /expected to sleep and wake every 500 ms, but it uses 99\.0% of one core\. It may be stuck in an infinite or retry loop\./);
+  assert.deepEqual(watch[0].action, {tid: 1});
+  const several = watchFindings([1, 2, 3].map(tid => watchedThread(tid, 'worker-' + tid, {cpu: 90 + tid, state: 'running'}))).watch;
+  assert.equal(several.length, 1);
+  assert.equal(several[0].title, '3 watched threads are running instead of sleeping');
+  assert.match(several[0].detail, /worker-3 93\.0%, worker-2 92\.0%, worker-1 91\.0%/);
+});
+
+test('watch findings skip stale threads, a silent sampler, an absent target and unwatched data', () => {
+  const stale = watchedThread(1, 'worker-1', {quiet: 30, stale: true});
+  assert.deepEqual(watchFindings([stale]).watch, []);
+  const stuck = watchedThread(1, 'worker-1', {quiet: 30});
+  assert.deepEqual(watchFindings([stuck], {health: {sampler_silent: true}}).watch, []);
+  assert.deepEqual(watchFindings([stuck], {health: {target_absent: true}}, ).watch, []);
+  // Older recordings carry neither wake_ms nor last_ran: not watched.
+  const old = watchedThread(1, 'worker-1', {quiet: 30});
+  delete old.wake_ms; delete old.last_ran;
+  assert.deepEqual(watchFindings([old]).watch, []);
+  assert.deepEqual(watchFindings([watchedThread(1, 'worker-1', {wake: null, quiet: 30})]).watch, []);
+});
+
+test('a rule that matches no current thread is a warning, only for a live present target', () => {
+  const rules = [{prefix: 'worker-', wake_ms: 500}, {prefix: 'gone-', wake_ms: 200}];
+  const threads = [watchedThread(1, 'worker-1')];
+  const {watch} = watchFindings(threads, {rules});
+  const missing = watch.find(item => item.level === 'warning');
+  assert.equal(missing.title, 'A watch rule matches no thread');
+  assert.match(missing.detail, /^No thread matches watch rule “gone-”: the threads may have exited or been renamed\./);
+  // The longest prefix wins, so a rule shadowed by a longer one matches nothing.
+  const shadowed = watchFindings([watchedThread(1, 'worker-io-1', {wake: 100})], {rules: [{prefix: 'worker-', wake_ms: 500}, {prefix: 'worker-io', wake_ms: 100}]}).watch;
+  assert.match(shadowed.find(item => item.level === 'warning').detail, /“worker-”/);
+  assert.equal(watchFindings(threads, {rules: [{prefix: 'worker-', wake_ms: 500}]}).watch.some(item => item.level === 'warning'), false);
+  // A stale thread does not satisfy a rule; no threads at all says nothing.
+  assert.equal(watchFindings([watchedThread(1, 'gone-1', {stale: true}), ...threads], {rules}).watch.filter(item => item.level === 'warning').length, 1);
+  assert.equal(watchFindings([], {rules}).watch.length, 0);
+  // Not loaded, replay, final view, silent sampler, absent target: skipped.
+  assert.equal(watchFindings(threads).watch.some(item => item.level === 'warning'), false);
+  assert.equal(watchFindings(threads, {rules, setup: 'replayAt=999'}).watch.some(item => item.level === 'warning'), false);
+  assert.equal(watchFindings(threads, {rules, setup: "frozen={at:1000,live:{health:{session:'s'}}}"}).watch.some(item => item.level === 'warning'), false);
+  assert.equal(watchFindings(threads, {rules, health: {sampler_silent: true}}).watch.some(item => item.level === 'warning'), false);
+  assert.equal(watchFindings(threads, {rules, health: {target_absent: true}}).watch.some(item => item.level === 'warning'), false);
+  // The rule list is older than the threads (a rule was just saved): wait for the refresh.
+  assert.equal(watchFindings([watchedThread(1, 'worker-1', {wake: 250})], {rules}).watch.some(item => item.level === 'warning'), false);
+  assert.equal(watchFindings([watchedThread(1, 'worker-1', {wake: null})], {rules}).watch.some(item => item.level === 'warning'), false);
+});
+
+test('healthy watched threads get one line naming their rules', () => {
+  const rules = [{prefix: 'worker-', wake_ms: 500}, {prefix: 'io-', wake_ms: 100}];
+  const threads = [watchedThread(1, 'worker-1', {quiet: 0.3}), watchedThread(2, 'worker-2'), watchedThread(3, 'io-1', {wake: 100, quiet: 0.1}),
+    watchedThread(4, 'worker-3', {quiet: 0.2})];
+  const {watch} = watchFindings(threads, {rules});
+  assert.deepEqual(watch.map(item => [item.level, item.title]), [['info', '4 watched threads wake on schedule (worker-, io-)']]);
+  assert.deepEqual(watchFindings([watchedThread(1, 'worker-1')]).watch.map(item => item.title), ['1 watched thread wakes on schedule'], 'without rules, only the count');
+  assert.deepEqual(watchFindings([{...watchedThread(1, 'misc'), wake_ms: null}]).watch, []);
+});
+
+test('rules load once, refresh every 10 s and are fetched again when they look out of date', async () => {
+  const app = dashboard();
+  let rules = [{prefix: 'worker-', wake_ms: 500}];
+  app.run("live={health:{session:'s'},threads:[]};replayAt=null;frozen=null");
+  let count = 0;
+  app.setFetch(async url => {if (url === '/api/watches') count++; return {ok: true, json: async () => ({rules})};});
+  const fetches = () => count;
+  const tick = async (threads = '[]') => {app.run(`watchRulesTick(${threads})`); await new Promise(setImmediate);};
+  const before = fetches();
+  await tick();
+  assert.equal(fetches(), before + 1);
+  assert.deepEqual(JSON.parse(app.run('JSON.stringify(watchRules)')), rules);
+  await tick();
+  assert.equal(fetches(), before + 1, 'not again within 10 s');
+  app.run('watchRulesAt-=11000');
+  await tick();
+  assert.equal(fetches(), before + 2);
+  // A thread reports a wake_ms the list does not give it: fetch sooner, but not every poll.
+  const changed = JSON.stringify([watchedThread(1, 'worker-1', {wake: 250})]);
+  await tick(changed);
+  assert.equal(fetches(), before + 2, 'retry is throttled to 3 s');
+  rules = [{prefix: 'worker-', wake_ms: 250}];
+  app.run('watchRulesAt-=3500');
+  await tick(changed);
+  assert.equal(fetches(), before + 3);
+  assert.equal(app.run('watchRules[0].wake_ms'), 250);
+  // Not in a recording or a final view.
+  app.run('watchRulesAt=0;replayAt=5');
+  await tick();
+  app.run('replayAt=null;frozen={at:1}');
+  await tick();
+  assert.equal(fetches(), before + 3);
+  // A failed request leaves no rules, so no unmatched-rule finding can come from them.
+  app.run('frozen=null;watchRulesAt=0');
+  app.setFetch(async () => ({ok: false}));
+  await tick();
+  assert.equal(app.run('watchRules'), null);
+});
+
+test('the thread drawer shows a compact line for watched threads only', () => {
+  const app = dashboard();
+  app.run("live={health:{session:'s',sample_interval_ms:200},threads:[]}");
+  const line = thread => JSON.parse(app.run(`JSON.stringify((t=>{const n=watchLine(t);return n&&[n.textContent,n.dataset.help]})(${JSON.stringify(thread)}))`));
+  assert.deepEqual(line(watchedThread(1, 'worker-1', {quiet: 0.2})), ['Watched: wakes at least every 500 ms · last ran 0.2 s before the latest sample', 'watched']);
+  assert.equal(line(watchedThread(1, 'worker-1', {quiet: 0}))[0], 'Watched: wakes at least every 500 ms · ran in the latest sample');
+  assert.match(line(watchedThread(1, 'worker-1', {quiet: 4.2}))[0], /last ran 4\.2 s before the latest sample · overdue$/);
+  assert.equal(line(watchedThread(1, 'misc', {wake: null})), null);
+});
+
+test('a watched finding keeps its help target through live re-renders', () => {
+  const {app} = watchFindings([watchedThread(1, 'worker-1', {quiet: 30})]);
+  app.run(`innerWidth=1000;innerHeight=800;captureHelp=request=>({topic:{title:'T',meaning:'m',limits:'l'},scope:'',context:'',value:'1',stamp:1,warnings:[],target:request.target});
+    describeHelp=()=>{};positionHelp=()=>{};realRenderAssessment(live.threads);
+    var target=[...element('findings').children].find(row=>row.dataset.help==='watched');target.closest=()=>null;helpTimer.request('watched-help',{target,id:'watched'})`);
+  // Live polling re-renders about once a second, before the 1,200 ms help delay ends.
+  app.advance(1000);
+  app.run('realRenderAssessment(live.threads);refreshHelp()');
+  assert.ok(app.run('target.isConnected'), 'the pending row is not replaced');
+  assert.ok(app.run('helpTimer.active&&helpTimer.active.payload.target===target'), 'pending help survives the poll');
+  app.advance(200);
+  assert.ok(app.run('helpTimer.visible&&helpTimer.visible.payload.target===target'), 'help opens after 1,200 ms');
+  app.run('realRenderAssessment(live.threads);refreshHelp()');
+  assert.ok(app.run('target.isConnected'), 'an open card keeps its row too');
+  app.run('helpTimer.cancel(true);realRenderAssessment(live.threads)');
+  assert.ok(!app.run('target.isConnected'), 'the list is rebuilt after help closes');
+});

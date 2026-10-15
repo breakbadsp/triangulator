@@ -43,6 +43,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-031 | NOT_RUN | - | - | - |
 | QA-032 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
 | QA-033 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
+| QA-034 | NOT_RUN | - | - | - |
+| QA-035 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -738,3 +740,61 @@ advances. Elapsed time increases beyond 1 second. Healthy peers continue to
 advance. The All threads table shows the blocked worker as idle in a futex wait.
 Watch-specific dashboard warnings are outside PR #83; a Healthy assessment is
 not evidence that the collector missed the stopped wakeups.
+
+## QA-034: Watched thread stops waking
+
+Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 1.
+
+Preconditions: Use the bug-lab or `examples/buggy-workload` `deadlock` scenario
+with an isolated runtime directory and unused ports. Open the dashboard Summary.
+
+1. Add the rule `worker-` with `wake_ms` 500 (`[[watch]]` in `collector.toml`, or
+   `POST /api/watches`). Wait about 10 seconds.
+2. Read the Assessment. Open the finding. Pause on it for 1.2 seconds, then open
+   its information button.
+3. Open one thread from the finding and read the **Watched** line.
+4. Change the rule to `wake_ms` 3600000. Wait for the next refresh.
+5. Pause the sampler (`kill -STOP`) for 30 seconds, then resume it.
+6. Open **Inspect a moment** at a time after step 1 and read the Assessment.
+7. Remove all rules.
+
+Expected results: One serious finding, "N watched threads stopped waking up" (or
+"worker-a stopped waking up" for one thread), names the worst threads first with
+how long each has not run and its wake interval, and says they may be deadlocked
+or waiting without a timeout. It links to the worst thread, and its help opens
+the Watched threads topic. The thread details show "Watched: wakes at least every
+500 ms · last ran X s before the latest sample · overdue". A 3,600,000 ms rule
+clears the finding and an "on schedule" line replaces it. Pausing the sampler
+raises no stopped-waking finding for the time it was paused. A recorded view uses
+the recorded wake intervals and shows no "rule matches no thread" finding. With
+no rules, no watch finding or Watched line remains.
+
+## QA-035: Watched thread busy loop and rule with no match
+
+Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 1.
+
+Preconditions: Use the `cpu-spin` scenario (threads `worker-spin` and
+`worker-poll`) with an isolated runtime directory and unused ports.
+
+1. Add the rules `worker-spin` with `wake_ms` 500 and `gone-` with `wake_ms` 200.
+   Wait about 10 seconds.
+2. Read the Assessment and its help for each watched finding.
+3. Replace the rules with `misc-` at 1000 ms. Wait for the next refresh.
+4. Select **Change target** and choose a process that has no `misc-` thread.
+5. Stop the target and read the final view.
+
+Expected results: `worker-spin` has a serious "is running instead of sleeping"
+finding that says it is expected to sleep and wake every 500 ms but uses about
+100% of a core, and it has no "saturating a core" finding of its own. The
+unwatched `worker-poll` keeps the generic "saturating a core" finding. A warning
+"A watch rule matches no thread" names `gone-` and says the threads may have
+exited or been renamed. After step 3 the warning disappears without a flash of a
+false warning for `misc-`, and "1 watched thread wakes on schedule (misc-)" is
+shown while no watched thread is stuck or busy. In step 4 the unmatched rule is
+reported once the new target has threads. The final view of an ended target shows
+no unmatched-rule warning.
+
+Screenshots: [stopped waking](../screenshots/watch-assessment-stopped-waking.png),
+[busy](../screenshots/watch-assessment-busy.png) and
+[thread details](../screenshots/watch-thread-drawer-overdue.png) from a live run
+of the scenarios; this is not a recorded QA run.

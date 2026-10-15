@@ -250,6 +250,23 @@ or busy. Each thread in `/api/live` (and in recordings) has:
   when the voluntary or nonvoluntary context switches or the CPU time
   changed. The sample interval is `health.sample_interval_ms`.
 
+The Assessment turns this into findings. Time without running is
+`last_sample - last_ran`, so a paused sampler or a recorded view cannot raise
+a false alarm. Stale threads, a silent sampler and an absent target are skipped.
+
+- **Stopped waking** (serious): the thread has not run for more than
+  `2 × wake_ms + 2 × sample_interval_ms`. The factor 2 allows one late wake
+  under load; the interval term covers sampling granularity. Several stuck
+  threads are one finding, worst first.
+- **Busy** (serious): a watched thread at 90% of a core or more. It replaces
+  the generic "saturating a core" finding for that thread.
+- **No match** (warning): a rule matches no current thread (the longest prefix
+  wins, so a shadowed rule matches nothing). Live view only; the dashboard reads
+  the rules from `GET /api/watches` and refreshes them about every 10 s.
+- **On schedule** (info): watched threads exist and none is stuck or busy.
+
+The thread details show the rule and when the thread last ran.
+
 The dashboard can replace the rules. They are saved in
 `data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
 the data directory is flushed after the rename or a reset).
