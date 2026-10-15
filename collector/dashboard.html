@@ -2134,8 +2134,8 @@ let timelineDragging=false,timelineMarksDrawn='';
 // Now, on the collector's clock: the newest recording or datagram.
 const timelineEnd=()=>Math.max(replayBounds?.last??0,latestLive?.health?.last_seen??0,replayAt??0);
 const timelineStart=()=>Math.max(replayBounds?.first??0,Math.min(past.oldest??Infinity,timelineEnd()-PAST_FIRST_S,replayAt??Infinity));
-// The range step is one second; allow only its rounding at the Live end.
-const timelineAtLive=at=>at>=timelineEnd()-0.5;
+// Only the last selectable value has no next step within the rendered range.
+const timelineAtLive=at=>at+Number(element('timeline-range').step||1)>Number(element('timeline-range').max);
 function renderTimeline(){
   const range=element('timeline-range'),recorded=isNum(replayBounds?.first);range.disabled=!recorded;
   if(!recorded){element('timeline-start').textContent='';element('timeline-cursor').textContent='';element('timeline-marks').replaceChildren();timelineMarksDrawn='';return}

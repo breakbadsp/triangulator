@@ -1180,6 +1180,29 @@ test('a long timeline opens recent past times and one step before Live', async (
   assert.equal(app.run('replayAt'), null);
 });
 
+test('a fractional timeline returns to Live only from its last selectable step', async () => {
+  // A native range input selects these endpoints with min=1000.2 and step=1.
+  for (const [liveEnd, lastSelectable] of [[1900.9, 1900.2], [1901.2, 1901.2]]) {
+    const app = historyApp(at => frame(at), {first: 1000.2, last: 1900.2});
+    await settle();
+    app.run(`latestLive=live={health:{session:"session-1",last_seen:${liveEnd}},threads:[]};renderTimeline()`);
+    await app.run('inspectTime(1800.2)');
+    const range = app.elements.get('timeline-range');
+    assert.deepEqual([Number(range.min), Number(range.max)], [1000.2, liveEnd]);
+    range.value = String(lastSelectable - 1);
+    range.oninput();
+    assert.match(app.elements.get('timeline-cursor').textContent, /^Release to view /);
+    range.onchange();
+    await settle();
+    assert.equal(app.run('replayAt'), lastSelectable - 1);
+    range.value = String(lastSelectable);
+    range.oninput();
+    assert.equal(app.elements.get('timeline-cursor').textContent, 'Release for live');
+    range.onchange();
+    assert.equal(app.run('replayAt'), null);
+  }
+});
+
 test('while live the newest recordings join the list, and errors can be retried', async () => {
   const bounds = {first: 1000, last: 1900};
   const app = historyApp(at => frame(Math.floor(at)), bounds);
