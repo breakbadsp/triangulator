@@ -4,8 +4,8 @@
 Usage: scripts/qa_summary.py [--check] [--write-readme] [--github-summary]
 
 Reads the current-result table in docs/qa/test-cases.md and prints a Markdown
-summary. --check also verifies that every case definition has a row, that run
-and evidence links exist, and that the README summary is current.
+summary. --check also verifies recorded result rows, run and evidence links,
+and the README summary. Case procedures do not require a result row.
 --write-readme rewrites the README summary block. --github-summary appends the
 summary to the GitHub Actions job summary.
 """
@@ -69,8 +69,6 @@ def check(rows):
             errors.append(f"{case}: NOT_RUN row must not link a run")
         if status != "NOT_RUN" and run == "-":
             errors.append(f"{case}: {status} row has no run link")
-    for case in sorted(defined_ids() - seen):
-        errors.append(f"{case}: defined but missing from the current-result table")
     for case in sorted(seen - defined_ids()):
         errors.append(f"{case}: result row has no case definition")
     return errors
