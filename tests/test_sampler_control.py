@@ -342,7 +342,7 @@ class ScriptTests(unittest.TestCase):
             return status, json.loads(response.split(b"\r\n\r\n", 1)[1])
 
         original = config.read_text()
-        for headers in (b"Content-Length: 1025", b"Content-Length: -1",
+        for headers in (b"Content-Length: 16385", b"Content-Length: -1",
                         b"Content-Length: 3\r\nContent-Length: 3", b"Transfer-Encoding: chunked"):
             status, _ = raw_request(headers)
             self.assertEqual(status, 400)

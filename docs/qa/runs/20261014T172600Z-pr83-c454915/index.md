@@ -1,6 +1,6 @@
 # PR #83 named-worker browser QA
 
-UTC run: 2026-10-14, 17:25:25–17:29:45. Scope: the requested `MsgP*`
+UTC run: 2026-10-14, 17:25:25–17:30:48. Scope: the requested `MsgP*`
 1-second and `PrdDist*` 2-second examples, plus stopped wakeups and an unmatched
 control. Results: 2 PASSED, 0 FAILED, 0 BLOCKED, 0 NOT_RUN in this scope.
 Screenshot and video capture were blocked. Browser text and API observations
@@ -50,12 +50,15 @@ Existing installations and user data were preserved.
 
 ## Results and observations
 
+The watch cases use QA-032 and QA-033 after review. QA-030 and QA-031
+identify the existing sampling-default and sanitizer cases.
+
 | Case | Revision | Status | Evidence |
 | --- | --- | --- | --- |
-| QA-030 | 1 | PASSED | [Healthy browser](evidence/healthy-browser.json), [summary](evidence/summary.json), [proc](evidence/healthy-proc.json) |
-| QA-031 | 1 | PASSED | [Stopped browser](evidence/stopped-browser.json), [All threads](evidence/all-threads-browser.json), [proc](evidence/stopped-proc.json) |
+| QA-032 | 1 | PASSED | [Healthy browser](evidence/healthy-browser.json), [summary](evidence/summary.json), [proc](evidence/healthy-proc.json) |
+| QA-033 | 1 | PASSED | [Stopped browser](evidence/stopped-browser.json), [All threads](evidence/all-threads-browser.json), [proc](evidence/stopped-proc.json) |
 
-### QA-030
+### QA-032
 
 At 17:25:45 UTC, a browser GET returned the two configured rules with source
 `config`. The browser displayed all five worker names and 0.0% worker CPU.
@@ -78,7 +81,7 @@ wakeups. Each MsgP counter was 50 at the healthy capture; each PrdDist counter
 was 25. Schedstat timeslices were 63/73 for the MsgP threads and 30/31 for the
 PrdDist threads. All worker CPU readings in the sequence were zero.
 
-### QA-031
+### QA-033
 
 At 17:26:31 UTC, `SIGUSR1` requested that `MsgP-fast` stop its timer loop.
 It completed one final timer wake, then blocked on an Event. The thread stayed

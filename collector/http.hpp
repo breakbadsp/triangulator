@@ -32,6 +32,7 @@
 #include "socket_report.hpp"
 #include "storage.hpp"
 #include "target_control.hpp"
+#include "watch.hpp"
 
 namespace triangulator::collector
 {
@@ -224,6 +225,22 @@ struct Request
   std::string host_;
 };
 
+// True for a write request from the dashboard page itself: it carries the
+// X-Triangulator: 1 header, which a plain HTML form or a cross-site page
+// cannot add without a CORS preflight that this server never approves, and
+// its Origin, when sent, is this server. Every POST route checks this.
+[[nodiscard]] inline bool IsDashboardWrite(const Request& p_request)
+{
+  return p_request.dashboard_write_ &&
+         (p_request.origin_.empty() ||
+          p_request.origin_ == "http://" + p_request.host_ ||
+          p_request.origin_ == "https://" + p_request.host_);
+}
+
+// The largest request body. A full list of watch rules (64 rules with
+// 15-byte prefixes, each byte possibly a six-byte \u escape) is under 8 KiB.
+inline constexpr std::size_t kMaxRequestBodyBytes = 16384;
+
 enum class RequestError
 {
   Empty = 0,
@@ -295,9 +312,10 @@ class DashboardServer
 {
  public:
   DashboardServer(const Config& p_config, SharedState& p_state,
-                  FileDescriptor p_listener)
+                  WatchSettings& p_watches, FileDescriptor p_listener)
       : config_(p_config),
         state_(p_state),
+        watches_(p_watches),
         listener_(std::move(p_listener)),
         socket_reports_(p_config.data_dir_)
   {
@@ -346,6 +364,7 @@ class DashboardServer
  private:
   const Config& config_;
   SharedState& state_;
+  WatchSettings& watches_;
   FileDescriptor listener_;
   std::atomic<bool> stopped_ = false;
   std::thread thread_;
@@ -455,7 +474,7 @@ class DashboardServer
       if (name == "content-length")
       {
         const auto size = triangulator::ParseNumber<std::size_t>(value);
-        if (length_seen || !size || *size > 1024)
+        if (length_seen || !size || *size > kMaxRequestBodyBytes)
         {
           return std::unexpected(RequestError::Invalid);
         }
@@ -564,18 +583,42 @@ class DashboardServer
     {
       Get(p_connection, *request);
     }
-    else if (request->method_ == "POST" && request->path_ == "/api/target")
+    else if (request->method_ == "POST")
     {
-      if (!request->dashboard_write_ ||
-          (!request->origin_.empty() &&
-           request->origin_ != "http://" + request->host_ &&
-           request->origin_ != "https://" + request->host_))
-      {
-        RespondJson(p_connection, 403,
-                    JsonObject{{"error", "dashboard request required"}});
-        return;
-      }
-      const auto body = ParseJson(request->body_);
+      Post(p_connection, *request);
+    }
+    else
+    {
+      Respond(p_connection, 501, "Unsupported method", "text/plain");
+    }
+  }
+
+  void Post(int p_connection, const Request& p_request)
+  {
+    const auto& path = p_request.path_;
+    if (path != "/api/target" && path != "/api/watches" &&
+        path != "/api/watches/reset")
+    {
+      Respond(p_connection, 501, "Unsupported method", "text/plain");
+      return;
+    }
+    if (!IsDashboardWrite(p_request))
+    {
+      RespondJson(p_connection, 403,
+                  JsonObject{{"error", "dashboard request required"}});
+      return;
+    }
+    if (path == "/api/watches")
+    {
+      RespondWatches(p_connection, watches_.Replace(p_request.body_));
+    }
+    else if (path == "/api/watches/reset")
+    {
+      RespondWatches(p_connection, watches_.Reset());
+    }
+    else
+    {
+      const auto body = ParseJson(p_request.body_);
       const auto* target = body ? body->Find("target") : nullptr;
       if (target == nullptr || !target->IsString() ||
           target->AsString().empty() || target->AsString().size() > 64 ||
@@ -587,10 +630,26 @@ class DashboardServer
       }
       Target(p_connection, target->AsString());
     }
-    else
+  }
+
+  // The reply to a change of the watch rules: the rules now in force, as
+  // for GET /api/watches, or the error.
+  void RespondWatches(int p_connection,
+                      const std::expected<void, WatchError>& p_result)
+  {
+    if (!p_result)
     {
-      Respond(p_connection, 501, "Unsupported method", "text/plain");
+      const int code =
+          p_result.error().kind_ == WatchErrorKind::InvalidRules ? 400 : 500;
+      Json error{JsonObject{{"error", p_result.error().message_}}};
+      if (p_result.error().kind_ == WatchErrorKind::SyncFailed)
+      {
+        error.Set("applied", true);
+      }
+      RespondJson(p_connection, code, error);
+      return;
     }
+    RespondJson(p_connection, 200, watches_.Describe());
   }
 
   void Get(int p_connection, const Request& p_request)
@@ -617,6 +676,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/target")
     {
       Target(p_connection, std::nullopt);
+    }
+    else if (p_request.path_ == "/api/watches")
+    {
+      RespondJson(p_connection, 200, watches_.Describe());
     }
     else if (p_request.path_ == "/api/socket-io")
     {

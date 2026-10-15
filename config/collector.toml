@@ -58,3 +58,13 @@ prefix = "sender-"
 [[group]]
 name = "misc"
 prefix = "misc-"
+
+# Threads that should wake up at least every wake_ms milliseconds, such as
+# workers that wait with a timeout. The dashboard flags a matching thread
+# that stops waking up or keeps a core busy. prefix is 1-15 bytes and unique;
+# when several prefixes match a thread name, the longest wins. wake_ms is
+# 10-3600000. At most 64 rules. Rules saved from the dashboard (in
+# data_dir/watch-rules.json) replace these until you reset them there.
+# [[watch]]
+# prefix = "worker-"
+# wake_ms = 500

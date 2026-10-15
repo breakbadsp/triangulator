@@ -21,7 +21,7 @@ Threads are named with `pthread_setname_np`. The collector takes a list of threa
 
 ## 2. Requirements
 
-- R1. Sample every thread of the target process. Default 1 Hz, runtime-configurable between 0.2 and 10 Hz.
+- R1. Sample every thread of the target process. Default 5 Hz, runtime-configurable between 0.2 and 10 Hz.
 - R2. The sampler sends samples over UDP to a remote collector. Nothing is written to disk on prod.
 - R3. The collector keeps recent samples in memory, stores rollups and alert events in SQLite, and serves a dashboard with:
   - **current state**: per thread, its name and group, latest state, state mix over the last ~10 s, CPU %; per-group thread counts;
@@ -115,7 +115,7 @@ Every datagram is self-contained, since UDP can lose and reorder. Little-endian,
 | `comm` | 16 bytes, NUL-padded |
 | `wchan` | 32 bytes, NUL-padded |
 
-At 112 bytes per record, one datagram carries 10 threads (1,168 bytes), so a 100-thread tick is 10 datagrams. Bandwidth is about 12 KB/s at 1 Hz and 120 KB/s at 10 Hz.
+At 112 bytes per record, one datagram carries 10 threads (1,168 bytes), so a 100-thread tick is 10 datagrams. Bandwidth is about 12 KB/s at 1 Hz, about 60 KB/s at 5 Hz (the default) and 120 KB/s at 10 Hz.
 
 - Thread key: `(session id, tid)`.
 - UDP is unauthenticated and plaintext. Restrict by firewall, or use WireGuard.
@@ -149,7 +149,7 @@ Behavior rules in code: read-only, send no signals, never `open()` through `/pro
   - `thread_rollup`: one row per thread per 5 s window: ts, session, tid, name, group, cpu %, run-delay %, sample counts per state (running, socket, idle, lock, condition, kernel, other), timeslices delta.
   - `alert_event`: ts, rule, group, tid, name, detail, opened or resolved.
   - Size: 100 threads is about 1.7M rollup rows per day, roughly 150 to 250 MB (estimate). Retention is deleting whole day files (default 7 days, configurable).
-  - Optional `store_raw` flag (off by default) keeps raw rows too: about 8.6M rows per day at 100 threads and 1 Hz, so it is only worth it if you want to replay history against new thresholds.
+  - Optional `store_raw` flag keeps raw rows too. It is on by default (`store_raw = true`): about 43.2M rows per day at 100 threads and 5 Hz (100 × 5 × 86,400), or 8.6M at 1 Hz. Keep it only if you want to replay history against new thresholds.
 - **Processing:** deltas from raw counters, state inference, alert rules (section 8).
 - **Alert settings:** each rule can be enabled or disabled and its thresholds changed from the dashboard. Changes are validated, applied by the collector's main loop, and saved as `alert-settings.json` in the data directory on top of the TOML values. Delivery destinations stay in the TOML.
 - **Alert delivery:** webhook (HTTP POST, JSON) and/or SMTP email; at least one configured. An alert notifies when it opens, reminds every 30 min while open (configurable), and notifies when it resolves. Alert identity is `(rule, group, tid)`.
@@ -197,7 +197,7 @@ Waits do not alert. A futex wait cannot be told apart from an idle thread pool w
 | Packet loss | Sequence gaps above 20% over 1 min (warning) |
 | Access lost | Most threads show "no access" (hidden `wchan`) |
 
-Thresholds are starting points; tune them from real data. At 1 Hz, detection is on a seconds scale; raise the rate at runtime when investigating.
+Thresholds are starting points; tune them from real data. At the default 5 Hz, samples arrive every 200 ms instead of every second, so a rule can see a change sooner; raise the rate at runtime when investigating.
 
 ## 9. Configuration sketch
 
@@ -205,7 +205,7 @@ Thresholds are starting points; tune them from real data. At 1 Hz, detection is 
 
 ```
 target_process = "mybackend"     # or target_pid = 1234
-rate_hz        = 1.0             # 0.2 .. 10
+rate_hz        = 5.0             # 0.2 .. 10
 collector      = "10.0.0.5:9400"
 ```
 

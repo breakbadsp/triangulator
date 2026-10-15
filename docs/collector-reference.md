@@ -25,6 +25,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   `deadman_url`, `[alerts.smtp]`) are accepted and ignored, with one startup
   warning. Only `[alerts] window_s` is used: the length of a summary window
   (5–10 s).
+- `[[watch]]` rules name threads that should wake up at least every
+  `wake_ms` milliseconds ([Watched threads](#watched-threads)).
 
 **2. Receiving sampler data** (`protocol.hpp`, `main.cpp`)
 - Listens on UDP (IPv4 or IPv6) with a 4 MB receive buffer.
@@ -52,8 +54,11 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   wait channel: running, futex wait, poll, socket, pipe, sleep, stuck in kernel,
   stopped, other, or no access.
 - Puts each thread in a group by its name prefix (`[[group]]` in the config).
+- Records when each thread last ran (`last_ran`), for
+  [watched threads](#watched-threads).
 - Keeps up to 10 minutes of raw samples per thread in memory, capped in total by
-  `max_live_samples`.
+  `max_live_samples`. At the default 5 Hz, the cap holds about 400 seconds for
+  500 threads, so ten minutes fits only up to about 330 threads.
 - At the end of every window (default 5 s), writes one summary row per thread:
   CPU %, run delay %, context switches, read and write bytes per second, major
   page faults, and how many samples the thread spent in each state.
@@ -105,7 +110,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - `GET /api/live`: current threads, group counts and monitor health (sampler
   connected or silent, target, packet loss, packet counters, sample interval).
   Each thread has `cpu_pct` and `system_pct`: its CPU use and the part of it
-  spent in the kernel, both as a share of one core.
+  spent in the kernel, both as a share of one core, and `last_ran` and
+  `wake_ms` ([Watched threads](#watched-threads)).
   Rebuilt every 0.5 seconds. Its `resources` object is the latest resource
   sample: pressure, descriptors, I/O, socket queues, namespace counters.
   Its `memory` object is the latest memory-map summary
@@ -135,6 +141,9 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   such). The sampler and collector must run as the same user.
 - `GET /api/replay`: oldest/newest recorded process view; add `at=…` for a
   view at or before a timestamp, or `direction=previous|next` to step.
+- `GET /api/watches`, `POST /api/watches` and `POST /api/watches/reset`: the
+  watch rules in force; replace or reset them
+  ([Watched threads](#watched-threads)).
 - Other non-`GET` requests get 501.
 - Runs on its own thread, so serving the dashboard never delays receiving data.
 
@@ -176,7 +185,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 | `memory.hpp` | `MemoryMonitor`: memory-map summary and layout reassembly, live and layout JSON |
 | `process.hpp` | `ProcessMonitor`: the newest process-info datagram, live JSON |
 | `storage.hpp` | SQLite day files, retention, history queries |
-| `http.hpp` | Dashboard server and the `/api/live`, `/api/last-target`, `/api/memory-map`, `/api/history`, `/api/resources` and `/api/replay` endpoints |
+| `http.hpp` | Dashboard server and the `/api/live`, `/api/last-target`, `/api/memory-map`, `/api/history`, `/api/resources`, `/api/replay` and `/api/watches` endpoints |
+| `watch.hpp` | `WatchSettings`: the watch rules in force, and the rules saved from the dashboard |
 | `target_control.hpp` | Bounded bridge to the optional local sampler control script |
 | `replay.hpp` | Recording thread for dashboard views, and the `/api/replay` queries |
 | `dashboard.html` | The dashboard page, built into the binary (the Makefile turns it into `build/dashboard_html.inc`) |
@@ -206,6 +216,64 @@ completion marker is configured, messages processed. See
 [the socket design and setup guide](socket-ingress-design.md) for build
 instructions, permissions, the marker contract, and explicit coverage limits.
 
+
+## Watched threads
+
+Worker threads usually wait with a timeout, so they wake up at least every
+N milliseconds. A watch rule says so for the threads whose name starts with
+a prefix:
+
+```toml
+[[watch]]
+prefix = "worker-"
+wake_ms = 500
+```
+
+- `prefix`: 1–15 bytes (Linux thread names are at most 15 bytes). Prefixes
+  must be unique. When several match, the longest wins, so `worker-` and
+  `worker-io` can be used together.
+- `wake_ms`: a whole number from 10 to 3,600,000.
+- At most 64 rules. Other keys in `[[watch]]` are errors, so a typo such as
+  `wake = 500` is caught by `--check-config`. Errors name the rule.
+
+The collector only reports; the dashboard decides whether a thread is stuck
+or busy. Each thread in `/api/live` (and in recordings) has:
+
+- `wake_ms`: from the rule that matches the thread's current name, or
+  `null`. A renamed thread or a changed rule shows in the next view.
+- `last_ran`: the time (Unix seconds, like `last_sample`) of the newest
+  sample that showed the thread ran since the sample before. The thread
+  did not run between `last_ran` and `last_sample`, and last ran at most one
+  sample interval before `last_ran`. A new thread starts at its first
+  sample. In normal mode the sample shows a run when the schedstat timeslice
+  count or the CPU time (`utime + stime`) changed; in status-fallback mode,
+  when the voluntary or nonvoluntary context switches or the CPU time
+  changed. The sample interval is `health.sample_interval_ms`.
+
+The dashboard can replace the rules. They are saved in
+`data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
+the data directory is flushed after the rename or a reset).
+While that file exists, its list replaces the `[[watch]]` list completely,
+even when it is empty; the startup log says so. If it can't be read or is
+invalid at startup, the collector logs a warning and uses the `[[watch]]`
+rules.
+
+- `GET /api/watches` returns
+  `{"rules":[{"prefix":"worker-","wake_ms":500}],"source":"config","saved_error":null,"limits":{"prefix_max_bytes":15,"wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}}`.
+  `source` is `config` or `dashboard`; `saved_error` says why the saved file
+  was not used, or is `null`.
+- `POST /api/watches` with `{"rules":[...]}` checks the whole list, saves it
+  and applies it at once. It returns the `GET` shape. An invalid list gets
+  400 with `{"error":"..."}` naming the rule; a failed write gets 500. Errors
+  before the rename leave the file and rules unchanged.
+- `POST /api/watches/reset` deletes the saved file and applies the
+  `[[watch]]` rules. It returns the `GET` shape.
+- If the directory flush fails after a save or reset, the rules have already
+  changed. The response is 500 with `{"error":"...","applied":true}`. The error
+  states that persistence could not be confirmed. The rules in memory match
+  the changed file. Retry the operation to confirm persistence before a reboot.
+- Both `POST` requests need the same `X-Triangulator: 1` header and
+  same-origin check as `POST /api/target`, or they get 403.
 
 ## Final view after the target exits
 

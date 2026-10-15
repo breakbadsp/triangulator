@@ -39,8 +39,10 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-026 | NOT_RUN | - | - | - |
 | QA-028 | NOT_RUN | - | - | - |
 | QA-029 | NOT_RUN | - | - | - |
-| QA-030 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
-| QA-031 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
+| QA-030 | NOT_RUN | - | - | - |
+| QA-031 | NOT_RUN | - | - | - |
+| QA-032 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
+| QA-033 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -61,6 +63,29 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-030: Default thread sampling rate and saved settings
+
+Feature: Thread sampling rate. Priority: High. Case revision: 1.
+
+Preconditions: Use an isolated runtime directory, unused ports, and an owned
+test process. Use matching sampler and collector packages.
+
+1. Start with no active configuration. Verify that the startup script creates
+   `config/sampler.toml` with `rate_hz = 5.0`. Select the owned process. Receive
+   thread datagrams and verify a 200 ms header interval and about five ticks
+   per second. Count ticks, because one tick can use several datagrams.
+2. Remove `rate_hz` from the active configuration. Restart the sampler. Verify
+   that thread datagrams still have a 200 ms interval.
+3. Set `rate_hz = 1.0`. Restart the programs, then repeat startup with the newer
+   package. Verify that the saved setting remains 1.0 and thread datagrams have
+   a 1000 ms interval. Verify that the resource and memory sampling intervals
+   remain 5 and 30 seconds when their settings are omitted.
+
+Expected results: New configurations and omitted thread rates use 5 Hz.
+An explicit saved rate remains in effect after restart and package upgrade.
+
+Source: [Sampling defaults](../setup.md#install-from-a-release-package).
 
 ## QA-026: Final view after the target exits
 
@@ -649,7 +674,24 @@ memory values. The memory charts are hidden in a recorded view, like the load
 chart, and return in Live. With memory-map sampling off, the VmSize chart shows
 the collector's reason instead of empty axes.
 
-## QA-030: Named periodic workers match configured wake intervals
+## QA-031: Complete sanitizer test runs
+
+Feature: Build and test commands. Priority: High. Case revision: 1.
+
+1. Install a supported compiler, its sanitizer runtimes, SQLite development
+   files, Python, and Node.js on Linux.
+2. Run `make -j2 check-sanitizers` from a clean checkout.
+3. Check the address and thread test logs and report directories.
+4. Run `make check`, then `make check SANITIZER=thread STATIC=1`.
+
+Expected results: The sanitizer command runs the address and undefined behavior
+mode, then the thread mode. Both modes run all six C++ tests and the Python and
+dashboard tests. The optional privileged eBPF test retains its existing opt-in
+requirement. The allocation tests report zero allocations. Any sanitizer report
+fails the command. `make check` rebuilds with normal linkage and passes. The
+static sanitizer combination fails with a clear error before compilation.
+
+## QA-032: Named periodic workers match configured wake intervals
 
 Feature: Collector watch rules. Priority: High. Case revision: 1.
 
@@ -677,11 +719,11 @@ refresh when comparing the view with wall time. Rules describe expected interval
 they do not change the fixture timers. PR #83 does not add watch settings or
 watch-specific assessment warnings to the dashboard.
 
-## QA-031: A watched worker stops waking but remains alive
+## QA-033: A watched worker stops waking but remains alive
 
 Feature: Collector watch activity. Priority: High. Case revision: 1.
 
-Preconditions: QA-030 passes. The fixture can stop `MsgP-fast`'s timer loop and
+Preconditions: QA-032 passes. The fixture can stop `MsgP-fast`'s timer loop and
 block on an Event without ending the thread. Its peers continue their timers.
 
 1. Stop the timer loop for `MsgP-fast`. Leave its thread and process alive.

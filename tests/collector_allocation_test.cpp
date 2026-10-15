@@ -3,7 +3,8 @@
 // ResourceMonitor, MemoryMonitor, row building, Storage writes), Monitor::Drain
 // and Storage::Flush. The test replaces malloc, calloc, realloc and the aligned
 // allocation functions, so it counts every allocation, including those made
-// inside libstdc++ and libc.
+// inside libstdc++ and libc. Sanitizer builds use the runtime allocation
+// hook and keep the sanitizer allocator active.
 //
 // SQLite's own allocations are counted apart, through
 // SQLITE_CONFIG_MALLOC. SQLite grows its page cache while the day file
@@ -29,6 +30,7 @@
 
 #include "../collector/ingest.hpp"
 
+#ifndef TRIANGULATOR_SANITIZER
 extern "C"
 {
   void* __libc_malloc(std::size_t p_size);
@@ -36,11 +38,18 @@ extern "C"
   void* __libc_realloc(void* p_block, std::size_t p_size);
   void* __libc_memalign(std::size_t p_alignment, std::size_t p_size);
 }
+#endif
 
 namespace
 {
 
+#ifdef TRIANGULATOR_SANITIZER
+thread_local std::size_t g_allocations = 0;
+// Keep this same-thread hook flag observable across allocator built-ins.
+thread_local volatile bool g_sqlite_allocator = false;
+#else
 std::size_t g_allocations = 0;
+#endif
 std::size_t g_sqlite_allocations = 0;
 
 // SQLite's allocator: libc's, counted apart from the program's.
@@ -54,7 +63,14 @@ void SqliteShutdown(void*)
 void* SqliteMalloc(int p_size)
 {
   ++g_sqlite_allocations;
+#ifdef TRIANGULATOR_SANITIZER
+  g_sqlite_allocator = true;
+  void* block = std::malloc(static_cast<std::size_t>(p_size));
+  g_sqlite_allocator = false;
+  return block;
+#else
   return __libc_malloc(static_cast<std::size_t>(p_size));
+#endif
 }
 void SqliteFree(void* p_block)
 {
@@ -63,7 +79,14 @@ void SqliteFree(void* p_block)
 void* SqliteRealloc(void* p_block, int p_size)
 {
   ++g_sqlite_allocations;
+#ifdef TRIANGULATOR_SANITIZER
+  g_sqlite_allocator = true;
+  void* block = std::realloc(p_block, static_cast<std::size_t>(p_size));
+  g_sqlite_allocator = false;
+  return block;
+#else
   return __libc_realloc(p_block, static_cast<std::size_t>(p_size));
+#endif
 }
 int SqliteSize(void* p_block)
 {
@@ -78,6 +101,18 @@ int SqliteRoundup(int p_size)
 
 extern "C"
 {
+#ifdef TRIANGULATOR_SANITIZER
+  // The runtime can call this hook before main. Keep it independent of
+  // sanitizer instrumentation and count only this test thread's allocations.
+  __attribute__((no_sanitize("address", "thread", "undefined"))) void
+  __sanitizer_malloc_hook(const volatile void*, std::size_t)
+  {
+    if (!g_sqlite_allocator)
+    {
+      ++g_allocations;
+    }
+  }
+#else
   void* malloc(std::size_t p_size)
   {
     ++g_allocations;
@@ -115,6 +150,7 @@ extern "C"
     *p_result = __libc_memalign(p_alignment, p_size);
     return *p_result == nullptr ? 12 : 0;
   }
+#endif
 }
 
 namespace
@@ -411,10 +447,10 @@ std::size_t Measure(bool p_store_raw)
   // Health and Snapshot allocate, so they run after the measurement. They
   // show that no chunk was dropped as late and that every thread is live.
   const double end = 1'700'000'000.0 + 90;
-  Require(
-      monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
-          monitor.Snapshot(end).Find("threads")->AsArray().size() == kThreads,
-      "every chunk of every tick is processed");
+  Require(monitor.Health(end).Find("late_packets")->AsInt() == 0 &&
+              monitor.Snapshot(end, {}).Find("threads")->AsArray().size() ==
+                  kThreads,
+          "every chunk of every tick is processed");
   Require(memory.LayoutVersion() == 9 &&
               memory.Layout().Find("regions")->AsArray().size() == 50,
           "every memory-map layout is complete");

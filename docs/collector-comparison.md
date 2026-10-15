@@ -129,7 +129,7 @@ those tables.
 
 ### What the numbers mean
 
-- **CPU:** at the default 1 Hz, both are cheap, but C++ uses about 5× less. The
+- **CPU:** at 1 Hz, both are cheap, but C++ uses about 5× less. The
   gap grows with load, to about 8× at 1,000 threads. At 2,500 threads × 10 Hz,
   Python needs 72% of a core and would saturate one core at only a little more
   load. C++ is at 12%.

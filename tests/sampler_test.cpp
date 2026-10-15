@@ -1151,7 +1151,15 @@ class Child final
     {
       ::close(pipe_ends[1]);
       char byte = 0;
-      static_cast<void>(::read(pipe_ends[0], &byte, 1));
+      ssize_t received = 0;
+      do
+      {
+        received = ::read(pipe_ends[0], &byte, 1);
+      } while (received < 0 && errno == EINTR);
+      if (received < 0)
+      {
+        ::_exit(255);
+      }
       ::_exit(p_exit_code);
     }
     ::close(pipe_ends[0]);

@@ -334,8 +334,8 @@ is why the bar is "half" and not "nearly all".
   stale-history numbers in [G2](#g2-rss-growth-is-averaged-over-time-before-the-leak)),
   and once on a fresh history.
 - `lock-convoy` and `deadlock` were run twice; both gave "Healthy".
-- One machine, one run per scenario, loopback sockets, 2 Hz sampling. At the
-  default 1 Hz some numbers would be coarser. The scenarios are meant to be
+- One machine, one run per scenario, loopback sockets, 2 Hz sampling. At
+  1 Hz some numbers would be coarser. The scenarios are meant to be
   obviously buggy, so a "found" here does not prove the product catches a subtle
   version of the same bug.
 - The socket observer (eBPF) was not enabled, so the Socket I/O section was
