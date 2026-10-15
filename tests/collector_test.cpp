@@ -959,6 +959,9 @@ void TestWatchDirectorySync()
       !failed_save_sync &&
           failed_save_sync.error().kind_ == WatchErrorKind::SyncFailed &&
           failed_save_sync.error().message_.contains("rules were applied") &&
+          failed_save_sync.error().applied_state_.has_value() &&
+          Field(*failed_save_sync.error().applied_state_, "revision")
+                  .AsString() == settings.Current()->revision_ &&
           g_watch_sync.directory_syncs_ == 1 &&
           settings.Current()->rules_.empty() &&
           settings.Current()->source_ == WatchSource::Dashboard &&
@@ -973,11 +976,21 @@ void TestWatchDirectorySync()
               g_watch_sync.directory_syncs_ == 2 &&
               settings.Current()->rules_ == saved_rules,
           "an interrupted directory flush is retried");
+  const auto save_revision =
+      Field(*failed_save_sync.error().applied_state_, "revision").AsString();
+  const auto stale_save = settings.Replace(R"({"rules":[]})", save_revision);
+  Require(!stale_save && stale_save.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied save cannot replace a later editor's rules");
 
   g_watch_sync = {.fail_directory_ = true};
   const auto failed_reset_sync = settings.Reset(settings.Current()->revision_);
   Require(!failed_reset_sync &&
               failed_reset_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+              failed_reset_sync.error().applied_state_.has_value() &&
+              Field(*failed_reset_sync.error().applied_state_, "revision")
+                      .AsString() == settings.Current()->revision_ &&
               g_watch_sync.directory_syncs_ == 1 &&
               !g_watch_sync.saved_file_exists_ &&
               !std::filesystem::exists(path) &&
@@ -985,6 +998,19 @@ void TestWatchDirectorySync()
               settings.Current()->source_ == WatchSource::Config,
           "reset flushes after deletion and reports an applied reset on error");
 
+  g_watch_sync = {};
+  const auto reset_revision =
+      Field(*failed_reset_sync.error().applied_state_, "revision").AsString();
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "another editor saves after an unconfirmed reset");
+  const auto stale_reset = settings.Reset(reset_revision);
+  Require(!stale_reset &&
+              stale_reset.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied reset cannot delete a later editor's rules");
+  Require(settings.Reset(settings.Current()->revision_).has_value(),
+          "the current editor can reset the saved rules");
   g_watch_sync = {};
   Require(settings.Reset(settings.Current()->revision_).has_value() &&
               g_watch_sync.directory_syncs_ == 1 &&

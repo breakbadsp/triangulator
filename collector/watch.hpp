@@ -44,6 +44,8 @@ struct WatchError
 {
   WatchErrorKind kind_ = WatchErrorKind::InvalidRules;
   std::string message_;
+  // Keep retries tied to this operation if another editor changes the rules.
+  std::optional<Json> applied_state_ = std::nullopt;
 };
 
 // Where the rules in force come from.
@@ -268,6 +270,7 @@ class WatchSettings
         Publish(WatchState{std::move(*rules), WatchSource::Dashboard, {}});
     if (!saved)
     {
+      saved.error().applied_state_ = std::move(result);
       return std::unexpected(saved.error());
     }
     return result;
@@ -301,6 +304,7 @@ class WatchSettings
     // whose earlier directory flush failed after removing the file.
     if (auto saved = SyncWatchDirectory(directory->Get(), path_); !saved)
     {
+      saved.error().applied_state_ = std::move(result);
       return std::unexpected(saved.error());
     }
     return result;

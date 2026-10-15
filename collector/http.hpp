@@ -720,6 +720,10 @@ class DashboardServer
       if (p_result.error().kind_ == WatchErrorKind::SyncFailed)
       {
         error.Set("applied", true);
+        if (p_result.error().applied_state_)
+        {
+          error.Set("applied_state", *p_result.error().applied_state_);
+        }
       }
       RespondJson(p_connection, code, error);
       return;

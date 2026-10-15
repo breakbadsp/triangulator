@@ -869,7 +869,7 @@ helpTopic('watchwake','Wakes at least every (ms)','One rule · milliseconds','Th
 helpTopic('watchmatch','Matching threads now','Live threads · your edited rules','How many threads of the monitored process have a name that starts with this prefix right now, counting each thread under the longest matching prefix, as the collector does. A few names follow the count.','"3 · worker-1, worker-2, worker-3" means three threads would use this rule.','It updates while you type and as threads start and stop, before anything is saved. 0 usually means a typo, wrong case, or threads that do not exist yet. A note shows threads that match this prefix but use a longer one.','Threads are counted at the latest sample. While you inspect a recorded moment or the target is absent, there are no live threads to count. In the final view of an ended target, the count follows the threads the collector reports now, such as those of a restarted target. Names are cut at 15 bytes by Linux.',['watchprefix','thread']);
 helpTopic('watchremove','Remove a watch rule','One rule','Takes this rule out of the list you are editing. Nothing changes on the collector until you select Save.','','Remove a rule you no longer need, then check the other counts. Use Discard edits to bring back the saved list.','Threads that matched the rule are then not watched, unless a shorter prefix also matches them.',['watchsave']);
 helpTopic('watchadd','Add watch rule','Rules you are editing','Adds an empty row for a new prefix and interval.','','Fill in the prefix and interval, then check Matching threads now before you save. The collector accepts up to the limit shown beside the button.','The new rule exists only in this page until you select Save.',['watchprefix','watchsave']);
-helpTopic('watchsave','Save watch rules','Collector · whole list at once','Applies the whole list in the table to the collector at once and saves it on the collector host, replacing the config file rules. Save is off while any field has a problem, or when nothing has changed and the last save was confirmed.','','Fix each marked field, then select Save. The message below the button tells whether the collector accepted the list; if it refuses, its message is shown unchanged and nothing changes. Discard edits restores the list now in force.','These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry.',['watchsource','watchreset']);
+helpTopic('watchsave','Save watch rules','Collector · whole list at once','Applies the whole list in the table to the collector at once and saves it on the collector host, replacing the config file rules. Save is off while any field has a problem, or when nothing has changed and the last save was confirmed.','','Fix each marked field, then select Save. The message below the button tells whether the collector accepted the list; if it refuses, its message is shown unchanged and nothing changes. Discard edits restores the list now in force.','These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry. The retry is refused if another user changed the rules.',['watchsource','watchreset']);
 helpTopic('watchreload','Reload current watch rules','Shared collector settings','Loads the current saved rules after another user changed them, or after the collector restarted. Your save or reset was refused so it could not overwrite that change.','','Copy any edits you want to keep. Select Reload current rules, confirm that the draft can be discarded, then review and edit the current list.','Your draft stays in the table if you cancel or the read fails. A successful reload replaces it.',['watchsave','watchreset']);
 helpTopic('watchreset','Reset watch rules','Collector · rules saved from the dashboard','Deletes the rules saved from this dashboard, and returns to the [[watch]] rules in collector.toml. You are asked to confirm because this discards the dashboard rules and any unsaved edits.','','Use it when you want the config file to be the single source again. It is also the way to clear a saved file that the collector could not read.','It is off when the config file rules are already in force, unless the collector could not confirm the last reset on disk; then select it again to retry. It cannot restore the rules you discard. If another user changed the rules, reset is refused until you reload the current rules.',['watchsource','watchsave']);
 helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
@@ -2599,23 +2599,25 @@ async function loadWatches(){
 // Save and reset share this: POST, show the collector's own error text, and take the reply as the new truth.
 async function changeWatches(url,body,done,kind){
   watchBusy=true;watchRead++;watchStatus('Saving…');updateWatch();
-  let applied=false;
+  let applied=false,appliedState=null;
   try{
     let response;
     try{response=await fetch(url,{method:'POST',headers:{...WATCH_HEADERS,'If-Match':'"'+watchInfo.revision+'"'},body:JSON.stringify(body)})}
     catch(error){throw Error('Could not reach the collector: '+error.message)}
     let data={};try{data=await response.json()}catch{}
     if(response.status===409||response.status===428)watchConflict=true;
-    if(!response.ok){applied=data.applied===true;throw Error(data.error||(response.status===403?'The collector refused the change (HTTP 403).':'The change failed (HTTP '+response.status+').'))}
+    if(!response.ok){applied=data.applied===true;appliedState=data.applied_state;throw Error(data.error||(response.status===403?'The collector refused the change (HTTP 403).':'The change failed (HTTP '+response.status+').'))}
     watchBusy=false;watchUnconfirmed='';applyWatches(data);watchStatus(done,'good');
     refreshWatchRules();
   }catch(error){
-    // The collector applied the change but could not confirm it on disk: show what is now in force,
-    // and keep the button on, since repeating the change is how persistence is confirmed.
-    if(applied){watchUnconfirmed=kind;const reread=await fetch('/api/watches').then(r=>r.json()).catch(()=>null);
-      watchBusy=false;if(reread?.rules)applyWatches(reread);refreshWatchRules()}
+    // Retry only the revision applied by this operation. A fresh GET can belong
+    // to another editor and must not authorize overwriting that editor's rules.
+    if(applied){watchUnconfirmed=kind;watchBusy=false;
+      if(appliedState?.revision&&appliedState?.rules)applyWatches(appliedState);
+      else watchConflict=true;
+      refreshWatchRules()}
     watchBusy=false;
-    watchStatus(applied?`Warning: ${error.message.replace(/\.?$/,'.')} Select ${kind==='save'?'Save':'Reset to config file'} again to retry.`:error.message,applied?'warning':'bad');
+    watchStatus(applied?`Warning: ${error.message.replace(/\.?$/,'.')} ${watchConflict?'Reload current rules before retrying.':`Select ${kind==='save'?'Save':'Reset to config file'} again to retry.`}`:error.message,applied?'warning':'bad');
     updateWatch();
   }
 }
