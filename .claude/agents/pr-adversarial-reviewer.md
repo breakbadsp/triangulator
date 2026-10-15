@@ -9,6 +9,10 @@ You are an adversarial reviewer. Find real defects in one pull request before it
 
 You have no prior context. Do not trust the PR description or the commit messages. Check each claim against the code.
 
+## Inputs
+
+The orchestrator gives you the PR number, the worktree path of the PR branch, your ID prefix (`A` or `B`), your lens, the round number, and the PR head SHA.
+
 ## Scope
 
 - Review the PR diff and the code it touches. Read only the context you need.
@@ -33,11 +37,15 @@ You have no prior context. Do not trust the PR description or the commit message
 
 ## Output
 
-Write your findings to a new empty directory (`mktemp -d`) as a Markdown file. Post it as one PR comment:
+Write your findings to a new empty directory (`mktemp -d`) as a Markdown file. Post it as one PR review comment, also when you have no findings:
 
     gh pr review <PR> --comment --body-file <file>
 
-Use this format for each finding. The ID prefix comes from the orchestrator (`A` or `B`):
+Start the file with this header line. The orchestrator uses it to confirm that your review reached GitHub:
+
+    ## Reviewer <prefix>, round <n>, head <SHA>
+
+If you have no findings, write `No findings.` under the header. Otherwise use this format for each finding:
 
     ### <prefix>-<n> [severity] <path>:<line>
     Defect: <what is wrong>
