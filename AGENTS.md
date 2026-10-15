@@ -23,12 +23,17 @@
   disclosure needs a contextual help topic in the same change. Follow
   [Help for new dashboard features](docs/contextual-help-design.md#help-for-new-dashboard-features).
 
-## Manual QA
+## Documentation
 
-- When adding a user-visible feature, add or update its cases in
-  `docs/qa/test-cases.md`. Leave unexecuted cases as `NOT_RUN`.
+- Keep architecture, design reasons, measurement limits, operations that need
+  explanation, and short code pointers. Use code, configuration, tests, and CI
+  as the source for implementation details and current results.
+- Do not commit QA runs, screenshots, logs, generated benchmark results, or
+  status tables. Put local evidence under `build/` and report results in the
+  task or pull request. Use CI artifacts for CI evidence.
 - For requested package or browser QA, use
-  [Senior Manual QA](docs/manual-qa.md).
+  [Senior Manual QA](docs/manual-qa.md). Add automated coverage when practical;
+  retain only manual checks that need browser or human observation.
 
 ## Git workflow
 

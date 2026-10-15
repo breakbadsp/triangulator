@@ -1,7 +1,6 @@
 # TODO
 
-See [monitoring coverage](docs/linux-monitoring.md) for metric details and
-the [bug lab report](docs/bug-lab-report.md) for known limits.
+See [measurement limits](docs/measurement-limits.md) for interpretation constraints.
 
 ## Diagnostic accuracy
 
@@ -33,4 +32,4 @@ the [bug lab report](docs/bug-lab-report.md) for known limits.
 
 ## Release QA
 
-- [ ] Test package upgrades (QA-006) when a second release is available.
+- [ ] Test package upgrades when a second release is available.
