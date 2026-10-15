@@ -9,7 +9,8 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 1. Read the PR: `gh pr view $ARGUMENTS --json number,state,headRefName,headRefOid,url`. Stop if the PR is closed or merged.
 2. Use the worktree that holds the PR branch (`git worktree list`). If none holds it, create one with `git worktree add`. Never use the primary checkout or `master`.
-3. Give each agent the body of its definition file as its prompt, plus the PR inputs. The definition files are in `.claude/agents/`, or in `~/.claude/agents/` when the repository has none.
+3. In that worktree, run `git fetch origin`. `git rev-parse HEAD` must equal `headRefOid`, and `git status --porcelain` must print nothing. Otherwise stop and report. Do not pull, reset, or push to fix it.
+4. Give each agent the body of its definition file as its prompt, plus the PR inputs. The definition files are in `.claude/agents/`, or in `~/.claude/agents/` when the repository has none.
 
 ## Rounds
 
