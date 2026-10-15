@@ -283,21 +283,28 @@ invalid at startup, the collector logs a warning and uses the `[[watch]]`
 rules.
 
 - `GET /api/watches` returns
-  `{"rules":[{"prefix":"worker-","wake_ms":500}],"source":"config","saved_error":null,"limits":{"prefix_max_bytes":15,"wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}}`.
+  `{"rules":[{"prefix":"worker-","wake_ms":500}],"source":"config","saved_error":null,"revision":"4242-1234567890-0","limits":{"prefix_max_bytes":15,"wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}}`.
   `source` is `config` or `dashboard`; `saved_error` says why the saved file
-  was not used, or is `null`.
+  was not used, or is `null`. `revision` is an opaque value that changes with
+  every save or reset. A collector restart invalidates earlier revisions.
 - `POST /api/watches` with `{"rules":[...]}` checks the whole list, saves it
   and applies it at once. It returns the `GET` shape. An invalid list gets
   400 with `{"error":"..."}` naming the rule; a failed write gets 500. Errors
   before the rename leave the file and rules unchanged.
 - `POST /api/watches/reset` deletes the saved file and applies the
   `[[watch]]` rules. It returns the `GET` shape.
-- If the directory flush fails after a save or reset, the rules have already
-  changed. The response is 500 with `{"error":"...","applied":true}`. The error
-  states that persistence could not be confirmed. The rules in memory match
-  the changed file. Retry the operation to confirm persistence before a reboot.
 - Both `POST` requests need the same `X-Triangulator: 1` header and
-  same-origin check as `POST /api/target`, or they get 403.
+  same-origin check as `POST /api/target`, or they get 403. They also need the
+  current `revision` in quotes as the `If-Match` header. A missing header gets
+  428. A stale revision gets 409 and changes no rule.
+- If the directory flush fails after a save or reset, the rules have already
+  changed. The response is 500 with
+  `{"error":"...","applied":true,"applied_state":{...}}`. The error states that
+  persistence could not be confirmed. The rules in memory match the changed
+  file. `applied_state` has the `GET` shape of the rules now in force,
+  including their new `revision`. To confirm persistence before a reboot,
+  retry the operation with that revision in `If-Match`. The earlier revision
+  gets 409.
 
 ## Final view after the target exits
 

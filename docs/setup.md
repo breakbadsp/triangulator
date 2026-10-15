@@ -469,7 +469,9 @@ Local target control adds `GET /api/target` and `POST /api/target` with JSON
 `{"target":"NAME_OR_PID"}` and the `X-Triangulator: 1` header.
 `GET /api/watches`, `POST /api/watches` and `POST /api/watches/reset` read,
 replace and reset the [watch rules](collector-reference.md#watched-threads),
-with the same header. Other non-`GET` requests get 501.
+with the same header. Both `POST` requests also need the quoted `revision`
+from `GET /api/watches` as the `If-Match` header. A missing header gets 428,
+and a stale revision gets 409. Other non-`GET` requests get 501.
 `GET /api/resources?start=UNIX_SECONDS&end=UNIX_SECONDS` returns stored
 resource samples in at most about 1,000 buckets (default the last 15 minutes).
 `/api/replay` returns recording bounds; `/api/replay?at=UNIX_SECONDS` returns
