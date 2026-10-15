@@ -41,6 +41,17 @@ class SlowSampleBenchmarkTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("unknown sample kind", result.stderr)
 
+    def test_missing_target_is_rejected_for_both_sample_kinds(self):
+        # Linux PIDs are below 2**22. This PID cannot identify a process.
+        for kind in slow.KINDS:
+            with self.subTest(kind=kind):
+                result = subprocess.run(
+                    [str(slow.BINARY), "2147483647", "1", "100", "0", kind],
+                    capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("absent", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

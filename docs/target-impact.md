@@ -141,10 +141,12 @@ overruns a tick.
 
 ### Whole sampler at 5 Hz
 
-The real sampler on its own core, 500-thread target, 30 s per run, three runs per row,
-CPU as a share of one core. Defaults are 5 s and 30 s.
+The real sampler on its own core, 500-thread target, 30 s per run, three runs
+per row, CPU as a share of one core. The baseline uses resource samples every
+5 s and memory-map samples every 30 s. The current resource default is 2 s.
+Each group changes one interval and keeps the other at its baseline value.
 
-| Target | Resource 5 s (default) | Resource 2 s | Resource 1 s | Maps 30 s (default) | Maps 10 s | Maps 5 s | Maps 1 s |
+| Target | Resource 5 s (baseline) | Resource 2 s (default) | Resource 1 s | Maps 30 s (baseline) | Maps 10 s | Maps 5 s | Maps 1 s |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | service (5,063 lines) | 2.34 | 2.48 | 2.71 | 2.34 | 2.36 | 2.39 | 2.68 |
 | large (30,060 lines) | | | | 2.39 | 2.55 | 2.77 | 4.36 |
@@ -160,7 +162,7 @@ Two measurements, both with the probes from the first part of this page.
 
 - **The real sampler at each interval** (same runs as above, `apart` and `shared-spin`
   rows). The probe counts did not follow the interval. For example the address-space
-  probe's stalls of 1 ms or more per minute were 351 with the default intervals, 204
+  probe's stalls of 1 ms or more per minute were 351 with the baseline intervals, 204
   with resources every 2 s, 19 with resources every 1 s, 331, 381 and 215 with maps every
   10, 5 and 1 s. The target without a sampler ranged from 26 to 502 across runs of
   the same host. The interval effect, if there is one, is smaller than that noise.
@@ -169,10 +171,12 @@ Two measurements, both with the probes from the first part of this page.
   core can make. The address-space probe saw 247 stalls of 1 ms or more per minute
   against 46 with no reader on the 5,000-line target, and 438 against 53 on the
   30,000-line one. The signal-lock probe, which maps does not touch, also rose, so part
-  of this is the reader's presence and not the lock. Taking the whole rise as lock
-  waits, it is about 3 to 6 more stalls a second at 100% duty. A sampler is at that
-  duty for 0.01 to 0.06% of the time with a 30 s interval and 0.3 to 1.9% with a 1 s
-  interval, so it adds well under one stall a minute at 30 s and about 1 to 7 a minute at 1 s.
+  of this is the reader's presence and not the lock. The total rise is about
+  3 to 6 more stalls a second with the continuous reader. These measurements
+  do not show lock occupancy or establish a relation between sampling
+  interval and added target stalls. Total sample time includes work outside
+  the maps reads. The `maps_read_us` values also include waits and time when
+  the sampler did not run. Neither value measures lock occupancy.
 
 ### Limits of this section
 

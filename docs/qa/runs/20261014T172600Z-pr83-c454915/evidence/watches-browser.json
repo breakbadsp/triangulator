@@ -1,0 +1,29 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://127.0.0.1:19401/#threads-section"
+  },
+  "value": {
+    "at": "2026-10-14T17:29:45.633Z",
+    "watches": {
+      "limits": {
+        "max_rules": 64,
+        "prefix_max_bytes": 15,
+        "wake_ms_max": 3600000,
+        "wake_ms_min": 10
+      },
+      "rules": [
+        {
+          "prefix": "MsgP",
+          "wake_ms": 1000
+        },
+        {
+          "prefix": "PrdDist",
+          "wake_ms": 2000
+        }
+      ],
+      "saved_error": null,
+      "source": "config"
+    }
+  }
+}

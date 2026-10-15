@@ -46,6 +46,7 @@ while True:
 """
 ALLOWED_CPUS = frozenset(os.sched_getaffinity(0))
 ROLES = ("spin", "wake", "lock", "mmap", "sampler", "driver")
+# Keep the historical baseline explicit when comparing interval changes.
 RESOURCE_INTERVAL_S = 5
 
 
@@ -73,8 +74,8 @@ SCENARIOS = {
     "shared-spin-10hz-nice19": Scenario(10, "spin", nice=19),
     "shared-wake-10hz": Scenario(10, "wake"),
     "shared-wake-10hz-nice19": Scenario(10, "wake", nice=19),
-    # Resource and memory-map intervals, at the 5 Hz thread rate. The
-    # defaults are apart-5hz; 1 s of maps is a stress test, not a candidate.
+    # Resource and memory-map intervals at 5 Hz. apart-5hz keeps the old
+    # 5 s resource baseline; apart-5hz-res-2s uses the current defaults.
     "apart-5hz": Scenario(5, "sampler"),
     "apart-5hz-res-2s": Scenario(5, "sampler", resource_interval_s=2),
     "apart-5hz-res-1s": Scenario(5, "sampler", resource_interval_s=1),

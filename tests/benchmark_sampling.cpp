@@ -70,10 +70,26 @@ using Records = std::array<wire::Record, wire::kMaxThreads>;
 }
 
 // One resource sample, as the sampler takes it on a tick.
-void SampleResources(int p_pid, ResourceProbe& p_probe)
+[[nodiscard]] std::expected<void, std::string_view> SampleResources(
+    int p_pid, ResourceProbe& p_probe)
 {
   const auto sample = p_probe.Sample(p_pid);
   asm volatile("" : : "g"(&sample) : "memory");
+  using resource_wire::Field;
+  using resource_wire::Flags;
+  if (sample.summary_[Field("fd_open")] == resource_wire::kUnavailable ||
+      sample.summary_[Field("rss_bytes")] == resource_wire::kUnavailable ||
+      resource_wire::HasFlag(sample.flags_, Flags::DescriptorsHidden))
+  {
+    return std::unexpected("target is absent or unreadable");
+  }
+  if (resource_wire::HasFlag(sample.flags_, Flags::OtherNetworkNamespace) ||
+      resource_wire::HasFlag(sample.flags_, Flags::DescriptorScanTruncated) ||
+      resource_wire::HasFlag(sample.flags_, Flags::SocketDiagFailed))
+  {
+    return std::unexpected("resource sample has incomplete socket data");
+  }
+  return {};
 }
 
 // One whole memory-map sample, read to the end at once. The sampler spreads
@@ -155,14 +171,19 @@ int main(int p_argc, char** p_argv)
       switch (kind)
       {
         case triangulator::Kind::Resources:
-          triangulator::SampleResources(*pid, resources);
-          return nullptr;
+        {
+          const auto sampled = triangulator::SampleResources(*pid, resources);
+          return sampled ? nullptr : sampled.error().data();
+        }
         case triangulator::Kind::Memory:
         {
           const auto sample = triangulator::SampleMemory(*pid, memory);
-          if (!sample || sample->regions_.empty())
+          if (!sample || sample->regions_.empty() ||
+              triangulator::memory_wire::HasFlag(
+                  sample->flags_,
+                  triangulator::memory_wire::Flags::MapsPartial))
           {
-            return "memory sample is absent or has no layout";
+            return "memory sample is absent or has an incomplete layout";
           }
           using triangulator::memory_wire::Field;
           maps_longest_read_us.push_back(
