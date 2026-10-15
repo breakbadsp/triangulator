@@ -267,6 +267,12 @@ a false alarm. Stale threads, a silent sampler and an absent target are skipped.
 
 The thread details show the rule and when the thread last ran.
 
+The dashboard's **Settings** tab edits the rules without logging in to the
+collector host. It shows how many live threads each prefix matches while you
+type, and checks the limits below before it enables **Save**. The tab is
+read-only while you inspect a recorded moment and on a collector build without
+these endpoints.
+
 The dashboard can replace the rules. They are saved in
 `data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
 the data directory is flushed after the rename or a reset).

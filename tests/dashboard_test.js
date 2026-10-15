@@ -2142,3 +2142,241 @@ test('a watched finding keeps its help target through live re-renders', () => {
   app.run('helpTimer.cancel(true);realRenderAssessment(live.threads)');
   assert.ok(!app.run('target.isConnected'), 'the list is rebuilt after help closes');
 });
+
+// ---------- Settings tab: watched-thread rules ----------
+const watchLimits = {prefix_max_bytes: 15, wake_ms_min: 10, wake_ms_max: 3600000, max_rules: 64};
+const watchReply = (rules, extra = {}) => ({rules, source: 'config', saved_error: null, limits: watchLimits, ...extra});
+const httpReply = (body, status = 200) => ({ok: status < 400, status, json: async () => body});
+async function watchApp(info = watchReply([{prefix: 'worker-', wake_ms: 500}]), onWrite = () => httpReply(info)) {
+  const writes = [];
+  const app = dashboard(new Map(), url => url === '/api/watches' ? Promise.resolve(httpReply(info)) : undefined);
+  app.setFetch(async (url, options) => {
+    if (options?.method === 'POST') {writes.push({url, options}); return onWrite(url, options);}
+    return url === '/api/watches' ? httpReply(info) : new Promise(() => {});
+  });
+  await app.run('loadWatches()');
+  app.writes = writes;
+  app.type = (row, field, text) => app.run(`watchRows[${row}].${field}.value=${JSON.stringify(text)};watchRows[${row}].${field}.oninput()`);
+  app.el = id => app.elements.get(id);
+  return app;
+}
+
+test('watch rule fields are checked against the collector limits, and Save follows', async () => {
+  const app = await watchApp();
+  assert.equal(app.el('watch-save').disabled, true, 'nothing changed');
+  assert.match(app.el('watch-source').textContent, /^From the config file \(collector\.toml\)\.$/);
+  assert.equal(app.el('watch-reset').disabled, true, 'nothing saved to reset');
+  const prefixError = () => app.run('watchRows[0].prefixError.textContent'), wakeError = () => app.run('watchRows[0].wakeError.textContent');
+  app.type(0, 'prefix', '');
+  assert.equal(prefixError(), 'Enter a prefix.');
+  assert.equal(app.el('watch-save').disabled, true);
+  app.type(0, 'prefix', 'é'.repeat(8));
+  assert.match(prefixError(), /Too long: 16 bytes/, 'the limit counts UTF-8 bytes, not characters');
+  app.type(0, 'prefix', 'é'.repeat(7));
+  assert.equal(prefixError(), '');
+  for (const [text, message] of [['', /Enter a number/], ['5', /At least 10 ms/], ['1.5', /whole number/], ['1e3', /whole number/], ['-5', /whole number/], ['3600001', /At most 3,600,000 ms/]]) {
+    app.type(0, 'wake', text);
+    assert.match(wakeError(), message, text);
+    assert.equal(app.el('watch-save').disabled, true, text);
+  }
+  app.type(0, 'wake', ' 250 ');
+  assert.equal(wakeError(), '');
+  assert.equal(app.el('watch-save').disabled, false);
+  assert.match(app.el('watch-unsaved').textContent, /^Unsaved edits\. They apply only after you select Save/);
+  assert.equal(app.el('watch-unsaved').hidden, false);
+  // Back to the saved list: nothing to save or warn about.
+  app.type(0, 'prefix', 'worker-'); app.type(0, 'wake', '500');
+  assert.equal(app.el('watch-save').disabled, true);
+  assert.equal(app.el('watch-unsaved').hidden, true);
+  // Add rule: a duplicate prefix is marked on the later rule, and the rule limit stops Add.
+  app.el('watch-add').onclick();
+  assert.equal(app.run('watchDraft.length'), 2);
+  app.type(1, 'prefix', 'worker-'); app.type(1, 'wake', '100');
+  assert.match(app.run('watchRows[1].prefixError.textContent'), /Same prefix as rule 1/);
+  assert.equal(app.el('watch-save').disabled, true);
+  app.run('watchDraft=Array.from({length:64},(_,i)=>({prefix:"p"+i,wake:"100"}));renderWatchRows()');
+  assert.equal(app.el('watch-add').disabled, true);
+  assert.match(app.el('watch-limit').textContent, /At most 64 rules/);
+});
+
+test('matching threads now counts live threads with the longest prefix, as the collector does', async () => {
+  const app = await watchApp(watchReply([{prefix: 'worker-', wake_ms: 500}, {prefix: 'worker-io', wake_ms: 2000}]));
+  app.run(`latestLive={threads:['worker-1','worker-2','worker-io-1','worker-io-1','main'].map((name,i)=>({tid:i+1,name}))}`);
+  app.run('updateWatch()');
+  const count = row => app.run(`watchRows[${row}].count.textContent`), names = row => app.run(`watchRows[${row}].names.textContent`);
+  assert.equal(count(0), '2');
+  assert.match(names(0), /^worker-1, worker-2\. 2 more threads start with this prefix but use a longer rule\.$/);
+  assert.equal(count(1), '2');
+  assert.equal(names(1), 'worker-io-1 (×2)');
+  // Typing updates the count at once; a prefix nothing starts with says so.
+  app.type(1, 'prefix', 'Worker-io');
+  assert.equal(count(1), '0');
+  assert.match(names(1), /^No live thread name starts with this prefix\.$/);
+  assert.equal(count(0), '4');
+  // A duplicate prefix ties with the first rule; it is not "a longer rule".
+  app.type(1, 'prefix', 'worker-io'); app.el('watch-add').onclick(); app.type(2, 'prefix', 'worker-io');
+  assert.equal(count(2), '0');
+  assert.doesNotMatch(names(2), /longer rule/);
+  // No target: nothing to count against, and the note says so instead of blaming the prefix.
+  app.run('latestLive={threads:[]}; updateWatch()');
+  assert.equal(names(1), 'No live threads to check against.');
+  // Recorded moments have no live threads.
+  app.run("latestLive={threads:[{tid:1,name:'worker-1'}]};replayAt=100;updateWatch()");
+  assert.equal(count(0), '0');
+});
+
+test('saving sends the whole list with the guard header and shows the reply or the collector error', async () => {
+  const saved = watchReply([{prefix: 'db-', wake_ms: 250}], {source: 'dashboard'});
+  const app = await watchApp(watchReply([{prefix: 'worker-', wake_ms: 500}]), () => httpReply(saved));
+  app.run('var refreshed=0; refreshWatchRules=async()=>{refreshed++}');
+  app.type(0, 'prefix', 'db-'); app.type(0, 'wake', '250');
+  await app.run('saveWatches()');
+  assert.equal(app.writes.length, 1);
+  assert.equal(app.writes[0].url, '/api/watches');
+  assert.equal(app.writes[0].options.headers['X-Triangulator'], '1');
+  assert.equal(app.writes[0].options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(app.writes[0].options.body), {rules: [{prefix: 'db-', wake_ms: 250}]});
+  assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  assert.equal(app.run('refreshed'), 1, 'the Assessment re-reads the rules after a save');
+  assert.match(app.el('watch-source').textContent, /^Saved from the dashboard\. These replace the \[\[watch\]\] rules in collector\.toml until you reset\.$/);
+  assert.equal(app.el('watch-save').disabled, true);
+  assert.equal(app.el('watch-reset').disabled, false);
+
+  // The collector refuses: its message is shown unchanged and the edits stay.
+  const refused = await watchApp(watchReply([]), () => httpReply({error: 'watch rule 1 (prefix "x"): nope'}, 400));
+  refused.el('watch-add').onclick(); refused.type(0, 'prefix', 'x'); refused.type(0, 'wake', '100');
+  await refused.run('saveWatches()');
+  assert.equal(refused.el('watch-status').textContent, 'watch rule 1 (prefix "x"): nope');
+  assert.equal(refused.run('watchDraft.length'), 1);
+  assert.equal(refused.el('watch-save').disabled, false, 'the user can fix and retry');
+  assert.equal(refused.el('watch-unsaved').hidden, false);
+});
+
+test('a save the collector applied but could not confirm on disk shows the rules in force and a warning', async () => {
+  const app = await watchApp(watchReply([]), () => httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true}, 500));
+  const inForce = watchReply([{prefix: 'a', wake_ms: 100}], {source: 'dashboard'});
+  app.setFetch(async (url, options) => options?.method === 'POST'
+    ? httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true}, 500) : httpReply(inForce));
+  app.el('watch-add').onclick(); app.type(0, 'prefix', 'a'); app.type(0, 'wake', '100');
+  await app.run('saveWatches()');
+  assert.match(app.el('watch-status').textContent, /^Warning: rules were applied/);
+  assert.equal(app.el('watch-status').className, 'warning');
+  assert.equal(app.el('watch-unsaved').hidden, true, 'the list in force equals the list on screen');
+});
+
+test('reset asks first, mentions unsaved edits, and returns to the config file rules', async () => {
+  const config = watchReply([{prefix: 'worker-', wake_ms: 500}]);
+  const app = await watchApp(watchReply([{prefix: 'db-', wake_ms: 250}], {source: 'dashboard'}), () => httpReply(config));
+  const questions = [];
+  app.run('confirm=question=>{questions.push(question);return answer}; var questions=[]; var answer=false');
+  app.type(0, 'wake', '300');
+  app.el('watch-reset').onclick();
+  assert.equal(app.writes.length, 0, 'declining the question changes nothing');
+  app.run('answer=true');
+  app.el('watch-reset').onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.writes.length, 1);
+  assert.equal(app.writes[0].url, '/api/watches/reset');
+  assert.equal(app.writes[0].options.headers['X-Triangulator'], '1');
+  assert.match(app.run('questions[0]'), /unsaved edits will also be lost/);
+  assert.match(app.el('watch-source').textContent, /^From the config file/);
+  assert.equal(app.run('watchDraft[0].prefix'), 'worker-');
+});
+
+test('a collector without the endpoint, a recorded moment and a broken saved file are explained', async () => {
+  const missing = dashboard(new Map(), url => url === '/api/watches' ? Promise.resolve(httpReply({}, 404)) : undefined);
+  await missing.run('loadWatches()');
+  assert.equal(missing.elements.get('watch-editor').hidden, true);
+  assert.match(missing.elements.get('watch-readonly').textContent, /no \/api\/watches/);
+  assert.equal(missing.elements.get('watch-readonly').hidden, false);
+
+  const broken = await watchApp(watchReply([{prefix: 'worker-', wake_ms: 500}], {saved_error: 'watch-rules.json: bad rule'}));
+  assert.equal(broken.el('watch-warning').hidden, false);
+  assert.match(broken.el('watch-warning').textContent, /watch-rules\.json: bad rule/);
+  assert.equal(broken.el('watch-reset').disabled, false, 'reset removes the broken file');
+
+  broken.run('replayAt=100;renderWatchMode()');
+  assert.equal(broken.el('watch-editor').hidden, true);
+  assert.match(broken.el('watch-readonly').textContent, /recorded moment/);
+  broken.run('replayAt=null;renderWatchMode()');
+  assert.equal(broken.el('watch-editor').hidden, false);
+});
+
+test('a rules read that an edit, a save or a reset overtook is dropped', async () => {
+  const original = watchReply([{prefix: 'worker-', wake_ms: 500}]);
+  const saved = watchReply([{prefix: 'worker-', wake_ms: 100}], {source: 'dashboard'});
+  const app = await watchApp(original, () => httpReply(saved));
+  let answer;
+  const pendingRead = () => {app.setFetch(async (url, options) => options?.method === 'POST' ? httpReply(saved)
+    : new Promise(resolve => {answer = resolve;}));};
+  // Selecting Settings again re-reads while the fields stay editable.
+  pendingRead();
+  const read = app.run('loadWatches()');
+  app.type(0, 'wake', '250');
+  answer(httpReply(original)); await read;
+  assert.equal(app.run('watchRows[0].wake.value'), '250', 'the edit made during the read is kept');
+  assert.equal(app.run('watchDirty()'), true);
+  assert.equal(app.el('watch-unsaved').hidden, false);
+  // A reply that arrives after a save would put back the rules from before it.
+  app.type(0, 'wake', '500');
+  const late = app.run('loadWatches()'), answerLate = answer;
+  app.type(0, 'wake', '100');
+  await app.run('saveWatches()');
+  answerLate(httpReply(original)); await late;
+  assert.equal(app.run('watchInfo.rules[0].wake_ms'), 100);
+  assert.equal(app.run('watchRows[0].wake.value'), '100');
+  assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  // A failed read that was overtaken does not show an error or schedule a retry.
+  app.run('watchInfo=null');
+  const failed = app.run('loadWatches()'), answerFailed = answer;
+  app.run('watchRead++');
+  answerFailed(httpReply({}, 503)); await failed;
+  assert.equal(app.run('watchLoadError'), '');
+});
+
+test('a change the collector applied but could not confirm can be repeated until it is confirmed', async () => {
+  const unconfirmed = {error: 'rules were applied, but persistence could not be confirmed for /d/watch-rules.json: Input/output error', applied: true};
+  const inForce = watchReply([{prefix: 'a', wake_ms: 100}], {source: 'dashboard'});
+  let reply = () => httpReply(unconfirmed, 500), current = watchReply([]);
+  const app = await watchApp(watchReply([]));
+  app.setFetch(async (url, options) => {if (options?.method === 'POST') {app.writes.push({url}); return reply();} return httpReply(current);});
+  app.run('refreshWatchRules=async()=>{}');
+  app.el('watch-add').onclick(); app.type(0, 'prefix', 'a'); app.type(0, 'wake', '100');
+  current = inForce;
+  await app.run('saveWatches()');
+  assert.equal(app.run('watchDirty()'), false, 'the rules in force equal the draft');
+  assert.equal(app.el('watch-save').disabled, false, 'Save stays on to retry');
+  assert.match(app.el('watch-status').textContent, /^Warning: rules were applied.*Input\/output error\. Select Save again to retry\.$/);
+  reply = () => httpReply(inForce);
+  await app.run('saveWatches()');
+  assert.equal(app.writes.length, 2);
+  assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  assert.equal(app.el('watch-save').disabled, true, 'confirmed: nothing left to save');
+
+  // Reset: the rules in force are the config file ones, so Reset would be off without the retry.
+  app.run('confirm=()=>true');
+  reply = () => httpReply(unconfirmed, 500); current = watchReply([]);
+  app.el('watch-reset').onclick(); await new Promise(resolve => setImmediate(resolve));
+  assert.match(app.el('watch-source').textContent, /^From the config file/);
+  assert.equal(app.el('watch-reset').disabled, false, 'Reset stays on to retry');
+  assert.equal(app.el('watch-save').disabled, true);
+  assert.match(app.el('watch-status').textContent, /Select Reset to config file again to retry\.$/);
+  reply = () => httpReply(watchReply([]));
+  app.el('watch-reset').onclick(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.el('watch-status').textContent, 'Reset. The rules from the config file are in force.');
+  assert.equal(app.el('watch-reset').disabled, true);
+});
+
+test('matching threads now follows the collector while the final view of an exited target is open', async () => {
+  const app = await watchApp();
+  let threads = [{tid: 1, name: 'worker-1'}];
+  app.setFetch(async url => url === '/api/live' ? httpReply({health: {session: 's2'}, threads}) : new Promise(() => {}));
+  app.run("frozenChecked=true;frozen={at:1000,exit:{},live:{health:{session:'s1'},threads:[]}}");
+  const poll = async () => {await app.run('refresh()'); return app.run('watchRows[0].count.textContent');};
+  assert.equal(await poll(), '1');
+  threads = [];
+  assert.equal(await poll(), '0', 'the target exited');
+  threads = [1, 2, 3].map(tid => ({tid, name: 'worker-' + tid}));
+  assert.equal(await poll(), '3', 'a replacement target started');
+  assert.ok(app.run('frozen!==null'), 'the final view stays open');
+});

@@ -116,6 +116,13 @@ these need a core change, a privilege, or a decision.
 - [ ] Keep reports and alerting separate; add reset/permission/namespace tests
   and measure sampling overhead for each implementation.
 
+## Dashboard settings
+
+- [ ] Collector settings tab: make other collector settings editable from the
+  dashboard (thread groups, replay interval, retention, raw storage,
+  live-sample cap). Today only watched-thread rules are editable. Settings that
+  need a collector restart must say so beside the control.
+
 ## Manual QA
 
 - [ ] Resolve QA-001 from the v0.1.0 package run: it is PASSED, but its expected
