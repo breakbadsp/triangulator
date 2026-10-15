@@ -52,7 +52,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-045 | NOT_RUN | - | - | - |
 | QA-046 | NOT_RUN | - | - | - |
 | QA-047 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/initial-a.json) |
-| QA-048 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/replay-filter-a.json) |
+| QA-048 | NOT_RUN | - | - | - |
 | QA-049 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/stale-target-a.json) |
 | QA-050 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
 | QA-051 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
@@ -1020,12 +1020,12 @@ Opening the second view does not stop the first view.
 
 ## QA-048: Local search and replay state
 
-Feature: Multiple viewers. Priority: High. Case revision: 1.
+Feature: Multiple viewers. Priority: High. Case revision: 2.
 
 Preconditions: QA-047 setup. Recording is enabled. Two owned targets run.
 
 1. In A, enter an exact worker name in thread search. Leave B unfiltered.
-2. In A, select Latest recording. Keep B Live. Observe both views.
+2. In A, select a recording on the Timeline. Keep B Live. Observe both views.
 3. In B, change the target to the second process. Observe both views again.
 
 Expected results: A retains its search value and historical process. B retains
