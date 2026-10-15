@@ -29,10 +29,10 @@ Run at most two rounds. Each round has the steps below.
 
 Merge only when no `blocker` or `major` issue is open. Issues come from the review findings and from the merge-gate results.
 
-- A review finding is open unless the analyzer marked it `FIXED` or `REBUTTED`. An `OUT-OF-SCOPE` `blocker` or `major` finding stays open, and the user decides it.
+- A review finding is open unless the analyzer marked it `FIXED` or `REBUTTED`. An `OUT-OF-SCOPE` `blocker` or `major` review finding stays open, and the user decides it.
 - Treat an issue that the user calls `critical` as `blocker`.
 - `minor` findings never block a merge.
-- A failing merge-gate run is an open issue. A failing local check or CI check is `blocker`. Any other failing gate is `major`.
+- A failing merge-gate run is an open issue. A failing local check or CI check is `blocker`. Any other failing gate is `major`. A gate issue closes when a later run passes that gate. When the fix pass marks a gate issue `OUT-OF-SCOPE`, run 2 retries the gate. The user does not decide it.
 
 ## Merge gate
 
