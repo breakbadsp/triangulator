@@ -1761,6 +1761,19 @@ test('every help name selects exactly one topic', () => {
 
 // Every section, card, chart, column and disclosure needs a help topic, so new
 // dashboard features cannot ship without one. See docs/contextual-help-design.md.
+test('Timeline step and Live buttons connect to the replay help topic', () => {
+  const app = dashboard();
+  for (const id of ['replay-previous', 'replay-next', 'replay-live']) {
+    const attrs = html.match(new RegExp('<button\\b[^>]*\\bid="' + id + '"[^>]*>'))[0];
+    const target = {
+      dataset: {help: /data-help="([^"]+)"/.exec(attrs)?.[1]},
+      closest(selector) {return selector.startsWith('[data-help]') && this.dataset.help ? this : null;},
+      classList: {contains() {return false;}},
+    };
+    assert.equal(app.run('helpTarget')(target)?.id, 'replay', id);
+  }
+});
+
 test('every static heading, column and summary has a help topic', () => {
   const app = dashboard();
   const page = html.split('<script>')[0].replace(/<aside id="help-guide"[\s\S]*?<\/aside>/, '');
