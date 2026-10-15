@@ -99,7 +99,7 @@ void TestConfig()
   Require(config->Interval() == 5s && config->IntervalMs() == 5000,
           "rate converted to chrono duration");
   Require(config->status_fallback_, "fallback flag");
-  Require(config->resource_interval_s_ == 5, "resource samples default to 5 s");
+  Require(config->resource_interval_s_ == 2, "resource samples default to 2 s");
   const auto resources_off = ParseConfig(
       "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,
@@ -1151,7 +1151,15 @@ class Child final
     {
       ::close(pipe_ends[1]);
       char byte = 0;
-      static_cast<void>(::read(pipe_ends[0], &byte, 1));
+      ssize_t received = 0;
+      do
+      {
+        received = ::read(pipe_ends[0], &byte, 1);
+      } while (received < 0 && errno == EINTR);
+      if (received < 0)
+      {
+        ::_exit(255);
+      }
       ::_exit(p_exit_code);
     }
     ::close(pipe_ends[0]);

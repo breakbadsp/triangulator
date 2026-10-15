@@ -31,6 +31,7 @@
 #include "replay.hpp"
 #include "resources.hpp"
 #include "storage.hpp"
+#include "watch.hpp"
 
 namespace
 {
@@ -129,6 +130,22 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     return Stopped(flushed.error());
   }
+  WatchSettings watches{config.watches_, config.data_dir_};
+  if (const auto startup = watches.Current(); startup->saved_error_)
+  {
+    Log(LogLevel::Warning,
+        std::format("Ignoring the watch rules saved from the dashboard, so "
+                    "the [[watch]] rules in the config file apply: {}",
+                    *startup->saved_error_));
+  }
+  else if (startup->source_ == WatchSource::Dashboard)
+  {
+    Log(LogLevel::Info,
+        std::format("Using the watch rules saved from the dashboard in {}; "
+                    "the [[watch]] rules in the config file apply after a "
+                    "reset",
+                    watches.Path().string()));
+  }
   StorageSink sink{storage};
   Monitor monitor{config, WallNow(), sink};
   ResourceMonitor resources{sink};
@@ -150,7 +167,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     return Stopped(listener.error());
   }
-  DashboardServer server{config, state, std::move(*listener)};
+  DashboardServer server{config, state, watches, std::move(*listener)};
   if (auto started = server.Start(); !started)
   {
     return Stopped(started.error());
@@ -211,7 +228,8 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
       auto health = monitor.Health(now);
-      auto live = monitor.Snapshot(now);
+      const auto watch_state = watches.Current();
+      auto live = monitor.Snapshot(now, watch_state->rules_);
       const auto* absent = health.Find("target_absent");
       // A view of the target needs its threads. When a new sampler session
       // starts, the Monitor drops the old threads at once but reports

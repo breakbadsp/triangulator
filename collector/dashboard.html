@@ -331,6 +331,18 @@ tr.zero td{color:var(--muted)}
 .mem-hint{font-size:12px;color:var(--ink-2);margin:8px 0 0;line-height:1.5}
 @media (max-width:1050px){.g-mem,.mem-findings{grid-template-columns:minmax(0,1fr)}.facts.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+/* Settings tab */
+#watch-card .watch-table td{vertical-align:top;white-space:normal}
+.watch-prefix{width:13em;max-width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.watch-wake{width:9em;max-width:100%;text-align:right}
+.watch-table input[aria-invalid=true]{border-color:var(--critical)}
+.watch-err{color:var(--bad-ink);font-size:12px;margin-top:4px;max-width:26em}
+.watch-names{display:block;font-size:12px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.watch-count{font-weight:600;font-variant-numeric:tabular-nums}
+.watch-warning{margin:0 0 12px;padding:10px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--warning) 50%,transparent);background:color-mix(in srgb,var(--warning) 10%,var(--surface))}
+.watch-warning.bad{border-color:color-mix(in srgb,var(--critical) 45%,transparent);background:color-mix(in srgb,var(--critical) 10%,var(--surface))}
+#watch-status.warning{color:var(--ink);font-weight:600}
+.watch-unsaved{margin:12px 0 0;color:var(--ink-2)}
 .notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
 kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
@@ -342,7 +354,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="topbar-inner">
 <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" data-help="target" data-hint="The process being monitored"><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" aria-expanded="false" aria-controls="target-settings" hidden>Change target</button></div>
-<nav class="tabs" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a></nav>
+<nav class="tabs" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a><a id="nav-settings" href="#collector-settings">Settings</a></nav>
 <button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <button id="theme" class="icon-btn" data-hint="Theme: follow system" aria-label="Switch color theme">◐</button>
 </div>
@@ -553,6 +565,26 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <details><summary data-help="page">How to read this page</summary><p>Read the scope, unit, time interval, and data status before interpreting a metric. Pause over a label or value for 1.2 seconds, or select its information button.</p><button id="page-help" type="button">Open page guide</button></details>
 </div>
 </section>
+
+<hr class="section-separator" aria-hidden="true">
+<!-- Collector settings. Each editable setting is one card here; see the comment
+     above "Collector settings" in the script before adding another. -->
+<section id="collector-settings" class="block">
+<div class="section-head"><div><h2 data-help="collsettings">Settings</h2><p>Change how the collector watches this process, without editing files on the collector host. Changes apply at once.</p></div></div>
+<div class="card" id="watch-card">
+<div class="card-head"><div><h3 data-help="watches">Watched threads</h3><p>Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.</p></div></div>
+<p id="watch-readonly" class="muted" data-help="collsettings" hidden></p>
+<div id="watch-editor" hidden>
+<p id="watch-source" data-help="watchsource"></p>
+<p id="watch-warning" class="watch-warning" role="alert" data-help="watchsource" hidden></p>
+<div class="table-wrap"><table class="watch-table"><thead><tr><th data-help="watchprefix">Thread name prefix</th><th data-help="watchwake">Wakes at least every (ms)</th><th data-help="watchmatch">Matching threads now</th><th data-help="watchremove">Remove</th></tr></thead><tbody id="watch-rows"></tbody></table></div>
+<p id="watch-empty" class="muted" data-help="watches" hidden>No rules. No thread is watched.</p>
+<div class="actions"><button id="watch-add" type="button" data-help="watchadd">Add rule</button><span id="watch-limit" class="muted" data-help="watchadd"></span></div>
+<p id="watch-unsaved" class="watch-unsaved" data-help="watchsave" hidden></p>
+<div class="actions"><button id="watch-save" class="primary" type="button" data-help="watchsave" disabled>Save</button><button id="watch-discard" type="button" data-help="watchsave" hidden>Discard edits</button><button id="watch-reload" type="button" data-help="watchreload" hidden>Reload current rules</button><button id="watch-reset" type="button" data-help="watchreset" disabled>Reset to config file</button><span id="watch-status" role="status" data-help="watchsave" class="muted"></span></div>
+</div>
+</div>
+</section>
 </main>
 
 <div id="scrim" class="scrim"></div>
@@ -658,6 +690,99 @@ function lockHints(threads){
       found.push({level:'info',title:`${waiting.length} of ${kin.length} “${name}” threads mostly wait on a futex but keep waking`,
         detail:`Together they used ${pct(cpu)} of one core and switched ${number(kin.reduce((sum,thread)=>sum+(thread.switches_per_s||0),0),0)} times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.`,action:{state:'futex'}})}
   return found}
+// ---------- Watched threads ----------
+// A watch rule says "threads named PREFIX... wake at least every wake_ms".
+// The collector puts wake_ms and last_ran on each thread; the findings below
+// decide what they mean. Everything is measured between samples
+// (last_sample - last_ran), never against the browser clock, so a paused
+// sampler or a replayed view cannot raise a false alarm.
+// Sampling that cannot be trusted (silent sampler, absent target) and stale
+// threads are skipped.
+const SATURATED_PCT=90;
+// Seconds a watched thread may go without running before it counts as having
+// stopped waking. 2 x wake_ms lets one wake come late under load (a timer that
+// fires late is not a hang). 2 x sample interval covers sampling: last_ran is
+// the newest sample that saw the thread run, and the thread may have run up to
+// one interval earlier, while last_sample may lag the real time by one more.
+// Without that term a 10 ms rule would be flagged by ordinary sampling jitter.
+const watchOverdueS=(wakeMs,intervalMs)=>(2*wakeMs+2*intervalMs)/1000;
+// Without a known interval, assume a slow one: fewer alarms, never more.
+const sampleIntervalMs=()=>{const value=live.health?.sample_interval_ms;return isNum(value)&&value>0?value:1000};
+const isWatched=thread=>isNum(thread.wake_ms)&&thread.wake_ms>0&&isNum(thread.last_ran)&&isNum(thread.last_sample);
+// Seconds the thread did not run before its newest sample.
+const quietFor=thread=>Math.max(0,thread.last_sample-thread.last_ran);
+const quietText=seconds=>seconds<10?seconds.toFixed(1)+' s':duration(seconds);
+const isOverdue=thread=>quietFor(thread)>watchOverdueS(thread.wake_ms,sampleIntervalMs());
+const isBusyWatched=thread=>(thread.cpu_pct||0)>=SATURATED_PCT;
+// The watched threads worth checking now: none when the data is not live.
+function watchedThreads(threads){
+  const health=live.health||{};
+  return health.sampler_silent||health.target_absent?[]:threads.filter(thread=>!thread.stale&&isWatched(thread))}
+// Rules from GET /api/watches, refreshed while live. null: not loaded.
+let watchRules=null,watchRulesAt=0,watchRulesLoading=false;
+const WATCH_RULES_EVERY_MS=10000,WATCH_RULES_RETRY_MS=3000;
+async function refreshWatchRules(){
+  if(watchRulesLoading)return;watchRulesLoading=true;
+  try{const response=await fetch('/api/watches');if(!response.ok)throw Error();
+    const rules=(await response.json()).rules;
+    watchRules=Array.isArray(rules)?rules.filter(rule=>typeof rule?.prefix==='string'&&rule.prefix&&isNum(rule.wake_ms)):null}
+  catch{watchRules=null}
+  finally{watchRulesAt=Date.now();watchRulesLoading=false}}
+// The rule the collector applies to a name: the longest matching prefix.
+const watchRuleFor=(name,rules)=>rules.reduce((best,rule)=>name.startsWith(rule.prefix)&&(!best||rule.prefix.length>best.prefix.length)?rule:best,null);
+// The rule list is older than the threads when a thread's wake_ms differs
+// from what the list gives it, for example just after a rule was saved.
+const watchRulesOutdated=threads=>!watchRules||threads.some(thread=>!thread.stale&&(watchRuleFor(thread.name,watchRules)?.wake_ms??null)!==(isNum(thread.wake_ms)?thread.wake_ms:null));
+// Called after each live poll. Cheap: one request every 10 s, or sooner (but
+// not more than every 3 s) when the rules look out of date.
+function watchRulesTick(threads){
+  if(replayAt!==null||frozen)return;
+  const age=Date.now()-watchRulesAt;
+  if(age>=WATCH_RULES_EVERY_MS||age>=WATCH_RULES_RETRY_MS&&watchRulesOutdated(threads))refreshWatchRules()}
+const andMore=(names,shown)=>names.slice(0,shown).join(', ')+(names.length>shown?` and ${names.length-shown} more`:'');
+function stuckFinding(stuck){
+  stuck=[...stuck].sort((a,b)=>quietFor(b)-quietFor(a));const worst=stuck[0];
+  const lastState=`Last state: ${labels[worst.state]||worst.state}${worst.wchan?' in '+worst.wchan:''}.`;
+  const advice='deadlocked or waiting without a timeout';
+  if(stuck.length===1)return{level:'serious',title:`${worst.name} stopped waking up`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is set to wake at least every ${number(worst.wake_ms,0)} ms, but it has not run for ${quietText(quietFor(worst))}. It may be ${advice}. ${lastState}`}
+  return{level:'serious',title:`${stuck.length} watched threads stopped waking up`,help:'watched',action:{tid:worst.tid},hint:'Open the worst thread',
+    detail:`Each is set to wake regularly but has been quiet much longer than its interval. Worst first: ${andMore(stuck.map(thread=>`${thread.name} (${quietText(quietFor(thread))}, every ${number(thread.wake_ms,0)} ms)`),3)}. They may be ${advice}. Worst thread: ${worst.name}. ${lastState}`}}
+function busyFinding(busy){
+  busy=[...busy].sort((a,b)=>b.cpu_pct-a.cpu_pct);const worst=busy[0],share=kernelShare(worst);
+  const loop='It may be stuck in an infinite or retry loop.'+(share===null?'':` ${pct(100*share)} of its CPU is kernel time with ${number(worst.switches_per_s,0)} context switches/s, which looks like a polling or yield loop.`);
+  if(busy.length===1)return{level:'serious',title:`${worst.name} is running instead of sleeping`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is expected to sleep and wake every ${number(worst.wake_ms,0)} ms, but it uses ${pct(worst.cpu_pct)} of one core. ${loop}`}
+  return{level:'serious',title:`${busy.length} watched threads are running instead of sleeping`,help:'watched',action:{tid:worst.tid},hint:'Open the busiest thread',
+    detail:`They are expected to sleep between wakes, but each uses ${SATURATED_PCT}% of a core or more: ${andMore(busy.map(thread=>`${thread.name} ${pct(thread.cpu_pct)}`),3)}. Worst: ${worst.name}. ${loop}`}}
+// Rules that match no current thread. Only for the live view of a present
+// target: the rule list says nothing reliable about a past or ended view.
+function unmatchedRules(threads){
+  const health=live.health||{};
+  if(replayAt!==null||frozen||health.sampler_silent||health.target_absent||!watchRules||!watchRules.length)return [];
+  const current=threads.filter(thread=>!thread.stale);
+  if(!current.length||watchRulesOutdated(current))return [];
+  const used=new Set(current.map(thread=>watchRuleFor(thread.name,watchRules)?.prefix));
+  return watchRules.filter(rule=>!used.has(rule.prefix))}
+function watchFindings(threads,watched){
+  const found=[],busy=watched.filter(isBusyWatched),stuck=watched.filter(thread=>!isBusyWatched(thread)&&isOverdue(thread));
+  if(stuck.length)found.push(stuckFinding(stuck));
+  if(busy.length)found.push(busyFinding(busy));
+  const missing=unmatchedRules(threads);
+  if(missing.length){const names=missing.map(rule=>`“${rule.prefix}”`);
+    found.push({level:'warning',help:'watched',title:missing.length===1?'A watch rule matches no thread':`${missing.length} watch rules match no thread`,
+      detail:`No thread matches watch rule${missing.length>1?'s':''} ${andMore(names,3)}: the threads may have exited or been renamed. Check the prefix, or remove the rule.`})}
+  if(watched.length&&!stuck.length&&!busy.length){
+    const prefixes=!watchRulesOutdated(watched)&&replayAt===null&&!frozen?[...new Set(watched.map(thread=>watchRuleFor(thread.name,watchRules).prefix))]:[];
+    found.push({level:'info',help:'watched',title:`${watched.length} watched thread${watched.length>1?'s wake':' wakes'} on schedule${prefixes.length?` (${andMore(prefixes,3)})`:''}`,
+      detail:`Each ran within twice its wake interval, so none looks deadlocked or stuck in a loop.`})}
+  return found}
+// The drawer line for a watched thread, or null.
+function watchLine(thread){
+  if(!isWatched(thread))return null;
+  const quiet=quietFor(thread),last=quiet===0?'ran in the latest sample':`last ran ${quietText(quiet)} before the latest sample`;
+  const line=node('div',`Watched: wakes at least every ${number(thread.wake_ms,0)} ms · ${last}`+(!thread.stale&&isOverdue(thread)?' · overdue':''),'muted');
+  line.dataset.help='watched';return line}
 // Load as the kernel defines it, for this process: cores of CPU used, plus
 // cores of demand that waited for a CPU, plus threads in uninterruptible wait.
 // null when the point's rates are unknown (see ingest).
@@ -678,7 +803,7 @@ function helpTopic(id,title,scope,meaning,example,reading,limits,related=[],alia
   HELP[id]={id,title,scope,meaning,example,reading,limits,related,aliases};
   for(const name of [title,...aliases])helpNames.set(name.toLowerCase(),id);
 }
-helpTopic('section-navigation','Section navigation','Dashboard page','The highlighted tab identifies the section at the top of the visible page.','','Select a tab to go to its section. The highlight changes when you scroll.','At the bottom of the page, the Monitor tab is highlighted.');
+helpTopic('section-navigation','Section navigation','Dashboard page','The highlighted tab identifies the section at the top of the visible page.','','Select a tab to go to its section. The highlight changes when you scroll.','At the bottom of the page, the last tab (Settings) is highlighted.');
 helpTopic('cpu','CPU','One core · percentage','CPU time used, as a percentage of one CPU core.','50% means 0.5 seconds of CPU time per elapsed second.','Compare CPU use with run delay. Process CPU sums all reported threads and can exceed 100%.','A high value can be normal for a busy worker. CPU use alone does not establish a problem.',['delay','pressure','cores'],['Recent live CPU']);
 helpTopic('delay','Run delay','Elapsed time · percentage','Time a thread was ready to run but waited for a CPU.','12% means 120 ms waiting per elapsed second.','Persistent delay can indicate competition for CPU time. Compare CPU use, cgroup CPU pressure, and quota throttling.','Sleep and futex wait are separate measurements. Run delay alone does not identify a cause.',['cpu','pressure','throttle']);
 helpTopic('load','Process load','Process · 1-, 5-, and 15-minute averages','Smoothed demand from CPU use, runnable delay, and threads in uninterruptible kernel wait.','1.00 represents about one core of demand.','Compare the three averages to see whether demand is increasing. The chart window controls what is visible, not the averaging period.','This estimate covers the target process. It is not the host load average. Live averages need observations in this browser tab.',['cpu','delay','kernel'],['1-minute load']);
@@ -708,7 +833,7 @@ helpTopic('exited','Final view of the target','Target stopped reporting','When t
 helpTopic('history','History','Thread · stored five-second summaries','Stored summaries show CPU, run delay, state samples, and I/O for the selected thread generation.','','Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.','Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.',['replay','mix','samples'],['From','To','History range','Chart time window','Load']);
 helpTopic('samples','Samples','Count per stored bucket','The number of observations included in a stored summary bucket.','','Use the count to assess how much data supports the state mix and rates.','A partial bucket or packet loss can reduce the count.',['history','loss']);
 helpTopic('pressure','Pressure stalls (PSI)','Displayed host or cgroup · time share','Pressure stall information measures time tasks waited for CPU, memory, or I/O.','Some: at least one task waited. Full: all non-idle tasks waited at once.','Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.','The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.',['throttle','rss','disk'],['Pressure, limits & sockets','Pressure scope','CPU pressure','Memory pressure','I/O pressure','Cgroup some','Cgroup full','Host some','Host full','Resource','Memory pressure (PSI some)']);
-helpTopic('rss','Memory (RSS)','Process · bytes in RAM','Resident set size is the process memory currently held in RAM.','','Compare current RSS with its peak, swap use, and growth. Use memory pressure to understand stalls.','Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone does not establish a leak. The Summary chart steps once per resource sample (5 s by default) and covers only the time this tab was open.',['pressure','cgroupmem','vmsize'],['Resident (RSS)','Resident memory (RSS)']);
+helpTopic('rss','Memory (RSS)','Process · bytes in RAM','Resident set size is the process memory currently held in RAM.','','Compare current RSS with its peak, swap use, and growth. Use memory pressure to understand stalls.','Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone does not establish a leak. The Summary chart steps once per resource sample (2 s by default) and covers only the time this tab was open.',['pressure','cgroupmem','vmsize'],['Resident (RSS)','Resident memory (RSS)']);
 helpTopic('disk','Disk I/O','Process · block-layer bytes per second','Storage traffic attributed to the process by the block-layer counters.','','Compare read/write rates with I/O pressure and major page faults.','Caching can make storage traffic differ from application read/write traffic.',['sysio','pressure','faults']);
 helpTopic('fds','Open files','Process · descriptors and soft limit','The number of open file descriptors relative to the process soft descriptor limit.','Sockets also consume file descriptors.','At the soft limit, open(), accept(), and socket() can fail with EMFILE. Compare growth with expected workload.','The hard limit restricts changes to the soft limit. An unknown limit is not unlimited.',['limits','socketio']);
 helpTopic('limits','Limits & headroom','Process, cgroup, or host as labeled','Resource usage compared with the limit or pressure threshold shown on each row.','','Read the scope and denominator before comparing percentages. No configured limit differs from an unavailable limit. Meter colors change at 75% and 90%. Assessment findings can use different thresholds.','A high percentage suggests less remaining capacity; it does not by itself establish a leak.',['fds','cgroupmem','throttle']);
@@ -733,8 +858,20 @@ helpTopic('messages','Messages processed','Application completion markers','Call
 helpTopic('sockettotal','Socket total','Process or breakdown · cumulative bytes','The cumulative number of bytes moved by these sockets since monitoring began. It only grows; the rate columns show how fast.','1.5 GB means about 1.5 gigabytes moved in total, not per second.','Compare it with the rate columns to see whether past traffic or current traffic dominates.','Lost counter updates can make the total a lower bound.',['rates','coverage','socketio']);
 helpTopic('rates','Socket rates','Process or breakdown · per second','Current, average, minimum, and maximum rates over their labeled observation windows.','','Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.','Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.',['coverage','socketio'],['Current rate','Now /s','Average since start','Average /s','Recent minimum','Recent min /s','Recent maximum','Recent max /s']);
 helpTopic('coverage','Data coverage','Available observations','Coverage notes identify missing, partial, stale, or unavailable observations.','','Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.','Do not treat gaps or unreadable values as zero activity.',['health','socketio']);
-helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['health','cpu','pressure'],['What it means']);
+helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Watched-thread rules (see Watched threads) add findings for a thread that stopped waking up, a watched thread that is busy, and a rule that matches no thread. Read the specific finding and its scope.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['watched','health','cpu','pressure'],['What it means']);
+helpTopic('watched','Watched threads','Threads that match a watch rule · wake interval','A watch rule says that threads whose name starts with a prefix wake at least every N milliseconds, as workers that wait with a timeout do. The dashboard compares each such thread with its rule: the finding “stopped waking up” means it has not run for much longer than that interval, “is running instead of sleeping” means it uses 90% of a core or more, and “watch rule matches no thread” means no current thread has that prefix. “Watched: wakes at least every N ms” in a thread\'s details shows its rule and when it last ran.','Rule worker- with 500 ms. worker-3 last ran 4.2 s before the latest sample, so the Assessment says it stopped waking up. Stopped waking means more than twice the interval plus two sample intervals; at 500 ms and 200 ms sampling that is 1.4 s.','The time without running is counted between samples, not against the browser clock, so a paused sampler or a recorded view does not cause an alarm. A stuck thread may be deadlocked or may wait without a timeout: open it and check its wait channel, then take a stack dump to name the lock. A busy one may be in an infinite or retry loop. For a rule with no thread, check the prefix or whether the threads exited or were renamed. When every watched thread ran on time, one line says so.','The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In Inspect a moment and the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.',['assessment','states','wchan','thread'],['Watched','Stopped waking','Watch rule']);
 helpTopic('alerts','Alert settings','Separate alerting program','Rules evaluate observations and manage alert state outside the collector.','','Read the unit and duration for each threshold. Saving applies changes immediately. Disabling a rule resolves its open alerts; Reset restores configured settings.','Alert delivery and rule evaluation are separate. The feature is shown only when an alerting program is available.',['assessment','health'],['Open alerts','Recent alert events','On','Rule','Settings','Save changes','Reset to config file']);
+helpTopic('collsettings','Collector settings','Collector · saved on the collector host','Settings that change how the collector behaves, edited here instead of in files on the collector host. Today only the watched-thread rules are editable.','','Each card applies its change at once and says where the value is saved. Settings that need a collector restart will say so beside the control.','The tab is read-only while you inspect a recorded moment, and when the collector is a build without these controls. Other collector settings are still edited in collector.toml.',['watches','replay']);
+helpTopic('watches','Watch rules','Collector · thread name prefixes','Rules that say threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking (a possible deadlock, or a wait with no timeout) or keeps a core busy (a possible infinite loop).','"worker-" every 500 ms watches worker-1, worker-2 and so on. A thread that has not run for much longer than 500 ms is then reported.','Add one rule per group of threads that should keep waking. When several prefixes match, the longest one is used, so "worker-" and "worker-io" can have different intervals. Check Matching threads now before you save.','The collector only reports when each thread last ran. A thread with a long wait by design, or a name that no rule matches, is not watched. A rule does not start or stop anything.',['assessment','thread','states']);
+helpTopic('watchsource','Where the watch rules come from','Collector · rules in force','Whether the rules in force come from the [[watch]] tables in collector.toml or were saved from this dashboard. Rules saved here replace the config file rules completely, even an empty list, until you reset.','','"From the config file" means nothing was saved here. After Reset to config file the collector uses the [[watch]] rules again. A warning means the saved rules could not be read, so the config file rules are in force.','Editing collector.toml has no effect on watch rules while dashboard rules are saved. The collector reads the config file only at startup.',['watches','watchreset']);
+helpTopic('watchprefix','Thread name prefix','One rule · UTF-8 bytes','The start of the thread names the rule applies to. A rule matches every thread whose name begins with these characters, with the same upper and lower case.','"worker-" matches worker-1 and worker-io but not Worker-1 or my-worker-1.','Use 1 to 15 bytes. Linux thread names are at most 15 bytes, so a longer prefix could never match. Each prefix may appear once. The count next to it shows at once whether the prefix is right.','Spaces count, so a trailing space must match the name. Characters outside ASCII use more than one byte. The tab checks the rules again on save, and the collector has the final say.',['watchmatch','watchwake']);
+helpTopic('watchwake','Wakes at least every (ms)','One rule · milliseconds','The longest time a matching thread may go without running before it counts as stuck. Workers that wait with a timeout wake at least this often.','500 means the thread should run at least twice a second.','Use a whole number from 10 to 3,600,000 (one hour). Choose a value above the thread\'s wait timeout, plus some margin for a busy host. A value close to the sample interval is noisy.','A thread that waits without a timeout will never meet a small value. That is what the rule is meant to show, but it can also be a thread that is idle by design.',['watches','interval']);
+helpTopic('watchmatch','Matching threads now','Live threads · your edited rules','How many threads of the monitored process have a name that starts with this prefix right now, counting each thread under the longest matching prefix, as the collector does. A few names follow the count.','"3 · worker-1, worker-2, worker-3" means three threads would use this rule.','It updates while you type and as threads start and stop, before anything is saved. 0 usually means a typo, wrong case, or threads that do not exist yet. A note shows threads that match this prefix but use a longer one.','Threads are counted at the latest sample. While you inspect a recorded moment or the target is absent, there are no live threads to count. In the final view of an ended target, the count follows the threads the collector reports now, such as those of a restarted target. Names are cut at 15 bytes by Linux.',['watchprefix','thread']);
+helpTopic('watchremove','Remove a watch rule','One rule','Takes this rule out of the list you are editing. Nothing changes on the collector until you select Save.','','Remove a rule you no longer need, then check the other counts. Use Discard edits to bring back the saved list.','Threads that matched the rule are then not watched, unless a shorter prefix also matches them.',['watchsave']);
+helpTopic('watchadd','Add watch rule','Rules you are editing','Adds an empty row for a new prefix and interval.','','Fill in the prefix and interval, then check Matching threads now before you save. The collector accepts up to the limit shown beside the button.','The new rule exists only in this page until you select Save.',['watchprefix','watchsave']);
+helpTopic('watchsave','Save watch rules','Collector · whole list at once','Applies the whole list in the table to the collector at once and saves it on the collector host, replacing the config file rules. Save is off while any field has a problem, or when nothing has changed and the last save was confirmed.','','Fix each marked field, then select Save. The message below the button tells whether the collector accepted the list; if it refuses, its message is shown unchanged and nothing changes. Discard edits restores the list now in force.','These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry. The retry is refused if another user changed the rules.',['watchsource','watchreset']);
+helpTopic('watchreload','Reload current watch rules','Shared collector settings','Loads the current saved rules after another user changed them, or after the collector restarted. Your save or reset was refused so it could not overwrite that change.','','Copy any edits you want to keep. Select Reload current rules, confirm that the draft can be discarded, then review and edit the current list.','Your draft stays in the table if you cancel or the read fails. A successful reload replaces it.',['watchsave','watchreset']);
+helpTopic('watchreset','Reset watch rules','Collector · rules saved from the dashboard','Deletes the rules saved from this dashboard, and returns to the [[watch]] rules in collector.toml. You are asked to confirm because this discards the dashboard rules and any unsaved edits.','','Use it when you want the config file to be the single source again. It is also the way to clear a saved file that the collector could not read.','It is off when the config file rules are already in force, unless the collector could not confirm the last reset on disk; then select it again to retry. It cannot restore the rules you discard. If another user changed the rules, reset is refused until you reload the current rules.',['watchsource','watchsave']);
 helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
 
 helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU time, expressed in cores used.','1.5 cores means 1.5 seconds of CPU time per elapsed second.','Compare CPU cores used with process load and runnable demand.','This is CPU use by the process, not the number of host cores.',['cpu','load'],['On CPU']);
@@ -843,7 +980,8 @@ function captureHelp(request){
   const observed=target.closest('[data-help-observed]')?._helpObserved||live.resources;
   const stamp=request.stamp??thread?.last_sample??(resource?observed?.updated:null)??viewNow();
   let context=thread?`${thread.name} · TID ${thread.tid}`:row?helpText(row.cells?.[0]):'';
-  let value=column?helpText(column):helpText(target.querySelector('.value,.v,.val,dd'));
+  const field=column?.querySelector?.('input,.value');
+  let value=field?String(field.value??field.textContent).trim():column?helpText(column):helpText(target.querySelector('.value,.v,.val,dd'));
   if(value==='—'||value==='')value='Not available';else if(value==='·')value=thread?'0':'Not available';
   const header=column?helpText(helpColumn(column)):'';
   let scope=resource&&id==='pressure'?(header.startsWith('Host')?'Whole host':header.startsWith('Cgroup')?'Target cgroup':scopeOf(observed)==='cgroup'?'Target cgroup':'Whole host'):topic.scope;
@@ -1199,11 +1337,14 @@ function assess(threads,points){
   const kernel=threads.filter(thread=>thread.state==='kernel');
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
     add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
-  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=90).sort((a,b)=>b.cpu_pct-a.cpu_pct);
-  for(const thread of hot.slice(0,2)){
+  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=SATURATED_PCT).sort((a,b)=>b.cpu_pct-a.cpu_pct);
+  // A busy watched thread gets its own, more specific finding below.
+  const watched=watchedThreads(threads),watchBusy=new Set(watched.filter(isBusyWatched));
+  for(const thread of hot.filter(thread=>!watchBusy.has(thread)).slice(0,2)){
     const share=kernelShare(thread);
     if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
     else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
+  findings.push(...watchFindings(threads,watched));
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
@@ -1243,12 +1384,13 @@ function renderAssessment(threads){
   const findings=assess(threads,buffer);const order=LEVEL_ORDER;const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
   const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
-  const list=element('findings');list.replaceChildren();
+  // A poll replaces every row; keep them while a finding's help is pending or open.
+  const list=element('findings');if(helpOwns(list))return;list.replaceChildren();
   const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
-    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);
-    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.action.tid?'Open thread details':'Show these threads';const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);if(item.help)row.dataset.help=item.help;
+    if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.hint||(item.action.tid?'Open thread details':'Show these threads');const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
 function renderTiles(threads,points){
   if(helpOwns(element('tiles')))return;
@@ -1460,6 +1602,7 @@ function renderDrawerLive(){
   const state=element('drawer-state');state.replaceChildren();
   if(!thread){state.append(node('p','This thread is no longer reported; it may have exited. Its stored history is still available below.','muted'));element('drawer-tiles').replaceChildren();}
   else{const line=node('div');line.append(statePill(thread));if(thread.wchan)line.append(node('span',' in ','muted'),node('code',thread.wchan));line.append(node('span',' · last 10 s: ','muted'));line.append(mix(thread.state_mix));line.lastChild.style.display='inline-flex';line.lastChild.style.verticalAlign='middle';state.append(line);
+    const watch=watchLine(thread);if(watch)state.append(watch);
     const tiles=element('drawer-tiles');tiles.replaceChildren();
     // Only metrics with something in them; an idle thread gets its idle time.
     const metrics=[['CPU',thread.cpu_pct,pct],['Run delay',thread.run_delay_pct,pct],['Switches/s',thread.switches_per_s,number],['Read/s',thread.read_bps,bytes],['Write/s',thread.write_bps,bytes],['Maj. faults/s',thread.major_faults_per_s,number]].filter(([,value])=>value>0).map(([key,value,format])=>[key,format(value)]);
@@ -1894,6 +2037,7 @@ function renderReplayView(){
   showAlerting(Array.isArray(live.alerts));renderTop();renderOverview();renderMemory();renderHealth();renderThreads();renderDrawerLive();
 }
 function replayControls(){const historical=replayAt!==null;
+  renderWatchMode();
   element('replay-live').setAttribute('aria-pressed',String(!historical));
   element('replay-previous').disabled=!historical||replayAt<=replayBounds?.first;
   element('replay-next').disabled=!historical||replayAt>=replayBounds?.last;
@@ -2301,6 +2445,210 @@ function renderMemory(){const m=live.memory,empty=element('memory-empty'),conten
   else{renderMemoryCharts(element('memory-charts'));
     for(const [cell,key] of memoryGrowthCells)cell.textContent=memoryGrowth(key)}}
 
+// ---------- Collector settings ----------
+// The Settings tab edits collector-side settings. Today that is only the
+// watched-thread rules. To add another setting later:
+//   1. add a card inside <section id="collector-settings"> in the markup;
+//   2. load and save it through its own /api/... endpoint the way loadWatches
+//      and saveWatches do (POST with Content-Type and X-Triangulator headers,
+//      show the server's error text unchanged, disable Save while the input is
+//      invalid or unchanged);
+//   3. say beside the control when a change needs a collector restart;
+//   4. add helpTopic(...) entries for the card and each label, and coverage in
+//      tests/dashboard_test.js.
+// Everything below is for the watched threads card.
+const WATCH_HEADERS={'Content-Type':'application/json','X-Triangulator':'1'};
+// Size in UTF-8 bytes, the unit of the collector's 15-byte limit.
+const byteLength=text=>[...text].reduce((total,char)=>{const code=char.codePointAt(0);return total+(code<0x80?1:code<0x800?2:code<0x10000?3:4)},0);
+// watchInfo is the last reply of the collector (the rules in force); watchDraft is what
+// the user is editing. watchMissing is true for a collector without /api/watches.
+// watchRead numbers each GET so a reply that a newer read, save or reset overtook is
+// dropped. watchUnconfirmed is 'save' or 'reset' while the collector applied that change
+// but could not confirm it on disk; its button stays on so the user can repeat it.
+let watchInfo=null,watchDraft=[],watchRows=[],watchBusy=false,watchMissing=false,watchLoadError='',watchRetry=0,watchRowCount=0,watchRead=0,watchUnconfirmed='',watchConflict=false;
+const watchSaved=()=>(watchInfo?.rules||[]).map(rule=>[rule.prefix,String(rule.wake_ms)]);
+const watchEdited=()=>watchDraft.map(row=>[row.prefix,row.wake.trim()]);
+const watchDirty=()=>!!watchInfo&&JSON.stringify(watchSaved())!==JSON.stringify(watchEdited());
+// One problem message per field, from the limits the collector reports.
+function watchProblems(){
+  const limits=watchInfo.limits,first=new Map();
+  return watchDraft.map((row,index)=>{
+    const problem={prefix:'',wake:'',note:''},size=byteLength(row.prefix);
+    if(!row.prefix)problem.prefix='Enter a prefix.';
+    else if(row.prefix.includes('\0'))problem.prefix='A prefix cannot contain a NUL character.';
+    else if(size>limits.prefix_max_bytes)problem.prefix=`Too long: ${size} bytes. Thread names are at most ${limits.prefix_max_bytes} bytes.`;
+    else if(first.has(row.prefix))problem.prefix=`Same prefix as rule ${first.get(row.prefix)+1}. Each prefix may appear once.`;
+    else{first.set(row.prefix,index);if(/^\s|\s$/.test(row.prefix))problem.note='The prefix starts or ends with a space. It must match the thread name exactly.'}
+    const text=row.wake.trim();
+    if(text==='')problem.wake='Enter a number of milliseconds.';
+    else if(!/^\d+$/.test(text))problem.wake='Use a whole number of milliseconds, such as 500.';
+    else{const wake=Number(text);
+      if(wake<limits.wake_ms_min)problem.wake=`At least ${limits.wake_ms_min.toLocaleString()} ms.`;
+      else if(wake>limits.wake_ms_max)problem.wake=`At most ${limits.wake_ms_max.toLocaleString()} ms.`}
+    return problem;
+  });
+}
+// The threads to count matches against: the collector's current view, never a recording.
+const watchThreads=()=>replayAt!==null?[]:(latestLive?.threads||live.threads||[]);
+// For each row: the threads that use it (longest matching prefix wins, as in the
+// collector; the first of equal prefixes wins), and the ones that match it but use a longer rule.
+function watchMatches(){
+  const rules=watchDraft.filter(row=>row.prefix&&!row.prefix.includes('\0')).map(row=>({row,size:byteLength(row.prefix)}));
+  const result=new Map(watchDraft.map(row=>[row,{names:new Map(),count:0,longer:0}]));
+  for(const thread of watchThreads()){
+    const name=typeof thread.name==='string'?thread.name:'';let best=null;const matching=[];
+    for(const rule of rules)if(name.startsWith(rule.row.prefix)){matching.push(rule);if(!best||rule.size>best.size)best=rule}
+    if(!best)continue;
+    const found=result.get(best.row);found.count++;found.names.set(name,(found.names.get(name)||0)+1);
+    for(const rule of matching)if(rule.size<best.size)result.get(rule.row).longer++;
+  }
+  return result;
+}
+function watchNamesText(found){
+  const names=[...found.names].map(([name,count])=>count>1?`${name} (×${count})`:name);
+  return names.slice(0,3).join(', ')+(names.length>3?` and ${names.length-3} more`:'');
+}
+function setText(target,text){if(target.textContent!==text)target.textContent=text}
+function renderWatchMode(){
+  let message='';
+  if(replayAt!==null)message='Settings cannot be edited while you inspect a recorded moment. Select Live in Inspect a moment to edit them.'+(watchDirty()?' Your unsaved edits are kept.':'');
+  else if(watchMissing)message='This collector has no /api/watches, so watched threads cannot be edited here. Update the collector, or edit the [[watch]] rules in collector.toml and restart it.';
+  else if(watchInfo&&!watchInfo.revision)message='Update the collector to edit watched-thread rules with protection against changes from another user.';
+  else if(!watchInfo)message=watchLoadError?`Unable to load the watched-thread rules: ${watchLoadError} Trying again…`:'Loading the watched-thread rules…';
+  const note=element('watch-readonly');note.textContent=message;note.hidden=!message;element('watch-editor').hidden=!!message;
+}
+function watchStatus(text,kind='muted'){const status=element('watch-status');status.className=kind;status.textContent=text}
+// Rebuilds the rows. Only done when the list changes, not on each key, so typing keeps focus.
+function renderWatchRows(){
+  const body=element('watch-rows');body.replaceChildren();watchRows=[];
+  watchDraft.forEach((row,index)=>{
+    const id=++watchRowCount,tr=node('tr');
+    const prefix=node('input',undefined,'watch-prefix');Object.assign(prefix,{type:'text',value:row.prefix,autocomplete:'off',spellcheck:false});prefix.setAttribute('aria-label',`Thread name prefix, rule ${index+1}`);
+    const wake=node('input',undefined,'watch-wake');Object.assign(wake,{type:'text',value:row.wake,autocomplete:'off',spellcheck:false});wake.inputMode='numeric';wake.setAttribute('aria-label',`Wakes at least every (ms), rule ${index+1}`);
+    const prefixError=node('div',undefined,'watch-err'),wakeError=node('div',undefined,'watch-err');
+    prefixError.id='watch-err-prefix-'+id;wakeError.id='watch-err-wake-'+id;
+    prefix.setAttribute('aria-describedby',prefixError.id);wake.setAttribute('aria-describedby',wakeError.id);
+    const count=node('span','—','watch-count value'),names=node('span',undefined,'watch-names');
+    const remove=node('button','✕');remove.type='button';remove.setAttribute('aria-label',`Remove rule ${index+1}`);
+    const edit=()=>{row.prefix=prefix.value;row.wake=wake.value;watchStatus('');updateWatch()};
+    prefix.oninput=edit;wake.oninput=edit;
+    remove.onclick=()=>{watchDraft.splice(watchDraft.indexOf(row),1);watchStatus('');renderWatchRows();element('watch-add').focus()};
+    const cells=[node('td'),node('td'),node('td'),node('td')];
+    cells[0].append(prefix,prefixError);cells[1].append(wake,wakeError);cells[2].append(count,names);cells[3].append(remove);
+    tr.append(...cells);body.append(tr);
+    watchRows.push({row,prefix,wake,prefixError,wakeError,count,names,remove});
+  });
+  updateWatch();
+}
+// Refreshes everything that depends on the draft or on the live threads, without touching focus.
+function updateWatch(){
+  if(!watchInfo)return;
+  const limits=watchInfo.limits,problems=watchProblems(),matches=watchMatches(),threads=watchThreads().length;
+  watchRows.forEach((entry,index)=>{
+    const problem=problems[index],found=matches.get(entry.row);
+    setText(entry.prefixError,problem.prefix||problem.note);setText(entry.wakeError,problem.wake);
+    entry.prefix.setAttribute('aria-invalid',String(!!problem.prefix));entry.wake.setAttribute('aria-invalid',String(!!problem.wake));
+    entry.prefix.disabled=entry.wake.disabled=entry.remove.disabled=watchBusy;
+    if(!entry.row.prefix||entry.row.prefix.includes('\0')){setText(entry.count,'—');setText(entry.names,'')}
+    else{
+      setText(entry.count,String(found.count));
+      const longer=found.longer?`${found.longer} more thread${found.longer===1?' starts':'s start'} with this prefix but ${found.longer===1?'uses':'use'} a longer rule.`:'';
+      setText(entry.names,found.count?watchNamesText(found)+(longer?'. '+longer:''):longer?'No thread uses this rule. '+longer:threads?'No live thread name starts with this prefix.':'No live threads to check against.');
+    }
+  });
+  const invalid=problems.some(problem=>problem.prefix||problem.wake),dirty=watchDirty(),full=watchDraft.length>=limits.max_rules;
+  element('watch-save').disabled=watchBusy||watchConflict||invalid||!(dirty||watchUnconfirmed==='save');
+  element('watch-discard').hidden=!dirty||watchConflict;element('watch-discard').disabled=watchBusy;
+  element('watch-add').disabled=watchBusy||full;
+  setText(element('watch-limit'),full?`At most ${limits.max_rules} rules.`:'');
+  element('watch-reload').hidden=!watchConflict;element('watch-reload').disabled=watchBusy;
+  element('watch-reset').disabled=watchBusy||watchConflict||!(watchInfo.source==='dashboard'||watchInfo.saved_error||watchUnconfirmed==='reset');
+  element('watch-empty').hidden=watchDraft.length>0;
+  const unsaved=element('watch-unsaved');unsaved.hidden=!dirty;
+  setText(unsaved,invalid?'Unsaved edits. Fix the marked fields, then select Save. Nothing changes until you do.':'Unsaved edits. They apply only after you select Save.');
+}
+// Shows the rules in force and where they come from.
+function renderWatchInfo(){
+  const source=element('watch-source'),warning=element('watch-warning');
+  source.textContent=watchInfo.source==='dashboard'?'Saved from the dashboard. These replace the [[watch]] rules in collector.toml until you reset.':'From the config file (collector.toml).';
+  const error=watchInfo.saved_error;warning.hidden=!error;
+  warning.textContent=error?`The rules saved from the dashboard could not be used: ${error.replace(/\.?$/,'.')} The rules from the config file are in force. Save new rules, or reset to remove the saved file.`:'';
+}
+function applyWatches(data){
+  watchInfo=data;watchMissing=false;watchLoadError='';watchConflict=false;
+  watchDraft=data.rules.map(rule=>({prefix:rule.prefix,wake:String(rule.wake_ms)}));
+  renderWatchMode();renderWatchInfo();renderWatchRows();
+}
+// Reads the rules in force. A draft with unsaved edits is never replaced: the fields stay
+// editable during the read, so the check is repeated when the reply arrives.
+async function loadWatches(){
+  clearTimeout(watchRetry);if(watchDirty()||watchBusy)return;
+  const read=++watchRead,stale=()=>read!==watchRead||watchDirty()||watchBusy;
+  try{const response=await fetch('/api/watches');
+    if(stale())return;
+    if(response.status===404){watchMissing=true;watchInfo=null;renderWatchMode();return}
+    if(!response.ok)throw Error('The collector answered HTTP '+response.status+'.');
+    const data=await response.json();if(stale())return;
+    applyWatches(data);
+  }catch(error){
+    if(!watchInfo&&!stale()){watchLoadError=error.message;renderWatchMode();watchRetry=setTimeout(loadWatches,5000)}
+  }
+}
+// After a change the Assessment's own copy of the rules is refreshed at once (refreshWatchRules),
+// instead of waiting for its next periodic read.
+// Save and reset share this: POST, show the collector's own error text, and take the reply as the new truth.
+async function changeWatches(url,body,done,kind){
+  watchBusy=true;watchRead++;watchStatus('Saving…');updateWatch();
+  let applied=false,appliedState=null;
+  try{
+    let response;
+    try{response=await fetch(url,{method:'POST',headers:{...WATCH_HEADERS,'If-Match':'"'+watchInfo.revision+'"'},body:JSON.stringify(body)})}
+    catch(error){throw Error('Could not reach the collector: '+error.message)}
+    let data={};try{data=await response.json()}catch{}
+    if(response.status===409||response.status===428)watchConflict=true;
+    if(!response.ok){applied=data.applied===true;appliedState=data.applied_state;throw Error(data.error||(response.status===403?'The collector refused the change (HTTP 403).':'The change failed (HTTP '+response.status+').'))}
+    watchBusy=false;watchUnconfirmed='';applyWatches(data);watchStatus(done,'good');
+    refreshWatchRules();
+  }catch(error){
+    // Retry only the revision applied by this operation. A fresh GET can belong
+    // to another editor and must not authorize overwriting that editor's rules.
+    if(applied){watchUnconfirmed=kind;watchBusy=false;
+      if(appliedState?.revision&&appliedState?.rules)applyWatches(appliedState);
+      else watchConflict=true;
+      refreshWatchRules()}
+    watchBusy=false;
+    watchStatus(applied?`Warning: ${error.message.replace(/\.?$/,'.')} ${watchConflict?'Reload current rules before retrying.':`Select ${kind==='save'?'Save':'Reset to config file'} again to retry.`}`:error.message,applied?'warning':'bad');
+    updateWatch();
+  }
+}
+const saveWatches=()=>changeWatches('/api/watches',{rules:watchDraft.map(row=>({prefix:row.prefix,wake_ms:Number(row.wake.trim())}))},'Saved and applied.','save');
+function resetWatches(){
+  const lose=watchDirty()?' Your unsaved edits will also be lost.':'';
+  if(confirm('Discard the rules saved from the dashboard and use the [[watch]] rules from collector.toml?'+lose))changeWatches('/api/watches/reset',{},'Reset. The rules from the config file are in force.','reset');
+}
+async function reloadWatches(){
+  if(watchBusy)return;
+  if(watchDirty()&&!confirm('Discard your unsaved edits and load the current rules saved by other users?'))return;
+  watchBusy=true;watchRead++;watchStatus('Loading current rules…');updateWatch();
+  try{
+    const response=await fetch('/api/watches');
+    if(!response.ok)throw Error('The collector answered HTTP '+response.status+'.');
+    const data=await response.json();
+    watchUnconfirmed='';applyWatches(data);watchStatus('Current rules loaded. Review them before editing.');
+  }catch(error){watchStatus(error.message,'bad')}
+  finally{watchBusy=false;updateWatch()}
+}
+element('watch-reload').onclick=reloadWatches;
+element('watch-add').onclick=()=>{
+  watchDraft.push({prefix:'',wake:''});watchStatus('');renderWatchRows();watchRows.at(-1).prefix.focus();
+};
+element('watch-save').onclick=saveWatches;
+element('watch-reset').onclick=resetWatches;
+element('watch-discard').onclick=()=>{applyWatches(watchInfo);watchStatus('')};
+element('nav-settings').addEventListener('click',()=>{loadWatches()});
+addEventListener('beforeunload',event=>{if(watchDirty()){event.preventDefault();event.returnValue=''}});
+renderWatchMode();
+
 // ---------- Main loop ----------
 function initSectionNavigation(){
   const links=Array.from(document.querySelectorAll('nav.tabs a'));
@@ -2437,8 +2785,10 @@ async function refresh(){try{const response=await fetch('/api/live');if(!respons
     if(replayAt!==null&&!frozen&&savedLiveAnalysis&&targetExited(latestLive,savedLiveAnalysis))freeze(savedLiveAnalysis.view,savedLiveAnalysis.lastTick);
     if(frozen&&!frozen.exit&&frozenExit()){frozen.exit=frozenExit();saveFrozen();if(replayAt===null)renderReplayView()}
     if(replayAt===null&&!frozen&&collectorKeptView(latestLive))await loadFinalView(latestLive.health.last_target.session);
-    renderExited();if(replayAt!==null||frozen)return;
+    // Settings counts the collector's current threads, also while the final view is shown.
+    renderExited();updateWatch();if(replayAt!==null||frozen)return;
     live=latestLive;if(!live.health)return;
+    watchRulesTick(live.threads||[]);
     const alerting=Array.isArray(live.alerts);showAlerting(alerting);
     ingest();
     const group=element('group'),chosen=group.value;group.replaceChildren(node('option','All groups'));group.firstChild.value='';
@@ -2468,6 +2818,7 @@ initHelp();
 initSectionNavigation();
 refresh();
 loadTarget();
+loadWatches();
 pollResources();
 refreshSocket();
 if(location.hash==='#settings')toggleSettings();

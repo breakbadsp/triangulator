@@ -269,7 +269,7 @@ class ResourceMonitor
           {"available", false},
           {"reason",
            "No resource samples yet. The sampler sends one every "
-           "resource_interval_s seconds (default 5) while the target "
+           "resource_interval_s seconds (default 2) while the target "
            "runs."},
           {"stats", Stats()}};
     }

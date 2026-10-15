@@ -17,6 +17,21 @@ import benchmark_sampler
 
 
 class SamplerBenchmarkTests(unittest.TestCase):
+    def test_target_thread_count_after_warmup(self):
+        # Repeated starts exercise warm-up task entries that outlive join.
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                target = subprocess.Popen([str(benchmark_sampler.TARGET), "100"],
+                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                          text=True)
+                try:
+                    self.assertEqual(target.stdout.readline(), "100 threads ready\n")
+                    tasks = Path(f"/proc/{target.pid}/task")
+                    self.assertEqual(len(list(tasks.iterdir())), 100)
+                finally:
+                    target.terminate()
+                    target.communicate(timeout=10)
+
     def test_real_busy_target_and_all_rates(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "results.json"

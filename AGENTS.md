@@ -23,19 +23,31 @@
   disclosure needs a contextual help topic in the same change. Follow
   [Help for new dashboard features](docs/contextual-help-design.md#help-for-new-dashboard-features).
 
-## Manual QA
+## Documentation
 
-- When adding a user-visible feature, add or update its cases in
-  `docs/qa/test-cases.md`. Leave unexecuted cases as `NOT_RUN`.
+- Keep architecture, design reasons, measurement limits, operations that need
+  explanation, and short code pointers. Use code, configuration, tests, and CI
+  as the source for implementation details and current results.
+- Do not commit QA runs, screenshots, logs, generated benchmark results, or
+  status tables. Put local evidence under `build/` and report results in the
+  task or pull request. Use CI artifacts for CI evidence.
 - For requested package or browser QA, use
-  [Senior Manual QA](docs/manual-qa.md).
+  [Senior Manual QA](docs/manual-qa.md). Add automated coverage when practical;
+  retain only manual checks that need browser or human observation.
 
 ## Git workflow
 
 1. Create a new worktree and a descriptive branch for each change, including
    documentation. Never edit in the primary checkout or on `master`.
 2. When the change is complete and checks pass, commit, push, and open a pull
-   request against `master` without a separate request.
+   request against `master` without a separate request. In Claude Code, then
+   run `/pr-review-merge <PR>` (`.claude/commands/pr-review-merge.md`). It
+   runs two adversarial reviewers, one comment analyzer, and one
+   test-and-merge agent. It stops after two review rounds and two merge-gate
+   runs. It merges only when no `blocker` or `major` issue is open. A run
+   never starts itself again, and agents that `/pr-review-merge` starts never
+   run it. Other agents, such as Codex, stop after they open the PR and
+   report its URL.
 3. After confirmed merge, preserve uncommitted and untracked work. Remove the
    worktree with `git worktree remove` from another checkout. Never force removal
    or remove the primary checkout.

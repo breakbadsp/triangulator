@@ -4,7 +4,9 @@
 // Monitor, so no sockets or timers are involved.
 
 #include <stdlib.h>
+#include <sys/stat.h>
 
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -14,6 +16,7 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -27,6 +30,63 @@
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/watch.hpp"
+
+namespace
+{
+
+struct WatchSyncProbe
+{
+  std::size_t file_syncs_{};
+  std::size_t directory_syncs_{};
+  bool fail_file_{};
+  bool fail_directory_{};
+  bool interrupt_directory_{};
+  bool saved_file_exists_{};
+};
+
+WatchSyncProbe g_watch_sync;
+
+}  // namespace
+
+extern "C" int __real_fsync(int p_descriptor);
+
+// Records directory flushes and injects operating errors without requiring
+// a failing disk. Other collector tests use the real fsync operation.
+extern "C" int __wrap_fsync(int p_descriptor)
+{
+  struct stat status{};
+  if (::fstat(p_descriptor, &status) == 0)
+  {
+    if (S_ISDIR(status.st_mode))
+    {
+      ++g_watch_sync.directory_syncs_;
+      g_watch_sync.saved_file_exists_ =
+          ::faccessat(p_descriptor, "watch-rules.json", F_OK, 0) == 0;
+      if (g_watch_sync.interrupt_directory_)
+      {
+        g_watch_sync.interrupt_directory_ = false;
+        errno = EINTR;
+        return -1;
+      }
+      if (g_watch_sync.fail_directory_)
+      {
+        errno = EIO;
+        return -1;
+      }
+    }
+    else
+    {
+      ++g_watch_sync.file_syncs_;
+      if (g_watch_sync.fail_file_)
+      {
+        errno = EIO;
+        return -1;
+      }
+    }
+  }
+  return __real_fsync(p_descriptor);
+}
 
 namespace
 {
@@ -144,7 +204,7 @@ void TestDecodeRoundTrip()
 {
   auto record = MakeRecord();
   record.comm_ = "name ) ( space";
-  record.wchan_ = "";
+  record.wchan_.Clear();
   record.flags_ = kIoUnavailable;
   record.read_bytes_ = std::numeric_limits<std::uint64_t>::max();
   auto packet = MakePacket(123, {record});
@@ -297,6 +357,8 @@ struct MonitorFixture
   Storage storage_ = MakeStorage(directory_.Path());
   StorageSink sink_{storage_};
   Monitor monitor_{config_, 1'700'000'000, sink_};
+  // The watch rules Threads() and Thread() pass to the snapshot.
+  std::vector<WatchRule> watches_;
 
   static Storage MakeStorage(const std::filesystem::path& p_directory)
   {
@@ -336,7 +398,7 @@ struct MonitorFixture
 
   [[nodiscard]] JsonArray Threads(double p_now) const
   {
-    return Field(monitor_.Snapshot(p_now), "threads").AsArray();
+    return Field(monitor_.Snapshot(p_now, watches_), "threads").AsArray();
   }
 
   [[nodiscard]] Json Thread(double p_now) const
@@ -432,7 +494,7 @@ void TestHealthAbsenceAccessAndSilence()
       Field(fixture.monitor_.Health(1'700'000'011), "sampler_silent").AsBool(),
       "no datagram for ten seconds means the sampler is silent");
   auto hidden = MakeRecord();
-  hidden.wchan_ = "";
+  hidden.wchan_.Clear();
   fixture.Feed(12, hidden);
   health = fixture.monitor_.Health(1'700'000'012);
   Require(!Field(health, "sampler_silent").AsBool() &&
@@ -660,6 +722,311 @@ void TestSequenceWrapIsNotPacketLoss()
               0, "the sequence number wrapping to 0 is not loss");
 }
 
+// Checks last_ran: it starts at the first sample, stays put while the
+// thread's counters are still, and moves to the sample that shows the
+// thread ran, for each counter that can show it.
+void TestLastRan()
+{
+  MonitorFixture fixture;
+  for (std::uint32_t sequence = 0; sequence <= 5; ++sequence)
+  {
+    fixture.Feed(sequence, MakeRecord());
+  }
+  auto thread = fixture.Thread(1'700'000'005);
+  RequireNear(Field(thread, "last_ran").AsNumber(), 1'700'000'000,
+              "a thread that never ran keeps the time it was first seen");
+  RequireNear(Field(thread, "last_sample").AsNumber(), 1'700'000'005,
+              "while its samples keep coming");
+  auto record = MakeRecord();
+  ++record.timeslices_;
+  fixture.Feed(6, record);
+  fixture.Feed(7, record);
+  RequireNear(Field(fixture.Thread(1'700'000'007), "last_ran").AsNumber(),
+              1'700'000'006,
+              "one more time slice is the sample at which it ran");
+  ++record.stime_;
+  fixture.Feed(8, record);
+  RequireNear(Field(fixture.Thread(1'700'000'008), "last_ran").AsNumber(),
+              1'700'000'008,
+              "CPU time without a switch (a busy loop) counts as running");
+  record.run_delay_ += 1000;
+  fixture.Feed(9, record);
+  RequireNear(Field(fixture.Thread(1'700'000'009), "last_ran").AsNumber(),
+              1'700'000'008, "waiting to run is not running");
+
+  // In status-fallback mode timeslices_ holds voluntary and run_delay_
+  // nonvoluntary context switches; each one shows the thread ran.
+  MonitorFixture fallback;
+  const auto feed = [&](std::uint32_t p_sequence, const Record& p_record)
+  {
+    auto packet = MakePacket(p_sequence, {p_record});
+    packet.flags_ = kStatusFallback;
+    fallback.Feed(packet);
+  };
+  record = MakeRecord();
+  feed(0, record);
+  feed(1, record);
+  RequireNear(Field(fallback.Thread(1'700'000'001), "last_ran").AsNumber(),
+              1'700'000'000, "fallback: still counters, no run");
+  ++record.run_delay_;
+  feed(2, record);
+  RequireNear(Field(fallback.Thread(1'700'000'002), "last_ran").AsNumber(),
+              1'700'000'002, "fallback: a nonvoluntary switch is a run");
+  ++record.timeslices_;
+  feed(3, record);
+  RequireNear(Field(fallback.Thread(1'700'000'003), "last_ran").AsNumber(),
+              1'700'000'003, "fallback: a voluntary switch is a run");
+}
+
+// Checks wake_ms in the live view: it follows the current rules and the
+// thread's current name, so a rename or a rule change shows at once
+// without the thread being treated as new.
+void TestThreadWakeMs()
+{
+  MonitorFixture fixture;
+  fixture.Feed(0, MakeRecord());
+  Require(Field(fixture.Thread(1'700'000'000), "wake_ms").IsNull(),
+          "no rules: wake_ms is null");
+  fixture.watches_ = {{"worker-", 500}, {"worker-io", 50}};
+  Require(Field(fixture.Thread(1'700'000'000), "wake_ms").AsInt() == 500,
+          "new rules apply to a thread already known");
+  auto renamed = MakeRecord();
+  renamed.comm_ = "worker-io-1";
+  fixture.Feed(1, renamed);
+  const auto thread = fixture.Thread(1'700'000'001);
+  Require(Field(thread, "wake_ms").AsInt() == 50,
+          "a renamed thread matches by its new name");
+  Require(Field(thread, "generation").AsInt() == 0,
+          "the rename keeps the thread (same group)");
+  fixture.watches_ = {{"io", 50}};
+  Require(Field(fixture.Thread(1'700'000'001), "wake_ms").IsNull(),
+          "a thread no rule matches has a null wake_ms");
+}
+
+std::string ReadText(const std::filesystem::path& p_path)
+{
+  auto text = ReadFile(p_path);
+  Require(text.has_value(), std::format("{} is readable", p_path.string()));
+  return std::move(*text);
+}
+
+// Checks the dashboard's saved watch rules: a valid list is saved and put in
+// force, survives a restart (a new WatchSettings on the same directory) and
+// replaces the config rules completely; an invalid list changes nothing;
+// reset deletes the file and restores the config rules; and an unusable
+// saved file at startup falls back to the config rules with a reason.
+void TestWatchSettingsSaveAndReset()
+{
+  TempDirectory directory;
+  const std::vector<WatchRule> config_rules{{"worker-", 500},
+                                            {"sender-", 1000}};
+  const auto path = directory.Path() / "watch-rules.json";
+  WatchSettings settings{config_rules, directory.Path()};
+  auto described = settings.Describe();
+  Require(!Field(described, "revision").AsString().empty(),
+          "the editor receives a revision");
+  described.Set("revision", nullptr);
+  Require(
+      DumpJson(described) ==
+          R"({"rules":[{"prefix":"worker-","wake_ms":500},)"
+          R"({"prefix":"sender-","wake_ms":1000}],"source":"config",)"
+          R"("saved_error":null,"revision":null,"limits":{"prefix_max_bytes":15,)"
+          R"("wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}})",
+      std::format("GET /api/watches shape: {}", DumpJson(described)));
+
+  Require(settings
+              .Replace(R"({"rules":[{"prefix":"worker-io","wake_ms":50},)"
+                       R"({"prefix":"io-","wake_ms":20}]})",
+                       settings.Current()->revision_)
+              .has_value(),
+          "a valid list is accepted");
+  const std::vector<WatchRule> saved_rules{{"worker-io", 50}, {"io-", 20}};
+  Require(settings.Current()->rules_ == saved_rules &&
+              settings.Current()->source_ == WatchSource::Dashboard,
+          "the saved list replaces the config rules at once");
+  Require(std::filesystem::exists(path) &&
+              !std::filesystem::exists(path.string() + ".tmp"),
+          "the list is saved, and the temporary file is gone");
+  const auto saved_text = ReadText(path);
+  Require(WatchSettings{config_rules, directory.Path()}.Current()->rules_ ==
+              saved_rules,
+          "a restart uses the saved list");
+
+  // All or nothing: the second rule is invalid, so the first is not saved.
+  const auto invalid = settings.Replace(
+      R"({"rules":[{"prefix":"ok-","wake_ms":50},{"prefix":"bad-"}]})",
+      settings.Current()->revision_);
+  Require(!invalid && invalid.error().kind_ == WatchErrorKind::InvalidRules &&
+              invalid.error().message_.starts_with(
+                  R"(watch rule 2 (prefix "bad-"): wake_ms)"),
+          "an invalid list names the bad rule");
+  Require(
+      settings.Current()->rules_ == saved_rules && ReadText(path) == saved_text,
+      "an invalid list changes neither the rules nor the file");
+  for (const std::string_view body :
+       {"", "[]", "{}", R"({"rules":5})", R"({"rules":[],"extra":1})",
+        R"({"rules":[{"prefix":"a","wake_ms":50,"wake":1}]})"})
+  {
+    const auto result = settings.Replace(body, settings.Current()->revision_);
+    Require(!result && result.error().kind_ == WatchErrorKind::InvalidRules,
+            std::format("body {} is rejected", DumpJson(Json(body))));
+  }
+  Require(ReadText(path) == saved_text, "rejected bodies save nothing");
+
+  Require(settings.Replace(R"({"rules":[]})", settings.Current()->revision_)
+                  .has_value() &&
+              settings.Current()->rules_.empty() &&
+              settings.Current()->source_ == WatchSource::Dashboard,
+          "an empty saved list means no rules, not the config rules");
+
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              !std::filesystem::exists(path),
+          "reset deletes the saved file");
+  Require(settings.Current()->rules_ == config_rules &&
+              settings.Current()->source_ == WatchSource::Config,
+          "reset puts the config rules back in force");
+  Require(settings.Reset(settings.Current()->revision_).has_value(),
+          "reset without a saved file is fine");
+
+  for (const std::string_view text :
+       {"not json", R"({"rules":[{"prefix":"a","wake_ms":1}]})"})
+  {
+    std::ofstream{path} << text;
+    WatchSettings restarted{config_rules, directory.Path()};
+    const auto state = restarted.Current();
+    Require(state->rules_ == config_rules &&
+                state->source_ == WatchSource::Config && state->saved_error_ &&
+                state->saved_error_->starts_with(path.string()),
+            std::format("an invalid saved file ({}) falls back to the config "
+                        "rules and says why",
+                        text));
+    Require(Field(restarted.Describe(), "saved_error").IsString(),
+            "the API reports the unusable saved file");
+    Require(restarted.Replace(R"({"rules":[]})", restarted.Current()->revision_)
+                    .has_value() &&
+                !restarted.Current()->saved_error_,
+            "saving a valid list replaces the bad file and clears the error");
+  }
+
+  // A data directory that is a regular file: nothing can be saved there.
+  const auto blocked = directory.Path() / "file";
+  std::ofstream{blocked} << "";
+  WatchSettings unwritable{config_rules, blocked};
+  const auto failed =
+      unwritable.Replace(R"({"rules":[{"prefix":"a","wake_ms":50}]})",
+                         unwritable.Current()->revision_);
+  Require(!failed && failed.error().kind_ == WatchErrorKind::SaveFailed &&
+              unwritable.Current()->rules_ == config_rules,
+          "a failed save is reported and changes nothing");
+}
+
+// Checks that save and reset flush the directory after changing its entry.
+// Injected flush errors check unchanged rules before rename, applied rules
+// after rename or deletion, interrupted flushes, and a retried reset.
+void TestWatchDirectorySync()
+{
+  TempDirectory directory;
+  const std::vector<WatchRule> config_rules{{"MsgP", 1000}};
+  const std::vector<WatchRule> saved_rules{{"PrdDist", 2000}};
+  const std::string_view body =
+      R"({"rules":[{"prefix":"PrdDist","wake_ms":2000}]})";
+  WatchSettings settings{config_rules, directory.Path()};
+  const auto path = settings.Path();
+
+  g_watch_sync = {};
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "save succeeds");
+  Require(g_watch_sync.file_syncs_ == 1 && g_watch_sync.directory_syncs_ == 1 &&
+              g_watch_sync.saved_file_exists_,
+          "save flushes the file and its directory after rename");
+  const auto saved_text = ReadText(path);
+
+  g_watch_sync = {.fail_file_ = true};
+  const auto failed_write =
+      settings.Replace(R"({"rules":[]})", settings.Current()->revision_);
+  Require(!failed_write &&
+              failed_write.error().kind_ == WatchErrorKind::SaveFailed &&
+              g_watch_sync.directory_syncs_ == 0 &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text &&
+              !std::filesystem::exists(path.string() + ".tmp"),
+          "a file flush error leaves the old rules and file unchanged");
+
+  g_watch_sync = {.fail_directory_ = true};
+  const auto failed_save_sync =
+      settings.Replace(R"({"rules":[]})", settings.Current()->revision_);
+  Require(
+      !failed_save_sync &&
+          failed_save_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+          failed_save_sync.error().message_.contains("rules were applied") &&
+          failed_save_sync.error().applied_state_.has_value() &&
+          Field(*failed_save_sync.error().applied_state_, "revision")
+                  .AsString() == settings.Current()->revision_ &&
+          g_watch_sync.directory_syncs_ == 1 &&
+          settings.Current()->rules_.empty() &&
+          settings.Current()->source_ == WatchSource::Dashboard &&
+          WatchSettings{config_rules, directory.Path()}
+              .Current()
+              ->rules_.empty(),
+      "a directory flush error reports uncertainty and keeps memory "
+      "consistent with the replaced file");
+
+  g_watch_sync = {.interrupt_directory_ = true};
+  Require(settings.Replace(body, settings.Current()->revision_).has_value() &&
+              g_watch_sync.directory_syncs_ == 2 &&
+              settings.Current()->rules_ == saved_rules,
+          "an interrupted directory flush is retried");
+  const auto save_revision =
+      Field(*failed_save_sync.error().applied_state_, "revision").AsString();
+  const auto stale_save = settings.Replace(R"({"rules":[]})", save_revision);
+  Require(!stale_save && stale_save.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied save cannot replace a later editor's rules");
+
+  g_watch_sync = {.fail_directory_ = true};
+  const auto failed_reset_sync = settings.Reset(settings.Current()->revision_);
+  Require(!failed_reset_sync &&
+              failed_reset_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+              failed_reset_sync.error().applied_state_.has_value() &&
+              Field(*failed_reset_sync.error().applied_state_, "revision")
+                      .AsString() == settings.Current()->revision_ &&
+              g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_ &&
+              !std::filesystem::exists(path) &&
+              settings.Current()->rules_ == config_rules &&
+              settings.Current()->source_ == WatchSource::Config,
+          "reset flushes after deletion and reports an applied reset on error");
+
+  g_watch_sync = {};
+  const auto reset_revision =
+      Field(*failed_reset_sync.error().applied_state_, "revision").AsString();
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "another editor saves after an unconfirmed reset");
+  const auto stale_reset = settings.Reset(reset_revision);
+  Require(!stale_reset &&
+              stale_reset.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied reset cannot delete a later editor's rules");
+  Require(settings.Reset(settings.Current()->revision_).has_value(),
+          "the current editor can reset the saved rules");
+  g_watch_sync = {};
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_,
+          "a retried reset flushes the directory even without a saved file");
+
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "restore saved rules");
+  g_watch_sync = {};
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              g_watch_sync.directory_syncs_ == 1 &&
+              !g_watch_sync.saved_file_exists_,
+          "a successful reset flushes the directory after deletion");
+  g_watch_sync = {};
+}
+
 // Parses the stored view a replay query returned.
 Json ReplaySnapshot(const ReplayResult& p_result)
 {
@@ -825,6 +1192,97 @@ void TestReplayConfig()
   Require(ParseConfig("max_live_samples=10000000").has_value() &&
               !ParseConfig("max_live_samples=10000001"),
           "max_live_samples has an upper limit");
+}
+
+// Checks [[watch]] parsing: valid rules keep their order, and each invalid
+// rule fails with a message that names the rule and says what is allowed.
+// Each case is a config with one bad [[watch]] table after a good one.
+void TestWatchConfig()
+{
+  const auto parsed = ParseConfig(
+      "[[watch]]\nprefix = \"worker-\"\nwake_ms = 500\n"
+      "[[watch]]\nprefix = \"worker-io\"\nwake_ms = 3600000\n"
+      "[[watch]]\nprefix = \"x\"\nwake_ms = 10\n");
+  Require(parsed.has_value(), "valid watch rules parse");
+  Require(parsed->watches_ == std::vector<WatchRule>{{"worker-", 500},
+                                                     {"worker-io", 3'600'000},
+                                                     {"x", 10}},
+          "watch rules keep their prefixes, wake_ms and order");
+  Require(ParseConfig("")->watches_.empty(), "watch rules are optional");
+
+  const std::string good = "[[watch]]\nprefix = \"worker-\"\nwake_ms = 500\n";
+  const std::vector<std::pair<std::string, std::string_view>> cases{
+      {"[[watch]]\nprefix = \"a\"\nwake = 500\n",
+       "watch rule 2: unknown key \"wake\"; the allowed keys are prefix and "
+       "wake_ms"},
+      {"[[watch]]\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"\"\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"0123456789abcdef\"\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = 5\nwake_ms = 500\n",
+       "watch rule 2: prefix must be text of 1 to 15 bytes"},
+      {"[[watch]]\nprefix = \"a\"\n",
+       "watch rule 2 (prefix \"a\"): wake_ms must be a whole number of "
+       "milliseconds from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 9\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 3600001\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = 500.5\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"a\"\nwake_ms = \"500\"\n", "from 10 to 3600000"},
+      {"[[watch]]\nprefix = \"worker-\"\nwake_ms = 50\n",
+       "watch rule 2 (prefix \"worker-\"): rule 1 has the same prefix; each "
+       "prefix may appear only once"}};
+  for (const auto& [rule, message] : cases)
+  {
+    const auto result = ParseConfig(good + rule);
+    Require(!result && result.error().contains(message),
+            std::format("invalid watch rule {} gives {}, not {}",
+                        DumpJson(Json(rule)), DumpJson(Json(message)),
+                        DumpJson(Json(result ? "success" : result.error()))));
+  }
+  std::string many;
+  for (std::size_t index = 0; index <= kMaxWatchRules; ++index)
+  {
+    many += std::format("[[watch]]\nprefix = \"w{}\"\nwake_ms = 500\n", index);
+  }
+  const auto too_many = ParseConfig(many);
+  Require(!too_many && too_many.error() ==
+                           "too many watch rules (65); at most 64 are allowed",
+          "at most 64 watch rules");
+  const auto not_tables = ParseConfig("watch = 5\n");
+  Require(!not_tables && not_tables.error().contains("[[watch]]"),
+          "watch must be an array of tables");
+  JsonArray with_nul{
+      JsonObject{{"prefix", std::string{"a\0b", 3}}, {"wake_ms", 500}}};
+  Require(!ParseWatchRules(with_nul), "a prefix with a NUL byte is rejected");
+  JsonArray not_object{Json(5)};
+  Require(ParseWatchRules(not_object).error() ==
+              "watch rule 1 must have the keys prefix and wake_ms",
+          "a rule that is not a table or object is rejected");
+}
+
+// Checks that the longest matching prefix wins, whatever the rule order, and
+// that a name no rule matches has no wake_ms.
+void TestWatchLongestPrefix()
+{
+  const std::vector<WatchRule> rules{
+      {"w", 9000}, {"worker-", 500}, {"worker-io", 50}};
+  const std::vector<std::pair<std::string_view, std::optional<std::int64_t>>>
+      cases{{"worker-io-3", 50}, {"worker-io", 50}, {"worker-1", 500},
+            {"worker-", 500},    {"wx", 9000},      {"other", std::nullopt},
+            {"", std::nullopt},  {"worker", 9000}};
+  for (const auto& [name, expected] : cases)
+  {
+    Require(WakeMsFor(rules, name) == expected,
+            std::format("thread {} gets the longest prefix's wake_ms",
+                        DumpJson(Json(name))));
+    const std::vector<WatchRule> reversed(rules.rbegin(), rules.rend());
+    Require(
+        WakeMsFor(reversed, name) == expected,
+        std::format("rule order does not matter for {}", DumpJson(Json(name))));
+  }
+  Require(!WakeMsFor({}, "worker-1"), "no rules, no wake_ms");
 }
 
 // Storage failures come back as values, not exceptions: a data directory
@@ -1856,6 +2314,10 @@ int main()
     TestLowestRateProducesValidWindows();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
+    TestLastRan();
+    TestThreadWakeMs();
+    TestWatchSettingsSaveAndReset();
+    TestWatchDirectorySync();
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
     TestResourceResetsLossAndOrder();
@@ -1867,6 +2329,8 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestReplayConfig();
+    TestWatchConfig();
+    TestWatchLongestPrefix();
     TestMemoryMapLayout();
     TestMemoryMapLayoutOrder();
     TestMemoryMapSessions();
@@ -1876,7 +2340,7 @@ int main()
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "
-        "exit reports, process info)");
+        "exit reports, process info, watch rules)");
   }
   catch (const std::exception& error)
   {

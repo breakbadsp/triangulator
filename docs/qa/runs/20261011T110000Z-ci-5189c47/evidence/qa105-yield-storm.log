@@ -1,2 +1,0 @@
-[bugbench    0.0s] yield-storm: sched_yield() polling loops (pid 2171873, 110 s)
-[bugbench   75.1s] done

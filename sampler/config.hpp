@@ -29,12 +29,12 @@ using TargetSelector = std::variant<TargetPid, TargetName>;
 struct Config
 {
   TargetSelector target_ = TargetPid{0};
-  double rate_hz_ = 1.0;
+  double rate_hz_ = 5.0;
   std::string collector_;
   bool status_fallback_ = false;
   // Seconds between resource samples (pressure, descriptors, sockets); 0
   // turns them off.
-  int resource_interval_s_ = 5;
+  int resource_interval_s_ = 2;
   // Seconds between memory-map samples (/proc/PID/maps and the summary
   // files); 0 turns them off.
   int memory_interval_s_ = 30;

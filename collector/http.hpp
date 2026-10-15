@@ -1,21 +1,26 @@
 #pragma once
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <charconv>
 #include <chrono>
 #include <cmath>
+#include <exception>
 #include <expected>
 #include <format>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,12 +31,14 @@
 
 #include "../common/fd.hpp"
 #include "config.hpp"
+#include "http_connection.hpp"
 #include "json.hpp"
 #include "log.hpp"
 #include "replay.hpp"
 #include "socket_report.hpp"
 #include "storage.hpp"
 #include "target_control.hpp"
+#include "watch.hpp"
 
 namespace triangulator::collector
 {
@@ -222,7 +229,24 @@ struct Request
   bool dashboard_write_ = false;
   std::string origin_;
   std::string host_;
+  std::string if_match_;
 };
+
+// True for a write request from the dashboard page itself: it carries the
+// X-Triangulator: 1 header, which a plain HTML form or a cross-site page
+// cannot add without a CORS preflight that this server never approves, and
+// its Origin, when sent, is this server. Every POST route checks this.
+[[nodiscard]] inline bool IsDashboardWrite(const Request& p_request)
+{
+  return p_request.dashboard_write_ &&
+         (p_request.origin_.empty() ||
+          p_request.origin_ == "http://" + p_request.host_ ||
+          p_request.origin_ == "https://" + p_request.host_);
+}
+
+// The largest request body. A full list of watch rules (64 rules with
+// 15-byte prefixes, each byte possibly a six-byte \u escape) is under 8 KiB.
+inline constexpr std::size_t kMaxRequestBodyBytes = 16384;
 
 enum class RequestError
 {
@@ -281,29 +305,34 @@ enum class RequestError
     const std::string& p_host, std::int64_t p_port)
 {
   auto socket = BindSocket(p_host, p_port, SOCK_STREAM);
-  if (socket && ::listen(socket->Get(), 16) != 0)
+  if (socket && ::listen(socket->Get(), 128) != 0)
   {
     return std::unexpected(std::format("listen: {}", ErrnoText()));
+  }
+  if (socket && ::fcntl(socket->Get(), F_SETFL, O_NONBLOCK) != 0)
+  {
+    return std::unexpected(
+        std::format("nonblocking listener: {}", ErrnoText()));
   }
   return socket;
 }
 
-// Serves the dashboard and its JSON API, one request at a time, on its own
-// thread, like the Python collector's http.server.HTTPServer. Construct it
-// with a socket from Listen(), then call Start().
+// Bounded connection workers keep slow viewers and history queries separate
+// from other requests and from UDP ingestion.
 class DashboardServer
 {
  public:
   DashboardServer(const Config& p_config, SharedState& p_state,
-                  FileDescriptor p_listener)
+                  WatchSettings& p_watches, FileDescriptor p_listener)
       : config_(p_config),
         state_(p_state),
+        watches_(p_watches),
         listener_(std::move(p_listener)),
         socket_reports_(p_config.data_dir_)
   {
   }
 
-  // Starts the socket report worker and the serving thread. std::thread
+  // Starts the socket report worker and the serving thread. std::jthread
   // reports failure (no resources for another thread) by throwing; this and
   // SocketReportBridge::Start() are the places it is caught.
   [[nodiscard]] std::expected<void, std::string> Start()
@@ -314,7 +343,7 @@ class DashboardServer
     }
     try
     {
-      thread_ = std::thread(
+      thread_ = std::jthread(
           [this]
           {
             Serve();
@@ -341,15 +370,30 @@ class DashboardServer
     {
       thread_.join();
     }
+    for (auto& worker : workers_)
+    {
+      if (worker.thread_.joinable())
+      {
+        worker.thread_.join();
+      }
+    }
   }
 
  private:
   const Config& config_;
   SharedState& state_;
+  WatchSettings& watches_;
   FileDescriptor listener_;
   std::atomic<bool> stopped_ = false;
-  std::thread thread_;
+  std::jthread thread_;
   SocketReportBridge socket_reports_;
+  struct Worker
+  {
+    std::jthread thread_;
+    std::atomic<bool> done_ = true;
+  };
+  static constexpr std::size_t kMaxConnections = 64;
+  std::array<Worker, kMaxConnections> workers_;
 
   void Serve()
   {
@@ -360,33 +404,63 @@ class DashboardServer
       {
         continue;
       }
-      FileDescriptor connection{
-          ::accept4(listener_.Get(), nullptr, nullptr, SOCK_CLOEXEC)};
+      FileDescriptor connection{::accept4(listener_.Get(), nullptr, nullptr,
+                                          SOCK_CLOEXEC | SOCK_NONBLOCK)};
       if (!connection)
       {
         continue;
       }
-      const timeval timeout{5, 0};
-      ::setsockopt(connection.Get(), SOL_SOCKET, SO_RCVTIMEO, &timeout,
-                   sizeof(timeout));
-      ::setsockopt(connection.Get(), SOL_SOCKET, SO_SNDTIMEO, &timeout,
-                   sizeof(timeout));
-      // Last resort at the top of the thread: a bug or an exception from
-      // the standard library ends this request, not the collector.
+      const auto found = std::ranges::find_if(workers_,
+                                              [](const Worker& p_worker)
+                                              {
+                                                return p_worker.done_.load();
+                                              });
+      if (found == workers_.end())
+      {
+        // Do not wait for a busy viewer in the accept loop.
+        constexpr std::string_view kBusy =
+            "HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n";
+        ::send(connection.Get(), kBusy.data(), kBusy.size(),
+               MSG_DONTWAIT | MSG_NOSIGNAL);
+        continue;
+      }
+      Worker* worker = &*found;
+      worker->done_ = false;
       try
       {
-        Handle(connection.Get());
+        worker->thread_ = std::jthread(
+            [this, worker, connection = std::move(connection)]() mutable
+            {
+              // Last resort for this request. All workers finish before Stop
+              // returns.
+              try
+              {
+                const HttpConnection client{std::move(connection), stopped_};
+                Handle(client);
+              }
+              catch (const std::bad_alloc&)
+              {
+                std::terminate();
+              }
+              catch (const std::exception& error)
+              {
+                Log(LogLevel::Error,
+                    std::format("HTTP request failed: {}", error.what()));
+              }
+              worker->done_ = true;
+            });
       }
-      catch (const std::exception& error)
+      catch (const std::system_error& error)
       {
+        worker->done_ = true;
         Log(LogLevel::Error,
-            std::format("HTTP request failed: {}", error.what()));
+            std::format("Cannot start HTTP request: {}", error.what()));
       }
     }
   }
 
   [[nodiscard]] static std::expected<Request, RequestError> ReadRequest(
-      int p_connection)
+      const HttpConnection& p_connection)
   {
     std::string data;
     std::array<char, 4096> buffer{};
@@ -397,15 +471,15 @@ class DashboardServer
       {
         return std::unexpected(RequestError::Invalid);
       }
-      const auto length = ::recv(p_connection, buffer.data(), buffer.size(), 0);
-      if (length <= 0)
+      const auto length = p_connection.Read(buffer);
+      if (!length || *length == 0)
       {
         // Browsers may open a speculative connection without sending a
         // request. Preserve the original silent close in that case.
         return std::unexpected(data.empty() ? RequestError::Empty
                                             : RequestError::Invalid);
       }
-      data.append(buffer.data(), static_cast<std::size_t>(length));
+      data.append(buffer.data(), *length);
     }
     Request request;
     std::string_view head{data.data(), header_end};
@@ -455,7 +529,7 @@ class DashboardServer
       if (name == "content-length")
       {
         const auto size = triangulator::ParseNumber<std::size_t>(value);
-        if (length_seen || !size || *size > 1024)
+        if (length_seen || !size || *size > kMaxRequestBodyBytes)
         {
           return std::unexpected(RequestError::Invalid);
         }
@@ -474,6 +548,10 @@ class DashboardServer
       {
         request.origin_ = value;
       }
+      else if (name == "if-match")
+      {
+        request.if_match_ = value;
+      }
       else if (name == "host")
       {
         request.host_ = value;
@@ -482,21 +560,20 @@ class DashboardServer
     const auto body_start = header_end + 4;
     while (data.size() - body_start < body_bytes)
     {
-      const auto length = ::recv(
-          p_connection, buffer.data(),
-          std::min(buffer.size(), body_bytes - (data.size() - body_start)), 0);
-      if (length <= 0)
+      const auto length = p_connection.Read(std::span{buffer}.first(
+          std::min(buffer.size(), body_bytes - (data.size() - body_start))));
+      if (!length || *length == 0)
       {
         return std::unexpected(RequestError::Invalid);
       }
-      data.append(buffer.data(), static_cast<std::size_t>(length));
+      data.append(buffer.data(), *length);
     }
     request.body_ = data.substr(body_start, body_bytes);
     return request;
   }
 
-  static void Respond(int p_connection, int p_code, std::string_view p_body,
-                      std::string_view p_content_type)
+  static void Respond(const HttpConnection& p_connection, int p_code,
+                      std::string_view p_body, std::string_view p_content_type)
   {
     std::string_view reason = "OK";
     switch (p_code)
@@ -509,6 +586,12 @@ class DashboardServer
         break;
       case 404:
         reason = "Not Found";
+        break;
+      case 409:
+        reason = "Conflict";
+        break;
+      case 428:
+        reason = "Precondition Required";
         break;
       case 500:
         reason = "Internal Server Error";
@@ -530,25 +613,16 @@ class DashboardServer
         "frame-ancestors 'none'\r\n\r\n",
         p_code, reason, p_content_type, p_body.size());
     response.append(p_body);
-    std::string_view remaining = response;
-    while (!remaining.empty())
-    {
-      const auto sent = ::send(p_connection, remaining.data(), remaining.size(),
-                               MSG_NOSIGNAL);
-      if (sent <= 0)
-      {
-        return;
-      }
-      remaining.remove_prefix(static_cast<std::size_t>(sent));
-    }
+    static_cast<void>(p_connection.Write(response));
   }
 
-  static void RespondJson(int p_connection, int p_code, const Json& p_body)
+  static void RespondJson(const HttpConnection& p_connection, int p_code,
+                          const Json& p_body)
   {
     Respond(p_connection, p_code, DumpJson(p_body), "application/json");
   }
 
-  void Handle(int p_connection)
+  void Handle(const HttpConnection& p_connection)
   {
     auto request = ReadRequest(p_connection);
     if (!request)
@@ -564,18 +638,60 @@ class DashboardServer
     {
       Get(p_connection, *request);
     }
-    else if (request->method_ == "POST" && request->path_ == "/api/target")
+    else if (request->method_ == "POST")
     {
-      if (!request->dashboard_write_ ||
-          (!request->origin_.empty() &&
-           request->origin_ != "http://" + request->host_ &&
-           request->origin_ != "https://" + request->host_))
+      Post(p_connection, *request);
+    }
+    else
+    {
+      Respond(p_connection, 501, "Unsupported method", "text/plain");
+    }
+  }
+
+  void Post(const HttpConnection& p_connection, const Request& p_request)
+  {
+    const auto& path = p_request.path_;
+    if (path != "/api/target" && path != "/api/watches" &&
+        path != "/api/watches/reset")
+    {
+      Respond(p_connection, 501, "Unsupported method", "text/plain");
+      return;
+    }
+    if (!IsDashboardWrite(p_request))
+    {
+      RespondJson(p_connection, 403,
+                  JsonObject{{"error", "dashboard request required"}});
+      return;
+    }
+    if (path == "/api/watches" || path == "/api/watches/reset")
+    {
+      if (p_request.if_match_.empty())
       {
-        RespondJson(p_connection, 403,
-                    JsonObject{{"error", "dashboard request required"}});
+        RespondJson(p_connection, 428,
+                    JsonObject{{"error",
+                                "Reload this dashboard before changing "
+                                "watched-thread rules."}});
         return;
       }
-      const auto body = ParseJson(request->body_);
+      std::string_view revision = p_request.if_match_;
+      if (revision.size() >= 2 && revision.front() == '"' &&
+          revision.back() == '"')
+      {
+        revision.remove_prefix(1);
+        revision.remove_suffix(1);
+      }
+      else
+      {
+        revision = {};
+      }
+      RespondWatches(p_connection,
+                     path == "/api/watches"
+                         ? watches_.Replace(p_request.body_, revision)
+                         : watches_.Reset(revision));
+    }
+    else
+    {
+      const auto body = ParseJson(p_request.body_);
       const auto* target = body ? body->Find("target") : nullptr;
       if (target == nullptr || !target->IsString() ||
           target->AsString().empty() || target->AsString().size() > 64 ||
@@ -587,13 +703,35 @@ class DashboardServer
       }
       Target(p_connection, target->AsString());
     }
-    else
-    {
-      Respond(p_connection, 501, "Unsupported method", "text/plain");
-    }
   }
 
-  void Get(int p_connection, const Request& p_request)
+  // The reply to a change of the watch rules: the rules now in force, as
+  // for GET /api/watches, or the error.
+  void RespondWatches(const HttpConnection& p_connection,
+                      const std::expected<Json, WatchError>& p_result)
+  {
+    if (!p_result)
+    {
+      const int code = p_result.error().kind_ == WatchErrorKind::Conflict ? 409
+                       : p_result.error().kind_ == WatchErrorKind::InvalidRules
+                           ? 400
+                           : 500;
+      Json error{JsonObject{{"error", p_result.error().message_}}};
+      if (p_result.error().kind_ == WatchErrorKind::SyncFailed)
+      {
+        error.Set("applied", true);
+        if (p_result.error().applied_state_)
+        {
+          error.Set("applied_state", *p_result.error().applied_state_);
+        }
+      }
+      RespondJson(p_connection, code, error);
+      return;
+    }
+    RespondJson(p_connection, 200, *p_result);
+  }
+
+  void Get(const HttpConnection& p_connection, const Request& p_request)
   {
     if (p_request.path_ == "/")
     {
@@ -617,6 +755,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/target")
     {
       Target(p_connection, std::nullopt);
+    }
+    else if (p_request.path_ == "/api/watches")
+    {
+      RespondJson(p_connection, 200, watches_.Describe());
     }
     else if (p_request.path_ == "/api/socket-io")
     {
@@ -652,7 +794,8 @@ class DashboardServer
     }
   }
 
-  void Target(int p_connection, const std::optional<std::string>& p_target)
+  void Target(const HttpConnection& p_connection,
+              const std::optional<std::string>& p_target)
   {
     // Local development control only. Remote deployments keep their existing
     // sampler-side administration, with no new runtime dependency.
@@ -689,7 +832,7 @@ class DashboardServer
 
   // Stored resource samples between start and end (default: the last 15
   // minutes), combined into at most about 1,000 buckets.
-  void Resources(int p_connection, const Request& p_request)
+  void Resources(const HttpConnection& p_connection, const Request& p_request)
   {
     const auto end_text = QueryValue(p_request.query_, "end");
     const auto end = end_text ? PythonFloat(*end_text) : WallNow();
@@ -716,7 +859,7 @@ class DashboardServer
                            {"read_error", history.read_error_}});
   }
 
-  void Replay(int p_connection, const Request& p_request)
+  void Replay(const HttpConnection& p_connection, const Request& p_request)
   {
     const auto at_text = QueryValue(p_request.query_, "at");
     const auto at = at_text ? PythonFloat(*at_text) : std::nullopt;
@@ -745,7 +888,7 @@ class DashboardServer
         "application/json");
   }
 
-  void History(int p_connection, const Request& p_request)
+  void History(const HttpConnection& p_connection, const Request& p_request)
   {
     const auto invalid = [&]
     {

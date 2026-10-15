@@ -1,8 +1,12 @@
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <sched.h>
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -12,16 +16,21 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <format>
 #include <iostream>
 #include <latch>
 #include <mutex>
+#include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <vector>
+
+#include "runtime_threads.hpp"
 
 // A target process that measures how much the sampler disturbs it. Besides
 // sleeping threads it runs four probe threads, each pinned to its own core:
@@ -34,6 +43,13 @@
 //         sampler's maps reads also take.
 // The probes start when stdin delivers a line, run for the requested seconds
 // and print one JSON line. The process then waits for stdin to close.
+//
+// Optional trailing arguments give the target the shape of a real service:
+//   mappings=N  N separate memory mappings, half of them file-backed, so
+//               /proc/PID/maps has about N lines
+//   files=N     N open files
+//   sockets=N   N connected TCP loopback pairs (2N descriptors) and one UDP
+//               socket, all in the process's network namespace
 namespace
 {
 
@@ -191,6 +207,115 @@ struct ProbeConfig
   return durations;
 }
 
+// Descriptors and mappings that make the target look like a service. Mappings
+// alternate between readable and inaccessible pages, so the kernel cannot
+// merge neighbours and /proc/PID/maps keeps one line for each.
+class Ballast
+{
+ public:
+  Ballast() = default;
+  Ballast(const Ballast&) = delete;
+  Ballast& operator=(const Ballast&) = delete;
+  Ballast(Ballast&&) = delete;
+  Ballast& operator=(Ballast&&) = delete;
+
+  ~Ballast()
+  {
+    for (const auto fd : descriptors_)
+    {
+      close(fd);
+    }
+    for (void* region : regions_)
+    {
+      munmap(region, kPageBytes);
+    }
+  }
+
+  void AddMappings(int p_count)
+  {
+    if (p_count == 0)
+    {
+      return;
+    }
+    // The program's own file gives the file-backed lines a realistic path.
+    const int file = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+    Keep(file);
+    const auto file_pages = lseek(file, 0, SEEK_END) / kPageBytes;
+    regions_.reserve(static_cast<std::size_t>(p_count));
+    for (int index = 0; index < p_count; ++index)
+    {
+      // Each file page is used once; the offset wraps if the file is short.
+      const bool from_file = index % 2 == 0 && file_pages > 0;
+      const int protection = index % 4 < 2 ? PROT_READ : PROT_NONE;
+      void* region = from_file
+                         ? mmap(nullptr, kPageBytes, protection, MAP_PRIVATE,
+                                file, (index / 2 % file_pages) * kPageBytes)
+                         : mmap(nullptr, kPageBytes, protection,
+                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      if (region == MAP_FAILED)
+      {
+        throw std::runtime_error("mmap failed; raise vm.max_map_count?");
+      }
+      regions_.push_back(region);
+    }
+  }
+
+  void AddFiles(int p_count)
+  {
+    for (int index = 0; index < p_count; ++index)
+    {
+      Keep(open("/dev/null", O_RDONLY | O_CLOEXEC));
+    }
+  }
+
+  void AddSockets(int p_pairs)
+  {
+    if (p_pairs == 0)
+    {
+      return;
+    }
+    const int listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    Keep(listener);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t length = sizeof(address);
+    if (bind(listener, reinterpret_cast<sockaddr*>(&address), length) != 0 ||
+        listen(listener, 128) != 0 ||
+        getsockname(listener, reinterpret_cast<sockaddr*>(&address), &length) !=
+            0)
+    {
+      throw std::runtime_error("cannot listen on loopback");
+    }
+    for (int index = 0; index < p_pairs; ++index)
+    {
+      const int client = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      Keep(client);
+      if (connect(client, reinterpret_cast<sockaddr*>(&address), length) != 0)
+      {
+        throw std::runtime_error("cannot connect on loopback");
+      }
+      Keep(accept4(listener, nullptr, nullptr, SOCK_CLOEXEC));
+    }
+    Keep(socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0));
+  }
+
+ private:
+  static constexpr long kPageBytes = 4096;
+
+  void Keep(int p_fd)
+  {
+    if (p_fd < 0)
+    {
+      throw std::runtime_error("cannot open a descriptor; raise ulimit -n?");
+    }
+    descriptors_.push_back(p_fd);
+  }
+
+  std::vector<int> descriptors_;
+  std::vector<void*> regions_;
+};
+
 [[nodiscard]] bool ParseInt(std::string_view p_text, int& p_value) noexcept
 {
   const auto parsed =
@@ -218,12 +343,15 @@ struct Arguments
   int threads_ = 0;
   int duration_s_ = 0;
   std::array<int, kProbeThreads> probe_cpus_{};
+  int mappings_ = 0;
+  int files_ = 0;
+  int sockets_ = 0;
 };
 
 [[nodiscard]] bool ParseArguments(int p_argc, char** p_argv,
                                   Arguments& p_arguments)
 {
-  if (p_argc != 3 + kProbeThreads)
+  if (p_argc < 3 + kProbeThreads)
   {
     return false;
   }
@@ -234,6 +362,26 @@ struct Arguments
     valid = valid &&
             ParseInt(p_argv[3 + index],
                      p_arguments.probe_cpus_[static_cast<std::size_t>(index)]);
+  }
+  for (int index = 3 + kProbeThreads; index < p_argc; ++index)
+  {
+    const std::string_view option{p_argv[index]};
+    const auto equals = option.find('=');
+    int* target = nullptr;
+    if (option.substr(0, equals) == "mappings")
+    {
+      target = &p_arguments.mappings_;
+    }
+    else if (option.substr(0, equals) == "files")
+    {
+      target = &p_arguments.files_;
+    }
+    else if (option.substr(0, equals) == "sockets")
+    {
+      target = &p_arguments.sockets_;
+    }
+    valid = valid && target != nullptr && equals != std::string_view::npos &&
+            ParseInt(option.substr(equals + 1), *target) && *target >= 0;
   }
   return valid && p_arguments.threads_ > kProbeThreads &&
          p_arguments.threads_ <= kMaxThreads && p_arguments.duration_s_ >= 1;
@@ -248,15 +396,29 @@ int main(int p_argc, char** p_argv)
   {
     std::fputs(
         "usage: benchmark-victim THREADS DURATION_S SPIN_CPU WAKE_CPU "
-        "LOCK_CPU MMAP_CPU\n  THREADS is 5..500 and includes the main and "
-        "probe threads; a CPU of -1 does not pin.\n",
+        "LOCK_CPU MMAP_CPU [mappings=N] [files=N] [sockets=N]\n  THREADS is "
+        "5..500 and includes the main and probe threads; a CPU of -1 does not "
+        "pin.\n",
         stderr);
     return 1;
   }
   try
   {
-    const auto sleeper_count = arguments.threads_ - 1 - kProbeThreads;
-    std::latch ready{arguments.threads_ - 1};
+    Ballast ballast;
+    ballast.AddMappings(arguments.mappings_);
+    ballast.AddFiles(arguments.files_);
+    ballast.AddSockets(arguments.sockets_);
+    const int runtime_threads = triangulator::RuntimeThreadCount(true);
+    const int worker_threads = arguments.threads_ - runtime_threads;
+    const auto sleeper_count = worker_threads - 1 - kProbeThreads;
+    if (sleeper_count < 0)
+    {
+      std::fputs(
+          "benchmark victim: thread count cannot fit the sanitizer runtime\n",
+          stderr);
+      return 1;
+    }
+    std::latch ready{worker_threads - 1};
     std::vector<std::jthread> sleepers;
     sleepers.reserve(static_cast<std::size_t>(sleeper_count));
     for (int index = 0; index < sleeper_count; ++index)
@@ -285,6 +447,14 @@ int main(int p_argc, char** p_argv)
     probes.reserve(kProbeThreads);
     for (std::size_t index = 0; index < kProbeThreads; ++index)
     {
+      // A small RLIMIT_AS prevents sanitizer initialization. Inject the
+      // thread constructor error after two probes to test their cleanup.
+      if (index == 2 && std::getenv("TRIANGULATOR_TEST_FAIL_THREAD") != nullptr)
+      {
+        throw std::system_error(
+            std::make_error_code(std::errc::resource_unavailable_try_again),
+            "injected thread creation failure");
+      }
       probes.emplace_back(
           [&, index](std::stop_token p_stop)
           {
