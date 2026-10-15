@@ -1340,7 +1340,8 @@ function renderAssessment(threads){
   const findings=assess(threads,buffer);const order=LEVEL_ORDER;const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
   const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
-  const list=element('findings');list.replaceChildren();
+  // A poll replaces every row; keep them while a finding's help is pending or open.
+  const list=element('findings');if(helpOwns(list))return;list.replaceChildren();
   const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   for(const item of ranked.slice(0,8)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);

@@ -2124,3 +2124,21 @@ test('the thread drawer shows a compact line for watched threads only', () => {
   assert.match(line(watchedThread(1, 'worker-1', {quiet: 4.2}))[0], /last ran 4\.2 s before the latest sample · overdue$/);
   assert.equal(line(watchedThread(1, 'misc', {wake: null})), null);
 });
+
+test('a watched finding keeps its help target through live re-renders', () => {
+  const {app} = watchFindings([watchedThread(1, 'worker-1', {quiet: 30})]);
+  app.run(`innerWidth=1000;innerHeight=800;captureHelp=request=>({topic:{title:'T',meaning:'m',limits:'l'},scope:'',context:'',value:'1',stamp:1,warnings:[],target:request.target});
+    describeHelp=()=>{};positionHelp=()=>{};realRenderAssessment(live.threads);
+    var target=[...element('findings').children].find(row=>row.dataset.help==='watched');target.closest=()=>null;helpTimer.request('watched-help',{target,id:'watched'})`);
+  // Live polling re-renders about once a second, before the 1,200 ms help delay ends.
+  app.advance(1000);
+  app.run('realRenderAssessment(live.threads);refreshHelp()');
+  assert.ok(app.run('target.isConnected'), 'the pending row is not replaced');
+  assert.ok(app.run('helpTimer.active&&helpTimer.active.payload.target===target'), 'pending help survives the poll');
+  app.advance(200);
+  assert.ok(app.run('helpTimer.visible&&helpTimer.visible.payload.target===target'), 'help opens after 1,200 ms');
+  app.run('realRenderAssessment(live.threads);refreshHelp()');
+  assert.ok(app.run('target.isConnected'), 'an open card keeps its row too');
+  app.run('helpTimer.cancel(true);realRenderAssessment(live.threads)');
+  assert.ok(!app.run('target.isConnected'), 'the list is rebuilt after help closes');
+});
