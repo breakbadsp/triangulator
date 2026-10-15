@@ -2366,3 +2366,17 @@ test('a change the collector applied but could not confirm can be repeated until
   assert.equal(app.el('watch-status').textContent, 'Reset. The rules from the config file are in force.');
   assert.equal(app.el('watch-reset').disabled, true);
 });
+
+test('matching threads now follows the collector while the final view of an exited target is open', async () => {
+  const app = await watchApp();
+  let threads = [{tid: 1, name: 'worker-1'}];
+  app.setFetch(async url => url === '/api/live' ? httpReply({health: {session: 's2'}, threads}) : new Promise(() => {}));
+  app.run("frozenChecked=true;frozen={at:1000,exit:{},live:{health:{session:'s1'},threads:[]}}");
+  const poll = async () => {await app.run('refresh()'); return app.run('watchRows[0].count.textContent');};
+  assert.equal(await poll(), '1');
+  threads = [];
+  assert.equal(await poll(), '0', 'the target exited');
+  threads = [1, 2, 3].map(tid => ({tid, name: 'worker-' + tid}));
+  assert.equal(await poll(), '3', 'a replacement target started');
+  assert.ok(app.run('frozen!==null'), 'the final view stays open');
+});

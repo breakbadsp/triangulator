@@ -822,6 +822,9 @@ process view (leave `replay_interval_s` at its default).
 5. Serve the dashboard from a collector build that has no `/api/watches`, or
    block that URL in the browser, and open **Settings**.
 6. Stop the collector and watch **Settings** with the editor already open.
+7. Start the collector again, open **Settings**, and stop the monitored process so
+   the final view is shown. Then start the process again with the same thread
+   names, and watch **Matching threads now** without editing.
 
 Expected results: Every heading, column, label, button and message shows a help
 card after 1.2 seconds and has a guide with meaning, example, how to read it and
@@ -831,4 +834,6 @@ unsaved edit is back after you return to Live. Without `/api/watches`, the card
 shows a note that names the endpoint and says to edit `collector.toml` instead,
 not a broken editor. **Matching threads now** counts no threads in a recording.
 The existing Alert settings behave as before. With the collector stopped, **Save**
-shows "Could not reach the collector" and keeps your edits.
+shows "Could not reach the collector" and keeps your edits. In the final view,
+**Matching threads now** drops to 0 when the process exits and counts the
+restarted threads again, without an edit.
