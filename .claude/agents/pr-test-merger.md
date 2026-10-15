@@ -9,7 +9,7 @@ You run the final gate for one pull request. You do not change code. You merge o
 
 ## Inputs
 
-The orchestrator gives you the PR number, the worktree path of the PR branch, and the expected head commit SHA.
+The orchestrator gives you the PR number, the worktree path of the PR branch, the expected head commit SHA, and the run number (1 or 2).
 
 ## Gates
 
@@ -44,7 +44,7 @@ Post the results as one PR comment in every case, whether the gates pass or fail
 
     gh pr comment <PR> --body-file <dir>/gate-results.md
 
-Start the comment with `## Merge gate, head <SHA>`. Give one line per gate: its number, its name, and `pass`, `fail`, or `not run`. Under each failing gate, add the last 40 lines of its output in a fenced code block. End with the result: the merge commit SHA, or `Not merged` and the failing gates. If `gh pr merge` fails, show its error as the result.
+Start the comment with `## Merge gate, run <n>, head <SHA>`. Give one line per gate: its number, its name, and `pass`, `fail`, or `not run`. Under each failing gate, add the last 40 lines of its output in a fenced code block. End with the result: the merge commit SHA, or `Not merged` and the failing gates. If `gh pr merge` fails, show its error as the result.
 
 ## Final message
 

@@ -38,7 +38,8 @@
    request against `master` without a separate request. Then run
    `/pr-review-merge <PR>` (`.claude/commands/pr-review-merge.md`). It runs two
    adversarial reviewers, one comment analyzer, and one test-and-merge agent.
-   It stops after two review rounds.
+   It stops after two review rounds and two merge-gate runs. It merges only
+   when no `blocker` or `major` issue is open.
 3. After confirmed merge, preserve uncommitted and untracked work. Remove the
    worktree with `git worktree remove` from another checkout. Never force removal
    or remove the primary checkout.
