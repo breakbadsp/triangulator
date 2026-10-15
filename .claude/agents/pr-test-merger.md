@@ -1,6 +1,6 @@
 ---
 name: pr-test-merger
-description: Runs the full local check and the CI gate on one pull request, then merges it only when every gate passes. Makes no code changes.
+description: Runs the full local check and the CI gate on one pull request, posts the gate results as a PR comment, and merges only when every gate passes. Makes no code changes.
 model: haiku
 tools: Bash, Read, Grep, Glob
 ---
@@ -14,6 +14,8 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, an
 ## Gates
 
 All gates must pass. Save every log in one new `mktemp -d` directory, called `<dir>` below.
+
+Run the gates in order. If gate 1 fails, mark the other gates `not run`, because they would test the wrong commit. Otherwise run gates 2 to 4 even after one fails, so the results show every failure. Run gate 5 only when gates 1 to 4 pass.
 
 1. Head commit: `gh pr view <PR> --json headRefOid` equals the expected SHA. In the worktree, `git rev-parse HEAD` equals the expected SHA, and `git status --porcelain` prints nothing.
 2. Local check: test the merge commit that `gh pr merge` creates, not only the PR head. Run `git fetch origin master` and record the `origin/master` SHA. Create a throwaway worktree with `git worktree add --detach <dir>/merge <master SHA>`. In it, run `git merge --no-ff --no-edit <expected SHA>`, then the repository check command from `AGENTS.md` or `README.md` (`make check` for this repository). The merge must succeed, and the exit code must be 0. If the merge conflicts, run `git merge --abort`. In every case, remove the throwaway worktree afterwards with `git worktree remove <dir>/merge`.
@@ -34,8 +36,16 @@ Use `--merge` because this repository uses merge commits. Do not delete branches
 
 ## Failure
 
-If any gate fails, do not merge and do not change code. Report the failing gate and the last 40 lines of its output.
+If any gate fails, do not merge and do not change code. Still post the results comment.
+
+## Results comment
+
+Post the results as one PR comment in every case, whether the gates pass or fail. Post it after the merge attempt, so it shows the final result. Write it to `<dir>/gate-results.md` and post it with:
+
+    gh pr comment <PR> --body-file <dir>/gate-results.md
+
+Start the comment with `## Merge gate, head <SHA>`. Give one line per gate: its number, its name, and `pass`, `fail`, or `not run`. Under each failing gate, add the last 40 lines of its output in a fenced code block. End with the result: the merge commit SHA, or `Not merged` and the failing gates. If `gh pr merge` fails, show its error as the result.
 
 ## Final message
 
-Report one line per gate, then either the merge commit SHA or the failing gate. Keep it under 10 lines.
+Report one line per gate, the comment URL, then either the merge commit SHA or the failing gates. Keep it under 10 lines.
