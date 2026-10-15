@@ -35,7 +35,10 @@
 1. Create a new worktree and a descriptive branch for each change, including
    documentation. Never edit in the primary checkout or on `master`.
 2. When the change is complete and checks pass, commit, push, and open a pull
-   request against `master` without a separate request.
+   request against `master` without a separate request. Then run
+   `/pr-review-merge <PR>` (`.claude/commands/pr-review-merge.md`). It runs two
+   adversarial reviewers, one comment analyzer, and one test-and-merge agent.
+   It stops after two review rounds.
 3. After confirmed merge, preserve uncommitted and untracked work. Remove the
    worktree with `git worktree remove` from another checkout. Never force removal
    or remove the primary checkout.
