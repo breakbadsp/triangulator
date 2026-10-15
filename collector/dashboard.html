@@ -2188,11 +2188,15 @@ let past={samples:[],episodes:[],oldest:null,newest:null,step:null,chunk:PAST_FI
 // between, so the live view never sees the recorded one.
 function assessRecorded(view){
   const saved={live,replayAt,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince};
-  try{live=view;replayAt=view.recorded_at;loadBuffer(view.health.session);ingest();return assess(view.threads||[],buffer)}
+  try{live=view;replayAt=view.recorded_at;loadBuffer(view.health.session);ingest();const findings=assess(view.threads||[],buffer);
+    for(const item of findings)if(item.action?.tid!==undefined){const thread=view.threads?.find(thread=>thread.tid===item.action.tid);
+      Object.assign(item.action,{session:view.health.session,generation:thread?.generation})}
+    return findings}
   finally{({live,replayAt,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=saved)}}
 // The same finding in two views: same type, same title once numbers are
-// ignored ("Packet loss 2.1%" and "Packet loss 3.4%"), and the same thread.
-const findingKey=item=>[item.type,item.title.replace(/\d+(?:[.,]\d+)*/g,'#'),item.action?.tid??''].join('|');
+// ignored ("Packet loss 2.1%" and "Packet loss 3.4%"), and the same thread
+// generation in the same sampler session. A reused TID is a different thread.
+const findingKey=item=>[item.type,item.title.replace(/\d+(?:[.,]\d+)*/g,'#'),item.action?.tid??'',item.action?.session??'',item.action?.generation??''].join('|');
 // A missing sample ends every open episode: nothing is known then. An
 // episode keeps its worst level, and the time and wording where it was worst.
 function historyEpisodes(samples){

@@ -1056,6 +1056,24 @@ const spinView = at => {
   return view;
 };
 
+test('past thread findings end when a TID has a new generation or sampler session', async () => {
+  const app = historyApp(at => {
+    const view = frame(at, at < 1004 ? 'first-session' : 'second-session');
+    view.threads[0].generation = at < 1002 ? 1 : 2;
+    view.threads[0].cpu_pct = 99;
+    return view;
+  }, {first: 1000, last: 1004});
+  await settle();
+  const episodes = JSON.parse(app.run('JSON.stringify(past.episodes)'));
+  assert.deepEqual(episodes.map(episode => [episode.first, episode.last, episode.count,
+    episode.item.action.tid, episode.item.action.session, episode.item.action.generation]), [
+    [1004, 1004, 1, 9, 'second-session', 2],
+    [1002, 1003, 2, 9, 'first-session', 2],
+    [1000, 1001, 2, 9, 'first-session', 1],
+  ]);
+  assert.equal(new Set(episodes.map(episode => episode.key)).size, 3);
+});
+
 test('past assessments check the latest recordings when the page opens and leave the live view alone', async () => {
   const app = historyApp(spinView);
   tick(app, 2000, 0);
