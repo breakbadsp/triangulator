@@ -20,7 +20,7 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, an
 2. Give each finding one outcome:
    - `FIXED`: the defect is real and in scope. Fix it.
    - `REBUTTED`: the finding is wrong. Cite the file, line, or test that proves it.
-   - `OUT-OF-SCOPE`: the issue is real but this PR did not cause it, or it needs a design decision. Say why. For a failing gate, use it when the PR did not cause the failure, for example when `master` moved or a CI runner failed.
+   - `OUT-OF-SCOPE`: the issue is real but this PR did not cause it, or it needs a design decision. Say why. For a failing gate, use it when the PR did not cause the failure, for example when `master` moved or a CI runner failed. For a CI check that failed for such a reason, rerun its failed jobs with `gh run rerun <run-id> --failed`, so that run 2 tests it again, and say so in the outcome.
 3. Do not accept a finding because its author sounds sure. Read the code path, or reproduce it. Do not reject a finding because the fix is inconvenient.
 4. Make minimal fixes. Do not add features or refactor unrelated code. `AGENTS.md` says to add core features only when requested.
 5. Before C++ edits, read `docs/cpp-coding-standards.md` and `$HOME/ai/conventions/cpp.md`. After C++ edits, run `make format`.
