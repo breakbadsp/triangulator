@@ -40,7 +40,7 @@ Run the merge gate at most twice.
 
 1. Start a run only when no `blocker` or `major` review finding from any round, and no `blocker` or `major` user issue, is open, and the last analyzer pass changed no code or passed `make check` on each of its commits. Otherwise do not merge. Report the open issues.
 2. Before you start it, run `git fetch origin` in the worktree. `git rev-parse HEAD` must equal the expected head SHA, which is the PR `headRefOid`, and `git status --porcelain` must print nothing. Otherwise stop and report.
-3. Start `pr-test-merger`, model `haiku`, effort `low`. Pass the PR number, the worktree path, the expected head SHA, and the run number. It posts its results as a PR comment and merges only when every gate passes.
+3. Start `pr-test-merger`, model `haiku`, effort `low`. Pass the PR number, the worktree path, the expected head SHA, and the run number. It posts its results as a PR comment and merges only when every gate passes. When it finishes, read the result from a PR comment created after the run started that starts with `## Merge gate, run <n>, head <SHA>`. If there is none, stop and report.
 4. If run 1 merged, finish. If it failed, start one fix pass: `pr-comment-analyzer`, model `opus`, effort `xhigh`. Pass the PR number, the worktree path, pass type `gate-fix`, and run number 1. It reads the gate results from the PR comment. Check its result as in round step 4. Then repeat steps 1 to 3 as run 2.
 5. If run 2 fails, stop. Do not merge. Report the failing gates.
 
