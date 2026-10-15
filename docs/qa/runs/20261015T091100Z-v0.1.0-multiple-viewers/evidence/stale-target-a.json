@@ -1,0 +1,9 @@
+{
+  "method": "T3 preview_evaluate read-only DOM after preview_click #replay-live then #target-toggle",
+  "header": "bb-cpu-spin PID 2209953 \u00b7 Live \u00b7 just now",
+  "targetInput": "2209952",
+  "note": "Header came from the current process. Immediately after opening, the input value was the old PID. Input disabled state, target status and GET completion were not captured. No stale enabled editor or stale submission was established.",
+  "date": "2026-10-15",
+  "firstObservation": true,
+  "classification": "BLOCKED: unconfirmed pending-read observation"
+}

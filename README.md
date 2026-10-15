@@ -182,11 +182,11 @@ dated run record with its package version, steps, and evidence.
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
-| PASSED | 34 | - |
+| PASSED | 36 | - |
 | FAILED | 2 | QA-007, QA-105 |
-| BLOCKED | 5 | QA-006, QA-008, QA-012, QA-013, QA-014 |
-| NOT_RUN | 15 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037 |
-| **Total** | **56** | |
+| BLOCKED | 8 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-040, QA-041, QA-042 |
+| NOT_RUN | 17 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-043, QA-044 |
+| **Total** | **63** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

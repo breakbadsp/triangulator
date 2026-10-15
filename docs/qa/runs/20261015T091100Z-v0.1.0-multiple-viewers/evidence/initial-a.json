@@ -1,0 +1,78 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://127.0.0.1:19401/"
+  },
+  "value": {
+    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.45 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "header": "Triangulator\nbb-healthy PID 2209952 · Live · just now\nChange target\nOverview\nResources\nMemory\nThreads\nSockets\nMonitor\n☾\nInspect a moment\n\nChoose a local date and time to inspect the recorded process and every thread.\n\nLive\nInspect time\n← Previous\nNex",
+    "requests": [
+      {
+        "duration": 1.399999976158142,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 18390.699999928474
+      },
+      {
+        "duration": 3.399999976158142,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 19407
+      },
+      {
+        "duration": 1.899999976158142,
+        "name": "http://127.0.0.1:19401/api/resources?start=1792054583.24&end=1792055483.24",
+        "start": 20163.5
+      },
+      {
+        "duration": 5.800000071525574,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 20434.099999904633
+      },
+      {
+        "duration": 1.6999999284744263,
+        "name": "http://127.0.0.1:19401/api/socket-io?pid=2209952",
+        "start": 21144.899999976158
+      },
+      {
+        "duration": 1.3000000715255737,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 21455.699999928474
+      },
+      {
+        "duration": 1.600000023841858,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 22469.899999976158
+      },
+      {
+        "duration": 1.5,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 23483.899999976158
+      },
+      {
+        "duration": 1.3000000715255737,
+        "name": "http://127.0.0.1:19401/api/socket-io?pid=2209952",
+        "start": 24147.599999904633
+      },
+      {
+        "duration": 1.399999976158142,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 24497.699999928474
+      },
+      {
+        "duration": 2.100000023841858,
+        "name": "http://127.0.0.1:19401/api/resources?start=1792054588.252&end=1792055488.252",
+        "start": 25174.699999928474
+      },
+      {
+        "duration": 1.5,
+        "name": "http://127.0.0.1:19401/api/live",
+        "start": 25515.199999928474
+      }
+    ],
+    "search": "",
+    "target": "2209952",
+    "text": "Triangulator\nbb-healthy PID 2209952 · Live · just now\nChange target\nOverview\nResources\nMemory\nThreads\nSockets\nMonitor\n☾\nInspect a moment\n\nChoose a local date and time to inspect the recorded process and every thread.\n\nLive\nInspect time\n← Previous\nNext →\nLatest recording\n\nLive view. Recordings begin when this collector receives a sampler session.\n\nAvailable recordings: 10/15/2026, 2:40:28 PM – 10/15/2026, 2:41:02 PM. Recording interval: 1 s (limited by dashboard refresh cadence).\n\nProcess overview\n\nHow bb-healthy is behaving, summed over its 5 threads. Trends kept in this tab since 02:41:00 PM.\n\n1 min\n5 min\n15 min\nProcess load\n\nThe system load average, for this process only: threads on a CPU, plus threads waiting for one, plus threads stuck in uninterruptible kernel wait. 1.00 is one core's worth of demand.\n\n0.00\n1-minute load\n5 min\n0.00\n15 min (25 s of data)\n0.00\nOn CPU now\n0.00 cores\nWaiting for CPU\nnegligible\nBusiest thread\nall idle\n0\n0.03\n0.05\n02:41:00 PM\n02:41:13 PM\n02:41:25 PM\nOn CPU\n0.00\nWaiting for CPU\n0.00\n1-min average\nAssessment\nas of 02:41:25 PM\nHealthy\n\n5 of 5 threads are waiting: 5 sleep. No thread is using noticeable CPU.\n\n✓\nNo problems detected\nNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.\nActive threads\n5\nof 5 · 0 idle for 10 s+\nContext switches\n13/s\n2.6/s per active thread\nDisk & syscall I/O\n0 B/s\nread 0 B/s · write 0 B/s\nWhat the threads are doing\n\nThread count by latest state, stacked. Hover to read a moment.\n\n0\n3\n5\n02:41:00 PM\n02:41:13 PM\n02:41:25 PM\nSleep\n5\nWhere threads wait\n\nKernel wait channels right now. Click to filter the thread table.\n\nhrtimer_nanosleep\n5\nThread map\n\nOne tile per thread (5), grouped by current state, busiest now first. Click a tile for details.\n\nNow\n1 min\n5 min\n15 min\n<0.1%\n<0.1%\n<0.1%\n<0.1%\n<0.1%\nSleep\n5\nNumber = CPU % of one core, last ~10 s · faded = idle\nWhere the CPU goes\n\nProcess CPU by thread family (name without its number).\n\nName family\nConfig group\nThread\nworker\n0.0%×4\nbb-healthy\n0.0%×1\nCore placement\n\nCPU of this process's threa",
+    "title": "bb-healthy · Triangulator",
+    "url": "http://127.0.0.1:19401/",
+    "utc": "2026-10-15T09:11:29.342Z"
+  }
+}

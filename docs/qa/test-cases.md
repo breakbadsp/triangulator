@@ -47,6 +47,13 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-035 | NOT_RUN | - | - | - |
 | QA-036 | NOT_RUN | - | - | - |
 | QA-037 | NOT_RUN | - | - | - |
+| QA-038 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/initial-a.json) |
+| QA-039 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/replay-filter-a.json) |
+| QA-040 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/stale-target-a.json) |
+| QA-041 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
+| QA-042 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
+| QA-043 | NOT_RUN | - | - | - |
+| QA-044 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -893,3 +900,114 @@ The existing Alert settings behave as before. With the collector stopped, **Save
 shows "Could not reach the collector" and keeps your edits. In the final view,
 **Matching threads now** drops to 0 when the process exits and counts the
 restarted threads again, without an edit.
+
+
+## QA-038: Simultaneous live dashboard viewers
+
+Feature: Multiple viewers. Priority: High. Case revision: 1.
+
+Preconditions: One isolated packaged collector and sampler monitor an owned
+healthy process. Two browser views use separate origins or independent profiles.
+
+1. Open the dashboard in both views. Observe the process name, PID and Connected
+   status in each view.
+2. Keep both views open for at least 20 seconds. Observe advancing chart times
+   and repeated live requests in each view.
+
+Expected results: Both views show the same monitored PID and fresh live data.
+Opening the second view does not stop the first view.
+
+## QA-039: Local search and replay state
+
+Feature: Multiple viewers. Priority: High. Case revision: 1.
+
+Preconditions: QA-038 setup. Recording is enabled. Two owned targets run.
+
+1. In A, enter an exact worker name in thread search. Leave B unfiltered.
+2. In A, select Latest recording. Keep B Live. Observe both views.
+3. In B, change the target to the second process. Observe both views again.
+
+Expected results: A retains its search value and historical process. B retains
+an empty search and receives live data from the selected process. Replay and
+search selections do not propagate between viewers.
+
+## QA-040: Shared target change and another viewer's target editor
+
+Feature: Shared target control. Priority: High. Case revision: 1.
+
+Preconditions: Two views monitor the same owned target. A second owned target
+runs. Both views initially load the first target into their target editor.
+
+1. Put A in replay. In B, select Change target, enter the second PID, and
+   select Monitor.
+2. Observe B update to the second PID. Observe A retain its historical process.
+3. In A, select Live. Verify the header changes to the second PID.
+4. Open Change target in A. Wait for its target read to complete and the input
+   and Monitor button to become enabled. Read its value and status without
+   submitting it.
+
+Expected results: The live target is shared. Replay remains local. After the target read completes and the
+editor is enabled in A, its value identifies the current shared target. The editor
+must not silently offer the earlier target as the current target.
+
+## QA-041: New viewer and stored history
+
+Feature: Multiple viewers and history. Priority: Medium. Case revision: 1.
+
+Preconditions: An isolated packaged collector records an owned target for at
+least 60 seconds. A remains open while a fresh browser view is prepared.
+
+1. Open B with empty browser storage. Verify its live process name and PID.
+2. Compare the overview trend start in A and B.
+3. In B, open a recording from before B opened. Inspect the process name and
+   recording time. Return B to Live. Observe A throughout these actions.
+
+Expected results: B shows the current live target. Tab-local trends start when
+B opens. Stored recordings remain available in B. B's replay does not change A.
+
+## QA-042: Two viewers after a collector outage
+
+Feature: Multiple viewers and reconnect. Priority: High. Case revision: 1.
+
+Preconditions: An isolated packaged collector and owned sampler are running.
+Two views show live data. Only test-owned processes may be stopped.
+
+1. Stop the test collector for 15 seconds. Observe both headers and charts.
+2. Restart the same packaged collector with the same configuration and data.
+3. Wait for new sampler data. Observe both views without reloading them.
+
+Expected results: Both views identify unavailable or stale data during the
+outage. Both resume fresh live data after recovery. Stale charts must not be
+presented as fresh observations. Record any need for a manual page reload.
+
+## QA-043: Independent browser engines and profiles
+
+Feature: Browser compatibility for multiple viewers. Priority: High. Case revision: 1.
+
+Preconditions: One isolated packaged service is reachable from two independent
+browser profiles. Chromium and Firefox are available. Safari requires an
+available supported Apple test device. Record all actual engines and versions.
+
+1. Repeat QA-038 and QA-039 with independent profiles in Chromium and Firefox.
+2. Repeat with Safari on an available Apple device.
+3. Change the shared target from one browser and inspect the other browser.
+
+Expected results: Live data, local filters, local replay and shared target
+behavior match across the tested engines. Record unavailable engines as unrun.
+Two tabs or two origins in one engine do not satisfy this case.
+
+## QA-044: Concurrent saved thread watch edits
+
+Feature: Shared saved thread watches. Priority: High. Case revision: 1.
+
+Preconditions: A published package contains saved thread watches. Two independent
+views open the same initial watch list. Use only isolated test settings.
+
+1. In A, prepare an added rule without saving. In B, prepare a different rule
+   from the same initial list.
+2. Save A. Save B from its earlier state. Reload both views.
+3. Inspect both saved rule lists and any conflict or overwrite warning.
+
+Expected results: A stale save must preserve the other user's saved rule or
+identify the conflict before it silently replaces that rule. Record the exact
+order and final rules. If the package lacks watches, leave the case NOT_RUN.
