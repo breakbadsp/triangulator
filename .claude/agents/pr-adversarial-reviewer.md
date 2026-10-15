@@ -16,6 +16,7 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, yo
 ## Scope
 
 - Review the PR diff and the code it touches. Read only the context you need.
+- In round 2, review only whether each `FIXED` outcome in the `## Analyzer, round 1` comment holds, and the lines in `git diff <round-1 head>..<head>`. The orchestrator gives you the round-1 head SHA.
 - Read the repository `AGENTS.md`. For C++ changes, also read `docs/cpp-coding-standards.md` and `$HOME/ai/conventions/cpp.md`.
 - Focus on the lens the orchestrator gives you. Still report any blocker you find outside that lens.
 - Skip formatting that `make format` handles.

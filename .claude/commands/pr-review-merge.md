@@ -17,7 +17,7 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 Run at most two rounds. Each round has the steps below.
 
-1. Start both reviewers in parallel. Each starts fresh, and neither sees the other's output. Pass each the PR number, the worktree path, its ID prefix, its lens, the round number, and the PR head SHA.
+1. Start both reviewers in parallel. Each starts fresh, and neither sees the other's output. Pass each the PR number, the worktree path, its ID prefix, its lens, the round number, and the PR head SHA. In round 2, also pass the round-1 head SHA. Round 2 is a delta review: it checks only that each round-1 `FIXED` outcome holds and the lines in `git diff <round-1 head>..<round-2 head>`.
    - Reviewer A: `pr-adversarial-reviewer`, model `opus`, effort `xhigh`. Lens: correctness, concurrency, memory safety, and failure paths. ID prefix `A`.
    - Reviewer B: `pr-adversarial-reviewer`, model `opus`, effort `xhigh`. Lens: requirements, tests, `AGENTS.md` rules, and docs accuracy. ID prefix `B`.
 2. When both finish, confirm that both reviews reached GitHub. `gh api repos/{owner}/{repo}/pulls/<PR>/reviews` must list, among the reviews submitted after this round started, one whose body starts with `## Reviewer A, round <n>, head <SHA>` and one whose body starts with `## Reviewer B, round <n>, head <SHA>`. If either is missing, stop and report. Do not start the analyzer.
