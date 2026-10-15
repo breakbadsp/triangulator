@@ -1326,13 +1326,17 @@ function kernelShare(thread){
   const share=Math.min(1,thread.system_pct/thread.cpu_pct);
   return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
 const LEVEL_ORDER=['critical','serious','warning','info','good'];
+// Each finding has a type, the area its rule looks at, so a list of findings
+// can be filtered by it: monitor, threads, watched, resources or memory.
+const ofType=(type,items)=>items.map(item=>Object.assign(item,{type}));
 function assess(threads,points){
-  const health=live.health,findings=[];const add=(level,title,detail,action)=>findings.push({level,title,detail,action});
+  const health=live.health,findings=[];let type='monitor';const add=(level,title,detail,action)=>findings.push({type,level,title,detail,action});
   if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
   const ended=frozen&&replayAt===null?frozenExit():health.target_absent?endedTarget():null;
   if(ended)add('critical',`Target process ended · ${exitReason(ended)[0]}`,`${ended.name||'PID '+ended.pid} ended ${frozen&&replayAt===null?'at '+clock(ended.ended_at):ago(viewNow()-ended.ended_at)}. See Last process exit.`);
   else if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
   if((health.packet_loss_pct||0)>1)add('warning',`Packet loss ${pct(health.packet_loss_pct)}`,'Some samples were lost between sampler and collector over the last minute; rates may be noisy.');
+  type='threads';
   const kernel=threads.filter(thread=>thread.state==='kernel');
   if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
     add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
@@ -1343,7 +1347,7 @@ function assess(threads,points){
     const share=kernelShare(thread);
     if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
     else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
-  findings.push(...watchFindings(threads,watched));
+  findings.push(...ofType('watched',watchFindings(threads,watched)));
   const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
   if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
   else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
@@ -1360,13 +1364,13 @@ function assess(threads,points){
   const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
   const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
   if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
-  findings.push(...lockHints(threads));
-  for(const item of assessResources(live.resources))findings.push(item);
+  findings.push(...ofType('threads',lockHints(threads)));
+  findings.push(...ofType('resources',assessResources(live.resources)));
   // Memory-map findings join too. One about the same topic as a finding above
   // (major faults) is not repeated: the more severe wording stays, with the
   // thread link of the one it replaces.
   const memory=memoryOverviewFindings(),rank=item=>LEVEL_ORDER.indexOf(item.level);
-  for(const item of memory||[]){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
+  for(const item of ofType('memory',memory||[])){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
     if(!twin)findings.push(item);else if(rank(item)<rank(twin))findings[findings.indexOf(twin)]={...item,action:twin.action}}
   if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' No memory-map warnings detected in the available samples.':'')});
   return findings}

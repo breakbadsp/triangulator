@@ -989,6 +989,19 @@ test('returning to live restores the chosen thread map window', async () => {
   assert.equal(app.run('mapWindow'), 300);
 });
 
+// Assessment history filters by the area a rule looks at.
+test('findings carry the type that Assessment history filters by', () => {
+  const app = dashboard();
+  const sample = resources();
+  sample.fds.open = 1000;
+  app.run(`live={health:{session:'s',packet_loss_pct:5},threads:[{tid:7,name:'spin',cpu_pct:99,state:'running'}],
+    resources:${JSON.stringify(sample)}}`);
+  const types = JSON.parse(app.run('JSON.stringify(Object.fromEntries(assess(live.threads,[]).map(item=>[item.title,item.type])))'));
+  assert.equal(types['Packet loss 5.0%'], 'monitor');
+  assert.equal(types['spin is saturating a core'], 'threads');
+  assert.equal(types['97.7% of file descriptors in use'], 'resources');
+});
+
 
 test('replay preserves live CPU samples without depending on session storage', async () => {
   for (const unavailable of [false, true]) {
