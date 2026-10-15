@@ -346,7 +346,7 @@ is why the bar is "half" and not "nearly all".
 Each gap has a fix (or a documented limit) on this branch, verified on a real
 run of its scenario. The scorecard above is the result *before* the fixes.
 
-| Gap | Outcome | Still open (in [TODO.md](../TODO.md#gaps-found-by-the-bug-lab)) |
+| Gap | Outcome | Remaining limits and follow-ups |
 |---|---|---|
 | G1 deadlock, convoy | Two info hints and a "longest futex wait" line | Hints are heuristics at info level; a deadlocked pool of 4+ threads is missed |
 | G2 RSS growth | Trend uses the current process only, +448 MB/min on the contaminated run | Session id in `/api/resources` rows |
@@ -372,5 +372,5 @@ The final review added regression checks for these cases:
 - The lab runner cleans up its scenario and capture process after a failure
   or interrupt. Capture commands have a timeout and stop Chromium on exit.
 
-The remaining follow-ups are in
-[TODO.md](../TODO.md#gaps-found-by-the-bug-lab).
+The priority follow-ups are in
+[TODO.md](../TODO.md#diagnostic-accuracy).
