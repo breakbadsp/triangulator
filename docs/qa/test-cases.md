@@ -41,9 +41,12 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-029 | NOT_RUN | - | - | - |
 | QA-030 | NOT_RUN | - | - | - |
 | QA-031 | NOT_RUN | - | - | - |
-| QA-032 | NOT_RUN | - | - | - |
-| QA-033 | NOT_RUN | - | - | - |
+| QA-032 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
+| QA-033 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
 | QA-034 | NOT_RUN | - | - | - |
+| QA-035 | NOT_RUN | - | - | - |
+| QA-036 | NOT_RUN | - | - | - |
+| QA-037 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -675,7 +678,7 @@ memory values. The memory charts are hidden in a recorded view, like the load
 chart, and return in Live. With memory-map sampling off, the VmSize chart shows
 the collector's reason instead of empty axes.
 
-## QA-030: Complete sanitizer test runs
+## QA-031: Complete sanitizer test runs
 
 Feature: Build and test commands. Priority: High. Case revision: 1.
 
@@ -692,7 +695,55 @@ requirement. The allocation tests report zero allocations. Any sanitizer report
 fails the command. `make check` rebuilds with normal linkage and passes. The
 static sanitizer combination fails with a clear error before compilation.
 
-## QA-031: Watched thread stops waking
+## QA-032: Named periodic workers match configured wake intervals
+
+Feature: Collector watch rules. Priority: High. Case revision: 1.
+
+Preconditions: Use a build that includes PR #83. Use isolated configuration,
+data, and ports. Start two real Linux threads named `MsgP-fast` and `MsgP-peer`
+with 1-second timers, two named `PrdDist-main` and `PrdDist-peer` with 2-second
+timers, and an unmatched `Control-idle` with a 1-second timer. Select their
+process with the actual sampler at 10 Hz. Configure `[[watch]]` prefixes
+`MsgP` with `wake_ms = 1000` and `PrdDist` with `wake_ms = 2000`.
+Do not append `*`. No saved watch rules must exist.
+
+1. Open the dashboard in a real browser. Read the thread table and Monitor.
+2. Through the browser, read `GET /api/watches` and `GET /api/live`.
+3. Read nine live views over at least 8 seconds. Compare `last_ran` across views.
+4. Compare fixture counters and `/proc/PID/task/TID/schedstat` as supporting
+   evidence. Confirm that the fixture timers run and CPU use stays near zero.
+
+Expected results: All five worker names appear. Monitor reports a 100 ms sample
+interval. The rule source is `config`. Both `MsgP` threads report `wake_ms = 1000`;
+both `PrdDist` threads report `wake_ms = 2000`; the control reports `null`.
+`last_ran` advances for every worker, even when every observed state is sleep.
+The sampled elapsed time stays within its configured interval plus one sample
+interval. Allow 0.25 seconds for sampler buffering and 0.5 seconds for browser
+refresh when comparing the view with wall time. Rules describe expected intervals;
+they do not change the fixture timers. PR #83 does not add watch settings or
+watch-specific assessment warnings to the dashboard.
+
+## QA-033: A watched worker stops waking but remains alive
+
+Feature: Collector watch activity. Priority: High. Case revision: 1.
+
+Preconditions: QA-032 passes. The fixture can stop `MsgP-fast`'s timer loop and
+block on an Event without ending the thread. Its peers continue their timers.
+
+1. Stop the timer loop for `MsgP-fast`. Leave its thread and process alive.
+2. Through the browser, read five `GET /api/live` views at 3-second intervals
+   after the final timer wake. Read the dashboard Assessment.
+3. Select Threads, then All threads through browser controls. Read `MsgP-fast`.
+4. Check fixture counters and `/proc` as supporting evidence.
+
+Expected results: The same TID remains present, with `wake_ms = 1000`,
+`stale = false`, and a futex wait. `last_ran` stays fixed while `last_sample`
+advances. Elapsed time increases beyond 1 second. Healthy peers continue to
+advance. The All threads table shows the blocked worker as idle in a futex wait.
+Watch-specific dashboard warnings are outside PR #83; a Healthy assessment is
+not evidence that the collector missed the stopped wakeups.
+
+## QA-034: Watched thread stops waking
 
 Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 1.
 
@@ -720,7 +771,7 @@ raises no stopped-waking finding for the time it was paused. A recorded view use
 the recorded wake intervals and shows no "rule matches no thread" finding. With
 no rules, no watch finding or Watched line remains.
 
-## QA-032: Watched thread busy loop and rule with no match
+## QA-035: Watched thread busy loop and rule with no match
 
 Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 1.
 
@@ -750,7 +801,7 @@ Screenshots: [stopped waking](../screenshots/watch-assessment-stopped-waking.png
 [thread details](../screenshots/watch-thread-drawer-overdue.png) from a live run
 of the scenarios; this is not a recorded QA run.
 
-## QA-033: Edit, save and reset watched-thread rules in Settings
+## QA-036: Edit, save and reset watched-thread rules in Settings
 
 Feature: Settings tab, Watched threads. Priority: High. Case revision: 1.
 
@@ -801,7 +852,7 @@ warning and the config file rules. A refused save shows the collector's message
 unchanged and keeps the edits. An edit made while a read is pending stays, with
 the unsaved-edits warning. The Assessment is not changed by this case.
 
-## QA-034: Settings tab read-only states and help coverage
+## QA-037: Settings tab read-only states and help coverage
 
 Feature: Settings tab. Priority: Medium. Case revision: 1.
 
