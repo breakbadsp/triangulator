@@ -30,6 +30,12 @@ See [measurement limits](docs/measurement-limits.md) for interpretation constrai
 - [ ] Define the oldest supported kernel and test release binaries there.
   Document required kernel features and behavior when they are unavailable.
 
+## Dashboard history
+
+- [ ] Show past assessments, filterable by type and severity.
+- [ ] Click a past critical, serious or warning assessment to see the system
+  state at that time.
+
 ## Release QA
 
 - [ ] Test package upgrades when a second release is available.
