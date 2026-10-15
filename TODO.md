@@ -109,6 +109,12 @@ these need a core change, a privilege, or a decision.
 - [ ] Decide the severity of the deadlock and convoy hints: at info level
   the top badge still says "Healthy".
 
+## Dashboard history
+
+- [ ] Show past assessments, filterable by type and severity.
+- [ ] Click a past critical, serious or warning assessment to see the system
+  state at that time.
+
 ## Required before adding new resource sources
 
 - [ ] Define scope, identity, units, missing-data behavior, sampling budget,
