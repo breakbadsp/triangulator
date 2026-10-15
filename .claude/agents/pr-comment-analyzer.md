@@ -22,7 +22,7 @@ The orchestrator gives you the PR number and the worktree path of the PR branch.
 3. Do not accept a finding because its author sounds sure. Read the code path, or reproduce it. Do not reject a finding because the fix is inconvenient.
 4. Make minimal fixes. Do not add features or refactor unrelated code. `AGENTS.md` says to add core features only when requested.
 5. Before C++ edits, read `docs/cpp-coding-standards.md` and `$HOME/ai/conventions/cpp.md`. After C++ edits, run `make format`.
-6. Run the repository check command (`make check` for this repository) after your edits. It must pass before you push.
+6. Fix one finding at a time. After each fix, run the repository check command (`make check` for this repository). Commit only when it passes, then start the next fix. `AGENTS.md` requires each commit to build and pass `make check`, so a check of only the final tree is not enough.
 7. Commit each fix as an atomic commit. Explain the why in the message. Write the message to a file and use `git commit -F <file>`. End the message with:
 
        Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
@@ -37,4 +37,4 @@ The orchestrator gives you the PR number and the worktree path of the PR branch.
 
 ## Final message
 
-Report the counts per outcome, the commit SHAs, whether you changed code (yes or no), and the check result. Keep it under eight lines. List every `blocker` finding by ID and outcome.
+Report the counts per outcome, the commit SHAs, whether you changed code (yes or no), and the `make check` result for each commit. Keep it under eight lines. List every `blocker` finding by ID and outcome.
