@@ -1,0 +1,1625 @@
+{
+ "hoverHelpOn": true,
+ "sections": {
+  "Summary": {
+   "label": "Summary | H2. | Summary",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Process overview",
+    "scope": "Target process · summed thread observations",
+    "text": "Process overview Target process · summed thread observations A summary of the target process, computed from its reported threads. At 10/11/2026, 4:32:36 PM Browser trends are not the same as stored thread history. Missin"
+   }
+  },
+  "Threads": {
+   "label": "Threads | H2. | Threads (5)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Active threads",
+    "scope": "Threads · preceding ~10 seconds",
+    "text": "Active threads Threads · preceding ~10 seconds Threads with recent CPU use, context switches, or I/O. Blocked or stopped threads are not treated as idle. At 10/11/2026, 4:32:37 PM Idle does not mean exited. A sampling ga"
+   }
+  },
+  "Thread details": {
+   "label": "Thread details | H3. | Thread details",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Active threads",
+    "scope": "Threads · preceding ~10 seconds",
+    "text": "Active threads Threads · preceding ~10 seconds Threads with recent CPU use, context switches, or I/O. Blocked or stopped threads are not treated as idle. At 10/11/2026, 4:32:39 PM Idle does not mean exited. A sampling ga"
+   }
+  },
+  "Pressure": {
+   "label": "Pressure | H2. | Pressure, limits & sockets",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Pressure stalls (PSI)",
+    "scope": "Target cgroup · interval 2.0 s",
+    "text": "Pressure stalls (PSI) Target cgroup · interval 2.0 s Pressure stall information measures time tasks waited for CPU, memory, or I/O. At 10/11/2026, 4:32:38 PM The target cgroup can contain other processes. Host values cov"
+   }
+  },
+  "Socket I/O": {
+   "label": "Socket I/O | H2. | Socket I/O & message processing",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Socket I/O & message processing",
+    "scope": "Optional observer · target process",
+    "text": "Socket I/O & message processing Optional observer · target process Traffic measured by observed socket operations, with optional application completion counts. At 10/11/2026, 4:32:41 PM This observation may be stale. Sel"
+   }
+  },
+  "Memory map": {
+   "label": "Memory map | H2. | Memory map",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory map",
+    "scope": "Target process · virtual address space",
+    "text": "Memory map Target process · virtual address space The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits. At 10/11/2026, 4:32:43 PM Mapped memory is not resident memory. A l"
+   }
+  },
+  "Monitor": {
+   "label": "Monitor | H2. | Monitor",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Monitor health",
+    "scope": "Sampler and collector",
+    "text": "Monitor health Sampler and collector Connection status, sample timing, packet handling, and retained observations. At 10/11/2026, 4:32:44 PM A connected sampler does not guarantee complete data. Silence and packet loss c"
+   }
+  }
+ },
+ "memory": [
+  {
+   "label": "H2. | Memory map",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory map",
+    "scope": "Target process · virtual address space",
+    "text": "Memory map Target process · virtual address space The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits. At 10/11/2026, 4:32:46 PM Mapped memory is not resident memory. A l"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory map",
+    "scope": "Target process · virtual address space",
+    "text": "Memory map Target process · virtual address space The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits. At 10/11/2026, 4:32:47 PM Mapped memory is not resident memory. A l"
+   }
+  },
+  {
+   "label": "DIV.card tile | Virtual size (VmSize) 261.2 MiB limit: u",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. 261.2 MiB At 10/11/2026, 4:32:49 PM Virtual size is not memory use. Growth alone does not es"
+   }
+  },
+  {
+   "label": "DIV.label | Virtual size (VmSize)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. At 10/11/2026, 4:32:51 PM Virtual size is not memory use. Growth alone does not establish a "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. At 10/11/2026, 4:32:52 PM Virtual size is not memory use. Growth alone does not establish a "
+   }
+  },
+  {
+   "label": "DIV.card tile | Resident (RSS) 2.0 MiB peak 2.0 MiB · sw",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory (RSS)",
+    "scope": "Process · bytes in RAM",
+    "text": "Memory (RSS) Process · bytes in RAM Resident set size is the process memory currently held in RAM. 2.0 MiB At 10/11/2026, 4:32:54 PM Shared pages count in full. RSS differs from private memory and cgroup memory. Growth a"
+   }
+  },
+  {
+   "label": "DIV.label | Resident (RSS)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory (RSS)",
+    "scope": "Process · bytes in RAM",
+    "text": "Memory (RSS) Process · bytes in RAM Resident set size is the process memory currently held in RAM. At 10/11/2026, 4:32:55 PM Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone doe"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory (RSS)",
+    "scope": "Process · bytes in RAM",
+    "text": "Memory (RSS) Process · bytes in RAM Resident set size is the process memory currently held in RAM. At 10/11/2026, 4:32:57 PM Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone doe"
+   }
+  },
+  {
+   "label": "DIV.card tile | Anonymous / file / shared 0.2 / 1.8 / 0.",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Anonymous / file / shared",
+    "scope": "Process · resident bytes by kind",
+    "text": "Anonymous / file / shared Process · resident bytes by kind Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and RssShmem. 0.2 / 1.8 / 0.0 At 10/11"
+   }
+  },
+  {
+   "label": "DIV.label | Anonymous / file / shared",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Anonymous / file / shared",
+    "scope": "Process · resident bytes by kind",
+    "text": "Anonymous / file / shared Process · resident bytes by kind Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and RssShmem. At 10/11/2026, 4:33:00 P"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Anonymous / file / shared",
+    "scope": "Process · resident bytes by kind",
+    "text": "Anonymous / file / shared Process · resident bytes by kind Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and RssShmem. At 10/11/2026, 4:33:02 P"
+   }
+  },
+  {
+   "label": "DIV.card tile | Mappings (VMAs) 36 0.0% of vm.max_map_co",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. 36 At 10/11/2026, 4:33:03 PM Adjacent regions can merge "
+   }
+  },
+  {
+   "label": "DIV.label | Mappings (VMAs)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. At 10/11/2026, 4:33:05 PM Adjacent regions can merge or "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. At 10/11/2026, 4:33:06 PM Adjacent regions can merge or "
+   }
+  },
+  {
+   "label": "DIV.card tile | Major faults 0.0 /s 0 since start",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Major faults",
+    "scope": "Faults per second",
+    "text": "Major faults Faults per second Page faults that required I/O to bring a page into memory. 0.0 /s At 10/11/2026, 4:33:08 PM A major fault is not an application crash. A single fault does not prove memory pressure. Select "
+   }
+  },
+  {
+   "label": "DIV.label | Major faults",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Major faults",
+    "scope": "Faults per second",
+    "text": "Major faults Faults per second Page faults that required I/O to bring a page into memory. At 10/11/2026, 4:33:10 PM A major fault is not an application crash. A single fault does not prove memory pressure. Select the inf"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Major faults",
+    "scope": "Faults per second",
+    "text": "Major faults Faults per second Page faults that required I/O to bring a page into memory. At 10/11/2026, 4:33:11 PM A major fault is not an application crash. A single fault does not prove memory pressure. Select the inf"
+   }
+  },
+  {
+   "label": "DIV.card tile | Memory pressure (PSI some) 0.0% cgroup f",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Pressure stalls (PSI)",
+    "scope": "Displayed host or cgroup · time share",
+    "text": "Pressure stalls (PSI) Displayed host or cgroup · time share Pressure stall information measures time tasks waited for CPU, memory, or I/O. 0.0% At 10/11/2026, 4:33:13 PM The target cgroup can contain other processes. Hos"
+   }
+  },
+  {
+   "label": "DIV.label | Memory pressure (PSI some)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Pressure stalls (PSI)",
+    "scope": "Displayed host or cgroup · time share",
+    "text": "Pressure stalls (PSI) Displayed host or cgroup · time share Pressure stall information measures time tasks waited for CPU, memory, or I/O. At 10/11/2026, 4:33:14 PM The target cgroup can contain other processes. Host val"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Pressure stalls (PSI)",
+    "scope": "Displayed host or cgroup · time share",
+    "text": "Pressure stalls (PSI) Displayed host or cgroup · time share Pressure stall information measures time tasks waited for CPU, memory, or I/O. At 10/11/2026, 4:33:16 PM The target cgroup can contain other processes. Host val"
+   }
+  },
+  {
+   "label": "H3. | Findings",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory findings",
+    "scope": "Fixed rules applied in the browser",
+    "text": "Memory findings Fixed rules applied in the browser Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit. At 10/11/2026, 4:33:18 PM These are r"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory findings",
+    "scope": "Fixed rules applied in the browser",
+    "text": "Memory findings Fixed rules applied in the browser Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit. At 10/11/2026, 4:33:19 PM These are r"
+   }
+  },
+  {
+   "label": "LI.mem-finding | NOTICE Main stack is at 1.7% of its limi",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory findings",
+    "scope": "Fixed rules applied in the browser",
+    "text": "Memory findings Fixed rules applied in the browser Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit. At 10/11/2026, 4:33:21 PM These are r"
+   }
+  },
+  {
+   "label": "LI.mem-finding | OK Nothing unusual in the memory map Map",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory findings",
+    "scope": "Fixed rules applied in the browser",
+    "text": "Memory findings Fixed rules applied in the browser Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit. At 10/11/2026, 4:33:22 PM These are r"
+   }
+  },
+  {
+   "label": "H3. | Address space 16 regions · updated 31 s ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | [vsyscall] --xp · 4.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow on-dark | [stack] rw-p · 136.0 KiB · grows ↓",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | [anonymous] rw-p · 4.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow on-dark | ld-linux-x86-64.so.2 rwxp · 256.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | [vvar] [vvar_vclock] [vdso] r-xp r--p · ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | ld.so.cache r--p · 160.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | [anonymous] rw-p · 312.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow on-dark | libc.so.6 rwxp rw-p · 2.9 MiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | 2 anonymous regions rw-p · 256.0 MiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow on-dark | [heap] rw-p · 132.0 KiB · grows ↑",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow | [anonymous] rw-p · 1.3 MiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "BUTTON.arow on-dark | qa6c-fixture (probably the program) rwxp",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | program / library code",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | heap (brk)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | anonymous (arenas, mmap)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | stack",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | file mapping",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | guard (no access)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "SPAN. | kernel",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Address space map",
+    "scope": "Process · mappings, high addresses at the top",
+    "text": "Address space map Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar. At "
+   }
+  },
+  {
+   "label": "H3. | Zoom: [heap]",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:33:57 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:33:59 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "DIV. | Size (mapped) 132.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. 132.0 KiB At 10/11/2026, 4:34:00 PM The grid sho"
+   }
+  },
+  {
+   "label": "DT.help-fact | Size (mapped)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:02 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:03 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "DIV. | Address span 132.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. 132.0 KiB At 10/11/2026, 4:34:05 PM The grid sho"
+   }
+  },
+  {
+   "label": "DT.help-fact | Address span",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:06 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:08 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "DIV. | Regions / VMAs 1 / 1",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. 1 / 1 At 10/11/2026, 4:34:10 PM Adjacent regions can mer"
+   }
+  },
+  {
+   "label": "DT.help-fact | Regions / VMAs",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. At 10/11/2026, 4:34:11 PM Adjacent regions can merge or "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Mappings (VMAs)",
+    "scope": "Process · count and vm.max_map_count",
+    "text": "Mappings (VMAs) Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. At 10/11/2026, 4:34:13 PM Adjacent regions can merge or "
+   }
+  },
+  {
+   "label": "DIV. | Share of VmSize 0.0%",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. 0.0% At 10/11/2026, 4:34:14 PM Virtual size is not memory use. Growth alone does not establi"
+   }
+  },
+  {
+   "label": "DT.help-fact | Share of VmSize",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. At 10/11/2026, 4:34:16 PM Virtual size is not memory use. Growth alone does not establish a "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Virtual size (VmSize)",
+    "scope": "Process · mapped bytes",
+    "text": "Virtual size (VmSize) Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. At 10/11/2026, 4:34:18 PM Virtual size is not memory use. Growth alone does not establish a "
+   }
+  },
+  {
+   "label": "DIV. | Not mapped inside 0 B",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. 0 B At 10/11/2026, 4:34:19 PM The grid shows map"
+   }
+  },
+  {
+   "label": "DT.help-fact | Not mapped inside",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:21 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:22 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "DIV. | Largest unmapped gap 0 B",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Largest unmapped gap",
+    "scope": "Selected bar · complete current layout",
+    "text": "Largest unmapped gap Selected bar · complete current layout The longest uncovered address interval inside the selected bar. 0 B At 10/11/2026, 4:34:24 PM An unmapped gap is not an allocator free block. Incomplete, stale,"
+   }
+  },
+  {
+   "label": "DT.help-fact | Largest unmapped gap",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Largest unmapped gap",
+    "scope": "Selected bar · complete current layout",
+    "text": "Largest unmapped gap Selected bar · complete current layout The longest uncovered address interval inside the selected bar. At 10/11/2026, 4:34:26 PM An unmapped gap is not an allocator free block. Incomplete, stale, or "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Largest unmapped gap",
+    "scope": "Selected bar · complete current layout",
+    "text": "Largest unmapped gap Selected bar · complete current layout The longest uncovered address interval inside the selected bar. At 10/11/2026, 4:34:27 PM An unmapped gap is not an allocator free block. Incomplete, stale, or "
+   }
+  },
+  {
+   "label": "DIV. | Largest region 132.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. 132.0 KiB At 10/11/2026, 4:34:29 PM The grid sho"
+   }
+  },
+  {
+   "label": "DT.help-fact | Largest region",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:30 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:32 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "DIV. | Heap mapping size change 0 B in 2 min",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap size",
+    "scope": "Process · [heap] mapping over time",
+    "text": "Heap size Process · [heap] mapping over time The size of the brk heap. It grows up when the allocator calls brk. At 10/11/2026, 4:34:33 PM Many allocators also use mmap arenas. Size change uses samples collected while th"
+   }
+  },
+  {
+   "label": "DT.help-fact | Heap mapping size change",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap size",
+    "scope": "Process · [heap] mapping over time",
+    "text": "Heap size Process · [heap] mapping over time The size of the brk heap. It grows up when the allocator calls brk. At 10/11/2026, 4:34:36 PM Many allocators also use mmap arenas. Size change uses samples collected while th"
+   }
+  },
+  {
+   "label": "DIV. | Page size 4.0 KiB",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. 4.0 KiB At 10/11/2026, 4:34:38 PM The grid shows"
+   }
+  },
+  {
+   "label": "DT.help-fact | Page size",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:40 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:41 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "SPAN. | Heap display margin",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap display margin",
+    "scope": "Heap zoom · extended display range",
+    "text": "Heap display margin Heap zoom · extended display range The grid includes a small margin above the page-aligned heap mapping end. Neighboring mappings keep their own colors. At 10/11/2026, 4:34:43 PM The margin is capped "
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap display margin",
+    "scope": "Heap zoom · extended display range",
+    "text": "Heap display margin Heap zoom · extended display range The grid includes a small margin above the page-aligned heap mapping end. Neighboring mappings keep their own colors. At 10/11/2026, 4:34:44 PM The margin is capped "
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee1e000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:46 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee1f000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:48 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee20000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:49 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee21000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:51 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee22000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:52 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee23000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:54 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee24000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:55 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee25000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:57 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee26000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:34:59 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee27000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:00 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee28000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:02 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee29000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:03 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2a000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:05 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2b000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:07 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2c000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:08 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2d000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:10 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2e000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:11 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee2f000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:13 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee30000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:14 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee31000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:16 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee32000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:18 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee33000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:19 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee34000",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee35000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:22 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee36000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:24 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee37000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:25 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee38000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:27 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee39000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:29 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee3a000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:30 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee3b000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:32 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee3c000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:33 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee3d000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:35 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I. | [heap] · rw-p 0x5ff8cee3e000",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:37 PM [heap] · rw-p 0x5ff8ce"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:38 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:40 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:41 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:43 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:44 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:46 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:48 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:49 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:51 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:52 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:54 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:56 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:57 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:35:59 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:36:00 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "I.cell-none | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:36:02 PM not mapped The grid sh"
+   }
+  },
+  {
+   "label": "SPAN. | heap (brk)",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:36:03 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "SPAN. | not mapped",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Region zoom",
+    "scope": "Selected address-space bar",
+    "text": "Region zoom Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. At 10/11/2026, 4:36:05 PM The grid shows mapping"
+   }
+  },
+  {
+   "label": "H3. | Heap mapping end ↑",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap mapping end",
+    "scope": "Process · page-aligned heap boundary",
+    "text": "Heap mapping end Process · page-aligned heap boundary The upper address of the heap mapping, plotted as a byte offset from the first available sample in this chart. At 10/11/2026, 4:36:07 PM This is not the exact program"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Heap mapping end",
+    "scope": "Process · page-aligned heap boundary",
+    "text": "Heap mapping end Process · page-aligned heap boundary The upper address of the heap mapping, plotted as a byte offset from the first available sample in this chart. At 10/11/2026, 4:36:08 PM This is not the exact program"
+   }
+  },
+  {
+   "label": "H3. | Main stack start ↓",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Main stack start",
+    "scope": "Main thread · lower mapping boundary",
+    "text": "Main stack start Main thread · lower mapping boundary The lower address of the main stack mapping, plotted as an offset from the first available sample in this chart. At 10/11/2026, 4:36:10 PM The mapping boundary does n"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Main stack start",
+    "scope": "Main thread · lower mapping boundary",
+    "text": "Main stack start Main thread · lower mapping boundary The lower address of the main stack mapping, plotted as an offset from the first available sample in this chart. At 10/11/2026, 4:36:11 PM The mapping boundary does n"
+   }
+  },
+  {
+   "label": "H3. | Resident anonymous",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Resident anonymous",
+    "scope": "Process · RssAnon over time",
+    "text": "Resident anonymous Process · RssAnon over time Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory. At 10/11/2026, 4:36:13 PM Swapped anonymous pages leave this total. The chart covers"
+   }
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Resident anonymous",
+    "scope": "Process · RssAnon over time",
+    "text": "Resident anonymous Process · RssAnon over time Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory. At 10/11/2026, 4:36:15 PM Swapped anonymous pages leave this total. The chart covers"
+   }
+  },
+  {
+   "label": "SPAN.help-label | Thread stacks",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Thread stacks",
+    "scope": "Other threads · reserved mappings and residency",
+    "text": "Thread stacks Other threads · reserved mappings and residency Common pthread stacks reserve a fixed address range. The number of resident pages can change inside that range. At 10/11/2026, 4:36:16 PM Other runtimes can m"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Thread stacks",
+    "scope": "Other threads · reserved mappings and residency",
+    "text": "Thread stacks Other threads · reserved mappings and residency Common pthread stacks reserve a fixed address range. The number of resident pages can change inside that range. At 10/11/2026, 4:36:18 PM Other runtimes can m"
+   }
+  },
+  {
+   "label": "SUMMARY.help-label | Member regions",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory regions",
+    "scope": "Selected bar · mappings",
+    "text": "Memory regions Selected bar · mappings The regions in the selected bar, with their start address, size, permissions, and VMA count. At 10/11/2026, 4:36:19 PM Only the first 300 regions are listed. Permissions are the uni"
+   }
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory regions",
+    "scope": "Selected bar · mappings",
+    "text": "Memory regions Selected bar · mappings The regions in the selected bar, with their start address, size, permissions, and VMA count. At 10/11/2026, 4:36:21 PM Only the first 300 regions are listed. Permissions are the uni"
+   }
+  },
+  {
+   "label": "TH. | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "TH. | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "TH.num | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "TH. | Union of the mappings' permissions",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "TH.num | Mappings (VMAs) in this region",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button help-quiet | ",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "TD. | [heap]",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory limits & headroom",
+    "scope": "Process and host limits as labeled",
+    "text": "Memory limits & headroom Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. At 10/11/2026, 4:36:37 PM No configur"
+   }
+  },
+  {
+   "label": "H3. | Limits & headroom",
+   "openedBefore0_8s": false,
+   "card": null
+  },
+  {
+   "label": "BUTTON.help-button | ",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Memory limits & headroom",
+    "scope": "Process and host limits as labeled",
+    "text": "Memory limits & headroom Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. At 10/11/2026, 4:36:40 PM No configur"
+   }
+  }
+ ],
+ "buttons": [
+  {
+   "i": 0,
+   "title": "Memory map",
+   "body": "Target process · virtual address space The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits. How to read it Sta",
+   "open": true
+  },
+  {
+   "i": 1,
+   "title": "Virtual size (VmSize)",
+   "body": "Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. Example A 1 GB reservation that is never touched adds ",
+   "open": true
+  },
+  {
+   "i": 2,
+   "title": "Memory (RSS)",
+   "body": "Process · bytes in RAM Resident set size is the process memory currently held in RAM. How to read it Compare current RSS with its peak, swap use, and growth. Us",
+   "open": true
+  },
+  {
+   "i": 3,
+   "title": "Anonymous / file / shared",
+   "body": "Process · resident bytes by kind Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and ",
+   "open": true
+  },
+  {
+   "i": 4,
+   "title": "Mappings (VMAs)",
+   "body": "Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. How to read ",
+   "open": true
+  },
+  {
+   "i": 5,
+   "title": "Major faults",
+   "body": "Faults per second Page faults that required I/O to bring a page into memory. Example 2/s means two major page faults per elapsed second. How to read it Compare ",
+   "open": true
+  },
+  {
+   "i": 6,
+   "title": "Pressure stalls (PSI)",
+   "body": "Displayed host or cgroup · time share Pressure stall information measures time tasks waited for CPU, memory, or I/O. Example Some: at least one task waited. Ful",
+   "open": true
+  },
+  {
+   "i": 7,
+   "title": "Memory findings",
+   "body": "Fixed rules applied in the browser Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its ",
+   "open": true
+  },
+  {
+   "i": 8,
+   "title": "Address space map",
+   "body": "Process · mappings, high addresses at the top One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a lo",
+   "open": true
+  },
+  {
+   "i": 9,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 10,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 11,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 12,
+   "title": "Mappings (VMAs)",
+   "body": "Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. How to read ",
+   "open": true
+  },
+  {
+   "i": 13,
+   "title": "Virtual size (VmSize)",
+   "body": "Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. Example A 1 GB reservation that is never touched adds ",
+   "open": true
+  },
+  {
+   "i": 14,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 15,
+   "title": "Largest unmapped gap",
+   "body": "Selected bar · complete current layout The longest uncovered address interval inside the selected bar. Example Two mappings separated by 64 KiB have a 64 KiB ga",
+   "open": true
+  },
+  {
+   "i": 16,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 17,
+   "title": "Heap size",
+   "body": "Process · [heap] mapping over time The size of the brk heap. It grows up when the allocator calls brk. How to read it A sustained rise, together with RSS growth",
+   "open": true
+  },
+  {
+   "i": 18,
+   "title": "Region zoom",
+   "body": "Selected address-space bar The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address. ",
+   "open": true
+  },
+  {
+   "i": 19,
+   "title": "Heap display margin",
+   "body": "Heap zoom · extended display range The grid includes a small margin above the page-aligned heap mapping end. Neighboring mappings keep their own colors. How to ",
+   "open": true
+  },
+  {
+   "i": 20,
+   "title": "Heap mapping end",
+   "body": "Process · page-aligned heap boundary The upper address of the heap mapping, plotted as a byte offset from the first available sample in this chart. Example An o",
+   "open": true
+  },
+  {
+   "i": 21,
+   "title": "Main stack start",
+   "body": "Main thread · lower mapping boundary The lower address of the main stack mapping, plotted as an offset from the first available sample in this chart. Example An",
+   "open": true
+  },
+  {
+   "i": 22,
+   "title": "Resident anonymous",
+   "body": "Process · RssAnon over time Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory. How to read it A sustained slope, shown per",
+   "open": true
+  },
+  {
+   "i": 23,
+   "title": "Thread stacks",
+   "body": "Other threads · reserved mappings and residency Common pthread stacks reserve a fixed address range. The number of resident pages can change inside that range. ",
+   "open": true
+  },
+  {
+   "i": 24,
+   "title": "Memory regions",
+   "body": "Selected bar · mappings The regions in the selected bar, with their start address, size, permissions, and VMA count. Example r-xp is readable, executable, and p",
+   "open": true
+  },
+  {
+   "i": 25,
+   "error": "TimeoutError: elementHandle.hover: Timeout 30000ms exceeded.\nCall log:\n  - attempting hover action\n "
+  },
+  {
+   "i": 26,
+   "error": "TimeoutError: elementHandle.hover: Timeout 30000ms exceeded.\nCall log:\n  - attempting hover action\n "
+  },
+  {
+   "i": 27,
+   "error": "TimeoutError: elementHandle.hover: Timeout 30000ms exceeded.\nCall log:\n  - attempting hover action\n "
+  },
+  {
+   "i": 28,
+   "error": "TimeoutError: elementHandle.hover: Timeout 30000ms exceeded.\nCall log:\n  - attempting hover action\n "
+  },
+  {
+   "i": 29,
+   "error": "TimeoutError: elementHandle.hover: Timeout 30000ms exceeded.\nCall log:\n  - attempting hover action\n "
+  },
+  {
+   "i": 30,
+   "title": "Memory limits & headroom",
+   "body": "Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. Ho",
+   "open": true
+  },
+  {
+   "i": 31,
+   "title": "Mappings (VMAs)",
+   "body": "Process · count and vm.max_map_count The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit. How to read ",
+   "open": true
+  },
+  {
+   "i": 32,
+   "title": "Address space limit",
+   "body": "Process · RLIMIT_AS Virtual size compared with the RLIMIT_AS resource limit. How to read it At the limit, mmap() and malloc() fail even when RAM is free. Measur",
+   "open": true
+  },
+  {
+   "i": 33,
+   "title": "Main stack",
+   "body": "Main thread · [stack] mapping and RLIMIT_STACK The size of the main thread stack mapping. It grows down when a page fault touches below it. How to read it Compa",
+   "open": true
+  },
+  {
+   "i": 34,
+   "title": "Virtual size (VmSize)",
+   "body": "Process · mapped bytes The total size of every mapping in the address space, whether or not it is in RAM. Example A 1 GB reservation that is never touched adds ",
+   "open": true
+  },
+  {
+   "i": 35,
+   "title": "Data + heap (VmData)",
+   "body": "Process · VmData from /proc/PID/status The size of the process's private data segments: the brk heap, the data and BSS segments, and private writable mmap memor",
+   "open": true
+  },
+  {
+   "i": 36,
+   "title": "Memory limits & headroom",
+   "body": "Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. Ho",
+   "open": true
+  },
+  {
+   "i": 37,
+   "title": "Memory limits & headroom",
+   "body": "Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. Ho",
+   "open": true
+  },
+  {
+   "i": 38,
+   "title": "Page faults since start",
+   "body": "Process · cumulative count since the process started Total major and minor page faults since the process started. A major fault needed I/O to bring a page in; a",
+   "open": true
+  },
+  {
+   "i": 39,
+   "title": "Memory limits & headroom",
+   "body": "Process and host limits as labeled Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters. Ho",
+   "open": true
+  }
+ ],
+ "messages": [
+  {
+   "label": "Idle thread row / message",
+   "error": "not present: #threads td[colspan]"
+  },
+  {
+   "label": "Socket queued data message | TD. | The target has no sockets the sampler co",
+   "openedBefore0_8s": false,
+   "card": {
+    "title": "Bytes waiting in the target's sockets",
+    "scope": "Target sockets · bytes · interval 2.0 s",
+    "text": "Bytes waiting in the target's sockets Target sockets · bytes · interval 2.0 s Data queued in the target sockets for receiving or sending. The target has no sockets the sampler could list. The target has no sockets the sa"
+   }
+  },
+  {
+   "label": "Socket I/O empty | DIV.socket-empty | Socket report helper unavailable. Instal",
+   "openedBefore0_8s": false,
+   "card": null
+  }
+ ],
+ "memoryCandidates": 177,
+ "keyboardFocus": "Memory map",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

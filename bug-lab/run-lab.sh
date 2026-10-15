@@ -7,14 +7,14 @@
 #   TRIANGULATOR_HOME  runtime directory (default ~/triangulator-lab); the
 #                      sampler must already be configured and running there
 #   HTTP_PORT          collector HTTP port (default 19401)
-#   OUT                output directory (default build/bug-lab)
+#   OUT                output directory (default docs/screenshots/bug-lab)
 #   HOLD               seconds before the screenshot (default 70, thread-leak 165)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export TRIANGULATOR_HOME="${TRIANGULATOR_HOME:-$HOME/triangulator-lab}"
 port="${HTTP_PORT:-19401}"
-out="${OUT:-$root/build/bug-lab}"
+out="${OUT:-$root/docs/screenshots/bug-lab}"
 if [[ -n ${HOLD+x} ]] && [[ ! $HOLD =~ ^[1-9][0-9]{0,3}$ || $HOLD -lt 26 || $HOLD -gt 3600 ]]; then
     echo "HOLD must be an integer from 26 to 3600 seconds" >&2
     exit 2

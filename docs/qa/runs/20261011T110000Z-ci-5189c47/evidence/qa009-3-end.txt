@@ -1,0 +1,14 @@
+$ status after mem-oom exit
+Scenario: mem-oom
+Process: stopped
+Service result: oom-kill
+Duration: 600 seconds
+Log: /tmp/qa-6c3ba7cd/bbhome/bugbench-session/triangular-bugbench-553151f8ef6440dd937f8de3098b2d7c.log
+Command: systemd-run --user --unit=triangular-bugbench-553151f8ef6440dd937f8de3098b2d7c --property=Type=exec --property=RuntimeMaxSec=600 --property=MemoryMax=256M --property=MemorySwapMax=0 --property=StandardOutput=append:/tmp/qa-6c3ba7cd/bbhome/bugbench-session/triangular-bugbench-553151f8ef6440dd937f8de3098b2d7c.log --property=StandardError=append:/tmp/qa-6c3ba7cd/bbhome/bugbench-session/triangular-bugbench-553151f8ef6440dd937f8de3098b2d7c.log --setenv=BUG_LAB_DIR=/var/tmp/triangular-bugbench-jvvmazgp /tmp/qa-6c3ba7cd/bbhome/bin/bugbench mem-oom 600
+$ target in sampler config (helper must not change it)
+target_pid = 2174248
+$ stop
+Session process stopped. Scenario position is saved.
+bugbench units left: 1
+unrelated: active
+cleanup stopped own unrelated test service

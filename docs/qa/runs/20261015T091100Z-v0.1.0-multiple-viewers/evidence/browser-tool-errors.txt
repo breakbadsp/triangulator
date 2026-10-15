@@ -1,0 +1,10 @@
+T3 browser tools, 2026-10-15 UTC.
+Initial navigate and snapshot calls failed while the first test shell had ended its background programs. The startup shell was then kept open. Both navigations worked.
+preview_snapshot failed repeatedly after successful navigation, for tab_3 and tab_4, with includeImage false, includeImage true and save true:
+Preview snapshot failed: Preview automation snapshot failed on client preview-3390980e57b6b5f088f788fbf30179a6.
+Focused CSS click/type calls and read-only preview_evaluate then worked. A text locator click failed. One type retry targeted a closed form and failed; opening the form restored interaction.
+After target tests, preview_recording_start returned:
+Preview automation recordingStart timed out after 15000ms.
+The next preview_snapshot returned PreviewAutomationNoAvailableHostError:
+No preview automation host is available for snapshot in environment d3b48db2-5acd-4ec7-907b-985ce2bc936e. Preview tools run in a T3 Code desktop app that is open and connected to this environment; a headless server has no browser of its own. Do not retry.
+No screenshot or recording was saved. Saved JSON files contain read-only browser DOM and resource timing observations. Console and complete network diagnostics were unavailable because snapshots failed.

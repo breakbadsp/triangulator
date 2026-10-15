@@ -1,0 +1,78 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://localhost:19401/"
+  },
+  "value": {
+    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.45 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "header": "Triangulator\nbb-cpu-spin PID 2209953 · Live · just now\nChange target\nOverview\nResources\nMemory\nThreads\nSockets\nMonitor\n◐\nChange target\n\nEnter an exact process name or PID. A process name follows the process when it restarts. Changes are saved and app",
+    "requests": [
+      {
+        "duration": 2.899999976158142,
+        "name": "http://localhost:19401/api/socket-io?pid=2209953",
+        "start": 63132.5
+      },
+      {
+        "duration": 2.799999952316284,
+        "name": "http://localhost:19401/api/live",
+        "start": 63911.89999997616
+      },
+      {
+        "duration": 4.100000023841858,
+        "name": "http://localhost:19401/api/live",
+        "start": 64931.699999928474
+      },
+      {
+        "duration": 1.600000023841858,
+        "name": "http://localhost:19401/api/live",
+        "start": 65958.69999992847
+      },
+      {
+        "duration": 3.3000000715255737,
+        "name": "http://localhost:19401/api/socket-io?pid=2209953",
+        "start": 66136.59999990463
+      },
+      {
+        "duration": 4.600000023841858,
+        "name": "http://localhost:19401/api/live",
+        "start": 66981.79999995232
+      },
+      {
+        "duration": 2.6999999284744263,
+        "name": "http://localhost:19401/api/resources?start=1792054630.494&end=1792055530.494",
+        "start": 67228
+      },
+      {
+        "duration": 4,
+        "name": "http://localhost:19401/api/live",
+        "start": 68018
+      },
+      {
+        "duration": 2.700000047683716,
+        "name": "http://localhost:19401/api/live",
+        "start": 69036.59999990463
+      },
+      {
+        "duration": 2.5,
+        "name": "http://localhost:19401/api/socket-io?pid=2209953",
+        "start": 69140.69999992847
+      },
+      {
+        "duration": 1.899999976158142,
+        "name": "http://localhost:19401/api/live",
+        "start": 70055.5
+      },
+      {
+        "duration": 3.399999976158142,
+        "name": "http://localhost:19401/api/live",
+        "start": 71073.29999995232
+      }
+    ],
+    "search": "",
+    "target": "2209953",
+    "text": "Triangulator\nbb-cpu-spin PID 2209953 · Live · just now\nChange target\nOverview\nResources\nMemory\nThreads\nSockets\nMonitor\n◐\nChange target\n\nEnter an exact process name or PID. A process name follows the process when it restarts. Changes are saved and apply without restarting the sampler.\n\nProcess name or PID\nMonitor\nClose\n\nReload requested. The dashboard will update when the sampler reports.\n\nInspect a moment\n\nChoose a local date and time to inspect the recorded process and every thread.\n\nLive\nInspect time\n← Previous\nNext →\nLatest recording\n\nLive view. Recordings begin when this collector receives a sampler session.\n\nAvailable recordings: 10/15/2026, 2:40:28 PM – 10/15/2026, 2:41:02 PM. Recording interval: 1 s (limited by dashboard refresh cadence).\n\nProcess overview\n\nHow bb-cpu-spin is behaving, summed over its 5 threads. Trends kept in this tab since 02:42:02 PM.\n\n1 min\n5 min\n15 min\nProcess load\n\nThe system load average, for this process only: threads on a CPU, plus threads waiting for one, plus threads stuck in uninterruptible kernel wait. 1.00 is one core's worth of demand.\n\n1.00\n1-minute load\n5 min\n1.00\n15 min (9 s of data)\n1.00\nOn CPU now\n0.96 cores\nWaiting for CPU\n3.3% of demand\nBusiest thread\nworker-hot · 96.4%\n0\n1\n2\n02:42:02 PM\n02:42:07 PM\n02:42:11 PM\nOn CPU\n0.96\nWaiting for CPU\n0.03\n1-min average\nAssessment\nas of 02:42:11 PM\nSomething is struggling\n\n4 of 5 threads are waiting: 4 sleep. 1 thread is busy (≥1% CPU).\n\n▲\nworker-hot is saturating a core\nTID 2209959 uses 96.4% of one core. Work that needs this thread will queue behind it.\nActive threads\n5\nof 5 · 0 idle for 10 s+\nContext switches\n330/s\n66.1/s per active thread\nDisk & syscall I/O\n0 B/s\nread 0 B/s · write 0 B/s\nWhat the threads are doing\n\nThread count by latest state, stacked. Hover to read a moment.\n\n0\n3\n5\n02:42:02 PM\n02:42:07 PM\n02:42:11 PM\nRunning\n1\nSleep\n4\nWhere threads wait\n\nKernel wait channels right now. Click to filter the thread table.\n\nhrtimer_nanosleep\n4\nThread map\n\nOne tile per thread (5), grouped by current state, busiest now first. Click a tile for details.\n\nNow\n1 min\n5 min\n15 min\n96%\n<0",
+    "title": "bb-cpu-spin · Triangulator",
+    "url": "http://localhost:19401/",
+    "utc": "2026-10-15T09:12:15.161Z"
+  }
+}

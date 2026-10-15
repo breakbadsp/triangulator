@@ -1,0 +1,31 @@
+import { open, save, sleep, text } from './lib.mjs';
+const { browser, page, diag } = await open();
+await page.goto('http://127.0.0.1:19861/'); await sleep(4000);
+const out = {};
+out.rows = await page.evaluate(() => [...document.querySelectorAll('#threads tr')].map(r => r.innerText.replace(/\s+/g,' ').slice(0,100)));
+await save(page, 'qa005-0-live');
+// 1: open drawer via first thread row
+const row = page.locator('#threads tr').first();
+await row.click(); await sleep(2500);
+out.drawerOpen = await page.evaluate(() => ({title: document.getElementById('history-title').innerText, meta: document.getElementById('drawer-meta').innerText, vis: document.getElementById('drawer').getBoundingClientRect().width>0, tiles: document.getElementById('drawer-tiles').innerText.replace(/\s+/g,' ').slice(0,300)}));
+await save(page, 'qa005-1-drawer');
+await page.click('#drawer-close'); await sleep(500);
+// 2: replay
+out.bounds = await page.innerText('#replay-bounds');
+const t1 = await page.inputValue('#replay-time');
+await page.click('#replay-latest'); await sleep(3000);
+out.afterLatest = {time: await page.inputValue('#replay-time'), note: await page.innerText('#replay-note'), head: await page.innerText('#target-meta')};
+await save(page, 'qa005-2a-replay-latest');
+await page.click('#replay-previous'); await sleep(3000);
+out.afterPrev = {time: await page.inputValue('#replay-time'), note: await page.innerText('#replay-note'), head: await page.innerText('#target-meta')};
+await save(page, 'qa005-2-replay-a');
+out.rowsA = await page.evaluate(() => [...document.querySelectorAll('#threads tr')].map(r => r.innerText.replace(/\s+/g,' ').slice(0,100)));
+await page.locator('#threads tr').first().click(); await sleep(2500);
+out.replayDrawer = await page.evaluate(() => ({title: document.getElementById('history-title').innerText, meta: document.getElementById('drawer-meta').innerText, note: document.getElementById('history-note').innerText, from: document.getElementById('from').value, to: document.getElementById('to').value, rows: document.querySelectorAll('#history-rows tr').length}));
+await save(page, 'qa005-3-replay-drawer');
+await page.click('#drawer-close'); await sleep(500);
+await page.click('#replay-live'); await sleep(4000);
+out.live = {note: await page.innerText('#replay-note'), head: await page.innerText('#target-meta'), time: await page.inputValue('#replay-time')};
+await save(page, 'qa005-4-live-again');
+console.log(JSON.stringify(out,null,1)); console.log('DIAG', JSON.stringify(diag));
+await browser.close();

@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1180" viewBox="0 0 1500 1180" role="img" aria-labelledby="title desc">
+<title id="title">Triangulator contextual help design</title><desc id="desc">Separate proposed interface states. A dashboard cell shows a help card after a 1.2-second hover. Selecting its information button opens a detailed guide. Dark theme and touch examples appear below. All values are illustrative. This is a static design, not a working dashboard.</desc>
+<defs><filter id="shadow" x="-25%" y="-25%" width="160%" height="170%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#182b49" flood-opacity=".14"/></filter></defs>
+<g font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+<rect x="0" y="0" width="1500" height="1180" rx="0" fill="#eef1f5" stroke="#eef1f5" />
+<text x="40" y="42" font-size="12" fill="#1c5cab" font-weight="650" letter-spacing="1.6">TRIANGULATOR  /  DESIGN PROPOSAL</text>
+<text x="40" y="88" font-size="40" fill="#0b0b0b" font-weight="650" >Understand each metric.</text>
+<text x="40" y="119" font-size="17" fill="#4a4f58" font-weight="400" >Pause for a short explanation. Open a guide for the full meaning.</text>
+<rect x="1250" y="55" width="210" height="26" rx="13" fill="#ffffff" stroke="#ffffff" />
+<text x="1262" y="73" font-size="12" fill="#4a4f58" font-weight="600" >DESIGN ONLY · NO CODE</text>
+<text x="40" y="162" font-size="12" fill="#4a4f58" font-weight="650" letter-spacing="1">01  PAUSE FOR HELP</text>
+<text x="976" y="162" font-size="12" fill="#4a4f58" font-weight="650" letter-spacing="1">02  SELECT THE INFORMATION BUTTON</text>
+<rect x="40" y="180" width="902" height="574" rx="14" fill="#f4f5f7" stroke="#dce1e8" />
+<rect x="40" y="180" width="902" height="52" rx="14" fill="#ffffff" stroke="#dce1e8" />
+<text x="60" y="213" font-size="16" fill="#0b0b0b" font-weight="650" >△ Triangulator</text>
+<rect x="218" y="193" width="155" height="26" rx="13" fill="#f7f8fa" stroke="#f7f8fa" />
+<text x="230" y="211" font-size="12" fill="#006300" font-weight="600" >●  worker-service</text>
+<text x="601" y="212" font-size="13" fill="#1c5cab" font-weight="600" >Overview</text>
+<text x="688" y="212" font-size="13" fill="#4a4f58" font-weight="400" >Resources</text>
+<text x="781" y="212" font-size="13" fill="#4a4f58" font-weight="400" >Threads</text>
+<text x="864" y="212" font-size="16" fill="#4a4f58" font-weight="400" >◐</text>
+<text x="62" y="261" font-size="18" fill="#0b0b0b" font-weight="600" >Process overview</text>
+<text x="62" y="285" font-size="13" fill="#4a4f58" font-weight="400" >Process metrics · Live</text>
+<rect x="62" y="302" width="536" height="156" rx="12" fill="#ffffff" stroke="#e4e6ea" />
+<text x="80" y="328" font-size="14" fill="#0b0b0b" font-weight="600" >Process load</text>
+<circle cx="186" cy="323" r="8" fill="none" stroke="#1c5cab"/>
+<text x="186" y="327" font-size="12" fill="#1c5cab" font-weight="600" text-anchor="middle">i</text>
+<text x="80" y="375" font-size="36" fill="#0b0b0b" font-weight="600" >1.24</text>
+<text x="80" y="399" font-size="13" fill="#4a4f58" font-weight="400" >1-minute load</text>
+<text x="223" y="333" font-size="12" fill="#4a4f58" font-weight="400" >On CPU now</text>
+<text x="223" y="358" font-size="19" fill="#0b0b0b" font-weight="600" >0.92 cores</text>
+<text x="391" y="333" font-size="12" fill="#4a4f58" font-weight="400" >Waiting for CPU</text>
+<text x="391" y="358" font-size="19" fill="#0b0b0b" font-weight="600" >0.24 cores</text>
+<path d="M224 428H578" stroke="#e4e6ea" fill="none" />
+<path d="M224 417 L248 415 L267 422 L290 412 L312 416 L329 397 L352 405 L374 401 L398 411 L420 398 L442 405 L463 383 L484 400 L508 390 L529 394 L552 382 L578 388" fill="none" stroke="#2a78d6" stroke-width="2.5"/>
+<rect x="612" y="302" width="308" height="156" rx="12" fill="#ffffff" stroke="#e4e6ea" />
+<text x="630" y="328" font-size="14" fill="#0b0b0b" font-weight="600" >Assessment</text>
+<circle cx="724" cy="323" r="8" fill="none" stroke="#1c5cab"/>
+<text x="724" y="327" font-size="12" fill="#1c5cab" font-weight="600" text-anchor="middle">i</text>
+<rect x="630" y="345" width="174" height="26" rx="13" fill="#fff4d9" stroke="#fff4d9" />
+<text x="642" y="363" font-size="12" fill="#765007" font-weight="600" >CPU demand observed</text>
+<text x="630" y="396" font-size="13" fill="#4a4f58" font-weight="400" >Compare CPU use with run delay.</text>
+<text x="630" y="418" font-size="13" fill="#4a4f58" font-weight="400" >Check pressure for more context.</text>
+<text x="62" y="491" font-size="18" fill="#0b0b0b" font-weight="600" >Threads</text>
+<text x="158" y="490" font-size="13" fill="#4a4f58" font-weight="400" >Latest sample · 3 shown</text>
+<rect x="62" y="509" width="858" height="194" rx="12" fill="#ffffff" stroke="#e4e6ea" />
+<rect x="63" y="510" width="856" height="38" rx="12" fill="#f7f8fa" stroke="#f7f8fa" />
+<text x="78" y="534" font-size="12" fill="#4a4f58" font-weight="600" >Thread</text>
+<text x="258" y="534" font-size="12" fill="#4a4f58" font-weight="600" >State</text>
+<text x="386" y="534" font-size="12" fill="#4a4f58" font-weight="600" >CPU</text>
+<text x="451" y="534" font-size="12" fill="#1c5cab" font-weight="600" >Run delay</text>
+<circle cx="532" cy="529" r="8" fill="none" stroke="#1c5cab"/>
+<text x="532" y="533" font-size="12" fill="#1c5cab" font-weight="600" text-anchor="middle">i</text>
+<path d="M451 539H516" stroke="#1c5cab" fill="none" stroke-dasharray="1 3"/>
+<text x="594" y="534" font-size="12" fill="#4a4f58" font-weight="400" >Switches/s</text>
+<text x="716" y="534" font-size="12" fill="#4a4f58" font-weight="400" >Read/s</text>
+<text x="826" y="534" font-size="12" fill="#4a4f58" font-weight="400" >Core</text>
+<rect x="63" y="548" width="856" height="48" rx="0" fill="#f1f6fc" stroke="#f1f6fc" />
+<text x="78" y="569" font-size="13" fill="#0b0b0b" font-weight="600" >worker-04</text>
+<text x="78" y="586" font-size="11" fill="#4a4f58" font-weight="400" >TID 4821</text>
+<text x="258" y="577" font-size="13" fill="#1c5cab" font-weight="400" >Running</text>
+<text x="386" y="577" font-size="13" fill="#0b0b0b" font-weight="400" >68.0%</text>
+<rect x="455" y="556" width="78" height="31" rx="6" fill="#e4effd" stroke="#b2cef0" />
+<text x="469" y="577" font-size="14" fill="#1c5cab" font-weight="600" >12.0%</text>
+<text x="594" y="577" font-size="13" fill="#4a4f58" font-weight="400" >248</text>
+<text x="716" y="577" font-size="13" fill="#4a4f58" font-weight="400" >64 KiB/s</text>
+<text x="839" y="577" font-size="13" fill="#4a4f58" font-weight="400" >3</text>
+<text x="78" y="618" font-size="13" fill="#0b0b0b" font-weight="400" >worker-05</text>
+<text x="258" y="618" font-size="13" fill="#4a4f58" font-weight="400" >Futex wait</text>
+<text x="386" y="618" font-size="13" fill="#4a4f58" font-weight="400" >18.0%</text>
+<text x="469" y="618" font-size="13" fill="#4a4f58" font-weight="400" >4.0%</text>
+<path d="M78 637H900" stroke="#e4e6ea" fill="none" />
+<text x="78" y="665" font-size="13" fill="#0b0b0b" font-weight="400" >worker-06</text>
+<text x="258" y="665" font-size="13" fill="#4a4f58" font-weight="400" >Poll / epoll</text>
+<text x="386" y="665" font-size="13" fill="#4a4f58" font-weight="400" >6.0%</text>
+<text x="469" y="665" font-size="13" fill="#4a4f58" font-weight="400" >0.0%</text>
+<rect x="554" y="467" width="366" height="233" rx="12" fill="#ffffff" stroke="#c7d6e8" filter="url(#shadow)"/>
+<path d="M554 562 L546 570 L554 578" fill="#ffffff" stroke="#c7d6e8"/>
+<text x="572" y="495" font-size="16" fill="#0b0b0b" font-weight="600" >Run delay</text>
+<text x="572" y="519" font-size="13" fill="#4a4f58" font-weight="600" letter-spacing=".4">THREAD · SHARE OF ELAPSED TIME</text>
+<text x="572" y="545" font-size="14" fill="#4a4f58" font-weight="400" >Time this thread was ready to run</text>
+<text x="572" y="567" font-size="14" fill="#4a4f58" font-weight="400" >but waited for a CPU.</text>
+<rect x="572" y="582" width="330" height="37" rx="6" fill="#f3f7fd" stroke="#f3f7fd" />
+<text x="584" y="606" font-size="17" fill="#1c5cab" font-weight="600" >12.0%</text>
+<text x="651" y="605" font-size="13" fill="#4a4f58" font-weight="400" >worker-04 · At 14:32:08</text>
+<text x="572" y="643" font-size="13" fill="#4a4f58" font-weight="400" >Sleep and futex wait are separate.</text>
+<path d="M572 656H902" stroke="#e4e6ea" fill="none" />
+<text x="572" y="680" font-size="13" fill="#1c5cab" font-weight="500" >Select ⓘ for the guide.</text>
+<text x="62" y="733" font-size="13" fill="#1c5cab" font-weight="600" >1.2 s delay</text>
+<text x="165" y="733" font-size="13" fill="#4a4f58" font-weight="400" >Move into the card to read. Press Escape to close.</text>
+<rect x="976" y="180" width="484" height="574" rx="14" fill="#ffffff" stroke="#dce1e8" />
+<text x="1000" y="212" font-size="11" fill="#4a4f58" font-weight="600" letter-spacing="1">METRIC GUIDE</text>
+<text x="1404" y="214" font-size="12" fill="#4a4f58" font-weight="500" >Close ×</text>
+<path d="M1000 232H1436" stroke="#e4e6ea" fill="none" />
+<text x="1000" y="270" font-size="28" fill="#0b0b0b" font-weight="600" >Run delay</text>
+<text x="1000" y="297" font-size="14" fill="#4a4f58" font-weight="400" >Understand time spent waiting for a CPU.</text>
+<rect x="1000" y="315" width="97" height="26" rx="13" fill="#eef4fc" stroke="#eef4fc" />
+<text x="1012" y="333" font-size="12" fill="#1c5cab" font-weight="600" >One thread</text>
+<rect x="1106" y="315" width="163" height="26" rx="13" fill="#eef4fc" stroke="#eef4fc" />
+<text x="1118" y="333" font-size="12" fill="#1c5cab" font-weight="600" >% of elapsed time</text>
+<text x="1000" y="371" font-size="15" fill="#4a4f58" font-weight="400" >A thread is ready to run, but it must wait</text>
+<text x="1000" y="393" font-size="15" fill="#4a4f58" font-weight="400" >for a CPU to become available.</text>
+<rect x="1000" y="417" width="436" height="97" rx="10" fill="#f3f7fd" stroke="#dce8f7" />
+<text x="1018" y="442" font-size="11" fill="#1c5cab" font-weight="650" letter-spacing="1">EXAMPLE</text>
+<text x="1018" y="473" font-size="22" fill="#0b0b0b" font-weight="600" >12% = 120 ms waiting</text>
+<text x="1018" y="498" font-size="13" fill="#4a4f58" font-weight="400" >per elapsed second</text>
+<text x="1000" y="548" font-size="15" fill="#0b0b0b" font-weight="600" >How to read it</text>
+<text x="1000" y="574" font-size="14" fill="#4a4f58" font-weight="400" >Compare run delay with CPU use. Persistent delay</text>
+<text x="1000" y="596" font-size="14" fill="#4a4f58" font-weight="400" >can indicate competition for CPU time. Check</text>
+<text x="1000" y="618" font-size="14" fill="#4a4f58" font-weight="400" >cgroup CPU pressure and quota throttling.</text>
+<text x="1000" y="659" font-size="15" fill="#0b0b0b" font-weight="600" >Measurement limits</text>
+<text x="1000" y="684" font-size="13" fill="#4a4f58" font-weight="400" >Sleep and futex waits have separate state categories.</text>
+<text x="1000" y="706" font-size="13" fill="#4a4f58" font-weight="400" >Run delay alone does not identify a cause.</text>
+<path d="M1000 721H1436" stroke="#e4e6ea" fill="none" />
+<text x="1000" y="742" font-size="13" fill="#1c5cab" font-weight="400" >Related: CPU  ·  Pressure stalls  ·  CPU throttled</text>
+<text x="40" y="801" font-size="12" fill="#4a4f58" font-weight="650" letter-spacing="1">03  DARK THEME</text>
+<text x="526" y="801" font-size="12" fill="#4a4f58" font-weight="650" letter-spacing="1">04  TOUCH ACCESS</text>
+<text x="982" y="801" font-size="12" fill="#4a4f58" font-weight="650" letter-spacing="1">CONSISTENT THROUGHOUT</text>
+<rect x="40" y="819" width="460" height="310" rx="14" fill="#0b0e14" stroke="#232a36" />
+<text x="64" y="852" font-size="15" fill="#f3f5f8" font-weight="600" >Pressure stalls (PSI)</text>
+<circle cx="227" cy="847" r="8" fill="none" stroke="#86b6ef"/>
+<text x="227" y="851" font-size="12" fill="#86b6ef" font-weight="600" text-anchor="middle">i</text>
+<text x="64" y="879" font-size="13" fill="#c3c8d1" font-weight="400" >Target’s cgroup · Peaks per interval</text>
+<rect x="64" y="898" width="412" height="208" rx="12" fill="#141922" stroke="#343d4c" />
+<text x="82" y="928" font-size="16" fill="#f3f5f8" font-weight="600" >Memory pressure · Some</text>
+<text x="82" y="956" font-size="14" fill="#c3c8d1" font-weight="400" >Share of time at least one task waited</text>
+<text x="82" y="978" font-size="14" fill="#c3c8d1" font-weight="400" >for memory in the displayed scope.</text>
+<rect x="82" y="992" width="376" height="38" rx="6" fill="#1c2330" stroke="#1c2330" />
+<text x="94" y="1017" font-size="17" fill="#86b6ef" font-weight="600" >3.2%</text>
+<text x="158" y="1016" font-size="13" fill="#c3c8d1" font-weight="400" >Cgroup · At 14:32:08</text>
+<text x="82" y="1056" font-size="13" fill="#c3c8d1" font-weight="400" >Other tasks in the cgroup can contribute.</text>
+<text x="82" y="1085" font-size="13" fill="#86b6ef" font-weight="400" >Select ⓘ for the guide.</text>
+<rect x="526" y="819" width="428" height="310" rx="14" fill="#dce1e8" stroke="#dce1e8" />
+<text x="546" y="850" font-size="15" fill="#4a4f58" font-weight="600" >Threads</text>
+<text x="775" y="850" font-size="13" fill="#4a4f58" font-weight="400" >CPU</text>
+<circle cx="818" cy="845" r="8" fill="none" stroke="#1c5cab"/>
+<text x="818" y="849" font-size="12" fill="#1c5cab" font-weight="600" text-anchor="middle">i</text>
+<rect x="536" y="874" width="408" height="245" rx="14" fill="#ffffff" stroke="#ffffff" />
+<rect x="716" y="883" width="48" height="4" rx="2" fill="#c7cbd2" stroke="#c7cbd2" />
+<text x="558" y="921" font-size="23" fill="#0b0b0b" font-weight="600" >CPU</text>
+<text x="866" y="918" font-size="12" fill="#4a4f58" font-weight="400" >Close ×</text>
+<text x="558" y="952" font-size="14" fill="#4a4f58" font-weight="400" >CPU time used by one thread, as a</text>
+<text x="558" y="974" font-size="14" fill="#4a4f58" font-weight="400" >percentage of one CPU core.</text>
+<rect x="558" y="995" width="364" height="62" rx="8" fill="#f3f7fd" stroke="#f3f7fd" />
+<text x="572" y="1019" font-size="11" fill="#1c5cab" font-weight="650" >EXAMPLE</text>
+<text x="572" y="1043" font-size="13" fill="#0b0b0b" font-weight="400" >50% = 0.5 s of CPU time per second</text>
+<text x="558" y="1088" font-size="13" fill="#4a4f58" font-weight="400" >Tap ⓘ to open. No long press is needed.</text>
+<rect x="980" y="819" width="480" height="310" rx="14" fill="#ffffff" stroke="#dce1e8" />
+<text x="1002" y="854" font-size="19" fill="#0b0b0b" font-weight="600" >Meaning first. Detail on request.</text>
+<rect x="1002" y="877" width="29" height="26" rx="13" fill="#eef4fc" stroke="#eef4fc" />
+<text x="1014" y="895" font-size="12" fill="#1c5cab" font-weight="600" >1</text>
+<text x="1044" y="895" font-size="14" fill="#0b0b0b" font-weight="600" >Know the scope</text>
+<text x="1044" y="917" font-size="12" fill="#4a4f58" font-weight="400" >Thread, process, cgroup, host, or namespace.</text>
+<rect x="1002" y="943" width="29" height="26" rx="13" fill="#eef4fc" stroke="#eef4fc" />
+<text x="1014" y="961" font-size="12" fill="#1c5cab" font-weight="600" >2</text>
+<text x="1044" y="961" font-size="14" fill="#0b0b0b" font-weight="600" >Understand the number</text>
+<text x="1044" y="983" font-size="12" fill="#4a4f58" font-weight="400" >Show units, the time interval, and an example.</text>
+<rect x="1002" y="1009" width="29" height="26" rx="13" fill="#eef4fc" stroke="#eef4fc" />
+<text x="1014" y="1027" font-size="12" fill="#1c5cab" font-weight="600" >3</text>
+<text x="1044" y="1027" font-size="14" fill="#0b0b0b" font-weight="600" >Know the limits</text>
+<text x="1044" y="1049" font-size="12" fill="#4a4f58" font-weight="400" >Explain missing data and what cannot be inferred.</text>
+<text x="1002" y="1103" font-size="13" fill="#1c5cab" font-weight="400" >Same topics in cards, guides, and the page guide.</text>
+<text x="40" y="1160" font-size="12" fill="#4a4f58" font-weight="400" >Separate interface states · Illustrative data · Proposed hover delay: 1,200 ms</text>
+<text x="1140" y="1160" font-size="12" fill="#4a4f58" font-weight="400" >Triangulator / Contextual help</text>
+</g></svg>

@@ -1,0 +1,13 @@
+{
+ "id": "116",
+ "name": "close-wait",
+ "pid": 2102095,
+ "started": "2026-10-11T10:15:42.804Z",
+ "hold": 70,
+ "startComm": true,
+ "alive": true,
+ "meta": "PID 2102095 · Live · just now",
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

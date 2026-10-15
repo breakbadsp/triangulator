@@ -1,0 +1,1 @@
+PID 703981: user 6781 clock ticks; kernel 9057 clock ticks; kernel 57.2% of CPU time.

@@ -1,0 +1,2 @@
+[bugbench    0.0s] mem-leak: heap grows 8 MB/s, never freed (pid 685782, 110 s)
+[bugbench   71.4s] done

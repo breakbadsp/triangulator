@@ -1,0 +1,11 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://127.0.0.1:19652/#memory-map"
+  },
+  "value": {
+    "caption": "Top = high address. One square = 2560 bytes, 512 squares.\nHeap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+    "charts": "Heap mapping end ↑\nCollecting…\nMain stack start ↓\nCollecting…\nResident anonymous\nCollecting…",
+    "facts": "Size (mapped)\n1.0 MiB\nAddress span\n1.0 MiB\nRegions / VMAs\n1 / 1\nShare of VmSize\n76.2%\nNot mapped inside\n0 B\nLargest unmapped gap\n0 B\nLargest region\n1.0 MiB\nHeap mapping size change\nCollecting…\nPage size\nUnknown"
+  }
+}

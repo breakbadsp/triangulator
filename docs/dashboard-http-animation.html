@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inside the Triangulator dashboard HTTP server</title>
+<style>
+:root { color-scheme:light; --page:#f5f3ed; --ink:#192e36; --muted:#52656b; --line:#d5ddd9; --green:#087c6f; --blue:#2768b7; --orange:#a94b19; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--page); color:var(--ink); font:16px/1.55 system-ui,sans-serif; }
+main { max-width:1200px; margin:auto; padding:32px 24px; }
+.eyebrow { color:var(--green); font-size:12px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
+h1 { font-size:clamp(28px,4vw,44px); line-height:1.15; letter-spacing:-.035em; margin:10px 0; }
+.intro { max-width:790px; color:var(--muted); margin:0 0 24px; }
+.player { border:1px solid var(--line); border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 12px 30px #192e3608; }
+.topline { display:flex; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); font-size:13px; }
+.status { color:var(--green); }
+.layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; }
+.diagram { background:radial-gradient(#d8e2de 1px,transparent 1px); background-size:20px 20px; padding:18px 8px 0; }
+svg { width:100%; display:block; }
+svg text { fill:var(--ink); font-family:system-ui,sans-serif; font-size:14px; }
+svg .small { font-size:11px; fill:var(--muted); }
+svg .title { font-weight:700; }
+svg .code { font-family:ui-monospace,monospace; font-size:12px; }
+.box { fill:#fff; stroke:#bdccc7; stroke-width:1.5; }
+.active .box { fill:#e6f5ef; stroke:var(--green); stroke-width:2.5; }
+.edge { fill:none; stroke:#acbdb8; stroke-width:2; }
+.zone { fill:#f2f6f3; stroke:#cbd8d2; stroke-dasharray:5 5; }
+#packet { fill:var(--green); stroke:#fff; stroke-width:3; }
+.legend { display:flex; gap:18px; flex-wrap:wrap; padding:0 20px 16px; font-size:12px; color:var(--muted); }
+.legend span::before { content:''; display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--green); margin-right:6px; }
+.legend span:last-child::before { background:#acbdb8; }
+.narration { padding:24px; border-left:1px solid var(--line); background:#fafbf9; }
+.narration h2 { margin:10px 0 12px; font-size:23px; line-height:1.25; }
+.narration p { color:var(--muted); margin:0 0 16px; font-size:14px; }
+code, pre { font-family:ui-monospace,monospace; }
+pre { margin:0; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fff; color:var(--green); font-size:12px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.source { display:block; margin-top:12px; font-size:12px; }
+a { color:var(--blue); text-underline-offset:3px; }
+.controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--line); }
+button,select { font:inherit; font-size:13px; border:1px solid #bccbc5; border-radius:8px; background:#fff; color:var(--ink); padding:8px 12px; cursor:pointer; }
+button:hover { background:#edf5f0; }
+button:focus-visible,select:focus-visible,a:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+button:disabled { opacity:.45; cursor:default; }
+#play { background:var(--green); border-color:var(--green); color:#fff; min-width:80px; }
+.speed { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+.progress { height:3px; background:#e4ede7; }
+#progress { height:100%; width:0; background:var(--green); }
+.chapters { display:grid; grid-template-columns:repeat(9,1fr); gap:6px; padding:14px 20px 18px; }
+.chapters button { text-align:left; padding:9px 6px; font-size:11px; background:#f8faf7; }
+.chapters b { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
+.chapters button[aria-current=step] { background:#e6f5ef; border-color:var(--green); color:var(--green); }
+.notes { display:grid; grid-template-columns:1fr 1fr; gap:28px; padding:22px 2px; }
+.notes h2 { font-size:17px; margin:0 0 8px; }
+.notes p { font-size:14px; color:var(--muted); margin:0 0 8px; }
+details { border-top:1px solid var(--line); padding:14px 0; }
+summary { cursor:pointer; font-weight:650; font-size:14px; }
+table { border-collapse:collapse; width:100%; margin:12px 0; font-size:13px; }
+th,td { padding:8px; border-bottom:1px solid var(--line); text-align:left; }
+footer { color:var(--muted); font-size:12px; margin-top:12px; }
+@media(max-width:900px) { .layout { grid-template-columns:1fr; } .narration { border-left:0; border-top:1px solid var(--line); } .chapters { grid-template-columns:repeat(3,1fr); } .notes { grid-template-columns:1fr; gap:12px; } }
+@media(max-width:480px) { main { padding:18px 12px; } .topline { flex-direction:column; gap:2px; } .speed { margin-left:0; } .diagram { overflow-x:auto; } svg { min-width:620px; } }
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Triangulator / C++ internals</div>
+<h1>How the dashboard HTTP server works</h1>
+<p class="intro">Follow a request from the browser into <code>DashboardServer</code> and back.
+See how the HTTP workers serve the page, read live snapshots, and query stored history.</p>
+<section class="player" aria-label="HTTP server animation">
+  <div class="topline"><strong>One collector process. Separate receive loop and HTTP workers.</strong><span id="status" class="status">Playing</span></div>
+  <div class="layout">
+    <div class="diagram">
+      <svg viewBox="0 0 780 470" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">Dashboard server design</title>
+        <desc id="diagram-desc">The browser connects to the HTTP listener. A worker reads embedded HTML, shared live JSON, or SQLite history. The collector main loop receives UDP samples and publishes shared JSON. The HTTP workers and the main loop are separate. The current step is explained next to this diagram.</desc>
+        <defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7" fill="#acbdb8"/></marker></defs>
+        <rect class="zone" x="235" y="30" width="522" height="416" rx="16"/>
+        <text x="253" y="53" class="small">COLLECTOR PROCESS</text>
+        <path class="edge" d="M193 137H270" marker-end="url(#arrow)"/>
+        <path class="edge" d="M358 175V214" marker-end="url(#arrow)"/>
+        <path class="edge" d="M446 251H486V135H538" marker-end="url(#arrow)"/>
+        <path class="edge" d="M446 251H538" marker-end="url(#arrow)"/>
+        <path class="edge" d="M446 251H486V372H538" marker-end="url(#arrow)"/>
+        <path class="edge" d="M193 372H270" marker-end="url(#arrow)"/>
+        <path class="edge" d="M446 372H490V290H538" marker-end="url(#arrow)"/>
+        <path class="edge" d="M358 411V427H636V411" marker-end="url(#arrow)"/>
+        <text x="215" y="126" text-anchor="middle" class="small">TCP</text>
+        <text x="215" y="360" text-anchor="middle" class="small">UDP</text>
+        <text x="458" y="433" class="small">write rollups</text>
+        <g id="browser"><rect class="box" x="25" y="95" width="168" height="80" rx="10"/><text x="43" y="122" class="title">Browser</text><text x="43" y="144" class="code">dashboard.html</text><text x="43" y="162" class="small">fetch() → render charts</text></g>
+        <g id="listener"><rect class="box" x="270" y="95" width="176" height="80" rx="10"/><text x="286" y="122" class="title">HTTP workers</text><text x="286" y="144" class="code">Serve() → worker</text><text x="286" y="162" class="small">127.0.0.1:9401</text></g>
+        <g id="router"><rect class="box" x="270" y="214" width="176" height="80" rx="10"/><text x="286" y="241" class="title">Request routing</text><text x="286" y="263" class="code">Get() / Target()</text><text x="286" y="281" class="small">Select a path and payload</text></g>
+        <g id="html"><rect class="box" x="538" y="95" width="196" height="80" rx="10"/><text x="554" y="122" class="title">Embedded page</text><text x="554" y="144" class="code">kDashboardHtml[]</text><text x="554" y="162" class="small">HTML + CSS + JavaScript</text></g>
+        <g id="shared"><rect class="box" x="538" y="214" width="196" height="80" rx="10"/><text x="554" y="241" class="title">SharedState</text><text x="554" y="263" class="code">shared_ptr&lt;const string&gt;</text><text x="554" y="281" class="small">Live JSON / memory layout</text></g>
+        <g id="sampler"><rect class="box" x="25" y="332" width="168" height="80" rx="10"/><text x="43" y="359" class="title">Sampler</text><text x="43" y="381" class="small">Thread / resource samples</text><text x="43" y="399" class="small">Optional socket sampler</text></g>
+        <g id="collector"><rect class="box" x="270" y="332" width="176" height="80" rx="10"/><text x="286" y="359" class="title">Main receive loop</text><text x="286" y="381" class="code">Ingest → Monitor</text><text x="286" y="399" class="small">Publish JSON every ~0.5 s</text></g>
+        <g id="sqlite"><rect class="box" x="538" y="332" width="196" height="80" rx="10"/><text x="554" y="359" class="title">SQLite day files</text><text x="554" y="381" class="code">History() / Replay()</text><text x="554" y="399" class="small">HTTP reads stored samples</text></g>
+        <circle id="packet" r="7" cx="0" cy="0" aria-hidden="true"/>
+      </svg>
+      <div class="legend"><span>Current step / moving data</span><span>Connections between parts</span></div>
+    </div>
+    <div class="narration" aria-live="polite" aria-atomic="true">
+      <div id="step-number" class="eyebrow"></div>
+      <h2 id="step-title"></h2>
+      <p id="step-text"></p>
+      <pre id="snippet"></pre>
+      <a id="source" class="source" href="../collector/http.hpp">Read the source</a>
+    </div>
+  </div>
+  <div class="progress" aria-hidden="true"><div id="progress"></div></div>
+  <div class="controls">
+    <button id="play" type="button">Pause</button>
+    <button id="previous" type="button">← Previous</button>
+    <button id="next" type="button">Next →</button>
+    <button id="restart" type="button">Restart</button>
+    <label class="speed">Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+  </div>
+  <nav id="chapters" class="chapters" aria-label="Animation steps"></nav>
+</section>
+<div class="notes">
+  <div><h2>Why the threads are separate</h2><p>The main loop receives UDP samples. The HTTP workers can wait on a browser or a history query without doing that work in the receive loop.</p><p>A mutex protects the snapshot pointer exchange. Each HTTP worker retains an immutable JSON string and sends it after the lock is released.</p></div>
+  <div><h2>Connection limits</h2><p><code>Serve()</code> starts up to 64 connection workers. A slow request uses one worker. The listener backlog is 128. Reading the complete request has a 5-second total deadline. Sending the response has a separate 5-second total deadline. Excess connections receive HTTP 503.</p><p>Responses use HTTP/1.0. The connection closes after each request. The C++ server uses plain HTTP and has no TLS handshake.</p></div>
+</div>
+<details>
+  <summary>Explore the API routes</summary>
+  <table><thead><tr><th scope="col">Request</th><th scope="col">Payload source</th></tr></thead><tbody>
+    <tr><td><code>GET /</code></td><td>HTML bytes built into the collector binary.</td></tr>
+    <tr><td><code>GET /api/live</code></td><td>Latest live JSON from <code>SharedState::Live()</code>.</td></tr>
+    <tr><td><code>GET /api/memory-map</code></td><td>Latest complete layout from <code>SharedState::MemoryMap()</code>.</td></tr>
+    <tr><td><code>GET /api/history</code></td><td>SQLite thread summaries. Validates session, TID, and time range. Returns at most 2,000 rows.</td></tr>
+    <tr><td><code>GET /api/resources</code></td><td>Stored resource samples, combined into time buckets.</td></tr>
+    <tr><td><code>GET /api/replay</code></td><td>Recorded snapshots and time bounds from replay files.</td></tr>
+    <tr><td><code>GET /api/socket-io</code></td><td>Report from <code>SocketReportBridge</code>, which has a separate worker.</td></tr>
+    <tr><td><code>GET /api/target</code><br><code>POST /api/target</code></td><td>Local sampler target control. POST requires the dashboard header and validates the origin when supplied.</td></tr>
+  </tbody></table>
+  <p>Invalid requests return 400. Unknown GET paths return 404. Unsupported methods return 501. Empty speculative connections close without a response.</p>
+</details>
+<footer>Source: <a href="../collector/http.hpp">collector/http.hpp</a> · <a href="../collector/main.cpp">collector/main.cpp</a> · <a href="../collector/dashboard.html">collector/dashboard.html</a> · <a href="../Makefile">Makefile</a>. Animation timings are illustrative. <a href="collector-reference.md">Collector reference</a>.</footer>
+<noscript><p>JavaScript is required to play the animation. The diagram, route table, and source links remain available.</p></noscript>
+</main>
+<script>
+'use strict';
+const steps = [
+  {label:'Design', title:'Separate workers, one collector', text:'DashboardServer accepts connections on its own thread and starts bounded connection workers. It shares published JSON with the main receive loop. Live requests use SharedState; history requests read stored data.', code:'main loop: UDP → metrics → JSON\nHTTP workers: request → payload\nSharedState: immutable snapshots', source:'collector/http.hpp', nodes:['listener','collector','shared'], path:[[358,372],[490,372],[490,274],[570,274]]},
+  {label:'Build', title:'Build the page into the binary', text:'The Makefile converts dashboard.html to a byte include. http.hpp places those bytes in kDashboardHtml. The running server needs no separate dashboard file.', code:'collector/dashboard.html\n  → build/dashboard_html.inc\n  → kDashboardHtml[]\n  → triangulator-collector', source:'Makefile', nodes:['html'], path:[[555,145],[714,145]]},
+  {label:'Listen', title:'Start the HTTP workers', text:'main.cpp binds a TCP listener from the configured host and port. Listen() sets a backlog of 128. DashboardServer::Start() starts the listener thread and the socket report worker. Connection workers start as requests arrive.', code:'Listen(http_host_, http_port_)\nDashboardServer server{…};\nserver.Start();\n// default: 127.0.0.1:9401', source:'collector/main.cpp', nodes:['listener'], path:[[109,137],[286,137]]},
+  {label:'Read', title:'Accept and parse a request', text:'Serve() polls the listener with a 200 ms timeout, then calls accept4(). Handle() uses ReadRequest() to read the method, path, query, and headers. Each connection has receive and send timeouts.', code:'poll() → accept4()\n  → Handle(connection)\n  → ReadRequest(connection)\n\nGET / HTTP/1.1', source:'collector/http.hpp', nodes:['browser','listener','router'], path:[[109,137],[358,137],[358,251]]},
+  {label:'Page', title:'Return the dashboard page', text:'Get() matches the root path and passes kDashboardHtml to Respond(). The browser receives HTML, CSS, and JavaScript. It can now display the dashboard and request JSON.', code:'GET /\n  → Get()\n  → kDashboardHtml\n  → Respond(200, …,\n      "text/html; charset=utf-8")', source:'collector/http.hpp', nodes:['router','html','browser'], path:[[636,135],[486,135],[486,251],[358,251],[358,137],[109,137]]},
+  {label:'Publish', title:'Publish a live JSON snapshot', text:'The main loop builds live JSON on an approximately 500 ms refresh cycle. SetLive() exchanges a shared pointer under a mutex. SetMemoryMap() publishes a layout when its version changes.', code:'DumpJson(live)\n  → shared_ptr<const string>\n  → state.SetLive(…)\n\nLayout changed? SetMemoryMap(…)', source:'collector/main.cpp', nodes:['sampler','collector','shared'], path:[[109,372],[358,372],[490,372],[490,274],[570,274]]},
+  {label:'Live', title:'Fetch JSON and update the charts', text:'The dashboard fetches /api/live, then schedules the next refresh after 1 second. Get() reads SharedState::Live(). It sends the saved JSON without querying SQLite. Browser JavaScript updates the charts.', code:'fetch("/api/live")\n  → state_.Live()\n  → Respond(200, JSON,\n      "application/json")\n  → browser renders metrics', source:'collector/dashboard.html', nodes:['browser','listener','router','shared'], path:[[109,137],[358,137],[358,251],[570,251],[358,251],[358,137],[109,137]]},
+  {label:'History', title:'Query stored thread summaries', text:'The thread history request supplies a session, TID, and time range. History() validates these values and reads SQLite day files. The response contains rows, limit, and truncated fields.', code:'GET /api/history?session=…\n  &tid=…&start=…&end=…\n  → History(data_dir_, …)\n  → JSON: rows, limit, truncated\n// maximum: 2,000 rows', source:'collector/http.hpp', nodes:['browser','router','sqlite'], path:[[109,137],[358,137],[358,251],[486,251],[486,372],[570,372],[486,372],[486,251],[358,251],[358,137],[109,137]]},
+  {label:'Send / close', title:'Send bytes, then close', text:'Respond() adds HTTP/1.0 headers and sends until all bytes are written or send() fails. FileDescriptor closes the connection when its scope ends. Serve() then waits for the next connection.', code:'HTTP/1.0 200 OK\nContent-Type: application/json\nContent-Length: …\nCache-Control: no-store\n\nsend(…, MSG_NOSIGNAL) → close', source:'collector/http.hpp', nodes:['router','listener','browser'], path:[[358,251],[358,137],[109,137]]}
+];
+const byId = id => document.getElementById(id);
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let index = 0, elapsed = 0, playing = !reducedMotion.matches, lastTime = null;
+const duration = 9000;
+for (const [i, step] of steps.entries()) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  const number = document.createElement('b');
+  number.textContent = String(i + 1).padStart(2,'0');
+  button.append(number, document.createTextNode(step.label));
+  button.addEventListener('click', () => selectStep(i));
+  byId('chapters').append(button);
+}
+function updateControls() {
+  byId('play').textContent = playing ? 'Pause' : (elapsed >= duration && index === steps.length - 1 ? 'Replay' : 'Play');
+  byId('status').textContent = playing ? 'Playing' : (elapsed >= duration && index === steps.length - 1 ? 'Complete' : 'Paused');
+  byId('previous').disabled = index === 0;
+  byId('next').disabled = index === steps.length - 1;
+}
+function renderStep() {
+  const step = steps[index];
+  byId('step-number').textContent = `Step ${index + 1} of ${steps.length}`;
+  byId('step-title').textContent = step.title;
+  byId('step-text').textContent = step.text;
+  byId('snippet').textContent = step.code;
+  byId('source').textContent = `Source: ${step.source}`;
+  byId('source').href = '../' + step.source;
+  document.querySelectorAll('svg g').forEach(node => node.classList.toggle('active', step.nodes.includes(node.id)));
+  [...byId('chapters').children].forEach((button, i) => {
+    if (i === index) button.setAttribute('aria-current','step');
+    else button.removeAttribute('aria-current');
+  });
+  updateControls();
+  renderMotion();
+}
+function selectStep(i) {
+  index = Math.max(0, Math.min(steps.length - 1, i));
+  elapsed = 0;
+  playing = false;
+  lastTime = null;
+  renderStep();
+}
+function renderMotion() {
+  byId('progress').style.width = `${100 * (index + Math.min(1, elapsed / duration)) / steps.length}%`;
+  const packet = byId('packet');
+  packet.style.display = reducedMotion.matches ? 'none' : '';
+  const points = steps[index].path;
+  const lengths = points.slice(1).map((point,i) => Math.hypot(point[0]-points[i][0], point[1]-points[i][1]));
+  let distance = lengths.reduce((sum,n) => sum+n,0) * Math.min(1,elapsed/duration);
+  for (let i=0; i<lengths.length; i++) {
+    if (distance <= lengths[i] || i === lengths.length-1) {
+      const fraction = Math.min(1,distance/lengths[i]);
+      packet.setAttribute('cx', points[i][0]+(points[i+1][0]-points[i][0])*fraction);
+      packet.setAttribute('cy', points[i][1]+(points[i+1][1]-points[i][1])*fraction);
+      break;
+    }
+    distance -= lengths[i];
+  }
+}
+function tick(time) {
+  if (playing && !document.hidden && lastTime !== null) {
+    elapsed += Math.min(time-lastTime,100) * Number(byId('speed').value);
+    if (elapsed >= duration) {
+      if (index < steps.length-1) { index++; elapsed = 0; renderStep(); }
+      else { elapsed = duration; playing = false; updateControls(); }
+    }
+    renderMotion();
+  }
+  lastTime = document.hidden ? null : time;
+  requestAnimationFrame(tick);
+}
+byId('play').addEventListener('click', () => {
+  if (!playing && index === steps.length-1 && elapsed >= duration) { index = 0; elapsed = 0; }
+  playing = !playing; lastTime = null; renderStep();
+});
+byId('previous').addEventListener('click', () => selectStep(index-1));
+byId('next').addEventListener('click', () => selectStep(index+1));
+byId('restart').addEventListener('click', () => { selectStep(0); playing = !reducedMotion.matches; updateControls(); });
+reducedMotion.addEventListener('change', () => { if (reducedMotion.matches) playing = false; updateControls(); renderMotion(); });
+renderStep();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

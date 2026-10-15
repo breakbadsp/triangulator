@@ -81,41 +81,13 @@ class BenchmarkPageTests(unittest.TestCase):
         self.assertNotIn("</script>", encoded)
         self.assertEqual(snapshot["meta"]["build_options"], report["build_options"])
 
-    def test_cli_writes_local_artifacts_without_committed_results(self):
+    def test_committed_page_and_infographic_match_the_renderer(self):
         import json
-        import tempfile
-        from unittest.mock import patch
-
-        report = self.report()
-        report.update(cpu_model="test host", kernel="test", measured_at_utc="2026-10-12T00:00:00Z",
-                      duration_s=30, warmup_s=5, source_commit="test", sampler_sha256="test",
-                      build_options="test", allowed_cpus=[0], machine="test")
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "scripts").mkdir()
-            (root / "scripts/sampler_benchmark_template.html").write_text(
-                (ROOT / "scripts/sampler_benchmark_template.html").read_text())
-            source = root / "measurements.json"
-            source.write_text(json.dumps(report))
-            with patch.object(renderer, "ROOT", root), patch("sys.argv", ["renderer", str(source)]):
-                renderer.main()
-            self.assertEqual((root / "build/sampler-benchmark.html").read_text(),
-                             renderer.render_page(report))
-            self.assertEqual((root / "build/sampler-benchmark.svg").read_text(),
-                             renderer.infographic(renderer.summarize(report), report))
-            self.assertEqual(json.loads((root / "build/sampler-benchmark.json").read_text()), report)
-            self.assertFalse((root / "docs").exists())
-            sampling = {"complete": True, "iterations": 1, "repeats": 1, "summary": [
-                {"threads": count, "thread_records": count, "total_sampling_ns": 1000000,
-                 "throughput_threads_s": count * 1000, "p50_tick_us": 1,
-                 "p99_tick_us": 2, "mean_tick_us": 1.5, "ticks": 1}
-                for count in (100, 300, 500)]}
-            sampling_source = root / "sampling.json"
-            sampling_source.write_text(json.dumps(sampling))
-            with patch.object(renderer, "ROOT", root), patch("sys.argv", [
-                    "renderer", str(source), "--sampling-report", str(sampling_source)]):
-                renderer.main()
-            self.assertEqual((root / "build/sampler-benchmark.html").read_text(),
-                             renderer.render_page(report, sampling))
-            self.assertEqual(json.loads((root / "build/sampling-performance.json").read_text()),
-                             sampling)
+        report = json.loads((ROOT / "docs/sampler-benchmark.json").read_text())
+        sampling = json.loads((ROOT / "docs/sampling-performance.json").read_text())
+        self.assertEqual((ROOT / "docs/sampler-benchmark.html").read_text(),
+                         renderer.render_page(report, sampling),
+                         "run scripts/render_sampler_benchmark.py")
+        self.assertEqual((ROOT / "docs/assets/sampler-benchmark.svg").read_text(),
+                         renderer.infographic(renderer.summarize(report), report),
+                         "run scripts/render_sampler_benchmark.py")

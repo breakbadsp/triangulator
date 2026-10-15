@@ -1,0 +1,20 @@
+{
+ "before": {
+  "caption": "Top = high address. One square = 4.0 KiB (1 page), 320 squares.\nHeap display margin · heap mapping end 0x1000000000100000 · grid 0x1000000000000000 – 0x1000000000140000",
+  "sub": "0x1000000000000000 – 0x1000000000100000 · rw-p · grows ↑",
+  "cells": 320,
+  "charts": "Heap mapping end ↑\n0 B / min\nOffset: 0 B → 0 B\nMain stack start ↓\n0 B / min\nOffset: 0 B → 0 B\nResident anonymous\n0 B / min\n156.0 KiB → 156.0 KiB"
+ },
+ "legendHeap": [
+  "not mapped",
+  "file mapping",
+  "heap (brk)"
+ ],
+ "after": {
+  "caption": "Top = high address. One square = 4.0 KiB (1 page), 320 squares.\nHeap display margin · heap mapping end 0x1000000000101000 · grid 0x1000000000000000 – 0x1000000000140000",
+  "sub": "0x1000000000000000 – 0x1000000000101000 · rw-p · grows ↑",
+  "cells": 320,
+  "charts": "Heap mapping end ↑\n+32.1 KiB / min\nOffset: 0 B → +4.0 KiB\nMain stack start ↓\n−32.1 KiB / min\nOffset: 0 B → −4.0 KiB\nResident anonymous\n0 B / min\n156.0 KiB → 156.0 KiB"
+ },
+ "diag": []
+}
