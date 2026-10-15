@@ -1,0 +1,17 @@
+{
+  "toolIcon": {
+    "_tag": "website",
+    "pageUrl": "http://127.0.0.1:19401/#threads-section"
+  },
+  "value": {
+    "assessment": "Assessment\nas of 10:57:42 PM\nHealthy\n\n6 of 6 threads are waiting: 5 sleep, 1 futex wait. No thread is using noticeable CPU.\n\n✓\nNo problems detected\nNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.\nInspect a moment\n\nChoose a local date and time to inspect the recorded process and e",
+    "at": "2026-10-14T17:27:43.704Z",
+    "rows": [
+      "MsgP-fast\nTID 1269899\n\tungrouped\t\nFutex wait\nfutex_do_wait\n\t\n\tidle for 61 s\t4",
+      "MsgP-peer\nTID 1269900\n\tungrouped\t\nSleep\nhrtimer_nanosleep\n\t\n\t\n0.0%\n\t0.0%\t1.2\t·\t·\t·\t5",
+      "PrdDist-main\nTID 1269901\n\tungrouped\t\nSleep\nhrtimer_nanosleep\n\t\n\t\n0.0%\n\t·\t0.6\t·\t·\t·\t4",
+      "PrdDist-peer\nTID 1269902\n\tungrouped\t\nSleep\nhrtimer_nanosleep\n\t\n\t\n0.0%\n\t·\t0.7\t·\t·\t·\t2",
+      "Control-idle\nTID 1269903\n\tungrouped\t\nSleep\nhrtimer_nanosleep\n\t\n\t\n0.0%\n\t0.0%\t1.2\t·\t·\t·\t2"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+target_pid = 1269897
+rate_hz = 10.0
+collector = "127.0.0.1:19400"
+status_fallback = false
+resource_interval_s = 1
+memory_interval_s = 0
