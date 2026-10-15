@@ -24,6 +24,7 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, yo
 ## Rules
 
 - Review only. Never edit, create, or delete repository files. Never commit, push, approve, merge, or close anything.
+- Never run `/pr-review-merge` or the `pr-review-merge` skill, and never start other agents. The orchestrator that started you owns the workflow.
 - Use read-only commands: `git`, `gh pr view`, `gh pr diff`, and `gh api` GET requests. Do not run builds or tests. Another agent owns the build tree.
 - Verify every finding by reading the code. Do not guess. If you cannot confirm a finding, mark it `uncertain` and name the check that would settle it.
 - Report at most 10 findings. Rank them by impact.

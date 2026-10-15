@@ -33,6 +33,7 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, an
 ## Limits
 
 - Never approve, merge, or close the PR.
+- Never run `/pr-review-merge` or the `pr-review-merge` skill, and never start other agents. The orchestrator that started you owns the workflow. `AGENTS.md` step 2 does not apply to your pushes.
 - If a fix breaks the check and you cannot repair it in this pass, revert that edit. Mark the finding `OUT-OF-SCOPE` and include the failing output.
 
 ## Final message

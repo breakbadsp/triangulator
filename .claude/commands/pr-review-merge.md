@@ -48,6 +48,7 @@ Run the merge gate at most twice.
 
 - At most two review rounds. Never start a third round.
 - At most two merge-gate runs, with one fix pass between them. Never start a third run.
+- A run of `/pr-review-merge` never starts itself again, for this PR or any other. Do not run `/pr-review-merge` or the `pr-review-merge` skill from inside a run, and do not schedule it. The agents it starts never run it either. When a run stops, it reports to the user, and only the user starts a new run.
 - Never merge while a `blocker` or `major` issue is open or a check fails.
 - If a result is ambiguous, stop and report it to the user.
 
