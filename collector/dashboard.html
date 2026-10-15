@@ -2461,7 +2461,8 @@ const WATCH_HEADERS={'Content-Type':'application/json','X-Triangulator':'1'};
 const byteLength=text=>[...text].reduce((total,char)=>{const code=char.codePointAt(0);return total+(code<0x80?1:code<0x800?2:code<0x10000?3:4)},0);
 // watchInfo is the last reply of the collector (the rules in force); watchDraft is what
 // the user is editing. watchMissing is true for a collector without /api/watches.
-let watchInfo=null,watchDraft=[],watchRows=[],watchBusy=false,watchMissing=false,watchLoadError='',watchRetry=0,watchRowCount=0;
+// watchRead numbers each GET so a reply that a newer read, save or reset overtook is dropped.
+let watchInfo=null,watchDraft=[],watchRows=[],watchBusy=false,watchMissing=false,watchLoadError='',watchRetry=0,watchRowCount=0,watchRead=0;
 const watchSaved=()=>(watchInfo?.rules||[]).map(rule=>[rule.prefix,String(rule.wake_ms)]);
 const watchEdited=()=>watchDraft.map(row=>[row.prefix,row.wake.trim()]);
 const watchDirty=()=>!!watchInfo&&JSON.stringify(watchSaved())!==JSON.stringify(watchEdited());
@@ -2573,22 +2574,26 @@ function applyWatches(data){
   watchDraft=data.rules.map(rule=>({prefix:rule.prefix,wake:String(rule.wake_ms)}));
   renderWatchMode();renderWatchInfo();renderWatchRows();
 }
-// Reads the rules in force. A draft with unsaved edits is never replaced.
+// Reads the rules in force. A draft with unsaved edits is never replaced: the fields stay
+// editable during the read, so the check is repeated when the reply arrives.
 async function loadWatches(){
   clearTimeout(watchRetry);if(watchDirty()||watchBusy)return;
+  const read=++watchRead,stale=()=>read!==watchRead||watchDirty()||watchBusy;
   try{const response=await fetch('/api/watches');
+    if(stale())return;
     if(response.status===404){watchMissing=true;watchInfo=null;renderWatchMode();return}
     if(!response.ok)throw Error('The collector answered HTTP '+response.status+'.');
-    applyWatches(await response.json());
+    const data=await response.json();if(stale())return;
+    applyWatches(data);
   }catch(error){
-    if(!watchInfo){watchLoadError=error.message;renderWatchMode();watchRetry=setTimeout(loadWatches,5000)}
+    if(!watchInfo&&!stale()){watchLoadError=error.message;renderWatchMode();watchRetry=setTimeout(loadWatches,5000)}
   }
 }
 // After a change the Assessment's own copy of the rules is refreshed at once (refreshWatchRules),
 // instead of waiting for its next periodic read.
 // Save and reset share this: POST, show the collector's own error text, and take the reply as the new truth.
 async function changeWatches(url,body,done){
-  watchBusy=true;watchStatus('Saving…');updateWatch();
+  watchBusy=true;watchRead++;watchStatus('Saving…');updateWatch();
   let applied=false;
   try{
     let response;

@@ -781,6 +781,9 @@ prefix (the bug-lab `lock-convoy` workload names eight threads `worker-N`).
    `data_dir/watch-rules.json`, and start it again. Open **Settings**.
 10. Make a request the collector refuses, for example by stopping the collector's
     write access to `data_dir` before **Save**, and check the message.
+11. Throttle the network in the browser developer tools so that `/api/watches`
+    takes a few seconds. With the editor open, select **Settings** again and
+    change an interval before the reply arrives.
 
 Expected results: Before any save, the source reads "From the config file
 (collector.toml)." and the table shows the `[[watch]]` rules. Each live thread is
@@ -795,7 +798,8 @@ survive a reload and a restart even if collector.toml still lists other rules.
 Reset asks first, keeps the rules if you cancel, and then shows the config file
 rules and source again. A saved file the collector could not read shows a visible
 warning and the config file rules. A refused save shows the collector's message
-unchanged and keeps the edits. The Assessment is not changed by this case.
+unchanged and keeps the edits. An edit made while a read is pending stays, with
+the unsaved-edits warning. The Assessment is not changed by this case.
 
 ## QA-034: Settings tab read-only states and help coverage
 

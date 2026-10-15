@@ -2301,3 +2301,35 @@ test('a collector without the endpoint, a recorded moment and a broken saved fil
   broken.run('replayAt=null;renderWatchMode()');
   assert.equal(broken.el('watch-editor').hidden, false);
 });
+
+test('a rules read that an edit, a save or a reset overtook is dropped', async () => {
+  const original = watchReply([{prefix: 'worker-', wake_ms: 500}]);
+  const saved = watchReply([{prefix: 'worker-', wake_ms: 100}], {source: 'dashboard'});
+  const app = await watchApp(original, () => httpReply(saved));
+  let answer;
+  const pendingRead = () => {app.setFetch(async (url, options) => options?.method === 'POST' ? httpReply(saved)
+    : new Promise(resolve => {answer = resolve;}));};
+  // Selecting Settings again re-reads while the fields stay editable.
+  pendingRead();
+  const read = app.run('loadWatches()');
+  app.type(0, 'wake', '250');
+  answer(httpReply(original)); await read;
+  assert.equal(app.run('watchRows[0].wake.value'), '250', 'the edit made during the read is kept');
+  assert.equal(app.run('watchDirty()'), true);
+  assert.equal(app.el('watch-unsaved').hidden, false);
+  // A reply that arrives after a save would put back the rules from before it.
+  app.type(0, 'wake', '500');
+  const late = app.run('loadWatches()'), answerLate = answer;
+  app.type(0, 'wake', '100');
+  await app.run('saveWatches()');
+  answerLate(httpReply(original)); await late;
+  assert.equal(app.run('watchInfo.rules[0].wake_ms'), 100);
+  assert.equal(app.run('watchRows[0].wake.value'), '100');
+  assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  // A failed read that was overtaken does not show an error or schedule a retry.
+  app.run('watchInfo=null');
+  const failed = app.run('loadWatches()'), answerFailed = answer;
+  app.run('watchRead++');
+  answerFailed(httpReply({}, 503)); await failed;
+  assert.equal(app.run('watchLoadError'), '');
+});
