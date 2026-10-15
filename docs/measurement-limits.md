@@ -17,6 +17,16 @@ The dashboard help explains each displayed metric.
 - Rollups cannot reconstruct a complete process view. Replay needs recorded
   snapshots and uses more storage. A recording gap is not an idle interval.
 
+Past assessments check selected recordings in the browser. Earlier periods use
+wider sample intervals. A finding that starts and ends between two checks can
+be missed. Each recording is assessed on its own; rules that need live trends
+cannot run. A missing recording ends a finding episode because its state is
+unknown. Thread episodes also keep the sampler session and thread generation
+separate because Linux can reuse thread IDs. Findings are not stored; a page
+reload checks the recordings again. Reading many full recordings can use
+substantial network bandwidth. See
+[dashboard.html](../collector/dashboard.html) for the checking schedule and rules.
+
 ## Memory and observer cost
 
 Virtual address mappings do not show which pages are resident. RSS measures

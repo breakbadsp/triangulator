@@ -437,6 +437,11 @@ test('hidden or unreachable sockets are explained, not reported as zero', () => 
   assert.equal(other.at(-1).title, 'Socket queues unavailable');
   const stale = findingsOf(app, resources({stale: true, updated: Date.now() / 1000 - 120}));
   assert.equal(stale[0].title, 'Resource samples are stale');
+  assert.match(stale[0].detail, /since 2 min ago/);
+  // A recorded view measures the age from its own time, not the browser clock.
+  app.run('replayAt=1000');
+  assert.match(findingsOf(app, resources({stale: true, updated: 880}))[0].detail, /since 2 min ago/);
+  app.run('replayAt=null');
 });
 
 test('socket queue tiles preserve unavailable values and measured zeroes', () => {
@@ -931,7 +936,7 @@ test('missing recordings and gaps are explicit and never replace a successful vi
   snapshot = null;
   await app.run('inspectTime(900)');
   assert.equal(app.run('replayAt'), 1000);
-  assert.match(app.elements.get('replay-note').textContent, /No process snapshot/);
+  assert.match(app.elements.get('replay-note').textContent, /No recording at or before/);
   await app.run('inspectTime(NaN)');
   assert.match(app.elements.get('replay-note').textContent, /valid time/);
 });
@@ -987,6 +992,246 @@ test('returning to live restores the chosen thread map window', async () => {
   await app.run('inspectTime(1000,"previous")');
   await app.run('returnLive()');
   assert.equal(app.run('mapWindow'), 300);
+});
+
+// Assessment history filters by the area a rule looks at.
+test('findings carry the type that Assessment history filters by', () => {
+  const app = dashboard();
+  const sample = resources();
+  sample.fds.open = 1000;
+  app.run(`live={health:{session:'s',packet_loss_pct:5},threads:[{tid:7,name:'spin',cpu_pct:99,state:'running'}],
+    resources:${JSON.stringify(sample)}}`);
+  const types = JSON.parse(app.run('JSON.stringify(Object.fromEntries(assess(live.threads,[]).map(item=>[item.title,item.type])))'));
+  assert.equal(types['Packet loss 5.0%'], 'monitor');
+  assert.equal(types['spin is saturating a core'], 'threads');
+  assert.equal(types['97.7% of file descriptors in use'], 'resources');
+});
+
+// One finding in consecutive scanned views is one row: its worst level, and
+// the time and wording of that worst view. A view with no recording ends it.
+test('history episodes join consecutive findings and end at a recording gap', () => {
+  const app = dashboard();
+  const finding = (level, title, tid) => ({type: 'threads', level, title, detail: title, action: tid ? {tid} : undefined});
+  const samples = [
+    {at: 10, findings: [finding('warning', '2 threads in uninterruptible kernel wait'), {level: 'good', title: 'No problems detected'}]},
+    {at: 20, findings: [finding('serious', '3 threads in uninterruptible kernel wait'), finding('serious', 'a-1 is saturating a core', 1)]},
+    {at: 30, findings: [finding('warning', '2 threads in uninterruptible kernel wait'), finding('serious', 'a-2 is saturating a core', 2)]},
+    null,
+    {at: 50, findings: [finding('warning', '1 thread in uninterruptible kernel wait')]},
+  ];
+  const episodes = JSON.parse(app.run(`JSON.stringify(historyEpisodes(${JSON.stringify(samples)}))`));
+  assert.deepEqual(episodes.map(episode => [episode.item.title, episode.level, episode.at, episode.first, episode.last, episode.count]), [
+    ['1 thread in uninterruptible kernel wait', 'warning', 50, 50, 50, 1],
+    ['a-2 is saturating a core', 'serious', 30, 30, 30, 1],
+    ['a-1 is saturating a core', 'serious', 20, 20, 20, 1],
+    ['3 threads in uninterruptible kernel wait', 'serious', 20, 10, 30, 3],
+  ]);
+});
+
+// A dashboard whose collector has recordings from `first` to `last` (one a
+// second); snapshotAt(at) gives the view for a request. Patch the checkbox
+// query the DOM substitute does not answer.
+function historyApp(snapshotAt, bounds = {first: 1000, last: 1900}) {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/replay') return jsonResponse({...bounds, interval_s: 1, snapshot: null});
+    if (!url.startsWith('/api/replay?')) return undefined;
+    const query = new URLSearchParams(url.split('?')[1]);
+    return jsonResponse({...bounds, interval_s: 1, snapshot: snapshotAt(Number(query.get('at')), query.get('direction'))});
+  });
+  app.bounds = bounds;
+  app.run(`var boxes=${JSON.stringify(['critical', 'serious', 'warning', 'info'].map(value => ({value, checked: value !== 'info'})))};
+    document.querySelectorAll=(original=>selector=>selector==="#history-levels input"?boxes:original(selector))(document.querySelectorAll);
+    element("history-list").scrollTop=0;element("history-list").clientHeight=100;element("history-list").scrollHeight=100;`);
+  return app;
+}
+const settle = async () => {for (let i = 0; i < 200; i++) await new Promise(resolve => setImmediate(resolve));};
+const historyRows = app => app.elements.get('history-list').children.map(row => row.children?.[1]?.children[0].textContent ?? row.textContent);
+const scanTimes = app => app.requests.filter(url => url.startsWith('/api/replay?') && url.includes('direction=at'))
+  .map(url => Number(new URLSearchParams(url.split('?')[1]).get('at')));
+// A thread is saturated from 1300 to 1500; recordings stop between 1600 and 1700.
+const spinView = at => {
+  const recorded = at >= 1600 && at < 1700 ? 1599 : Math.floor(at);
+  const view = frame(recorded);
+  view.threads[0].cpu_pct = recorded >= 1300 && recorded <= 1500 ? 99 : 5;
+  return view;
+};
+
+test('past thread findings end when a TID has a new generation or sampler session', async () => {
+  const app = historyApp(at => {
+    const view = frame(at, at < 1004 ? 'first-session' : 'second-session');
+    view.threads[0].generation = at < 1002 ? 1 : 2;
+    view.threads[0].cpu_pct = 99;
+    return view;
+  }, {first: 1000, last: 1004});
+  await settle();
+  const episodes = JSON.parse(app.run('JSON.stringify(past.episodes)'));
+  assert.deepEqual(episodes.map(episode => [episode.first, episode.last, episode.count,
+    episode.item.action.tid, episode.item.action.session, episode.item.action.generation]), [
+    [1004, 1004, 1, 9, 'second-session', 2],
+    [1002, 1003, 2, 9, 'first-session', 2],
+    [1000, 1001, 2, 9, 'first-session', 1],
+  ]);
+  assert.equal(new Set(episodes.map(episode => episode.key)).size, 3);
+});
+
+test('past assessments check the latest recordings when the page opens and leave the live view alone', async () => {
+  const app = historyApp(spinView);
+  tick(app, 2000, 0);
+  app.run('latestLive=live');
+  const before = app.run('JSON.stringify({buffer,live,lastTick,bufferSession})');
+  await settle();
+  assert.equal(app.run('JSON.stringify({buffer,live,lastTick,bufferSession})'), before, 'the live view and trends are untouched');
+  assert.equal(app.run('replayAt'), null);
+  const times = scanTimes(app).sort((a, b) => a - b);
+  assert.equal(times.length, 120, 'at most 120 recordings per period');
+  assert.deepEqual([times[0], times.at(-1)], [1000, 1900], 'the first period ends at the newest recording');
+  assert.deepEqual(historyRows(app), ['old-worker is saturating a core']);
+  const episode = JSON.parse(app.run('JSON.stringify(past.episodes[0])'));
+  assert.equal(episode.type, 'threads');
+  assert.ok(episode.first >= 1300 && episode.first < 1308 && episode.last <= 1500 && episode.last > 1492, JSON.stringify(episode));
+  assert.match(app.elements.get('history-status').textContent,
+    /^Checked 108 recordings back to .* \(the oldest recording\)\. 12 checked times had no recording\. Showing 1 of 1 finding\.$/);
+  assert.equal(app.elements.get('history-more').hidden, true, 'nothing earlier to load');
+  // The timeline spans the checked period and marks the finding.
+  const range = app.elements.get('timeline-range');
+  assert.deepEqual([Number(range.min), Number(range.max), Number(range.value)], [1000, 1900, 1900], 'live sits at the right end');
+  const mark = app.elements.get('timeline-marks').children[0];
+  assert.ok(Math.abs(parseFloat(mark.style.left) - 100 * (episode.first - 1000) / 900) < 1e-9);
+  // Filters hide rows and marks without checking again.
+  app.run('boxes[1].checked=false;renderHistory();renderTimeline()');
+  assert.deepEqual(historyRows(app), ['No findings match these filters.']);
+  assert.equal(app.elements.get('timeline-marks').children.length, 0);
+  app.run('boxes[1].checked=true;element("history-type").value="memory";renderHistory()');
+  assert.deepEqual(historyRows(app), ['No findings match these filters.']);
+  app.run('element("history-type").value="threads";renderHistory()');
+  assert.equal(scanTimes(app).length, 120);
+  // A row moves the whole dashboard to the time it was worst and stays selected.
+  app.elements.get('history-list').children[0].onclick();
+  await settle();
+  assert.equal(app.run('replayAt'), episode.at);
+  assert.ok(app.run('assess(live.threads,buffer)').some(item => item.title === 'old-worker is saturating a core'));
+  const row = app.elements.get('history-list').children[0];
+  assert.equal(row.attrs['aria-current'], 'true');
+  assert.equal(row.children[1].children.length, 3, 'the selected row shows the detail');
+  const pill = app.elements.get('history-pill');
+  assert.equal(pill.hidden, false);
+  assert.match(pill.textContent, / · Back to live$/);
+  assert.match(pill.attrs['aria-label'], /^Viewing the recording at .*\. Back to live$/);
+  assert.equal(Number(range.value), episode.at);
+  pill.onclick();
+  assert.equal(app.run('replayAt'), null);
+  assert.equal(pill.hidden, true);
+});
+
+test('scrolling to the end of the list or the start of the timeline checks an earlier period', async () => {
+  const app = historyApp(at => frame(Math.floor(at)), {first: 0, last: 1900});
+  await settle();
+  assert.equal(scanTimes(app).length, 120);
+  assert.equal(app.run('past.oldest'), 1000);
+  const more = app.elements.get('history-more');
+  assert.equal(more.hidden, false);
+  // The list's end is in view: the next period is twice as long, back to the oldest recording.
+  app.elements.get('history-list').onscroll();
+  assert.equal(more.textContent, 'Loading…');
+  app.elements.get('history-list').onscroll();
+  await settle();
+  const earlier = scanTimes(app).slice(120);
+  assert.equal(earlier.length, 119, 'one load at a time; the period stops before the time already checked');
+  assert.ok(Math.min(...earlier) === 0 && Math.max(...earlier) < 1000, `${Math.min(...earlier)}..${Math.max(...earlier)}`);
+  assert.equal(app.run('past.oldest'), 0);
+  assert.equal(more.hidden, true);
+  assert.match(app.elements.get('history-status').textContent, /\(the oldest recording\)/);
+  assert.equal(Number(app.elements.get('timeline-range').min), 0);
+
+  // Releasing the handle at the left end opens that moment and loads earlier;
+  // at the right end it returns to live.
+  const other = historyApp(at => frame(Math.floor(at)), {first: 0, last: 1900});
+  await settle();
+  other.run('latestLive=live={health:{session:"session-1",last_seen:1900},threads:[]}');
+  other.run('renderTimeline()');
+  const range = other.elements.get('timeline-range');
+  range.value = range.min; range.onchange();
+  await settle();
+  assert.equal(other.run('replayAt'), 1000);
+  assert.equal(other.run('past.oldest'), 0);
+  range.value = range.max; range.onchange();
+  assert.equal(other.run('replayAt'), null);
+});
+
+test('a long timeline opens recent past times and one step before Live', async () => {
+  const app = historyApp(at => frame(Math.floor(at)), {first: 0, last: 86400});
+  await settle();
+  app.run('past.oldest=0;latestLive=live={health:{session:"session-1",last_seen:86400},threads:[]};renderTimeline()');
+  const range = app.elements.get('timeline-range');
+  assert.equal(Number(range.max) - Number(range.min), 86400);
+  for (const secondsBeforeLive of [300, 1]) {
+    range.value = String(Number(range.max) - secondsBeforeLive);
+    range.oninput();
+    assert.match(app.elements.get('timeline-cursor').textContent, /^Release to view /);
+    range.onchange();
+    await settle();
+    assert.equal(app.run('replayAt'), 86400 - secondsBeforeLive);
+    app.run('returnLive()');
+  }
+  range.value = range.max;
+  range.oninput();
+  assert.equal(app.elements.get('timeline-cursor').textContent, 'Release for live');
+  range.onchange();
+  assert.equal(app.run('replayAt'), null);
+});
+
+test('a fractional timeline returns to Live only from its last selectable step', async () => {
+  // A native range input selects these endpoints with min=1000.2 and step=1.
+  for (const [liveEnd, lastSelectable] of [[1900.9, 1900.2], [1901.2, 1901.2]]) {
+    const app = historyApp(at => frame(at), {first: 1000.2, last: 1900.2});
+    await settle();
+    app.run(`latestLive=live={health:{session:"session-1",last_seen:${liveEnd}},threads:[]};renderTimeline()`);
+    await app.run('inspectTime(1800.2)');
+    const range = app.elements.get('timeline-range');
+    assert.deepEqual([Number(range.min), Number(range.max)], [1000.2, liveEnd]);
+    range.value = String(lastSelectable - 1);
+    range.oninput();
+    assert.match(app.elements.get('timeline-cursor').textContent, /^Release to view /);
+    range.onchange();
+    await settle();
+    assert.equal(app.run('replayAt'), lastSelectable - 1);
+    range.value = String(lastSelectable);
+    range.oninput();
+    assert.equal(app.elements.get('timeline-cursor').textContent, 'Release for live');
+    range.onchange();
+    assert.equal(app.run('replayAt'), null);
+  }
+});
+
+test('while live the newest recordings join the list, and errors can be retried', async () => {
+  const bounds = {first: 1000, last: 1900};
+  const app = historyApp(at => frame(Math.floor(at)), bounds);
+  await settle();
+  const step = app.run('past.step');
+  bounds.last = 1960;
+  app.advance(15000);
+  await settle();
+  const added = scanTimes(app).slice(120);
+  assert.equal(added.length, Math.floor(60 / step));
+  assert.ok(Math.abs(added[0] - (1900 + step)) < 1e-9);
+  assert.ok(Math.abs(app.run('past.newest') - (1900 + added.length * step)) < 1e-9);
+
+  const failing = historyApp(() => frame(1000));
+  failing.setFetch(url => url === '/api/replay' ? jsonResponse({first: 1000, last: 1900, interval_s: 1})
+    : Promise.resolve({ok: false, json: async () => ({error: 'bad at'})}));
+  failing.run('loadReplayBounds().then(loadOlder)');
+  await settle();
+  assert.equal(failing.elements.get('history-status').textContent, 'bad at Select Load earlier to try again.');
+  assert.equal(failing.elements.get('history-more').hidden, false);
+  failing.setFetch(url => jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: url.includes('?') ? frame(1000) : null}));
+  failing.elements.get('history-more').onclick();
+  await settle();
+  assert.match(failing.elements.get('history-status').textContent, /^Checked /);
+
+  const empty = historyApp(() => null, {first: null, last: null});
+  await settle();
+  assert.equal(empty.elements.get('history-status').textContent, 'No recordings to check.');
+  assert.equal(empty.elements.get('timeline-range').disabled, true);
 });
 
 
@@ -1539,6 +1784,19 @@ test('every help name selects exactly one topic', () => {
 
 // Every section, card, chart, column and disclosure needs a help topic, so new
 // dashboard features cannot ship without one. See docs/contextual-help-design.md.
+test('Timeline step and Live buttons connect to the replay help topic', () => {
+  const app = dashboard();
+  for (const id of ['replay-previous', 'replay-next', 'replay-live']) {
+    const attrs = html.match(new RegExp('<button\\b[^>]*\\bid="' + id + '"[^>]*>'))[0];
+    const target = {
+      dataset: {help: /data-help="([^"]+)"/.exec(attrs)?.[1]},
+      closest(selector) {return selector.startsWith('[data-help]') && this.dataset.help ? this : null;},
+      classList: {contains() {return false;}},
+    };
+    assert.equal(app.run('helpTarget')(target)?.id, 'replay', id);
+  }
+});
+
 test('every static heading, column and summary has a help topic', () => {
   const app = dashboard();
   const page = html.split('<script>')[0].replace(/<aside id="help-guide"[\s\S]*?<\/aside>/, '');

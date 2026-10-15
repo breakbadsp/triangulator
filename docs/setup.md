@@ -59,3 +59,16 @@ See [build guidelines](build-guidelines.md) and
 [watch-sockets.sh](../scripts/watch-sockets.sh) for its entry points.
 Read [measurement limits](measurement-limits.md) before interpreting missing
 socket or process exit evidence.
+
+## Recorded views
+
+Use the **Timeline** at the top of the dashboard to inspect a recording.
+Drag its handle back and release it, or select a row under **Past assessments**.
+The dashboard shows the nearest recording at or before the selected time.
+Use **◀** and **▶** to step between recordings. Select **Live**, **Back to live**,
+or release the handle at the right end to return to the live view.
+
+Scroll to the end of the findings list, select **Load earlier**, or release the
+handle at the left end to check an earlier period. Severity and type filters
+apply to both the list and the timeline marks. Read the contextual help and
+[measurement limits](measurement-limits.md#sampling-and-history).
