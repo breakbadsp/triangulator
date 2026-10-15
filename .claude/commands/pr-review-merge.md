@@ -29,6 +29,7 @@ Run the gate once, after the last round:
 
 - Start `pr-test-merger`, model `haiku`, effort `low`. Pass the PR number, the worktree path, and the expected head SHA.
 - Start it only when every `blocker` from the last analyzer pass is `FIXED` or `REBUTTED`, and the analyzer reports that its check passed. Otherwise do not merge. Report the open blockers.
+- Before you start it, run `git fetch origin` in the worktree. `git rev-parse HEAD` must equal the expected head SHA, which is the PR `headRefOid`, and `git status --porcelain` must print nothing. Otherwise stop and report.
 
 ## Limits
 
