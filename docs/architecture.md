@@ -19,6 +19,9 @@ flowchart LR
 
 The collector main loop owns ingestion and monitor state. HTTP serves published
 snapshots and reads stored history. Browser requests must not delay UDP reads.
+Bounded connection workers and total network deadlines also prevent a slow
+browser from delaying other viewers. Watch-rule changes check the editor's revision
+under the update lock so one operator cannot silently replace another's changes.
 Keep alert delivery, reports, and extended dashboard processing in separate
 programs. Their inputs are read-only day files or the HTTP API.
 
@@ -42,7 +45,7 @@ Session changes and counter resets invalidate earlier rate baselines.
 | Resource, memory, and exit state | [resources.hpp](../collector/resources.hpp), [memory.hpp](../collector/memory.hpp), [exits.hpp](../collector/exits.hpp) |
 | SQLite schemas and queries | [storage.hpp](../collector/storage.hpp) |
 | Recorded process views | [replay.hpp](../collector/replay.hpp) |
-| HTTP routes and request validation | [http.hpp](../collector/http.hpp) |
+| HTTP routes, connection workers, and network deadlines | [http.hpp](../collector/http.hpp), [http_connection.hpp](../collector/http_connection.hpp) |
 | Local target control and watch rules | [target_control.hpp](../collector/target_control.hpp), [watch.hpp](../collector/watch.hpp) |
 | Dashboard rendering, assessments, and help | [dashboard.html](../collector/dashboard.html) |
 | Optional eBPF socket observer | [socket_sampler/](../socket_sampler/) |

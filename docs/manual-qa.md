@@ -12,6 +12,8 @@ behavior that those tests cannot establish:
   and invalid input. Check that an upgrade preserves configuration and history.
 - Check live views, recorded views, thread details, and target changes together.
   Confirm that missing data and recording gaps remain clear.
+- Use the [concurrent-viewer checks](qa/test-cases.md) for independent Chrome
+  views, slow connections, and watch-rule conflict recovery.
 - Check help with pointer, keyboard, Escape, and touch. Check narrow screens,
   viewport edges, zoom, and both themes. Check saved preferences after reload.
 - Use [bugbench.c](../bug-lab/bugbench.c) for controlled faults and a healthy

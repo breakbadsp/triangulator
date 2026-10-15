@@ -2145,7 +2145,7 @@ test('a watched finding keeps its help target through live re-renders', () => {
 
 // ---------- Settings tab: watched-thread rules ----------
 const watchLimits = {prefix_max_bytes: 15, wake_ms_min: 10, wake_ms_max: 3600000, max_rules: 64};
-const watchReply = (rules, extra = {}) => ({rules, source: 'config', saved_error: null, limits: watchLimits, ...extra});
+const watchReply = (rules, extra = {}) => ({rules, source: 'config', saved_error: null, revision: 'test-1', limits: watchLimits, ...extra});
 const httpReply = (body, status = 200) => ({ok: status < 400, status, json: async () => body});
 async function watchApp(info = watchReply([{prefix: 'worker-', wake_ms: 500}]), onWrite = () => httpReply(info)) {
   const writes = [];
@@ -2256,7 +2256,7 @@ test('a save the collector applied but could not confirm on disk shows the rules
   const app = await watchApp(watchReply([]), () => httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true}, 500));
   const inForce = watchReply([{prefix: 'a', wake_ms: 100}], {source: 'dashboard'});
   app.setFetch(async (url, options) => options?.method === 'POST'
-    ? httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true}, 500) : httpReply(inForce));
+    ? httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true, applied_state: inForce}, 500) : httpReply(inForce));
   app.el('watch-add').onclick(); app.type(0, 'prefix', 'a'); app.type(0, 'wake', '100');
   await app.run('saveWatches()');
   assert.match(app.el('watch-status').textContent, /^Warning: rules were applied/);
@@ -2337,7 +2337,7 @@ test('a rules read that an edit, a save or a reset overtook is dropped', async (
 test('a change the collector applied but could not confirm can be repeated until it is confirmed', async () => {
   const unconfirmed = {error: 'rules were applied, but persistence could not be confirmed for /d/watch-rules.json: Input/output error', applied: true};
   const inForce = watchReply([{prefix: 'a', wake_ms: 100}], {source: 'dashboard'});
-  let reply = () => httpReply(unconfirmed, 500), current = watchReply([]);
+  let reply = () => httpReply({...unconfirmed, applied_state: current}, 500), current = watchReply([]);
   const app = await watchApp(watchReply([]));
   app.setFetch(async (url, options) => {if (options?.method === 'POST') {app.writes.push({url}); return reply();} return httpReply(current);});
   app.run('refreshWatchRules=async()=>{}');
@@ -2355,7 +2355,7 @@ test('a change the collector applied but could not confirm can be repeated until
 
   // Reset: the rules in force are the config file ones, so Reset would be off without the retry.
   app.run('confirm=()=>true');
-  reply = () => httpReply(unconfirmed, 500); current = watchReply([]);
+  reply = () => httpReply({...unconfirmed, applied_state: current}, 500); current = watchReply([]);
   app.el('watch-reset').onclick(); await new Promise(resolve => setImmediate(resolve));
   assert.match(app.el('watch-source').textContent, /^From the config file/);
   assert.equal(app.el('watch-reset').disabled, false, 'Reset stays on to retry');
@@ -2379,4 +2379,87 @@ test('matching threads now follows the collector while the final view of an exit
   threads = [1, 2, 3].map(tid => ({tid, name: 'worker-' + tid}));
   assert.equal(await poll(), '3', 'a replacement target started');
   assert.ok(app.run('frozen!==null'), 'the final view stays open');
+});
+
+// A refused stale write must keep the draft until the operator explicitly
+// loads the current list. A failed reload must also keep the draft.
+test('conflicting saves and resets keep drafts and require an explicit reload', async () => {
+  for (const kind of ['save', 'reset']) {
+    const original = watchReply([{prefix: 'worker-', wake_ms: 500}], {source: 'dashboard', revision: 'old'});
+    const current = watchReply([{prefix: 'other-', wake_ms: 1000}], {source: 'dashboard', revision: 'new'});
+    const app = await watchApp(original, () => httpReply({error: 'Another user changed the rules.'}, 409));
+    app.type(0, 'wake', '250');
+    app.run('confirm=()=>true');
+    await app.run(kind === 'save' ? 'saveWatches()' : "changeWatches('/api/watches/reset',{},'Reset.','reset')");
+    assert.equal(app.writes[0].options.headers['If-Match'], '"old"');
+    assert.equal(app.run('watchDraft[0].wake'), '250');
+    assert.equal(app.run('watchInfo.revision'), 'old');
+    assert.equal(app.el('watch-save').disabled, true);
+    assert.equal(app.el('watch-reset').disabled, true);
+    assert.equal(app.el('watch-reload').hidden, false);
+    assert.match(app.el('watch-status').textContent, /Another user/);
+    app.run('confirm=()=>false');
+    await app.run('reloadWatches()');
+    assert.equal(app.run('watchDraft[0].wake'), '250', 'Cancel retains the draft');
+    app.run('confirm=()=>true');
+    app.setFetch(async () => httpReply({}, 503));
+    await app.run('reloadWatches()');
+    assert.equal(app.run('watchDraft[0].wake'), '250', 'a failed reload retains the draft');
+    assert.equal(app.run('watchConflict'), true);
+    app.setFetch(async () => httpReply(current));
+    await app.run('reloadWatches()');
+    assert.equal(app.run('watchDraft[0].prefix'), 'other-');
+    assert.equal(app.run('watchInfo.revision'), 'new');
+    assert.equal(app.el('watch-reload').hidden, true);
+    assert.equal(app.run('watchConflict'), false);
+    assert.equal(app.run('watchDirty()'), false);
+  }
+});
+
+test('an older collector without edit revisions keeps settings read-only', async () => {
+  const app = await watchApp(watchReply([], {revision: undefined}));
+  assert.equal(app.el('watch-editor').hidden, true);
+  assert.match(app.el('watch-readonly').textContent, /Update the collector/);
+});
+
+// A persistence retry must use the revision of its own applied change. A
+// later read can belong to another editor and must not authorize a retry.
+test('persistence retries cannot adopt another editor\'s revision', async () => {
+  for (const kind of ['save', 'reset']) {
+    const original = watchReply([{prefix: 'worker-', wake_ms: 500}], {source: 'dashboard', revision: 'original'});
+    const applied = watchReply(kind === 'save' ? [{prefix: 'worker-', wake_ms: 250}] : [],
+      {source: kind === 'save' ? 'dashboard' : 'config', revision: 'applied'});
+    const other = watchReply([{prefix: 'other-', wake_ms: 1000}], {source: 'dashboard', revision: 'other'});
+    const app = await watchApp(original);
+    app.type(0, 'wake', '250');
+    app.run('refreshWatchRules=async()=>{}');
+    app.setFetch(async (url, options) => options?.method === 'POST'
+      ? httpReply({error: 'rules were applied, but persistence could not be confirmed', applied: true, applied_state: applied}, 500)
+      : httpReply(other));
+    await app.run(`changeWatches('/api/watches${kind === 'reset' ? '/reset' : ''}', {}, 'Done.', '${kind}')`);
+    assert.equal(app.run('watchInfo.revision'), 'applied', 'retain the revision of this change');
+    assert.equal(app.run('watchDraft[0]?.prefix'), kind === 'save' ? 'worker-' : undefined);
+    app.setFetch(async (url, options) => {
+      assert.equal(options.headers['If-Match'], '"applied"', 'a retry cannot authorize a later revision');
+      return httpReply({error: 'Another user changed the rules.'}, 409);
+    });
+    await app.run(`changeWatches('/api/watches${kind === 'reset' ? '/reset' : ''}', {}, 'Done.', '${kind}')`);
+    assert.equal(app.run('watchConflict'), true);
+    assert.equal(app.el('watch-save').disabled, true);
+    assert.equal(app.el('watch-reset').disabled, true);
+  }
+});
+
+test('an applied error without its revision requires an explicit reload', async () => {
+  const app = await watchApp();
+  app.type(0, 'wake', '250');
+  app.run('refreshWatchRules=async()=>{}');
+  app.setFetch(async () => httpReply({error: 'Persistence could not be confirmed.', applied: true}, 500));
+  await app.run('saveWatches()');
+  assert.equal(app.run('watchDraft[0].wake'), '250');
+  assert.equal(app.run('watchInfo.revision'), 'test-1');
+  assert.equal(app.el('watch-save').disabled, true);
+  assert.equal(app.el('watch-reset').disabled, true);
+  assert.equal(app.el('watch-reload').hidden, false);
+  assert.match(app.el('watch-status').textContent, /Reload current rules before retrying/);
 });
