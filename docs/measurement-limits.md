@@ -1,7 +1,8 @@
 # Measurement limits
 
 These constraints affect interpretation. Exact fields, bounds, formulas, and
-thresholds are defined in the [source map](architecture.md#code-entry-points).
+thresholds are defined in the source. The
+[collector file map](collector-reference.md#files) lists the source files.
 The dashboard help explains each displayed metric.
 
 ## Sampling and history
@@ -39,7 +40,7 @@ reads limit each hold; they do not eliminate interference. Resource sampling
 also grows with descriptor and namespace socket counts. Increase sample
 intervals for large targets. Measure on the intended host before setting rates.
 See [sampler configuration](../config/sampler.toml) and the benchmark drivers
-in [build guidelines](build-guidelines.md#performance-checks).
+in [Performance](../README.md#performance).
 
 ## Sockets
 
