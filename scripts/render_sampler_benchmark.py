@@ -138,7 +138,7 @@ Each count has {report['iterations'] * report['repeats']:,} timed batches. This 
 <div class="legend"><span><i style="--color:var(--green)"></i>p50</span><span><i style="--color:var(--orange)"></i>p99</span></div></div>
 <div class="panel"><h3>Sampling-path throughput</h3><p class="panel-sub">Thread records per second · continuous loop</p>{graph(True)}
 <p class="chart-note">Total records divided by total timed sampling duration.</p></div></div>
-<div class="table-wrap"><table><caption>Direct sampling-loop results from <code>build/sampling-performance.json</code>. UDP, auxiliary sampling, and collector work are outside this measurement.</caption>
+<div class="table-wrap"><table><caption>Direct sampling-loop results from <code>docs/sampling-performance.json</code>. UDP, auxiliary sampling, and collector work are outside this measurement.</caption>
 <thead><tr><th scope="col">Threads</th><th scope="col">Records/s</th><th scope="col">p50 · ms</th><th scope="col">p99 · ms</th><th scope="col">Mean · ms</th><th scope="col">Batches</th></tr></thead><tbody>{table}</tbody></table></div>
 <details><summary>Sampling-loop method and evidence</summary><p>The timed batch calls FindTarget, Rescan, and TakeSample,
 then retains each complete thread record. It reuses cached file descriptors. CLOCK_MONOTONIC measures each batch.
@@ -182,19 +182,13 @@ def render_page(report, sampling_report=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("report", type=Path, nargs="?", default=ROOT / "build/sampler-benchmark.json")
-    parser.add_argument("--sampling-report", type=Path, help="optional sampling-loop JSON")
+    parser.add_argument("report", type=Path, nargs="?", default=ROOT / "docs/sampler-benchmark.json")
     args = parser.parse_args()
     report = json.loads(args.report.read_text())
-    sampling_report = json.loads(args.sampling_report.read_text()) if args.sampling_report else None
-    output = ROOT / "build"
-    output.mkdir(exist_ok=True)
-    (output / "sampler-benchmark.json").write_text(args.report.read_text())
-    if args.sampling_report:
-        (output / "sampling-performance.json").write_text(args.sampling_report.read_text())
-    (output / "sampler-benchmark.html").write_text(render_page(report, sampling_report))
-    (output / "sampler-benchmark.svg").write_text(infographic(summarize(report), report))
-    print("Rendered build/sampler-benchmark.html and build/sampler-benchmark.svg")
+    sampling_report = json.loads((ROOT / "docs/sampling-performance.json").read_text())
+    (ROOT / "docs/sampler-benchmark.html").write_text(render_page(report, sampling_report))
+    (ROOT / "docs/assets/sampler-benchmark.svg").write_text(infographic(summarize(report), report))
+    print("Rendered docs/sampler-benchmark.html and docs/assets/sampler-benchmark.svg")
 
 
 if __name__ == "__main__":

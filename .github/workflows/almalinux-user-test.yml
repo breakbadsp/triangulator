@@ -12,6 +12,7 @@ on:
       - Makefile
       - README.md
       - docs/build-guidelines.md
+      - docs/almalinux-user-test.md
       - .github/workflows/almalinux-user-test.yml
       - .github/scripts/almalinux-*.sh
       - common/**

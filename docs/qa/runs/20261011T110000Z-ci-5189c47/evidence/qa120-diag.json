@@ -1,0 +1,21 @@
+{
+ "id": "120",
+ "name": "stopped",
+ "pid": 2170705,
+ "started": "2026-10-11T11:44:20.872Z",
+ "hold": 70,
+ "startComm": true,
+ "stopAt": "2026-10-11T11:45:10.795Z",
+ "stopped": {
+  "meta": "PID 2170705 · Live · just now",
+  "verdict": "Worth a look"
+ },
+ "contAt": "2026-10-11T11:45:35.898Z",
+ "resumed": {
+  "meta": "PID 2170705 · Live · just now",
+  "verdict": "Healthy"
+ },
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

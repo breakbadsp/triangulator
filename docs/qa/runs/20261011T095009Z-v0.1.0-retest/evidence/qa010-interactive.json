@@ -1,0 +1,137 @@
+{
+ "threads": {
+  "1": "t=4.5s TMON seq 1: sender splits the sample into 1 datagram(s) (160 B)",
+  "10": "t=8.5s TMON seq 2: sender splits the sample into 1 datagram(s) (1168 B)",
+  "11": "t=12.5s TMON seq 3: sender splits the sample into 2 datagram(s) (1168 + 160 B)",
+  "60": "t=16.5s TMON seq 4: sender splits the sample into 6 datagram(s) (1168 + 1168 + 1168 + 1168 + 1168 + 1168 B)"
+ },
+ "threadsFresh": {
+  "1": "t=20.5s TMON seq 5: sender splits the sample into 1 datagram(s) (160 B)",
+  "10": "t=24.5s TMON seq 6: sender splits the sample into 1 datagram(s) (1168 B)",
+  "11": "t=28.5s TMON seq 7: sender splits the sample into 2 datagram(s) (1168 + 160 B)",
+  "60": "t=32.5s TMON seq 8: sender splits the sample into 6 datagram(s) (1168 + 1168 + 1168 + 1168 + 1168 + 1168 B)"
+ },
+ "loss50": {
+  "lossLabel": "50%",
+  "log": [
+   "t=43.7s TVMA seq 4: all region parts arrived; layout updated",
+   "t=46.4s TRES seq 7: summary kept; sockets incomplete after the grace period",
+   "t=47.5s TMON seq 11: received threads used; loss counted after the grace period",
+   "t=51.7s TMON seq 12: received threads used; loss counted after the grace period",
+   "t=52.7s TRES seq 8: no summary: sample discarded after the grace period",
+   "t=55.3s TMON seq 13: received threads used; loss counted after the grace period",
+   "t=58.7s TRES seq 9: no summary: sample discarded after the grace period",
+   "t=59.3s TMON seq 14: received threads used; loss counted after the grace period",
+   "t=63.5s TMON seq 15: received threads used; loss counted after the grace period",
+   "t=64.5s TRES seq 10: no summary: sample discarded after the grace period",
+   "t=65.7s TVMA seq 6: region parts missing; layout unchanged; assembly waits for a newer layout sample",
+   "t=67.4s TMON seq 16: received threads used; loss counted after the grace period",
+   "t=70.5s TRES seq 11: summary kept; sockets incomplete after the grace period",
+   "t=71.6s TMON seq 17: received threads used; loss counted after the grace period"
+  ],
+  "counters": {
+   "TMON": {
+    "ok": 8,
+    "bad": 15
+   },
+   "TRES": {
+    "ok": 6,
+    "bad": 8
+   },
+   "TVMA": {
+    "ok": 3,
+    "bad": 1
+   },
+   "TSIO": {
+    "ok": 46,
+    "bad": 0
+   }
+  }
+ },
+ "pause": {
+  "label1": "Play",
+  "pausedAdvance": 0,
+  "resumedAdvance": 2.9996999999998337,
+  "label2": "Pause"
+ },
+ "dropTRESsummary": {
+  "kind": "TRES",
+  "seq": 16,
+  "part": 0,
+  "total": 4,
+  "x": 336.21853082238493,
+  "y": 163
+ },
+ "tresResult": {
+  "dropLogs": 0,
+  "lines": [
+   "t=97.5s TRES seq 16: sender splits the sample into 4 datagram(s) (1232 + 1024 + 1024 + 384 B)",
+   "t=97.7s TRES seq 16 part 2/4 dropped in flight by you",
+   "t=100.7s TRES seq 16: summary kept; sockets incomplete after the grace period"
+  ],
+  "asm": {
+   "seq": 18,
+   "flagged": false,
+   "done": true,
+   "got": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "ok": 8,
+   "bad": 10
+  }
+ },
+ "dropTVMAsummary": {
+  "kind": "TVMA",
+  "seq": 12,
+  "part": 0,
+  "total": 4,
+  "x": 316.68534660238106,
+  "y": 253
+ },
+ "tvmaSummaryResult": {
+  "dropLogs": 0,
+  "lines": [
+   "t=122.5s TVMA seq 12: sender splits the sample into 4 datagram(s) (200 + 1344 + 1344 + 512 B)",
+   "t=122.7s TVMA seq 12 part 2/4 dropped in flight by you",
+   "t=123.5s TVMA seq 12: summary updated separately",
+   "t=125.5s TVMA seq 12: region parts missing; layout unchanged; assembly waits for a newer layout sample"
+  ],
+  "asm": {
+   "seq": 12,
+   "total": 4,
+   "flagged": true,
+   "done": false,
+   "ok": 4,
+   "bad": 2
+  }
+ },
+ "dropTVMAregion": {
+  "kind": "TVMA",
+  "seq": 14,
+  "part": 1,
+  "total": 4,
+  "x": 340.9776653917743,
+  "y": 253
+ },
+ "tvmaRegionResult": {
+  "dropLogs": 0,
+  "lines": [
+   "t=142.5s TVMA seq 14: sender splits the sample into 4 datagram(s) (200 + 1344 + 1344 + 512 B)",
+   "t=142.8s TVMA seq 14 part 3/4 dropped in flight by you",
+   "t=143.3s TVMA seq 14: summary updated separately",
+   "t=145.3s TVMA seq 14: region parts missing; layout unchanged; assembly waits for a newer layout sample"
+  ],
+  "asm": {
+   "seq": 14,
+   "total": 4,
+   "flagged": true,
+   "done": false,
+   "ok": 4,
+   "bad": 3
+  }
+ },
+ "diag": []
+}

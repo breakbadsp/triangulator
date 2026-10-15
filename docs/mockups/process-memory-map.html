@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Triangulator · Memory map (mock-up)</title>
+<style>
+:root{--page:#f4f5f7;--surface:#fff;--surface-2:#f7f8fa;--raised:#eef1f5;--ink:#0b0b0b;--ink-2:#4a4f58;--muted:#7a808a;--line:rgba(11,11,11,.09);--accent:#2a78d6;--accent-ink:#1c5cab;--accent-wash:rgba(42,120,214,.12);--good:#0ca30c;--warn:#fab219;--serious:#ec835a;--crit:#d03b3b;
+--k-text:#7b8794;--k-data:#a78bfa;--k-heap:#2a78d6;--k-stack:#eb6834;--k-anon:#1baf7a;--k-file:#c4a24a;--k-guard:#c4c8ce;--k-shm:#e87ba4;--k-vdso:#9aa0a8;
+--shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px -12px rgba(16,24,40,.12)}
+*{box-sizing:border-box}
+html{background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{margin:0;width:1440px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+h2{font-size:15px;margin:0;font-weight:600}
+h3{font-size:13px;margin:0;font-weight:600}
+.muted{color:var(--muted)} .ink2{color:var(--ink-2)}
+.topbar{background:#fff;border-bottom:1px solid var(--line)}
+.topbar-inner{padding:10px 24px;display:flex;align-items:center;gap:18px}
+.brand{font-weight:650;font-size:16px}
+.tabs{display:flex;gap:4px}
+.tab{padding:6px 12px;border-radius:8px;color:var(--ink-2)}
+.tab.on{background:var(--accent-wash);color:var(--accent-ink);font-weight:600}
+.tab .new{font-size:10px;background:var(--accent);color:#fff;border-radius:6px;padding:1px 5px;margin-left:6px}
+.spacer{flex:1}
+.pill{border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--surface-2);font-size:12px}
+.pill b{font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:6px}
+main{padding:18px 24px;display:grid;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px}
+.card-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+.tile .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.tile .l{color:var(--muted);font-size:12px}
+.tile .d{font-size:12px;margin-top:2px}
+.up{color:#b42424}.ok{color:#006300}
+.findings{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 16px}
+.finding{display:flex;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface-2);border-left:4px solid var(--warn)}
+.finding.crit{border-color:var(--crit)} .finding.info{border-color:var(--accent)} .finding.serious{border-color:var(--serious)}
+.finding .t{font-weight:600}
+.finding .s{color:var(--ink-2);font-size:12px}
+.chip{font-size:10px;text-transform:uppercase;letter-spacing:.04em;border-radius:6px;padding:1px 6px;color:#111;background:var(--warn);height:max-content;margin-top:2px}
+.crit .chip{background:var(--crit);color:#fff}.serious .chip{background:var(--serious)}.info .chip{background:var(--accent);color:#fff}
+.split{display:grid;grid-template-columns:600px 1fr;gap:16px;align-items:start}
+/* address map */
+.map{display:grid;grid-template-columns:92px 1fr;gap:0 10px}
+.addr{font-size:11px;color:var(--muted);text-align:right;padding-top:2px}
+.row{display:flex;align-items:center;gap:8px;border-radius:6px;padding:0 8px;margin:2px 0;position:relative;overflow:hidden;border:1px solid rgba(0,0,0,.08);color:#111;cursor:pointer}
+.row .fill{position:absolute;left:0;top:0;bottom:0;opacity:.30;background:#000}
+.row span{position:relative;z-index:1}
+.row .name{font-weight:600}
+.row .meta{margin-left:auto;font-size:11px}
+.row.sel{outline:3px solid var(--accent);outline-offset:1px}
+.gap{height:22px;margin:2px 0;border-radius:6px;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(0,0,0,.05) 6px 12px);color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.arrow{font-weight:700}
+/* zoom */
+.zoomgrid{display:grid;grid-template-columns:repeat(64,1fr);gap:2px}
+.zoomgrid div{aspect-ratio:1;border-radius:2px}
+.c-none{background:#e9ecf0}.c-clean{background:#9cc3f0}.c-dirty{background:#2a78d6}.c-swap{background:#eb6834}.c-new{background:#2a78d6;outline:2px solid #0ca30c;outline-offset:0;z-index:1}
+.c-unmapped{background:repeating-linear-gradient(135deg,#fff 0 3px,#dfe3e8 3px 6px);border:1px dashed #c7cbd2}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 16px;margin:10px 0 12px}
+.facts div{font-size:12px;color:var(--muted)} .facts b{display:block;font-size:14px;color:var(--ink);font-weight:600}
+.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.chart svg{width:100%;height:92px;background:var(--surface-2);border-radius:8px}
+.chart .cap{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.hint{font-size:12px;color:var(--ink-2);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand">Triangulator</div>
+  <div class="tabs">
+    <div class="tab">Threads</div><div class="tab">Resources</div><div class="tab">Sockets</div>
+    <div class="tab on">Memory map<span class="new">new</span></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill"><span class="dot"></span><b>orders-service</b> · pid 48213</span>
+  <span class="pill">Memory sampling <b>on</b> · every 2 s · cost 0.3 % of one CPU</span>
+  <span class="pill">Live · 14:32:07</span>
+</div></div>
+
+<main>
+  <div class="tiles">
+    <div class="tile"><div class="l">Virtual size (VmSize)</div><div class="v">18.4 GiB</div><div class="d muted">limit: unlimited</div></div>
+    <div class="tile"><div class="l">Resident (RSS)</div><div class="v">2.31 GiB</div><div class="d up">▲ 38 MiB / min</div></div>
+    <div class="tile"><div class="l">Anonymous / file / shared</div><div class="v">2.0 / 0.3 / 0.03</div><div class="d muted">GiB: RssAnon / File / Shmem</div></div>
+    <div class="tile"><div class="l">VMA count</div><div class="v">61 204</div><div class="d up">93 % of vm.max_map_count</div></div>
+    <div class="tile"><div class="l">Major faults</div><div class="v">412 /s</div><div class="d up">▲ was 3 /s ten min ago</div></div>
+    <div class="tile"><div class="l">Memory pressure (PSI some)</div><div class="v">12.4 %</div><div class="d up">cgroup full 2.1 %</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Findings</h2><span class="muted">Computed by the analysis module from the last 10 minutes. Thresholds are in the settings.</span></div>
+    <div class="findings">
+      <div class="finding crit"><span class="chip">critical</span><div><div class="t">VMA count is close to the limit</div><div class="s">61 204 of 65 530. New <code>mmap</code> calls will fail with ENOMEM at the limit. 41 000 VMAs are 4 KiB anonymous pieces with guard pages.</div></div></div>
+      <div class="finding serious"><span class="chip">serious</span><div><div class="t">Major page faults and memory pressure rise together</div><div class="s">412 major faults/s, PSI some 12.4 %, swap in 8 MiB/s. The working set is larger than the memory limit (cgroup 2.5 GiB, RSS 2.31 GiB).</div></div></div>
+      <div class="finding"><span class="chip">warning</span><div><div class="t">Anonymous memory grows without a plateau</div><div class="s">RssAnon rose for 9 of the last 10 minutes (38 MiB/min). Heap is 84 MiB. Most of the growth is in 4 allocator arenas (64 MiB each).</div></div></div>
+      <div class="finding"><span class="chip">warning</span><div><div class="t">Sparse heap: possible fragmentation</div><div class="s"><code>[heap]</code> is 84 MiB but only 41 MiB is resident. 38 % of the resident pages are in runs shorter than 1 MiB.</div></div></div>
+      <div class="finding info"><span class="chip">notice</span><div><div class="t">Library replaced on disk</div><div class="s"><code>/usr/lib/libssl.so.3 (deleted)</code> is still mapped. The process runs old code. Restart after the update.</div></div></div>
+      <div class="finding info"><span class="chip">notice</span><div><div class="t">Main stack is at 3 % of its limit</div><div class="s">[stack] is 264 KiB. RLIMIT_STACK is 8 MiB. 16 thread stacks have 1.1 MiB resident at most.</div></div></div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="card">
+      <div class="card-head"><h2>Address space</h2><span class="muted">High addresses at the top. Spaces between mappings are shortened.</span></div>
+      <div class="map" id="map"></div>
+      <div class="legend">
+        <span><i style="background:var(--k-text)"></i>program / library code</span>
+        <span><i style="background:var(--k-data)"></i>data, bss</span>
+        <span><i style="background:var(--k-heap)"></i>heap (brk)</span>
+        <span><i style="background:var(--k-anon)"></i>anonymous (arena, mmap)</span>
+        <span><i style="background:var(--k-stack)"></i>stack</span>
+        <span><i style="background:var(--k-file)"></i>file mapping</span>
+        <span><i style="background:var(--k-guard)"></i>guard</span>
+        <span><i style="background:var(--k-vdso)"></i>kernel</span>
+      </div>
+      <div class="hint">Dark fill inside a bar = resident share (Rss / Size). Click a readable (<code>r</code>) mapping to zoom.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Zoom: <code>[heap]</code></h2><span class="muted">0x55d0c1a00000 – 0x55d0c6e00000 · rw-p · grows <span class="arrow" style="color:var(--k-heap)">↑ up</span></span></div>
+      <div class="facts">
+        <div>Size<b>84 MiB</b></div><div>Resident<b>41 MiB (49 %)</b></div>
+        <div>Break moved<b>+2.0 MiB in 10 s</b></div><div>Swapped<b>3.2 MiB</b></div>
+        <div>Private dirty<b>39 MiB</b></div><div>Largest hole<b>9.5 MiB</b></div>
+        <div>Huge pages<b>0 (disabled)</b></div><div>Page size<b>4 KiB</b></div>
+      </div>
+      <div class="muted" style="font-size:12px;margin-bottom:4px">Top = high address (end of the heap, the program break). One square = 256 KiB (64 pages).</div>
+      <div class="zoomgrid" id="zoom"></div>
+      <div class="legend">
+        <span><i class="c-none"></i>not resident</span>
+        <span><i class="c-clean"></i>resident, clean</span>
+        <span><i class="c-dirty"></i>resident, dirty</span>
+        <span><i class="c-swap"></i>swapped out</span>
+        <span><i style="background:#2a78d6;outline:2px solid #0ca30c"></i>grew in the last 10 s</span>
+        <span><i class="c-unmapped"></i>above the break (not mapped)</span>
+      </div>
+      <div class="hint">The sampler reads <code>/proc/&lt;pid&gt;/pagemap</code> (page flags only). No byte of the process memory is read. No privilege is needed.</div>
+      <div style="height:14px"></div>
+      <div class="charts">
+        <div class="chart"><div class="cap"><h3>Heap end <span class="arrow" style="color:var(--k-heap)">↑</span></h3><span class="mono up">+2.0 MiB / 10 s</span></div>
+          <svg viewBox="0 0 300 92" preserveAspectRatio="none"><polyline fill="none" stroke="#2a78d6" stroke-width="2" points="0,80 30,78 60,70 90,70 120,62 150,60 180,48 210,46 240,36 270,28 300,20"/><text x="6" y="14" font-size="10" fill="#7a808a">82 → 84 MiB</text></svg></div>
+        <div class="chart"><div class="cap"><h3>Main stack start <span class="arrow" style="color:var(--k-stack)">↓</span></h3><span class="mono">+8 KiB / 10 min</span></div>
+          <svg viewBox="0 0 300 92" preserveAspectRatio="none"><polyline fill="none" stroke="#eb6834" stroke-width="2" points="0,14 80,14 81,34 170,34 171,54 300,54"/><text x="6" y="84" font-size="10" fill="#7a808a">256 → 264 KiB</text></svg></div>
+        <div class="chart"><div class="cap"><h3>Resident anonymous</h3><span class="mono up">+38 MiB / min</span></div>
+          <svg viewBox="0 0 300 92" preserveAspectRatio="none"><polyline fill="none" stroke="#1baf7a" stroke-width="2" points="0,82 40,76 80,70 120,60 160,54 200,42 240,32 280,20 300,16"/><text x="6" y="14" font-size="10" fill="#7a808a">1.8 → 2.0 GiB</text></svg></div>
+      </div>
+      <div class="hint">Stack and heap move in steps. The kernel adds whole pages. Thread stacks do not grow: each has a fixed size, and the resident part shows how deep the thread went.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const rows=[
+ ["0xffffffffff600000","[vsyscall]","--xp","4 KiB","vdso",0,20],
+ ["0x7ffd4a2c0000","[vvar] [vdso]","r--p r-xp","16 KiB","vdso",0,20],
+ ["0x7ffd4a1f6000","[stack]","rw-p · grows ↓","264 KiB","stack",.9,34,"↓ main stack"],
+ ["gap","≈ 22 TiB not mapped"],
+ ["0x7f8a10000000","ld.so, libc, libm, libssl … (18 libraries)","r-xp r--p rw-p","14 MiB","text",.55,30],
+ ["0x7f8a00000000","thread stacks × 16 (8 MiB each)","rw-p","128 MiB","stack",.1,30],
+ ["0x7f89f0000000","allocator arenas × 4 (64 MiB each)","rw-p ---p","256 MiB","anon",.62,36],
+ ["0x7f8900000000","anonymous map: cache (mmap 1.2 GiB)","rw-p","1.2 GiB","anon",.78,44],
+ ["0x7f8880000000","46 000 small anonymous pieces","rw-p ---p","180 MiB","guard",.3,28],
+ ["gap","≈ 82 TiB not mapped"],
+ ["0x55d0c1a00000","[heap]","rw-p · grows ↑","84 MiB","heap",.49,40,"↑ brk heap"],
+ ["0x55d0c1800000","data, bss","rw-p","2 MiB","data",.9,26],
+ ["0x55d0c1000000","orders-service (program image)","r-xp r--p","8 MiB","text",.3,28]
+];
+const col={vdso:"var(--k-vdso)",stack:"var(--k-stack)",text:"var(--k-text)",anon:"var(--k-anon)",guard:"var(--k-guard)",heap:"var(--k-heap)",data:"var(--k-data)"};
+const map=document.getElementById("map");
+for(const r of rows){
+  const a=document.createElement("div");a.className="addr mono";
+  const b=document.createElement("div");
+  if(r[0]==="gap"){a.textContent="⋮";b.className="gap";b.textContent=r[1];}
+  else{
+    a.textContent=r[0].replace("0x","").slice(0,12)+"…";
+    b.className="row"+(r[4]==="heap"?" sel":"");b.style.height=r[6]+"px";b.style.background=col[r[4]];
+    if(r[4]==="heap"||r[4]==="stack"||r[4]==="anon"||r[4]==="text")b.style.color=(r[4]==="text"||r[4]==="heap")?"#fff":"#111";
+    b.innerHTML=`<div class="fill" style="width:${Math.round(r[5]*100)}%"></div><span class="name">${r[1]}</span><span class="meta mono">${r[2]} · ${r[3]}${r[7]?` · <b class="arrow">${r[7]}</b>`:""}</span>`;
+  }
+  map.append(a,b);
+}
+// zoom grid: 64 x 8 cells = 512 cells of 256 KiB would be 128 MiB; the heap is 84 MiB = 336 cells
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const z=document.getElementById("zoom");
+const total=512,used=336;const cells=[];
+for(let i=0;i<total;i++){
+  let c;
+  if(i>=used)c="c-unmapped";
+  else{
+    const hole=(i%97)<14||(i%61)<9;
+    const x=rnd();
+    if(hole&&x<.8)c="c-none";
+    else if(x<.07)c="c-swap";
+    else if(x<.35)c="c-clean";
+    else c="c-dirty";
+    if(i>=used-9&&c!=="c-none")c="c-new";
+  }
+  cells.push(c);
+}
+// show high addresses first (top row = end of heap)
+for(let r=7;r>=0;r--)for(let k=0;k<64;k++){const d=document.createElement("div");d.className=cells[r*64+k];z.append(d);}
+</script>
+</body>
+</html>

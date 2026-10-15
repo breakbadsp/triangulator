@@ -1,0 +1,444 @@
+{
+ "legend": [
+  {
+   "i": 0,
+   "label": "[vsyscall] --xp · 4.0 KiB",
+   "gridColours": [
+    "rgb(154, 160, 168)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "kernel",
+     "rgb(154, 160, 168)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 1,
+   "label": "[stack] rw-p · 140.0 KiB · grows ↓",
+   "gridColours": [
+    "rgb(216, 90, 40)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "stack",
+     "rgb(216, 90, 40)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 2,
+   "label": "[anonymous] rw-p · 4.0 KiB",
+   "gridColours": [
+    "rgb(27, 175, 122)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "anonymous (arenas, mmap)",
+     "rgb(27, 175, 122)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 3,
+   "label": "ld-linux-x86-64.so.2 rwxp · 256.0 KiB",
+   "gridColours": [
+    "rgb(107, 119, 133)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "program / library code",
+     "rgb(107, 119, 133)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 4,
+   "label": "[vvar] [vvar_vclock] [vdso] r-xp r--p · 36.0 KiB",
+   "gridColours": [
+    "rgb(154, 160, 168)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "kernel",
+     "rgb(154, 160, 168)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 5,
+   "label": "ld.so.cache r--p · 160.0 KiB",
+   "gridColours": [
+    "rgb(196, 162, 74)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "file mapping",
+     "rgb(196, 162, 74)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 6,
+   "label": "2 anonymous regions rw-p · 572.0 KiB",
+   "gridColours": [
+    "rgb(27, 175, 122)"
+   ],
+   "hatched": 44,
+   "legend": [
+    [
+     "anonymous (arenas, mmap)",
+     "rgb(27, 175, 122)",
+     false
+    ],
+    [
+     "not mapped",
+     "rgba(0, 0, 0, 0)",
+     true
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 7,
+   "label": "libc.so.6 rwxp rw-p · 2.6 MiB",
+   "gridColours": [
+    "rgb(107, 119, 133)",
+    "rgb(27, 175, 122)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "program / library code",
+     "rgb(107, 119, 133)",
+     false
+    ],
+    [
+     "anonymous (arenas, mmap)",
+     "rgb(27, 175, 122)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 8,
+   "label": "[anonymous] rw-p · 256.0 MiB",
+   "gridColours": [
+    "rgb(27, 175, 122)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "anonymous (arenas, mmap)",
+     "rgb(27, 175, 122)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 9,
+   "label": "[heap] rw-p · 132.0 KiB · grows ↑",
+   "gridColours": [
+    "rgb(42, 120, 214)"
+   ],
+   "hatched": 16,
+   "legend": [
+    [
+     "heap (brk)",
+     "rgb(42, 120, 214)",
+     false
+    ],
+    [
+     "not mapped",
+     "rgba(0, 0, 0, 0)",
+     true
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 10,
+   "label": "[anonymous] rw-p · 1.3 MiB",
+   "gridColours": [
+    "rgb(27, 175, 122)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "anonymous (arenas, mmap)",
+     "rgb(27, 175, 122)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  },
+  {
+   "i": 11,
+   "label": "qa6c-fixture (probably the program) rwxp · 36.0 Ki",
+   "gridColours": [
+    "rgb(107, 119, 133)"
+   ],
+   "hatched": 0,
+   "legend": [
+    [
+     "program / library code",
+     "rgb(107, 119, 133)",
+     false
+    ]
+   ],
+   "legendMatchesGrid": true,
+   "notMappedListedOnlyWithGaps": true
+  }
+ ],
+ "healthyA": {
+  "name": "[heap]",
+  "sub": "0x6384637ba000 – 0x6384637db000 · rw-p · grows ↑",
+  "facts": "Size (mapped) | 132.0 KiB | Address span | 132.0 KiB | Regions / VMAs | 1 / 1 | Share of VmSize | 0.0% | Not mapped inside | 0 B | Largest unmapped gap | 0 B | Largest region | 132.0 KiB | Heap mapping size change | 0 B in 5 s | Page size | 4.0 KiB",
+  "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | 0 B / min | 160.0 KiB → 160.0 KiB",
+  "legend": [
+   "heap (brk)",
+   "not mapped"
+  ]
+ },
+ "healthyB": {
+  "name": "[heap]",
+  "sub": "0x6384637ba000 – 0x6384637db000 · rw-p · grows ↑",
+  "facts": "Size (mapped) | 132.0 KiB | Address span | 132.0 KiB | Regions / VMAs | 1 / 1 | Share of VmSize | 0.0% | Not mapped inside | 0 B | Largest unmapped gap | 0 B | Largest region | 132.0 KiB | Heap mapping size change | 0 B in 15 s | Page size | 4.0 KiB",
+  "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | 0 B / min | 160.0 KiB → 160.0 KiB",
+  "legend": [
+   "heap (brk)",
+   "not mapped"
+  ]
+ },
+ "leakPid": 2173252,
+ "leakSamples": [
+  {
+   "t": 5,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | Collecting… | Main stack start ↓ | Collecting… | Resident anonymous | Collecting…",
+   "legend": []
+  },
+  {
+   "t": 10,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +369.1 MiB / min | 900.0 KiB → 31.6 MiB",
+   "legend": []
+  },
+  {
+   "t": 15,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +454.6 MiB / min | 900.0 KiB → 76.6 MiB",
+   "legend": []
+  },
+  {
+   "t": 20,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +432.1 MiB / min | 900.0 KiB → 105.9 MiB",
+   "legend": []
+  },
+  {
+   "t": 25,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +449.2 MiB / min | 900.0 KiB → 150.9 MiB",
+   "legend": []
+  },
+  {
+   "t": 30,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +467.1 MiB / min | 900.0 KiB → 195.9 MiB",
+   "legend": []
+  },
+  {
+   "t": 35,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +462.0 MiB / min | 900.0 KiB → 225.9 MiB",
+   "legend": []
+  },
+  {
+   "t": 40,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +465.7 MiB / min | 900.0 KiB → 270.2 MiB",
+   "legend": []
+  },
+  {
+   "t": 45,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +460.3 MiB / min | 900.0 KiB → 300.2 MiB",
+   "legend": []
+  },
+  {
+   "t": 50,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +458.2 MiB / min | 900.0 KiB → 375.2 MiB",
+   "legend": []
+  },
+  {
+   "t": 55,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +458.2 MiB / min | 900.0 KiB → 375.2 MiB",
+   "legend": []
+  },
+  {
+   "t": 60,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +452.3 MiB / min | 900.0 KiB → 405.3 MiB",
+   "legend": []
+  },
+  {
+   "t": 65,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +451.3 MiB / min | 900.0 KiB → 449.5 MiB",
+   "legend": []
+  },
+  {
+   "t": 70,
+   "name": "—",
+   "sub": "",
+   "facts": "",
+   "charts": "Heap mapping end ↑ | 0 B / min | Offset: 0 B → 0 B | Main stack start ↓ | 0 B / min | Offset: 0 B → 0 B | Resident anonymous | +448.1 MiB / min | 900.0 KiB → 479.5 MiB",
+   "legend": []
+  }
+ ],
+ "mappedSince": [
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  },
+  {
+   "name": "—",
+   "legend": []
+  }
+ ],
+ "diag": [
+  "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

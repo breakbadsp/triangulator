@@ -1,0 +1,160 @@
+{
+  "source_revision": "188d0b5c6ef83df0c2ec5175cd944c550ba11801",
+  "mode": "existing runtime",
+  "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "port": 19401,
+  "threads": 5,
+  "collector_sha256": null,
+  "load": [
+    {
+      "viewers": 2,
+      "rounds": 6,
+      "requests": 12,
+      "errors": [],
+      "median_ms": 0.578411971218884,
+      "p95_ms": 0.6282989634200931,
+      "max_ms": 0.7826229557394981,
+      "response_bytes": 6875
+    },
+    {
+      "viewers": 10,
+      "rounds": 6,
+      "requests": 60,
+      "errors": [],
+      "median_ms": 1.053163898177445,
+      "p95_ms": 2.8346950421109796,
+      "max_ms": 3.23585607111454,
+      "response_bytes": 6894
+    },
+    {
+      "viewers": 25,
+      "rounds": 6,
+      "requests": 150,
+      "errors": [],
+      "median_ms": 3.0911730136722326,
+      "p95_ms": 8.78963409923017,
+      "max_ms": 1021.827284945175,
+      "response_bytes": 6927
+    },
+    {
+      "viewers": 50,
+      "rounds": 6,
+      "requests": 300,
+      "errors": [],
+      "median_ms": 2.3538649547845125,
+      "p95_ms": 1012.0334080420434,
+      "max_ms": 1217.8999329917133,
+      "response_bytes": 6914
+    }
+  ],
+  "slow_connections": [
+    {
+      "mode": "empty",
+      "other_viewer_seconds": 5.0841670880327,
+      "status": 200,
+      "probe_waiting_after_7s": null,
+      "health_before": {
+        "last_seen": 1792055630.554977,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 530,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      },
+      "health_after": {
+        "last_seen": 1792055635.5549772,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 555,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      }
+    },
+    {
+      "mode": "partial",
+      "other_viewer_seconds": 4.918572093942203,
+      "status": 200,
+      "probe_waiting_after_7s": null,
+      "health_before": {
+        "last_seen": 1792055635.5549772,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 555,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      },
+      "health_after": {
+        "last_seen": 1792055640.5549774,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 580,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      }
+    },
+    {
+      "mode": "drip",
+      "other_viewer_seconds": 7.001396237988956,
+      "status": 200,
+      "probe_waiting_after_7s": true,
+      "health_before": {
+        "last_seen": 1792055640.5549774,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 580,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      },
+      "health_after": {
+        "last_seen": 1792055647.5550108,
+        "sampler_silent": false,
+        "target_absent": false,
+        "packet_loss_pct": 0.0,
+        "session": "10751512915738297101",
+        "pid": 2209953,
+        "bad_packets": 0,
+        "duplicates": 0,
+        "late_packets": 0,
+        "dropped_samples": 0,
+        "raw_samples": 615,
+        "sample_interval_ms": 1000,
+        "sampler_ip": "127.0.0.1"
+      }
+    }
+  ]
+}
