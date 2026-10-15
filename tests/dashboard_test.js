@@ -2333,3 +2333,36 @@ test('a rules read that an edit, a save or a reset overtook is dropped', async (
   answerFailed(httpReply({}, 503)); await failed;
   assert.equal(app.run('watchLoadError'), '');
 });
+
+test('a change the collector applied but could not confirm can be repeated until it is confirmed', async () => {
+  const unconfirmed = {error: 'rules were applied, but persistence could not be confirmed for /d/watch-rules.json: Input/output error', applied: true};
+  const inForce = watchReply([{prefix: 'a', wake_ms: 100}], {source: 'dashboard'});
+  let reply = () => httpReply(unconfirmed, 500), current = watchReply([]);
+  const app = await watchApp(watchReply([]));
+  app.setFetch(async (url, options) => {if (options?.method === 'POST') {app.writes.push({url}); return reply();} return httpReply(current);});
+  app.run('refreshWatchRules=async()=>{}');
+  app.el('watch-add').onclick(); app.type(0, 'prefix', 'a'); app.type(0, 'wake', '100');
+  current = inForce;
+  await app.run('saveWatches()');
+  assert.equal(app.run('watchDirty()'), false, 'the rules in force equal the draft');
+  assert.equal(app.el('watch-save').disabled, false, 'Save stays on to retry');
+  assert.match(app.el('watch-status').textContent, /^Warning: rules were applied.*Input\/output error\. Select Save again to retry\.$/);
+  reply = () => httpReply(inForce);
+  await app.run('saveWatches()');
+  assert.equal(app.writes.length, 2);
+  assert.equal(app.el('watch-status').textContent, 'Saved and applied.');
+  assert.equal(app.el('watch-save').disabled, true, 'confirmed: nothing left to save');
+
+  // Reset: the rules in force are the config file ones, so Reset would be off without the retry.
+  app.run('confirm=()=>true');
+  reply = () => httpReply(unconfirmed, 500); current = watchReply([]);
+  app.el('watch-reset').onclick(); await new Promise(resolve => setImmediate(resolve));
+  assert.match(app.el('watch-source').textContent, /^From the config file/);
+  assert.equal(app.el('watch-reset').disabled, false, 'Reset stays on to retry');
+  assert.equal(app.el('watch-save').disabled, true);
+  assert.match(app.el('watch-status').textContent, /Select Reset to config file again to retry\.$/);
+  reply = () => httpReply(watchReply([]));
+  app.el('watch-reset').onclick(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.el('watch-status').textContent, 'Reset. The rules from the config file are in force.');
+  assert.equal(app.el('watch-reset').disabled, true);
+});
