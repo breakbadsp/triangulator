@@ -76,8 +76,9 @@ the test definition. QA does not change the package version.
   the latest run and its evidence. Open the [run records](qa/runs/) for steps,
   environment, package identity, and failure reproduction.
 - The [QA results workflow](https://github.com/breakbadsp/triangulator/actions/workflows/qa-results.yml)
-  runs on every change to these files. It fails when a case lacks a result row, a
-  link is broken, or the README summary is stale. Its job summary shows the counts.
+  runs on every change to these files. It fails when a recorded result row is
+  invalid, a run or evidence link is broken, or the README summary is stale.
+  Case procedures can exist without result rows. Its job summary shows the counts.
 - Locally, run `scripts/qa_summary.py` to print the counts. After a QA run, run
   `scripts/qa_summary.py --write-readme` to refresh the README block, then
   `scripts/qa_summary.py --check`.
