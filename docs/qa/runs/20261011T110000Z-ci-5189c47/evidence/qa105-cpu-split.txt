@@ -1,2 +1,0 @@
-2477 3342 -> 5839 7958
-utime ticks 3362 stime ticks 4616 kernel share 57.9%

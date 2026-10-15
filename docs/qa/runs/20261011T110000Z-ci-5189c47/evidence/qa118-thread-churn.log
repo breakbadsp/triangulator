@@ -1,2 +1,0 @@
-[bugbench    0.0s] thread-churn: one new thread per task, 150 per second (pid 2156926, 110 s)
-[bugbench   76.9s] done

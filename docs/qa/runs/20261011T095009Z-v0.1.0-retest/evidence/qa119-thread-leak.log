@@ -1,2 +1,0 @@
-[bugbench    0.0s] thread-leak: threads that wait forever pile up (pid 2115517, 205 s)
-[bugbench  170.0s] done
