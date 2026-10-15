@@ -24,7 +24,7 @@ The orchestrator gives you the PR number and the worktree path of the PR branch.
 5. Before C++ edits, read `docs/cpp-coding-standards.md` and `$HOME/ai/conventions/cpp.md`. After C++ edits, run `make format`.
 6. Fix one finding at a time. After each fix, run the repository check command (`make check` for this repository). Commit only when it passes, then start the next fix. `AGENTS.md` requires each commit to build and pass `make check`, so a check of only the final tree is not enough.
 7. Commit each fix as an atomic commit. Explain the why in the message. Write the message to a file and use `git commit -F <file>`. End the message with the `Co-Authored-By` attribution trailer that your session provides. Do not copy a model name from this file or from earlier commits.
-8. Push to the PR branch with `git push`. Never push to `master`. Never force push.
+8. Push to the PR branch with `git push`. Never push to `master`. Never force push. Then confirm that `gh pr view <PR> --json headRefOid` equals `git rev-parse HEAD`. If the push fails or the two SHAs differ, stop. Do not mark any finding `FIXED`. Report the error and the unpushed commits.
 9. Reply to every thread with its outcome. For `FIXED`, give the commit SHA. For `REBUTTED`, give the evidence. Resolve each thread with the GitHub GraphQL `resolveReviewThread` mutation after you reply.
 
 ## Limits
