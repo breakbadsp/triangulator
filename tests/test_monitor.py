@@ -585,6 +585,9 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 data = json.dumps(body).encode() if body is not None else None
                 if path.endswith("/reset"):
                     data = b""
+                if data is not None and headers and headers.get("X-Triangulator") == "1":
+                    current = request("/api/watches")[1]
+                    headers = {**headers, "If-Match": '"' + current["revision"] + '"'}
                 call = urllib.request.Request(base + path, data=data, headers=headers or {})
                 try:
                     with urllib.request.urlopen(call, timeout=5) as response:
@@ -616,7 +619,8 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             rules = {"rules": [{"prefix": "worker-io", "wake_ms": 50}, {"prefix": "io-", "wake_ms": 20}]}
             collector = start()
             try:
-                self.assertEqual(request("/api/watches"), (200, from_config))
+                initial = request("/api/watches")
+                self.assertEqual(initial, (200, {**from_config, "revision": initial[1]["revision"]}))
                 for path in ("/api/watches", "/api/watches/reset"):
                     for headers in ({}, {"X-Triangulator": "1", "Origin": "https://other.example"}):
                         status, data = request(path, rules, headers)
@@ -624,7 +628,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertFalse(saved.exists())
                 status, data = request("/api/watches", rules, dashboard)
                 self.assertEqual((status, data), (200, {**rules, "source": "dashboard", "saved_error": None,
-                                                         "limits": limits}))
+                                                         "limits": limits, "revision": data["revision"]}))
                 self.assertEqual(json.loads(saved.read_text()), rules)
                 # All or nothing: the bad second rule keeps the first from being saved.
                 status, data = request("/api/watches", {"rules": [{"prefix": "ok-", "wake_ms": 50},
@@ -638,7 +642,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 status, data = request("/api/watches", full, {"X-Triangulator": "1"})
                 self.assertEqual((status, data["rules"]), (200, full["rules"]))
                 status, data = request("/api/watches/reset", None, dashboard)
-                self.assertEqual((status, data), (200, from_config))
+                self.assertEqual((status, data), (200, {**from_config, "revision": data["revision"]}))
                 self.assertFalse(saved.exists())
                 request("/api/watches", rules, dashboard)
             finally:

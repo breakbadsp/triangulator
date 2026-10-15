@@ -823,16 +823,21 @@ void TestWatchSettingsSaveAndReset()
   const auto path = directory.Path() / "watch-rules.json";
   WatchSettings settings{config_rules, directory.Path()};
   auto described = settings.Describe();
-  Require(DumpJson(described) ==
-              R"({"rules":[{"prefix":"worker-","wake_ms":500},)"
-              R"({"prefix":"sender-","wake_ms":1000}],"source":"config",)"
-              R"("saved_error":null,"limits":{"prefix_max_bytes":15,)"
-              R"("wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}})",
-          std::format("GET /api/watches shape: {}", DumpJson(described)));
+  Require(!Field(described, "revision").AsString().empty(),
+          "the editor receives a revision");
+  described.Set("revision", nullptr);
+  Require(
+      DumpJson(described) ==
+          R"({"rules":[{"prefix":"worker-","wake_ms":500},)"
+          R"({"prefix":"sender-","wake_ms":1000}],"source":"config",)"
+          R"("saved_error":null,"revision":null,"limits":{"prefix_max_bytes":15,)"
+          R"("wake_ms_min":10,"wake_ms_max":3600000,"max_rules":64}})",
+      std::format("GET /api/watches shape: {}", DumpJson(described)));
 
   Require(settings
               .Replace(R"({"rules":[{"prefix":"worker-io","wake_ms":50},)"
-                       R"({"prefix":"io-","wake_ms":20}]})")
+                       R"({"prefix":"io-","wake_ms":20}]})",
+                       settings.Current()->revision_)
               .has_value(),
           "a valid list is accepted");
   const std::vector<WatchRule> saved_rules{{"worker-io", 50}, {"io-", 20}};
@@ -849,7 +854,8 @@ void TestWatchSettingsSaveAndReset()
 
   // All or nothing: the second rule is invalid, so the first is not saved.
   const auto invalid = settings.Replace(
-      R"({"rules":[{"prefix":"ok-","wake_ms":50},{"prefix":"bad-"}]})");
+      R"({"rules":[{"prefix":"ok-","wake_ms":50},{"prefix":"bad-"}]})",
+      settings.Current()->revision_);
   Require(!invalid && invalid.error().kind_ == WatchErrorKind::InvalidRules &&
               invalid.error().message_.starts_with(
                   R"(watch rule 2 (prefix "bad-"): wake_ms)"),
@@ -861,23 +867,26 @@ void TestWatchSettingsSaveAndReset()
        {"", "[]", "{}", R"({"rules":5})", R"({"rules":[],"extra":1})",
         R"({"rules":[{"prefix":"a","wake_ms":50,"wake":1}]})"})
   {
-    const auto result = settings.Replace(body);
+    const auto result = settings.Replace(body, settings.Current()->revision_);
     Require(!result && result.error().kind_ == WatchErrorKind::InvalidRules,
             std::format("body {} is rejected", DumpJson(Json(body))));
   }
   Require(ReadText(path) == saved_text, "rejected bodies save nothing");
 
-  Require(settings.Replace(R"({"rules":[]})").has_value() &&
+  Require(settings.Replace(R"({"rules":[]})", settings.Current()->revision_)
+                  .has_value() &&
               settings.Current()->rules_.empty() &&
               settings.Current()->source_ == WatchSource::Dashboard,
           "an empty saved list means no rules, not the config rules");
 
-  Require(settings.Reset().has_value() && !std::filesystem::exists(path),
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              !std::filesystem::exists(path),
           "reset deletes the saved file");
   Require(settings.Current()->rules_ == config_rules &&
               settings.Current()->source_ == WatchSource::Config,
           "reset puts the config rules back in force");
-  Require(settings.Reset().has_value(), "reset without a saved file is fine");
+  Require(settings.Reset(settings.Current()->revision_).has_value(),
+          "reset without a saved file is fine");
 
   for (const std::string_view text :
        {"not json", R"({"rules":[{"prefix":"a","wake_ms":1}]})"})
@@ -893,7 +902,8 @@ void TestWatchSettingsSaveAndReset()
                         text));
     Require(Field(restarted.Describe(), "saved_error").IsString(),
             "the API reports the unusable saved file");
-    Require(restarted.Replace(R"({"rules":[]})").has_value() &&
+    Require(restarted.Replace(R"({"rules":[]})", restarted.Current()->revision_)
+                    .has_value() &&
                 !restarted.Current()->saved_error_,
             "saving a valid list replaces the bad file and clears the error");
   }
@@ -903,7 +913,8 @@ void TestWatchSettingsSaveAndReset()
   std::ofstream{blocked} << "";
   WatchSettings unwritable{config_rules, blocked};
   const auto failed =
-      unwritable.Replace(R"({"rules":[{"prefix":"a","wake_ms":50}]})");
+      unwritable.Replace(R"({"rules":[{"prefix":"a","wake_ms":50}]})",
+                         unwritable.Current()->revision_);
   Require(!failed && failed.error().kind_ == WatchErrorKind::SaveFailed &&
               unwritable.Current()->rules_ == config_rules,
           "a failed save is reported and changes nothing");
@@ -923,14 +934,16 @@ void TestWatchDirectorySync()
   const auto path = settings.Path();
 
   g_watch_sync = {};
-  Require(settings.Replace(body).has_value(), "save succeeds");
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "save succeeds");
   Require(g_watch_sync.file_syncs_ == 1 && g_watch_sync.directory_syncs_ == 1 &&
               g_watch_sync.saved_file_exists_,
           "save flushes the file and its directory after rename");
   const auto saved_text = ReadText(path);
 
   g_watch_sync = {.fail_file_ = true};
-  const auto failed_write = settings.Replace(R"({"rules":[]})");
+  const auto failed_write =
+      settings.Replace(R"({"rules":[]})", settings.Current()->revision_);
   Require(!failed_write &&
               failed_write.error().kind_ == WatchErrorKind::SaveFailed &&
               g_watch_sync.directory_syncs_ == 0 &&
@@ -940,11 +953,15 @@ void TestWatchDirectorySync()
           "a file flush error leaves the old rules and file unchanged");
 
   g_watch_sync = {.fail_directory_ = true};
-  const auto failed_save_sync = settings.Replace(R"({"rules":[]})");
+  const auto failed_save_sync =
+      settings.Replace(R"({"rules":[]})", settings.Current()->revision_);
   Require(
       !failed_save_sync &&
           failed_save_sync.error().kind_ == WatchErrorKind::SyncFailed &&
           failed_save_sync.error().message_.contains("rules were applied") &&
+          failed_save_sync.error().applied_state_.has_value() &&
+          Field(*failed_save_sync.error().applied_state_, "revision")
+                  .AsString() == settings.Current()->revision_ &&
           g_watch_sync.directory_syncs_ == 1 &&
           settings.Current()->rules_.empty() &&
           settings.Current()->source_ == WatchSource::Dashboard &&
@@ -955,15 +972,25 @@ void TestWatchDirectorySync()
       "consistent with the replaced file");
 
   g_watch_sync = {.interrupt_directory_ = true};
-  Require(settings.Replace(body).has_value() &&
+  Require(settings.Replace(body, settings.Current()->revision_).has_value() &&
               g_watch_sync.directory_syncs_ == 2 &&
               settings.Current()->rules_ == saved_rules,
           "an interrupted directory flush is retried");
+  const auto save_revision =
+      Field(*failed_save_sync.error().applied_state_, "revision").AsString();
+  const auto stale_save = settings.Replace(R"({"rules":[]})", save_revision);
+  Require(!stale_save && stale_save.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied save cannot replace a later editor's rules");
 
   g_watch_sync = {.fail_directory_ = true};
-  const auto failed_reset_sync = settings.Reset();
+  const auto failed_reset_sync = settings.Reset(settings.Current()->revision_);
   Require(!failed_reset_sync &&
               failed_reset_sync.error().kind_ == WatchErrorKind::SyncFailed &&
+              failed_reset_sync.error().applied_state_.has_value() &&
+              Field(*failed_reset_sync.error().applied_state_, "revision")
+                      .AsString() == settings.Current()->revision_ &&
               g_watch_sync.directory_syncs_ == 1 &&
               !g_watch_sync.saved_file_exists_ &&
               !std::filesystem::exists(path) &&
@@ -972,13 +999,29 @@ void TestWatchDirectorySync()
           "reset flushes after deletion and reports an applied reset on error");
 
   g_watch_sync = {};
-  Require(settings.Reset().has_value() && g_watch_sync.directory_syncs_ == 1 &&
+  const auto reset_revision =
+      Field(*failed_reset_sync.error().applied_state_, "revision").AsString();
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "another editor saves after an unconfirmed reset");
+  const auto stale_reset = settings.Reset(reset_revision);
+  Require(!stale_reset &&
+              stale_reset.error().kind_ == WatchErrorKind::Conflict &&
+              settings.Current()->rules_ == saved_rules &&
+              ReadText(path) == saved_text,
+          "retrying an applied reset cannot delete a later editor's rules");
+  Require(settings.Reset(settings.Current()->revision_).has_value(),
+          "the current editor can reset the saved rules");
+  g_watch_sync = {};
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              g_watch_sync.directory_syncs_ == 1 &&
               !g_watch_sync.saved_file_exists_,
           "a retried reset flushes the directory even without a saved file");
 
-  Require(settings.Replace(body).has_value(), "restore saved rules");
+  Require(settings.Replace(body, settings.Current()->revision_).has_value(),
+          "restore saved rules");
   g_watch_sync = {};
-  Require(settings.Reset().has_value() && g_watch_sync.directory_syncs_ == 1 &&
+  Require(settings.Reset(settings.Current()->revision_).has_value() &&
+              g_watch_sync.directory_syncs_ == 1 &&
               !g_watch_sync.saved_file_exists_,
           "a successful reset flushes the directory after deletion");
   g_watch_sync = {};
