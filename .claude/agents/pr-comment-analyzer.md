@@ -1,7 +1,7 @@
 ---
 name: pr-comment-analyzer
 description: Triages all review comments on one pull request. Fixes real defects, rebuts wrong comments with evidence, and replies to every thread. Edits code only on the PR branch.
-model: fable
+model: opus
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 

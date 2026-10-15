@@ -1,7 +1,7 @@
 ---
 name: pr-adversarial-reviewer
 description: Adversarial reviewer for one pull request. Reads the diff with fresh context, posts findings as one PR comment, and never edits code.
-model: fable
+model: opus
 tools: Read, Grep, Glob, Bash
 ---
 

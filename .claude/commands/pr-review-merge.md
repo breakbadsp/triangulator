@@ -16,9 +16,9 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 Run at most two rounds. Each round has the steps below.
 
 1. Start both reviewers in parallel. Each starts fresh, and neither sees the other's output.
-   - Reviewer A: `pr-adversarial-reviewer`, model `fable`, effort `xhigh`. Lens: correctness, concurrency, memory safety, and failure paths. ID prefix `A`.
+   - Reviewer A: `pr-adversarial-reviewer`, model `opus`, effort `xhigh`. Lens: correctness, concurrency, memory safety, and failure paths. ID prefix `A`.
    - Reviewer B: `pr-adversarial-reviewer`, model `opus`, effort `xhigh`. Lens: requirements, tests, `AGENTS.md` rules, and docs accuracy. ID prefix `B`.
-2. When both finish, start the comment analyzer: `pr-comment-analyzer`, model `fable`, effort `xhigh`. Pass the PR number and the worktree path. Do not pass it the reviewers' text. It reads the comments from GitHub.
+2. When both finish, start the comment analyzer: `pr-comment-analyzer`, model `opus`, effort `xhigh`. Pass the PR number and the worktree path. Do not pass it the reviewers' text. It reads the comments from GitHub.
 3. Compare the PR head SHA before and after the analyzer. If it changed and round 1 is done, start round 2. Otherwise go to the merge gate.
 
 ## Merge gate
