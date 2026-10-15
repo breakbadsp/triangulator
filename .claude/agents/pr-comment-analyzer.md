@@ -16,6 +16,7 @@ The orchestrator gives you the PR number, the worktree path of the PR branch, an
 1. Read the findings:
    - `review` pass: read every review and review comment on the PR with `gh pr view <PR> --comments` and `gh api repos/{owner}/{repo}/pulls/<PR>/comments`. Triage the reviews for this round. Each starts with `## Reviewer <prefix>, round <n>, head <SHA>`.
    - `gate-fix` pass: read the merge-gate comment for this run with `gh pr view <PR> --comments`. It starts with `## Merge gate, run <n>, head <SHA>`. Each failing gate is one finding, with the ID `G<run>-<gate number>`. A failing local check or CI check is `blocker`. Any other failing gate is `major`.
+   - Both pass types: also triage each PR comment or review that raises an issue and does not start with a workflow header (`## Reviewer`, `## Analyzer`, or `## Merge gate`), unless an earlier `## Analyzer` comment links it. These are the user's issues. Give each the ID `U-<n>` and the severity its author gives, or `major` if none. Link the comment in its outcome line.
    - A finding labeled `critical` counts as `blocker`.
 2. Give each finding one outcome:
    - `FIXED`: the defect is real and in scope. Fix it.
