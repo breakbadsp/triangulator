@@ -156,6 +156,10 @@ Dashboard recording is enabled by default. Use **Inspect a moment**. See the
 Select a date and time, then use **Previous** and **Next** to step through
 recorded views. Select **Live** to return to the current process.
 
+To find past problems, use **Assessment history** below it. Choose a range
+(15 min, 1 h, 6 h or 24 h) to scan the recordings, filter the findings by
+severity and type, and click one to inspect the process at that moment.
+
 ## Install from a release package
 
 Each `v*` tag publishes two packages per distro, as static binaries that need
@@ -401,6 +405,24 @@ shown explicitly. Live trend charts, load averages and socket totals are hidden
 or unavailable during inspection; thread rollup charts remain available.
 Complete snapshots use substantially more disk space than rollups; see the
 [recording and storage notes](collector-reference.md#historical-process-inspection).
+
+**Assessment history** lists what the Assessment found in the past. Select a
+range (15 min, 1 h, 6 h or 24 h) or **Scan recordings**. The browser reads up
+to 120 recordings spread evenly over the range from `/api/replay` and applies
+the Assessment's rules to each one, as **Inspect a moment** would. A finding seen
+in consecutive scanned recordings becomes one row with its worst severity,
+first and last time, and type. Filter rows by severity (Critical, Serious,
+Warning, Info) and type (Monitoring, Threads & CPU, Watched threads,
+Resources & network, Memory). Click a row to inspect the process at the moment
+it was worst. Limits:
+
+- The step grows with the range: 1 h is checked every 30 s and 24 h every
+  12 minutes. A problem that starts and ends between two checks is not listed.
+- Each recording is judged on its own, so rules that need trends from a live
+  tab (thread growth, thread churn, long futex waits) and the watch rule with
+  no thread do not run.
+- Nothing is stored. Results last until the page is reloaded. A scan downloads
+  every recording it checks, about 330 KB each with 1,000 threads.
 
 The browser tab keeps these trends for up to 15 minutes, and they survive a
 reload of that tab. The thread table shows active threads by default. Idle

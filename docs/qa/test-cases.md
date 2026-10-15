@@ -47,6 +47,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-035 | NOT_RUN | - | - | - |
 | QA-036 | NOT_RUN | - | - | - |
 | QA-037 | NOT_RUN | - | - | - |
+| QA-038 | NOT_RUN | - | - | - |
+| QA-039 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -893,3 +895,61 @@ The existing Alert settings behave as before. With the collector stopped, **Save
 shows "Could not reach the collector" and keeps your edits. In the final view,
 **Matching threads now** drops to 0 when the process exits and counts the
 restarted threads again, without an edit.
+
+## QA-038: Assessment history lists past findings and opens their moment
+
+Feature: Assessment history. Priority: High. Case revision: 1.
+
+Preconditions: Use an isolated runtime directory, unused ports and the default
+`replay_interval_s`. Monitor a bug-lab workload that can be switched between a
+healthy state and a CPU spin (or another serious finding) while running.
+
+1. Let the target run healthy for 2 minutes, then cause the CPU spin for about
+   1 minute, then stop it and wait 2 more minutes.
+2. In **Assessment history**, keep **15 min** selected and select **Scan
+   recordings**. Watch the status line while it scans.
+3. Read the rows. Check each one's severity icon, title, detail, time range,
+   type and the count of scanned recordings.
+4. Clear **Serious**, then select it again. Choose each value of **Type**, then
+   **All types**. Check **Info**.
+5. Select the saturated-core row. Read the **Inspect a moment** note, the
+   Assessment card and the thread table.
+6. Select **Live**. Select **1 h**, then **24 h**.
+
+Expected results: The status line counts up to the number of recordings and
+ends with how many were scanned, the time range, the step (about 8 s for 15
+min), any scanned times without a recording, and "Showing N of M findings".
+The spin is one serious row, typed Threads & CPU, whose first and last times
+are within one step of the real start and end. Filters hide and show rows at
+once without a new scan, and the status count follows them; Info adds notes such
+as watched threads on schedule. Selecting the row opens the recording at the
+row's worst moment: the Assessment card shows the same finding and the thread
+table shows the spinning thread. The live trends are back after **Live**. Each
+range button starts a new scan with a larger step (about 30 s for 1 h, about
+12 min for 24 h) and is marked as pressed.
+
+## QA-039: Assessment history stop, empty states and help coverage
+
+Feature: Assessment history. Priority: Medium. Case revision: 1.
+
+Preconditions: As QA-038, plus a second collector started with
+`replay_interval_s = 0` in its own runtime directory.
+
+1. Select **24 h** and, while it scans, select **Stop scan**.
+2. Scan a range in which the target was healthy throughout.
+3. Stop the collector and select **Scan recordings**.
+4. Open the dashboard of the collector with recording disabled and scan.
+5. Pause for 1.2 seconds on the section title, a range button, **Scan
+   recordings**, the Severity checkboxes, **Type**, the status line and a row.
+   Select the information button for the section title.
+6. Open the dashboard in a narrow window (under 640 px) and scan.
+
+Expected results: **Stop scan** ends the scan at once with "Scan stopped", no
+rows, and the button back to **Scan recordings**. A healthy range says the
+Assessment found nothing in the scanned recordings. With the collector stopped,
+the status line shows an error and says to try again; the button is usable.
+With recording disabled, the status line says there are no recordings and
+recording may be disabled. Every target shows a help card after 1.2 seconds;
+the guide explains the scan, the step and its limits, the filters, and that
+nothing is stored. On a narrow screen the controls wrap and the list scrolls
+inside the card.

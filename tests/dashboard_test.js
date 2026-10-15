@@ -437,6 +437,11 @@ test('hidden or unreachable sockets are explained, not reported as zero', () => 
   assert.equal(other.at(-1).title, 'Socket queues unavailable');
   const stale = findingsOf(app, resources({stale: true, updated: Date.now() / 1000 - 120}));
   assert.equal(stale[0].title, 'Resource samples are stale');
+  assert.match(stale[0].detail, /since 2 min ago/);
+  // A recorded view measures the age from its own time, not the browser clock.
+  app.run('replayAt=1000');
+  assert.match(findingsOf(app, resources({stale: true, updated: 880}))[0].detail, /since 2 min ago/);
+  app.run('replayAt=null');
 });
 
 test('socket queue tiles preserve unavailable values and measured zeroes', () => {
@@ -1000,6 +1005,104 @@ test('findings carry the type that Assessment history filters by', () => {
   assert.equal(types['Packet loss 5.0%'], 'monitor');
   assert.equal(types['spin is saturating a core'], 'threads');
   assert.equal(types['97.7% of file descriptors in use'], 'resources');
+});
+
+// One finding in consecutive scanned views is one row: its worst level, and
+// the time and wording of that worst view. A view with no recording ends it.
+test('history episodes join consecutive findings and end at a recording gap', () => {
+  const app = dashboard();
+  const finding = (level, title, tid) => ({type: 'threads', level, title, detail: title, action: tid ? {tid} : undefined});
+  const samples = [
+    {at: 10, findings: [finding('warning', '2 threads in uninterruptible kernel wait'), {level: 'good', title: 'No problems detected'}]},
+    {at: 20, findings: [finding('serious', '3 threads in uninterruptible kernel wait'), finding('serious', 'a-1 is saturating a core', 1)]},
+    {at: 30, findings: [finding('warning', '2 threads in uninterruptible kernel wait'), finding('serious', 'a-2 is saturating a core', 2)]},
+    null,
+    {at: 50, findings: [finding('warning', '1 thread in uninterruptible kernel wait')]},
+  ];
+  const episodes = JSON.parse(app.run(`JSON.stringify(historyEpisodes(${JSON.stringify(samples)}))`));
+  assert.deepEqual(episodes.map(episode => [episode.item.title, episode.level, episode.at, episode.first, episode.last, episode.count]), [
+    ['1 thread in uninterruptible kernel wait', 'warning', 50, 50, 50, 1],
+    ['a-2 is saturating a core', 'serious', 30, 30, 30, 1],
+    ['a-1 is saturating a core', 'serious', 20, 20, 20, 1],
+    ['3 threads in uninterruptible kernel wait', 'serious', 20, 10, 30, 3],
+  ]);
+});
+
+function historyApp(snapshotAt) {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/replay') return jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: null});
+    if (!url.startsWith('/api/replay?')) return undefined;
+    const query = new URLSearchParams(url.split('?')[1]);
+    const view = snapshotAt(Number(query.get('at')));
+    return jsonResponse({first: 1000, last: 1900, interval_s: 1, snapshot: view});
+  });
+  const boxes = ['critical', 'serious', 'warning', 'info'].map(value => ({value, checked: value !== 'info'}));
+  app.boxes = boxes;
+  app.run('document.querySelectorAll=(original=>selector=>selector==="#history-levels input"?boxes:original(selector))(document.querySelectorAll)');
+  app.run(`var boxes=${JSON.stringify(boxes)}`);
+  return app;
+}
+const historyRows = app => app.elements.get('history-list').children.map(row => row.children?.[1]?.children[0].textContent ?? row.textContent);
+
+test('a scan applies the Assessment to recordings and leaves the live view alone', async () => {
+  // A thread is saturated from 1300 to 1500; recordings stop between 1600 and 1700.
+  const app = historyApp(at => {
+    const recorded = at >= 1600 && at < 1700 ? 1599 : Math.floor(at);
+    const view = frame(recorded);
+    view.threads[0].cpu_pct = recorded >= 1300 && recorded <= 1500 ? 99 : 5;
+    return view;
+  });
+  tick(app, 2000, 0);
+  app.run('latestLive=live');
+  const before = app.run('JSON.stringify({buffer,live,lastTick,bufferSession})');
+  await app.run('scanHistory()');
+  assert.equal(app.run('JSON.stringify({buffer,live,lastTick,bufferSession})'), before, 'the live view and trends are untouched');
+  assert.equal(app.run('replayAt'), null);
+  const scans = app.requests.filter(url => url.startsWith('/api/replay?'));
+  assert.equal(scans.length, 120, 'at most 120 recordings per scan');
+  const scanned = scans.map(url => Number(new URLSearchParams(url.split('?')[1]).get('at'))).sort((a, b) => a - b);
+  assert.deepEqual([scanned[0], scanned.at(-1)], [1000, 1900], 'the scan covers the range from its oldest recording to its newest');
+  assert.deepEqual(historyRows(app), ['old-worker is saturating a core']);
+  const episode = JSON.parse(app.run('JSON.stringify(pastResult.episodes[0])'));
+  assert.equal(episode.type, 'threads');
+  assert.ok(episode.first >= 1300 && episode.first < 1308 && episode.last <= 1500 && episode.last > 1492, JSON.stringify(episode));
+  const status = app.elements.get('history-status').textContent;
+  assert.match(status, /^Scanned 108 recordings from .* one every 8 s\. 12 scanned times had no recording\. Showing 1 of 1 finding\.$/);
+  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
+  // Filters hide rows without scanning again.
+  app.run('boxes[1].checked=false;renderHistory()');
+  assert.deepEqual(historyRows(app), ['No findings match these filters.']);
+  app.run('boxes[1].checked=true;element("history-type").value="memory";renderHistory()');
+  assert.deepEqual(historyRows(app), ['No findings match these filters.']);
+  app.run('element("history-type").value="threads";renderHistory()');
+  // A row opens Inspect a moment at the time it was worst.
+  app.run('element("overview").scrollIntoView=()=>{}');
+  app.elements.get('history-list').children[0].onclick();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(app.run('replayAt'), episode.at);
+  assert.ok(app.run('assess(live.threads,buffer)').some(item => item.title === 'old-worker is saturating a core'));
+  assert.equal(app.requests.filter(url => url.startsWith('/api/replay?')).length, 121);
+});
+
+test('a scan can be stopped and reports missing recordings and errors', async () => {
+  const app = historyApp(at => frame(Math.floor(at)));
+  tick(app, 2000, 0);
+  const scan = app.run('scanHistory()');
+  assert.equal(app.elements.get('history-scan').textContent, 'Stop scan');
+  app.elements.get('history-scan').onclick();
+  await scan;
+  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
+  assert.match(app.elements.get('history-status').textContent, /^Scan stopped/);
+  assert.deepEqual(app.elements.get('history-list').children, []);
+  assert.ok(app.requests.filter(url => url.startsWith('/api/replay?')).length < 120);
+  app.setFetch(url => jsonResponse({first: null, last: null, interval_s: 1, snapshot: null}));
+  await app.run('scanHistory()');
+  assert.match(app.elements.get('history-status').textContent, /^No recordings to scan yet/);
+  app.setFetch(url => url === '/api/replay' ? jsonResponse({first: 1000, last: 1900, interval_s: 1})
+    : Promise.resolve({ok: false, json: async () => ({error: 'bad at'})}));
+  await app.run('scanHistory()');
+  assert.equal(app.elements.get('history-status').textContent, 'bad at Select Scan recordings to try again.');
+  assert.equal(app.elements.get('history-scan').textContent, 'Scan recordings');
 });
 
 

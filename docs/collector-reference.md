@@ -363,6 +363,13 @@ No matching recording returns `snapshot: null`. Invalid arguments return 400. Th
 preset history ranges at the selected recording. Live trends are kept separate
 and restored on return; historical load averages and socket reports are unavailable.
 
+The dashboard's **Assessment history** uses the same endpoint. For a chosen
+range it requests up to 120 views with `at=…`, spread evenly from the oldest to
+the newest recording in the range, four at a time, and applies the Assessment's
+rules to each in the browser. The collector does not evaluate or store findings.
+A returned view older than the requested slot counts as a recording gap. See
+[the dashboard notes](setup.md#dashboard) for how rows are formed and their limits.
+
 Budget disk space for full JSON views: storage scales with thread count and
 recording frequency, including silent periods. A local 30-second run with
 1,000 synthetic threads at 10 Hz produced ~327 KB per view: roughly 28 GB/day
