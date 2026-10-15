@@ -34,8 +34,33 @@ scripts/start.sh collector
 [Performance](../docs/collector-comparison.md)
 
 [Dashboard HTTP server animation](../docs/dashboard-http-animation.html) shows
-the HTTP thread, embedded page, live snapshots, and SQLite history requests.
+the HTTP listener and workers, embedded page, live snapshots, and SQLite
+history requests.
 Download the HTML file and open it in a browser. It needs no build or network.
+
+## Multiple viewers
+
+Live views share one collector and one monitored target. Each browser view keeps
+its own filters, selected recording, and live chart buffer.
+
+The HTTP listener runs up to 64 connection workers. A slow connection does not
+hold up other workers. A complete request must arrive within 5 seconds, including
+headers and body. Sending a response has a separate 5-second total deadline.
+The listener backlog is 128. Additional connections receive HTTP 503 when all
+worker slots are in use. These are connection limits, not a supported user count.
+Sample ingestion stays in the main loop, separate from HTTP requests.
+
+Watched-thread settings are shared. `GET /api/watches` includes an opaque
+`revision`. Send that value in quotes as the `If-Match` header for every
+`POST /api/watches` or `POST /api/watches/reset`. A successful response includes
+the rules and revision from that change. A stale revision returns HTTP 409
+without changing the rules. A missing header returns HTTP 428. A collector
+restart invalidates earlier revisions. Reload old dashboard pages after an
+upgrade before changing settings.
+
+The dashboard keeps unsaved edits after a conflict. Select **Reload current
+rules** to review the saved list. It asks before discarding an edited draft.
+Cancel or a failed read keeps the draft. Copy any edits you need before reloading.
 
 ## Dashboard help
 

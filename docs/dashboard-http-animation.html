@@ -67,14 +67,14 @@ footer { color:var(--muted); font-size:12px; margin-top:12px; }
 <div class="eyebrow">Triangulator / C++ internals</div>
 <h1>How the dashboard HTTP server works</h1>
 <p class="intro">Follow a request from the browser into <code>DashboardServer</code> and back.
-See how the HTTP thread serves the page, reads live snapshots, and queries stored history.</p>
+See how the HTTP workers serve the page, read live snapshots, and query stored history.</p>
 <section class="player" aria-label="HTTP server animation">
-  <div class="topline"><strong>One collector process. Separate receive and HTTP threads.</strong><span id="status" class="status">Playing</span></div>
+  <div class="topline"><strong>One collector process. Separate receive loop and HTTP workers.</strong><span id="status" class="status">Playing</span></div>
   <div class="layout">
     <div class="diagram">
       <svg viewBox="0 0 780 470" role="img" aria-labelledby="diagram-title diagram-desc">
         <title id="diagram-title">Dashboard server design</title>
-        <desc id="diagram-desc">The browser connects to the HTTP thread. It reads embedded HTML, shared live JSON, or SQLite history. The collector main loop receives UDP samples and publishes shared JSON. The HTTP thread and the main loop are separate. The current step is explained next to this diagram.</desc>
+        <desc id="diagram-desc">The browser connects to the HTTP listener. A worker reads embedded HTML, shared live JSON, or SQLite history. The collector main loop receives UDP samples and publishes shared JSON. The HTTP workers and the main loop are separate. The current step is explained next to this diagram.</desc>
         <defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7" fill="#acbdb8"/></marker></defs>
         <rect class="zone" x="235" y="30" width="522" height="416" rx="16"/>
         <text x="253" y="53" class="small">COLLECTOR PROCESS</text>
@@ -90,7 +90,7 @@ See how the HTTP thread serves the page, reads live snapshots, and queries store
         <text x="215" y="360" text-anchor="middle" class="small">UDP</text>
         <text x="458" y="433" class="small">write rollups</text>
         <g id="browser"><rect class="box" x="25" y="95" width="168" height="80" rx="10"/><text x="43" y="122" class="title">Browser</text><text x="43" y="144" class="code">dashboard.html</text><text x="43" y="162" class="small">fetch() → render charts</text></g>
-        <g id="listener"><rect class="box" x="270" y="95" width="176" height="80" rx="10"/><text x="286" y="122" class="title">HTTP thread</text><text x="286" y="144" class="code">Serve() → Handle()</text><text x="286" y="162" class="small">127.0.0.1:9401</text></g>
+        <g id="listener"><rect class="box" x="270" y="95" width="176" height="80" rx="10"/><text x="286" y="122" class="title">HTTP workers</text><text x="286" y="144" class="code">Serve() → worker</text><text x="286" y="162" class="small">127.0.0.1:9401</text></g>
         <g id="router"><rect class="box" x="270" y="214" width="176" height="80" rx="10"/><text x="286" y="241" class="title">Request routing</text><text x="286" y="263" class="code">Get() / Target()</text><text x="286" y="281" class="small">Select a path and payload</text></g>
         <g id="html"><rect class="box" x="538" y="95" width="196" height="80" rx="10"/><text x="554" y="122" class="title">Embedded page</text><text x="554" y="144" class="code">kDashboardHtml[]</text><text x="554" y="162" class="small">HTML + CSS + JavaScript</text></g>
         <g id="shared"><rect class="box" x="538" y="214" width="196" height="80" rx="10"/><text x="554" y="241" class="title">SharedState</text><text x="554" y="263" class="code">shared_ptr&lt;const string&gt;</text><text x="554" y="281" class="small">Live JSON / memory layout</text></g>
@@ -120,8 +120,8 @@ See how the HTTP thread serves the page, reads live snapshots, and queries store
   <nav id="chapters" class="chapters" aria-label="Animation steps"></nav>
 </section>
 <div class="notes">
-  <div><h2>Why the threads are separate</h2><p>The main loop receives UDP samples. The HTTP thread can wait on a browser or a history query without doing that work in the receive loop.</p><p>A mutex protects the snapshot pointer exchange. The HTTP thread retains an immutable JSON string and sends it after the lock is released.</p></div>
-  <div><h2>Connection limits</h2><p><code>Serve()</code> handles one connection at a time. A slow request delays other HTTP requests. The listener backlog is 16. Receive and send socket timeouts are 5 seconds each; these are not a total request deadline.</p><p>Responses use HTTP/1.0. The connection closes after each request. The C++ server uses plain HTTP and has no TLS handshake.</p></div>
+  <div><h2>Why the threads are separate</h2><p>The main loop receives UDP samples. The HTTP workers can wait on a browser or a history query without doing that work in the receive loop.</p><p>A mutex protects the snapshot pointer exchange. Each HTTP worker retains an immutable JSON string and sends it after the lock is released.</p></div>
+  <div><h2>Connection limits</h2><p><code>Serve()</code> starts up to 64 connection workers. A slow request uses one worker. The listener backlog is 128. Reading the complete request has a 5-second total deadline. Sending the response has a separate 5-second total deadline. Excess connections receive HTTP 503.</p><p>Responses use HTTP/1.0. The connection closes after each request. The C++ server uses plain HTTP and has no TLS handshake.</p></div>
 </div>
 <details>
   <summary>Explore the API routes</summary>
@@ -143,9 +143,9 @@ See how the HTTP thread serves the page, reads live snapshots, and queries store
 <script>
 'use strict';
 const steps = [
-  {label:'Design', title:'Two threads, one collector', text:'DashboardServer runs on its own thread. It shares published JSON with the main receive loop. Live requests use SharedState; history requests read stored data.', code:'main loop: UDP → metrics → JSON\nHTTP thread: request → payload\nSharedState: immutable snapshots', source:'collector/http.hpp', nodes:['listener','collector','shared'], path:[[358,372],[490,372],[490,274],[570,274]]},
+  {label:'Design', title:'Separate workers, one collector', text:'DashboardServer accepts connections on its own thread and starts bounded connection workers. It shares published JSON with the main receive loop. Live requests use SharedState; history requests read stored data.', code:'main loop: UDP → metrics → JSON\nHTTP workers: request → payload\nSharedState: immutable snapshots', source:'collector/http.hpp', nodes:['listener','collector','shared'], path:[[358,372],[490,372],[490,274],[570,274]]},
   {label:'Build', title:'Build the page into the binary', text:'The Makefile converts dashboard.html to a byte include. http.hpp places those bytes in kDashboardHtml. The running server needs no separate dashboard file.', code:'collector/dashboard.html\n  → build/dashboard_html.inc\n  → kDashboardHtml[]\n  → triangulator-collector', source:'Makefile', nodes:['html'], path:[[555,145],[714,145]]},
-  {label:'Listen', title:'Start the HTTP thread', text:'main.cpp binds a TCP listener from the configured host and port. Listen() sets a backlog of 16. DashboardServer::Start() starts the serving thread and the socket report worker.', code:'Listen(http_host_, http_port_)\nDashboardServer server{…};\nserver.Start();\n// default: 127.0.0.1:9401', source:'collector/main.cpp', nodes:['listener'], path:[[109,137],[286,137]]},
+  {label:'Listen', title:'Start the HTTP workers', text:'main.cpp binds a TCP listener from the configured host and port. Listen() sets a backlog of 128. DashboardServer::Start() starts the listener thread and the socket report worker. Connection workers start as requests arrive.', code:'Listen(http_host_, http_port_)\nDashboardServer server{…};\nserver.Start();\n// default: 127.0.0.1:9401', source:'collector/main.cpp', nodes:['listener'], path:[[109,137],[286,137]]},
   {label:'Read', title:'Accept and parse a request', text:'Serve() polls the listener with a 200 ms timeout, then calls accept4(). Handle() uses ReadRequest() to read the method, path, query, and headers. Each connection has receive and send timeouts.', code:'poll() → accept4()\n  → Handle(connection)\n  → ReadRequest(connection)\n\nGET / HTTP/1.1', source:'collector/http.hpp', nodes:['browser','listener','router'], path:[[109,137],[358,137],[358,251]]},
   {label:'Page', title:'Return the dashboard page', text:'Get() matches the root path and passes kDashboardHtml to Respond(). The browser receives HTML, CSS, and JavaScript. It can now display the dashboard and request JSON.', code:'GET /\n  → Get()\n  → kDashboardHtml\n  → Respond(200, …,\n      "text/html; charset=utf-8")', source:'collector/http.hpp', nodes:['router','html','browser'], path:[[636,135],[486,135],[486,251],[358,251],[358,137],[109,137]]},
   {label:'Publish', title:'Publish a live JSON snapshot', text:'The main loop builds live JSON on an approximately 500 ms refresh cycle. SetLive() exchanges a shared pointer under a mutex. SetMemoryMap() publishes a layout when its version changes.', code:'DumpJson(live)\n  → shared_ptr<const string>\n  → state.SetLive(…)\n\nLayout changed? SetMemoryMap(…)', source:'collector/main.cpp', nodes:['sampler','collector','shared'], path:[[109,372],[358,372],[490,372],[490,274],[570,274]]},

@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -28,13 +29,15 @@ namespace triangulator::collector
 inline constexpr std::string_view kWatchRulesFile = "watch-rules.json";
 
 // Why a change to the watch rules failed: the request was invalid (HTTP
-// 400), or a file operation failed (HTTP 500). SyncFailed means the rules
-// changed, but the directory change could not be confirmed on disk.
+// 400), the editor was stale (HTTP 409), or a file operation failed (HTTP
+// 500). SyncFailed means the rules changed, but the directory change could
+// not be confirmed on disk.
 enum class WatchErrorKind
 {
   InvalidRules = 0,
   SaveFailed,
   SyncFailed,
+  Conflict,
 };
 
 struct WatchError
@@ -51,13 +54,14 @@ enum class WatchSource
 };
 
 // The rules in force, with their source. Immutable once published, so the
-// main loop and the HTTP thread can share it without a lock.
+// main loop and the HTTP workers can share it without a lock.
 struct WatchState
 {
   std::vector<WatchRule> rules_;
   WatchSource source_ = WatchSource::Config;
   // Why the saved file was not used at startup, or nullopt.
   std::optional<std::string> saved_error_;
+  std::string revision_ = {};
 };
 
 // Reads a complete rule list in the form the dashboard sends and the saved
@@ -200,7 +204,7 @@ OpenWatchDirectory(const std::filesystem::path& p_path)
 // saved file at startup is reported (SavedError, and saved_error in the
 // API) and the config rules are used.
 //
-// The HTTP thread changes the rules (Replace, Reset) and the main loop reads
+// The HTTP workers change the rules (Replace, Reset) and the main loop reads
 // them for each live view (Current). File I/O happens outside the lock the
 // main loop takes, so a slow disk never delays receiving datagrams.
 class WatchSettings
@@ -210,6 +214,9 @@ class WatchSettings
                 const std::filesystem::path& p_data_dir)
       : config_rules_(std::move(p_config_rules)),
         path_(p_data_dir / kWatchRulesFile),
+        epoch_(std::format(
+            "{}-{}", ::getpid(),
+            std::chrono::steady_clock::now().time_since_epoch().count())),
         current_(Load())
   {
   }
@@ -230,21 +237,15 @@ class WatchSettings
   [[nodiscard]] Json Describe() const
   {
     const auto state = Current();
-    auto result = WatchRulesJson(state->rules_);
-    result.Set("source", state->source_ == WatchSource::Dashboard ? "dashboard"
-                                                                  : "config");
-    result.Set("saved_error", Json(state->saved_error_));
-    result.Set("limits", JsonObject{{"prefix_max_bytes", kWatchPrefixMaxBytes},
-                                    {"wake_ms_min", kWatchWakeMsMin},
-                                    {"wake_ms_max", kWatchWakeMsMax},
-                                    {"max_rules", kMaxWatchRules}});
-    return result;
+    return Describe(*state);
   }
 
   // Checks the complete list in p_body ({"rules":[...]}), saves it and puts
   // it in force. Errors before rename leave the file and rules unchanged.
   // A directory flush failure reports that the new rules were applied.
-  [[nodiscard]] std::expected<void, WatchError> Replace(std::string_view p_body)
+  // Check the editor revision and publish under the same update lock.
+  [[nodiscard]] std::expected<Json, WatchError> Replace(
+      std::string_view p_body, std::string_view p_revision)
   {
     auto rules = ParseWatchList(p_body);
     if (!rules)
@@ -253,20 +254,34 @@ class WatchSettings
           WatchError{WatchErrorKind::InvalidRules, std::move(rules.error())});
     }
     std::lock_guard update{update_mutex_};
+    if (auto checked = CheckRevision(p_revision); !checked)
+    {
+      return std::unexpected(checked.error());
+    }
     auto saved =
         WriteFileAtomically(path_, DumpJson(WatchRulesJson(*rules), 2));
     if (!saved && saved.error().kind_ != WatchErrorKind::SyncFailed)
     {
-      return saved;
+      return std::unexpected(saved.error());
     }
-    Publish(WatchState{std::move(*rules), WatchSource::Dashboard, {}});
-    return saved;
+    auto result =
+        Publish(WatchState{std::move(*rules), WatchSource::Dashboard, {}});
+    if (!saved)
+    {
+      return std::unexpected(saved.error());
+    }
+    return result;
   }
 
   // Deletes the saved file and puts the config rules back in force.
-  [[nodiscard]] std::expected<void, WatchError> Reset()
+  [[nodiscard]] std::expected<Json, WatchError> Reset(
+      std::string_view p_revision)
   {
     std::lock_guard update{update_mutex_};
+    if (auto checked = CheckRevision(p_revision); !checked)
+    {
+      return std::unexpected(checked.error());
+    }
     auto directory = OpenWatchDirectory(path_);
     if (!directory)
     {
@@ -281,26 +296,66 @@ class WatchSettings
                      std::format("cannot delete {}: {}", path_.string(),
                                  error.message())});
     }
-    Publish(WatchState{config_rules_, WatchSource::Config, {}});
+    auto result = Publish(WatchState{config_rules_, WatchSource::Config, {}});
     // Flush even if the file was absent: this also confirms a retried reset
     // whose earlier directory flush failed after removing the file.
-    return SyncWatchDirectory(directory->Get(), path_);
+    if (auto saved = SyncWatchDirectory(directory->Get(), path_); !saved)
+    {
+      return std::unexpected(saved.error());
+    }
+    return result;
   }
 
  private:
   std::vector<WatchRule> config_rules_;
   std::filesystem::path path_;
+  // A new collector instance rejects drafts loaded before a restart.
+  std::string epoch_;
+  std::uint64_t revision_ = 0;
   // Guards current_ only; held for a pointer copy.
   mutable std::mutex mutex_;
   std::shared_ptr<const WatchState> current_;
   // Serializes Replace and Reset, including their file I/O.
   std::mutex update_mutex_;
 
-  void Publish(WatchState p_state)
+  [[nodiscard]] static Json Describe(const WatchState& p_state)
   {
+    auto result = WatchRulesJson(p_state.rules_);
+    result.Set("source", p_state.source_ == WatchSource::Dashboard ? "dashboard"
+                                                                   : "config");
+    result.Set("saved_error", Json(p_state.saved_error_));
+    result.Set("revision", p_state.revision_);
+    result.Set("limits", JsonObject{{"prefix_max_bytes", kWatchPrefixMaxBytes},
+                                    {"wake_ms_min", kWatchWakeMsMin},
+                                    {"wake_ms_max", kWatchWakeMsMax},
+                                    {"max_rules", kMaxWatchRules}});
+    return result;
+  }
+
+  [[nodiscard]] std::expected<void, WatchError> CheckRevision(
+      std::string_view p_revision) const
+  {
+    if (p_revision != Current()->revision_)
+    {
+      return std::unexpected(
+          WatchError{WatchErrorKind::Conflict,
+                     "Another user changed the watched-thread rules, or the "
+                     "collector restarted. "
+                     "Your edits were kept. Reload the current rules before "
+                     "saving or resetting."});
+    }
+    return {};
+  }
+
+  [[nodiscard]] Json Publish(WatchState p_state)
+  {
+    p_state.revision_ = std::format("{}-{}", epoch_, ++revision_);
     auto state = std::make_shared<const WatchState>(std::move(p_state));
-    std::lock_guard lock{mutex_};
-    current_ = std::move(state);
+    {
+      std::lock_guard lock{mutex_};
+      current_ = state;
+    }
+    return Describe(*state);
   }
 
   // The startup state: the saved rules if the file exists and is valid,
@@ -311,23 +366,23 @@ class WatchSettings
     if (!std::filesystem::exists(path_, error) && !error)
     {
       return std::make_shared<const WatchState>(
-          WatchState{config_rules_, WatchSource::Config, {}});
+          WatchState{config_rules_, WatchSource::Config, {}, epoch_ + "-0"});
     }
     const auto text = ReadFile(path_);
     if (!text)
     {
-      return std::make_shared<const WatchState>(
-          WatchState{config_rules_, WatchSource::Config, text.error()});
+      return std::make_shared<const WatchState>(WatchState{
+          config_rules_, WatchSource::Config, text.error(), epoch_ + "-0"});
     }
     auto rules = ParseWatchList(*text);
     if (!rules)
     {
-      return std::make_shared<const WatchState>(
-          WatchState{config_rules_, WatchSource::Config,
-                     std::format("{}: {}", path_.string(), rules.error())});
+      return std::make_shared<const WatchState>(WatchState{
+          config_rules_, WatchSource::Config,
+          std::format("{}: {}", path_.string(), rules.error()), epoch_ + "-0"});
     }
-    return std::make_shared<const WatchState>(
-        WatchState{std::move(*rules), WatchSource::Dashboard, {}});
+    return std::make_shared<const WatchState>(WatchState{
+        std::move(*rules), WatchSource::Dashboard, {}, epoch_ + "-0"});
   }
 };
 

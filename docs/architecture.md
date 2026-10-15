@@ -119,9 +119,10 @@ flowchart TD
     class snapshot view
 ```
 
-The main loop owns monitor state. A separate HTTP thread serves snapshots and
-history, so dashboard requests never delay receiving datagrams. New sessions or
-regressing counters reset baselines. Missing chunks do not imply thread exits.
+The main loop owns monitor state. A separate HTTP listener starts bounded
+connection workers for snapshots and history. Slow clients have total read and
+write deadlines and do not delay other workers or receiving datagrams. New
+sessions or regressing counters reset baselines. Missing chunks do not imply thread exits.
 Socket, futex and poll waits are shown as wait types. The collector evaluates no
 alert rules.
 
