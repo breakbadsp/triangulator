@@ -22,12 +22,35 @@ Package and scope
   data, processes, and ports. Preserve existing installations and user data.
   Follow the documented package startup procedure. Record the actual environment,
   application URL, browser version, and viewport. Stop only test-owned processes.
-- Run the documented suite unless the user limits its scope. Record excluded
-  cases. For a new feature, compare release notes and requirements with existing
+- Pick the tier from docs/qa/tiers.md. Default to Sanity. Run Quick regression
+  only after Sanity passes, or when the user asks for it. Run Full only when the
+  user says "full". Stop the run at the first Sanity failure that blocks later
+  cases and report it. Record excluded cases. For a new feature, compare release notes and requirements with existing
   coverage. Add cases for normal use, invalid input, relevant limits, state
   persistence, and affected existing behavior. Reuse existing cases where possible.
   If the published package lacks the feature, document its cases as NOT_RUN.
   Do not infer requirements from code alone when expected behavior is unclear.
+
+Speed and token budget
+- Read only what the tier needs. Read docs/qa/tiers.md, then extract the selected
+  case sections, and the sections their preconditions name, with grep or sed line
+  ranges. Never read all of test-cases.md, old run records, or evidence files,
+  except a fixture script that an earlier run saved for a selected case.
+- Download and install the package once. Start all processes once and reuse them
+  across cases. Reuse one owned test process for cases that share preconditions.
+- Take a preview_snapshot only when you need locators or must check visible
+  state. Prefer one preview_evaluate that reads many values at once (read-only)
+  over repeated snapshots. Do not narrate each step.
+- Skip screenshots for passing cases. Save evidence for failures only, plus one
+  compact JSON of observations per run.
+- Write one run record per run, with a one-line result per case. Update the
+  current-result rows with one edit, then run scripts/qa_summary.py --write-readme
+  and --check once.
+- Do not retry a failed case more than once. Do not add or rewrite cases unless
+  the request asks for it.
+- Budget: aim for about 40 tool calls for Sanity and about 150 for Quick
+  regression, including setup and records. The budget is a target. Report an
+  overrun, but never stop a case or change its status because of the budget.
 
 Browser execution
 - Use the T3 Code collaborative browser when its preview tools are available.
