@@ -15,14 +15,14 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 Pick the tier from `gh pr diff <PR> --name-only` and `gh pr diff <PR> | diffstat` (or count `+`/`-` lines). A tier named in the arguments wins. Never downgrade `full`.
 
-- `scan`: all changed files are documentation (`*.md`, `*.txt`, images, `docs/`), or at most 30 changed lines in at most 3 files and no sensitive path. Sensitive: `.github/workflows/`, build files (`Makefile`, `CMakeLists.txt`, `Cargo.toml`, `package.json`), lockfiles, auth or secrets, storage or wire formats, anything `AGENTS.md` calls critical.
+- `scan`: no changed file is on a sensitive path, and either all changed files are documentation (`*.md`, `*.txt`, images, `docs/`) or at most 30 lines change in at most 3 files. Sensitive paths: the list under "Review triage" in `AGENTS.md` (read it), plus `.github/workflows/`, build files (`Makefile`, `CMakeLists.txt`, `Cargo.toml`, `package.json`), lockfiles, auth or secrets, storage or wire formats, anything `AGENTS.md` calls critical. Documentation files on a sensitive path (for example `AGENTS.md`, `.claude/**/*.md`, `docs/pr-review-workflow.md`) are `full`.
 - `full`: everything else, and any doubt.
 
 State the tier and the reason in one line before continuing.
 
 ## Scan tier
 
-Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker` or `major`, go to the merge gate with tier `scan`. Otherwise continue as round 1 of the full tier, starting at its step 3.
+Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker` or `major`, go to the merge gate with tier `scan`. Otherwise run round 1 of the full tier from step 1 (both reviewers on the whole diff, the scan review counts as extra input only), then continue with its step 2.
 
 ## Full tier: rounds (at most two)
 

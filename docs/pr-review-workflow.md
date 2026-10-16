@@ -25,9 +25,10 @@ high effort, or a mid-effort model from another vendor through its CLI).
 The orchestrator picks a tier from `gh pr diff --name-only` and `--stat`.
 Rules are objective. When unsure, pick `full`.
 
-- `scan`: every changed file is documentation (`*.md`, `*.txt`, images,
-  `docs/`), or the PR changes at most 30 lines in at most 3 files and touches
-  no sensitive path. Sensitive paths: CI workflows, build files, dependency
+- `scan`: the PR touches no sensitive path, and either every changed file is
+  documentation (`*.md`, `*.txt`, images, `docs/`) or it changes at most 30
+  lines in at most 3 files. Documentation on a sensitive path (such as
+  `AGENTS.md` or `.claude/`) is `full`. Sensitive paths: CI workflows, build files, dependency
   manifests and lockfiles, auth or secrets, storage or wire formats, and
   anything the repository's `AGENTS.md` calls critical.
 - `full`: everything else.
@@ -38,8 +39,8 @@ is never downgraded by the orchestrator.
 ## Flow
 
 `scan`: the quick reviewer scans the diff once, in scan mode. No blocker or
-major: go to the gate. Otherwise treat it as round 1 of `full`, starting at the
-analyzer.
+major: go to the gate. Otherwise treat it as round 1 of `full`, including both
+reviewers on the whole diff, before the analyzer.
 
 `full`: at most two rounds.
 
@@ -60,8 +61,8 @@ for manual handling.
 - Head SHA equals the expected SHA, and the worktree is clean.
 - `full`: run the repository's check command on a throwaway merge of the PR
   into the base branch.
-- `scan`: skip the local check when CI is green on the changed files. Run it
-  when no CI covers them.
+- `scan`: skip the local check only when every changed file matches the paths
+  filter of a passing CI workflow that builds or tests. Run it otherwise.
 - CI checks show only `pass` or `skipping`. `no checks reported` passes only
   when no changed file matches a `pull_request` `paths` filter.
 - The PR is `MERGEABLE` and `CLEAN`.
