@@ -40,7 +40,9 @@ is never downgraded by the orchestrator.
 
 `scan`: the quick reviewer scans the diff once, in scan mode. No blocker or
 major: go to the gate. Otherwise treat it as round 1 of `full`, including both
-reviewers on the whole diff, before the analyzer.
+reviewers on the whole diff, before the analyzer. The scan review's blockers
+and majors stay open: the analyzer runs on them even if both full reviewers
+report none.
 
 `full`: at most two rounds.
 

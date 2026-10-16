@@ -22,13 +22,13 @@ State the tier and the reason in one line before continuing.
 
 ## Scan tier
 
-Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker` or `major`, go to the merge gate with tier `scan`. Otherwise run round 1 of the full tier from step 1 (both reviewers on the whole diff, the scan review counts as extra input only), then continue with its step 2.
+Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker` or `major`, go to the merge gate with tier `scan`. Otherwise run round 1 of the full tier from step 1 (both reviewers on the whole diff, the scan review's findings stay open and gate the analyzer in step 3), then continue with its step 2.
 
 ## Full tier: rounds (at most two)
 
 1. Start in parallel, in one message: `pr-adversarial-reviewer` (model `sonnet`, effort `medium`, mode `full`) and `pr-quick-reviewer` (model `haiku`, effort `high`, mode `full`). Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
 2. Confirm both reviews reached GitHub (bodies starting with `## Review, round <n>, head <SHA>` and `## Quick review, round <n>, head <SHA>`). If either is missing, stop and report.
-3. If neither lists a `blocker` or `major` finding, go to the merge gate. Skip the analyzer.
+3. If none of the round's reviews (including the scan review, after a scan escalation) lists a `blocker` or `major` finding, go to the merge gate. Skip the analyzer.
 4. Otherwise start `pr-comment-analyzer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, and round number. It fixes or rebuts each finding from both reviews and pushes.
 5. If the head SHA changed and this was round 1, start round 2. Otherwise go to the merge gate.
 
