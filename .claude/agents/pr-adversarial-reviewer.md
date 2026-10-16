@@ -2,7 +2,7 @@
 name: pr-adversarial-reviewer
 description: Fast, pragmatic reviewer for one pull request. Reports only real blockers and majors in one PR review, and never edits code.
 model: sonnet
-effort: low
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

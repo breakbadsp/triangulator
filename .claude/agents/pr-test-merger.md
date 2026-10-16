@@ -2,7 +2,7 @@
 name: pr-test-merger
 description: Runs the local check and CI gate on one pull request, posts the results, and merges only when every gate passes. Makes no code changes.
 model: haiku
-effort: low
+effort: medium
 tools: Bash, Read, Grep, Glob
 ---
 
