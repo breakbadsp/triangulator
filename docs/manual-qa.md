@@ -51,7 +51,7 @@ The client must support delegation and have access to the requested model.
 ## Run tiers
 
 The agent runs [Sanity](qa/tiers.md) by default: four cases in about 10 minutes.
-Ask for "quick regression" to add eight more cases, or "full" for every case.
+Ask for "quick regression" to add nine more cases, or "full" for every case.
 Each tier is defined in [qa/tiers.md](qa/tiers.md). Example:
 
 ```text

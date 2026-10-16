@@ -33,8 +33,9 @@ Package and scope
 
 Speed and token budget
 - Read only what the tier needs. Read docs/qa/tiers.md, then extract the selected
-  case sections with grep or sed line ranges. Never read all of test-cases.md,
-  old run records, or evidence files.
+  case sections, and the sections their preconditions name, with grep or sed line
+  ranges. Never read all of test-cases.md, old run records, or evidence files,
+  except a fixture script that an earlier run saved for a selected case.
 - Download and install the package once. Start all processes once and reuse them
   across cases. Reuse one owned test process for cases that share preconditions.
 - Take a preview_snapshot only when you need locators or must check visible
