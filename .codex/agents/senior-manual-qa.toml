@@ -48,8 +48,9 @@ Speed and token budget
   and --check once.
 - Do not retry a failed case more than once. Do not add or rewrite cases unless
   the request asks for it.
-- Budget: Sanity within about 25 tool calls, Quick regression within about 80.
-  If a case needs more, record it BLOCKED with the reason and continue.
+- Budget: aim for about 40 tool calls for Sanity and about 150 for Quick
+  regression, including setup and records. The budget is a target. Report an
+  overrun, but never stop a case or change its status because of the budget.
 
 Browser execution
 - Use the T3 Code collaborative browser when its preview tools are available.
