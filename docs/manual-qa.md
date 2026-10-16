@@ -58,6 +58,20 @@ Each tier is defined in [qa/tiers.md](qa/tiers.md). Example:
 Use $senior-manual-qa to run quick regression on the latest stable package.
 ```
 
+## Fast Sanity runs
+
+For a quick pass or fail on a release, use the leaner
+[Sanity QA agent](../.codex/agents/sanity-qa.toml). It runs only the Sanity tier,
+uses `low` reasoning, and has a budget of about 30 tool calls.
+It does not add cases or run larger tiers. Example:
+
+```text
+Use $sanity-qa to test the latest stable Triangulator package.
+```
+
+Link `.codex/agents/sanity-qa.toml` and `.agents/skills/sanity-qa` as in
+[Personal installation](#personal-installation) to use it elsewhere.
+
 ## Triangulator suite
 
 Use [manual test cases](qa/test-cases.md). The cases cover documented installation
