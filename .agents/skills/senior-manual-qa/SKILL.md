@@ -5,7 +5,7 @@ description: Invoke Senior Manual QA to test a package in a real browser or main
 
 Invoke the saved custom agent `Senior Manual QA`. Its definition is the source
 of the QA workflow and model settings. Pass the user's package, version, feature,
-and scope. Do not start a QA run when the request only asks to document scenarios.
+scope, and tier (sanity by default, quick regression, or full). Do not start a QA run when the request only asks to document scenarios.
 
 If the runtime does not expose named custom agents, read
 `../../../.codex/agents/senior-manual-qa.toml` relative to the physical location

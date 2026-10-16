@@ -10,7 +10,7 @@ Start a new Codex or T3 Code session after installation. Example requests:
 
 ```text
 Use $senior-manual-qa to test the latest stable Triangulator package.
-Run the documented cases in a real browser and update the results.
+Run the Sanity tier in a real browser and update the results.
 ```
 
 ```text
@@ -47,6 +47,16 @@ Codex documents [custom agents](https://learn.chatgpt.com/docs/agent-configurati
 and their model settings. GPT-6.1-Sol supports
 [medium reasoning](https://developers.openai.com/api/docs/models/gpt-6.1-sol).
 The client must support delegation and have access to the requested model.
+
+## Run tiers
+
+The agent runs [Sanity](qa/tiers.md) by default: four cases in about 10 minutes.
+Ask for "quick regression" to add eight more cases, or "full" for every case.
+Each tier is defined in [qa/tiers.md](qa/tiers.md). Example:
+
+```text
+Use $senior-manual-qa to run quick regression on the latest stable package.
+```
 
 ## Triangulator suite
 
