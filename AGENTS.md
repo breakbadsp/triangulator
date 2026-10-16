@@ -37,12 +37,12 @@
 2. When the change is complete and checks pass, commit, push, and open a pull
    request against `master` without a separate request. In Claude Code, then
    run `/pr-review-merge <PR>` (`.claude/commands/pr-review-merge.md`). It
-   runs two adversarial reviewers, one comment analyzer, and one
-   test-and-merge agent. It stops after two review rounds and two merge-gate
-   runs. It merges only when no `blocker` or `major` issue is open. A run
-   never starts itself again, and agents that `/pr-review-merge` starts never
-   run it. Other agents, such as Codex, stop after they open the PR and
-   report its URL.
+   runs one reviewer, one comment analyzer when needed, and one
+   test-and-merge agent. It stops after two review rounds and one merge-gate
+   run, merges only when no `blocker` or `major` issue is open, and reports
+   anything still open for manual handling. A run never starts itself again,
+   and agents that `/pr-review-merge` starts never run it. Other agents, such
+   as Codex, stop after they open the PR and report its URL.
 3. After confirmed merge, preserve uncommitted and untracked work. Remove the
    worktree with `git worktree remove` from another checkout. Never force removal
    or remove the primary checkout.
