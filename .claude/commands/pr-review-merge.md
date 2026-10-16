@@ -13,7 +13,7 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 ## Rounds (at most two)
 
-1. Start one reviewer: `pr-adversarial-reviewer`, model `sonnet`, effort `low`. Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
+1. Start one reviewer: `pr-adversarial-reviewer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
 2. Confirm its review reached GitHub (a review whose body starts with `## Review, round <n>, head <SHA>`). If missing, stop and report.
 3. If the review lists no `blocker` or `major` finding, go to the merge gate. Skip the analyzer.
 4. Otherwise start `pr-comment-analyzer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, and round number. It fixes or rebuts each finding and pushes.
@@ -25,12 +25,12 @@ After round 2's analyzer, if any `blocker` or `major` finding is still open (not
 
 ## Merge gate (once)
 
-Start `pr-test-merger`, model `haiku`, effort `low`, with the PR number, worktree path, and head SHA (HEAD must equal `headRefOid`). If it merges, finish. If a gate fails, do not retry and do not start a fix pass. Report the failing gate for manual handling.
+Start `pr-test-merger`, model `haiku`, effort `medium`, with the PR number, worktree path, and head SHA (HEAD must equal `headRefOid`). If it merges, finish. If a gate fails, do not retry and do not start a fix pass. Report the failing gate for manual handling.
 
 ## Limits
 
 - Never start a third round or a second gate run.
-- Never pass an effort above `high` to any agent. Use the lowest that works.
+- Pass every agent an effort of `medium` or `high`, never lower or higher. Use `medium` unless the task needs more.
 - Never merge with an open `blocker` or `major` finding, or a failing check.
 - Neither this command nor its agents ever start `/pr-review-merge` again. Only the user does.
 - If a result is ambiguous, stop and report.
