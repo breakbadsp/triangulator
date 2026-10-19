@@ -2733,3 +2733,29 @@ test('folded panels open for a warning of their type until the user chooses', ()
   app.run(`localStorage.getItem=key=>key==='triangulator:fold:health'?'closed':null;openFoldsFor([{type:'monitor',level:'critical'}])`);
   assert.equal(app.run('folds[0].open'), false);
 });
+
+test('folded panels restore a saved choice and save a click', () => {
+  const app = dashboard();
+  app.run(`setTimeout=callback=>callback();var stored={'triangulator:fold:health':'closed','triangulator:fold:memory':'open'};
+    localStorage.getItem=key=>stored[key]??null;localStorage.setItem=(key,value)=>{stored[key]=value};
+    var clicks={};
+    var folds=['health','memory'].map(name=>({open:name==='health',dataset:{fold:name},querySelector:()=>({addEventListener:(type,handler)=>{clicks[name]=handler}})}));
+    document.querySelectorAll=(original=>selector=>selector==='details[data-fold]'?folds:original(selector))(document.querySelectorAll);
+    initFolds()`);
+  assert.equal(app.run('JSON.stringify(folds.map(fold=>fold.open))'), '[false,true]');
+  app.run(`folds[0].open=true;clicks.health()`);
+  assert.equal(app.run('stored["triangulator:fold:health"]'), 'open');
+});
+
+test('a panel the user chose stays closed when storage is blocked', () => {
+  const app = dashboard();
+  app.run(`setTimeout=callback=>callback();localStorage.getItem=()=>{throw Error('blocked')};localStorage.setItem=()=>{throw Error('blocked')};
+    var click;
+    var folds=[{open:false,dataset:{fold:'health',foldOn:'monitor'},querySelector:()=>({addEventListener:(type,handler)=>{click=handler}})}];
+    document.querySelectorAll=(original=>selector=>selector.startsWith('details[data-fold')?folds:original(selector))(document.querySelectorAll);
+    initFolds();openFoldsFor([{type:'monitor',level:'critical'}])`);
+  assert.equal(app.run('folds[0].open'), true);
+  app.run('folds[0].open=false;click()');
+  app.run(`openFoldsFor([{type:'monitor',level:'critical'}])`);
+  assert.equal(app.run('folds[0].open'), false);
+});

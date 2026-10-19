@@ -2869,7 +2869,9 @@ renderWatchMode();
 // Assessment has a warning or worse of that type. It never closes by itself,
 // so the page does not jump while someone reads it.
 const foldKey=fold=>'triangulator:fold:'+fold.dataset.fold;
-function foldChosen(fold){try{return localStorage.getItem(foldKey(fold))!==null}catch{return false}}
+// Remembered in memory too, so a panel stays closed when storage is blocked.
+const foldsChosen=new Set();
+function foldChosen(fold){if(foldsChosen.has(fold.dataset.fold))return true;try{return localStorage.getItem(foldKey(fold))!==null}catch{return false}}
 function openFoldsFor(findings){
   for(const fold of document.querySelectorAll('details[data-fold-on]'))
     if(!fold.open&&!foldChosen(fold)&&findings.some(item=>item.type===fold.dataset.foldOn&&LEVEL_ORDER.indexOf(item.level)<=LEVEL_ORDER.indexOf('warning')))fold.open=true}
@@ -2877,7 +2879,7 @@ function initFolds(){
   for(const fold of document.querySelectorAll('details[data-fold]')){
     try{const choice=localStorage.getItem(foldKey(fold));if(choice)fold.open=choice==='open'}catch{}
     // A click or key on the summary is the user's choice; an automatic open is not.
-    fold.querySelector('summary').addEventListener('click',()=>setTimeout(()=>{try{localStorage.setItem(foldKey(fold),fold.open?'open':'closed')}catch{}}))}}
+    fold.querySelector('summary').addEventListener('click',()=>setTimeout(()=>{foldsChosen.add(fold.dataset.fold);try{localStorage.setItem(foldKey(fold),fold.open?'open':'closed')}catch{}}))}}
 function initSectionNavigation(){
   const links=Array.from(document.querySelectorAll('nav.tabs a'));
   if(!links.length)return;
