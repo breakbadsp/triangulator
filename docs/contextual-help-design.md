@@ -189,6 +189,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Dashboard area | Topics to cover |
 | --- | --- |
 | Section navigation | Current section highlight; tab selection; updates on scroll; Settings at the bottom of the page |
+| Folded panels | ▸ heading opens and closes; choice kept in this browser; Monitor health, Address space & zoom and Network stack drops open by themselves for an Assessment warning of their kind (monitoring, memory, resources and network) until the user chooses; covered by the page guide and each panel's own topic |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Timeline | Scrubber span (checked period to now); release to open, left end loads earlier, right end returns to live; marks of past findings; nearest earlier recording; ◀/▶ steps; Live and the top-bar Back to live; recording disabled; missing history |

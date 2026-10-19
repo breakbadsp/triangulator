@@ -2721,3 +2721,15 @@ test('an applied error without its revision requires an explicit reload', async 
   assert.equal(app.el('watch-reload').hidden, false);
   assert.match(app.el('watch-status').textContent, /Reload current rules before retrying/);
 });
+
+test('folded panels open for a warning of their type until the user chooses', () => {
+  const app = dashboard();
+  app.run(`var folds=[{open:false,dataset:{fold:'health',foldOn:'monitor'}},{open:false,dataset:{fold:'memory',foldOn:'memory'}}];
+    document.querySelectorAll=(original=>selector=>selector==='details[data-fold-on]'?folds:original(selector))(document.querySelectorAll);`);
+  // Info is not enough; a warning of the panel's type opens it.
+  app.run(`openFoldsFor([{type:'monitor',level:'info'},{type:'memory',level:'warning'}])`);
+  assert.equal(app.run('JSON.stringify(folds.map(fold=>fold.open))'), '[false,true]');
+  // A panel the user closed stays closed.
+  app.run(`localStorage.getItem=key=>key==='triangulator:fold:health'?'closed':null;openFoldsFor([{type:'monitor',level:'critical'}])`);
+  assert.equal(app.run('folds[0].open'), false);
+});

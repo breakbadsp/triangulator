@@ -58,6 +58,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-051 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
 | QA-052 | NOT_RUN | - | - | - |
 | QA-053 | NOT_RUN | - | - | - |
+| QA-054 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -955,13 +956,14 @@ restarted threads again, without an edit.
 
 ## QA-038: Timeline and past assessments show a recorded finding
 
-Feature: Timeline. Priority: High. Case revision: 3.
+Feature: Timeline. Priority: High. Case revision: 4.
 
 Preconditions: Use an isolated runtime, unused ports, and enabled recording.
 Use a bug-lab workload that can switch between healthy activity and a CPU spin.
 Record both states before opening the dashboard.
 
-1. Read the Timeline marks and Past assessments rows. Compare their times with
+1. Open the folded **Past assessments** panel. Read the Timeline marks and
+   Past assessments rows. Compare their times with
    the controlled CPU spin.
 2. Select the spin finding. Scroll through the dashboard and read the top bar,
    Assessment, and thread table. Compare them with the selected recording.
@@ -981,7 +983,7 @@ together. Live trends return when the recorded view closes.
 
 ## QA-039: Earlier Timeline periods, empty states, and help
 
-Feature: Timeline. Priority: Medium. Case revision: 3.
+Feature: Timeline. Priority: Medium. Case revision: 4.
 
 Preconditions: As QA-038, with at least two hours of recordings. Use a second
 isolated collector with recording disabled.
@@ -1112,3 +1114,33 @@ views open the same initial watch list. Use only isolated test settings.
 Expected results: A stale save must preserve the other user's saved rule or
 identify the conflict before it silently replaces that rule. Record the exact
 order and final rules. If the package lacks watches, leave the case NOT_RUN.
+
+## QA-054: Assessment first and folded panels
+
+Feature: Dashboard layout. Priority: Medium. Case revision: 1.
+
+Preconditions: Use an isolated runtime and a bug-lab workload that can run
+healthy and then trigger a warning, such as a CPU spin or packet loss. Clear
+this site's browser storage first.
+
+1. Open the dashboard on a healthy target at full width and below 1050 pixels
+   wide. Note what is visible without scrolling.
+2. Check that Past assessments, Process details, Core placement, Network stack
+   drops, Address space & zoom, and Monitor health start closed. Open and close
+   each with the pointer, then with Tab and Enter.
+3. Open Core placement and close Monitor health. Reload the page.
+4. Clear storage again. Stop the sampler for longer than its silence timeout,
+   or cause packet loss. Watch Monitor health. Repeat with a memory-map warning
+   for Address space & zoom, and a resource or network warning, such as a
+   slow socket reader, for Network stack drops.
+5. Close Monitor health while the problem lasts and wait for several samples.
+6. Hover for 1.2 seconds on each panel heading, and open "How to read this
+   page".
+
+Expected results: The Assessment verdict and findings are visible without
+scrolling at both widths. On a narrow screen the Assessment comes before
+Process load. Every panel opens and closes with pointer and keyboard. After
+the reload, the panels keep the user's choice. With no saved choice, a panel
+opens by itself for a warning or worse of its kind and does not close by
+itself. A panel the user closed stays closed. Each heading shows its help
+topic, and the page guide explains folded panels.
