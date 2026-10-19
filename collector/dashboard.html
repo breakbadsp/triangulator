@@ -75,7 +75,7 @@ section.block{margin-top:30px}
 .g-2-1{grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr)}
 .g-1-1{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:14px}
-@media (max-width:1050px){.g-hero,.g-2-1,.g-1-1{grid-template-columns:minmax(0,1fr)}nav.tabs{margin-left:0}}
+@media (max-width:1050px){.g-hero,.g-2-1,.g-1-1{grid-template-columns:minmax(0,1fr)}nav.tabs{margin-left:0}#assessment-card{order:-1}}
 
 /* Segmented control */
 .seg{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface-2)}
@@ -131,9 +131,8 @@ section.block{margin-top:30px}
 .timeline-ends{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 #timeline-cursor{color:var(--ink);font-weight:600}
 .timeline-bounds{font-size:12px;margin:2px 0 10px}
-.past-head{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px}
-.past-head h3{margin:0}
-.history-filters{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
+.past{border-top:1px solid var(--line);padding-top:10px}
+.history-filters{display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .history-filters fieldset{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:0;margin:0;padding:0;font-size:13px}
 .history-filters legend{float:left;margin-right:4px;color:var(--ink-2)}
 .history-filters label{font-size:13px}
@@ -146,11 +145,20 @@ section.block{margin-top:30px}
 .verdict .badge,.exit-summary .badge{padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--surface-2)}
 .verdict .badge::before,.exit-summary .badge::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--lvl,var(--good))}
 .profile{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.55}
-.exit-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;list-style:none}
-.exit-summary::-webkit-details-marker{display:none}
-.exit-summary::before{content:"\25B8";color:var(--muted);width:10px}
-details[open]>.exit-summary::before{content:"\25BE"}
-.exit-summary h3{margin:0}
+.exit-summary,.fold-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;list-style:none}
+.exit-summary::-webkit-details-marker,.fold-summary::-webkit-details-marker{display:none}
+.exit-summary::before,.fold-summary::before{content:"\25B8";color:var(--muted);width:10px}
+details[open]>.exit-summary::before,details[open]>.fold-summary::before{content:"\25BE"}
+.exit-summary h3,.fold-summary h3{margin:0}
+/* Folded panels. A panel outside a card gets the card's frame on its summary. */
+details.fold[open]>.fold-summary{margin-bottom:10px}
+.fold-note{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.fold-bar{padding:12px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+/* Browsers that can animate to height:auto slide a panel open; others open it at once. */
+@media (prefers-reduced-motion:no-preference){@supports (interpolate-size:allow-keywords){
+  details.fold{interpolate-size:allow-keywords}
+  details.fold::details-content{height:0;overflow:clip;transition:height .2s,content-visibility .2s allow-discrete}
+  details.fold[open]::details-content{height:auto}}}
 details[open]>.exit-summary #exit-brief{display:none}
 #exit-sub{margin:8px 0 10px}
 .exit-log{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -407,11 +415,12 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <input id="timeline-range" type="range" min="0" max="1" step="1" value="1" disabled aria-label="Timeline position">
 <div class="timeline-ends"><span id="timeline-start"></span><span id="timeline-cursor"></span><span id="timeline-end">Live</span></div></div>
 <p id="replay-bounds" class="muted timeline-bounds"></p>
-<div class="past-head"><h3 data-help="assesshistory">Past assessments</h3>
+<details class="fold past" data-fold="past"><summary class="fold-summary" data-help="assesshistory"><h3>Past assessments</h3><span id="past-count" class="muted"></span></summary>
 <div class="history-filters"><fieldset id="history-levels" data-help="historyfilters"><legend>Severity</legend><label><input type="checkbox" value="critical" checked> Critical</label><label><input type="checkbox" value="serious" checked> Serious</label><label><input type="checkbox" value="warning" checked> Warning</label><label><input type="checkbox" value="info"> Info</label></fieldset>
-<label data-help="historyfilters">Type <select id="history-type"><option value="">All types</option><option value="monitor">Monitoring</option><option value="threads">Threads &amp; CPU</option><option value="watched">Watched threads</option><option value="resources">Resources &amp; network</option><option value="memory">Memory</option></select></label></div></div>
+<label data-help="historyfilters">Type <select id="history-type"><option value="">All types</option><option value="monitor">Monitoring</option><option value="threads">Threads &amp; CPU</option><option value="watched">Watched threads</option><option value="resources">Resources &amp; network</option><option value="memory">Memory</option></select></label></div>
 <ul id="history-list" class="findings history-list" data-help="assesshistory"></ul>
 <div class="past-foot"><span id="history-status" class="muted" role="status" data-help="assesshistory">Waiting for recordings…</span><button id="history-more" data-help="assesshistory" hidden>Load earlier</button></div>
+</details>
 </section>
 
 <!-- Whole-process view. Everything here is summed from /api/live in the
@@ -421,23 +430,8 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="section-head"><div><h2 data-help="overview">Summary</h2><p id="overview-sub">How the whole target process is behaving, summed over all of its threads.</p></div>
 <div class="seg" role="group" aria-label="Chart time window"><button data-window="60" aria-pressed="false">1 min</button><button data-window="300" aria-pressed="true">5 min</button><button data-window="900" aria-pressed="false">15 min</button></div></div>
 
-<div id="tiles" class="tiles" style="margin-bottom:14px"></div>
-
-<section id="process-info" class="card" aria-labelledby="process-title" hidden style="margin-bottom:14px">
-<div class="card-head"><div><h3 id="process-title" data-help="procinfo">Process details</h3><p id="process-sub">What the target is. The sampler reads these once when it starts watching the process.</p></div></div>
-<dl id="process-facts" class="facts"></dl>
-</section>
-
-<section id="process-exit" class="card" aria-labelledby="exit-title" hidden style="margin-bottom:14px">
-<details id="exit-card"><summary class="exit-summary" data-help="exitreason"><h3 id="exit-title">Last process exit</h3><span id="exit-reason" class="badge"></span><span id="exit-brief" class="muted"></span></summary>
-<p id="exit-sub" class="muted"></p>
-<p id="exit-explain" class="profile"></p>
-<p id="exit-status" class="profile" data-help="exitstatus"></p>
-<details id="exit-details"><summary data-help="exitmessages">Kernel messages</summary><pre id="exit-messages" class="exit-log mono"></pre></details>
-</details>
-</section>
-
-<div class="grid g-hero">
+<!-- What is wrong comes first: the Assessment and the load it is read against. -->
+<div class="grid g-hero" style="margin-bottom:14px">
 <div class="card">
 <div class="card-head"><div><h3>Process load</h3><p>The system load average, for this process only: threads on a CPU, plus threads waiting for one, plus threads stuck in uninterruptible kernel wait. 1.00 is one core's worth of demand. Memory below uses the same time window.</p></div></div>
 <div class="hero-row"><div><span id="hero-load" class="hero">—</span><div class="muted" style="font-size:12px">1-minute load</div></div>
@@ -448,7 +442,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <div class="mini-cap"><span class="help-label" data-help="vmsize">Virtual size (VmSize)</span><b id="overview-vm">—</b></div><div id="chart-vm" class="chart"></div>
 </div>
 </div>
-<div class="card">
+<div id="assessment-card" class="card">
 <div class="card-head"><h3>Assessment</h3><span id="assess-time" class="muted" style="font-size:12px"></span></div>
 <div class="verdict"><span id="verdict" class="badge">Waiting for data</span></div>
 <p id="profile" class="profile"></p>
@@ -456,9 +450,25 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 </div>
 
-<h2 id="alerts-title" hidden style="margin-top:24px">Open alerts</h2><div id="alerts" hidden></div>
+<h2 id="alerts-title" hidden style="margin-top:10px">Open alerts</h2><div id="alerts" hidden style="margin-bottom:14px"></div>
 
+<div id="tiles" class="tiles" style="margin-bottom:14px"></div>
 
+<section id="process-info" class="card" aria-labelledby="process-title" hidden style="margin-bottom:14px">
+<details class="fold" data-fold="process"><summary class="fold-summary" data-help="procinfo"><h3 id="process-title">Process details</h3></summary>
+<p id="process-sub" class="fold-note">What the target is. The sampler reads these once when it starts watching the process.</p>
+<dl id="process-facts" class="facts"></dl>
+</details>
+</section>
+
+<section id="process-exit" class="card" aria-labelledby="exit-title" hidden style="margin-bottom:14px">
+<details id="exit-card"><summary class="exit-summary" data-help="exitreason"><h3 id="exit-title">Last process exit</h3><span id="exit-reason" class="badge"></span><span id="exit-brief" class="muted"></span></summary>
+<p id="exit-sub" class="muted"></p>
+<p id="exit-explain" class="profile"></p>
+<p id="exit-status" class="profile" data-help="exitstatus"></p>
+<details id="exit-details"><summary data-help="exitmessages">Kernel messages</summary><pre id="exit-messages" class="exit-log mono"></pre></details>
+</details>
+</section>
 </section>
 
 <hr class="section-separator" aria-hidden="true">
@@ -475,7 +485,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 
 <div class="grid" style="margin-top:14px">
-<div class="card"><div class="card-head"><div><h3>Core placement</h3><p>CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.</p></div></div><div id="cores" class="cores"></div><div class="core-base"></div><div id="cores-scale" class="muted" style="font-size:12px;margin-top:6px"></div></div>
+<div class="card"><details class="fold" data-fold="cores"><summary class="fold-summary" data-help="cores"><h3>Core placement</h3></summary><p class="fold-note">CPU of this process's threads, by the core each thread last ran on. Uneven bars can mean pinning or affinity.</p><div id="cores" class="cores"></div><div class="core-base"></div><div id="cores-scale" class="muted" style="font-size:12px;margin-top:6px"></div></details></div>
 
 </div>
 
@@ -515,7 +525,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 </div>
 <div class="grid g-2-1" style="margin-top:14px">
 <div class="card"><div class="card-head"><div><h3>Bytes waiting in the target's sockets</h3><p>Receive queue: arrived but not yet read, so the app is behind. Send queue: written but not yet taken by the peer, so the peer or the network is behind.</p></div></div><div id="chart-queues" class="chart" role="img" aria-label="Socket queue history"></div><div id="queues-legend" class="legend"></div></div>
-<div class="card"><div class="card-head"><div><h3 data-help="netdrops">Network stack drops &amp; errors</h3><p id="netstack-sub">Counters for the target's network namespace, shared by every process in it.</p></div></div><div class="table-wrap" style="max-height:330px"><table><thead><tr><th data-help="netdrops">Counter</th><th class="num" data-help="netdrops" data-hint="Per second over the last sample interval">Now</th><th class="num" data-help="netdrops" data-hint="Added up over the selected range">In range</th><th class="num" data-help="netdrops" data-hint="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></div>
+<div class="card" style="align-self:start"><details class="fold" data-fold="netstack" data-fold-on="resources"><summary class="fold-summary" data-help="netdrops"><h3 data-help="netdrops">Network stack drops &amp; errors</h3></summary><p id="netstack-sub" class="fold-note">Counters for the target's network namespace, shared by every process in it.</p><div class="table-wrap" style="max-height:330px"><table><thead><tr><th data-help="netdrops">Counter</th><th class="num" data-help="netdrops" data-hint="Per second over the last sample interval">Now</th><th class="num" data-help="netdrops" data-hint="Added up over the selected range">In range</th><th class="num" data-help="netdrops" data-hint="Since the namespace was created">Total</th></tr></thead><tbody id="netstack"></tbody></table></div></details></div>
 </div>
 <div class="card" style="margin-top:14px"><div class="card-head"><div><h3 data-help="queues">Fullest sockets <span id="resource-socket-count" class="muted" style="font-weight:400"></span></h3><p>The target's sockets ranked by how full their buffers are, from the latest sample. Fill compares queued memory with the socket's buffer limit (SO_RCVBUF / SO_SNDBUF). For listeners it compares connections waiting for accept() with the backlog.</p></div><label class="muted" style="font-size:13px"><input id="sockets-busy-only" type="checkbox" checked> Only sockets with data, drops or retransmits</label></div>
 <div class="table-wrap" style="max-height:440px"><table><thead><tr><th>Socket</th><th>Local → peer</th><th class="num" data-hint="Bytes received but not read (listeners: connections waiting for accept)">Recv-Q</th><th data-hint="Receive buffer use (listeners: accept backlog use)">Receive buffer</th><th class="num" data-hint="Bytes not yet sent or acknowledged">Send-Q</th><th data-hint="Send buffer use">Send buffer</th><th class="num" data-help="sockdrops" data-hint="Packets this socket dropped; + in the last interval">Drops</th><th class="num" data-hint="Smoothed round-trip time">RTT</th><th class="num" data-hint="Retransmitted segments; + in the last interval">Retrans</th><th>What it means</th></tr></thead><tbody id="resource-sockets"></tbody></table></div>
@@ -554,8 +564,12 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <p id="memory-empty" class="socket-empty" hidden></p>
 <div id="memory-content">
 <div id="memory-tiles" class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"></div>
-<div class="card" style="margin-top:14px"><div class="card-head"><div><h3 data-help="memfindings">Findings</h3><p>Worked out in the browser from the latest memory-map, resource and thread samples.</p></div></div><ul id="memory-findings" class="mem-findings"></ul></div>
-<div class="grid g-mem" style="margin-top:14px">
+<div class="grid g-1-1" style="margin-top:14px">
+<div class="card"><div class="card-head"><div><h3 data-help="memfindings">Findings</h3><p>Worked out in the browser from the latest memory-map, resource and thread samples.</p></div></div><ul id="memory-findings" class="mem-findings"></ul></div>
+<div class="card"><div class="card-head"><div><h3 data-help="memlimits">Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
+</div>
+<details id="memory-fold" class="fold" data-fold="memory" data-fold-on="memory" style="margin-top:14px"><summary class="fold-summary fold-bar" data-help="amap"><h3>Address space &amp; zoom</h3><span class="muted">Every mapping, and a zoom into one</span></summary>
+<div class="grid g-mem">
 <div class="card"><div class="card-head"><div><h3 data-help="amap">Address space <span id="memory-region-count" class="muted" style="font-weight:400"></span></h3><p>High addresses at the top. Unmapped spaces between mappings are shortened.</p></div></div>
 <div id="memory-amap" class="amap"></div>
 <div class="legend">
@@ -581,16 +595,16 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 <details id="memory-region-details"><summary id="memory-regions-summary" class="help-label" data-help="memregions">Member regions</summary>
 <div class="table-wrap" style="max-height:260px;margin-top:12px"><table><thead><tr><th data-help="memregions">Region</th><th data-help="memregions">Start</th><th class="num" data-help="memregions">Size</th><th data-help="memregions" data-hint="Union of the mappings' permissions">Perms</th><th class="num" data-help="vmas" data-hint="Mappings (VMAs) in this region">VMAs</th></tr></thead><tbody id="memory-regions"></tbody></table></div></details>
 </div>
-<div class="card"><div class="card-head"><div><h3 data-help="memlimits">Limits &amp; headroom</h3><p>Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.</p></div></div><div id="memory-limits"></div><dl id="memory-facts" class="facts"></dl><p id="memory-notes" class="socket-note"></p></div>
 </div>
 </div>
+</details>
 </div>
 </section>
 
 <hr class="section-separator" aria-hidden="true">
 <section id="monitor" class="block">
 <div class="section-head"><h2 data-help="health">Monitor</h2></div>
-<div class="card"><div class="card-head"><div><h3>Monitor health</h3><p>Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p></div></div><dl id="health" class="health-list"></dl></div>
+<div class="card"><details class="fold" data-fold="health" data-fold-on="monitor"><summary class="fold-summary" data-help="health"><h3>Monitor health</h3></summary><p class="fold-note">Is the data trustworthy? Sampler link, packet loss and the collector's buffers.</p><dl id="health" class="health-list"></dl></details></div>
 <div class="notes">
 <details hidden><summary data-help="alerts">Recent alert events</summary><div id="recent"></div></details>
 <details><summary data-help="health">Monitor diagnostics (raw health JSON)</summary><pre id="diagnostics"></pre></details>
@@ -906,7 +920,7 @@ helpTopic('watchadd','Add watch rule','Rules you are editing','Adds an empty row
 helpTopic('watchsave','Save watch rules','Collector · whole list at once','Applies the whole list in the table to the collector at once and saves it on the collector host, replacing the config file rules. Save is off while any field has a problem, or when nothing has changed and the last save was confirmed.','','Fix each marked field, then select Save. The message below the button tells whether the collector accepted the list; if it refuses, its message is shown unchanged and nothing changes. Discard edits restores the list now in force.','These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry. The retry is refused if another user changed the rules.',['watchsource','watchreset']);
 helpTopic('watchreload','Reload current watch rules','Shared collector settings','Loads the current saved rules after another user changed them, or after the collector restarted. Your save or reset was refused so it could not overwrite that change.','','Copy any edits you want to keep. Select Reload current rules, confirm that the draft can be discarded, then review and edit the current list.','Your draft stays in the table if you cancel or the read fails. A successful reload replaces it.',['watchsave','watchreset']);
 helpTopic('watchreset','Reset watch rules','Collector · rules saved from the dashboard','Deletes the rules saved from this dashboard, and returns to the [[watch]] rules in collector.toml. You are asked to confirm because this discards the dashboard rules and any unsaved edits.','','Use it when you want the config file to be the single source again. It is also the way to clear a saved file that the collector could not read.','It is off when the config file rules are already in force, unless the collector could not confirm the last reset on disk; then select it again to retry. It cannot restore the rules you discard. If another user changed the rules, reset is refused until you reload the current rules.',['watchsource','watchsave']);
-helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
+helpTopic('page','How to read this page','Dashboard guide','Read the scope, unit, time interval, and data status before interpreting a metric.','','Pause over a label or value for 1.2 seconds. Select an information button for an example, measurement limits, and related topics. Select a ▸ heading to open or close its panel. The page remembers that choice in this browser. Monitor health, Address space & zoom, and Network stack drops open by themselves when the Assessment has a warning of their kind, until you choose.','A single metric does not establish a cause. Missing data is not zero.',['cpu','pressure','health']);
 
 helpTopic('cpucores','On CPU now','Process · CPU cores','The sum of thread CPU time, expressed in cores used.','1.5 cores means 1.5 seconds of CPU time per elapsed second.','Compare CPU cores used with process load and runnable demand.','This is CPU use by the process, not the number of host cores.',['cpu','load'],['On CPU']);
 helpTopic('demand','Waiting for CPU','Process · percentage of runnable demand','Run delay as a share of CPU time plus run delay, summed across reported threads.','With 0.75 seconds on CPU and 0.25 seconds waiting, the share is 25%.','Compare this share with the thread-table Run delay metric, whose denominator is elapsed time.','Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.',['delay','cpucores','pressure']);
@@ -1419,7 +1433,7 @@ function profile(threads){
   if((counts.futex||0)>threads.length/2)text+=' Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.';
   return text}
 function renderAssessment(threads){
-  const findings=assess(threads,buffer);const order=LEVEL_ORDER;const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
+  const findings=assess(threads,buffer);const order=LEVEL_ORDER;openFoldsFor(findings);const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
   const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   // A poll replaces every row; keep them while a finding's help is pending or open.
@@ -2260,6 +2274,7 @@ const sameDay=(a,b)=>new Date(a*1000).toDateString()===new Date(b*1000).toDateSt
 const episodeId=episode=>episode.key+'@'+episode.first;
 function renderHistory(){
   const list=element('history-list'),shown=shownEpisodes(),more=element('history-more');
+  element('past-count').textContent=past.oldest===null?'':`${shown.length} finding${shown.length===1?'':'s'}`;
   const checked=past.samples.filter(Boolean).length,gaps=past.samples.filter(sample=>!sample).length;
   more.hidden=past.done||past.oldest===null&&!past.error;more.disabled=past.loading;more.textContent=past.loading?'Loading…':'Load earlier';
   element('history-status').textContent=past.error?past.error+' Select Load earlier to try again.':
@@ -2849,6 +2864,22 @@ addEventListener('beforeunload',event=>{if(watchDirty()){event.preventDefault();
 renderWatchMode();
 
 // ---------- Main loop ----------
+// Folded panels (details[data-fold]) keep the open or closed choice the user
+// last made. Until then, a panel with data-fold-on opens by itself while the
+// Assessment has a warning or worse of that type. It never closes by itself,
+// so the page does not jump while someone reads it.
+const foldKey=fold=>'triangulator:fold:'+fold.dataset.fold;
+// Remembered in memory too, so a panel stays closed when storage is blocked.
+const foldsChosen=new Set();
+function foldChosen(fold){if(foldsChosen.has(fold.dataset.fold))return true;try{return localStorage.getItem(foldKey(fold))!==null}catch{return false}}
+function openFoldsFor(findings){
+  for(const fold of document.querySelectorAll('details[data-fold-on]'))
+    if(!fold.open&&!foldChosen(fold)&&findings.some(item=>item.type===fold.dataset.foldOn&&LEVEL_ORDER.indexOf(item.level)<=LEVEL_ORDER.indexOf('warning')))fold.open=true}
+function initFolds(){
+  for(const fold of document.querySelectorAll('details[data-fold]')){
+    try{const choice=localStorage.getItem(foldKey(fold));if(choice)fold.open=choice==='open'}catch{}
+    // A click or key on the summary is the user's choice; an automatic open is not.
+    fold.querySelector('summary').addEventListener('click',()=>setTimeout(()=>{foldsChosen.add(fold.dataset.fold);try{localStorage.setItem(foldKey(fold),fold.open?'open':'closed')}catch{}}))}}
 function initSectionNavigation(){
   const links=Array.from(document.querySelectorAll('nav.tabs a'));
   if(!links.length)return;
@@ -3015,6 +3046,7 @@ try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTh
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
 initHelp();
+initFolds();
 initSectionNavigation();
 refresh();
 loadTarget();
