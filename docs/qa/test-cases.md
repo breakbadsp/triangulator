@@ -65,6 +65,9 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-058 | NOT_RUN | - | - | - |
 | QA-059 | NOT_RUN | - | - | - |
 | QA-060 | NOT_RUN | - | - | - |
+| QA-061 | NOT_RUN | - | - | - |
+| QA-062 | NOT_RUN | - | - | - |
+| QA-063 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -85,6 +88,53 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-061: Per-tab target selection
+
+Feature: Dashboard target selection. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Two targets have different PIDs, thread names, and stored views.
+
+1. Open two tabs with different `?target=<host>/<id>` values.
+2. Set a filter, select a thread, open memory details, and inspect a recording.
+3. Switch one tab to the other target. Check that those view choices reset.
+4. Check that the second tab retains its target. Open the first tab's URL again.
+5. Open a new tab without a target. Check the remembered choice.
+6. Test one target and an unavailable saved target. Test narrow screen and zoom.
+
+Expected: Each tab shows only its selected target. A switch does not change
+sampler configuration. One target uses a plain label. Links retain selection.
+
+## QA-062: Manage local targets
+
+Feature: Dashboard target management. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: A local sampler uses a runtime configuration owned by the user.
+The dashboard listens on loopback. A second browser tab observes the targets.
+
+1. Add a target with a new ID. Cancel confirmation, then confirm it.
+2. Check that all viewers see the new target and existing sessions stay.
+3. Remove that target. Check that it leaves the list in both tabs.
+4. Try a duplicate ID, invalid ID, stale selector, and removal of the last target.
+5. Check that remote sampler viewing offers no unsupported remote control.
+
+Expected: Only confirmed changes edit the sampler configuration. Invalid or
+stale changes preserve it. One sampler process handles the resulting set.
+
+## QA-063: Target access and sampler budget badges
+
+Feature: Dashboard target status. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Targets include limited access and a throttled sampler.
+
+1. Select the limited-access target. Read its badge and contextual help.
+2. Select a throttled target. Compare CPU, effective rate, and budget with the API.
+3. Make an unselected target absent or silent. Check the attention count.
+4. Change targets. Check the count and badges for the selected target.
+5. Open help with keyboard focus. Check the labels in light and dark themes.
+
+Expected: Badges explain access limits and the shared sampler CPU budget.
+The attention count excludes the selected target. Help does not change selection.
 
 ## QA-060: Sampler CPU budget
 

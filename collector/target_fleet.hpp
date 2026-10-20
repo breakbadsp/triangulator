@@ -265,6 +265,30 @@ class TargetFleet final
     return sink_.Status();
   }
 
+  void Remove(std::string_view p_key)
+  {
+    const auto separator = p_key.rfind('/');
+    if (separator == std::string_view::npos)
+    {
+      return;
+    }
+    for (auto& slot : slots_)
+    {
+      const bool legacy_local =
+          !slot->announced_ &&
+          (slot->peer_.View() == "127.0.0.1" || slot->peer_.View() == "::1");
+      if (slot->active_ && slot->id_.View() == p_key.substr(separator + 1) &&
+          (slot->host_.View() == p_key.substr(0, separator) || legacy_local))
+      {
+        Retire(slot->peer_, slot->session_);
+        slot->monitor_.Close();
+        slot->resources_.Drain(0, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
+  }
+
   void Close()
   {
     for (auto& slot : slots_)

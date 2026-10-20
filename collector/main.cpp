@@ -202,6 +202,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     }
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
+      for (const auto& key : state.TakeRemovals())
+      {
+        fleet.Remove(key);
+      }
       std::vector<PublishedTarget> published;
       JsonArray descriptions;
       for (auto& owned : fleet.Slots())

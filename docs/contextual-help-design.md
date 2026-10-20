@@ -198,6 +198,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Section navigation | Current section highlight; tab selection; updates on scroll; Settings at the bottom of the page |
 | Folded panels | ▸ heading opens and closes; choice kept in this browser; Monitor health, Address space & zoom and Network stack drops open by themselves for an Assessment warning of their kind (monitoring, memory, resources and network) until the user chooses; covered by the page guide and each panel's own topic |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
+| Multiple targets | Per-tab URL selection; host and ID; state reset on a switch; limited access; sampler CPU budget and effective rate; attention on other targets; local add/remove confirmation |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Color theme | System, Light, and Dark; saved browser preference; blocked storage |
 | Memory use | Physical memory versus mapped address space; RSS and VmSize charts and their sample steps; shared chart window; missing samples |

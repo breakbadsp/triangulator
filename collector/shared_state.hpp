@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "json.hpp"
@@ -63,6 +64,21 @@ class SharedState
     return memory_map_;
   }
 
+  [[nodiscard]] bool QueueRemoval(std::string p_key)
+  {
+    std::lock_guard lock{mutex_};
+    if (removals_.size() >= 64)
+    {
+      return false;
+    }
+    removals_.push_back(std::move(p_key));
+    return true;
+  }
+  [[nodiscard]] std::vector<std::string> TakeRemovals()
+  {
+    std::lock_guard lock{mutex_};
+    return std::exchange(removals_, {});
+  }
   void PublishTargets(std::vector<PublishedTarget> p_targets,
                       Json p_description)
   {
@@ -110,6 +126,7 @@ class SharedState
  private:
   std::mutex mutex_;
   std::vector<PublishedTarget> targets_;
+  std::vector<std::string> removals_;
   std::shared_ptr<const std::string> targets_json_ =
       std::make_shared<const std::string>(R"({"targets":[]})");
   std::shared_ptr<const std::string> live_ =
