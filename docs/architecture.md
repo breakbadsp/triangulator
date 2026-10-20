@@ -163,3 +163,6 @@ settings form; it hides them because `/api/live` has no alert fields.
 For setup, see the [README](../README.md); for the future alerting module, see
 [alerting/README.md](../alerting/README.md). For protocol details, alert rules and
 operational constraints, see the [full design](thread-monitor-design.md).
+
+Monitoring several processes from one sampler is proposed in the
+[multi-target design](multi-target-design.md).

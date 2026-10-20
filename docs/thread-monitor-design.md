@@ -29,7 +29,7 @@ Threads are named with `pthread_setname_np`. The collector takes a list of threa
   - **history**: per-thread timeline from rollups;
   - **monitor health**: sampler last seen, packet loss, target present or absent.
 - R4. The sampler must never noticeably affect the target: non-blocking sends, no listener, no disk writes, bounded CPU and memory.
-- R5. The sampler runs as the target's UID, hardened (section 6), with no capabilities. v1 reads only `/proc` files that the same UID can read without ptrace-attach permission.
+- R5. The sampler runs as the target's UID, hardened (section 6), with no capabilities. v1 reads only `/proc` files that the same UID can read without ptrace-attach permission. A target of another user is covered only at limited fidelity; see [Multi-target design](multi-target-design.md).
 - R6. All interpretation (groups, thresholds, alerts) lives in the collector. The sampler is generic: it reports `/proc` data for any process and knows nothing about groups or alerts. Alert rules and thresholds can be changed from the dashboard at runtime.
 - R7. The system tolerates UDP loss, reordering and sampler restarts.
 - R8. Alerts are delivered to a person (webhook or email), and the monitor alerts on its own silence.

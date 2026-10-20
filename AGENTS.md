@@ -11,6 +11,43 @@
   Other languages are permitted for these programs unless performance-critical.
 - Add core features only when requested.
 
+## Sampler constraints
+
+The sampler runs on the target host, so its overhead must stay negligible.
+Every sampler change must keep these rules. A change that cannot keep them
+needs the owner's explicit approval first.
+
+- Run exactly one sampler process on each host. It monitors every target on
+  that host. Never add a sampler per target. The optional eBPF
+  `socket_sampler/` is the one existing second process: it is opt-in, and
+  whether it stays is an open owner decision (design, open question 1).
+- Keep the sampler single-threaded: one loop on a monotonic deadline. Add no
+  threads, thread pools, or async runtimes.
+- Keep it lean: after startup or reload, the steady-state tick path does no
+  allocation and no disk or network I/O that can block. Use only
+  rate-limited warnings, non-blocking UDP, and no disk writes. Ship a static
+  binary with no runtime dependencies. New code must follow this. The
+  existing exceptions, pending owner review, are the `/dev/kmsg` read for exit
+  reports (at most 50 ms) and the netlink `sock_diag` socket dump, which waits
+  up to 1 s per `recv` and has no total time budget (only a cap of 1,000,000
+  sockets).
+- Need no privileges: read only the `/proc` files the sampler's user can
+  read. No sudo, capabilities, or ptrace. The existing `/dev/kmsg` read is
+  best effort and may need `CAP_SYSLOG` when `dmesg_restrict=1`. A target of
+  another user is covered only at limited fidelity (no `io` or wait
+  channels), as the design describes.
+- Do the interpretation on the collector. The sampler reads raw counters and
+  sends them. It computes no rates, rules, or alerts. The one proposed
+  exception is the overhead throttle on the sampler's own CPU use; it is
+  pending owner approval (design, open question 5).
+- Bound the cost of each tick. Share work across targets, such as one `/proc`
+  scan per tick, and spread heavy scans (resources, memory maps) so that one
+  tick runs at most one of them.
+- Measure sampler overhead for each change that can affect it, and report
+  the result in the pull request.
+
+See [Multi-target design](docs/multi-target-design.md).
+
 ## C++ and validation
 
 - Before C++ changes or review, read `docs/cpp-coding-standards.md` and
