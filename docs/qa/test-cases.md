@@ -61,6 +61,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-054 | NOT_RUN | - | - | - |
 | QA-055 | NOT_RUN | - | - | - |
 | QA-056 | NOT_RUN | - | - | - |
+| QA-057 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -1182,7 +1183,35 @@ recordings, metric values, contextual help, and every Assessment finding remain
 available. No page-wide
 horizontal overflow occurs at either viewport or at 200% zoom.
 
-## QA-056: Network counter column names
+## QA-056: Help names the source of each value
+
+Feature: Contextual help. Priority: Medium. Case revision: 1.
+
+Preconditions: An owned workload is monitored with resource and memory-map
+samples available. Hover help is on. Note the target PID and one thread TID.
+
+1. Pause over CPU, Run delay, and a thread state in the threads table. Read the
+   Source line on each card.
+2. Open the guides for CPU, Run delay, Pressure stalls (PSI), Open files, Recv-Q,
+   one Network stack drops counter, Virtual size (VmSize), and Exit status.
+   Read each Source section.
+3. Run two of the Check it yourself commands with the noted PID and TID, such
+   as `cat /proc/PID/task/TID/schedstat` and `ls /proc/PID/fd | wc -l`.
+4. Open the guides for Color theme and Add watch rule.
+5. Repeat step 1 in the dark theme and at a 390-pixel-wide viewport.
+
+Expected results: Each card for a measured value ends with a short Source line
+that names its file and field, such as `/proc/PID/task/TID/schedstat`. Each
+guide has a Source section that says which program reads the file, how often,
+and how the collector or the page derives the shown value. The commands print
+the counters the guide names, and their values are consistent with the page.
+Values computed in the page, such as Process load and Assessment, say so.
+Controls and display settings have no Source section. File paths use code
+type, stay readable in both themes, and wrap inside the card.
+
+Source: [Contextual help design](../contextual-help-design.md).
+
+## QA-057: Network counter column names
 
 Feature: Network counter labels. Priority: Low. Case revision: 1.
 
