@@ -135,7 +135,7 @@ commands preserve the configuration.
 
 ## QA-066: Socket reports across hosts
 
-Feature: Target socket data. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Target socket data. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: Two allowed sampler hosts have targets with the same PID.
 Each host runs its optional socket observer with a distinct observer ID.
@@ -143,9 +143,14 @@ Each host runs its optional socket observer with a distinct observer ID.
 1. Select each target. Compare its socket report with its host's workload.
 2. Stop one socket observer. Check the other target's report.
 3. Request a selected target with the other host's observer ID.
+4. Stop both socket observers and restart the collector. Select a target whose
+   PID is unique, then call `/api/socket-io` without `?target=`.
 
 Expected: Each selected target shows only its host's socket observations.
-A request with the wrong observer ID is rejected.
+A request with the wrong observer ID is rejected. After the restart, the
+unique-PID target and the bare call (the default target) still show the
+stored totals and history; a target whose PID another target shares reports
+no socket observations until its observer reports.
 
 ## QA-061: Per-tab target selection
 

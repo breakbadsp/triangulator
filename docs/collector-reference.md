@@ -114,6 +114,11 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   session in `/api/history` or PID in `/api/socket-io` keeps its legacy lookup
   when no target parameter is supplied. Add the target parameter for host
   isolation when PIDs can be equal.
+- `/api/socket-io` with `?target=`, or with neither `?target=` nor `pid`,
+  reports the selected target: its PID and the observer that last reported it
+  from the same sender. Another target's PID or observer returns 400. Before an
+  observer reports in this collector run, stored observations of a unique PID
+  are used; a PID shared with another target reports `available:false`.
 - `POST /api/targets` accepts `{action:"add", id:"orders", target:"orders-api"}`
   or `{action:"remove", id:"orders"}` as JSON with quoted property names.
   The existing dashboard-write and same-origin checks apply. Local sampler

@@ -117,8 +117,14 @@ a free slot as a new session.
 Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
-return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
-carry no target, so it is selected by `pid` and `observer` only. Replay files
+return HTTP 404. `/api/socket-io` is scoped to one target too: with
+`?target=`, or with neither `?target=` nor `pid` (the default target), it uses
+that target's PID and the socket observer that last reported that PID from the
+same sender. A `pid` or `observer` of another target returns HTTP 400. Until
+an observer reports in this collector run, for example after a restart with the
+observer stopped, it reads the stored observations of the target's PID, unless
+another target has the same PID. A request with `pid` and no `?target=` keeps
+the lookup by `pid` and `observer`. Replay files
 have a separate directory for each announced target. Only the `default` target
 of one fixed sender keeps `data_dir/replay`: the smallest address in
 `sampler_ips`, or the first sender the collector heard when the list is empty.

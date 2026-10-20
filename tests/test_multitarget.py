@@ -309,6 +309,40 @@ class MultiTargetCollectorTests(CollectorCase):
         self.assertEqual(error.exception.code, 400)
         error.exception.close()
 
+    def test_stored_socket_reports_survive_a_collector_restart(self):
+        # The socket observer stops, then the collector restarts. The target
+        # announces again, but no TSIO binds an observer to it. Its stored
+        # observations must stay available through ?target= and through a
+        # bare call, which uses the default target as other endpoints do.
+        from test_socket_metrics import packet as socket_packet
+        self.send(announce(111, "default", pid=50))
+        self.send(tick(111, pid=50))
+        self.wait_for(lambda: self.targets() == {"host-a/default"})
+        for sequence in range(2):
+            wall = time.time()
+            for index in range(2):
+                self.send(socket_packet(sequence, index, observer=91, wall=wall,
+                                        input_bytes=100 * sequence if index else 0))
+        self.wait_for(lambda: self.fetch("/api/socket-io?target=host-a/default").get("totals", {})
+                      .get("input", {}).get("total") == "100")
+        self.restart()
+        self.send(announce(222, "default", pid=50))
+        self.send(tick(222, pid=50))
+        self.wait_for(lambda: self.targets() == {"host-a/default"})
+        for path in ("/api/socket-io?target=host-a/default&pid=50", "/api/socket-io"):
+            with self.subTest(path=path):
+                self.wait_for(lambda: self.fetch(path).get("totals", {}).get("input", {}).get("total") == "100")
+                self.assertEqual(self.fetch(path)["observer"], "91")
+        # A second target with the same PID and no observer binding makes the
+        # stored PID ambiguous, so neither target claims those observations.
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            second.sendto(announce(333, "billing", host="host-b", pid=50), ("127.0.0.1", self.udp_port))
+            second.sendto(tick(333, pid=50), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: self.targets() == {"host-a/default", "host-b/billing"})
+        for key in ("host-a/default", "host-b/billing"):
+            self.wait_for(lambda: self.fetch(f"/api/socket-io?target={key}")["available"] is False)
+
     def test_capacity_and_bad_announcements_are_counted(self):
         for session in range(1, 6):
             self.send(announce(session, f"target-{session}"))

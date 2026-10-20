@@ -795,15 +795,29 @@ class DashboardServer
                    "PID or observer does not belong to the selected target"}});
           return;
         }
-        if (!target->socket_observer_)
+        if (target->socket_observer_)
         {
+          observer = *target->socket_observer_;
+        }
+        else if (target->pid_ == 0 || state_.PidShared(target->key_, *pid))
+        {
+          // No observer has reported for this target since the collector
+          // started. Stored observations are keyed by PID and observer only,
+          // so without a binding they identify this target only by a unique
+          // PID.
           RespondJson(
               p_connection, 200,
-              JsonObject{{"available", false},
-                         {"reason", "No socket observations for this target"}});
+              JsonObject{
+                  {"available", false},
+                  {"reason",
+                   target->pid_ == 0
+                       ? "No socket observations: the target process is "
+                         "not running."
+                       : "No socket observations for this target. Another "
+                         "target has the same PID; its socket observer must "
+                         "report before the collector can tell them apart."}});
           return;
         }
-        observer = *target->socket_observer_;
       }
       const auto report = socket_reports_.Request(*pid, observer);
       Respond(p_connection, 200, *report, "application/json");
