@@ -3,6 +3,10 @@ name: AlmaLinux new user test
 on:
   workflow_dispatch:
     inputs:
+      lean_pr:
+        description: Run only the fast PR checks with the prepared image
+        type: boolean
+        default: false
       include_almalinux_10:
         description: Also test AlmaLinux 10
         type: boolean
@@ -18,6 +22,7 @@ on:
       - docs/almalinux-user-test.md
       - .github/workflows/almalinux-user-test.yml
       - .github/scripts/almalinux-*.sh
+      - .github/scripts/almalinux-ci.Dockerfile
       - .github/scripts/compiler-cache.sh
       - .github/scripts/install-compiler-cache.py
       - common/**
@@ -33,14 +38,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: almalinux-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && 'normal' || 'static' }}
+  group: almalinux-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'pull_request' || inputs.lean_pr) && 'normal' || 'static' }}
   cancel-in-progress: true
 
 jobs:
   format:
     name: C++ format
     # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -48,18 +53,23 @@ jobs:
   test:
     name: AlmaLinux ${{ matrix.version }}
     # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
     timeout-minutes: 30
-    needs: format
     strategy:
       fail-fast: false
       matrix:
-        version: ${{ fromJSON(github.event_name == 'pull_request' && '["8"]' || github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
+        version: ${{ fromJSON((github.event_name == 'pull_request' || inputs.lean_pr) && '["8"]' || github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Set compiler cache directory
-        run: echo "CCACHE_HOST_DIR=$RUNNER_TEMP/triangulator-cache/alma${{ matrix.version }}" >> "$GITHUB_ENV"
+        run: |
+          cache_root="$RUNNER_TEMP/triangulator-cache"
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+            cache_root="$HOME/.cache/triangulator"
+          fi
+          echo "CCACHE_HOST_DIR=$cache_root/alma${{ matrix.version }}" >> "$GITHUB_ENV"
       - name: Restore compiler cache
+        if: runner.environment != 'self-hosted'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ env.CCACHE_HOST_DIR }}
@@ -69,19 +79,19 @@ jobs:
       - name: Build and test in AlmaLinux
         env:
           ALMA_VERSION: ${{ matrix.version }}
-          RUN_STATIC_TESTS: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          LEAN_PR: ${{ (github.event_name == 'pull_request' || inputs.lean_pr) && '1' || '0' }}
+          RUN_STATIC_TESTS: ${{ (github.event_name == 'pull_request' || inputs.lean_pr) && '0' || '1' }}
         run: |
           mkdir -p reports "$CCACHE_HOST_DIR"
-          docker pull "almalinux:$ALMA_VERSION"
-          docker image inspect "almalinux:$ALMA_VERSION" > reports/image.json
+          image="$(bash .github/scripts/almalinux-image.sh)"
+          docker image inspect "$image" > reports/image.json
           docker run --rm \
-            -e ALMA_VERSION -e RUN_STATIC_TESTS \
+            -e ALMA_VERSION -e RUN_STATIC_TESTS -e LEAN_PR \
             -v "$PWD:/source:ro" \
             -v "$PWD/reports:/reports" -v "$CCACHE_HOST_DIR:/cache" \
-            "almalinux:$ALMA_VERSION" \
-            bash /source/.github/scripts/almalinux-build.sh
+            "$image" bash /source/.github/scripts/almalinux-build.sh
       - name: Run copied release binaries in a clean container
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && !inputs.lean_pr
         env:
           ALMA_VERSION: ${{ matrix.version }}
         run: |
@@ -109,7 +119,7 @@ jobs:
           name: almalinux-${{ matrix.version }}-new-user-test
           path: reports/
           retention-days: 14
-      # Restore ownership before actions/cache saves files from the container.
+      # Restore ownership for the next checkout and cache use.
       - name: Return report and cache files to the runner user
         if: always()
         env:
@@ -118,5 +128,9 @@ jobs:
           owner="$(id -u):$(id -g)"
           [[ "$RUNNER_ENVIRONMENT" != self-hosted ]] || owner=0:0
           mkdir -p "$CCACHE_HOST_DIR" reports
-          docker run --rm -v "$PWD/reports:/reports" -v "$CCACHE_HOST_DIR:/cache" \
-            "almalinux:$ALMA_VERSION" chown -R "$owner" /reports /cache
+          docker run --rm -v "$PWD/reports:/reports" \
+            "almalinux:$ALMA_VERSION" chown -R "$owner" /reports
+          if [[ "$RUNNER_ENVIRONMENT" != self-hosted ]]; then
+            docker run --rm -v "$CCACHE_HOST_DIR:/cache" \
+              "almalinux:$ALMA_VERSION" chown -R "$owner" /cache
+          fi

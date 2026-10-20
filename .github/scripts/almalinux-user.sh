@@ -7,7 +7,7 @@ id
 target_pid=
 cleanup() {
     if [[ -n ${COMPILER_CACHE:-} ]]; then
-        "$COMPILER_CACHE" --show-stats > /reports/compiler-cache.log || true
+        "$COMPILER_CACHE" --show-log-stats > /reports/compiler-cache.log || true
         cat /reports/compiler-cache.log
     fi
     scripts/stop.sh || true
