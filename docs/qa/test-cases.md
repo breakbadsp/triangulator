@@ -71,6 +71,12 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-064 | NOT_RUN | - | - | - |
 | QA-065 | NOT_RUN | - | - | - |
 | QA-066 | NOT_RUN | - | - | - |
+| QA-067 | NOT_RUN | - | - | - |
+| QA-068 | NOT_RUN | - | - | - |
+| QA-069 | NOT_RUN | - | - | - |
+| QA-070 | NOT_RUN | - | - | - |
+| QA-071 | NOT_RUN | - | - | - |
+| QA-072 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -91,6 +97,145 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-067: Single-target install after a collector-only upgrade
+
+Feature: Multi-target compatibility. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: A single-target install from before multi-target support
+(package 0.1.0, or a source build of commit c7b46cd) monitors one owned
+process. It has thread history, recordings, and saved watch rules. Keep its
+sampler binary and configuration files.
+
+1. Record the target label, PID, thread list, oldest thread-history sample,
+   recording list, saved watch rules, and `/api/health`.
+2. Stop only the collector. Install the new collector. Keep `collector.toml`
+   unchanged, then start the collector.
+3. Open the dashboard without `?target=`. Compare everything from step 1.
+4. Run the QA-005 and QA-036 steps on this install.
+5. Keep the same workload for 10 minutes at the same rate. Compare how far
+   back thread history reaches with the old install.
+6. Read `/api/targets`, and read `/api/live` with and without `?target=`.
+
+Expected: The collector starts with the old configuration file. The dashboard
+shows a plain target label, no target picker, and no budget badge. PID,
+threads, recordings, and watch rules match step 1. Thread history reaches as
+far back as before. The old sampler appears as one `default` target, and
+`/api/live` returns the same data with and without `?target=`.
+
+## QA-068: Sampler upgrade with an unchanged single-target configuration
+
+Feature: Multi-target compatibility. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: QA-067 has passed. The sampler configuration still uses
+`target_process` or `target_pid`, not `[[target]]` tables.
+
+1. Stop the old sampler. Install the new sampler, then start it with the same
+   configuration file.
+2. Check that the recordings, watch rules, and history from before the upgrade
+   are still shown for the same target.
+3. Restart the collector while the sampler runs. Then restart the sampler
+   while the collector runs.
+4. Stop both. Start the sampler, wait 5 seconds, then start the collector.
+5. After each restart in steps 3 and 4, check the memory map, the recordings,
+   and the watch rules.
+6. Compare sampler CPU and RSS with the old sampler for the same workload.
+
+Expected: The target is still the `default` target. It keeps all earlier
+recordings, watch rules, and history, and it has gaps only during outages.
+After every restart the memory map appears within a few seconds. One sampler
+process runs. Its CPU use is close to the old sampler's. With the default
+budget, the effective rate equals `rate_hz` and no throttle badge appears.
+
+## QA-069: Change the single target from the dashboard and scripts
+
+Feature: Multi-target compatibility. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: QA-068 setup. A local sampler and a loopback dashboard. Two owned
+processes, A and B. The sampler monitors A.
+
+1. From the dashboard, switch monitoring from A to B by PID, as in QA-002.
+2. Switch to a process name that is not running yet, then start it, as in
+   QA-004. Enter invalid input, as in QA-003.
+3. Run `scripts/set-target.sh <pid>` and `scripts/set-target.sh <name>`.
+   Run `scripts/set-rate.sh 2`, then `scripts/set-rate.sh 5`.
+4. After each change, reload the dashboard. Check the saved watch rules, the
+   earlier recordings, and `GET /api/target`.
+5. In Manage targets, add a second target, then remove it. Repeat steps 1-4.
+6. Add an address that is not loopback to `sampler_ips`, or bind the dashboard
+   to an address that is not loopback. Check target control in the dashboard
+   and through `POST /api/target`.
+
+Expected: You can change the single target from the dashboard without entering
+a target ID, as before. The target stays `default` and keeps its watch rules
+and earlier recordings. Invalid input changes nothing. The one-argument script
+and `/api/target` work before and after the add-and-remove cycle. A setup with
+a remote sampler or a dashboard that is not loopback offers no target control,
+and the API refuses the change.
+
+## QA-070: Shipped and earlier configuration files
+
+Feature: Multi-target compatibility. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: The new collector and sampler binaries, and the configuration
+files of the install from QA-067.
+
+1. Start the collector with each configuration in turn: the shipped
+   `config/collector.toml` unchanged, the earlier `collector.toml`, one with
+   `sampler_ip = "127.0.0.1"`, and one with a `sampler_ips` list.
+2. Start the sampler with the shipped `config/sampler.toml` and with the
+   earlier `sampler.toml`.
+3. Set `max_targets = 8` with `max_live_samples = 2000000`. Then try
+   `max_targets = 0` and `max_targets = 65`.
+4. Run the QA-001 steps with `scripts/start.sh` and `scripts/stop.sh`.
+5. While the sampler runs, write an invalid `[[target]]` table and send SIGHUP.
+
+Expected: Every valid configuration starts without edits. Each invalid
+`max_targets` or `max_live_samples` value fails at startup with a message that
+names the key. The invalid reload is rejected, and the running targets
+continue unchanged.
+
+## QA-071: Two or three targets: add, remove, and re-add
+
+Feature: Multi-target lifecycle. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: A local sampler and a loopback dashboard with one `default`
+target. Owned processes A (monitored), B, and C.
+
+1. In Manage targets, add `b` for B. Check that `default` keeps its session,
+   history, and recordings.
+2. Open one tab on `default` and one on `b`. Remove `b`. Reload the `b` tab.
+3. In the `b` tab, request `/api/history`, `/api/resources`, `/api/replay`, and
+   `/api/live` with `?target=<host>/b`.
+4. Add `b` again for C within one second of removing it. Keep it open for
+   2 minutes.
+5. Add `c` for B, for three targets. Check each tab. Stop process B.
+6. Remove `c` and `b`.
+
+Expected: Adding or removing one target never interrupts the others. A
+removed target's tab still loads the dashboard and keeps the picker visible to
+choose another target. Its data requests return HTTP 404 and never show
+another target's data. A target that is removed and quickly added again stays
+live. With three targets, each tab shows only its own target, and only the
+stopped target becomes absent. Back at one target, the label is plain, the
+picker is hidden, and the earlier recordings remain.
+
+## QA-072: Freed target slots and a paused sampler
+
+Feature: Multi-target lifecycle. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: The collector uses `max_targets = 2` and
+`target_idle_expiry_s = 60`. One local sampler monitors `default` and `b`.
+
+1. Rename `b` to `c` in the sampler configuration by hand. Send SIGHUP. Watch
+   `/api/targets` for 2 minutes.
+2. Pause the sampler with `kill -STOP` for 30 seconds, then send `kill -CONT`.
+3. Pause the sampler for 90 seconds, then send `kill -CONT`.
+
+Expected: `c` stays absent while both slots are in use. It appears soon after
+`b` has been silent for 60 seconds, and `b`'s stored history remains. After
+either pause, all targets return to live without a restart. No target stays
+missing or inactive.
 
 ## QA-064: Per-target watch settings and recordings
 
