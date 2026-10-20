@@ -122,7 +122,7 @@ control script on the sampler host.
 
 ## Virtual memory
 
-The memory map shows Ghostty's virtual address space, resident memory, mappings,
+The memory map shows the target's virtual address space, resident memory, mappings,
 and page faults. Select a region to inspect its addresses, permissions, and
 mapped size. Findings and limit meters show how close the process is to its
 memory limits.
@@ -145,13 +145,16 @@ for setup and measurement limits.
 
 Pause over a metric or chart point for 1.2 seconds to read its explanation.
 Select an information button for examples, measurement limits, related topics,
-and chart data tables where available. The guide also lets you turn off help
-on hover or focus. See [Dashboard help](../collector/README.md#dashboard-help).
+and chart data tables where available. The help card includes a **Source** line.
+The detailed guide's **Source** section names the Linux file, counter, API, or
+browser calculation and gives a command to check it where applicable.
+The guide also lets you turn off help on hover or focus. See [Dashboard help](../collector/README.md#dashboard-help).
 
 ## Time travel
 
-Dashboard recording is enabled by default. Use the **Timeline** at the top of
-the dashboard. See the
+Dashboard recording is enabled by default. Open **Timeline** below the
+**Summary** charts. Open **Past assessments** inside it to see earlier findings.
+The browser saves each panel's open or closed state. See the
 [recording notes](collector-reference.md#historical-process-inspection).
 
 - **Past assessments** lists what the Assessment found earlier. Click a row to
@@ -346,11 +349,25 @@ Remaining work is tracked in [TODO.md](../TODO.md#deployment-dependencies).
   ignores them with a warning, apart from `[alerts] window_s`, the rollup window.
   - `clock_ticks` must equal `getconf CLK_TCK` **on the target host**; the wire
     format does not carry it.
+  - **Settings** in the dashboard edits watched-thread rules without a restart.
+    Saved rules replace the `[[watch]]` list for all viewers until reset.
+    See [Watched threads](collector-reference.md#watched-threads).
 
 ## Dashboard
 
-The page opens on a **process overview**, built in the browser from `/api/live`
-(nothing extra is sampled or stored):
+The page opens on **Summary**. It shows Assessment first, then key measurements,
+process load, and memory use. The browser builds this view from `/api/live`.
+The summary adds no sampler measurements. The collector records the API view
+when dashboard recording is enabled.
+
+Section links follow the page in this order: **Summary**, **Threads**,
+**Resources**, **Sockets**, **Memory**, **Monitor**, and **Settings**. The active
+link follows scrolling. Some panels start closed. Select their headings to
+open them; the browser saves that choice. Until you choose, **Monitor health**,
+**Address space & zoom**, and **Network stack drops & errors** open when
+Assessment has a warning of their type.
+
+The main measurements are:
 
 - **Process load**: 1-, 5- and 15-minute load averages for the target alone,
   computed like `/proc/loadavg`. Load is CPU in use plus demand waiting for a
@@ -364,6 +381,13 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   section (a mapping count or address space near its limit, growing resident
   memory, swap, major faults with pressure, the main stack near its limit)
   join it too; with memory-map sampling off, the assessment leaves memory out.
+  Watched-thread rules add findings for threads that stop waking or keep a core
+  busy, and for rules that match no thread. The card shows up to eight findings,
+  most severe first. Select **Show … more findings** to read the rest and **Show fewer findings**
+  to collapse the list.
+- **Memory use**: resident memory (RSS) from resource samples and virtual size
+  (VmSize) from memory samples. Their default update intervals differ: 2 s for
+  RSS and 30 s for VmSize. A missing value is unavailable, not zero.
 - **Thread churn** (an overview tile and an assessment note): threads seen
   starting and ending in the last minute. This is a **lower bound**. The sampler
   sees only the threads that exist when it lists the target's tasks, so a thread
@@ -373,7 +397,7 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   of threads created (see [docs/thread-monitor-design.md](thread-monitor-design.md#10-known-limitations)),
   so for thread-per-task code raise the sample rate or count creations in the
   application. A pool whose threads stay is counted accurately.
-- **Shape of the process**: active versus idle threads, context switches, I/O,
+- **Thread activity**: active versus idle threads, context switches, I/O,
   thread states over time, CPU by thread family, the busiest wait channels,
   and CPU by the core each thread last ran on.
 - **Thread map**: one tile per thread, colored by its current state and
@@ -382,14 +406,17 @@ The page opens on a **process overview**, built in the browser from `/api/live`
   average over that window; over a window, a tile is faded only if the thread
   was idle for all of it.
 
-Below it, **Pressure, limits & sockets** shows the latest resource sample and
-its stored history (15 minutes to 24 hours): pressure stall shares for CPU,
+The **Threads** section contains state and wait charts, the thread map, CPU
+grouping, core placement, and the thread table.
+
+The **Resources** section, headed **Pressure, limits & sockets**, shows the
+latest resource sample and its stored history (15 minutes to 24 hours): pressure stall shares for CPU,
 memory and I/O; open descriptors against the limit; the target's queued socket
 bytes; namespace drop and error counters; and the target's fullest sockets,
 each explained ("the app is not reading fast enough", "the peer is not
 reading"). Its findings join the assessment. See
 [docs/resource-monitoring.md](resource-monitoring.md) for how to read it.
-The **Timeline** at the top of the dashboard moves the whole process view to a
+Open **Timeline** below the Summary charts to move the whole process view to a
 recorded moment: the latest recording at or before the time you choose. Drag
 its handle and release it, or select a past finding. **◀** and **▶** step through
 recordings, including older sampler sessions. While a recording is shown, the
@@ -445,7 +472,14 @@ reload of that tab. The thread table shows active threads by default. Idle
 threads (no CPU, context switches or I/O in the last ~10 s) are listed apart,
 with how long each has been idle, instead of a row of zeros. Click a thread for
 a drawer with its live CPU and stored history (CPU, run delay, state mix,
-I/O). A light/dark switch is in the top bar.
+I/O). Use **Theme** in the header to select **System**, **Light**, or **Dark**.
+The browser saves the theme choice.
+
+**Settings** currently edits only watched-thread rules. These rules are shared
+by all viewers of the collector. A stale save is refused, and the dashboard
+keeps the unsaved draft. Settings are read-only during replay. See
+[Watched threads](collector-reference.md#watched-threads) for limits, persistence,
+and conflict handling. Changing the target also affects all viewers.
 
 The page also has alert sections and alert settings. It hides them because the
 collector's `/api/live` has no alert fields.

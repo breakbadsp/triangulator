@@ -3,8 +3,12 @@
 Triangulator has three parts: a **sampler** reads Linux thread data, a
 **collector** turns it into metrics and history, and a **dashboard** displays it
 in the browser. Both programs are C++; `scripts/start.sh` starts them. Alerting
-will be a separate module (`alerting/`, not wired up yet), shown dashed below.
+is a separate module (`alerting/`, not connected), shown dashed below.
 Ports and timings shown below are defaults.
+
+The current sampler and collector handle one target process at a time.
+Run one ordinary sampler on each target host. Monitoring several targets from
+that sampler is [proposed](multi-target-design.md).
 
 ## End-to-end flow
 
@@ -41,8 +45,9 @@ flowchart LR
 ```
 
 The two hosts can be the same machine. The sampler needs no application changes
-and runs as the target's user. UDP carries samples in one direction; all
-interpretation, persistence and dashboard requests happen on the collector host.
+and runs as the target's user. UDP carries samples in one direction. The
+collector computes rates, stores history, and serves the dashboard. The browser
+computes process load and Assessment findings from the API data.
 
 ## Sampler: one tick at a time
 
@@ -87,6 +92,11 @@ the sampler also sends a resource sample in its own `TRES` format: pressure
 stalls for the host and the target's cgroup, descriptors, storage I/O, the
 target's socket queues and buffers (sock_diag) and its network namespace's
 counters. See [resource-monitoring.md](resource-monitoring.md).
+Memory-map samples run every `memory_interval_s` seconds (default 30 s).
+Both intervals are limited by the thread sampling frequency.
+Process metadata is sent when the target is first observed, and exit reports
+provide the available evidence when it ends. See
+[memory-map.md](memory-map.md) and [process-exit.md](process-exit.md).
 
 ## Collector: raw samples to useful signals
 
@@ -133,26 +143,31 @@ alert rules.
 ```mermaid
 flowchart LR
     subgraph browser["Browser · dashboard.html"]
-        live_ui["Live view<br/>Health, groups and threads<br/>Filter and sort locally"]
+        live_ui["Live view<br/>Summary, resources and threads<br/>Filter and sort locally"]
         history_ui["Thread history<br/>Select thread + time range"]
+        replay_ui["Timeline + past assessments<br/>Inspect recorded views<br/>Assess selected recordings in browser"]
     end
 
     subgraph server["Collector · HTTP :9401"]
         live_api["GET /api/live<br/>Poll about once a second"]
         history_api["GET /api/history<br/>Session + TID + start/end"]
+        replay_api["GET /api/replay<br/>Bounds, timestamp or previous/next"]
         snapshot["Published live snapshot<br/>No database query for live reads"]
         db[("Daily SQLite rollups")]
+        replay_db[("Separate daily replay files<br/>Recorded API views")]
     end
 
     live_ui <-->|"JSON"| live_api
     snapshot --> live_api
     history_ui <-->|"JSON rollups"| history_api
     db --> history_api
+    replay_ui <-->|"Recorded JSON"| replay_api
+    replay_db --> replay_api
 
     classDef store fill:#fffbeb,stroke:#d97706,color:#78350f
     classDef view fill:#f5f3ff,stroke:#7c3aed,color:#3b0764
-    class db store
-    class live_ui,history_ui,live_api,history_api,snapshot view
+    class db,replay_db store
+    class live_ui,history_ui,replay_ui,live_api,history_api,replay_api,snapshot view
 ```
 
 The collector serves the page at `/`; the browser receives JSON from the same
@@ -160,9 +175,20 @@ HTTP server. History comes from stored rollups (at most 2,000 per request), not
 the live sample buffer. The page also contains alert sections and an alert
 settings form; it hides them because `/api/live` has no alert fields.
 
+Summary starts with Assessment, then key measurements, process load, and memory
+use. The browser computes load and Assessment from API data. Assessment is
+separate from alert delivery. Timeline sits below the summary charts; it opens
+recordings of the whole dashboard. Past assessments applies the same rules to
+selected recordings in the browser. It does not store findings and can miss
+problems between checked recordings.
+
+The collector records its published API view on a separate thread every second
+by default. Replay uses those recordings; thread history uses rollups.
+The Settings section edits shared watched-thread rules through `/api/watches`.
+Other collector settings stay in `collector.toml`. See
+[the collector reference](collector-reference.md) for storage, API, and settings
+details.
+
 For setup, see the [README](../README.md); for the future alerting module, see
 [alerting/README.md](../alerting/README.md). For protocol details, alert rules and
 operational constraints, see the [full design](thread-monitor-design.md).
-
-Monitoring several processes from one sampler is proposed in the
-[multi-target design](multi-target-design.md).

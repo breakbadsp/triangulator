@@ -193,6 +193,23 @@ set), `net.core.somaxconn` (the backlog cap), `net.ipv4.tcp_mem` and
 `udp_mem`, and the page size. They are read from the sampler's namespace and
 only when it is the target's.
 
+## Network counter columns
+
+In **Resources**, open **Network stack drops & errors**. Each row has three
+values with different intervals:
+
+- **Rate (/s)**: events per second over the latest resource sample interval.
+- **In range**: counter changes added from available stored samples in the
+  selected resource history range. Missing samples can make the count incomplete.
+  A dash means no stored history is available for that counter.
+- **Total**: the cumulative kernel counter. It can include events before
+  monitoring started and can restart after a counter reset.
+
+For example, `0/s`, `20`, and `500` mean no events in the latest interval,
+20 counted in the selected range, and a cumulative count of 500. These counters
+cover the target's network namespace, so other processes can contribute.
+Metric help names the source file and kernel field for each row.
+
 ## Rules of thumb in the dashboard
 
 The assessment adds these findings. Like the thread rules, they point at where
