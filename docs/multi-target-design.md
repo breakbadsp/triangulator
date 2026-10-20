@@ -92,6 +92,11 @@ process = "billing"
    descriptors) and memory-map scans rotate across targets, so one tick runs at
    most one of them. This generalizes today's rule that a tick sends resources
    or a memory map, never both.
+   This caps the fleet at `rate_hz` heavy scans per second. If the configured
+   intervals ask for more, each target's resource and memory-map cadence
+   stretches (a missed slot is skipped, not queued) and the sampler does not
+   warn. A tick's cost stays bounded; heavier fleets raise `rate_hz` or the
+   intervals.
 4. **Sleep** until the next deadline, as today.
 
 ### Overhead budget

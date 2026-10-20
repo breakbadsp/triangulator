@@ -244,12 +244,14 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           // They belong to one fixed legacy target: the only sender when the
           // sender is pinned, otherwise the smallest address in sampler_ips.
           // The choice does not depend on arrival order, so a restart keeps
-          // each recording with the same target. Other targets get their own
-          // directory, so frames never overwrite each other.
+          // each recording with the same target. An upgraded sampler still
+          // announces its legacy target as "default", under its host name, so
+          // the sender address decides, not the announced name. Other targets
+          // get their own directory, so frames never overwrite each other.
           const bool owns_default_root =
-              !slot.announced_ && slot.id_.View() == "default" &&
+              slot.id_.View() == "default" &&
               (config.sampler_ips_.empty() ||
-               slot.host_.View() ==
+               slot.peer_.View() ==
                    *std::ranges::min_element(config.sampler_ips_));
           slot.replay_root_ = owns_default_root
                                   ? std::filesystem::path{config.data_dir_}

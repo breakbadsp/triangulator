@@ -216,6 +216,31 @@ class MultiTargetCollectorTests(unittest.TestCase):
         frame = self.fetch(f'/api/replay?target=127.0.0.1/default&at={bounds["last"]}')["snapshot"]
         self.assertEqual(frame["health"]["pid"], 123)
 
+    def test_upgraded_legacy_sampler_keeps_its_replay_directory(self):
+        # An upgraded sampler with an unchanged config announces "default"
+        # under its host name instead of its address. Its recordings stay in
+        # data_dir/replay, and a sender that is not the legacy owner does not
+        # take them over.
+        with socket.socket(type=socket.SOCK_DGRAM) as other:
+            other.bind(("127.0.0.2", 0))
+            other.sendto(announce(222, "default", host="host-b", pid=456),
+                         ("127.0.0.1", self.udp_port))
+            self.send(announce(111, "default", host="host-a"))
+            for sequence in range(3):
+                self.send(tick(111, sequence=sequence))
+                other.sendto(tick(222, pid=456, sequence=sequence),
+                             ("127.0.0.1", self.udp_port))
+                time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"host-a/default", "host-b/default"})
+        replay = self.directory / "data" / "replay"
+        self.wait_for(lambda: replay.is_dir() and any(replay.iterdir()))
+        self.wait_for(lambda: (self.directory / "data" / "targets" /
+                               b"host-b/default".hex() / "replay").is_dir())
+        self.assertFalse((self.directory / "data" / "targets" / b"host-a/default".hex()).exists())
+        bounds = self.fetch("/api/replay?target=host-a/default")
+        frame = self.fetch(f'/api/replay?target=host-a/default&at={bounds["last"]}')["snapshot"]
+        self.assertEqual(frame["health"]["pid"], 123)
+
     def test_replaced_session_keeps_its_target_mapping(self):
         self.send(announce(101, "orders"))
         self.send(tick(101))
