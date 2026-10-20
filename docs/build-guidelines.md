@@ -28,8 +28,8 @@ The optional eBPF kernel test is separate and remains disabled in normal checks.
 Run these package commands as root inside the build container or build machine.
 Compile and run Triangulator as an ordinary user.
 The sampler and target process must run as the same user.
-GitHub-hosted runners can create these containers without local Docker access
-or `sudo` on your computer.
+The CI [runner](self-hosted-runner.md) creates these containers rootless, so
+you need no local Docker access or `sudo`.
 
 ### AlmaLinux 8
 
