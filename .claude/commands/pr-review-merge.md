@@ -34,8 +34,8 @@ Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker`
 
 1. Start in parallel, in one message: `pr-adversarial-reviewer` (default model `sonnet`, mode `full`) and `pr-quick-reviewer` (default model `haiku`, mode `full`). Apply the model and reasoning selection rules above. Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
 2. Confirm both reviews reached GitHub (bodies starting with `## Review, round <n>, head <SHA>` and `## Quick review, round <n>, head <SHA>`). If either is missing, stop and report.
-3. If none of the round's reviews (including the scan review, after a scan escalation) lists a `blocker` or `major` finding, go to the merge gate. Skip the analyzer.
-4. Otherwise start `pr-comment-analyzer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, and round number. It fixes or rebuts each finding from both reviews and pushes.
+3. If none of the round's reviews (including the scan review, after a scan escalation) lists a `blocker` or `major` finding, wait for CI on this head before the gate: repeat `timeout 540 gh pr checks <PR> --watch --fail-fast --interval 60` (Bash `timeout` 600000) for at most 45 minutes. If no check shows `fail`, go to the merge gate and skip the analyzer.
+4. Otherwise start `pr-comment-analyzer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, and round number. It fixes or rebuts each finding from both reviews and each failed CI check, and pushes.
 5. If the head SHA changed and this was round 1, start round 2. Otherwise go to the merge gate.
 
 The quick reviewer must remain a small, cheap model. Prefer an available delegation tool for another model family. If none is available, use a configured vendor CLI with the same role instructions, inputs, and comment format. No such runner is configured by default.

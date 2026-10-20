@@ -100,17 +100,30 @@ hosts. The legacy `sampler_ip` key remains valid. Use only one form. Without
 either key, the collector accepts and pins the first valid sender.
 
 The collector keeps each target's monitors, replay recorder, and published
-views in target slots. `max_targets` defaults to 16 and permits 1..64.
-`max_live_samples` is the total budget, divided across slots. Hidden sessions
+views in target slots. `max_targets` defaults to 8 and permits 1..64.
+Each slot keeps the full `max_live_samples`; the product of the two is at most
+10,000,000. Hidden sessions
 that await TTGT also use slots. `/api/targets` reports rejected datagrams
 and capacity drops. An allowed sender cannot replace another sender's host
 name during one collector run.
 
+A target slot whose sampler has been silent for longer than
+`target_idle_expiry_s` is released, so a replaced or removed target does not
+hold its slot. The default is 600 seconds; the range is 1..86400. The check
+runs in the periodic refresh. The released target disappears from
+`/api/targets`; its stored history remains. A sampler that returns later takes
+a free slot as a new session.
+
 Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
-return HTTP 404. Replay files have a separate directory for each announced
-target. Legacy replay files retain their current location.
+return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
+carry no target, so it is selected by `pid` and `observer` only. Replay files
+have a separate directory for each announced target. Only the `default` target
+of one fixed sender keeps `data_dir/replay`: the smallest address in
+`sampler_ips`, or the first sender the collector heard when the list is empty.
+Set `sampler_ips` when several samplers can start in any order. Every other
+target gets its own directory.
 
 Upgrade the collector before installing a sampler that sends TTGT. Each day
 file has a `session_target` mapping table. Existing files remain readable;

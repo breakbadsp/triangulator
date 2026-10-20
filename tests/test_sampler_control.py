@@ -155,7 +155,7 @@ class ScriptTests(unittest.TestCase):
                 return value
         self.fail("the sampler did not apply the reload")
 
-    def start_dashboard(self, http_host="127.0.0.1", udp_host="127.0.0.1"):
+    def start_dashboard(self, http_host="127.0.0.1", udp_host="127.0.0.1", extra=""):
         shutil.copy2(ROOT / "build/triangulator-collector", self.real / "build")
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
@@ -165,7 +165,7 @@ class ScriptTests(unittest.TestCase):
         self.receiver.close()
         config.write_text(f'udp_host = "{udp_host}"\nudp_port = {self.port}\n'
                           f'http_host = "{http_host}"\nhttp_port = {port}\n'
-                          f'data_dir = "{self.real / "data"}"\n')
+                          f'data_dir = "{self.real / "data"}"\n{extra}')
         collector = subprocess.Popen([str(self.real / "build/triangulator-collector"), str(config)],
                                      stderr=subprocess.DEVNULL)
         self.addCleanup(stop, collector)
@@ -256,6 +256,12 @@ class ScriptTests(unittest.TestCase):
         status, data = self.api("/api/target", {"target": str(other.pid)}, {"X-Triangulator": "1"})
         self.assertEqual(status, 200, data)
         self.wait_live(lambda health: health.get("pid") == other.pid)
+
+    def test_target_control_refuses_a_remote_sender_list(self):
+        self.start_dashboard(extra='sampler_ips = ["10.0.0.2"]\n')
+        status, data = self.api("/api/target")
+        self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
 
     def test_dashboard_changes_pid_name_and_absent_target(self):
         self.start_dashboard()

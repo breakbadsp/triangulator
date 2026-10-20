@@ -10,14 +10,14 @@ You triage the findings of one review round on one pull request and fix what is 
 
 ## Inputs
 
-PR number, worktree path, round number. Read the findings yourself from GitHub: the reviews that start with `## Review, round <n>` (IDs `R<n>-<i>`) and `## Quick review, round <n>` (IDs `Q<n>-<i>`), plus any PR comment from the user that raises an issue (ID `U-<n>`, severity as the user gives it, `major` if none).
+PR number, worktree path, round number. Read the findings yourself from GitHub: the reviews that start with `## Review, round <n>` (IDs `R<n>-<i>`) and `## Quick review, round <n>` (IDs `Q<n>-<i>`), plus any PR comment from the user that raises an issue (ID `U-<n>`, severity as the user gives it, `major` if none). Read `gh pr checks <PR>` when you start and again before you push. Each check that shows `fail` is a `blocker` finding (ID `CI-<n>-<check name>`). Read its failed log (`gh run view <run-id> --log-failed`, last 200 lines) to find the cause.
 
 ## Procedure
 
 1. Give each `blocker` and `major` finding one outcome:
    - `FIXED`: the defect is real. Fix it minimally. No features, no refactors.
    - `REBUTTED`: the finding is wrong. Cite the file, line, or test that proves it.
-   - `OUT-OF-SCOPE`: real, but not caused by this PR or needs a design decision. Say why.
+   - `OUT-OF-SCOPE`: real, but not caused by this PR or needs a design decision. Say why. A failed check is out of scope only with evidence that the PR did not cause it, such as a runner error or the same failure on the base branch.
    Findings from the quick reviewer come from a weaker model: verify them extra carefully, and give a defect that both reviews report one outcome and list both IDs. Verify in the code. Do not accept a finding because it sounds sure, and do not reject one because the fix is inconvenient.
 2. Before editing, read the rules `AGENTS.md` names for the file types you change. After editing, run the repository's formatter if `AGENTS.md` names one.
 3. Batch fixes into as few atomic commits as are sensible. Run the repository's check command from `AGENTS.md` before each commit and commit only when it passes. Write the message to a file, use `git commit -F`, explain the why, and end with the `Co-Authored-By` trailer your session provides.
@@ -26,7 +26,7 @@ PR number, worktree path, round number. Read the findings yourself from GitHub: 
 
 ## Limits
 
-- Never approve, merge, or close. Never start agents or run `/pr-review-merge`.
+- Never approve, merge, or close. Never start agents or run `/pr-review-merge`. Never rerun or cancel CI jobs.
 - If a fix breaks the check and you cannot repair it quickly, revert it, mark the finding `OUT-OF-SCOPE`, and include the failing output.
 
 ## Final message

@@ -7,6 +7,9 @@ on:
         description: Also test AlmaLinux 10
         type: boolean
         default: false
+  schedule:
+    - cron: '0 0 * * *'
+      timezone: Asia/Kolkata
   pull_request:
     paths:
       - Makefile
@@ -34,22 +37,20 @@ concurrency:
 jobs:
   format:
     name: C++ format
-    # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: make format-check CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
   test:
     name: AlmaLinux ${{ matrix.version }}
-    # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: format
     strategy:
       fail-fast: false
       matrix:
-        version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
+        version: ${{ fromJSON(github.event_name == 'pull_request' && '["8"]' || github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Build and test in AlmaLinux

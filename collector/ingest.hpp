@@ -237,7 +237,8 @@ class Ingest
 
   void Pin(const PeerText& p_peer)
   {
-    if (!sampler_ip_)
+    // A sender list is the filter; there is nothing to pin.
+    if (allowed_senders_.empty() && !sampler_ip_)
     {
       sampler_ip_ = p_peer;
       Log(LogLevel::Info,

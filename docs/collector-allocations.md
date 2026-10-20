@@ -73,7 +73,7 @@ A limit is a documented value. The collector counts the work that goes over it.
 - 2,550 threads at one time (`kMaxTrackedThreads`). A sample of a thread over
   the limit is dropped. `Monitor::Health` reports `dropped_samples`.
 - 128 pending ticks, 128 retired sessions, 4,096 loss entries.
-- `max_live_samples` is at most 10,000,000. The arena takes about 280 bytes
+- `max_live_samples` times `max_targets` is at most 10,000,000. The arena takes about 280 bytes
   of address space for each sample, so a larger value could make the
   reservation fail at startup. `--check-config` rejects a larger value.
 - The stored sockets column holds up to 4,096 bytes. A socket that does not fit
