@@ -692,7 +692,13 @@ class DashboardServer
   {
     const auto target_key = QueryValue(p_request.query_, "target");
     const auto target = state_.Select(target_key.value_or(""));
-    if (target_key && !target)
+    // The dashboard document and the target list must load even when the
+    // selected target is gone, so the page can offer a way out. Only the
+    // endpoints that read one target's data reject an unknown target.
+    const bool reads_target = p_request.path_ == "/api/live" ||
+                              p_request.path_ == "/api/last-target" ||
+                              p_request.path_ == "/api/memory-map";
+    if (reads_target && target_key && !target)
     {
       RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
       return;
@@ -808,7 +814,8 @@ class DashboardServer
       if (action && action->IsString() && action->AsString() == "remove" &&
           id && id->IsString() && host && host->IsString())
       {
-        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString()))
+        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString(),
+                                 WallNow()))
         {
           RespondJson(p_connection, 503,
                       JsonObject{{"applied", true},

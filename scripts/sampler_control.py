@@ -242,8 +242,19 @@ def set_target(root, target, collector_endpoint=None):
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
-    sampler, config = update_config(root, re.compile(r"\s*target_(?:process|pid)\s*="), setting,
-                                    collector_endpoint)
+    def change_default(text):
+        # After an add/remove the config uses [[target]] tables: change the
+        # default target's table, because a top-level key would be rejected.
+        if not TARGET_TABLE.search(text):
+            return replace_setting(text, re.compile(r"\s*target_(?:process|pid)\s*="), setting)
+        targets = configured_targets(text)
+        default = next((entry for entry in targets if entry["id"] == "default"), None)
+        if default is None:
+            raise ControlError("no default target is configured; add one in the target list")
+        default["target"] = target
+        return replace_targets(text, targets)
+
+    sampler, config = update_config(root, None, None, collector_endpoint, transform=change_default)
     message = "Reload requested. The dashboard will update when the sampler reports."
     if not running:
         message = f"Waiting for a process named {target} to start."
@@ -288,13 +299,18 @@ def dashboard_target(root, host, port, target=None):
             require_local_collector(config, (host, port))
             text = config.read_text()
             result = {"enabled": True,
-                      "target": read_setting(text, "target_pid") or read_setting(text, "target_process")}
+                      "target": default_selector(text)}
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": True, "error": str(error)}
     print(json.dumps(result))
 
 
 TARGET_TABLE = re.compile(r"(?m)^[ \t]*\[\[target\]\][ \t]*(?:#[^\n]*)?$" )
+
+
+def default_selector(text):
+    """The default target's selector, from top-level keys or its table."""
+    return next((entry["target"] for entry in configured_targets(text) if entry["id"] == "default"), None)
 
 
 def configured_targets(text):

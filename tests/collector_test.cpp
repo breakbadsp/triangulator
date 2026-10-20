@@ -2702,6 +2702,48 @@ void TestExpiredSlotResumesSameSession()
   }
 }
 
+// A removal is queued when the sampler confirms it and applied at the next
+// refresh. A target added again with the same ID in between is a new session
+// and must survive that refresh.
+void TestRemovalKeepsReplacementSession()
+{
+  MonitorFixture fixture;
+  Config config;
+  config.max_targets_ = 2;
+  config.max_live_samples_ = 10000;
+  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  const PeerText peer{"127.0.0.1"};
+  target_wire::Packet announcement;
+  announcement.pid_ = 123;
+  announcement.process_start_ = 1;
+  announcement.effective_millihz_ = 1000;
+  announcement.configured_millihz_ = 1000;
+  target_wire::SetText(announcement.host_, "host-a");
+  target_wire::SetText(announcement.target_, "orders");
+  const auto announce = [&](std::uint64_t p_session, double p_now)
+  {
+    announcement.session_ = p_session;
+    Require(fleet.Handle(wire::AsBytes(announcement), peer, p_now).has_value(),
+            "announcement handled");
+  };
+  announce(1, 1'700'000'000);
+  auto& slot = *fleet.Slots().front();
+  // Removal confirmed at ...001; the same ID returns as session 2 before the
+  // refresh applies the removal.
+  announce(2, 1'700'000'002);
+  fleet.Remove("host-a/orders", 1'700'000'001);
+  Require(slot.active_ && slot.visible_ && slot.session_ == 2,
+          "a stale removal leaves the replacement session");
+  announce(1, 1'700'000'002.5);
+  Require(slot.session_ == 2, "the removed session stays retired");
+  fleet.Remove("host-a/orders", 1'700'000'003);
+  Require(!slot.active_ && !slot.visible_, "a current removal retires it");
+  announce(2, 1'700'000'004);
+  Require(!slot.active_, "the removed session is not accepted again");
+  announce(3, 1'700'000'005);
+  Require(slot.active_ && slot.session_ == 3, "a later session is accepted");
+}
+
 int main()
 {
   try
@@ -2750,6 +2792,7 @@ int main()
     TestAllowedSenders();
     TestEverySlotKeepsFullHistoryBudget();
     TestExpiredSlotResumesSameSession();
+    TestRemovalKeepsReplacementSession();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "

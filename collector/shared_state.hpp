@@ -64,17 +64,25 @@ class SharedState
     return memory_map_;
   }
 
-  [[nodiscard]] bool QueueRemoval(std::string p_key)
+  // A removal names the target and the time the sampler confirmed it. The
+  // collector retires only sessions first seen at or before that time, so a
+  // target added again before the next refresh keeps its new session.
+  struct Removal
+  {
+    std::string key_;
+    double at_ = 0;
+  };
+  [[nodiscard]] bool QueueRemoval(std::string p_key, double p_at)
   {
     std::lock_guard lock{mutex_};
     if (removals_.size() >= 64)
     {
       return false;
     }
-    removals_.push_back(std::move(p_key));
+    removals_.push_back({std::move(p_key), p_at});
     return true;
   }
-  [[nodiscard]] std::vector<std::string> TakeRemovals()
+  [[nodiscard]] std::vector<Removal> TakeRemovals()
   {
     std::lock_guard lock{mutex_};
     return std::exchange(removals_, {});
@@ -126,7 +134,7 @@ class SharedState
  private:
   std::mutex mutex_;
   std::vector<PublishedTarget> targets_;
-  std::vector<std::string> removals_;
+  std::vector<Removal> removals_;
   std::shared_ptr<const std::string> targets_json_ =
       std::make_shared<const std::string>(R"({"targets":[]})");
   std::shared_ptr<const std::string> live_ =

@@ -765,8 +765,9 @@ function renderTargetChoices(targets){
   targetEntries=[...targets].sort((a,b)=>a.key<b.key?-1:a.key>b.key?1:0);
   const chosen=targetEntries.find(target=>target.key===selectedTarget)||(!selectedTarget?(targetEntries.find(target=>target.id==='default')||targetEntries[0]):null);
   const picker=element('target-select');
-  picker.hidden=targetEntries.length<=1;
-  element('target-key').hidden=targetEntries.length>1;
+  const unavailable=!!selectedTarget&&!chosen;
+  picker.hidden=targetEntries.length<=1&&!unavailable;
+  element('target-key').hidden=!picker.hidden;
   const targetLabel=chosen?chosen.host+' · '+chosen.id:selectedTarget;
   if(element('target-key').dataset.label!==targetLabel){element('target-key').dataset.label=targetLabel;element('target-key').replaceChildren(helpButtonLabel(targetLabel,'target-switch','', 'span'))}
   const options=JSON.stringify(targetEntries.map(target=>[target.key,target.status,target.pid,target.throttled,target.access]));

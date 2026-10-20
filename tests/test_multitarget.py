@@ -132,6 +132,12 @@ class MultiTargetCollectorTests(CollectorCase):
             self.fetch("/api/live?target=host-a/missing")
         self.assertEqual(error.exception.code, 404)
         error.exception.close()
+        # The dashboard page itself loads for a missing target, so the user
+        # keeps the controls needed to leave it.
+        with urllib.request.urlopen(self.base + "/?target=host-a/missing", timeout=2) as page:
+            self.assertEqual(page.status, 200)
+            self.assertIn(b"<html", page.read(2000).lower())
+        self.assertIn("targets", self.fetch("/api/targets?target=host-a/missing"))
         self.send(announce(303, "orders", pid=789))
         self.send(tick(303, pid=789))
         self.send(announce(101, "orders"))  # A delayed announce must not restore the old session.

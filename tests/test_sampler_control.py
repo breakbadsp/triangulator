@@ -240,6 +240,15 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "default"}, headers)[0], 400)
         self.assertEqual(sampler_control.configured_targets(config.read_text()),
                          [{"id": "default", "target": str(self.target.pid)}])
+        # The legacy single-target API must work on the converted config too.
+        self.assertIn("[[target]]", config.read_text())
+        self.assertEqual(self.api("/api/target")[1], {"enabled": True, "target": str(self.target.pid)})
+        legacy = {"Content-Type": "application/json", "X-Triangulator": "1"}
+        status, result = self.api("/api/target", {"target": str(other.pid)}, legacy)
+        self.assertEqual(status, 200, result)
+        self.assertEqual(sampler_control.configured_targets(config.read_text()),
+                         [{"id": "default", "target": str(other.pid)}])
+        self.assertEqual(self.api("/api/target")[1]["target"], str(other.pid))
 
     def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
         # IPv4 samples and target control both work through an IPv6 wildcard listener.
@@ -261,6 +270,13 @@ class ScriptTests(unittest.TestCase):
         self.start_dashboard(extra='sampler_ips = ["10.0.0.2"]\n')
         status, data = self.api("/api/target")
         self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        status, data = self.api("/api/targets/control")
+        self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        change = {"action": "add", "id": "other", "target": "1"}
+        status, data = self.api("/api/targets", change, {"X-Triangulator": "1"})
+        self.assertEqual(status, 403)
         self.assertFalse(data["enabled"])
 
     def test_dashboard_changes_pid_name_and_absent_target(self):
