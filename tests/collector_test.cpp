@@ -685,6 +685,41 @@ void TestLowestRateProducesValidWindows()
   }
 }
 
+// Rate changes inside one session retain counter baselines and valid rollups.
+void TestRateChangesWithinSession()
+{
+  MonitorFixture fixture;
+  std::uint32_t sequence = 0;
+  std::uint64_t elapsed_ms = 0;
+  for (const std::uint32_t interval_ms : {200U, 1000U, 5000U, 200U})
+  {
+    for (std::uint32_t sample = 0; sample < 15000U / interval_ms; ++sample)
+    {
+      auto record = WithUtime(elapsed_ms / 10);
+      record.state_ = 'R';
+      auto packet = MakePacket(sequence++, {record});
+      packet.interval_ms_ = interval_ms;
+      packet.monotonic_ns_ = (1'000'000 + elapsed_ms) * 1'000'000;
+      packet.wall_ns_ = (1'700'000'000'000 + elapsed_ms) * 1'000'000;
+      fixture.Feed(packet);
+      elapsed_ms += interval_ms;
+    }
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() >= 10, "rate changes keep completed windows");
+  for (const auto& row : rows)
+  {
+    if (Field(row, "valid").AsInt() != 0)
+    {
+      RequireNear(Field(row, "cpu_pct").AsNumber(), 100,
+                  "CPU stays correct across rate changes");
+    }
+  }
+  const auto health = fixture.monitor_.Health(1'700'000'060);
+  Require(Field(health, "late_packets").AsInt() == 0,
+          "rate changes do not retire the session");
+}
+
 void TestFallbackHasNoRunDelay()
 {
   MonitorFixture fixture;
@@ -2335,6 +2370,7 @@ int main()
     TestUnreadableIoSampleDoesNotResetThread();
     TestExistingDayFileGainsNewRollupColumns();
     TestLowestRateProducesValidWindows();
+    TestRateChangesWithinSession();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();

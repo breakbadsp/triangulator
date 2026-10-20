@@ -42,6 +42,7 @@ struct Config
   TargetSelector target_ = TargetPid{0};
   std::vector<TargetConfig> targets_;
   double rate_hz_ = 5.0;
+  double cpu_budget_pct_ = 1.0;
   std::string collector_;
   bool status_fallback_ = false;
   // Seconds between resource samples (pressure, descriptors, sockets); 0
@@ -69,7 +70,7 @@ struct Config
   Config config;
   bool target_set = false;
   bool in_target = false;
-  std::array<std::string_view, 7> keys{};
+  std::array<std::string_view, 8> keys{};
   std::size_t key_count = 0;
   while (!p_contents.empty())
   {
@@ -225,6 +226,15 @@ struct Config
       }
       config.rate_hz_ = *rate;
     }
+    else if (key == "cpu_budget_pct")
+    {
+      const auto budget = ParseNumber<double>(value);
+      if (!budget || !std::isfinite(*budget) || *budget < 0.01 || *budget > 100)
+      {
+        return std::unexpected("cpu_budget_pct must be 0.01..100");
+      }
+      config.cpu_budget_pct_ = *budget;
+    }
     else if (key == "collector")
     {
       if (value.empty() || value.size() > 255)
@@ -370,6 +380,22 @@ struct RuntimeConfig
 {
   Config settings_;
   Endpoint endpoint_;
+  double effective_rate_hz_ = 0;
+  std::uint64_t sampler_cpu_ns_ = 0;
+  std::uint64_t sampler_elapsed_ns_ = 0;
+
+  [[nodiscard]] Nanoseconds Interval() const noexcept
+  {
+    return std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / (effective_rate_hz_ > 0
+                                                 ? effective_rate_hz_
+                                                 : settings_.rate_hz_)});
+  }
+  [[nodiscard]] std::uint32_t IntervalMs() const noexcept
+  {
+    return static_cast<std::uint32_t>(
+        std::chrono::round<std::chrono::milliseconds>(Interval()).count());
+  }
 };
 
 [[nodiscard]] inline std::expected<RuntimeConfig, std::string> LoadConfig(

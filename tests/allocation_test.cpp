@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "../sampler/budget.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
@@ -106,6 +107,10 @@ int main()
   ProcessInfoProbe process_info;
   RateLimitedLogger logger;
 
+  CpuBudget cpu_budget{5, 1};
+  const std::array<TargetConfig, 2> selected_targets{
+      {{"self", by_pid}, {"name", by_name}}};
+
   // Sampling, for several ticks.
   const auto before = allocation_count;
   for (int tick = 0; tick < 3; ++tick)
@@ -113,6 +118,12 @@ int main()
     const auto target = FindTarget(by_pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
     Require(FindTarget(by_name).has_value(), "lookup by name");
+    const auto targets = FindTargets(selected_targets);
+    Require(targets[0] && *targets[0], "shared target lookup");
+    for (int sample = 0; sample < 100; ++sample)
+    {
+      cpu_budget.Add(4ms, 200ms);
+    }
     kept.Rescan(pid, logger);
     reopened.Rescan(pid, logger);
     Require(!kept.Threads().empty() && !reopened.Threads().empty(),
