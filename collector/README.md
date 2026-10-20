@@ -92,3 +92,12 @@ or browser calculation. Where applicable, it gives a command to check the source
 
 The guide includes **Show help on hover or focus**. This preference is saved in
 the browser. Turning it off keeps explicit guide access available.
+
+### Sampler senders
+
+Use `sampler_ips = ["127.0.0.1", "10.0.0.2"]` to allow several sampler
+hosts. The legacy `sampler_ip` key remains valid. Use only one form. Without
+either key, the collector accepts and pins the first valid sender.
+
+The collector keeps each target's monitors, replay recorder, and published
+views in a target slot. This first rollout step uses one slot.

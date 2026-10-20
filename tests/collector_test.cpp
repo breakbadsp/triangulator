@@ -1170,6 +1170,18 @@ void TestSnapshotRecorder()
 // them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
 {
+  // Sender lists accept normalized addresses and reject mixed or invalid forms.
+  const auto senders = ParseConfig("sampler_ips=[\"127.0.0.1\",\"::1\"]");
+  Require(senders && senders->sampler_ips_.size() == 2,
+          "multiple sampler addresses are accepted");
+  Require(ParseConfig("sampler_ip=\"127.0.0.1\"")->sampler_ips_.size() == 1,
+          "legacy sender becomes a list of one");
+  for (const auto text : {"sampler_ips=[]", "sampler_ips=[1]",
+                          "sampler_ips=[\"127.0.0.1\",\"127.0.0.1\"]",
+                          "sampler_ip=\"\"\nsampler_ips=[\"::1\"]"})
+  {
+    Require(!ParseConfig(text), "invalid sender list is rejected");
+  }
   const auto defaults = ParseConfig("");
   Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
           "raw storage and one-second recording default to enabled");
