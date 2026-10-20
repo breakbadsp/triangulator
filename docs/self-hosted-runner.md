@@ -8,7 +8,9 @@ owner's computer.
 ## When jobs run
 
 Pull requests run the format check and AlmaLinux 8 tests when their path
-filters match. The QA results check keeps its existing path filters.
+filters match. Pull requests run the normal AlmaLinux 8 test suite. Static
+release builds, their test suite, and copied-binary runtime checks run only
+nightly or on manual runs. The QA results check keeps its existing path filters.
 Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at 03:00
 in `Asia/Kolkata`. These workflows also support manual runs. Packaging
 still builds and publishes releases for `v*` tags; nightly runs only
@@ -74,6 +76,19 @@ for commands that do not specify `-j`. The AlmaLinux startup check also sets
 this limit inside its container. Thus three build jobs can use the six CPUs
 without each build starting six compilers. The slots share the rootless
 Podman image store, but each container has its own network and filesystem.
+
+The AlmaLinux test and package jobs use `ccache` to reuse compiled C++ and
+SQLite objects. `actions/cache` restores and saves each cache by runner OS,
+CPU architecture, and AlmaLinux version. Each runner slot uses a separate
+cache directory. The container installs a checksum-verified static ccache
+binary. Cached compilations are checked against compiler contents, compiler
+options, source contents, and included headers. Each job still links its
+binaries and runs the selected tests. Cache misses compile normally.
+
+The object cache is limited to 512 MiB per restored cache. The test artifacts
+include `compiler-cache.log` with hit and miss counts. Package job logs also
+show these counts. SQLite has separate build-option tracking, so C++ flags
+and link libraries do not force it to compile again.
 
 The example tests select free UDP and HTTP ports for each test. The scenario
 and capture scripts accept `BUGGY_UDP_PORT` and `BUGGY_HTTP_PORT`, so concurrent

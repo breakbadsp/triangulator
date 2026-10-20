@@ -1,5 +1,6 @@
 """Check build option tracking without compiling."""
 import os
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -127,3 +128,64 @@ class BuildOptionsTests(unittest.TestCase):
             changed = self.run_make(directory, "CXXFLAGS=-O3", path=tools)
             self.assertEqual(changed.returncode, 0, changed.stderr)
             self.assertIn("-O3", (Path(directory) / "build/build_options").read_text())
+
+
+class ObjectReuseTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        shutil.copyfile(ROOT / "Makefile", self.directory / "Makefile")
+        for name in ("sampler", "common", "sqlite"):
+            (self.directory / name).mkdir()
+        for name in ("sampler/main.cpp", "common/header.hpp", "sqlite/sqlite3.c", "sqlite/sqlite3.h"):
+            (self.directory / name).write_text("// Build dependency fixture.\n")
+        self.compiler = self.directory / "compiler"
+        self.compiler.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, pathlib, sys\n"
+            "with open('calls.jsonl', 'a') as log: log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "if '-o' in sys.argv: pathlib.Path(sys.argv[sys.argv.index('-o') + 1]).touch()\n")
+        self.compiler.chmod(0o755)
+
+    def build(self, target="build/triangulator-sampler", *options):
+        environment = os.environ.copy()
+        for name in ("MAKEFLAGS", "MFLAGS", "STATIC", "SANITIZER", "COMPILER_CACHE"):
+            environment.pop(name, None)
+        result = subprocess.run(
+            ["make", "--no-print-directory", target, f"CXX={self.compiler}", *options],
+            cwd=self.directory, env=environment, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = self.directory / "calls.jsonl"
+        result = [json.loads(line) for line in calls.read_text().splitlines()]
+        calls.write_text("")
+        return result
+
+    def test_link_library_change_relinks_without_recompiling(self):
+        self.build("build/triangulator-sampler", "LDLIBS=-lm")
+        calls = self.build("build/triangulator-sampler", "LDLIBS=-lrt")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("-lrt", calls[0])
+        self.assertIn("build/triangulator-sampler.o", calls[0])
+        self.assertNotIn("-c", calls[0])
+
+    def test_header_and_compiler_flag_changes_recompile(self):
+        self.build()
+        (self.directory / "common/header.hpp").write_text("// Changed header.\n")
+        self.assertTrue(any("-c" in call for call in self.build()))
+        self.assertTrue(any("-c" in call for call in self.build("build/triangulator-sampler", "CXXFLAGS=-O3")))
+
+    def test_sqlite_reuse_ignores_cpp_flags_but_checks_c_flags(self):
+        arguments = ("SQLITE_SOURCE=sqlite/sqlite3.c",)
+        self.build("build/sqlite3.o", *arguments)
+        calls = self.build("build/sqlite3.o", *arguments, "CXXFLAGS=-O3")
+        self.assertFalse(any("-c" in call for call in calls))
+        calls = self.build("build/sqlite3.o", *arguments, "SQLITE_CFLAGS=-O3")
+        self.assertTrue(any("-c" in call and "-O3" in call for call in calls))
+
+    def test_cache_wraps_compilation_only(self):
+        wrapper = self.directory / "cache"
+        wrapper.write_text('#!/bin/sh\nprintf "cache\\n" >> cache-calls\nexec "$@"\n')
+        wrapper.chmod(0o755)
+        self.build("build/triangulator-sampler", f"COMPILER_CACHE={wrapper}")
+        self.assertEqual((self.directory / "cache-calls").read_text(), "cache\n")

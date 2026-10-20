@@ -29,6 +29,15 @@ jobs:
         version: [8, 9]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Set compiler cache directory
+        run: echo "CCACHE_HOST_DIR=$RUNNER_TEMP/triangulator-cache/alma${{ matrix.version }}" >> "$GITHUB_ENV"
+      - name: Restore compiler cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ env.CCACHE_HOST_DIR }}
+          key: compiler-v1-${{ runner.os }}-${{ runner.arch }}-alma${{ matrix.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            compiler-v1-${{ runner.os }}-${{ runner.arch }}-alma${{ matrix.version }}-
       - name: Build and test packages
         env:
           REF_NAME: ${{ github.ref_name }}
@@ -37,9 +46,9 @@ jobs:
           # Releases are named after the tag; other runs after the commit.
           version="${REF_NAME#v}"
           [[ "$GITHUB_REF" == refs/tags/* ]] || version="dev-${GITHUB_SHA::7}"
-          mkdir -p dist
+          mkdir -p dist "$CCACHE_HOST_DIR"
           docker run --rm -e ALMA_VERSION \
-            -v "$PWD:/source:ro" -v "$PWD/dist:/dist" \
+            -v "$PWD:/source:ro" -v "$PWD/dist:/dist" -v "$CCACHE_HOST_DIR:/cache" \
             "almalinux:$ALMA_VERSION" bash /source/.github/scripts/almalinux-package.sh "$version"
           # A clean image with no compiler and no repository: only one package.
           for kind in sampler collector; do
@@ -50,6 +59,16 @@ jobs:
               "almalinux:$ALMA_VERSION" bash -c 'mkdir -p "$HOME" && bash /smoke.sh "$0" /dist/triangulator-"$0"-*-el"$ALMA_VERSION"-*.tar.gz' "$kind"
           done
           ls -l dist
+      - name: Return compiler cache to the runner user
+        if: always()
+        env:
+          ALMA_VERSION: ${{ matrix.version }}
+        run: |
+          owner="$(id -u):$(id -g)"
+          [[ "$RUNNER_ENVIRONMENT" != self-hosted ]] || owner=0:0
+          mkdir -p "$CCACHE_HOST_DIR"
+          docker run --rm -v "$CCACHE_HOST_DIR:/cache" \
+            "almalinux:$ALMA_VERSION" chown -R "$owner" /cache
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: packages-el${{ matrix.version }}

@@ -6,6 +6,10 @@ cd /work
 id
 target_pid=
 cleanup() {
+    if [[ -n ${COMPILER_CACHE:-} ]]; then
+        "$COMPILER_CACHE" --show-stats > /reports/compiler-cache.log || true
+        cat /reports/compiler-cache.log
+    fi
     scripts/stop.sh || true
     if [[ -n "$target_pid" ]]; then
         kill "$target_pid" 2>/dev/null || true
@@ -48,7 +52,7 @@ scripts/stop.sh
 # Required thread linkage must survive caller-supplied libraries.
 make -j2 check LDLIBS=-lm 2>&1 | tee /reports/check.log
 
-mkdir -p /reports/normal /reports/release
+mkdir -p /reports/normal
 cp build/triangulator-{sampler,collector,socket-report} /reports/normal/
 for binary in /reports/normal/*; do
     readelf -lW "$binary"
@@ -59,6 +63,11 @@ done > /reports/normal-linkage.txt
 build/triangulator-sampler --help > /reports/sampler-help.log
 build/triangulator-socket-report --help > /reports/socket-report-help.log
 
+if [[ ${RUN_STATIC_TESTS:-1} == 0 ]]; then
+    echo 'Static-release checks run nightly and on manual runs.'
+    exit 0
+fi
+mkdir -p /reports/release
 # Without a static SQLite library, release must stop with a clear message.
 set +e
 make release > /reports/release-without-amalgamation.log 2>&1
