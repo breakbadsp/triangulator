@@ -12,6 +12,9 @@ The sampler must keep its overhead on the target host negligible. Run exactly
 one sampler on each host, and keep it single-threaded. See
 [Sampler constraints](../AGENTS.md#sampler-constraints) and the
 [multi-target design](../docs/multi-target-design.md).
+The current sampler monitors one target process and its threads. Multi-target
+support is proposed. The optional eBPF socket observer is a separate, opt-in
+process; see [Socket I/O setup](../docs/setup.md#socket-io-and-messages-processed).
 
 ## Quick start
 
@@ -36,6 +39,10 @@ Run these commands from the repository root as the target process user.
    ```
 
 The default frequency is 5 Hz. The range is 0.2–10 Hz.
+Resource samples run every 2 seconds, and memory-map samples every 30 seconds.
+Set `resource_interval_s` or `memory_interval_s` to `0` to disable that source.
+Both intervals are limited by the thread sampling frequency. See
+[target impact](../docs/target-impact.md) for measured costs and limits.
 
 ## Run separately
 

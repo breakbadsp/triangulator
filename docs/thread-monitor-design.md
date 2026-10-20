@@ -1,5 +1,13 @@
 # Thread Monitor: Final Design (v1)
 
+This document records the v1 design. Its alert requirements and alert engine
+describe planned behavior. Alert evaluation and delivery are assigned to the
+separate `alerting/` program, which is not connected. The current dashboard
+computes Assessment findings in the browser. It also supports recordings,
+past assessments, and shared watched-thread settings. See
+[Architecture](architecture.md), [Setup](setup.md), and the
+[Collector reference](collector-reference.md) for current behavior.
+
 ## 1. Goal
 
 A rough, low-cost view of a production process's threads, built only from OS-provided data (`/proc`), with no change to the target application.

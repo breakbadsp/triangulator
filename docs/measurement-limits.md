@@ -4,6 +4,9 @@ These constraints affect interpretation. Exact fields, bounds, formulas, and
 thresholds are defined in the source. The
 [collector file map](collector-reference.md#files) lists the source files.
 The dashboard help explains each displayed metric.
+Pause over a metric to read its **Source** line, or select its information
+button to read the detailed **Source** section. This identifies the Linux file
+and field, collector calculation, API, or browser calculation behind the value.
 
 ## Sampling and history
 
