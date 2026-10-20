@@ -110,7 +110,7 @@ class SampleStream:
         if arrival_ns is None:
             raise RuntimeError("kernel receive timestamp is missing")
         kind = data[:4].decode("ascii")
-        if kind not in ("TMON", "TRES", "TVMA", "TPIN"):
+        if kind not in ("TMON", "TRES", "TVMA", "TPIN", "TTGT"):
             raise RuntimeError("unexpected datagram")
         self.datagrams[kind] += 1
         self.bytes += len(data)

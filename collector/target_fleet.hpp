@@ -152,6 +152,20 @@ class TargetFleet final
           break;
         }
       }
+      // The first TTGT can be lost before the collector binds its socket.
+      // A later default announcement adopts the legacy sender key.
+      if (!known && target_wire::Text(announcement->target_) == "default")
+      {
+        for (auto& candidate : slots_)
+        {
+          if (candidate->active_ && candidate->visible_ &&
+              !candidate->announced_ && candidate->peer_ == p_peer)
+          {
+            known = candidate.get();
+            break;
+          }
+        }
+      }
       if (!slot && known)
       {
         slot = known;
