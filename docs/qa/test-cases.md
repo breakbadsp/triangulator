@@ -59,6 +59,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-052 | NOT_RUN | - | - | - |
 | QA-053 | NOT_RUN | - | - | - |
 | QA-054 | NOT_RUN | - | - | - |
+| QA-055 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -956,13 +957,13 @@ restarted threads again, without an edit.
 
 ## QA-038: Timeline and past assessments show a recorded finding
 
-Feature: Timeline. Priority: High. Case revision: 4.
+Feature: Timeline. Priority: High. Case revision: 5.
 
 Preconditions: Use an isolated runtime, unused ports, and enabled recording.
 Use a bug-lab workload that can switch between healthy activity and a CPU spin.
 Record both states before opening the dashboard.
 
-1. Open the folded **Past assessments** panel. Read the Timeline marks and
+1. Open **Timeline**, then **Past assessments**. Read the Timeline marks and
    Past assessments rows. Compare their times with
    the controlled CPU spin.
 2. Select the spin finding. Scroll through the dashboard and read the top bar,
@@ -1117,7 +1118,7 @@ order and final rules. If the package lacks watches, leave the case NOT_RUN.
 
 ## QA-054: Assessment first and folded panels
 
-Feature: Dashboard layout. Priority: Medium. Case revision: 1.
+Feature: Dashboard layout. Priority: Medium. Case revision: 2.
 
 Preconditions: Use an isolated runtime and a bug-lab workload that can run
 healthy and then trigger a warning, such as a CPU spin or packet loss. Clear
@@ -1125,7 +1126,7 @@ this site's browser storage first.
 
 1. Open the dashboard on a healthy target at full width and below 1050 pixels
    wide. Note what is visible without scrolling.
-2. Check that Past assessments, Process details, Core placement, Network stack
+2. Check that Timeline, Past assessments, Process details, Core placement, Network stack
    drops, Address space & zoom, and Monitor health start closed. Open and close
    each with the pointer, then with Tab and Enter.
 3. Open Core placement and close Monitor health. Reload the page.
@@ -1138,9 +1139,41 @@ this site's browser storage first.
    page".
 
 Expected results: The Assessment verdict and findings are visible without
-scrolling at both widths. On a narrow screen the Assessment comes before
-Process load. Every panel opens and closes with pointer and keyboard. After
+scrolling at both widths. The Assessment comes before
+the metric tiles and the Process load and Memory use cards at every width.
+Every panel opens and closes with pointer and keyboard. After
 the reload, the panels keep the user's choice. With no saved choice, a panel
 opens by itself for a warning or worse of its kind and does not close by
 itself. A panel the user closed stays closed. Each heading shows its help
 topic, and the page guide explains folded panels.
+
+## QA-055: Dashboard appearance and summary layout
+
+Feature: Dashboard redesign. Priority: Medium. Case revision: 1.
+
+Preconditions: Use an isolated runtime with a healthy target, then a CPU-spin
+workload. Clear the site storage. Use desktop and 390-pixel-wide viewports.
+
+1. Read Summary. Check Assessment, metric tiles, Process load, Memory use,
+   and the closed Timeline in this order. Confirm that the assessment is
+   visible without scrolling. Compare the memory values with their help topics.
+2. Select Light and Dark from Theme. Reload after each choice. Select System
+   and change the operating system appearance. Check charts, tables, selected
+   tabs, the thread drawer, and the help guide in both themes.
+3. Use the keyboard to select a theme and open Timeline. Open a past recording,
+   then select Live. Close Timeline and reload. Confirm its saved state.
+4. Open help for Color theme, Memory use, and Timeline with pointer and keyboard.
+5. Check the narrow viewport and 200% browser zoom. Scroll the navigation to
+   Settings. Confirm that cards and controls stay within the page. Wide data
+   tables must scroll inside their own containers.
+6. Start a CPU-spin workload. Confirm that the assessment shows its finding
+   with text and a status color. Open the affected thread.
+7. Open the page with the collector unavailable. Confirm that Waiting for data
+   has a neutral dot. Block browser storage and change the theme. Confirm that
+   the control still works for the current page.
+
+Expected results: Both themes use readable labels and clear keyboard focus.
+The selected theme persists when storage is available. System follows the
+operating system. Status colors retain their meanings. All existing controls,
+recordings, metric values, and contextual help remain available. No page-wide
+horizontal overflow occurs at either viewport or at 200% zoom.

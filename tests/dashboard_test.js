@@ -13,13 +13,13 @@ test('section navigation follows viewport position and layout changes', () => {
     removeAttribute(key) {delete this.attrs[key];}}));
   let tops = [100, 1000, 2000, 3000, 4000, 5000];
   const sections = new Map(ids.map((id, index) => [id, {hasBox: true, getClientRects() {return this.hasBox ? [{}] : [];}, getBoundingClientRect: () => ({top: tops[index]})}]));
-  const listeners = new Map(), frames = [], observed = [];
+  const listeners = new Map(), frames = [], observed = [], offsets = {};
   let layoutChanged, position = 'sticky', headerBottom = 60;
   const topbar = {getBoundingClientRect: () => ({bottom: headerBottom})}, main = {};
   const context = vm.createContext({
     document: {querySelectorAll: () => links, getElementById: id => sections.get(id),
       querySelector: selector => selector === '.topbar' ? topbar : main,
-      documentElement: {scrollHeight: 6000}},
+      documentElement: {scrollHeight: 6000, style: {setProperty(name, value) {offsets[name] = value;}}}},
     getComputedStyle: () => ({position, scrollPaddingTop: position === 'sticky' ? '80px' : '16px'}), scrollY: 0, innerHeight: 800,
     addEventListener: (name, callback) => listeners.set(name, callback),
     requestAnimationFrame: callback => frames.push(callback),
@@ -32,6 +32,7 @@ test('section navigation follows viewport position and layout changes', () => {
   }
   function update(event) {listeners.get(event)(); frames.shift()();}
   current('overview');
+  assert.equal(offsets['--header-offset'], '76px');
   assert.deepEqual(observed, [main, topbar]);
   tops = [-900, 79.9, 1000, 2000, 3000, 4000]; context.scrollY = 1000;
   update('hashchange'); current('threads-section');
@@ -45,7 +46,9 @@ test('section navigation follows viewport position and layout changes', () => {
   // A wrapped sticky header changes the activation boundary.
   context.scrollY = 2000; tops = [-1900, -1000, 100, 1000, 2000, 3000];
   headerBottom = 120; update('resize'); current('resources');
+  assert.equal(offsets['--header-offset'], '136px', 'anchors clear a wrapped sticky header');
   position = 'static'; update('resize'); current('threads-section');
+  assert.equal(offsets['--header-offset'], '16px', 'a static header does not reserve scroll space');
   tops[2] = 10; layoutChanged(); frames.shift()(); current('resources');
   tops = [100, 1000, 2000, 3000, 4000, 5000]; context.scrollY = 0;
   update('pageshow'); current('overview');
@@ -2758,4 +2761,37 @@ test('a panel the user chose stays closed when storage is blocked', () => {
   app.run('folds[0].open=false;click()');
   app.run(`openFoldsFor([{type:'monitor',level:'critical'}])`);
   assert.equal(app.run('folds[0].open'), false);
+});
+
+
+test('theme selection restores preferences and works when storage is blocked', () => {
+  const source = script.slice(script.indexOf("const themes=['auto'"), script.indexOf('let resizeTimer;'));
+  const storage = new Map([['triangulator:theme', 'dark']]);
+  function start(blocked = false) {
+    const root = {dataset: {}}, picker = {value: ''};
+    const context = vm.createContext({document: {documentElement: root},
+      element: () => picker, live: {}, localStorage: {
+        getItem: key => {if (blocked) throw Error('blocked'); return storage.get(key);},
+        setItem: (key, value) => {if (blocked) throw Error('blocked'); storage.set(key, value);},
+      }});
+    vm.runInContext(source, context);
+    return {root, picker, select(value) {picker.value = value; picker.onchange();}};
+  }
+  const app = start();
+  assert.equal(app.root.dataset.theme, 'dark');
+  assert.equal(app.picker.value, 'dark');
+  app.select('light');
+  assert.equal(app.root.dataset.theme, 'light');
+  assert.equal(start().picker.value, 'light');
+  app.select('auto');
+  assert.equal(app.root.dataset.theme, undefined, 'System leaves appearance to the media query');
+  assert.equal(start().picker.value, 'auto');
+  storage.set('triangulator:theme', 'unknown');
+  assert.equal(start().picker.value, 'auto');
+  const blocked = start(true);
+  assert.equal(blocked.picker.value, 'auto');
+  blocked.select('dark');
+  assert.equal(blocked.root.dataset.theme, 'dark');
+  blocked.select('light');
+  assert.equal(blocked.root.dataset.theme, 'light');
 });
