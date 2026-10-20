@@ -117,6 +117,20 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
 
+  // Bind the UDP socket first. The kernel then queues the datagrams that
+  // arrive while storage and the target slots start, instead of dropping
+  // them. A sampler sends an unchanged memory layout again only every ten
+  // memory samples (at least once a minute), so a lost first layout leaves
+  // /api/memory-map empty for that long.
+  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
+  if (!bound)
+  {
+    return Stopped(bound.error());
+  }
+  const triangulator::FileDescriptor receiver = std::move(*bound);
+  const int buffer_size = 4 * 1024 * 1024;
+  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
+               sizeof(buffer_size));
   auto created = Storage::Create(config.data_dir_, config.retention_days_);
   if (!created)
   {
@@ -145,15 +159,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   }
   StorageSink sink{storage};
   TargetFleet fleet{config, WallNow(), storage, sink};
-  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
-  if (!bound)
-  {
-    return Stopped(bound.error());
-  }
-  const triangulator::FileDescriptor receiver = std::move(*bound);
-  const int buffer_size = 4 * 1024 * 1024;
-  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
-               sizeof(buffer_size));
   SharedState state;
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
