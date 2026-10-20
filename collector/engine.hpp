@@ -232,14 +232,14 @@ class Monitor
 
   std::int64_t bad_packets_ = 0;
 
-  void Accept(const Packet& p_packet, double p_received)
+  [[nodiscard]] bool PrepareSession(std::uint64_t p_session, double p_received)
   {
-    if (!session_ || p_packet.session_ != *session_)
+    if (!session_ || p_session != *session_)
     {
-      if (IsRetired(p_packet.session_))
+      if (IsRetired(p_session))
       {
         ++late_packets_;
-        return;
+        return false;
       }
       if (session_)
       {
@@ -250,7 +250,7 @@ class Monitor
           FinishWindow(tid, threads_[slot]);
         }
       }
-      session_ = p_packet.session_;
+      session_ = p_session;
       session_text_.Clear();
       AppendUnsigned(session_text_, *session_);
       ClearThreads();
@@ -262,6 +262,17 @@ class Monitor
       last_monotonic_.reset();
       last_sequence_.reset();
       loss_.Clear();
+      pid_ = 0;
+      target_absent_.reset();
+    }
+    return true;
+  }
+
+  void Accept(const Packet& p_packet, double p_received)
+  {
+    if (!PrepareSession(p_packet.session_, p_received))
+    {
+      return;
     }
     if (last_monotonic_ && p_packet.monotonic_ns_ <= *last_monotonic_)
     {

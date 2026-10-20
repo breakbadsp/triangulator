@@ -19,6 +19,7 @@
 #include "../common/memory_wire.hpp"
 #include "../common/process_wire.hpp"
 #include "../common/resource_wire.hpp"
+#include "../common/target_wire.hpp"
 
 namespace
 {
@@ -553,12 +554,57 @@ void TestProcessRoundTrip()
   rejects(changed, "text must end with NUL");
 }
 
+// Announcements accept full and limited access and reject malformed keys.
+void TestTargetAnnouncement()
+{
+  target_wire::Packet packet;
+  packet.session_ = std::numeric_limits<std::uint64_t>::max();
+  packet.effective_millihz_ = 5000;
+  packet.configured_millihz_ = 5000;
+  target_wire::SetText(packet.host_, "host-a");
+  target_wire::SetText(packet.target_, "orders");
+  const auto decoded = target_wire::Decode(wire::AsBytes(packet));
+  Require(decoded && decoded->session_ == packet.session_,
+          "target session round trip");
+  for (int test = 0; test < 6; ++test)
+  {
+    auto invalid = packet;
+    switch (test)
+    {
+      case 0:
+        invalid.version_ = 2;
+        break;
+      case 1:
+        invalid.reserved_[0] = 1;
+        break;
+      case 2:
+        invalid.effective_millihz_ = 0;
+        break;
+      case 3:
+        invalid.pid_ = 1;
+        break;
+      case 4:
+        target_wire::SetText(invalid.target_, "../escape");
+        break;
+      case 5:
+        invalid.host_.fill('x');
+        break;
+    }
+    Require(!target_wire::Decode(wire::AsBytes(invalid)),
+            "invalid announcement rejected");
+  }
+  packet.access_ = target_wire::Access::Limited;
+  Require(target_wire::Decode(wire::AsBytes(packet)).has_value(),
+          "limited access is valid");
+}
+
 }  // namespace
 
 int main()
 {
   try
   {
+    TestTargetAnnouncement();
     TestRecordRoundTrip();
     TestHeaderRoundTrip();
     TestHeaderRejectsOtherData();

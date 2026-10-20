@@ -168,6 +168,25 @@ class ResourceMonitor
 
   std::int64_t bad_parts_ = 0;
 
+  void PrepareSession(std::uint64_t p_session, double p_now)
+  {
+    if (session_ && *session_ == p_session)
+    {
+      return;
+    }
+    Drain(p_now, true);
+    if (session_)
+    {
+      retired_sessions_.PushBack(*session_);
+    }
+    session_ = p_session;
+    latest_.reset();
+    for (auto& pending : pending_)
+    {
+      pending.active_ = false;
+    }
+  }
+
   void Accept(const resource_wire::Part& p_part, double p_received)
   {
     const auto& header = p_part.header_;

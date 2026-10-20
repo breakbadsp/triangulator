@@ -1,11 +1,28 @@
 #pragma once
 
+#include <algorithm>
+#include <filesystem>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <vector>
+
+#include "json.hpp"
 
 namespace triangulator::collector
 {
+
+struct PublishedTarget
+{
+  std::string key_;
+  std::string host_;
+  std::string id_;
+  std::filesystem::path replay_root_;
+  std::shared_ptr<const std::string> live_;
+  std::shared_ptr<const std::string> last_target_;
+  std::shared_ptr<const std::string> memory_map_;
+};
 
 // The latest /api/live, /api/last-target and /api/memory-map payloads,
 // written by the main loop and read by the dashboard thread.
@@ -46,8 +63,55 @@ class SharedState
     return memory_map_;
   }
 
+  void PublishTargets(std::vector<PublishedTarget> p_targets,
+                      Json p_description)
+  {
+    std::ranges::sort(p_targets, {}, &PublishedTarget::key_);
+    std::lock_guard lock{mutex_};
+    targets_ = std::move(p_targets);
+    targets_json_ =
+        std::make_shared<const std::string>(DumpJson(p_description));
+    if (!targets_.empty())
+    {
+      auto selected =
+          std::ranges::find(targets_, "default", &PublishedTarget::id_);
+      const auto& target =
+          selected == targets_.end() ? targets_.front() : *selected;
+      live_ = target.live_;
+      last_target_ = target.last_target_;
+      memory_map_ = target.memory_map_;
+    }
+  }
+
+  [[nodiscard]] std::optional<PublishedTarget> Select(std::string_view p_key)
+  {
+    std::lock_guard lock{mutex_};
+    if (targets_.empty())
+    {
+      return std::nullopt;
+    }
+    if (p_key.empty())
+    {
+      auto found =
+          std::ranges::find(targets_, "default", &PublishedTarget::id_);
+      return found == targets_.end() ? targets_.front() : *found;
+    }
+    const auto found =
+        std::ranges::find(targets_, p_key, &PublishedTarget::key_);
+    return found == targets_.end() ? std::nullopt : std::optional{*found};
+  }
+
+  [[nodiscard]] std::shared_ptr<const std::string> Targets()
+  {
+    std::lock_guard lock{mutex_};
+    return targets_json_;
+  }
+
  private:
   std::mutex mutex_;
+  std::vector<PublishedTarget> targets_;
+  std::shared_ptr<const std::string> targets_json_ =
+      std::make_shared<const std::string>(R"({"targets":[]})");
   std::shared_ptr<const std::string> live_ =
       std::make_shared<const std::string>("{}");
   std::shared_ptr<const std::string> last_target_ =

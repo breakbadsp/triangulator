@@ -100,4 +100,21 @@ hosts. The legacy `sampler_ip` key remains valid. Use only one form. Without
 either key, the collector accepts and pins the first valid sender.
 
 The collector keeps each target's monitors, replay recorder, and published
-views in a target slot. This first rollout step uses one slot.
+views in target slots. `max_targets` defaults to 8 and permits 1..64.
+Each slot keeps the full `max_live_samples`; the product of the two is at most
+10,000,000. Hidden sessions
+that await TTGT also use slots. `/api/targets` reports rejected datagrams
+and capacity drops. An allowed sender cannot replace another sender's host
+name during one collector run.
+
+Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
+requests to select one target. Without this parameter, the collector uses a
+`default` target if present, then the first key by host and ID. Unknown keys
+return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
+carry no target, so it is selected by `pid` and `observer` only. Replay files
+have a separate directory for each announced target. One legacy target keeps
+the current location; another legacy sender gets its own directory.
+
+Upgrade the collector before installing a sampler that sends TTGT. Each day
+file has a `session_target` mapping table. Existing files remain readable;
+sessions without a mapping belong to `default`.

@@ -23,7 +23,8 @@
 namespace triangulator::collector
 {
 
-// The largest max_live_samples. The Monitor reserves about 280 bytes of
+// The largest max_live_samples, and the largest total of max_live_samples
+// over all target slots. Each slot's Monitor reserves about 280 bytes of
 // address space for each live sample at startup, so this limit is about
 // 2.8 GB. A larger value could make the reservation fail.
 inline constexpr std::int64_t kMaxLiveSamplesLimit = 10'000'000;
@@ -164,6 +165,7 @@ struct Config
   // WatchSettings in watch.hpp).
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
+  std::int64_t max_targets_ = 8;
   std::optional<std::string> sampler_ip_;
   std::vector<std::string> sampler_ips_;
   // Length of one rollup window in seconds (5..10).
@@ -257,6 +259,7 @@ namespace detail
        {std::pair{"clock_ticks", &Config::clock_ticks_},
         std::pair{"retention_days", &Config::retention_days_},
         std::pair{"max_live_samples", &Config::max_live_samples_},
+        std::pair{"max_targets", &Config::max_targets_},
         std::pair{"udp_port", &Config::udp_port_},
         std::pair{"http_port", &Config::http_port_}})
   {
@@ -278,6 +281,18 @@ namespace detail
   {
     return std::unexpected(std::format("max_live_samples must be at most {}",
                                        kMaxLiveSamplesLimit));
+  }
+  if (config.max_targets_ < 1 || config.max_targets_ > 64)
+  {
+    return std::unexpected("max_targets must be 1..64");
+  }
+  // Every slot keeps the full max_live_samples, so the reservation grows with
+  // max_targets.
+  if (config.max_live_samples_ > kMaxLiveSamplesLimit / config.max_targets_)
+  {
+    return std::unexpected(
+        std::format("max_live_samples times max_targets must be at most {}",
+                    kMaxLiveSamplesLimit));
   }
   for (const auto& [key, member] :
        {std::pair{"data_dir", &Config::data_dir_},
