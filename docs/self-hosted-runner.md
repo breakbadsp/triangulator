@@ -62,6 +62,13 @@ The script installs `podman`, `python-pipx`, and `github-cli`, creates
 `triangulator` label, and starts the service. The token expires after one
 hour.
 
+To apply a newer version of the script to a registered runner, rerun it
+without a token. It keeps the registration and restarts the service:
+
+```sh
+sudo .github/scripts/self-hosted-runner-setup.sh < /dev/null
+```
+
 ## Operate the runner
 
 ```sh

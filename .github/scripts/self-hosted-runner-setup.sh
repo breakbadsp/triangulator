@@ -6,6 +6,8 @@
 # Run as root, with a registration token on standard input:
 #   gh api -X POST repos/breakbadsp/triangulator/actions/runners/registration-token \
 #     --jq .token | sudo .github/scripts/self-hosted-runner-setup.sh
+# Once the runner is registered, rerun it with no token to update the host:
+#   sudo .github/scripts/self-hosted-runner-setup.sh < /dev/null
 # See docs/self-hosted-runner.md.
 set -euo pipefail
 
@@ -15,8 +17,8 @@ runner_version=2.338.0
 runner_sha256=af4b794c1bc41d73d40535e3fe092a39f9679cd8d965954c2aca25a05ca41d32
 
 [[ $EUID -eq 0 ]] || { echo "Run this script as root." >&2; exit 1; }
-read -r token
-[[ -n "$token" ]] || { echo "Pass a registration token on standard input." >&2; exit 1; }
+token=
+read -r token || true
 
 pacman -S --needed --noconfirm podman python-pipx github-cli
 
@@ -62,15 +64,12 @@ fi
 EOF
 
 if [[ ! -f "$home/actions-runner/.runner" ]]; then
+    [[ -n "$token" ]] || { echo "Pass a registration token on standard input." >&2; exit 1; }
     as_runner "$home/actions-runner/config.sh" --unattended \
         --url "$repo_url" --token "$token" \
         --name "$(hostnamectl hostname)" --labels triangulator \
         --work _work --replace
 fi
-# The runner gives jobs this PATH.
-echo "$home/bin:/usr/local/bin:/usr/bin" > "$home/actions-runner/.path"
-chown "$runner_user:" "$home/actions-runner/.path"
-
 as_runner mkdir -p "$home/.config/systemd/user"
 cat > "$home/.config/systemd/user/actions-runner.service" <<EOF
 [Unit]
@@ -79,6 +78,8 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=$home/actions-runner
+# Jobs inherit this PATH, so `docker` finds the Podman wrapper first.
+Environment=PATH=$home/bin:/usr/local/bin:/usr/bin
 ExecStart=$home/actions-runner/run.sh
 Restart=always
 RestartSec=10
@@ -91,5 +92,6 @@ WantedBy=default.target
 EOF
 chown "$runner_user:" "$home/.config/systemd/user/actions-runner.service"
 systemctl --user -M "$runner_user@" daemon-reload
-systemctl --user -M "$runner_user@" enable --now actions-runner.service
+systemctl --user -M "$runner_user@" enable actions-runner.service
+systemctl --user -M "$runner_user@" restart actions-runner.service
 systemctl --user -M "$runner_user@" --no-pager status actions-runner.service
