@@ -1259,6 +1259,20 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid recording cadence is rejected");
   }
+  Require(ParseConfig("").value().target_idle_expiry_s_ == 600,
+          "idle targets are released after ten minutes by default");
+  for (const std::string_view text :
+       {"target_idle_expiry_s=1", "target_idle_expiry_s=0.5e1",
+        "target_idle_expiry_s=86400"})
+  {
+    Require(ParseConfig(text).has_value(), "supported idle expiry");
+  }
+  for (const std::string_view text :
+       {"target_idle_expiry_s=0", "target_idle_expiry_s=86401",
+        "target_idle_expiry_s=true", "target_idle_expiry_s=nan"})
+  {
+    Require(!ParseConfig(text), "invalid idle expiry is rejected");
+  }
   Require(ParseConfig("max_live_samples=10000000\nmax_targets=1").has_value() &&
               !ParseConfig("max_live_samples=10000001\nmax_targets=1"),
           "max_live_samples has an upper limit");

@@ -166,6 +166,8 @@ struct Config
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
   std::int64_t max_targets_ = 8;
+  // A target slot silent for longer than this is released for reuse.
+  double target_idle_expiry_s_ = 600;
   std::optional<std::string> sampler_ip_;
   std::vector<std::string> sampler_ips_;
   // Length of one rollup window in seconds (5..10).
@@ -322,6 +324,16 @@ namespace detail
       return std::unexpected("replay_interval_s must be 0 or 0.5..60");
     }
     config.replay_interval_s_ = interval->AsNumber();
+  }
+
+  if (const auto* expiry = root.Find("target_idle_expiry_s"))
+  {
+    if (!expiry->IsNumber() || !std::isfinite(expiry->AsNumber()) ||
+        !(1 <= expiry->AsNumber() && expiry->AsNumber() <= 86400))
+    {
+      return std::unexpected("target_idle_expiry_s must be 1..86400");
+    }
+    config.target_idle_expiry_s_ = expiry->AsNumber();
   }
 
   if (const auto* alerts = root.Find("alerts"))
