@@ -256,47 +256,43 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.state_.SetLastTarget(slot.last_body_);
           slot.previous_metadata_.reset();
         }
-        slot.watches_ =
-            target_watches.Get(key, slot.id_.View(), slot.peer_.View());
+        // One slot at most owns the data from before targets existed (see
+        // TargetFleet::LegacyOwner): data_dir/replay, unmapped history, and
+        // data_dir/watch-rules.json. Ownership, the recording root, and the
+        // recording interval are checked on every refresh, so a TTGT that
+        // renames a provisional slot moves its recorder and applies the new
+        // identity's interval.
+        const bool owns_legacy = &slot == legacy_owner;
+        slot.legacy_replay_ = owns_legacy;
+        slot.watches_ = target_watches.Get(key, owns_legacy);
         const auto watch_state =
             slot.watches_ ? slot.watches_->Current() : nullptr;
         if (watch_state != slot.published_watches_)
         {
           slot.dirty_ = true;
         }
-        const bool primary_sender =
-            config.sampler_ips_.empty() ||
-            config.sampler_ips_.front() == slot.peer_.View();
-        slot.legacy_replay_ = slot.id_.View() == "default" && primary_sender;
-        // One slot at most records into data_dir/replay (see
-        // TargetFleet::LegacyOwner). The root is checked on every refresh,
-        // so a TTGT that renames a provisional slot moves its recorder.
-        const auto root = &slot == legacy_owner
-                              ? std::filesystem::path{config.data_dir_}
-                              : TargetDataRoot(config.data_dir_, key);
+        const auto root = owns_legacy ? std::filesystem::path{config.data_dir_}
+                                      : TargetDataRoot(config.data_dir_, key);
         if (root != slot.replay_root_)
         {
           slot.recorder_.SetRoot(root);
           slot.replay_root_ = root;
         }
-        if (!slot.recorder_started_)
+        const double interval_s =
+            ReplayInterval(config, slot.host_.View(), slot.id_.View());
+        if (!slot.recorder_started_ ||
+            interval_s != slot.config_.replay_interval_s_)
         {
-          slot.config_.replay_interval_s_ = config.replay_interval_s_;
-          for (const auto& setting : config.targets_)
-          {
-            if (setting.host_ == slot.host_.View() &&
-                setting.id_ == slot.id_.View())
-            {
-              slot.config_.replay_interval_s_ = setting.replay_interval_s_;
-              break;
-            }
-          }
-          slot.recorder_.SetInterval(slot.config_.replay_interval_s_);
+          // Start returns at once when the writer already runs or the
+          // interval is zero. Nothing here stops or joins the writer.
+          slot.config_.replay_interval_s_ = interval_s;
+          slot.recorder_.SetInterval(interval_s);
           if (auto started = slot.recorder_.Start(); !started)
           {
             return Stopped(started.error());
           }
           slot.recorder_started_ = true;
+          slot.dirty_ = true;
         }
         auto& monitor = slot.monitor_;
         auto& resources = slot.resources_;

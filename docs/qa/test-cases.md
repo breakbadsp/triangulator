@@ -94,7 +94,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 ## QA-064: Per-target watch settings and recordings
 
-Feature: Target settings. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Target settings. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: Two targets have distinct thread names. Both have recordings.
 
@@ -105,10 +105,17 @@ Preconditions: Two targets have distinct thread names. Both have recordings.
    table. Restart the collector and inspect each target's recordings.
 5. Upgrade a single-target data directory. Check its saved watch rules and
    old recordings through the `default` target.
+6. List the larger sampler address first in `sampler_ips`. Run a `default`
+   target on each host. Save a watch rule for each `default` target.
+7. Start a sampler before the collector, so the collector hears samples before
+   the TTGT of the target with `replay_interval_s = 0`.
 
 Expected: Changes affect only the selected target. Saved settings survive a
-restart. A disabled recording interval stops new recordings for that target.
-Old default settings and recordings remain available.
+restart. A disabled recording interval stops new recordings for that target,
+also after a late TTGT names it. Old default settings and recordings remain
+available. Only the `default` target of the smallest address uses
+`data_dir/watch-rules.json` and `data_dir/replay`; the other `default` target
+uses its own files.
 
 ## QA-065: Target control commands
 

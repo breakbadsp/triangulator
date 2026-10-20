@@ -186,6 +186,22 @@ struct Config
   bool alerting_ignored_ = false;
 };
 
+// The recording interval of one target: its [[target]] override, or the
+// global replay_interval_s.
+[[nodiscard]] inline double ReplayInterval(const Config& p_config,
+                                           std::string_view p_host,
+                                           std::string_view p_id)
+{
+  for (const auto& setting : p_config.targets_)
+  {
+    if (setting.host_ == p_host && setting.id_ == p_id)
+    {
+      return setting.replay_interval_s_;
+    }
+  }
+  return p_config.replay_interval_s_;
+}
+
 [[nodiscard]] inline std::expected<std::string, std::string> ReadFile(
     const std::filesystem::path& p_path)
 {

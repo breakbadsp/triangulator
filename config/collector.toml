@@ -72,7 +72,8 @@ prefix = "misc-"
 # when several prefixes match a thread name, the longest wins. wake_ms is
 # 10-3600000. At most 64 rules. Rules saved from the dashboard (in
 # data_dir/watch-rules/<hex-host-and-id>.json) replace these for that target
-# until reset. The primary default target keeps data_dir/watch-rules.json.
+# until reset. The default target that keeps data_dir/replay also keeps
+# data_dir/watch-rules.json.
 # [[watch]]
 # prefix = "worker-"
 # wake_ms = 500

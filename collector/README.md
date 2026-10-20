@@ -127,7 +127,8 @@ target gets its own directory.
 
 Upgrade the collector before installing a sampler that sends TTGT. Each day
 file has a `session_target` mapping table. Existing files remain readable;
-sessions without a mapping belong to the primary sender's `default` target.
+sessions without a mapping belong to the same `default` target that keeps
+`data_dir/replay`.
 
 ### Per-target settings
 
@@ -145,11 +146,10 @@ use the global interval. Restart the collector after a configuration change.
 
 Watch rules saved from the dashboard are independent for each target. Files
 use `data_dir/watch-rules/<hex-key>.json`, where the key is the UTF-8 bytes of
-`host/id`, encoded as hexadecimal. The `default` target from the first
-configured sampler IP keeps `data_dir/watch-rules.json`. With source pinning,
-the only sampler host keeps that default file. Keep the first sender stable
-when migrating an existing installation. The same default target can read
-legacy recordings from `data_dir/replay` as well as its target directory.
+`host/id`, encoded as hexadecimal. The one `default` target that keeps
+`data_dir/replay` (see above) also keeps `data_dir/watch-rules.json`. Every
+other target, including another `default` target behind the same address,
+has its own file.
 
 The collector loads at most 1,024 saved target watch files at startup. New
 settings use configuration rules until saved. `/api/targets` reports watch

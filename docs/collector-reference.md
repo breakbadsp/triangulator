@@ -292,8 +292,9 @@ type, and checks the limits below before it enables **Save**. The tab is
 read-only while you inspect a recorded moment and on a collector build without
 these endpoints.
 
-The dashboard can replace the rules. They are saved in
-`data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
+The dashboard can replace the rules of the selected target. They are saved in
+`data_dir/watch-rules/<hex-key>.json`, or in `data_dir/watch-rules.json` for
+the `default` target that keeps `data_dir/replay` (written to a temporary file, flushed, then renamed;
 the data directory is flushed after the rename or a reset).
 While that file exists, its list replaces the `[[watch]]` list completely,
 even when it is empty; the startup log says so. If it can't be read or is

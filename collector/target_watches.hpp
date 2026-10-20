@@ -66,14 +66,13 @@ class TargetWatches final
     }
   }
 
+  // p_legacy_owner is true only for TargetFleet::LegacyOwner(). That one
+  // target keeps data_dir/watch-rules.json; every other target, including
+  // other "default" targets behind the same address, has its own file.
   [[nodiscard]] std::shared_ptr<WatchSettings> Get(std::string_view p_key,
-                                                   std::string_view p_id,
-                                                   std::string_view p_peer)
+                                                   bool p_legacy_owner)
   {
-    // The first configured sender owns the legacy default file. With source
-    // pinning there is only one sampler host, so the old path stays stable.
-    if (p_id == "default" && (config_.sampler_ips_.empty() ||
-                              config_.sampler_ips_.front() == p_peer))
+    if (p_legacy_owner)
     {
       return default_;
     }

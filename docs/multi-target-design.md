@@ -240,7 +240,8 @@ packet, so **upgrade the collector before the samplers**.
   it uses the default target: `default` if present, otherwise the first target
   by host and id. Existing scripts and older dashboards keep working.
 - Watch rules are stored for each target (`data_dir/watch-rules/<target>.json`).
-  The primary default target keeps the current `watch-rules.json`.
+  The `default` target that keeps `data_dir/replay` (see Collector, Replay
+  directory) also keeps the current `watch-rules.json`.
 - Changing the monitored set (`POST /api/targets`, add or remove) runs the
   sampler control helper, which edits `[[target]]` tables and sends `SIGHUP`.
   As today, this works only when the sampler runs on the collector host as the
