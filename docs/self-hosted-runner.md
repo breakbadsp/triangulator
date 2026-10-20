@@ -43,7 +43,14 @@ The runner is set up for Arch Linux (Omarchy). It has these properties:
 
 Rootless containers own files under subordinate user IDs. The AlmaLinux job
 therefore gives its `reports/` files back to `gha-runner` at the end, so the
-next checkout can delete them.
+next checkout can delete them. If the job stops before that step, for
+example because the computer shut down or the service restarted, every later
+checkout fails with a permission error in `reports/`. Remove the directory as
+`gha-runner`:
+
+```sh
+sudo -iu gha-runner podman unshare rm -rf actions-runner/_work/triangulator/triangulator/reports
+```
 
 One runner runs one job at a time, so matrix jobs run one after another. If
 the computer is off, jobs wait in the queue for up to 24 hours.
