@@ -1,20 +1,28 @@
 # Self-hosted CI runner
 
-The repository's GitHub Actions jobs run on the owner's Linux computer
-instead of GitHub's runners. Pull requests from forks still run on GitHub's
-`ubuntu-24.04` runners, so code from outside contributors never runs on the
-owner's computer.
+The repository's GitHub Actions jobs temporarily run on GitHub's
+`ubuntu-24.04` runners. Independent jobs and matrix entries can run in
+parallel, within GitHub's concurrency limits. The local runner remains
+configured for later use.
 
 ## How jobs choose a runner
 
-Each job has this line:
+Each job currently has this line:
+
+```yaml
+runs-on: ubuntu-24.04
+```
+
+Keep this setting until local CI has enough runner instances to run jobs in
+parallel. To return to local CI, restore this line in each job:
 
 ```yaml
 runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
 ```
 
-Pushes, tags, manual runs, and pull requests from branches in this
-repository go to the self-hosted runner. Fork pull requests go to GitHub.
+With the restored setting, pushes, tags, manual runs, and pull requests
+from branches in this repository go to the self-hosted runner. Fork pull
+requests go to GitHub.
 
 A fork can edit this line in its own pull request. The repository therefore
 also requires the owner's approval before any workflow runs for an outside
@@ -23,7 +31,7 @@ request workflows from contributors → Require approval for all external
 contributors**). Read the workflow changes in a fork pull request before you
 approve its run.
 
-Jobs check `runner.environment` where the two runners differ. On the
+Jobs retain `runner.environment` checks where the two runners differ. On the
 self-hosted runner, the sanitizer job uses the installed `g++` instead of
 installing `g++-14`, and skips the `vm.mmap_rnd_bits` change because the
 host kernel already uses 28 bits.
@@ -94,5 +102,3 @@ sudo systemctl --user -M gha-runner@ disable --now actions-runner
 sudo loginctl disable-linger gha-runner
 sudo userdel --remove gha-runner
 ```
-
-To return all jobs to GitHub, set each `runs-on` back to `ubuntu-24.04`.
