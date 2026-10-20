@@ -490,8 +490,13 @@ class MultiTargetSamplerTests(unittest.TestCase):
         changed = set()
         from wire import decode
         deadline = time.monotonic() + 14
+        # The approved 0.2 Hz minimum permits five seconds between packets.
+        self.receiver.settimeout(0.5)
         while time.monotonic() < deadline and (len(announced) < 2 or len(changed) < 2):
-            data = self.receiver.recv(1500)
+            try:
+                data = self.receiver.recv(1500)
+            except TimeoutError:
+                continue
             if data.startswith(b"TTGT"):
                 packet = ANNOUNCE.unpack(data)
                 if packet[5] < packet[9]:
