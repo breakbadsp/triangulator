@@ -12,3 +12,12 @@ resource_interval_s = 2
 # summary (default 30; 0 = off; 1..3600). Reading maps briefly shares the
 # target's memory-map lock; see docs/memory-map.md.
 memory_interval_s = 30
+
+# For multiple targets, remove target_process/target_pid above. Add tables
+# after all global settings:
+# [[target]]
+# id = "orders"
+# process = "orders-api"
+# [[target]]
+# id = "billing"
+# pid = 1234

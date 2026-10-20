@@ -210,6 +210,8 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     {
       std::vector<PublishedTarget> published;
       JsonArray descriptions;
+      fleet.ReleaseIdle(now);
+      const TargetSlot* const legacy_owner = fleet.LegacyOwner();
       for (auto& owned : fleet.Slots())
       {
         auto& slot = *owned;
@@ -238,23 +240,19 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.state_.SetLastTarget(slot.previous_view_->state_.LastTarget());
           slot.previous_view_ = nullptr;
         }
+        // One slot at most records into data_dir/replay (see
+        // TargetFleet::LegacyOwner). The root is checked on every refresh,
+        // so a TTGT that renames a provisional slot moves its recorder.
+        const auto root = &slot == legacy_owner
+                              ? std::filesystem::path{config.data_dir_}
+                              : TargetDataRoot(config.data_dir_, key);
+        if (root != slot.replay_root_)
+        {
+          slot.recorder_.SetRoot(root);
+          slot.replay_root_ = root;
+        }
         if (!slot.recorder_started_)
         {
-          // Recordings made before targets existed live in data_dir itself.
-          // They belong to one fixed legacy target: the only sender when the
-          // sender is pinned, otherwise the smallest address in sampler_ips.
-          // The choice does not depend on arrival order, so a restart keeps
-          // each recording with the same target. Other targets get their own
-          // directory, so frames never overwrite each other.
-          const bool owns_default_root =
-              !slot.announced_ && slot.id_.View() == "default" &&
-              (config.sampler_ips_.empty() ||
-               slot.host_.View() ==
-                   *std::ranges::min_element(config.sampler_ips_));
-          slot.replay_root_ = owns_default_root
-                                  ? std::filesystem::path{config.data_dir_}
-                                  : TargetDataRoot(config.data_dir_, key);
-          slot.recorder_.SetRoot(slot.replay_root_);
           if (auto started = slot.recorder_.Start(); !started)
           {
             return Stopped(started.error());

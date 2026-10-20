@@ -5,9 +5,11 @@
 #include <cstring>
 #include <expected>
 #include <format>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 #include "exit_status.hpp"
 #include "kernel_log.hpp"
@@ -75,76 +77,66 @@ extern "C" void OnSignal(int p_number)
   return session;
 }
 
-class Sampler
+class TargetSampler final
 {
  public:
-  Sampler(RuntimeConfig p_config, std::size_t p_descriptor_limit)
-      : config_(std::move(p_config)), threads_(p_descriptor_limit)
+  TargetSampler(RuntimeConfig& p_config, TargetConfig p_target,
+                DescriptorBudget& p_budget, RateLimitedLogger& p_logger,
+                const std::array<char, 64>& p_host)
+      : config_(p_config),
+        target_(std::move(p_target)),
+        threads_(p_budget),
+        logger_(p_logger),
+        host_(p_host)
   {
   }
 
-  // Samples until SIGINT/SIGTERM. Returns an error only when no new session
-  // id can be made.
-  [[nodiscard]] std::expected<void, std::string> Run(const char* p_config_path)
+  [[nodiscard]] const TargetConfig& Settings() const noexcept
   {
-    if (auto reset = ResetSession(); !reset)
-    {
-      return reset;
-    }
-    auto deadline = ClockNow(CLOCK_MONOTONIC);
-    while (!stop_requested)
-    {
-      if (reload_requested)
-      {
-        reload_requested = 0;
-        // A reload is a new start on operator request. Like startup, it
-        // may allocate; the sampling ticks after it do not.
-        auto next = LoadConfig(p_config_path);
-        if (next)
-        {
-          config_ = std::move(*next);
-          if (auto reset = ResetSession(); !reset)
-          {
-            return reset;
-          }
-        }
-        else
-        {
-          logger_.Warn(
-              "invalid SIGHUP config; keeping previous configuration: {}",
-              next.error());
-        }
-      }
-      const auto lookup = FindTarget(config_.settings_.target_);
-      if (lookup)
-      {
-        if (auto sampled = SampleTick(*lookup); !sampled)
-        {
-          return sampled;
-        }
-      }
-      else
-      {
-        // Not the same as "target absent": keep the session and the
-        // thread cache, send nothing and retry at the next deadline.
-        logger_.Warn("target lookup failed: {}; tick skipped, session kept",
-                     std::strerror(lookup.error()));
-      }
-      const auto interval = config_.settings_.Interval();
-      const auto now = ClockNow(CLOCK_MONOTONIC);
-      deadline += interval;
-      if (deadline <= now)
-      {
-        deadline += interval * ((now - deadline) / interval + 1);
-      }
-      SleepUntil(deadline);
-    }
-    return {};
+    return target_;
+  }
+  [[nodiscard]] std::expected<void, std::string> Initialize()
+  {
+    return ResetSession();
   }
 
- private:
+  [[nodiscard]] bool HeavyDue(bool p_memory, Nanoseconds p_now) const
+  {
+    if (!previous_target_)
+    {
+      return false;
+    }
+    if (p_memory)
+    {
+      return MemoryInterval() > Nanoseconds{0} &&
+             (memory_.Busy() ||
+              p_now + config_.settings_.Interval() / 2 >= next_memory_);
+    }
+    return ResourceInterval() > Nanoseconds{0} &&
+           p_now + config_.settings_.Interval() / 2 >= next_resources_;
+  }
+
+  void StepHeavy(bool p_memory, Nanoseconds p_now)
+  {
+    if (!previous_target_)
+    {
+      return;
+    }
+    if (p_memory)
+    {
+      StepMemory(*previous_target_, p_now);
+    }
+    else
+    {
+      SendResources(*previous_target_);
+      next_resources_ =
+          NextDeadline(next_resources_, p_now, ResourceInterval());
+    }
+  }
+
   [[nodiscard]] std::expected<void, std::string> SampleTick(
-      const std::optional<TargetIdentity>& p_target)
+      const std::optional<TargetIdentity>& p_target,
+      Nanoseconds p_exit_deadline)
   {
     if (p_target != previous_target_)
     {
@@ -171,7 +163,8 @@ class Sampler
           exit_report_ = kernel_log_.Collect(
               *previous_target_, std::span{records_}.first(record_count_),
               ClockNow(CLOCK_REALTIME), logger_,
-              std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms));
+              std::max<Nanoseconds>(
+                  Nanoseconds{0}, p_exit_deadline - ClockNow(CLOCK_MONOTONIC)));
           if (const auto status = exit_status_.Collect(*previous_target_))
           {
             exit_report_.wait_status_ = *status;
@@ -226,6 +219,7 @@ class Sampler
             "target's UID");
       }
     }
+    StepAnnouncement(p_target, monotonic);
     SendTick(pid, monotonic, wall, std::span{records_}.first(count));
     record_count_ = count;
     if (p_target)
@@ -237,37 +231,43 @@ class Sampler
       --exit_report_sends_;
       SendPart(wire::AsBytes(exit_report_), "exit report");
     }
-    // Resource samples ride on thread ticks. Half a tick of slack keeps
-    // wake-up jitter from pushing one to the following tick.
-    const auto resource_interval = ResourceInterval();
-    const bool resources_due =
-        p_target && resource_interval > Nanoseconds{0} &&
-        monotonic + config_.settings_.Interval() / 2 >= next_resources_;
-    if (resources_due)
-    {
-      SendResources(*p_target);
-      next_resources_ =
-          NextDeadline(next_resources_, monotonic, resource_interval);
-    }
-    // A tick that sent resources leaves the memory map to the next tick,
-    // so one tick does not carry both. It waits one tick at most: when
-    // every tick sends resources, the memory map still gets every other.
-    // TODO(PR 37 review): no test covers this deferral or the time budget in
-    // StepMemory(). Both are private to Sampler.
-    if (p_target && (!resources_due || memory_deferred_))
-    {
-      memory_deferred_ = false;
-      StepMemory(*p_target, monotonic);
-    }
-    else
-    {
-      memory_deferred_ = resources_due;
-    }
     if (p_target)
     {
       StepProcessInfo(*p_target, monotonic);
     }
     return {};
+  }
+
+ private:
+  void StepAnnouncement(const std::optional<TargetIdentity>& p_target,
+                        Nanoseconds p_monotonic)
+  {
+    if (p_monotonic < next_announcement_)
+    {
+      return;
+    }
+    target_wire::Packet packet;
+    packet.session_ = session_;
+    target_wire::SetText(packet.target_, target_.id_);
+    packet.host_ = host_;
+    packet.configured_millihz_ = static_cast<std::uint32_t>(
+        std::lround(config_.settings_.rate_hz_ * 1000));
+    packet.effective_millihz_ = packet.configured_millihz_;
+    if (p_target)
+    {
+      packet.pid_ = static_cast<std::uint32_t>(p_target->pid_);
+      packet.process_start_ = p_target->starttime_;
+      const auto io =
+          OpenReadonly(FixedString{"/proc/{}/io", p_target->pid_}.CStr());
+      const auto maps =
+          OpenReadonly(FixedString{"/proc/{}/maps", p_target->pid_}.CStr());
+      if (!io || !maps)
+      {
+        packet.access_ = target_wire::Access::Limited;
+      }
+    }
+    SendPart(wire::AsBytes(packet), "target announcement");
+    next_announcement_ = p_monotonic + 10s;
   }
 
   // Sends what the target is (command line, executable, owner and so on).
@@ -466,6 +466,7 @@ class Sampler
     next_layout_ = Nanoseconds{0};
     process_info_read_ = false;
     next_process_info_ = Nanoseconds{0};
+    next_announcement_ = Nanoseconds{0};
     return {};
   }
 
@@ -512,6 +513,185 @@ class Sampler
     ++sequence_;
   }
 
+  // Datagrams are not acknowledged, so an exit report goes out with this
+  // many ticks; the collector keeps the first copy that arrives.
+  static constexpr int kExitReportSends = 5;
+
+  // How often the cached process info is sent again.
+  static constexpr Nanoseconds kProcessInfoInterval =
+      std::chrono::seconds{process_wire::kRepeatSeconds};
+
+  RuntimeConfig& config_;
+  TargetConfig target_;
+  ThreadCache threads_;
+  std::array<wire::Record, wire::kMaxThreads> records_{};
+  std::size_t record_count_ = 0;  // records_ filled by the last tick
+  KernelLog kernel_log_;
+  ExitStatusWatch exit_status_;
+  exit_wire::Report exit_report_{};
+  int exit_report_sends_ = 0;
+  RateLimitedLogger& logger_;
+  std::array<char, 64> host_{};
+  Nanoseconds next_announcement_{0};
+  std::optional<TargetIdentity> previous_target_;
+  std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
+  std::uint32_t sequence_ = 0;
+  ResourceProbe resources_;
+  std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
+  std::uint32_t resource_sequence_ = 0;
+  Nanoseconds next_resources_{0};
+  MemoryProbe memory_;
+  std::array<std::byte, memory_wire::kMaxPartSize> memory_packet_{};
+  std::uint32_t memory_sequence_ = 0;
+  Nanoseconds next_memory_{0};
+  Nanoseconds next_layout_{0};
+  ProcessInfoProbe process_info_probe_;
+  process_wire::Packet process_info_{};
+  bool process_info_read_ = false;  // process_info_ is this session's
+  Nanoseconds next_process_info_{0};
+};
+
+// One process and one monotonic loop handle every configured target.
+class Sampler final
+{
+ public:
+  Sampler(RuntimeConfig p_config, std::size_t p_descriptor_limit)
+      : config_(std::move(p_config)),
+        budget_{p_descriptor_limit > 3 * target_wire::kMaxTargets
+                    ? p_descriptor_limit - 3 * target_wire::kMaxTargets
+                    : 0,
+                0}
+  {
+    if (::gethostname(host_.data(), host_.size() - 1) != 0 ||
+        !target_wire::ValidName(target_wire::Text(host_), 63))
+    {
+      target_wire::SetText(host_, "unknown-host");
+    }
+  }
+
+  [[nodiscard]] std::expected<void, std::string> Run(const char* p_config_path)
+  {
+    if (auto prepared = PrepareTargets(false); !prepared)
+    {
+      return prepared;
+    }
+    auto deadline = ClockNow(CLOCK_MONOTONIC);
+    while (!stop_requested)
+    {
+      if (reload_requested)
+      {
+        reload_requested = 0;
+        auto next = LoadConfig(p_config_path);
+        if (next)
+        {
+          const auto& before = config_.settings_;
+          const auto& after = next->settings_;
+          const bool keep_sessions =
+              before.rate_hz_ == after.rate_hz_ &&
+              before.collector_ == after.collector_ &&
+              before.status_fallback_ == after.status_fallback_ &&
+              before.resource_interval_s_ == after.resource_interval_s_ &&
+              before.memory_interval_s_ == after.memory_interval_s_;
+          config_ = std::move(*next);
+          if (auto prepared = PrepareTargets(keep_sessions); !prepared)
+          {
+            return prepared;
+          }
+        }
+        else
+        {
+          logger_.Warn(
+              "invalid SIGHUP config; keeping previous configuration: {}",
+              next.error());
+        }
+      }
+      const auto exit_deadline =
+          ClockNow(CLOCK_MONOTONIC) +
+          std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms);
+      const auto lookups = FindTargets(config_.settings_.targets_);
+      for (std::size_t index = 0; index < targets_.size(); ++index)
+      {
+        if (lookups[index])
+        {
+          if (auto sampled =
+                  targets_[index]->SampleTick(*lookups[index], exit_deadline);
+              !sampled)
+          {
+            return sampled;
+          }
+        }
+        else
+        {
+          logger_.Warn("target lookup failed: {}; tick skipped, session kept",
+                       std::strerror(lookups[index].error()));
+        }
+      }
+      const auto now = ClockNow(CLOCK_MONOTONIC);
+      // A single cursor gives resources and memory maps equal opportunities.
+      const auto jobs = targets_.size() * 2;
+      for (std::size_t checked = 0; checked < jobs; ++checked)
+      {
+        const auto job = heavy_cursor_++ % jobs;
+        const auto index = job / 2;
+        if (lookups[index] && targets_[index]->HeavyDue(job % 2 != 0, now))
+        {
+          targets_[index]->StepHeavy(job % 2 != 0, now);
+          break;
+        }
+      }
+      const auto interval = config_.settings_.Interval();
+      const auto end = ClockNow(CLOCK_MONOTONIC);
+      deadline += interval;
+      if (deadline <= end)
+      {
+        deadline += interval * ((end - deadline) / interval + 1);
+      }
+      SleepUntil(deadline);
+    }
+    return {};
+  }
+
+ private:
+  RuntimeConfig config_;
+  DescriptorBudget budget_;
+  RateLimitedLogger logger_;
+  std::array<char, 64> host_{};
+  std::vector<std::unique_ptr<TargetSampler>> targets_;
+  std::size_t heavy_cursor_ = 0;
+
+  [[nodiscard]] std::expected<void, std::string> PrepareTargets(
+      bool p_keep_sessions)
+  {
+    std::vector<std::unique_ptr<TargetSampler>> next;
+    next.reserve(config_.settings_.targets_.size());
+    for (const auto& target : config_.settings_.targets_)
+    {
+      const auto found = std::ranges::find_if(
+          targets_,
+          [&](const auto& p_existing)
+          {
+            return p_existing && p_existing->Settings() == target;
+          });
+      if (p_keep_sessions && found != targets_.end())
+      {
+        next.push_back(std::move(*found));
+      }
+      else
+      {
+        auto sampler = std::make_unique<TargetSampler>(config_, target, budget_,
+                                                       logger_, host_);
+        if (auto initialized = sampler->Initialize(); !initialized)
+        {
+          return initialized;
+        }
+        next.push_back(std::move(sampler));
+      }
+    }
+    targets_ = std::move(next);
+    heavy_cursor_ = 0;
+    return {};
+  }
+
   static void SleepUntil(Nanoseconds p_deadline)
   {
     const auto seconds =
@@ -532,41 +712,6 @@ class Sampler
       assert(error == EINTR);
     }
   }
-
-  // Datagrams are not acknowledged, so an exit report goes out with this
-  // many ticks; the collector keeps the first copy that arrives.
-  static constexpr int kExitReportSends = 5;
-
-  // How often the cached process info is sent again.
-  static constexpr Nanoseconds kProcessInfoInterval =
-      std::chrono::seconds{process_wire::kRepeatSeconds};
-
-  RuntimeConfig config_;
-  ThreadCache threads_;
-  std::array<wire::Record, wire::kMaxThreads> records_{};
-  std::size_t record_count_ = 0;  // records_ filled by the last tick
-  KernelLog kernel_log_;
-  ExitStatusWatch exit_status_;
-  exit_wire::Report exit_report_{};
-  int exit_report_sends_ = 0;
-  RateLimitedLogger logger_;
-  std::optional<TargetIdentity> previous_target_;
-  std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
-  std::uint32_t sequence_ = 0;
-  ResourceProbe resources_;
-  std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
-  std::uint32_t resource_sequence_ = 0;
-  Nanoseconds next_resources_{0};
-  MemoryProbe memory_;
-  std::array<std::byte, memory_wire::kMaxPartSize> memory_packet_{};
-  std::uint32_t memory_sequence_ = 0;
-  Nanoseconds next_memory_{0};
-  Nanoseconds next_layout_{0};
-  bool memory_deferred_ = false;
-  ProcessInfoProbe process_info_probe_;
-  process_wire::Packet process_info_{};
-  bool process_info_read_ = false;  // process_info_ is this session's
-  Nanoseconds next_process_info_{0};
 };
 
 }  // namespace

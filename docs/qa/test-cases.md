@@ -63,6 +63,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-056 | NOT_RUN | - | - | - |
 | QA-057 | NOT_RUN | - | - | - |
 | QA-058 | NOT_RUN | - | - | - |
+| QA-059 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -83,6 +84,23 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-059: Multiple sampler targets and reload
+
+Feature: Multiple sampler targets. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One sampler and a matching collector. Two owned test processes.
+
+1. Configure two `[[target]]` tables with distinct IDs. Start the sampler.
+2. Check that one sampler process and one thread report both target sessions.
+3. Add a third target and send SIGHUP. Check that the first two sessions stay.
+4. Reorder the tables and send SIGHUP. Check that all sessions stay.
+5. Change `rate_hz` and send SIGHUP. Check that all sessions change.
+6. Stop one process. Check that only its target becomes absent.
+7. Use an invalid or duplicate ID. Check that reload retains the old settings.
+
+Expected: Target streams stay separate. Resource and memory-map samples rotate
+across targets. Invalid settings cannot replace a running configuration.
 
 ## QA-058: Target API selection
 

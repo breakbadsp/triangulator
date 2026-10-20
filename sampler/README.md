@@ -61,3 +61,42 @@ Send `SIGHUP` to apply configuration changes.
 [Architecture](../docs/architecture.md) ·
 [Resource data](../docs/resource-monitoring.md) ·
 [Collector](../collector/README.md)
+
+## Multiple targets
+
+Use one sampler process on each host. Put global settings before the target
+tables. Use either the legacy selector or target tables.
+
+```toml
+collector = "127.0.0.1:9400"
+rate_hz = 5.0
+
+[[target]]
+id = "orders"
+process = "orders-api"
+
+[[target]]
+id = "billing"
+pid = 1234
+```
+
+A configuration permits up to 16 targets. IDs must be unique and contain
+1..31 letters, digits, dots, underscores, or hyphens. Each table needs an ID
+and exactly one `process` or `pid`. A process name must be an exact, unique
+Linux process name of at most 15 bytes.
+
+Each target has its own session. A process restart changes only that session.
+On SIGHUP, targets with the same ID and selector keep their sessions. A global
+setting change starts new sessions for all targets. The sampler shares one
+process-name scan and one descriptor budget. Resources and memory maps rotate
+across targets; one tick runs at most one heavy scan. That caps all targets together at
+`rate_hz` heavy scans per second. When the enabled intervals ask for more
+(`targets * (1/resource_interval_s + 1/memory_interval_s)` above `rate_hz`),
+each source runs less often than configured, and there is no warning. At 5 Hz
+with 16 targets and `resource_interval_s = 2`, resources alone ask for 8 per
+second, so each target gets about one every 3 s. Raise `rate_hz` or the
+intervals, or disable a source, to avoid the stretch. Exit-log reads share
+one time limit of at most 50 ms for the full tick.
+
+The sampler sends TTGT at session start and every 10 seconds. Upgrade the
+collector first. Older collectors count TTGT as an invalid packet.

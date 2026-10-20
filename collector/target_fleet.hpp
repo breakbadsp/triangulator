@@ -151,6 +151,20 @@ class TargetFleet final
           break;
         }
       }
+      // The first TTGT can be lost before the collector binds its socket.
+      // A later default announcement adopts the legacy sender key.
+      if (!known && target_wire::Text(announcement->target_) == "default")
+      {
+        for (auto& candidate : slots_)
+        {
+          if (candidate->active_ && candidate->visible_ &&
+              !candidate->announced_ && candidate->peer_ == p_peer)
+          {
+            known = candidate.get();
+            break;
+          }
+        }
+      }
       if (!slot && known)
       {
         slot = known;
@@ -260,6 +274,52 @@ class TargetFleet final
       return slot->ingest_.Handle(p_data, p_peer, p_now);
     }
     return sink_.Status();
+  }
+
+  // Frees every slot whose sampler has been silent for longer than
+  // target_idle_expiry_s, so a replaced or removed target does not hold its
+  // slot forever. The recorder is not stopped or joined: a reused slot moves
+  // it with SetRoot, and an unused one waits idle. Called from the periodic
+  // refresh, never from the datagram path.
+  void ReleaseIdle(double p_now)
+  {
+    for (auto& slot : slots_)
+    {
+      if (slot->active_ &&
+          p_now - slot->last_seen_ > config_.target_idle_expiry_s_)
+      {
+        slot->monitor_.Close();
+        slot->resources_.Drain(p_now, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
+  }
+
+  // The one slot that records into data_dir/replay, or null. Recordings made
+  // before targets existed live there and belong to the "default" target of
+  // one fixed sender: the smallest address in sampler_ips, or the pinned
+  // sender when the list is empty (no other sender is accepted). If several
+  // hosts behind that address announce "default", the smallest host name wins.
+  // Only the current identity counts, so it is recomputed when TTGT renames a
+  // provisional slot and never depends on arrival order.
+  [[nodiscard]] const TargetSlot* LegacyOwner() const
+  {
+    const std::string_view sender =
+        config_.sampler_ips_.empty()
+            ? (pinned_ ? pinned_->View() : std::string_view{})
+            : std::string_view{*std::ranges::min_element(config_.sampler_ips_)};
+    const TargetSlot* owner = nullptr;
+    for (const auto& slot : slots_)
+    {
+      if (slot->active_ && slot->visible_ && slot->id_.View() == "default" &&
+          slot->peer_.View() == sender &&
+          (!owner || slot->host_.View() < owner->host_.View()))
+      {
+        owner = slot.get();
+      }
+    }
+    return owner;
   }
 
   void Close()

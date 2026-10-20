@@ -206,5 +206,5 @@ def receive_tick(receiver, size=1500):
     """The next thread-tick datagram, skipping resource, memory-map, process-identity and exit-report datagrams."""
     while True:
         data = receiver.recv(size)
-        if not data.startswith((b"TRES", b"TVMA", b"TPIN", b"TEND")):
+        if not data.startswith((b"TRES", b"TVMA", b"TPIN", b"TEND", b"TTGT")):
             return data
