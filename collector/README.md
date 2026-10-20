@@ -109,8 +109,10 @@ name during one collector run.
 Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
-return HTTP 404. Replay files have a separate directory for each announced
-target. Legacy replay files retain their current location.
+return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
+carry no target, so it is selected by `pid` and `observer` only. Replay files
+have a separate directory for each announced target. One legacy target keeps
+the current location; another legacy sender gets its own directory.
 
 Upgrade the collector before installing a sampler that sends TTGT. Each day
 file has a `session_target` mapping table. Existing files remain readable;

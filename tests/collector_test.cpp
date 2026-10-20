@@ -1167,6 +1167,25 @@ void TestSnapshotRecorder()
   Require(bounds.first_ && *bounds.first_ == 1'700'006'410 &&
               *bounds.last_ == 1'700'006'410,
           "stopping writes the waiting view, one per interval");
+
+  // A new root takes effect without stopping the recorder, and the frame
+  // offered for the old root stays there.
+  TempDirectory first;
+  TempDirectory second;
+  SnapshotRecorder moving{first.Path(), 7, 60};
+  Require(moving.Start().has_value(), "the moving recorder starts");
+  moving.Offer(1'700'006'410, view);
+  moving.SetRoot(second.Path());
+  moving.Offer(1'700'006'420, view);
+  Require(moving.Start().has_value(), "starting twice is harmless");
+  moving.Stop();
+  const auto old_root = Replay(first.Path(), {});
+  const auto new_root = Replay(second.Path(), {});
+  Require(!new_root.first_ || *new_root.first_ == 1'700'006'420,
+          "the new root has only its own frame");
+  Require(!old_root.first_ || *old_root.first_ == 1'700'006'410,
+          "the old root has only its own frame");
+  Require(new_root.first_.has_value(), "the frame after SetRoot is written");
 }
 
 // Omitted settings enable raw storage and recording; explicit values disable

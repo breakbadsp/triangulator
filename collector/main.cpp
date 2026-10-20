@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -215,8 +216,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             std::format("{}/{}", slot.host_.View(), slot.id_.View());
         if (slot.reset_view_)
         {
-          slot.recorder_.Stop();
+          // The writer keeps running: SetRoot below moves it without a join.
           slot.recorder_started_ = false;
+          slot.replay_root_.clear();
           slot.last_target_.reset();
           slot.published_layout_ = 0;
           slot.state_.SetLastTarget(
@@ -233,9 +235,20 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         }
         if (!slot.recorder_started_)
         {
-          slot.replay_root_ = slot.announced_
-                                  ? TargetDataRoot(config.data_dir_, key)
-                                  : std::filesystem::path{config.data_dir_};
+          // Recordings made before targets existed live in data_dir itself.
+          // One legacy target at a time keeps that directory; any other
+          // target gets its own, so frames never overwrite each other.
+          const bool default_root_free = std::ranges::none_of(
+              fleet.Slots(),
+              [&](const auto& p_other)
+              {
+                return p_other.get() != &slot && p_other->active_ &&
+                       p_other->recorder_started_ &&
+                       p_other->replay_root_ == config.data_dir_;
+              });
+          slot.replay_root_ = !slot.announced_ && default_root_free
+                                  ? std::filesystem::path{config.data_dir_}
+                                  : TargetDataRoot(config.data_dir_, key);
           slot.recorder_.SetRoot(slot.replay_root_);
           if (auto started = slot.recorder_.Start(); !started)
           {

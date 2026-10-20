@@ -16,7 +16,7 @@ class TargetFleet final
  public:
   TargetFleet(const Config& p_config, double p_now, Storage& p_storage,
               StorageSink& p_sink)
-      : config_(p_config), sink_(p_sink)
+      : config_(p_config), storage_(p_storage), sink_(p_sink)
   {
     Config slot_config = p_config;
     slot_config.max_live_samples_ /= p_config.max_targets_;
@@ -115,7 +115,8 @@ class TargetFleet final
       ++bad_packets_;
       return {};
     }
-    if (IsRetired(p_peer, session))
+    if (IsRetired(p_peer, session) &&
+        !(announcement && Recover(p_peer, session)))
     {
       return {};
     }
@@ -189,7 +190,10 @@ class TargetFleet final
     {
       if (slot->active_)
       {
-        Retire(slot->peer_, slot->session_);
+        // Without TTGT, a second session from this sender replaces the first
+        // as an old sampler would. If the sender is a new one that was
+        // heard before its announcements, its TTGT recovers the session.
+        Retire(slot->peer_, slot->session_, !announcement && !slot->announced_);
         slot->monitor_.Close();
         slot->resources_.Drain(p_now, true);
       }
@@ -197,6 +201,10 @@ class TargetFleet final
       if (!slot->active_)
       {
         slot->exits_.Clear();
+        // A reused slot must not keep the identity of its previous target.
+        slot->announced_ = false;
+        slot->announcement_ = {};
+        slot->previous_view_ = nullptr;
       }
       static_cast<void>(slot->monitor_.PrepareSession(session, p_now));
       slot->resources_.PrepareSession(session, p_now);
@@ -231,6 +239,11 @@ class TargetFleet final
       slot->announced_ = true;
       slot->visible_ = true;
       slot->mapping_dirty_ = true;
+      // Cache the mapping now. The session can be replaced before the next
+      // refresh, and its stored rows would otherwise belong to "default".
+      storage_.RememberTarget(slot->session_, slot->host_.View(),
+                              slot->id_.View(), announcement->pid_,
+                              announcement->process_start_, slot->first_seen_);
       // An initial tick can arrive before the first announcement. Its
       // temporary legacy key must not remain a second visible target.
       for (auto& candidate : slots_)
@@ -272,8 +285,11 @@ class TargetFleet final
   {
     PeerText peer_;
     std::uint64_t session_ = 0;
+    // Set when a legacy sender's session was replaced by another session.
+    bool inferred_ = false;
   };
   const Config& config_;
+  Storage& storage_;
   StorageSink& sink_;
   std::vector<std::unique_ptr<TargetSlot>> slots_;
   std::optional<PeerText> pinned_;
@@ -311,9 +327,28 @@ class TargetFleet final
                                         p_retired.peer_ == p_peer;
                                });
   }
-  void Retire(const PeerText& p_peer, std::uint64_t p_session)
+  void Retire(const PeerText& p_peer, std::uint64_t p_session,
+              bool p_inferred = false)
   {
-    retired_[retired_position_++ % retired_.size()] = {p_peer, p_session};
+    retired_[retired_position_++ % retired_.size()] = {p_peer, p_session,
+                                                       p_inferred};
+  }
+  // A TTGT proves a session that legacy routing retired is a real target.
+  [[nodiscard]] bool Recover(const PeerText& p_peer, std::uint64_t p_session)
+  {
+    const auto found = std::ranges::find_if(
+        retired_,
+        [&](const Retired& p_retired)
+        {
+          return p_retired.inferred_ && p_retired.session_ == p_session &&
+                 p_retired.peer_ == p_peer;
+        });
+    if (found == retired_.end())
+    {
+      return false;
+    }
+    *found = {};
+    return true;
   }
 };
 
