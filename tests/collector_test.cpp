@@ -6,10 +6,12 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -26,10 +28,12 @@
 
 #include "../collector/engine.hpp"
 #include "../collector/exits.hpp"
+#include "../collector/ingest.hpp"
 #include "../collector/memory.hpp"
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/target_fleet.hpp"
 #include "../collector/watch.hpp"
 
 namespace
@@ -1164,6 +1168,25 @@ void TestSnapshotRecorder()
   Require(bounds.first_ && *bounds.first_ == 1'700'006'410 &&
               *bounds.last_ == 1'700'006'410,
           "stopping writes the waiting view, one per interval");
+
+  // A new root takes effect without stopping the recorder, and the frame
+  // offered for the old root stays there.
+  TempDirectory first;
+  TempDirectory second;
+  SnapshotRecorder moving{first.Path(), 7, 60};
+  Require(moving.Start().has_value(), "the moving recorder starts");
+  moving.Offer(1'700'006'410, view);
+  moving.SetRoot(second.Path());
+  moving.Offer(1'700'006'420, view);
+  Require(moving.Start().has_value(), "starting twice is harmless");
+  moving.Stop();
+  const auto old_root = Replay(first.Path(), {});
+  const auto new_root = Replay(second.Path(), {});
+  Require(!new_root.first_ || *new_root.first_ == 1'700'006'420,
+          "the new root has only its own frame");
+  Require(!old_root.first_ || *old_root.first_ == 1'700'006'410,
+          "the old root has only its own frame");
+  Require(new_root.first_.has_value(), "the frame after SetRoot is written");
 }
 
 // Omitted settings enable raw storage and recording; explicit values disable
@@ -1201,9 +1224,15 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid recording cadence is rejected");
   }
-  Require(ParseConfig("max_live_samples=10000000").has_value() &&
-              !ParseConfig("max_live_samples=10000001"),
+  Require(ParseConfig("max_live_samples=10000000\nmax_targets=1").has_value() &&
+              !ParseConfig("max_live_samples=10000001\nmax_targets=1"),
           "max_live_samples has an upper limit");
+  Require(ParseConfig("").has_value(),
+          "the default history budget for every slot fits the limit");
+  Require(ParseConfig("max_live_samples=2500000\nmax_targets=4").has_value() &&
+              !ParseConfig("max_live_samples=2500001\nmax_targets=4") &&
+              !ParseConfig("max_targets=0"),
+          "the history budget of all slots has an upper limit");
 }
 
 // Checks [[watch]] parsing: valid rules keep their order, and each invalid
@@ -2319,6 +2348,70 @@ void TestMemoryMapSessions()
 
 }  // namespace
 
+// A sender list accepts datagrams from listed addresses only, for every
+// datagram kind. A malformed datagram that is counted as bad was accepted by
+// the filter, so the counters show which senders got through.
+void TestAllowedSenders()
+{
+  MonitorFixture fixture;
+  ResourceMonitor resources{fixture.sink_};
+  MemoryMonitor memory;
+  ExitMonitor exits;
+  ProcessMonitor process;
+  const std::vector<std::string> listed{"10.0.0.1", "10.0.0.2"};
+  Ingest ingest{listed, fixture.monitor_, resources,        memory,
+                exits,  process,          fixture.storage_, fixture.sink_};
+  Require(!ingest.SamplerIp(), "a sender list pins no single address");
+
+  const auto bad_total = [&]
+  {
+    return fixture.monitor_.bad_packets_ + resources.bad_parts_ +
+           memory.bad_parts_;
+  };
+  const auto handle = [&](std::string_view p_magic, const char* p_peer)
+  {
+    std::array<std::byte, 8> data{};
+    std::memcpy(data.data(), p_magic.data(), 4);
+    const auto before = bad_total();
+    Require(ingest.Handle(data, PeerText{p_peer}, 1'700'000'000).has_value(),
+            "datagram handled");
+    return bad_total() - before;
+  };
+  for (const std::string_view magic :
+       {"TSIO", "TRES", "TVMA", "TEND", "TPIN", "XXXX"})
+  {
+    Require(handle(magic, "10.0.0.1") == 1 && handle(magic, "10.0.0.2") == 1,
+            "listed senders are accepted");
+    Require(handle(magic, "10.0.0.3") == 0, "unlisted sender is dropped");
+  }
+}
+
+// Every slot keeps the whole max_live_samples budget, so a single target
+// keeps the history it had before targets existed.
+void TestEverySlotKeepsFullHistoryBudget()
+{
+  MonitorFixture fixture;
+  Config config;
+  config.max_targets_ = 4;
+  config.max_live_samples_ = 40;
+  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  for (std::uint32_t sequence = 0; sequence < 30; ++sequence)
+  {
+    const auto data = Encode(MakePacket(sequence));
+    Require(
+        fleet.Handle(data, PeerText{"127.0.0.1"}, 1'700'000'000.0 + sequence)
+            .has_value(),
+        "datagram handled");
+  }
+  const auto retained =
+      Field(fleet.Slots().front()->monitor_.Health(1'700'000'030),
+            "raw_samples")
+          .AsInt();
+  Require(retained > config.max_live_samples_ / config.max_targets_ &&
+              retained <= config.max_live_samples_,
+          "one target keeps more than a share of the budget");
+}
+
 int main()
 {
   try
@@ -2360,6 +2453,8 @@ int main()
     TestExitReports();
     TestExitStatus();
     TestProcessInfo();
+    TestAllowedSenders();
+    TestEverySlotKeepsFullHistoryBudget();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "

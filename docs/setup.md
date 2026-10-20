@@ -621,7 +621,9 @@ Checklist before going live (design section 12):
   unavailable. The collector keeps the newest and does not store it separately.
 - **Storage:** live samples expire after ten minutes and are capped by
   `max_live_samples` (default one million, at most ten million; the collector
-  reserves about 280 bytes of address space per sample at startup). At the
+  reserves about 280 bytes of address space per sample at startup, for each of
+  the `max_targets` slots; the default is 8, each slot keeps the full limit, and
+  the product of the two is at most ten million). At the
   default 5 Hz, the cap holds about 400 seconds for 500 threads, so ten minutes
   fits only up to about 330 threads. History is one SQLite file per UTC day
   (WAL mode) with per-thread rollups, committed every half second.

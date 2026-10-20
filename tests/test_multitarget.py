@@ -156,6 +156,80 @@ class MultiTargetCollectorTests(unittest.TestCase):
         self.assertEqual(len(description["targets"]), 4)
         self.assertEqual(description["bad_packets"], 1)
 
+    def targets(self):
+        return {target["key"] for target in self.fetch("/api/targets")["targets"]}
+
+    def test_sessions_heard_before_announcements_both_recover(self):
+        # A restarted collector hears both ticks before either announcement.
+        self.send(tick(101))
+        self.send(tick(202, pid=456))
+        self.send(announce(101, "orders"))
+        self.send(announce(202, "billing", pid=456))
+        self.wait_for(lambda: self.targets() == {"host-a/orders", "host-a/billing"})
+        self.send(tick(101, sequence=1))
+        self.send(tick(202, pid=456, sequence=1))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["health"]["pid"] == 123)
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/billing")["health"]["pid"] == 456)
+
+    def test_reused_slot_forgets_its_announced_identity(self):
+        self.send(announce(101, "orders"))
+        self.send(tick(101))
+        self.send(tick(303, pid=789))
+        self.send(announce(303, "orders", pid=789))  # Deactivates the first slot.
+        self.wait_for(lambda: self.targets() == {"host-a/orders"})
+        with socket.socket(type=socket.SOCK_DGRAM) as legacy:
+            legacy.bind(("127.0.0.2", 0))
+            legacy.sendto(tick(404, pid=321), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: self.targets() == {"host-a/orders", "127.0.0.2/default"})
+
+    def test_legacy_samplers_record_replay_separately(self):
+        with socket.socket(type=socket.SOCK_DGRAM) as other:
+            other.bind(("127.0.0.2", 0))
+            for sequence in range(3):
+                self.send(tick(111, pid=123, sequence=sequence))
+                other.sendto(tick(222, pid=456, sequence=sequence), ("127.0.0.1", self.udp_port))
+                time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"127.0.0.1/default", "127.0.0.2/default"})
+        for key, pid in (("127.0.0.1/default", 123), ("127.0.0.2/default", 456)):
+            self.wait_for(lambda: self.fetch(f"/api/replay?target={key}")["last"] is not None)
+            bounds = self.fetch(f"/api/replay?target={key}")
+            frame = self.fetch(f'/api/replay?target={key}&at={bounds["last"]}')["snapshot"]
+            self.assertEqual(frame["health"]["pid"], pid)
+
+    def test_legacy_recording_owner_ignores_arrival_order(self):
+        # 127.0.0.1 is the smallest allowed address, so its recordings stay in
+        # data_dir/replay whichever sender arrives first.
+        with socket.socket(type=socket.SOCK_DGRAM) as other:
+            other.bind(("127.0.0.2", 0))
+            for sequence in range(3):
+                other.sendto(tick(222, pid=456, sequence=sequence), ("127.0.0.1", self.udp_port))
+                time.sleep(0.2)
+                self.send(tick(111, pid=123, sequence=sequence))
+                time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"127.0.0.1/default", "127.0.0.2/default"})
+        replay = self.directory / "data" / "replay"
+        self.wait_for(lambda: replay.is_dir() and any(replay.iterdir()))
+        key = b"127.0.0.2/default".hex()
+        self.wait_for(lambda: (self.directory / "data" / "targets" / key / "replay").is_dir())
+        self.assertFalse((self.directory / "data" / "targets" / b"127.0.0.1/default".hex()).exists())
+        bounds = self.fetch("/api/replay?target=127.0.0.1/default")
+        frame = self.fetch(f'/api/replay?target=127.0.0.1/default&at={bounds["last"]}')["snapshot"]
+        self.assertEqual(frame["health"]["pid"], 123)
+
+    def test_replaced_session_keeps_its_target_mapping(self):
+        self.send(announce(101, "orders"))
+        self.send(tick(101))
+        self.send(announce(202, "orders", pid=456))  # Replaces 101 before a refresh.
+        self.send(tick(202, pid=456))
+
+        def mapped():
+            for path in (self.directory / "data").glob("*.sqlite3"):
+                with sqlite3.connect(path) as database:
+                    rows = database.execute("SELECT session,target FROM session_target").fetchall()
+                if ("101", "orders") in rows:
+                    return True
+            return False
+        self.wait_for(mapped)
 
 class MultiTargetSamplerTests(unittest.TestCase):
     def setUp(self):
