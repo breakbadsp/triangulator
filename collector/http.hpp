@@ -757,7 +757,7 @@ class DashboardServer
       return ip && (ip->starts_with("127.") || *ip == "::1");
     };
     if (!loopback(config_.http_host_) ||
-        (config_.sampler_ip_ && !loopback(*config_.sampler_ip_)))
+        !std::ranges::all_of(config_.sampler_ips_, loopback))
     {
       RespondJson(p_connection, p_target ? 403 : 200,
                   JsonObject{{"enabled", false},
