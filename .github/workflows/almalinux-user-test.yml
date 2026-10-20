@@ -7,6 +7,9 @@ on:
         description: Also test AlmaLinux 10
         type: boolean
         default: false
+  schedule:
+    - cron: '0 0 * * *'
+      timezone: Asia/Kolkata
   pull_request:
     paths:
       - Makefile
@@ -47,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
+        version: ${{ fromJSON(github.event_name == 'pull_request' && '["8"]' || github.event_name == 'workflow_dispatch' && inputs.include_almalinux_10 && '["8", "9", "10"]' || '["8", "9"]') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Build and test in AlmaLinux
@@ -91,3 +94,10 @@ jobs:
           name: almalinux-${{ matrix.version }}-new-user-test
           path: reports/
           retention-days: 14
+      # Rootless containers leave files owned by container users in reports/.
+      # Give them back to the runner so the next checkout can delete them.
+      - name: Return report files to the runner user
+        if: always() && runner.environment == 'self-hosted'
+        env:
+          ALMA_VERSION: ${{ matrix.version }}
+        run: docker run --rm -v "$PWD/reports:/reports" "almalinux:$ALMA_VERSION" chown -R 0:0 /reports

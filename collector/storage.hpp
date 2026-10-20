@@ -34,6 +34,11 @@ namespace triangulator::collector
 {
 
 inline constexpr std::string_view kSchema = R"(
+CREATE TABLE IF NOT EXISTS session_target (
+ session TEXT PRIMARY KEY NOT NULL, host TEXT NOT NULL, target TEXT NOT NULL,
+ pid INTEGER NOT NULL, process_start INTEGER NOT NULL, first_seen REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS session_target_key ON session_target(host, target);
 CREATE TABLE IF NOT EXISTS thread_rollup (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL,
  name TEXT NOT NULL, group_name TEXT NOT NULL, cpu_pct REAL,
@@ -614,6 +619,32 @@ class Storage
     return Storage{std::move(p_directory), p_retention_days};
   }
 
+  // Metadata is cached without allocation. Flush writes changed mappings to
+  // every open day file before it commits the rows.
+  void RememberTarget(std::uint64_t p_session, std::string_view p_host,
+                      std::string_view p_target, std::uint32_t p_pid,
+                      std::uint64_t p_start, double p_first_seen)
+  {
+    FixedText<24> session;
+    AppendUnsigned(session, p_session);
+    auto found = std::ranges::find(mappings_, session, &Mapping::session_);
+    if (found == mappings_.end())
+    {
+      found = mappings_.begin() + static_cast<std::ptrdiff_t>(
+                                      mapping_position_++ % mappings_.size());
+    }
+    Mapping next{session, FixedText<64>{p_host}, FixedText<32>{p_target}, p_pid,
+                 p_start, p_first_seen};
+    if (found->session_ == next.session_ && found->host_ == next.host_ &&
+        found->target_ == next.target_ && found->pid_ == next.pid_ &&
+        found->process_start_ == next.process_start_)
+    {
+      return;
+    }
+    *found = next;
+    ++mapping_version_;
+  }
+
   [[nodiscard]] SqliteResult Rollup(const RollupRow& p_row)
   {
     auto connection = Connection(p_row.ts_);
@@ -789,6 +820,10 @@ class Storage
     const auto today = UtcDay(p_now);
     for (auto iterator = files_.begin(); iterator != files_.end();)
     {
+      if (auto mapped = PersistTargets(iterator->second); !mapped)
+      {
+        return mapped;
+      }
       if (auto committed = Commit(iterator->second); !committed)
       {
         return committed;
@@ -831,7 +866,11 @@ class Storage
     SqliteResult result;
     for (auto& [day, file] : files_)
     {
-      auto committed = Commit(file);
+      auto committed = PersistTargets(file);
+      if (committed)
+      {
+        committed = Commit(file);
+      }
       if (!committed && result)
       {
         result = std::move(committed);
@@ -850,8 +889,56 @@ class Storage
     Statement socket_;
     Statement resource_;
     Statement exit_;
+    Statement target_;
+    std::uint64_t mapping_version_ = 0;
     bool in_transaction_ = false;
   };
+
+  struct Mapping
+  {
+    FixedText<24> session_;
+    FixedText<64> host_;
+    FixedText<32> target_;
+    std::uint32_t pid_ = 0;
+    std::uint64_t process_start_ = 0;
+    double first_seen_ = 0;
+  };
+  std::array<Mapping, 256> mappings_{};
+  std::size_t mapping_position_ = 0;
+  std::uint64_t mapping_version_ = 0;
+
+  [[nodiscard]] SqliteResult PersistTargets(DayFile& p_file)
+  {
+    if (p_file.mapping_version_ == mapping_version_)
+    {
+      return {};
+    }
+    if (auto begun = Begin(p_file); !begun)
+    {
+      return begun;
+    }
+    for (const auto& row : mappings_)
+    {
+      if (row.session_.View().empty())
+      {
+        continue;
+      }
+      Binder{p_file.target_.get()}
+          .Add(row.session_.View())
+          .Add(row.host_.View())
+          .Add(row.target_.View())
+          .Add(std::int64_t{row.pid_})
+          .Add(static_cast<std::int64_t>(row.process_start_))
+          .Add(row.first_seen_);
+      if (auto written = Run(p_file.database_.get(), p_file.target_.get());
+          !written)
+      {
+        return written;
+      }
+    }
+    p_file.mapping_version_ = mapping_version_;
+    return {};
+  }
 
   std::filesystem::path directory_;
   std::int64_t retention_days_;
@@ -1008,6 +1095,13 @@ class Storage
       return std::unexpected(std::move(exit.error()));
     }
     file.exit_ = std::move(*exit);
+    auto target = Prepare(
+        database, "INSERT OR REPLACE INTO session_target VALUES (?,?,?,?,?,?)");
+    if (!target)
+    {
+      return std::unexpected(std::move(target.error()));
+    }
+    file.target_ = std::move(*target);
     ::sqlite3_busy_timeout(database, 0);
     return file;
   }
@@ -1056,10 +1150,42 @@ class StorageSink final : public RowSink
   SqliteResult status_;
 };
 
+struct TargetFilter
+{
+  std::string host_;
+  std::string id_;
+};
+
+[[nodiscard]] inline bool HasTargetMappings(sqlite3* p_database)
+{
+  const auto columns = TableColumns(p_database, "session_target");
+  return columns && !columns->empty();
+}
+
+[[nodiscard]] inline std::string TargetPredicate(bool p_mapped)
+{
+  return p_mapped ? " AND (session IN (SELECT session FROM session_target "
+                    "WHERE host=? AND target=?)"
+                    " OR (session NOT IN (SELECT session FROM session_target) "
+                    "AND ?))"
+                  : " AND (? IS NOT NULL AND ?='default')";
+}
+
+inline void BindTarget(Binder& p_binder, const TargetFilter& p_target,
+                       bool p_mapped)
+{
+  p_binder.Add(p_target.host_).Add(p_target.id_);
+  if (p_mapped)
+  {
+    p_binder.Add(std::int64_t{p_target.id_ == "default" ? 1 : 0});
+  }
+}
+
 // Up to p_limit rollup rows for one thread from one day file, oldest first.
 [[nodiscard]] inline std::expected<JsonArray, std::string> DayHistory(
     const std::filesystem::path& p_path, std::string_view p_session,
-    std::int64_t p_tid, double p_start, double p_end, std::size_t p_limit)
+    std::int64_t p_tid, double p_start, double p_end, std::size_t p_limit,
+    const std::optional<TargetFilter>& p_target = std::nullopt)
 {
   auto database = OpenDatabase(p_path, true);
   if (!database)
@@ -1067,17 +1193,24 @@ class StorageSink final : public RowSink
     return std::unexpected(std::move(database.error()));
   }
   ::sqlite3_busy_timeout(database->get(), 2000);
-  auto statement =
-      Prepare(database->get(),
-              "SELECT * FROM thread_rollup WHERE session=? AND tid=? AND "
-              "ts>=? AND ts<=? ORDER BY ts LIMIT ?");
+  const bool mapped = HasTargetMappings(database->get());
+  auto statement = Prepare(
+      database->get(), std::string{"SELECT * FROM thread_rollup WHERE "
+                                   "session=? AND tid=? AND ts>=? AND ts<=?"} +
+                           (p_target ? TargetPredicate(mapped) : "") +
+                           " ORDER BY ts LIMIT ?");
   if (!statement)
   {
     return std::unexpected(std::move(statement.error()));
   }
   auto* query = statement->get();
-  Binder{query}.Add(p_session).Add(p_tid).Add(p_start).Add(p_end).Add(
-      static_cast<std::int64_t>(p_limit));
+  Binder binder{query};
+  binder.Add(p_session).Add(p_tid).Add(p_start).Add(p_end);
+  if (p_target)
+  {
+    BindTarget(binder, *p_target, mapped);
+  }
+  binder.Add(static_cast<std::int64_t>(p_limit));
   JsonArray rows;
   const int columns = ::sqlite3_column_count(query);
   int status = SQLITE_ROW;
@@ -1105,10 +1238,11 @@ class StorageSink final : public RowSink
 
 // Rollup rows for one thread between p_start and p_end, oldest first. Day
 // files that cannot be read (locked, damaged) are skipped.
-[[nodiscard]] inline JsonArray History(const std::filesystem::path& p_directory,
-                                       std::string_view p_session,
-                                       std::int64_t p_tid, double p_start,
-                                       double p_end, std::size_t p_limit = 2000)
+[[nodiscard]] inline JsonArray History(
+    const std::filesystem::path& p_directory, std::string_view p_session,
+    std::int64_t p_tid, double p_start, double p_end,
+    std::size_t p_limit = 2000,
+    const std::optional<TargetFilter>& p_target = std::nullopt)
 {
   JsonArray result;
   const auto first = DayName(UtcDay(p_start));
@@ -1121,7 +1255,7 @@ class StorageSink final : public RowSink
       continue;
     }
     auto rows = DayHistory(path, p_session, p_tid, p_start, p_end,
-                           p_limit - result.size());
+                           p_limit - result.size(), p_target);
     if (!rows)
     {
       continue;
@@ -1149,7 +1283,8 @@ struct ResourceHistoryResult
 // predate the resource table, are skipped.
 [[nodiscard]] inline ResourceHistoryResult ResourceHistory(
     const std::filesystem::path& p_directory, double p_start, double p_end,
-    double p_bucket_s, std::size_t p_limit = 200'000)
+    double p_bucket_s, std::size_t p_limit = 200'000,
+    const std::optional<TargetFilter>& p_target = std::nullopt)
 {
   std::vector<std::size_t> columns;
   for (std::size_t index = 0; index < kResourceColumns.size(); ++index)
@@ -1219,10 +1354,11 @@ struct ResourceHistoryResult
           "{}{}", select.empty() ? "" : ",",
           present ? std::string{name} : std::format("NULL AS {}", name));
     }
+    const bool mapped = HasTargetMappings(database->get());
     const auto sql = std::format(
-        "SELECT {} FROM resource_sample WHERE ts>=? AND ts<=? ORDER BY ts "
+        "SELECT {} FROM resource_sample WHERE ts>=? AND ts<=?{} ORDER BY ts "
         "LIMIT ?",
-        select);
+        select, p_target ? TargetPredicate(mapped) : "");
     auto statement = Prepare(database->get(), sql);
     if (!statement)
     {
@@ -1234,8 +1370,13 @@ struct ResourceHistoryResult
       continue;
     }
     auto* query = statement->get();
-    Binder{query}.Add(p_start).Add(p_end).Add(
-        static_cast<std::int64_t>(p_limit - read + 1));
+    Binder binder{query};
+    binder.Add(p_start).Add(p_end);
+    if (p_target)
+    {
+      BindTarget(binder, *p_target, mapped);
+    }
+    binder.Add(static_cast<std::int64_t>(p_limit - read + 1));
     int status = SQLITE_ROW;
     while ((status = ::sqlite3_step(query)) == SQLITE_ROW)
     {

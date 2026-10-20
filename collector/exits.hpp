@@ -189,6 +189,11 @@ using ExitMessagesText = FixedText<kExitMessagesBytes>;
 class ExitMonitor
 {
  public:
+  void Clear() noexcept
+  {
+    latest_.reset();
+  }
+
   // Keeps p_report as the latest exit when it is the newest by report time.
   // Returns true when the report has not been seen before, so the caller
   // stores it, even if an exit that ended later is already the latest: UDP

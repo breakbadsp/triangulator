@@ -18,8 +18,8 @@ illustrative. Keep the existing dashboard layout, typeface, and state colors.
 | Level | Contents | Access |
 | --- | --- | --- |
 | Visible context | Name, unit, scope, time range, and data status | Always visible |
-| Help card | Meaning, a contextual value when available, and one important limit | Hover or keyboard focus for 1,200 ms |
-| Detailed guide | Meaning, worked example, how to read the result, measurement limits, and related metrics | Select the information button |
+| Help card | Meaning, a contextual value when available, one important limit, and a short source | Hover or keyboard focus for 1,200 ms |
+| Detailed guide | Meaning, worked example, how to read the result, measurement limits, source, and related metrics | Select the information button |
 
 Use a small outlined information button next to section titles, metric labels,
 chart titles, and table column names. Its accessible name is specific:
@@ -83,7 +83,7 @@ Do not add a first-visit tutorial, automatic tour, or animated hover countdown.
 | Help card | 320 px preferred width; up to 360 px; 16 px internal spacing; 12 px corners |
 | Card placement | 8 px from target; prefer the side with space; flip and constrain to a 12 px viewport margin; keep the target visible |
 | Type | Existing system font; 14 px body at 1.5 line height; 15 px semibold title; no essential text below 13 px |
-| Content | Title; scope and interval; definition; optional captured value; one limit; at most about 80 words |
+| Content | Title; scope and interval; definition; optional captured value; one limit; source line; at most about 90 words |
 | Surface | Opaque `--surface`; `--ink` text; `--ink-2` secondary text; subtle border and shadow |
 | Accent | Existing blue for information buttons and selection; state and warning colors retain their existing meanings |
 | Motion | 120 ms opacity fade; no slide, bounce, or background blur; no transition with reduced motion |
@@ -122,7 +122,14 @@ Each topic uses the same order. Omit a field when it adds no useful information.
 3. **Example:** show a unit and denominator. Clearly label invented values.
 4. **How to read it:** one or two useful comparisons or next observations.
 5. **Limits:** what this measurement cannot establish; missing-data behavior.
-6. **Related:** at most three relevant topics, such as CPU, PSI, or thread state.
+6. **Source:** where the value comes from, so a user can check it. Name the
+   file and field, such as `/proc/PID/task/TID/schedstat` (second number),
+   or say that the collector or the page computes it. Say which program reads
+   it and how often, and how the shown value is derived. Add a
+   "Check it yourself" command when a standard one exists. The card shows a
+   short form; the guide shows the full text. Controls and display settings
+   have no source.
+7. **Related:** at most three relevant topics, such as CPU, PSI, or thread state.
 
 Never infer a cause from one value. Use “can indicate” where the cause is not
 known. Do not label every high value as bad. A waiting worker can be normal.
@@ -209,7 +216,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Pressure chart and table | CPU/memory/I/O; some/full; host/cgroup; interval/avg10 fallback; peak aggregation; absent series |
 | Limits and headroom | Soft descriptor limit; cgroup memory and events; CPU quota and throttled periods; PID limit; socket memory limits; unlimited/unknown |
 | Queue chart | Receive/send bytes; target scope; time range; aggregation and missing samples |
-| Network counters | Each counter definition; Now/In range/Total; namespace scope; resets and unavailable values |
+| Network counters | Each counter definition; Rate (/s), In range, Total; namespace scope; resets and unavailable values |
 | Fullest sockets | Socket kind/state; local/peer; Recv-Q/Send-Q; listener backlog; buffer fill; drops; RTT; retransmits; coverage |
 | Thread filters and table | Group; sort; active/idle/all; TID and generation; wait channel; last ~10 s; CPU; run delay; switches; read/write; major faults; core |
 | Thread drawer | Watched line (rule interval, last ran, overdue); live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |
@@ -230,7 +237,9 @@ feature. A feature without help is incomplete.
 1. Reuse a topic when the concept is the same. Otherwise add one with
    `helpTopic(id, title, scope, meaning, example, reading, limits, related,
    aliases)` in `collector/dashboard.html`. Follow
-   [A consistent explanation](#a-consistent-explanation).
+   [A consistent explanation](#a-consistent-explanation). For a measured or
+   computed value, also add `helpSource(id, brief, detail)`. Mark file paths
+   and commands with backticks; they are shown in code type.
 2. Give static headings, columns, and summaries a `data-help` attribute, or a
    title or alias that names the topic exactly. Use `data-help` for generic
    text such as "Findings", "Total", or a heading with a runtime count.
@@ -245,7 +254,7 @@ feature. A feature without help is incomplete.
    [test cases](qa/test-cases.md).
 
 `tests/dashboard_test.js` fails when a static heading, column, or summary has no
-topic. It fails when a card or section with a table has no heading that
+topic, and when a topic outside its short list of controls has no source. It fails when a card or section with a table has no heading that
 resolves a topic, and when a full-width table message cell (`colSpan` above 1,
 without its own `data-help`) is rendered into a card whose heading lacks an
 explicit `data-help`. It also fails when runtime code builds a heading, fact, or

@@ -344,7 +344,7 @@ class ResourceSampleTests(unittest.TestCase):
             if data.startswith(b"TVMA"):
                 memory_seen = True
                 continue
-            if data.startswith(b"TPIN"):
+            if data.startswith((b"TPIN", b"TTGT")):
                 continue
             if not data.startswith(b"TRES"):
                 ticks.add(decode(data).session)

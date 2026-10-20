@@ -12,6 +12,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "../sampler/budget.hpp"
 #include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
@@ -170,6 +171,106 @@ void RequireHex(std::span<const std::byte> p_bytes, std::string_view p_expected)
                 ParseHex(p_expected.substr(index * 2, 2)),
             "wire bytes must match v2 golden packet");
   }
+}
+
+// Target tables retain legacy configuration and reject ambiguous selectors.
+void TestMultipleTargetConfig()
+{
+  const auto parsed = ParseConfig(
+      "collector=127.0.0.1:9400\n[[target]]\nid=orders\nprocess=orders-api\n[["
+      "target]]\nid=billing\npid=123\n");
+  Require(parsed && parsed->targets_.size() == 2, "two target tables");
+  Require(ParseConfig("collector=127.0.0.1:9400\ntarget_pid=1")
+                  ->targets_.front()
+                  .id_ == "default",
+          "legacy target has default id");
+  for (const auto text :
+       {"target_pid=1\n[[target]]\nid=one\npid=2",
+        "[[target]]\nid=one\npid=1\nprocess=two", "[[target]]\nid=one",
+        "[[target]]\npid=1", "[[target]]\nid=../escape\npid=1",
+        "[[target]]\nid=one\npid=1\n[[target]]\nid=one\npid=2",
+        "[[target]]\nid=one\npid=1\nrate_hz=2"})
+  {
+    Require(!ParseConfig(std::string{"collector=127.0.0.1:9400\n"} + text),
+            "invalid target table");
+  }
+  std::string many = "collector=127.0.0.1:9400\n";
+  for (int index = 0; index < 17; ++index)
+  {
+    many += std::format("[[target]]\nid=t{}\npid=1\n", index);
+    Require(ParseConfig(many).has_value() == (index < 16),
+            "fixed target count");
+  }
+}
+
+// Caches for different targets use one descriptor count and release it.
+void TestSharedDescriptorBudget()
+{
+  DescriptorBudget budget{
+      ThreadCache::kReservedDescriptors + Thread::kDescriptorsPerThread, 0};
+  ThreadCache first{budget};
+  ThreadCache second{budget};
+  RateLimitedLogger logger;
+  first.Rescan(::getpid(), logger);
+  second.Rescan(::getpid(), logger);
+  Require(budget.kept_ == 1, "one shared cached thread");
+  first.Clear();
+  second.Clear();
+  Require(budget.kept_ == 0, "clear releases the shared descriptor budget");
+  const std::array<TargetConfig, 2> targets{
+      {{"self", TargetPid{::getpid()}},
+       {"absent", TargetName{"absent-xyz-123"}}}};
+  const auto found = FindTargets(targets);
+  Require(found[0] && *found[0] && (**found[0]).pid_ == ::getpid(),
+          "shared lookup finds PID");
+  Require(found[1] && !*found[1], "shared lookup reports an absent name");
+}
+
+// A fixed CPU window lowers the rate, respects the minimum, and recovers.
+void TestCpuBudget()
+{
+  CpuBudget budget{5, 1};
+  for (int tick = 0; tick < 24; ++tick)
+  {
+    budget.Add(4ms, 200ms);
+  }
+  Require(budget.RateHz() == 5, "budget waits for a complete window");
+  for (int tick = 0; tick < 6; ++tick)
+  {
+    budget.Add(4ms, 200ms);
+  }
+  Require(budget.RateHz() < 5 && budget.RateHz() >= 0.2,
+          "over budget reduces rate");
+  const auto low_rate = budget.RateHz();
+  for (int tick = 0; tick < 100; ++tick)
+  {
+    budget.Add(100us, 200ms);
+  }
+  Require(budget.RateHz() > low_rate && budget.RateHz() <= 5,
+          "sustained low CPU recovers");
+  CpuBudget minimum{10, 0.01};
+  for (int tick = 0; tick < 30; ++tick)
+  {
+    minimum.Add(100ms, 200ms);
+  }
+  Require(minimum.RateHz() == 0.2, "rate cannot go below 0.2 Hz");
+  for (int tick = 0; tick < 5; ++tick)
+  {
+    minimum.Add(1us, 5s);
+  }
+  Require(minimum.RateHz() > 0.2, "old high CPU buckets expire at low rates");
+  for (const auto text : {"0", "-1", "nan", "101"})
+  {
+    Require(!ParseConfig(
+                std::string{
+                    "collector=127.0.0.1:9400\ntarget_pid=1\ncpu_budget_pct="} +
+                text),
+            "invalid CPU budget is rejected");
+  }
+  Require(
+      ParseConfig("collector=127.0.0.1:9400\ntarget_pid=1")->cpu_budget_pct_ ==
+          1,
+      "default CPU budget is one percent");
 }
 
 void TestWire()
@@ -1274,6 +1375,9 @@ int main()
   {
     TestParsing();
     TestConfig();
+    TestMultipleTargetConfig();
+    TestSharedDescriptorBudget();
+    TestCpuBudget();
     TestWire();
     TestRaii();
     TestDescriptorBudget();

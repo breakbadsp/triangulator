@@ -12,14 +12,27 @@
   <a href="https://github.com/breakbadsp/triangulator/releases">Downloads</a>
 </p>
 
-Monitor Linux process threads, CPU demand, wait channels, memory, and socket I/O.
+Monitor a Linux process, its threads, CPU demand, wait channels, memory, and socket I/O.
 Inspect live activity or return to a recorded moment.
+The current sampler monitors one target process. Support for several targets
+is [proposed](docs/multi-target-design.md).
 
 ## Dashboard tour
 
 <p align="center">
   <img src="docs/assets/dashboard-tour.gif" alt="Dashboard tour: process overview, thread activity, resource pressure, and thread details." width="880">
 </p>
+
+The animation shows an earlier layout. The current dashboard opens on
+**Summary**: Assessment, key measurements, process load, and memory use.
+Use the section links for **Threads**, **Resources**, **Sockets**, **Memory**,
+**Monitor**, and **Settings**. Open **Timeline** below the summary charts for
+recordings and past assessments.
+
+Assessment lists the most severe findings first. Select **Show … more findings** to read
+the rest. Use **Settings** to edit watched-thread rules. Use **Theme** in the
+header to select **System**, **Light**, or **Dark**. Metric help includes a
+**Source** line and a detailed **Source** section.
 
 <p align="center">
   <img src="docs/assets/features.svg" alt="Animated examples: thread states, wait timelines, and resource pressure." width="100%">
@@ -28,6 +41,7 @@ Inspect live activity or return to a recorded moment.
 | Find the problem | Open the guide |
 | --- | --- |
 | CPU demand, busy threads, kernel waits | [Dashboard](docs/setup.md#dashboard) · [Metric help](collector/README.md#dashboard-help) |
+| Threads that stop waking or keep a core busy | [Watched threads and settings](docs/collector-reference.md#watched-threads) |
 | Memory use, address mappings, page faults | [Memory map](docs/memory-map.md) |
 | CPU, memory, and I/O pressure; resource limits | [Resource monitoring](docs/resource-monitoring.md) |
 | Why the process died: segfault, OOM killer | [Process exit reasons](docs/process-exit.md) |
@@ -84,8 +98,12 @@ Open **<http://127.0.0.1:9401>**. Use **Change target** to select another proces
   <img src="docs/assets/replay.svg" alt="Animated replay: a timeline cursor selects a recorded moment and the thread tiles show the stored states." width="100%">
 </p>
 
-Use the **Timeline** at the top of the dashboard. Click a past finding, or drag the handle back and release it, to see the whole dashboard at that moment.
-Scroll the list of past findings to check further back. Select **Live** to return.
+Open **Timeline** below the Summary charts. Open **Past assessments** and select
+a finding, or drag the timeline handle back and release it, to inspect a
+recorded moment. Filter past findings by severity and type. Scroll the list or
+select **Load earlier** to check an earlier period. Select **Live** to return.
+Past assessments check selected recordings in the browser. They can miss brief
+problems and are computed again after a page reload.
 [Recording and replay limits](docs/collector-reference.md#historical-process-inspection)
 
 ## Performance
@@ -179,6 +197,8 @@ for each repeat, pooled percentiles, source and binary hashes, and the method.
 
 Manual browser QA results are kept in the repository and checked in CI. Each case links to a
 dated run record with its package version, steps, and evidence.
+These results describe the tested versions. Cases marked `NOT_RUN` have no
+recorded execution result.
 
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
@@ -186,8 +206,8 @@ dated run record with its package version, steps, and evidence.
 | PASSED | 35 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 8 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051 |
-| NOT_RUN | 24 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055 |
-| **Total** | **69** | |
+| NOT_RUN | 29 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-059, QA-060 |
+| **Total** | **74** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

@@ -24,6 +24,15 @@ namespace triangulator::collector
 class ProcessMonitor
 {
  public:
+  void PrepareSession(std::uint64_t p_session) noexcept
+  {
+    if (latest_ && latest_->session_ != p_session)
+    {
+      retired_sessions_.PushBack(latest_->session_);
+      latest_.reset();
+    }
+  }
+
   // Keeps p_packet unless it belongs to a retired session. The sampler reads
   // the info once per session and a new target starts a new session, so the
   // first datagram of another session replaces the info and retires the old

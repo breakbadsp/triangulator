@@ -9,7 +9,9 @@
 #include <format>
 #include <string>
 #include <variant>
+#include <vector>
 
+#include "../common/target_wire.hpp"
 #include "io.hpp"
 #include "parsing.hpp"
 
@@ -19,17 +21,28 @@ namespace triangulator
 struct TargetPid
 {
   int value_;
+  bool operator==(const TargetPid&) const = default;
 };
 struct TargetName
 {
   std::string value_;
+  bool operator==(const TargetName&) const = default;
 };
 using TargetSelector = std::variant<TargetPid, TargetName>;
+
+struct TargetConfig
+{
+  std::string id_;
+  TargetSelector selector_ = TargetPid{0};
+  bool operator==(const TargetConfig&) const = default;
+};
 
 struct Config
 {
   TargetSelector target_ = TargetPid{0};
+  std::vector<TargetConfig> targets_;
   double rate_hz_ = 5.0;
+  double cpu_budget_pct_ = 1.0;
   std::string collector_;
   bool status_fallback_ = false;
   // Seconds between resource samples (pressure, descriptors, sockets); 0
@@ -56,7 +69,8 @@ struct Config
 {
   Config config;
   bool target_set = false;
-  std::array<std::string_view, 7> keys{};
+  bool in_target = false;
+  std::array<std::string_view, 8> keys{};
   std::size_t key_count = 0;
   while (!p_contents.empty())
   {
@@ -90,6 +104,23 @@ struct Config
     {
       continue;
     }
+    if (line == "[[target]]")
+    {
+      if (target_set)
+      {
+        return std::unexpected(
+            "use target tables or a top-level target, not both");
+      }
+      if (config.targets_.size() == target_wire::kMaxTargets)
+      {
+        return std::unexpected("at most 16 targets are permitted");
+      }
+      config.targets_.push_back({});
+      in_target = true;
+      keys = {};
+      key_count = 0;
+      continue;
+    }
     const auto separator = line.find('=');
     if (separator == std::string_view::npos)
     {
@@ -113,6 +144,52 @@ struct Config
     if (value.find('"') != std::string_view::npos)
     {
       return std::unexpected("embedded quotes are unsupported");
+    }
+    if (in_target)
+    {
+      auto& target = config.targets_.back();
+      if (key == "id")
+      {
+        if (!target_wire::ValidName(value, 31))
+        {
+          return std::unexpected(
+              "target id must contain 1..31 letters, digits, dots, "
+              "underscores, or hyphens");
+        }
+        target.id_ = value;
+      }
+      else if (key == "pid" || key == "process")
+      {
+        if (std::get_if<TargetName>(&target.selector_) ||
+            std::get<TargetPid>(target.selector_).value_ != 0)
+        {
+          return std::unexpected(
+              "each target needs exactly one pid or process");
+        }
+        if (key == "pid")
+        {
+          const auto pid = ParseNumber<int>(value);
+          if (!pid || *pid <= 0)
+          {
+            return std::unexpected("target pid must be positive");
+          }
+          target.selector_ = TargetPid{*pid};
+        }
+        else
+        {
+          if (value.empty() || value.size() > 15 ||
+              value.find('\0') != std::string_view::npos)
+          {
+            return std::unexpected("target process must contain 1..15 bytes");
+          }
+          target.selector_ = TargetName{std::string{value}};
+        }
+      }
+      else
+      {
+        return std::unexpected(std::format("unknown target key: {}", key));
+      }
+      continue;
     }
     if (key == "target_pid" || key == "target_process")
     {
@@ -148,6 +225,15 @@ struct Config
         return std::unexpected("rate_hz must be between 0.2 and 10");
       }
       config.rate_hz_ = *rate;
+    }
+    else if (key == "cpu_budget_pct")
+    {
+      const auto budget = ParseNumber<double>(value);
+      if (!budget || !std::isfinite(*budget) || *budget < 0.01 || *budget > 100)
+      {
+        return std::unexpected("cpu_budget_pct must be 0.01..100");
+      }
+      config.cpu_budget_pct_ = *budget;
     }
     else if (key == "collector")
     {
@@ -190,7 +276,31 @@ struct Config
       return std::unexpected(std::format("unknown configuration key: {}", key));
     }
   }
-  if (!target_set || config.collector_.empty())
+  if (in_target)
+  {
+    for (std::size_t index = 0; index < config.targets_.size(); ++index)
+    {
+      const auto& target = config.targets_[index];
+      const auto* pid = std::get_if<TargetPid>(&target.selector_);
+      if (target.id_.empty() || (pid && pid->value_ == 0))
+      {
+        return std::unexpected("each target needs an id and a pid or process");
+      }
+      for (std::size_t previous = 0; previous < index; ++previous)
+      {
+        if (config.targets_[previous].id_ == target.id_)
+        {
+          return std::unexpected("target ids must be unique");
+        }
+      }
+    }
+    config.target_ = config.targets_.front().selector_;
+  }
+  else if (target_set)
+  {
+    config.targets_.push_back({"default", config.target_});
+  }
+  if (config.targets_.empty() || config.collector_.empty())
   {
     return std::unexpected("target and collector are required");
   }
@@ -270,6 +380,22 @@ struct RuntimeConfig
 {
   Config settings_;
   Endpoint endpoint_;
+  double effective_rate_hz_ = 0;
+  std::uint64_t sampler_cpu_ns_ = 0;
+  std::uint64_t sampler_elapsed_ns_ = 0;
+
+  [[nodiscard]] Nanoseconds Interval() const noexcept
+  {
+    return std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / (effective_rate_hz_ > 0
+                                                 ? effective_rate_hz_
+                                                 : settings_.rate_hz_)});
+  }
+  [[nodiscard]] std::uint32_t IntervalMs() const noexcept
+  {
+    return static_cast<std::uint32_t>(
+        std::chrono::round<std::chrono::milliseconds>(Interval()).count());
+  }
 };
 
 [[nodiscard]] inline std::expected<RuntimeConfig, std::string> LoadConfig(

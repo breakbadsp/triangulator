@@ -92,6 +92,102 @@ using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
   return TargetIdentity{pid, stat->starttime_};
 }
 
+// One directory scan resolves all names. Each selected PID then gets one
+// stat read, including the start time used to detect PID reuse.
+[[nodiscard]] inline std::array<TargetLookup, target_wire::kMaxTargets>
+FindTargets(std::span<const TargetConfig> p_targets)
+{
+  std::array<TargetLookup, target_wire::kMaxTargets> results{};
+  std::array<int, target_wire::kMaxTargets> pids{};
+  std::array<bool, target_wire::kMaxTargets> ambiguous{};
+  bool names = false;
+  for (std::size_t index = 0; index < p_targets.size(); ++index)
+  {
+    if (std::holds_alternative<TargetPid>(p_targets[index].selector_))
+    {
+      results[index] = FindTarget(p_targets[index].selector_);
+    }
+    else
+    {
+      names = true;
+    }
+  }
+  if (!names)
+  {
+    return results;
+  }
+  int lookup_error = 0;
+  Directory directory{"/proc"};
+  if (!directory && DescriptorsExhausted(errno))
+  {
+    lookup_error = errno;
+  }
+  std::array<char, 4096> buffer{};
+  while (directory)
+  {
+    const auto entry = directory.Next();
+    if (!entry)
+    {
+      break;
+    }
+    const auto pid = ParseNumber<int>(*entry);
+    if (!pid || *pid <= 0)
+    {
+      continue;
+    }
+    const auto descriptor =
+        OpenReadonly(FixedString{"/proc/{}/comm", *pid}.CStr());
+    if (!descriptor && DescriptorsExhausted(errno))
+    {
+      lookup_error = errno;
+      break;
+    }
+    auto name = ReadAtStart(descriptor, buffer);
+    if (!name)
+    {
+      continue;
+    }
+    if (name->ends_with('\n'))
+    {
+      name->remove_suffix(1);
+    }
+    for (std::size_t index = 0; index < p_targets.size(); ++index)
+    {
+      const auto* selected =
+          std::get_if<TargetName>(&p_targets[index].selector_);
+      if (selected && selected->value_ == *name)
+      {
+        if (pids[index] != 0)
+        {
+          ambiguous[index] = true;
+        }
+        pids[index] = *pid;
+      }
+    }
+  }
+  for (std::size_t index = 0; index < p_targets.size(); ++index)
+  {
+    if (std::holds_alternative<TargetName>(p_targets[index].selector_))
+    {
+      if (lookup_error != 0)
+      {
+        results[index] = std::unexpected(lookup_error);
+      }
+      else if (!ambiguous[index] && pids[index] != 0)
+      {
+        results[index] = FindTarget(TargetPid{pids[index]});
+      }
+    }
+  }
+  return results;
+}
+
+struct DescriptorBudget
+{
+  std::size_t limit_ = 0;
+  std::size_t kept_ = 0;
+};
+
 class Thread
 {
  public:
@@ -216,9 +312,27 @@ class ThreadCache
   {
     threads_.reserve(wire::kMaxThreads);  // the only allocation; at startup
   }
+  explicit ThreadCache(DescriptorBudget& p_budget)
+      : ThreadCache(p_budget.limit_)
+  {
+    shared_budget_ = &p_budget;
+  }
+  ~ThreadCache()
+  {
+    Clear();
+  }
+  ThreadCache(const ThreadCache&) = delete;
+  ThreadCache& operator=(const ThreadCache&) = delete;
+  ThreadCache(ThreadCache&&) = delete;
+  ThreadCache& operator=(ThreadCache&&) = delete;
+
   void Clear() noexcept
   {
     threads_.clear();
+    if (shared_budget_)
+    {
+      shared_budget_->kept_ -= kept_;
+    }
     kept_ = 0;
   }
   [[nodiscard]] std::size_t MaxKept() const noexcept
@@ -273,7 +387,8 @@ class ThreadCache
           p_logger.Warn("thread limit (2550) exceeded; excess threads omitted");
           continue;
         }
-        const bool keep = kept_ < max_kept_;
+        const bool keep =
+            (shared_budget_ ? shared_budget_->kept_ : kept_) < max_kept_;
         if (!keep)
         {
           p_logger.Warn(
@@ -282,6 +397,10 @@ class ThreadCache
               max_kept_);
         }
         kept_ += static_cast<std::size_t>(keep);
+        if (shared_budget_)
+        {
+          shared_budget_->kept_ += static_cast<std::size_t>(keep);
+        }
         threads_.emplace_back(*tid, keep);
         lookup[slot] = threads_.size();
       }
@@ -294,13 +413,19 @@ class ThreadCache
                     {
                       return false;
                     }
-                    kept_ -=
+                    const auto released =
                         static_cast<std::size_t>(p_thread.KeepsDescriptors());
+                    kept_ -= released;
+                    if (shared_budget_)
+                    {
+                      shared_budget_->kept_ -= released;
+                    }
                     return true;
                   });
   }
 
  private:
+  DescriptorBudget* shared_budget_ = nullptr;
   std::size_t max_kept_;
   std::size_t kept_ = 0;
   std::vector<Thread> threads_;

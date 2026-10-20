@@ -60,6 +60,11 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-053 | NOT_RUN | - | - | - |
 | QA-054 | NOT_RUN | - | - | - |
 | QA-055 | NOT_RUN | - | - | - |
+| QA-056 | NOT_RUN | - | - | - |
+| QA-057 | NOT_RUN | - | - | - |
+| QA-058 | NOT_RUN | - | - | - |
+| QA-059 | NOT_RUN | - | - | - |
+| QA-060 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -80,6 +85,54 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-060: Sampler CPU budget
+
+Feature: Sampler CPU budget. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One sampler monitors enough owned threads to exceed a small
+configured `cpu_budget_pct`. A matching collector lists its targets.
+
+1. Set `rate_hz=5` and `cpu_budget_pct=0.1`. Observe at least 10 seconds.
+2. Check that all targets report the same lower effective rate.
+3. Check that CPU use, the budget, and the configured rate remain visible.
+4. Reduce the target thread count. Observe rate recovery after low CPU use.
+5. Check that every target session stays the same during each rate change.
+
+Expected: The rate decreases after excess CPU use and stays at or above
+0.2 Hz. The rate increases after sustained low CPU use. History stays valid.
+
+## QA-059: Multiple sampler targets and reload
+
+Feature: Multiple sampler targets. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One sampler and a matching collector. Two owned test processes.
+
+1. Configure two `[[target]]` tables with distinct IDs. Start the sampler.
+2. Check that one sampler process and one thread report both target sessions.
+3. Add a third target and send SIGHUP. Check that the first two sessions stay.
+4. Reorder the tables and send SIGHUP. Check that all sessions stay.
+5. Change `rate_hz` and send SIGHUP. Check that all sessions change.
+6. Stop one process. Check that only its target becomes absent.
+7. Use an invalid or duplicate ID. Check that reload retains the old settings.
+
+Expected: Target streams stay separate. Resource and memory-map samples rotate
+across targets. Invalid settings cannot replace a running configuration.
+
+## QA-058: Target API selection
+
+Feature: Multiple target API. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: A collector accepts two announced targets with different IDs.
+
+1. Read `/api/targets`. Check the host, ID, PID, session, status, and access.
+2. Read `/api/live?target=<host>/<id>` for each target in separate clients.
+3. Read resource history and replay for each target. Check the PID and session.
+4. Replace one target process. Check that only its session changes.
+5. Read an unknown key. Check that the API returns HTTP 404.
+
+Expected: Each response contains only the selected target. The default API
+uses `default` when present, then the first key by host and ID.
 
 ## QA-045: Concurrent viewers and slow connections
 
@@ -1180,3 +1233,49 @@ operating system. Status colors retain their meanings. All existing controls,
 recordings, metric values, contextual help, and every Assessment finding remain
 available. No page-wide
 horizontal overflow occurs at either viewport or at 200% zoom.
+
+## QA-056: Help names the source of each value
+
+Feature: Contextual help. Priority: Medium. Case revision: 1.
+
+Preconditions: An owned workload is monitored with resource and memory-map
+samples available. Hover help is on. Note the target PID and one thread TID.
+
+1. Pause over CPU, Run delay, and a thread state in the threads table. Read the
+   Source line on each card.
+2. Open the guides for CPU, Run delay, Pressure stalls (PSI), Open files, Recv-Q,
+   one Network stack drops counter, Virtual size (VmSize), and Exit status.
+   Read each Source section.
+3. Run two of the Check it yourself commands with the noted PID and TID, such
+   as `cat /proc/PID/task/TID/schedstat` and `ls /proc/PID/fd | wc -l`.
+4. Open the guides for Color theme and Add watch rule.
+5. Repeat step 1 in the dark theme and at a 390-pixel-wide viewport.
+
+Expected results: Each card for a measured value ends with a short Source line
+that names its file and field, such as `/proc/PID/task/TID/schedstat`. Each
+guide has a Source section that says which program reads the file, how often,
+and how the collector or the page derives the shown value. The commands print
+the counters the guide names, and their values are consistent with the page.
+Values computed in the page, such as Process load and Assessment, say so.
+Controls and display settings have no Source section. File paths use code
+type, stay readable in both themes, and wrap inside the card.
+
+Source: [Contextual help design](../contextual-help-design.md).
+
+## QA-057: Network counter column names
+
+Feature: Network counter labels. Priority: Low. Case revision: 1.
+
+Preconditions: The dashboard has network resource samples and stored history.
+
+1. Open Network stack drops & errors. Check the short column names:
+   Rate (/s), In range, and Total.
+2. Pause over each column name for 1.2 seconds. Check that each tooltip
+   explains its time period. Open the help guide.
+3. Change the selected time range. Compare the count with the latest rate and
+   cumulative count. Repeat for a counter without stored history.
+
+Expected results: Help explains events per second, events counted in the
+selected range, and the cumulative kernel counter. It gives an example and
+explains that other processes can contribute. The cumulative count can include
+older events. Missing history shows an unavailable value, not zero.

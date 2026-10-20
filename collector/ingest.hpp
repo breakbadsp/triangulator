@@ -19,6 +19,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "../common/exit_wire.hpp"
 #include "../common/memory_wire.hpp"
@@ -79,6 +80,24 @@ class Ingest
     }
   }
 
+  Ingest(const std::vector<std::string>& p_sampler_ips, Monitor& p_monitor,
+         ResourceMonitor& p_resources, MemoryMonitor& p_memory,
+         ExitMonitor& p_exits, ProcessMonitor& p_process, Storage& p_storage,
+         const StorageSink& p_sink)
+      : Ingest(std::nullopt, p_monitor, p_resources, p_memory, p_exits,
+               p_process, p_storage, p_sink)
+  {
+    for (const auto& sender : p_sampler_ips)
+    {
+      allowed_senders_.emplace_back(sender);
+    }
+    if (allowed_senders_.size() == 1)
+    {
+      sampler_ip_ = allowed_senders_.front();
+      socket_sampler_ip_ = sampler_ip_;
+    }
+  }
+
   [[nodiscard]] const std::optional<PeerText>& SamplerIp() const noexcept
   {
     return sampler_ip_;
@@ -91,7 +110,7 @@ class Ingest
   {
     if (p_data.size() >= 4 && std::memcmp(p_data.data(), "TSIO", 4) == 0)
     {
-      if (!socket_sampler_ip_ || p_peer == *socket_sampler_ip_)
+      if (Allowed(p_peer, socket_sampler_ip_))
       {
         if (const auto observation = socket_metrics::Decode(p_data))
         {
@@ -110,7 +129,7 @@ class Ingest
     }
     else if (p_data.size() >= 4 && std::memcmp(p_data.data(), "TRES", 4) == 0)
     {
-      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      if (Allowed(p_peer, sampler_ip_))
       {
         if (const auto part = resource_wire::Decode(p_data))
         {
@@ -126,7 +145,7 @@ class Ingest
     else if (p_data.size() >= 4 &&
              std::memcmp(p_data.data(), memory_wire::kMagic.data(), 4) == 0)
     {
-      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      if (Allowed(p_peer, sampler_ip_))
       {
         if (const auto part = memory_wire::Decode(p_data))
         {
@@ -142,7 +161,7 @@ class Ingest
     else if (p_data.size() >= 4 &&
              std::memcmp(p_data.data(), exit_wire::kMagic.data(), 4) == 0)
     {
-      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      if (Allowed(p_peer, sampler_ip_))
       {
         if (const auto report = exit_wire::Decode(p_data))
         {
@@ -164,7 +183,7 @@ class Ingest
     else if (p_data.size() >= 4 &&
              std::memcmp(p_data.data(), process_wire::kMagic.data(), 4) == 0)
     {
-      if (!sampler_ip_ || p_peer == *sampler_ip_)
+      if (Allowed(p_peer, sampler_ip_))
       {
         if (const auto info = process_wire::Decode(p_data))
         {
@@ -177,7 +196,7 @@ class Ingest
         }
       }
     }
-    else if (!sampler_ip_ || p_peer == *sampler_ip_)
+    else if (Allowed(p_peer, sampler_ip_))
     {
       if (const auto packet = Decode(p_data))
       {
@@ -203,9 +222,23 @@ class Ingest
   std::optional<PeerText> sampler_ip_;
   std::optional<PeerText> socket_sampler_ip_;
 
+  std::vector<PeerText> allowed_senders_;
+
+  [[nodiscard]] bool Allowed(const PeerText& p_peer,
+                             const std::optional<PeerText>& p_pinned) const
+  {
+    if (!allowed_senders_.empty())
+    {
+      return std::ranges::find(allowed_senders_, p_peer) !=
+             allowed_senders_.end();
+    }
+    return !p_pinned || p_peer == *p_pinned;
+  }
+
   void Pin(const PeerText& p_peer)
   {
-    if (!sampler_ip_)
+    // A sender list is the filter; there is nothing to pin.
+    if (allowed_senders_.empty() && !sampler_ip_)
     {
       sampler_ip_ = p_peer;
       Log(LogLevel::Info,

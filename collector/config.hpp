@@ -23,7 +23,8 @@
 namespace triangulator::collector
 {
 
-// The largest max_live_samples. The Monitor reserves about 280 bytes of
+// The largest max_live_samples, and the largest total of max_live_samples
+// over all target slots. Each slot's Monitor reserves about 280 bytes of
 // address space for each live sample at startup, so this limit is about
 // 2.8 GB. A larger value could make the reservation fail.
 inline constexpr std::int64_t kMaxLiveSamplesLimit = 10'000'000;
@@ -164,7 +165,11 @@ struct Config
   // WatchSettings in watch.hpp).
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
+  std::int64_t max_targets_ = 8;
+  // A target slot silent for longer than this is released for reuse.
+  double target_idle_expiry_s_ = 600;
   std::optional<std::string> sampler_ip_;
+  std::vector<std::string> sampler_ips_;
   // Length of one rollup window in seconds (5..10).
   double window_s_ = 5;
   // True when the file has alert thresholds or delivery settings, which
@@ -256,6 +261,7 @@ namespace detail
        {std::pair{"clock_ticks", &Config::clock_ticks_},
         std::pair{"retention_days", &Config::retention_days_},
         std::pair{"max_live_samples", &Config::max_live_samples_},
+        std::pair{"max_targets", &Config::max_targets_},
         std::pair{"udp_port", &Config::udp_port_},
         std::pair{"http_port", &Config::http_port_}})
   {
@@ -277,6 +283,18 @@ namespace detail
   {
     return std::unexpected(std::format("max_live_samples must be at most {}",
                                        kMaxLiveSamplesLimit));
+  }
+  if (config.max_targets_ < 1 || config.max_targets_ > 64)
+  {
+    return std::unexpected("max_targets must be 1..64");
+  }
+  // Every slot keeps the full max_live_samples, so the reservation grows with
+  // max_targets.
+  if (config.max_live_samples_ > kMaxLiveSamplesLimit / config.max_targets_)
+  {
+    return std::unexpected(
+        std::format("max_live_samples times max_targets must be at most {}",
+                    kMaxLiveSamplesLimit));
   }
   for (const auto& [key, member] :
        {std::pair{"data_dir", &Config::data_dir_},
@@ -306,6 +324,16 @@ namespace detail
       return std::unexpected("replay_interval_s must be 0 or 0.5..60");
     }
     config.replay_interval_s_ = interval->AsNumber();
+  }
+
+  if (const auto* expiry = root.Find("target_idle_expiry_s"))
+  {
+    if (!expiry->IsNumber() || !std::isfinite(expiry->AsNumber()) ||
+        !(1 <= expiry->AsNumber() && expiry->AsNumber() <= 86400))
+    {
+      return std::unexpected("target_idle_expiry_s must be 1..86400");
+    }
+    config.target_idle_expiry_s_ = expiry->AsNumber();
   }
 
   if (const auto* alerts = root.Find("alerts"))
@@ -396,6 +424,33 @@ namespace detail
                       sampler_ip->AsString()));
     }
     config.sampler_ip_ = std::move(*normalized);
+  }
+  if (const auto* senders = root.Find("sampler_ips"))
+  {
+    if (root.Find("sampler_ip") != nullptr)
+    {
+      return std::unexpected("use sampler_ips or sampler_ip, not both");
+    }
+    if (!senders->IsArray() || senders->AsArray().empty() ||
+        senders->AsArray().size() > 64)
+    {
+      return std::unexpected("sampler_ips must contain 1..64 IP addresses");
+    }
+    for (const auto& sender : senders->AsArray())
+    {
+      auto normalized =
+          sender.IsString() ? NormalizeIp(sender.AsString()) : std::nullopt;
+      if (!normalized || std::ranges::find(config.sampler_ips_, *normalized) !=
+                             config.sampler_ips_.end())
+      {
+        return std::unexpected("sampler_ips must contain unique IP addresses");
+      }
+      config.sampler_ips_.push_back(std::move(*normalized));
+    }
+  }
+  else if (config.sampler_ip_)
+  {
+    config.sampler_ips_.push_back(*config.sampler_ip_);
   }
   std::error_code error;
   auto data_dir = std::filesystem::absolute(config.data_dir_, error);

@@ -6,10 +6,12 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -26,10 +28,12 @@
 
 #include "../collector/engine.hpp"
 #include "../collector/exits.hpp"
+#include "../collector/ingest.hpp"
 #include "../collector/memory.hpp"
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/target_fleet.hpp"
 #include "../collector/watch.hpp"
 
 namespace
@@ -685,6 +689,212 @@ void TestLowestRateProducesValidWindows()
   }
 }
 
+// Rate changes inside one session retain counter baselines and valid rollups.
+void TestRateChangesWithinSession()
+{
+  MonitorFixture fixture;
+  std::uint32_t sequence = 0;
+  std::uint64_t elapsed_ms = 0;
+  for (const std::uint32_t interval_ms : {200U, 1000U, 5000U, 200U})
+  {
+    for (std::uint32_t sample = 0; sample < 15000U / interval_ms; ++sample)
+    {
+      auto record = WithUtime(elapsed_ms / 10);
+      record.state_ = 'R';
+      auto packet = MakePacket(sequence++, {record});
+      packet.interval_ms_ = interval_ms;
+      packet.monotonic_ns_ = (1'000'000 + elapsed_ms) * 1'000'000;
+      packet.wall_ns_ = (1'700'000'000'000 + elapsed_ms) * 1'000'000;
+      fixture.Feed(packet);
+      elapsed_ms += interval_ms;
+    }
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() >= 10, "rate changes keep completed windows");
+  for (const auto& row : rows)
+  {
+    if (Field(row, "valid").AsInt() != 0)
+    {
+      RequireNear(Field(row, "cpu_pct").AsNumber(), 100,
+                  "CPU stays correct across rate changes");
+    }
+  }
+  const auto health = fixture.monitor_.Health(1'700'000'060);
+  Require(Field(health, "late_packets").AsInt() == 0,
+          "rate changes do not retire the session");
+}
+
+// Checks both rate transitions inside windows with proportional counters.
+// Every completed window must keep its expected count and measured rates.
+void TestRateChangesInsideRollupWindows()
+{
+  MonitorFixture fixture;
+  std::uint32_t sequence = 0;
+  const auto feed = [&](std::uint64_t p_elapsed_ms, std::uint32_t p_interval_ms)
+  {
+    auto record = WithUtime(p_elapsed_ms / 20);
+    record.stime_ = p_elapsed_ms / 20;
+    record.state_ = 'R';
+    record.run_delay_ = p_elapsed_ms * 100'000;
+    record.read_bytes_ = p_elapsed_ms;
+    record.write_bytes_ = p_elapsed_ms / 2;
+    auto packet = MakePacket(sequence++, {record});
+    packet.interval_ms_ = p_interval_ms;
+    packet.monotonic_ns_ = (1'000'000 + p_elapsed_ms) * 1'000'000;
+    packet.wall_ns_ = (1'700'000'000'000 + p_elapsed_ms) * 1'000'000;
+    fixture.Feed(packet);
+  };
+  for (std::uint64_t elapsed_ms = 0; elapsed_ms <= 5800; elapsed_ms += 200)
+  {
+    feed(elapsed_ms, 200);
+  }
+  feed(10800, 5000);
+  for (std::uint64_t elapsed_ms = 11000; elapsed_ms <= 16000; elapsed_ms += 200)
+  {
+    feed(elapsed_ms, 200);
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() == 3, "three completed windows span both transitions");
+  RequireNear(Field(rows[0], "expected_samples").AsNumber(), 25,
+              "the unchanged fast window expects 25 samples");
+  RequireNear(Field(rows[1], "expected_samples").AsNumber(), 4.84,
+              "the slow transition weights time at each rate");
+  RequireNear(Field(rows[2], "expected_samples").AsNumber(), 21.16,
+              "the fast transition weights time at each rate");
+  for (const auto& row : rows)
+  {
+    Require(Field(row, "valid").AsInt() == 1,
+            "every completed transition window is valid");
+    RequireNear(Field(row, "cpu_pct").AsNumber(), 100,
+                "transition windows keep CPU rates");
+    RequireNear(Field(row, "run_delay_pct").AsNumber(), 10,
+                "transition windows keep run delay rates");
+    RequireNear(Field(row, "read_bps").AsNumber(), 1000,
+                "transition windows keep read rates");
+    RequireNear(Field(row, "write_bps").AsNumber(), 500,
+                "transition windows keep write rates");
+  }
+}
+
+// Checks that five of 25 samples at a fixed rate still fail window coverage.
+void TestUnchangedRateLossInvalidatesRollup()
+{
+  MonitorFixture fixture;
+  for (std::uint32_t elapsed_ms = 0; elapsed_ms <= 5000; elapsed_ms += 1000)
+  {
+    auto packet = MakePacket(elapsed_ms / 200, {WithUtime(elapsed_ms / 10)});
+    packet.interval_ms_ = 200;
+    packet.monotonic_ns_ = (1'000'000ULL + elapsed_ms) * 1'000'000;
+    packet.wall_ns_ = (1'700'000'000'000ULL + elapsed_ms) * 1'000'000;
+    fixture.Feed(packet);
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() == 1 && Field(rows[0], "samples").AsInt() == 5,
+          "one completed window retains the five received samples");
+  RequireNear(Field(rows[0], "expected_samples").AsNumber(), 25,
+              "packet loss does not lower the expected count");
+  Require(Field(rows[0], "valid").AsInt() == 0 &&
+              Field(rows[0], "cpu_pct").IsNull() &&
+              Field(rows[0], "run_delay_pct").IsNull() &&
+              Field(rows[0], "read_bps").IsNull() &&
+              Field(rows[0], "write_bps").IsNull(),
+          "insufficient coverage omits the measured rates");
+}
+
+// Checks that missing ticks cannot be hidden by a later rate change. Unknown
+// time keeps the higher observed rate, and later complete windows recover.
+void TestRateChangesAfterMissingSamples()
+{
+  const auto feed = [](MonitorFixture& p_fixture, std::uint32_t p_sequence,
+                       std::uint64_t p_elapsed_ms, std::uint32_t p_interval_ms)
+  {
+    auto packet = MakePacket(p_sequence, {WithUtime(p_elapsed_ms / 10)});
+    packet.interval_ms_ = p_interval_ms;
+    packet.monotonic_ns_ = (1'000'000 + p_elapsed_ms) * 1'000'000;
+    packet.wall_ns_ = (1'700'000'000'000 + p_elapsed_ms) * 1'000'000;
+    p_fixture.Feed(packet);
+  };
+  for (const bool missing_ticks : {false, true})
+  {
+    MonitorFixture fixture;
+    for (std::uint32_t sequence = 0; sequence <= 5; ++sequence)
+    {
+      feed(fixture, sequence, sequence * 200, 200);
+    }
+    if (!missing_ticks)
+    {
+      // Empty partial ticks keep the thread but omit its record.
+      for (std::uint32_t sequence = 6; sequence < 25; ++sequence)
+      {
+        auto packet = MakePacket(sequence, {});
+        packet.chunks_ = 2;
+        packet.interval_ms_ = 200;
+        packet.monotonic_ns_ = (1'000'000ULL + sequence * 200) * 1'000'000;
+        packet.wall_ns_ = (1'700'000'000'000ULL + sequence * 200) * 1'000'000;
+        fixture.Feed(packet);
+      }
+    }
+    // Samples 6..24 were lost. Only the interval 4.8..9.8 s is slow.
+    feed(fixture, 25, 9800, 5000);
+    for (std::uint32_t sequence = 26; sequence <= 51; ++sequence)
+    {
+      feed(fixture, sequence, 10000 + (sequence - 26) * 200, 200);
+    }
+    const auto rows = fixture.Rollups();
+    Require(rows.size() == 3, "three windows finish across loss and recovery");
+    RequireNear(Field(rows[0], "expected_samples").AsNumber(), 24.04,
+                "the slow interval starts after the missing fast samples");
+    Require(Field(rows[0], "samples").AsInt() == 6 &&
+                Field(rows[0], "valid").AsInt() == 0 &&
+                Field(rows[0], "cpu_pct").IsNull(),
+            "nineteen missing fast samples invalidate the first window");
+    for (std::size_t index = 1; index < rows.size(); ++index)
+    {
+      Require(Field(rows[index], "valid").AsInt() == 1,
+              "complete windows recover after the loss");
+      RequireNear(Field(rows[index], "cpu_pct").AsNumber(), 100,
+                  "recovered windows keep the measured CPU rate");
+    }
+  }
+  {
+    MonitorFixture fixture;
+    for (std::uint32_t sequence = 0; sequence < 25; ++sequence)
+    {
+      feed(fixture, sequence, sequence * 200, 200);
+    }
+    // Missing fast ticks extend into the next window before a 1 Hz tick.
+    for (std::uint32_t sequence = 35; sequence <= 38; ++sequence)
+    {
+      feed(fixture, sequence, 7800 + (sequence - 35) * 1000, 1000);
+    }
+    const auto rows = fixture.Rollups();
+    Require(rows.size() == 2 && Field(rows[0], "valid").AsInt() == 1,
+            "loss after a complete window keeps that window valid");
+    RequireNear(Field(rows[1], "expected_samples").AsNumber(), 12.2,
+                "the next window keeps its unknown fast prefix");
+    Require(Field(rows[1], "samples").AsInt() == 3 &&
+                Field(rows[1], "valid").AsInt() == 0,
+            "loss across a window boundary is not hidden by throttling");
+  }
+  {
+    MonitorFixture fixture;
+    feed(fixture, 0, 0, 5000);
+    feed(fixture, 1, 5000, 5000);
+    // Recovery starts after 5 s; fast ticks 2..20 are lost.
+    for (std::uint32_t sequence = 21; sequence <= 26; ++sequence)
+    {
+      feed(fixture, sequence, 9000 + (sequence - 21) * 200, 200);
+    }
+    const auto rows = fixture.Rollups();
+    Require(rows.size() == 2, "two windows finish around recovery loss");
+    RequireNear(Field(rows[1], "expected_samples").AsNumber(), 25,
+                "unknown recovery time keeps the higher rate");
+    Require(Field(rows[1], "samples").AsInt() == 6 &&
+                Field(rows[1], "valid").AsInt() == 0,
+            "missing recovery ticks still invalidate the window");
+  }
+}
+
 void TestFallbackHasNoRunDelay()
 {
   MonitorFixture fixture;
@@ -1164,12 +1374,43 @@ void TestSnapshotRecorder()
   Require(bounds.first_ && *bounds.first_ == 1'700'006'410 &&
               *bounds.last_ == 1'700'006'410,
           "stopping writes the waiting view, one per interval");
+
+  // A new root takes effect without stopping the recorder, and the frame
+  // offered for the old root stays there.
+  TempDirectory first;
+  TempDirectory second;
+  SnapshotRecorder moving{first.Path(), 7, 60};
+  Require(moving.Start().has_value(), "the moving recorder starts");
+  moving.Offer(1'700'006'410, view);
+  moving.SetRoot(second.Path());
+  moving.Offer(1'700'006'420, view);
+  Require(moving.Start().has_value(), "starting twice is harmless");
+  moving.Stop();
+  const auto old_root = Replay(first.Path(), {});
+  const auto new_root = Replay(second.Path(), {});
+  Require(!new_root.first_ || *new_root.first_ == 1'700'006'420,
+          "the new root has only its own frame");
+  Require(!old_root.first_ || *old_root.first_ == 1'700'006'410,
+          "the old root has only its own frame");
+  Require(new_root.first_.has_value(), "the frame after SetRoot is written");
 }
 
 // Omitted settings enable raw storage and recording; explicit values disable
 // them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
 {
+  // Sender lists accept normalized addresses and reject mixed or invalid forms.
+  const auto senders = ParseConfig("sampler_ips=[\"127.0.0.1\",\"::1\"]");
+  Require(senders && senders->sampler_ips_.size() == 2,
+          "multiple sampler addresses are accepted");
+  Require(ParseConfig("sampler_ip=\"127.0.0.1\"")->sampler_ips_.size() == 1,
+          "legacy sender becomes a list of one");
+  for (const auto text : {"sampler_ips=[]", "sampler_ips=[1]",
+                          "sampler_ips=[\"127.0.0.1\",\"127.0.0.1\"]",
+                          "sampler_ip=\"\"\nsampler_ips=[\"::1\"]"})
+  {
+    Require(!ParseConfig(text), "invalid sender list is rejected");
+  }
   const auto defaults = ParseConfig("");
   Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
           "raw storage and one-second recording default to enabled");
@@ -1189,9 +1430,29 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid recording cadence is rejected");
   }
-  Require(ParseConfig("max_live_samples=10000000").has_value() &&
-              !ParseConfig("max_live_samples=10000001"),
+  Require(ParseConfig("").value().target_idle_expiry_s_ == 600,
+          "idle targets are released after ten minutes by default");
+  for (const std::string_view text :
+       {"target_idle_expiry_s=1", "target_idle_expiry_s=0.5e1",
+        "target_idle_expiry_s=86400"})
+  {
+    Require(ParseConfig(text).has_value(), "supported idle expiry");
+  }
+  for (const std::string_view text :
+       {"target_idle_expiry_s=0", "target_idle_expiry_s=86401",
+        "target_idle_expiry_s=true", "target_idle_expiry_s=nan"})
+  {
+    Require(!ParseConfig(text), "invalid idle expiry is rejected");
+  }
+  Require(ParseConfig("max_live_samples=10000000\nmax_targets=1").has_value() &&
+              !ParseConfig("max_live_samples=10000001\nmax_targets=1"),
           "max_live_samples has an upper limit");
+  Require(ParseConfig("").has_value(),
+          "the default history budget for every slot fits the limit");
+  Require(ParseConfig("max_live_samples=2500000\nmax_targets=4").has_value() &&
+              !ParseConfig("max_live_samples=2500001\nmax_targets=4") &&
+              !ParseConfig("max_targets=0"),
+          "the history budget of all slots has an upper limit");
 }
 
 // Checks [[watch]] parsing: valid rules keep their order, and each invalid
@@ -2099,6 +2360,17 @@ void TestResourceStorageAndHistory()
       ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20, 4);
   Require(limited.truncated_ && limited.rows_.size() == 1,
           "history reads a bounded number of samples");
+  storage->RememberTarget(ResourceHeader(0).session_, "host-a", "orders", 42, 9,
+                          1'700'000'000);
+  Require(storage->Flush(1'700'000'100).has_value(), "target mappings commit");
+  const auto orders =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "orders"});
+  const auto billing =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "billing"});
+  Require(orders.rows_.size() == 4 && billing.rows_.empty(),
+          "resource history is isolated by target mapping");
 }
 
 // Decoded memory-map parts of one sample: the summary, then the layout's
@@ -2296,6 +2568,140 @@ void TestMemoryMapSessions()
 
 }  // namespace
 
+// A sender list accepts datagrams from listed addresses only, for every
+// datagram kind. A malformed datagram that is counted as bad was accepted by
+// the filter, so the counters show which senders got through.
+void TestAllowedSenders()
+{
+  MonitorFixture fixture;
+  ResourceMonitor resources{fixture.sink_};
+  MemoryMonitor memory;
+  ExitMonitor exits;
+  ProcessMonitor process;
+  const std::vector<std::string> listed{"10.0.0.1", "10.0.0.2"};
+  Ingest ingest{listed, fixture.monitor_, resources,        memory,
+                exits,  process,          fixture.storage_, fixture.sink_};
+  Require(!ingest.SamplerIp(), "a sender list pins no single address");
+
+  const auto bad_total = [&]
+  {
+    return fixture.monitor_.bad_packets_ + resources.bad_parts_ +
+           memory.bad_parts_;
+  };
+  const auto handle = [&](std::string_view p_magic, const char* p_peer)
+  {
+    std::array<std::byte, 8> data{};
+    std::memcpy(data.data(), p_magic.data(), 4);
+    const auto before = bad_total();
+    Require(ingest.Handle(data, PeerText{p_peer}, 1'700'000'000).has_value(),
+            "datagram handled");
+    return bad_total() - before;
+  };
+  for (const std::string_view magic :
+       {"TSIO", "TRES", "TVMA", "TEND", "TPIN", "XXXX"})
+  {
+    Require(handle(magic, "10.0.0.1") == 1 && handle(magic, "10.0.0.2") == 1,
+            "listed senders are accepted");
+    Require(handle(magic, "10.0.0.3") == 0, "unlisted sender is dropped");
+  }
+}
+
+// Every slot keeps the whole max_live_samples budget, so a single target
+// keeps the history it had before targets existed.
+void TestEverySlotKeepsFullHistoryBudget()
+{
+  MonitorFixture fixture;
+  Config config;
+  config.max_targets_ = 4;
+  config.max_live_samples_ = 40;
+  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  for (std::uint32_t sequence = 0; sequence < 30; ++sequence)
+  {
+    const auto data = Encode(MakePacket(sequence));
+    Require(
+        fleet.Handle(data, PeerText{"127.0.0.1"}, 1'700'000'000.0 + sequence)
+            .has_value(),
+        "datagram handled");
+  }
+  const auto retained =
+      Field(fleet.Slots().front()->monitor_.Health(1'700'000'030),
+            "raw_samples")
+          .AsInt();
+  Require(retained > config.max_live_samples_ / config.max_targets_ &&
+              retained <= config.max_live_samples_,
+          "one target keeps more than a share of the budget");
+}
+
+// Checks a one-second idle expiry with either TTGT or TMON arriving first.
+// The same session becomes visible again; replaced sessions stay retired.
+void TestExpiredSlotResumesSameSession()
+{
+  for (const bool announce_first : {false, true})
+  {
+    MonitorFixture fixture;
+    Config config;
+    config.max_targets_ = 1;
+    config.max_live_samples_ = 10000;
+    config.target_idle_expiry_s_ = 1;
+    TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+    const PeerText peer{"127.0.0.1"};
+    target_wire::Packet announcement;
+    announcement.session_ = 1;
+    announcement.pid_ = 123;
+    announcement.process_start_ = 1;
+    announcement.effective_millihz_ = 1000;
+    announcement.configured_millihz_ = 1000;
+    target_wire::SetText(announcement.host_, "host-a");
+    target_wire::SetText(announcement.target_, "orders");
+    const auto announce = [&](double p_now)
+    {
+      Require(
+          fleet.Handle(wire::AsBytes(announcement), peer, p_now).has_value(),
+          "announcement handled");
+    };
+    const auto tick = [&](std::uint32_t p_sequence)
+    {
+      const auto data = Encode(MakePacket(p_sequence));
+      const double now = 1'700'000'000.0 + p_sequence;
+      Require(fleet.Handle(data, peer, now).has_value(), "tick handled");
+      fleet.Slots().front()->monitor_.Drain(now, true);
+    };
+    announce(1'700'000'000);
+    tick(0);
+    auto& slot = *fleet.Slots().front();
+    fleet.ReleaseIdle(1'700'000'002);
+    Require(!slot.active_ && !slot.visible_, "idle expiry releases the slot");
+    if (announce_first)
+    {
+      announce(1'700'000'003);
+      Require(slot.active_ && slot.visible_,
+              "the same session announcement reactivates the slot");
+      tick(3);
+    }
+    else
+    {
+      tick(3);
+      Require(slot.active_ && slot.visible_ && !slot.announced_,
+              "the same session tick reactivates a provisional slot");
+      announce(1'700'000'003);
+    }
+    const auto threads =
+        Field(slot.monitor_.Snapshot(1'700'000'003, {}), "threads").AsArray();
+    Require(slot.session_ == 1 && slot.host_.View() == "host-a" &&
+                slot.id_.View() == "orders" && slot.announced_ &&
+                slot.reset_view_ && slot.first_seen_ == 1'700'000'003 &&
+                threads.size() == 1 &&
+                Field(threads[0], "last_sample").AsNumber() == 1'700'000'003,
+            "the resumed session publishes its current thread and identity");
+    announcement.session_ = 2;
+    announce(1'700'000'004);
+    announcement.session_ = 1;
+    announce(1'700'000'004.1);
+    Require(slot.active_ && slot.session_ == 2,
+            "a retired session cannot replace the current session");
+  }
+}
+
 int main()
 {
   try
@@ -2312,6 +2718,10 @@ int main()
     TestUnreadableIoSampleDoesNotResetThread();
     TestExistingDayFileGainsNewRollupColumns();
     TestLowestRateProducesValidWindows();
+    TestRateChangesWithinSession();
+    TestRateChangesInsideRollupWindows();
+    TestUnchangedRateLossInvalidatesRollup();
+    TestRateChangesAfterMissingSamples();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();
@@ -2337,6 +2747,9 @@ int main()
     TestExitReports();
     TestExitStatus();
     TestProcessInfo();
+    TestAllowedSenders();
+    TestEverySlotKeepsFullHistoryBudget();
+    TestExpiredSlotResumesSameSession();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "

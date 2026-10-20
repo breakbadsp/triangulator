@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "../collector/ingest.hpp"
+#include "../collector/target_fleet.hpp"
 
 #ifndef TRIANGULATOR_SANITIZER
 extern "C"
@@ -469,6 +470,55 @@ std::size_t Measure(bool p_store_raw)
   return steady.Sum();
 }
 
+// New targets, provisional sessions, and session replacement must not allocate.
+std::size_t MeasureFleet()
+{
+  const auto directory =
+      std::filesystem::temp_directory_path() /
+      ("triangulator-fleet-alloc-" + std::to_string(::getpid()));
+  auto created = Storage::Create(directory, 7);
+  Require(created.has_value(), "fleet storage");
+  Storage storage = std::move(*created);
+  StorageSink sink{storage};
+  Config config;
+  config.max_targets_ = 4;
+  config.max_live_samples_ = 10000;
+  config.sampler_ips_ = {"127.0.0.1"};
+  TargetFleet fleet{config, 1'700'000'000, storage, sink};
+  const PeerText peer{"127.0.0.1"};
+  Phase phase{"target routing"};
+  target_wire::Packet announcement;
+  target_wire::SetText(announcement.host_, "host-a");
+  announcement.effective_millihz_ = 5000;
+  announcement.configured_millihz_ = 5000;
+  for (std::uint64_t session = 1; session <= 100; ++session)
+  {
+    announcement.session_ = session;
+    target_wire::SetText(announcement.target_, session % 2 ? "one" : "two");
+    Counter count{phase};
+    Require(fleet.Handle(wire::AsBytes(announcement), peer, 1'700'000'000)
+                .has_value(),
+            "route target announcement");
+  }
+  fleet.ReleaseIdle(1'700'001'000);
+  announcement.session_ = 99;
+  target_wire::SetText(announcement.target_, "one");
+  {
+    Counter count{phase};
+    Require(fleet.Handle(wire::AsBytes(announcement), peer, 1'700'001'001)
+                .has_value(),
+            "resume expired target");
+    Require(
+        fleet.Slots().front()->active_ && fleet.Slots().front()->session_ == 99,
+        "same session is active after expiry");
+  }
+  fleet.Close();
+  Require(storage.Close().has_value(), "close fleet storage");
+  std::filesystem::remove_all(directory);
+  std::printf("target routing: %zu allocations\n", phase.allocations_);
+  return phase.allocations_;
+}
+
 }  // namespace
 
 int main()
@@ -480,7 +530,8 @@ int main()
           "sqlite3_config");
   const std::size_t without_raw = Measure(false);
   const std::size_t with_raw = Measure(true);
-  if (without_raw + with_raw != 0)
+  const auto fleet_allocations = MeasureFleet();
+  if (without_raw + with_raw + fleet_allocations != 0)
   {
     std::fprintf(stderr, "collector allocation test failed: %zu allocations\n",
                  without_raw + with_raw);

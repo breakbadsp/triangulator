@@ -40,7 +40,8 @@ Download the HTML file and open it in a browser. It needs no build or network.
 
 ## Multiple viewers
 
-Live views share one collector and one monitored target. Each browser view keeps
+Live views share one collector and one monitored target. Changing the target
+affects all viewers. Each browser view keeps
 its own filters, selected recording, and live chart buffer.
 
 The HTTP listener runs up to 64 connection workers. A slow connection does not
@@ -62,6 +63,21 @@ The dashboard keeps unsaved edits after a conflict. Select **Reload current
 rules** to review the saved list. It asks before discarding an edited draft.
 Cancel or a failed read keeps the draft. Copy any edits you need before reloading.
 
+## Dashboard layout
+
+**Summary** starts with Assessment, then key measurements, process load, and
+memory use. Assessment shows up to eight findings, most severe first. Select
+**Show … more findings** to read the rest.
+
+The section links are **Summary**, **Threads**, **Resources**, **Sockets**,
+**Memory**, **Monitor**, and **Settings**. Open **Timeline** below the Summary
+charts for recordings and **Past assessments**. Settings currently edits only
+[watched-thread rules](../docs/collector-reference.md#watched-threads).
+
+Use **Theme** in the header to select **System**, **Light**, or **Dark**.
+Theme and panel open/closed choices are saved in the browser. See the
+[dashboard guide](../docs/setup.md#dashboard) for panel behavior and replay limits.
+
 ## Dashboard help
 
 Pause over a metric, table cell, or chart point for 1.2 seconds to see its
@@ -70,5 +86,45 @@ Select an information button for examples, measurement limits, related topics,
 and a chart data table where available. Keyboard users can focus the information
 button; touch users can tap it. **How to read this page** contains the page guide.
 
+Each metric help card includes a **Source** line. The detailed guide includes a
+**Source** section with its Linux file and counter, collector calculation, API,
+or browser calculation. Where applicable, it gives a command to check the source.
+
 The guide includes **Show help on hover or focus**. This preference is saved in
 the browser. Turning it off keeps explicit guide access available.
+
+### Sampler senders
+
+Use `sampler_ips = ["127.0.0.1", "10.0.0.2"]` to allow several sampler
+hosts. The legacy `sampler_ip` key remains valid. Use only one form. Without
+either key, the collector accepts and pins the first valid sender.
+
+The collector keeps each target's monitors, replay recorder, and published
+views in target slots. `max_targets` defaults to 8 and permits 1..64.
+Each slot keeps the full `max_live_samples`; the product of the two is at most
+10,000,000. Hidden sessions
+that await TTGT also use slots. `/api/targets` reports rejected datagrams
+and capacity drops. An allowed sender cannot replace another sender's host
+name during one collector run.
+
+A target slot whose sampler has been silent for longer than
+`target_idle_expiry_s` is released, so a replaced or removed target does not
+hold its slot. The default is 600 seconds; the range is 1..86400. The check
+runs in the periodic refresh. The released target disappears from
+`/api/targets`; its stored history remains. A sampler that returns later takes
+a free slot as a new session.
+
+Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
+requests to select one target. Without this parameter, the collector uses a
+`default` target if present, then the first key by host and ID. Unknown keys
+return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
+carry no target, so it is selected by `pid` and `observer` only. Replay files
+have a separate directory for each announced target. Only the `default` target
+of one fixed sender keeps `data_dir/replay`: the smallest address in
+`sampler_ips`, or the first sender the collector heard when the list is empty.
+Set `sampler_ips` when several samplers can start in any order. Every other
+target gets its own directory.
+
+Upgrade the collector before installing a sampler that sends TTGT. Each day
+file has a `session_target` mapping table. Existing files remain readable;
+sessions without a mapping belong to `default`.
