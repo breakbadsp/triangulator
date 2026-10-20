@@ -4,6 +4,8 @@
 ifeq ($(origin CXX),default)
 CXX := c++
 endif
+# Optional compiler cache. Linking always uses the selected compiler directly.
+COMPILER_CACHE ?=
 CXXFLAGS ?= -O2 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS ?=
 LDFLAGS ?=
@@ -95,8 +97,22 @@ build/build_options: FORCE | build
 	@$(file >$@,$(BUILD_OPTIONS)) true
 endif
 
-build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/compiler_ok Makefile
-	$(CXX) -x c $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@
+# Link-only changes do not invalidate compiled objects.
+COMPILE_OPTIONS := $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) $(SAMPLER_LDFLAGS) $(RUNTIME_LDFLAGS)
+ifneq ($(file <build/compile_options),$(COMPILE_OPTIONS))
+build/compile_options: FORCE | build
+	@$(file >$@,$(COMPILE_OPTIONS)) true
+endif
+
+# SQLite has its own compiler flags. C++ and link changes do not rebuild it.
+SQLITE_OPTIONS := $(CXX) $(CPPFLAGS) $(SQLITE_CFLAGS) $(SQLITE_SOURCE)
+ifneq ($(file <build/sqlite_options),$(SQLITE_OPTIONS))
+build/sqlite_options: FORCE | build
+	@$(file >$@,$(SQLITE_OPTIONS)) true
+endif
+
+build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/sqlite_options Makefile | build/compiler_ok
+	$(COMPILER_CACHE) $(CXX) -x c $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@
 
 # Optional download of the SQLite amalgamation for fully static builds. Nothing
 # else in this Makefile uses the network. The script checks the published hash.
@@ -104,8 +120,8 @@ sqlite-amalgamation:
 	python3 -I scripts/fetch-sqlite.py build/sqlite
 
 # Stop early, with a clear message, if the compiler lacks C++23 library support.
-# The stamp is renewed only when build_options changes (compiler or flags).
-build/compiler_ok: build/build_options
+# The stamp is renewed when the compiler or compilation flags change.
+build/compiler_ok: build/compile_options
 	@printf '%s\n' '#include <bit>' '#include <expected>' '#include <format>' \
 		'int main() { return std::expected<int, int>(std::byteswap(1)).value() == 0; }' | \
 		$(CXX) $(CPPFLAGS) -std=c++23 -x c++ -fsyntax-only - || { \
@@ -131,7 +147,11 @@ endif
 	done
 	@rm -f build/release_segments.tmp build/release_dynamic.tmp
 
-build/triangulator-sampler: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/triangulator-sampler.o: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/triangulator-sampler: build/triangulator-sampler.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
 
@@ -146,32 +166,56 @@ build/dashboard_html.inc: collector/dashboard.html Makefile
 	mv $@.tmp $@
 	rm -f $@.od
 
-build/triangulator-collector: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) sampler/parsing.hpp build/dashboard_html.inc $(SQLITE_OBJECT) build/compiler_ok Makefile
+build/triangulator-collector.o: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) sampler/parsing.hpp build/dashboard_html.inc build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -Ibuild $(RUNTIME_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/triangulator-collector: build/triangulator-collector.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) -Ibuild $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-build/sampler-test: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/sampler-test.o: tests/sampler_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/sampler-test: build/sampler-test.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
 # Normal builds use static linkage to count libc and libstdc++ allocations.
 # Sanitizer builds use the runtime allocation hook.
-build/allocation-test: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/allocation-test.o: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/allocation-test: build/allocation-test.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) \
 		$(if $(SANITIZER),,-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc) $(LDLIBS) -o $@
 
-build/wire-test: tests/wire_test.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
+build/wire-test.o: tests/wire_test.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/wire-test: build/wire-test.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
 # Normal builds replace malloc for every library through dynamic libc.
 # Sanitizer builds retain the runtime allocator and use its allocation hook.
-build/collector-allocation-test: tests/collector_allocation_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+build/collector-allocation-test.o: tests/collector_allocation_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SOCKET_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/collector-allocation-test: build/collector-allocation-test.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(if $(SANITIZER),,-static-libstdc++ -static-libgcc) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-build/collector-test: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+build/collector-test.o: tests/collector_test.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/collector-test: build/collector-test.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) -Wl,--wrap=fsync $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
@@ -190,10 +234,18 @@ check-sanitizers:
 	$(MAKE) check-asan
 	$(MAKE) check-tsan
 
-build/benchmark-target: tests/benchmark_target.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
+build/benchmark-target.o: tests/benchmark_target.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/benchmark-target: build/benchmark-target.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
-build/benchmark-victim: tests/benchmark_victim.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
+build/benchmark-victim.o: tests/benchmark_victim.cpp tests/runtime_threads.hpp build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/benchmark-victim: build/benchmark-victim.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
 
 # How much the sampler disturbs a target: stalls, wake-up lateness, lock waits.
@@ -207,7 +259,11 @@ benchmark-target-impact: build/triangulator-sampler build/benchmark-victim
 benchmark-sampler-matrix: build/triangulator-sampler build/benchmark-target
 	python3 tests/benchmark_sampler.py --threads 100 300 500 --duration 30 --output build/sampler-benchmark.json
 
-build/benchmark-sampling: tests/benchmark_sampling.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/benchmark-sampling.o: tests/benchmark_sampling.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/benchmark-sampling: build/benchmark-sampling.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
 
 .PHONY: benchmark-sampling
@@ -238,15 +294,27 @@ build/socket.bpf.o: socket_sampler/socket.bpf.cpp socket_sampler/shared.hpp Make
 	mkdir -p build
 	$(BPF_CXX) -target bpf -std=c++20 -O2 -g -fno-exceptions -fno-rtti -fno-unwind-tables -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -c $< -o $@
 
-build/triangulator-socket-sampler: socket_sampler/main.cpp $(SOCKET_HEADERS) $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/triangulator-socket-sampler.o: socket_sampler/main.cpp $(SOCKET_HEADERS) $(SAMPLER_HEADERS) $(COLLECTOR_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/triangulator-socket-sampler: build/triangulator-socket-sampler.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -lbpf -o $@
 
-build/socket-metrics-test: tests/socket_metrics_test.cpp $(SOCKET_HEADERS) $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+build/socket-metrics-test.o: tests/socket_metrics_test.cpp $(SOCKET_HEADERS) $(METRICS_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/socket-metrics-test: build/socket-metrics-test.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-build/socket-target: tests/socket_target.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
+build/socket-target.o: tests/socket_target.cpp $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/socket-target: build/socket-target.o build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -rdynamic -o $@
 
@@ -254,10 +322,18 @@ build/socket-target: tests/socket_target.cpp $(COMMON_HEADERS) build/compiler_ok
 check-socket-kernel: all socket-sampler build/socket-target
 	TRIANGULATOR_BPF_TESTS=1 python3 tests/run_checks.py --pattern test_socket_kernel.py
 
-build/triangulator-socket-report: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) $(SQLITE_OBJECT) build/compiler_ok Makefile
+build/triangulator-socket-report.o: metrics/main.cpp $(METRICS_HEADERS) $(SOCKET_HEADERS) $(COLLECTOR_HEADERS) $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(RUNTIME_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/triangulator-socket-report: build/triangulator-socket-report.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
 # The deliberate bugs stay separate from the production programs.
-build/buggy-workload: examples/buggy-workload/buggy_workload.cpp build/compiler_ok Makefile
+build/buggy-workload.o: examples/buggy-workload/buggy_workload.cpp build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/buggy-workload: build/buggy-workload.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@

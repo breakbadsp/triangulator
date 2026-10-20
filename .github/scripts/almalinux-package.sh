@@ -19,6 +19,8 @@ export CXX=/opt/rh/gcc-toolset-14/root/usr/bin/g++
 
 cp -a /source /work
 cd /work
+source .github/scripts/compiler-cache.sh
+trap '[[ -z ${COMPILER_CACHE:-} ]] || "$COMPILER_CACHE" --show-stats' EXIT
 make sqlite-amalgamation
 make -j2 release SQLITE_SOURCE=build/sqlite/sqlite3.c
 scripts/package.sh "$version" "el$el-$(uname -m)" /dist

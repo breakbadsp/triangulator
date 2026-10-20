@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Usage: examples/buggy-workload/run-scenario.sh <scenario> [seconds] [--limits]
-# Run one scenario on UDP 9500 and HTTP 9501. Build with make check first.
+# Run one scenario. Build with make check first.
+# BUGGY_UDP_PORT and BUGGY_HTTP_PORT select ports (defaults: 9500 and 9501).
 # BUGGY_HOME selects a base directory. Each run keeps its own logs and data.
 # --limits uses a systemd user scope with a CPU quota and memory cap.
 set -euo pipefail
@@ -13,6 +14,14 @@ if [[ $# -gt 3 || ! "$seconds" =~ ^[0-9]+$ || ( -n "$limits" && "$limits" != --l
     echo 'expected <scenario> [nonnegative seconds] [--limits]' >&2
     exit 2
 fi
+udp_port=${BUGGY_UDP_PORT:-9500}
+http_port=${BUGGY_HTTP_PORT:-9501}
+for port in "$udp_port" "$http_port"; do
+    if [[ ! $port =~ ^[1-9][0-9]{0,4}$ ]] || (( port > 65535 )); then
+        echo 'BUGGY_UDP_PORT and BUGGY_HTTP_PORT must be integers from 1 to 65535.' >&2
+        exit 2
+    fi
+done
 workload="$root/build/buggy-workload"
 # Reject a bad scenario before starting any processes or creating directories.
 if ! "$workload" --list | awk '{print $1}' | grep -Fxq -- "$scenario"; then
@@ -28,9 +37,9 @@ config_dir="${config_dir//\"/\\\"}"
 cat >"$run_dir/collector.toml" <<TOML
 clock_ticks = $(getconf CLK_TCK)
 udp_host = "127.0.0.1"
-udp_port = 9500
+udp_port = $udp_port
 http_host = "127.0.0.1"
-http_port = 9501
+http_port = $http_port
 sampler_ip = "127.0.0.1"
 data_dir = "$config_dir/data"
 retention_days = 1
@@ -85,7 +94,7 @@ for attempt in {1..50}; do
         cat "$run_dir/logs/collector.log" >&2
         exit 1
     fi
-    if curl --fail --silent --max-time 1 http://127.0.0.1:9501/api/live >/dev/null; then
+    if curl --fail --silent --max-time 1 "http://127.0.0.1:$http_port/api/live" >/dev/null; then
         ready=true
         break
     fi
@@ -133,7 +142,7 @@ fi
 cat >"$run_dir/sampler.toml" <<TOML
 target_pid = $workload_pid
 rate_hz = 2.0
-collector = "127.0.0.1:9500"
+collector = "127.0.0.1:$udp_port"
 status_fallback = false
 resource_interval_s = 1
 memory_interval_s = 5
@@ -146,7 +155,7 @@ if ! kill -0 "$sampler" 2>/dev/null; then
     cat "$run_dir/logs/sampler.log" >&2
     exit 1
 fi
-echo "dashboard: http://127.0.0.1:9501   (logs in $run_dir/logs)"
+echo "dashboard: http://127.0.0.1:$http_port   (logs in $run_dir/logs)"
 result=0
 wait "$runner" || result=$?
 if [[ "$seconds" =~ ^0+$ ]]; then

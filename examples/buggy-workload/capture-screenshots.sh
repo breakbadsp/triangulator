@@ -2,12 +2,14 @@
 # Usage: examples/buggy-workload/capture-screenshots.sh <output-dir> [scenario...]
 # Run each scenario and save a dashboard screenshot and API data.
 # Requires Chromium and curl. Build with make check first.
+# BUGGY_UDP_PORT and BUGGY_HTTP_PORT select the scenario ports.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 out="$(realpath -m "${1:?output directory}")"
 shift
 mkdir -p "$out"
+http_port=${BUGGY_HTTP_PORT:-9501}
 runner=""
 sleeper=""
 browser=""
@@ -67,14 +69,14 @@ for entry in "${plan[@]}"; do
     kill -0 "$runner"
     profile="$(mktemp -d "${TMPDIR:-/tmp}/buggy-chromium.XXXXXX")"
     timeout --kill-after=5s 45s chromium --user-data-dir="$profile" --headless=new --hide-scrollbars --window-size=1400,6400 \
-        --virtual-time-budget=10000 --screenshot="$out/$name.png" http://127.0.0.1:9501 >"$out/$name.chromium.log" 2>&1 &
+        --virtual-time-budget=10000 --screenshot="$out/$name.png" "http://127.0.0.1:$http_port" >"$out/$name.chromium.log" 2>&1 &
     browser=$!
     wait "$browser"
     browser=""
     rm -rf -- "$profile"
     profile=""
-    curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9501/api/live >"$out/$name.live.json"
-    curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9501/api/resources >"$out/$name.resources.json"
+    curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$http_port/api/live" >"$out/$name.live.json"
+    curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$http_port/api/resources" >"$out/$name.resources.json"
     kill "$runner" 2>/dev/null || true
     wait "$runner" 2>/dev/null || true
     runner=""

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Run this script as root in a disposable AlmaLinux container.
 set -euo pipefail
+case ${RUN_STATIC_TESTS:-1} in
+    0|1) ;;
+    *) echo "RUN_STATIC_TESTS must be 0 or 1." >&2; exit 2 ;;
+esac
+export RUN_STATIC_TESTS=${RUN_STATIC_TESTS:-1}
 exec > >(tee /reports/setup.log) 2>&1
 
 cat /etc/os-release
@@ -73,7 +78,9 @@ python3 --version
 node --version
 rpm -qa | sort > /reports/build-packages.txt
 
+source .github/scripts/compiler-cache.sh
 useradd -m tester
+if [[ -d /cache ]]; then chown -R tester:tester /cache; fi
 chown -R tester:tester /work /reports
 # Keep the toolchain environment, but use the unprivileged account's runtime.
 runuser -u tester --preserve-environment -- env TRIANGULATOR_HOME=/home/tester/triangulator \

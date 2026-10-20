@@ -28,9 +28,9 @@ The optional eBPF kernel test is separate and remains disabled in normal checks.
 Run these package commands as root inside the build container or build machine.
 Compile and run Triangulator as an ordinary user.
 The sampler and target process must run as the same user.
-GitHub-hosted CI runners create these containers, so you need no local
-Docker access or `sudo` to run the workflows. See the
-[runner configuration](self-hosted-runner.md).
+The CI [runner pool](self-hosted-runner.md) creates these containers rootless.
+Fork pull requests use GitHub-hosted runners. You need no local Docker access
+or `sudo` to run the workflows.
 
 ### AlmaLinux 8
 
@@ -133,9 +133,33 @@ The command-line control scripts and local dashboard target control need Python.
 An absent target name is accepted and waits for the process to start.
 See [configuration](setup.md#configuration) for separate hosts and custom paths.
 
+## Reuse compiled objects
+
+The Makefile compiles C++ sources into object files before linking. It tracks
+compilation options separately from link options. A change to `LDLIBS`
+relinks the programs without recompiling C++. SQLite tracks its own C flags,
+so a C++ option change does not rebuild `sqlite3.o`.
+
+An optional compiler cache can also reuse unchanged compilations after a
+clean checkout. Install `ccache` on the build host, then run:
+
+```sh
+make -j2 COMPILER_CACHE=ccache
+```
+
+The compiler cache is optional. It does not become a runtime dependency.
+The AlmaLinux CI tests and package builds restore a bounded ccache directory
+between jobs. They verify the cache tool archive against a pinned checksum.
+Cache statistics are saved with test logs. All links and selected tests run
+on every job.
+
+Pull requests run the normal AlmaLinux 8 build and test suite. The static
+release build, static test suite, and copied-release runtime checks run
+nightly at 03:00 in `Asia/Kolkata`, and on manual runs.
+
 ## Run tests with sanitizers
 
-The `Sanitizer tests` workflow runs nightly at midnight in `Asia/Kolkata`
+The `Sanitizer tests` workflow runs nightly at 03:00 in `Asia/Kolkata`
 on the latest `master` commit. It also supports manual runs. It does not
 run on each pull request or each push.
 
