@@ -25,8 +25,7 @@ concurrency:
 jobs:
   package:
     name: Package for AlmaLinux 8 and 9
-    # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
       contents: write
