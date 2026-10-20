@@ -1800,6 +1800,25 @@ test('help topics keep metric denominators separate and all related links resolv
   assert.ok(!/\stitle=/.test(html.split('<script>')[0]), 'native title tooltips must not bypass the delay');
 });
 
+// Users must be able to see where each value comes from: a /proc file, a
+// collector computation, or this page. Only controls and display settings
+// may lack a source.
+test('every data help topic names its source', () => {
+  const app = dashboard();
+  const controls = ['appearance', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
+    'watchremove', 'watchadd', 'watchsave', 'watchreload', 'watchreset'];
+  const missing = app.run(`Object.values(HELP).filter(t=>!t.source||!t.sourceDetail).map(t=>t.id)`);
+  assert.deepEqual([...missing].sort(), [...controls].sort());
+  assert.match(app.run('HELP.delay.source'), /schedstat/);
+  assert.match(app.run("HELP['net-listen_overflows'].source"), /TcpExt: ListenOverflows/);
+  // An odd number of backticks would set the rest of the text as code.
+  const unbalanced = app.run(`Object.values(HELP).filter(t=>t.source&&((t.source+t.sourceDetail).split('\`').length%2===0)).map(t=>t.id)`);
+  assert.deepEqual([...unbalanced], []);
+  const text = app.run("codeText('p','Read `/proc/PID/io` with `cat`.')");
+  assert.deepEqual(text.children.map(child => typeof child === 'string' ? child : '<code>' + child.textContent),
+    ['Read ', '<code>/proc/PID/io', ' with ', '<code>cat', '.']);
+});
+
 test('every help name selects exactly one topic', () => {
   const app = dashboard();
   const clashes = app.run(`Object.values(HELP).flatMap(t=>[t.title,...t.aliases]
