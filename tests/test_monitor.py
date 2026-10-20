@@ -396,6 +396,13 @@ def free_port(kind):
 class CppCollectorIntegrationTests(unittest.TestCase):
     """The C++ core collector: live data, history and no alerting."""
 
+    def test_shipped_collector_config_passes_validation(self):
+        # scripts/start.sh starts the collector with config/collector.toml, so
+        # its slot and sample budget must satisfy the product limit.
+        checked = subprocess.run([*CPP_COLLECTOR, "--check-config", str(ROOT / "config/collector.toml")],
+                                 capture_output=True, text=True, timeout=10)
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+
     def test_sampler_cpp_collector_dashboard_and_history_without_alerting(self):
         with tempfile.TemporaryDirectory() as directory:
             udp_port, http_port = free_port(socket.SOCK_DGRAM), free_port(socket.SOCK_STREAM)

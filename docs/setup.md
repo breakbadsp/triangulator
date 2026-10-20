@@ -783,17 +783,18 @@ Resource and memory-map work rotates, so a large target set can delay slow
 samples beyond the requested interval. The dashboard shows their age.
 
 For several sampler hosts, use `sampler_ips` in collector.toml. Remove the old
-`sampler_ip` key. `max_targets` defaults to 16 collector slots, including hidden
-sessions waiting for an announcement; it permits 1..64. `max_live_samples` is
-split across those slots. Use `max_targets=1` for a single target when the full
-sample budget must stay with it. The API reports capacity drops.
+`sampler_ip` key. `max_targets` defaults to 8 collector slots, including hidden
+sessions waiting for an announcement; it permits 1..64. Each slot keeps the
+full `max_live_samples`, and `max_live_samples` times `max_targets` must be at
+most 10,000,000. To keep more samples per target, lower `max_targets` to the
+number of targets you run. The API reports capacity drops.
 
 Each browser tab selects `?target=<host>/<id>`. A switch resets its view choices.
 It does not change monitoring. Manage targets asks for confirmation because
 its changes affect every viewer. Local control requires a loopback dashboard
 and a local sampler run by the same user. Remote hosts use their sampler-side
 configuration. A target removed outside local control can remain listed as
-silent until the collector restarts.
+silent until `target_idle_expiry_s` (default 600 seconds) passes.
 
 See [per-target recording and watch settings](../collector/README.md#per-target-settings).
 
