@@ -67,7 +67,11 @@ rpm -qa | sort > /reports/build-packages.txt
 
 source .github/scripts/compiler-cache.sh
 useradd -m tester
-if [[ -d /cache ]]; then chown -R tester:tester /cache; fi
+if [[ -d /cache ]]; then
+    # Other slots can write objects now. Do not traverse their temporary files.
+    mkdir -p /cache/objects
+    chown tester:tester /cache /cache/objects
+fi
 chown -R tester:tester /work /reports
 # Keep the toolchain environment, but use the unprivileged account's runtime.
 runuser -u tester --preserve-environment -- env TRIANGULATOR_HOME=/home/tester/triangulator \
