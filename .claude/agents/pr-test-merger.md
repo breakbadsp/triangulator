@@ -19,7 +19,7 @@ Save logs in one `mktemp -d` directory, `<dir>`. If gate 1 fails, stop. Otherwis
 1. Head: `gh pr view <PR> --json headRefOid` and `git rev-parse HEAD` in the worktree equal the expected SHA, and `git status --porcelain` is empty.
 2. Local check (tier `scan`: skip it and report `skipped` only when every changed file matches the `pull_request` `paths` filter of a workflow that runs the build or tests and shows `pass` in `gh pr checks <PR>`; otherwise run it): `git fetch origin master`, record the SHA, `git worktree add --detach <dir>/merge <master SHA>`, `git merge --no-ff --no-edit <expected SHA>`, then the repository's check command from `AGENTS.md` (Bash `timeout` 600000). Always remove the throwaway worktree afterwards (`git merge --abort` first on conflict).
 3. CI and mergeability:
-   - `gh pr checks <PR>` must show only `pass` or `skipping`. While checks are pending, repeat `timeout 540 gh pr checks <PR> --watch --interval 60` (Bash `timeout` 600000) for at most 45 minutes.
+   - `gh pr checks <PR>` must show only `pass` or `skipping`. While checks are pending, repeat `timeout 540 gh pr checks <PR> --watch --fail-fast --interval 60` (Bash `timeout` 600000) for at most 45 minutes. Stop waiting as soon as a check shows `fail`, or if gate 2 failed, and report the current status: the gate fails either way.
    - `no checks reported` is a pass only if no changed file (`gh pr diff <PR> --name-only`) matches a `pull_request` `paths` filter in `.github/workflows/`.
    - `gh pr view <PR> --json mergeable,mergeStateStatus` must show `MERGEABLE` and `CLEAN`.
 
