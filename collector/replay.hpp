@@ -4,11 +4,13 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <expected>
 #include <filesystem>
 #include <format>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -188,15 +190,24 @@ class SnapshotRecorder
 
   void SetRoot(const std::filesystem::path& p_root)
   {
-    Stop();
+    std::lock_guard lock{mutex_};
     directory_ = ReplayDirectory(p_root);
+    next_offer_ = {};
+  }
+
+  void SetInterval(double p_interval_s)
+  {
+    interval_ = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>{p_interval_s});
+    next_offer_ = {};
   }
 
   // Starts the writer thread, unless recording is disabled. std::jthread
   // reports failure by throwing; it is caught here and returned.
   [[nodiscard]] std::expected<void, std::string> Start()
   {
-    if (interval_ <= std::chrono::steady_clock::duration::zero())
+    if (worker_.joinable() ||
+        interval_ <= std::chrono::steady_clock::duration::zero())
     {
       return {};
     }
@@ -234,7 +245,8 @@ class SnapshotRecorder
   // Called by the main loop on every refresh; keeps one view per interval.
   void Offer(double p_timestamp, std::shared_ptr<const std::string> p_view)
   {
-    if (!worker_.joinable())
+    if (!worker_.joinable() ||
+        interval_ <= std::chrono::steady_clock::duration::zero())
     {
       return;
     }
@@ -246,7 +258,7 @@ class SnapshotRecorder
     next_offer_ = now + interval_;
     {
       const std::scoped_lock lock{mutex_};
-      pending_ = Pending{p_timestamp, std::move(p_view)};
+      pending_ = Pending{p_timestamp, std::move(p_view), directory_};
     }
     ready_.notify_one();
   }
@@ -256,6 +268,7 @@ class SnapshotRecorder
   {
     double timestamp_{};
     std::shared_ptr<const std::string> view_;
+    std::filesystem::path directory_;
   };
   std::filesystem::path directory_;
   std::int64_t retention_days_;
@@ -270,6 +283,7 @@ class SnapshotRecorder
   void Work(std::stop_token p_stop)
   {
     std::optional<ReplayWriter> writer;
+    std::filesystem::path writer_directory;
     bool failing = false;
     while (true)
     {
@@ -291,12 +305,15 @@ class SnapshotRecorder
       SqliteResult written;
       try
       {
-        if (!writer)
+        if (!writer || writer_directory != pending.directory_)
         {
-          auto created = ReplayWriter::Create(directory_, retention_days_);
+          writer.reset();
+          auto created =
+              ReplayWriter::Create(pending.directory_, retention_days_);
           if (created)
           {
             writer = std::move(*created);
+            writer_directory = pending.directory_;
           }
           else
           {
@@ -307,6 +324,10 @@ class SnapshotRecorder
         {
           written = writer->Write(pending.timestamp_, *pending.view_);
         }
+      }
+      catch (const std::bad_alloc&)
+      {
+        std::terminate();
       }
       catch (const std::exception& error)
       {
@@ -457,6 +478,63 @@ struct ReplayQuery
     }
   }
   return result;
+}
+
+// The primary default target can also read recordings from before target
+// directories existed. Other targets never read that legacy directory.
+[[nodiscard]] inline ReplayResult MergeReplay(ReplayResult p_primary,
+                                              ReplayResult p_legacy,
+                                              std::string_view p_direction)
+{
+  const bool legacy_earlier =
+      p_primary.first_ && p_legacy.last_ && *p_legacy.last_ < *p_primary.first_;
+  if (p_legacy.first_)
+  {
+    p_primary.first_ = p_primary.first_
+                           ? std::min(*p_primary.first_, *p_legacy.first_)
+                           : p_legacy.first_;
+  }
+  if (p_legacy.last_)
+  {
+    p_primary.last_ = p_primary.last_
+                          ? std::max(*p_primary.last_, *p_legacy.last_)
+                          : p_legacy.last_;
+  }
+  if (p_legacy.snapshot_)
+  {
+    if (!p_primary.snapshot_ || (legacy_earlier && p_direction == "next"))
+    {
+      p_primary.snapshot_ = std::move(p_legacy.snapshot_);
+      return p_primary;
+    }
+    if (legacy_earlier)
+    {
+      return p_primary;
+    }
+    const auto timestamp = [](const std::optional<std::string>& p_snapshot)
+        -> std::optional<double>
+    {
+      if (!p_snapshot)
+      {
+        return std::nullopt;
+      }
+      const auto json = ParseJson(*p_snapshot);
+      const auto* recorded = json ? json->Find("recorded_at") : nullptr;
+      return recorded && recorded->IsNumber()
+                 ? std::optional{recorded->AsNumber()}
+                 : std::nullopt;
+    };
+    const auto primary_time = timestamp(p_primary.snapshot_);
+    const auto legacy_time = timestamp(p_legacy.snapshot_);
+    if (!p_primary.snapshot_ ||
+        (legacy_time && primary_time &&
+         (p_direction == "next" ? *legacy_time < *primary_time
+                                : *legacy_time > *primary_time)))
+    {
+      p_primary.snapshot_ = std::move(p_legacy.snapshot_);
+    }
+  }
+  return p_primary;
 }
 
 }  // namespace triangulator::collector

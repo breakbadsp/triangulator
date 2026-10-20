@@ -1201,6 +1201,37 @@ void TestSnapshotRecorder()
           "stopping writes the waiting view, one per interval");
 }
 
+// Reusing a recorder changes its directory on the worker, keeping views
+// separate.
+void TestRecorderTargetChange()
+{
+  TempDirectory directory;
+  const auto first_root = directory.Path() / "one";
+  const auto second_root = directory.Path() / "two";
+  SnapshotRecorder recorder{first_root, 7, 0.5};
+  Require(recorder.Start().has_value(), "target recorder starts");
+  recorder.Offer(1'700'006'410,
+                 std::make_shared<const std::string>(
+                     R"({"recorded_at":1700006410,"target":"one"})"));
+  recorder.SetRoot(second_root);
+  recorder.Offer(1'700'006'420,
+                 std::make_shared<const std::string>(
+                     R"({"recorded_at":1700006420,"target":"two"})"));
+  recorder.Stop();
+  const auto second = Replay(second_root, {1'700'006'421});
+  Require(
+      second.snapshot_ && second.snapshot_->find("two") != std::string::npos,
+      "new target view uses its own directory");
+  const auto first = Replay(first_root, {});
+  Require(!first.last_ || *first.last_ == 1'700'006'410,
+          "a pending new view cannot enter the old target directory");
+  auto merged = MergeReplay(ReplayResult{20, 30, R"({"recorded_at":25})"},
+                            ReplayResult{1, 10, R"({"recorded_at":5})"}, "at");
+  Require(merged.first_ == 1 && merged.last_ == 30 &&
+              merged.snapshot_ == R"({"recorded_at":25})",
+          "default replay keeps legacy bounds and the newest selected frame");
+}
+
 // Omitted settings enable raw storage and recording; explicit values disable
 // them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
@@ -1217,6 +1248,15 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid sender list is rejected");
   }
+  const auto targets = ParseConfig(
+      "[[target]]\nhost=\"host-a\"\nid=\"orders\"\nreplay_interval_s=0\n");
+  Require(targets && targets->targets_.size() == 1 &&
+              targets->targets_[0].replay_interval_s_ == 0,
+          "per-target replay interval");
+  Require(
+      !ParseConfig(
+          "[[target]]\nhost=\"host-a\"\nid=\"orders\"\nreplay_interval_s=-1\n"),
+      "invalid per-target recording interval");
   const auto defaults = ParseConfig("");
   Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
           "raw storage and one-second recording default to enabled");
@@ -2146,6 +2186,14 @@ void TestResourceStorageAndHistory()
       ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20, 4);
   Require(limited.truncated_ && limited.rows_.size() == 1,
           "history reads a bounded number of samples");
+  const auto legacy =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "default", {}, true});
+  const auto other_host =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-b", "default", {}, false});
+  Require(legacy.rows_.size() == 4 && other_host.rows_.empty(),
+          "only the primary default target reads unmapped legacy history");
   storage->RememberTarget(ResourceHeader(0).session_, "host-a", "orders", 42, 9,
                           1'700'000'000);
   Require(storage->Flush(1'700'000'100).has_value(), "target mappings commit");
@@ -2387,6 +2435,7 @@ int main()
     TestReplaySnapshots();
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
+    TestRecorderTargetChange();
     TestReplayConfig();
     TestWatchConfig();
     TestWatchLongestPrefix();

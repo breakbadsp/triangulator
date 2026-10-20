@@ -103,8 +103,8 @@ The collector keeps each target's monitors, replay recorder, and published
 views in target slots. `max_targets` defaults to 16 and permits 1..64.
 `max_live_samples` is the total budget, divided across slots. Hidden sessions
 that await TTGT also use slots. `/api/targets` reports rejected datagrams
-and capacity drops. An allowed sender cannot replace another sender's host
-name during one collector run.
+and capacity drops. A target can move between addresses in the sender list.
+Its host and ID remain its key.
 
 Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
@@ -114,4 +114,30 @@ target. Legacy replay files retain their current location.
 
 Upgrade the collector before installing a sampler that sends TTGT. Each day
 file has a `session_target` mapping table. Existing files remain readable;
-sessions without a mapping belong to `default`.
+sessions without a mapping belong to the primary sender's `default` target.
+
+### Per-target settings
+
+In collector.toml, override the recording cadence with a target settings table:
+
+```toml
+[[target]]
+host = "host-a"
+id = "orders"
+replay_interval_s = 0
+```
+
+Use 0 to disable recording for that target, or 0.5..60 seconds. Other targets
+use the global interval. Restart the collector after a configuration change.
+
+Watch rules saved from the dashboard are independent for each target. Files
+use `data_dir/watch-rules/<hex-key>.json`, where the key is the UTF-8 bytes of
+`host/id`, encoded as hexadecimal. The `default` target from the first
+configured sampler IP keeps `data_dir/watch-rules.json`. With source pinning,
+the only sampler host keeps that default file. Keep the first sender stable
+when migrating an existing installation. The same default target can read
+legacy recordings from `data_dir/replay` as well as its target directory.
+
+The collector loads at most 1,024 saved target watch files at startup. New
+settings use configuration rules until saved. `/api/targets` reports watch
+settings limit hits. File reads do not run during target discovery.

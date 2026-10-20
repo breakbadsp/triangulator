@@ -2,8 +2,9 @@
 
 ## Result
 
-The collector now allocates heap memory only at startup. This is the same rule
-as for the sampler (see `docs/tigerstyle-adaption.md`).
+The collector datagram path allocates heap memory only at startup, apart from
+the exclusions below. The sampler has the same rule for its tick path
+(see `docs/tigerstyle-adaption.md`).
 
 `build/collector-allocation-test` counts the allocations of the datagram path
 after startup. `make check` runs it. The test replaces `malloc`, `calloc`,
@@ -27,7 +28,8 @@ It does not require zero.
 
 The path starts when the main loop receives a datagram. It includes:
 
-1. `Ingest::Handle`: decode of the datagram and the sender check.
+1. `TargetFleet::Handle` and `Ingest::Handle`: decoding, sender checks,
+   target routing, and session metadata updates.
 2. `Monitor::Accept`, `Monitor::Drain` and `Monitor::Close`.
 3. `ResourceMonitor::Accept` and `ResourceMonitor::Drain`.
 4. `ExitMonitor::Accept`. It keeps the report by value.
@@ -72,8 +74,13 @@ A limit is a documented value. The collector counts the work that goes over it.
 
 - 2,550 threads at one time (`kMaxTrackedThreads`). A sample of a thread over
   the limit is dropped. `Monitor::Health` reports `dropped_samples`.
-- 128 pending ticks, 128 retired sessions, 4,096 loss entries.
-- `max_live_samples` is at most 10,000,000. The arena takes about 280 bytes
+- Per slot: 128 pending ticks, 128 retired sessions, 4,096 loss entries.
+- Fleet: at most 64 slots (default 16), 1,024 retired source/session keys,
+  128 socket observer bindings, and 256 cached session mappings.
+- At most 1,024 target watch files are loaded at startup. New target settings
+  are created during refresh without disk reads. The HTTP worker saves them.
+- `max_live_samples` is at most 10,000,000 and is divided across reserved
+  target slots. The arena takes about 280 bytes
   of address space for each sample, so a larger value could make the
   reservation fail at startup. `--check-config` rejects a larger value.
 - The stored sockets column holds up to 4,096 bytes. A socket that does not fit

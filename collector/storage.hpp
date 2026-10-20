@@ -1154,6 +1154,8 @@ struct TargetFilter
 {
   std::string host_;
   std::string id_;
+  std::string legacy_host_ = {};
+  bool include_unmapped_ = true;
 };
 
 [[nodiscard]] inline bool HasTargetMappings(sqlite3* p_database)
@@ -1165,20 +1167,26 @@ struct TargetFilter
 [[nodiscard]] inline std::string TargetPredicate(bool p_mapped)
 {
   return p_mapped ? " AND (session IN (SELECT session FROM session_target "
-                    "WHERE host=? AND target=?)"
+                    "WHERE (host=? OR host=?) AND target=?)"
                     " OR (session NOT IN (SELECT session FROM session_target) "
                     "AND ?))"
-                  : " AND (? IS NOT NULL AND ?='default')";
+                  : " AND ?";
 }
 
 inline void BindTarget(Binder& p_binder, const TargetFilter& p_target,
                        bool p_mapped)
 {
-  p_binder.Add(p_target.host_).Add(p_target.id_);
-  if (p_mapped)
+  const auto include_unmapped = std::int64_t{
+      p_target.id_ == "default" && p_target.include_unmapped_ ? 1 : 0};
+  if (!p_mapped)
   {
-    p_binder.Add(std::int64_t{p_target.id_ == "default" ? 1 : 0});
+    p_binder.Add(include_unmapped);
+    return;
   }
+  p_binder.Add(p_target.host_)
+      .Add(p_target.legacy_host_)
+      .Add(p_target.id_)
+      .Add(include_unmapped);
 }
 
 // Up to p_limit rollup rows for one thread from one day file, oldest first.

@@ -16,6 +16,13 @@
 namespace triangulator::collector
 {
 
+struct LastTargetMetadata
+{
+  FixedText<24> session_;
+  std::uint32_t pid_ = 0;
+  double recorded_at_ = 0;
+};
+
 // Owns the state of one target. Storage and its sink remain shared.
 struct TargetSlot
 {
@@ -44,7 +51,10 @@ struct TargetSlot
   bool visible_ = false;
   bool dirty_ = true;
   bool reset_view_ = false;
-  TargetSlot* previous_view_ = nullptr;
+  std::shared_ptr<const std::string> previous_body_;
+  std::optional<LastTargetMetadata> previous_metadata_;
+  std::shared_ptr<const std::string> last_body_;
+  std::optional<LastTargetMetadata> last_metadata_;
   PeerText peer_;
   FixedText<64> host_;
   FixedText<32> id_;
@@ -57,6 +67,10 @@ struct TargetSlot
   bool mapping_dirty_ = false;
   std::filesystem::path replay_root_;
   bool recorder_started_ = false;
+  std::shared_ptr<WatchSettings> watches_;
+  std::shared_ptr<const WatchState> published_watches_;
+  bool legacy_replay_ = false;
+  std::uint32_t pid_ = 0;
   std::optional<Json> last_target_;
   std::uint64_t published_layout_ = 0;
 };

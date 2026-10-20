@@ -16,7 +16,7 @@ class TargetFleet final
  public:
   TargetFleet(const Config& p_config, double p_now, Storage& p_storage,
               StorageSink& p_sink)
-      : config_(p_config), sink_(p_sink)
+      : config_(p_config), storage_(p_storage), sink_(p_sink)
   {
     Config slot_config = p_config;
     slot_config.max_live_samples_ /= p_config.max_targets_;
@@ -43,11 +43,34 @@ class TargetFleet final
                                  4};
     if (magic == "TSIO")
     {
-      // The optional socket source has its own observer identity and remains
-      // independent of sampler sessions.
+      if (const auto observation = socket_metrics::Decode(p_data))
+      {
+        auto binding = std::ranges::find_if(
+            socket_bindings_,
+            [&](const SocketBinding& p_binding)
+            {
+              return p_binding.active_ && p_binding.peer_ == p_peer &&
+                     p_binding.pid_ == observation->pid_;
+            });
+        if (binding == socket_bindings_.end())
+        {
+          binding = std::ranges::find(socket_bindings_, false,
+                                      &SocketBinding::active_);
+          if (binding == socket_bindings_.end())
+          {
+            binding = socket_bindings_.begin() +
+                      static_cast<std::ptrdiff_t>(socket_position_++ %
+                                                  socket_bindings_.size());
+            ++capacity_drops_;
+          }
+        }
+        *binding = {true, p_peer, observation->pid_, observation->observer_,
+                    p_now};
+      }
       return slots_.front()->ingest_.Handle(p_data, p_peer, p_now);
     }
     std::uint64_t session = 0;
+    std::optional<std::uint32_t> pid;
     std::optional<target_wire::Packet> announcement;
     if (magic == "TTGT")
     {
@@ -69,6 +92,7 @@ class TargetFleet final
         return {};
       }
       session = decoded->session_;
+      pid = decoded->pid_;
     }
     else if (magic == "TRES")
     {
@@ -79,6 +103,7 @@ class TargetFleet final
         return {};
       }
       session = decoded->header_.session_;
+      pid = decoded->header_.pid_;
     }
     else if (magic == "TVMA")
     {
@@ -89,6 +114,7 @@ class TargetFleet final
         return {};
       }
       session = decoded->header_.session_;
+      pid = decoded->header_.pid_;
     }
     else if (magic == "TPIN")
     {
@@ -99,6 +125,7 @@ class TargetFleet final
         return {};
       }
       session = decoded->session_;
+      pid = decoded->pid_;
     }
     else if (magic == "TEND")
     {
@@ -142,12 +169,6 @@ class TargetFleet final
             candidate->host_.View() == target_wire::Text(announcement->host_) &&
             candidate->id_.View() == target_wire::Text(announcement->target_))
         {
-          // A host name cannot move between allowed senders during a run.
-          if (candidate->peer_ != p_peer)
-          {
-            ++bad_packets_;
-            return {};
-          }
           known = candidate.get();
           break;
         }
@@ -199,7 +220,8 @@ class TargetFleet final
       ++capacity_drops_;
       return {};
     }
-    if (slot->session_ != session)
+    const bool new_session = !slot->active_ || slot->session_ != session;
+    if (new_session)
     {
       if (slot->active_)
       {
@@ -211,7 +233,14 @@ class TargetFleet final
       if (!slot->active_)
       {
         slot->exits_.Clear();
+        slot->announced_ = false;
+        slot->announcement_ = {};
+        slot->last_body_.reset();
+        slot->last_metadata_.reset();
+        slot->previous_body_.reset();
+        slot->previous_metadata_.reset();
       }
+      slot->pid_ = 0;
       static_cast<void>(slot->monitor_.PrepareSession(session, p_now));
       slot->resources_.PrepareSession(session, p_now);
       slot->memory_.PrepareSession(session);
@@ -224,8 +253,8 @@ class TargetFleet final
       if (!announcement)
       {
         slot->host_ = FixedText<64>{p_peer.View()};
-        slot->id_ = FixedText<32>{"default"};
         slot->visible_ = !AnnouncedPeer(p_peer);
+        slot->id_ = FixedText<32>{slot->visible_ ? "default" : ""};
       }
     }
     if (announcement)
@@ -235,13 +264,23 @@ class TargetFleet final
         Retire(known->peer_, known->session_);
         known->monitor_.Close();
         known->resources_.Drain(p_now, true);
-        slot->previous_view_ = known;
+        slot->previous_body_ =
+            known->last_body_ ? known->last_body_ : known->previous_body_;
+        slot->previous_metadata_ = known->last_metadata_
+                                       ? known->last_metadata_
+                                       : known->previous_metadata_;
         known->active_ = false;
         known->visible_ = false;
+      }
+      if (slot->peer_ != p_peer)
+      {
+        Retire(slot->peer_, slot->session_);
+        slot->peer_ = p_peer;
       }
       slot->host_ = FixedText<64>{target_wire::Text(announcement->host_)};
       slot->id_ = FixedText<32>{target_wire::Text(announcement->target_)};
       slot->announcement_ = *announcement;
+      slot->pid_ = announcement->pid_;
       slot->announced_ = true;
       slot->visible_ = true;
       slot->mapping_dirty_ = true;
@@ -256,6 +295,16 @@ class TargetFleet final
         }
       }
     }
+    if (pid)
+    {
+      slot->pid_ = *pid;
+    }
+    if (new_session || announcement)
+    {
+      storage_.RememberTarget(session, slot->host_.View(), slot->id_.View(),
+                              slot->pid_, slot->announcement_.process_start_,
+                              slot->first_seen_);
+    }
     slot->last_seen_ = p_now;
     slot->dirty_ = true;
     if (!announcement)
@@ -263,6 +312,24 @@ class TargetFleet final
       return slot->ingest_.Handle(p_data, p_peer, p_now);
     }
     return sink_.Status();
+  }
+
+  [[nodiscard]] std::optional<std::string> SocketObserver(
+      const TargetSlot& p_slot) const
+  {
+    const SocketBinding* latest = nullptr;
+    for (const auto& binding : socket_bindings_)
+    {
+      if (binding.active_ && binding.peer_ == p_slot.peer_ &&
+          binding.pid_ == p_slot.pid_ && p_slot.pid_ != 0 &&
+          binding.received_ >= p_slot.first_seen_ &&
+          (!latest || binding.received_ > latest->received_))
+      {
+        latest = &binding;
+      }
+    }
+    return latest ? std::optional{std::to_string(latest->observer_)}
+                  : std::nullopt;
   }
 
   void Remove(std::string_view p_key)
@@ -311,7 +378,18 @@ class TargetFleet final
     PeerText peer_;
     std::uint64_t session_ = 0;
   };
+  struct SocketBinding
+  {
+    bool active_ = false;
+    PeerText peer_;
+    std::uint32_t pid_ = 0;
+    std::uint64_t observer_ = 0;
+    double received_ = 0;
+  };
+  std::array<SocketBinding, 128> socket_bindings_{};
+  std::size_t socket_position_ = 0;
   const Config& config_;
+  Storage& storage_;
   StorageSink& sink_;
   std::vector<std::unique_ptr<TargetSlot>> slots_;
   std::optional<PeerText> pinned_;

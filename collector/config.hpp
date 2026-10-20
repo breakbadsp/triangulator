@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include "../common/target_wire.hpp"
 #include "json.hpp"
 #include "toml.hpp"
 
@@ -144,6 +145,13 @@ ParseWatchRules(const JsonArray& p_rules)
   return rules;
 }
 
+struct TargetSettings
+{
+  std::string host_;
+  std::string id_;
+  double replay_interval_s_ = 1;
+};
+
 // The collector's settings. The same file holds the alerting module's
 // settings, so alert keys may be present; the collector does no alerting and
 // ignores them, apart from [alerts] window_s, which sets the rollup window.
@@ -154,6 +162,7 @@ struct Config
   bool store_raw_ = true;
   // Dashboard recording cadence; zero disables recording.
   double replay_interval_s_ = 1;
+  std::vector<TargetSettings> targets_;
   std::string data_dir_ = "data";
   std::string udp_host_ = "0.0.0.0";
   std::int64_t udp_port_ = 9400;
@@ -315,6 +324,47 @@ namespace detail
       return std::unexpected("replay_interval_s must be 0 or 0.5..60");
     }
     config.replay_interval_s_ = interval->AsNumber();
+  }
+
+  if (const auto* targets = root.Find("target"))
+  {
+    if (!targets->IsArray() || targets->AsArray().size() > 64)
+    {
+      return std::unexpected("target settings must contain at most 64 tables");
+    }
+    for (const auto& target : targets->AsArray())
+    {
+      const auto* host = target.Find("host");
+      const auto* id = target.Find("id");
+      const auto* interval = target.Find("replay_interval_s");
+      if (!target.IsObject() || target.AsObject().size() != 3 || !host ||
+          !host->IsString() ||
+          !(target_wire::ValidName(host->AsString(), 63) ||
+            NormalizeIp(host->AsString())) ||
+          !id || !id->IsString() ||
+          !target_wire::ValidName(id->AsString(), 31) || !interval ||
+          !interval->IsNumber() || !std::isfinite(interval->AsNumber()) ||
+          !(interval->AsNumber() == 0 ||
+            (interval->AsNumber() >= 0.5 && interval->AsNumber() <= 60)))
+      {
+        return std::unexpected(
+            "each target settings table needs host, id, and replay_interval_s "
+            "(0 or 0.5..60)");
+      }
+      const auto normalized_host =
+          NormalizeIp(host->AsString()).value_or(host->AsString());
+      if (std::ranges::any_of(config.targets_,
+                              [&](const TargetSettings& p_target)
+                              {
+                                return p_target.host_ == normalized_host &&
+                                       p_target.id_ == id->AsString();
+                              }))
+      {
+        return std::unexpected("target settings keys must be unique");
+      }
+      config.targets_.push_back(
+          {normalized_host, id->AsString(), interval->AsNumber()});
+    }
   }
 
   if (const auto* alerts = root.Find("alerts"))

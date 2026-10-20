@@ -275,10 +275,11 @@ class DashboardServer
 {
  public:
   DashboardServer(const Config& p_config, SharedState& p_state,
-                  WatchSettings& p_watches, FileDescriptor p_listener)
+                  std::shared_ptr<WatchSettings> p_watches,
+                  FileDescriptor p_listener)
       : config_(p_config),
         state_(p_state),
-        watches_(p_watches),
+        watches_(std::move(p_watches)),
         listener_(std::move(p_listener)),
         socket_reports_(p_config.data_dir_)
   {
@@ -334,7 +335,7 @@ class DashboardServer
  private:
   const Config& config_;
   SharedState& state_;
-  WatchSettings& watches_;
+  std::shared_ptr<WatchSettings> watches_;
   FileDescriptor listener_;
   std::atomic<bool> stopped_ = false;
   std::jthread thread_;
@@ -622,6 +623,21 @@ class DashboardServer
     }
     if (path == "/api/watches" || path == "/api/watches/reset")
     {
+      const auto key = QueryValue(p_request.query_, "target");
+      const auto selected = state_.Select(key.value_or(""));
+      if (key && !selected)
+      {
+        RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
+        return;
+      }
+      const auto settings = selected ? selected->watches_ : watches_;
+      if (!settings)
+      {
+        RespondJson(
+            p_connection, 503,
+            JsonObject{{"error", "target watch settings limit reached"}});
+        return;
+      }
       if (p_request.if_match_.empty())
       {
         RespondJson(p_connection, 428,
@@ -643,8 +659,8 @@ class DashboardServer
       }
       RespondWatches(p_connection,
                      path == "/api/watches"
-                         ? watches_.Replace(p_request.body_, revision)
-                         : watches_.Reset(revision));
+                         ? settings->Replace(p_request.body_, revision)
+                         : settings->Reset(revision));
     }
     else
     {
@@ -735,20 +751,52 @@ class DashboardServer
     }
     else if (p_request.path_ == "/api/watches")
     {
-      RespondJson(p_connection, 200, watches_.Describe());
+      const auto settings = target ? target->watches_ : watches_;
+      if (!settings)
+      {
+        RespondJson(
+            p_connection, 503,
+            JsonObject{{"error", "target watch settings limit reached"}});
+        return;
+      }
+      RespondJson(p_connection, 200, settings->Describe());
     }
     else if (p_request.path_ == "/api/socket-io")
     {
-      const auto pid_text = QueryValue(p_request.query_, "pid").value_or("0");
+      const auto pid_text =
+          QueryValue(p_request.query_, "pid")
+              .value_or(target ? std::to_string(target->pid_) : "0");
       const auto pid = triangulator::ParseNumber<std::uint32_t>(pid_text);
-      const auto observer =
-          QueryValue(p_request.query_, "observer").value_or("");
+      auto observer = QueryValue(p_request.query_, "observer").value_or("");
       if (!pid || (!observer.empty() &&
                    !triangulator::ParseNumber<unsigned long long>(observer)))
       {
         Respond(p_connection, 400, R"({"error":"invalid pid or observer"})",
                 "application/json");
         return;
+      }
+      if (target && (target_key || !QueryValue(p_request.query_, "pid")))
+      {
+        if (*pid != target->pid_ ||
+            (target->socket_observer_ && !observer.empty() &&
+             observer != *target->socket_observer_))
+        {
+          RespondJson(
+              p_connection, 400,
+              JsonObject{
+                  {"error",
+                   "PID or observer does not belong to the selected target"}});
+          return;
+        }
+        if (!target->socket_observer_)
+        {
+          RespondJson(
+              p_connection, 200,
+              JsonObject{{"available", false},
+                         {"reason", "No socket observations for this target"}});
+          return;
+        }
+        observer = *target->socket_observer_;
       }
       const auto report = socket_reports_.Request(*pid, observer);
       Respond(p_connection, 200, *report, "application/json");
@@ -837,7 +885,10 @@ class DashboardServer
   {
     const auto target =
         state_.Select(QueryValue(p_request.query_, "target").value_or(""));
-    return target ? std::optional{TargetFilter{target->host_, target->id_}}
+    return target ? std::optional{TargetFilter{
+                        target->host_, target->id_,
+                        target->id_ == "default" ? target->peer_ : "",
+                        target->legacy_replay_}}
                   : std::nullopt;
   }
 
@@ -889,10 +940,17 @@ class DashboardServer
     }
     const auto selected =
         state_.Select(QueryValue(p_request.query_, "target").value_or(""));
-    const auto replay =
+    auto replay =
         collector::Replay(selected ? selected->replay_root_
                                    : std::filesystem::path{config_.data_dir_},
                           {at, direction});
+    if (selected && selected->legacy_replay_ &&
+        selected->replay_root_ != std::filesystem::path{config_.data_dir_})
+    {
+      replay = MergeReplay(
+          std::move(replay),
+          collector::Replay(config_.data_dir_, {at, direction}), direction);
+    }
     // The stored view is sent as written; parsing and re-encoding a
     // multi-megabyte view would hold up every other dashboard request.
     Respond(
@@ -900,7 +958,8 @@ class DashboardServer
         std::format(R"({{"first":{},"last":{},"interval_s":{},)"
                     R"("snapshot":{}}})",
                     DumpJson(Json(replay.first_)), DumpJson(Json(replay.last_)),
-                    DumpJson(Json(config_.replay_interval_s_)),
+                    DumpJson(Json(selected ? selected->replay_interval_s_
+                                           : config_.replay_interval_s_)),
                     replay.snapshot_.value_or("null")),
         "application/json");
   }
@@ -948,8 +1007,10 @@ class DashboardServer
       invalid();
       return;
     }
-    auto rows = collector::History(config_.data_dir_, *session, tid, *start,
-                                   *end, 2000, SelectedFilter(p_request));
+    auto rows = collector::History(
+        config_.data_dir_, *session, tid, *start, *end, 2000,
+        QueryValue(p_request.query_, "target") ? SelectedFilter(p_request)
+                                               : std::nullopt);
     const bool truncated = rows.size() == 2000;
     RespondJson(p_connection, 200,
                 JsonObject{{"rows", std::move(rows)},

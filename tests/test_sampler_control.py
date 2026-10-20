@@ -77,6 +77,12 @@ class ConfigTextTests(unittest.TestCase):
         with self.assertRaisesRegex(sampler_control.ControlError, "selector changed"):
             sampler_control.change_target_set(updated, {"action": "remove", "id": "orders", "target": "999"})
 
+    def test_global_rate_is_inserted_before_target_tables(self):
+        text = 'collector="127.0.0.1:9400"\n[[target]]\nid="orders"\npid=123\n'
+        updated = sampler_control.replace_setting(text, re.compile(r"\s*rate_hz\s*="), "rate_hz = 2")
+        self.assertLess(updated.index("rate_hz"), updated.index("[[target]]"))
+        self.assertEqual(sampler_control.configured_targets(updated), [{"id": "orders", "target": "123"}])
+
 
 class TargetLookupTests(unittest.TestCase):
     def test_thread_ids_and_missing_pids_are_rejected(self):
@@ -240,6 +246,27 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "default"}, headers)[0], 400)
         self.assertEqual(sampler_control.configured_targets(config.read_text()),
                          [{"id": "default", "target": str(self.target.pid)}])
+
+    def test_cli_target_ids_add_remove_and_global_rate(self):
+        config = self.runtime / "config/sampler.toml"
+        config.write_text(f'collector="127.0.0.1:{self.port}"\n[[target]]\nid="orders"\npid={self.target.pid}\n')
+        self.start_sampler(config)
+        self.receive_until(lambda packet: packet.pid == self.target.pid)
+        other = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(stop, other)
+        changed = self.run_script("set-target.sh", "orders", str(other.pid))
+        self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.receive_until(lambda packet: packet.pid == other.pid)
+        added = self.run_script("set-target.sh", "--add", "billing", str(self.target.pid))
+        self.assertEqual(added.returncode, 0, added.stderr)
+        self.assertEqual({item["id"] for item in sampler_control.configured_targets(config.read_text())}, {"orders", "billing"})
+        rate = self.run_script("set-rate.sh", "2")
+        self.assertEqual(rate.returncode, 0, rate.stderr)
+        self.assertLess(config.read_text().index("rate_hz"), config.read_text().index("[[target]]"))
+        self.receive_until(lambda packet: packet.interval_ms == 500)
+        removed = self.run_script("set-target.sh", "--remove", "billing")
+        self.assertEqual(removed.returncode, 0, removed.stderr)
+        self.assertEqual(sampler_control.configured_targets(config.read_text()), [{"id": "orders", "target": str(other.pid)}])
 
     def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
         # IPv4 samples and target control both work through an IPv6 wildcard listener.

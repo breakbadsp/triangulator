@@ -60,17 +60,30 @@ scripts/start.sh
 scripts/set-target.sh 1234  # Replace 1234 with your process ID.
 ```
 
-Open **<http://127.0.0.1:9401>**. Use **Change target** to select another process.
+Open **<http://127.0.0.1:9401>**. Use **Manage targets** to add or remove
+monitored processes. The target selector changes only the current tab.
 
 | Default | Value |
 | --- | --- |
-| Sampling | Threads: 5 Hz · Resources: 2 s · Memory: 30 s |
+| Sampling | Threads: up to 5 Hz · CPU budget: 1% of one core · Resources: 2 s · Memory: 30 s |
 | History | Recordings: 1 s · Retention: 7 days · Raw samples: enabled |
 | Runtime files | `~/triangulator/` |
 
 [Stop and restart](docs/setup.md#stop-restart-and-change-settings) ·
 [Settings and logs](docs/setup.md#active-files-and-logs) ·
 [Storage costs](docs/collector-reference.md#historical-process-inspection)
+
+Monitor several processes with one sampler:
+
+```sh
+scripts/set-target.sh --add orders 1234
+scripts/set-target.sh orders 5678
+scripts/set-target.sh --remove orders
+```
+
+Use unique target IDs. Keep at least one target. See
+[multiple-target configuration](sampler/README.md#multiple-targets) and
+[per-target collector settings](collector/README.md#per-target-settings).
 
 ## How it works
 
@@ -206,8 +219,8 @@ recorded execution result.
 | PASSED | 35 | - |
 | FAILED | 2 | QA-007, QA-105 |
 | BLOCKED | 8 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051 |
-| NOT_RUN | 32 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-059, QA-060, QA-061, QA-062, QA-063 |
-| **Total** | **77** | |
+| NOT_RUN | 35 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-059, QA-060, QA-061, QA-062, QA-063, QA-064, QA-065, QA-066 |
+| **Total** | **80** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -14,6 +15,9 @@
 namespace triangulator::collector
 {
 
+class WatchSettings;
+struct WatchState;
+
 struct PublishedTarget
 {
   std::string key_;
@@ -23,6 +27,12 @@ struct PublishedTarget
   std::shared_ptr<const std::string> live_;
   std::shared_ptr<const std::string> last_target_;
   std::shared_ptr<const std::string> memory_map_;
+  std::shared_ptr<WatchSettings> watches_;
+  double replay_interval_s_ = 1;
+  bool legacy_replay_ = false;
+  std::optional<std::string> socket_observer_;
+  std::uint32_t pid_ = 0;
+  std::string peer_;
 };
 
 // The latest /api/live, /api/last-target and /api/memory-map payloads,

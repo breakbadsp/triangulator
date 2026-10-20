@@ -30,8 +30,10 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 
 **2. Receiving sampler data** (`protocol.hpp`, `main.cpp`)
 - Listens on UDP (IPv4 or IPv6) with a 4 MB receive buffer.
-- Accepts datagrams only from the sampler's IP: `sampler_ip` from the config,
-  or else the first sender it hears from.
+- Accepts datagrams from `sampler_ips`, or the legacy `sampler_ip` key.
+  Without either setting, it pins the first valid sampler sender.
+- TTGT announcements map each session to a `(host, id)` target slot. The
+  monitors and published views remain independent for each slot.
 - Decodes and checks every datagram, using the wire-format definitions
   shared with the sampler (`common/wire.hpp`, `common/resource_wire.hpp`). Malformed datagrams are counted as bad
   packets and dropped.
@@ -105,6 +107,19 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
 **6. Dashboard and API** (`http.hpp`)
+- `GET /api/targets` lists target keys, identity, state, access, CPU use,
+  effective rate, and capacity counters.
+- Add `?target=<host>/<id>` to select a target. Without it, views and resources
+  use `default` if present, then the first key by host and ID. An explicit
+  session in `/api/history` or PID in `/api/socket-io` keeps its legacy lookup
+  when no target parameter is supplied. Add the target parameter for host
+  isolation when PIDs can be equal.
+- `POST /api/targets` accepts `{action:"add", id:"orders", target:"orders-api"}`
+  or `{action:"remove", id:"orders"}` as JSON with quoted property names.
+  The existing dashboard-write and same-origin checks apply. Local sampler
+  control uses `GET /api/targets/control` to read the configured set.
+- [Per-target settings](../collector/README.md#per-target-settings) keep watch
+  edits and recording cadence independent.
 - Serves the dashboard page (`dashboard.html`, built into the
   binary).
 - `GET /api/live`: current threads, group counts and monitor health (sampler
