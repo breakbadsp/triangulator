@@ -5,6 +5,15 @@ instead of GitHub's runners. Pull requests from forks still run on GitHub's
 `ubuntu-24.04` runners, so code from outside contributors never runs on the
 owner's computer.
 
+## When jobs run
+
+Pull requests run the format check and AlmaLinux 8 tests when their path
+filters match. The QA results check keeps its existing path filters.
+Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at midnight
+in `Asia/Kolkata`. These workflows also support manual runs. Packaging
+still builds and publishes releases for `v*` tags; nightly runs only
+upload test artifacts.
+
 ## How jobs choose a runner
 
 Each job has this line:
