@@ -16,6 +16,16 @@ or README: the check command, coding standards, and which paths are sensitive.
 | Comment analyzer | Fix real findings, rebut wrong ones | yes |
 | Test and merge | Run the gate once, merge when it passes | no |
 
+## Review method
+
+Reviewers spend their time where defects hide: the callers and readers of
+changed code, failure and boundary paths, data that crosses a boundary (wire
+formats, stored files, APIs, configuration), and tests that fail without the
+change. Before posting, each reviewer tries to disprove each finding and drops
+it if a guard, a caller check, or a test prevents the failure. A wrong finding
+costs an analyzer pass and often a second round. Round 2 also checks that the
+fixes do not break the callers of the code they change.
+
 ## Model and reasoning selection
 
 For `full`, use one large, capable model and one small, quick model. Never use
@@ -57,10 +67,13 @@ report none.
 
 1. Start the reviewer and the quick reviewer in parallel on the same head SHA.
 2. Both post a review on the PR. If either is missing, stop and report.
-3. No `blocker` or `major` from either: go to the gate.
+3. No `blocker` or `major` from either: wait for CI on this head, stopping at
+   the first failed check. No failed check: go to the gate.
 4. Otherwise start the analyzer. It handles the union of the findings,
    deduplicated, and treats quick-reviewer findings with extra suspicion
-   because that model is weaker.
+   because that model is weaker. It also reads the PR's CI checks when it
+   starts and before it pushes. Each failed check is a `blocker` finding:
+   it reads the failed log and fixes the cause. It never reruns CI.
 5. If the head SHA changed and this was round 1, run round 2: both reviewers
    look only at the round-1 fixes and the new commits.
 
@@ -75,7 +88,8 @@ for manual handling.
 - `scan`: skip the local check only when every changed file matches the paths
   filter of a passing CI workflow that builds or tests. Run it otherwise.
 - CI checks show only `pass` or `skipping`. `no checks reported` passes only
-  when no changed file matches a `pull_request` `paths` filter.
+  when no changed file matches a `pull_request` `paths` filter. Stop waiting
+  for pending checks as soon as one check or the local check fails.
 - The PR is `MERGEABLE` and `CLEAN`.
 - Merge with `--match-head-commit`. Never `--admin`, never force.
 

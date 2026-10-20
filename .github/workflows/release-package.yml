@@ -1,19 +1,14 @@
 name: Release package
 
 # A tag like v0.1.0 builds the packages and publishes them as a GitHub release.
-# Pull requests that touch the packaging only build and test them.
+# Nightly and manual runs build and test the packages without publishing them.
 on:
   push:
     tags: ['v*']
-  pull_request:
-    paths:
-      - Makefile
-      - scripts/**
-      - config/**
-      - deploy/**
-      - .github/workflows/release-package.yml
-      - .github/scripts/almalinux-package*.sh
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+      timezone: Asia/Kolkata
 
 permissions:
   contents: read
@@ -25,8 +20,7 @@ concurrency:
 jobs:
   package:
     name: Package for AlmaLinux 8 and 9
-    # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
       contents: write

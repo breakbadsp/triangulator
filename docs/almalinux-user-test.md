@@ -1,18 +1,18 @@
 # Test a new installation in AlmaLinux
 
-The `AlmaLinux new user test` workflow runs on the
-[self-hosted runner](self-hosted-runner.md) in rootless containers. Fork pull
-requests run it on GitHub-hosted runners. You need no Docker access or `sudo`
-to run it.
-It tests the official `almalinux:8` and `almalinux:9` container images.
-Manual runs can also test `almalinux:10`.
+The `AlmaLinux new user test` workflow runs on GitHub-hosted runners.
+See the [runner configuration](self-hosted-runner.md). You need no local
+Docker access or `sudo` to run it.
+Pull requests test the official `almalinux:8` container image. Nightly and
+manual runs test `almalinux:8` and `almalinux:9`. Manual runs can also test
+`almalinux:10`.
 
 ## Run the test
 
 The workflow starts on pull requests that change the workflow, its scripts,
 build files, source files, configuration, tests, or build guidelines.
-Pull requests test AlmaLinux 8 and 9. AlmaLinux 10 runs only when selected
-for a manual run.
+Nightly runs start at midnight in `Asia/Kolkata` on the latest `master`
+commit. AlmaLinux 10 runs only when selected for a manual run.
 To start it by hand:
 
 1. Open the repository's **Actions** page.

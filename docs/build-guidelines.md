@@ -28,8 +28,9 @@ The optional eBPF kernel test is separate and remains disabled in normal checks.
 Run these package commands as root inside the build container or build machine.
 Compile and run Triangulator as an ordinary user.
 The sampler and target process must run as the same user.
-The CI [runner](self-hosted-runner.md) creates these containers rootless, so
-you need no local Docker access or `sudo`.
+GitHub-hosted CI runners create these containers, so you need no local
+Docker access or `sudo` to run the workflows. See the
+[runner configuration](self-hosted-runner.md).
 
 ### AlmaLinux 8
 
@@ -133,6 +134,10 @@ An absent target name is accepted and waits for the process to start.
 See [configuration](setup.md#configuration) for separate hosts and custom paths.
 
 ## Run tests with sanitizers
+
+The `Sanitizer tests` workflow runs nightly at midnight in `Asia/Kolkata`
+on the latest `master` commit. It also supports manual runs. It does not
+run on each pull request or each push.
 
 Install the address and thread sanitizer runtimes for the selected compiler.
 Run both sanitizer modes:

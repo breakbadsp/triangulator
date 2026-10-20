@@ -2,21 +2,9 @@ name: Sanitizer tests
 
 on:
   workflow_dispatch:
-  push:
-    branches: [master]
-  pull_request:
-    paths:
-      - Makefile
-      - .github/workflows/sanitizers.yml
-      - common/**
-      - sampler/**
-      - collector/**
-      - metrics/**
-      - socket_sampler/**
-      - examples/**
-      - scripts/**
-      - tests/**
-      - config/**
+  schedule:
+    - cron: '0 0 * * *'
+      timezone: Asia/Kolkata
 
 permissions:
   contents: read
@@ -28,8 +16,7 @@ concurrency:
 jobs:
   test:
     name: ${{ matrix.sanitizer }}
-    # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
