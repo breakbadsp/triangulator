@@ -18,17 +18,26 @@ Every sampler change must keep these rules. A change that cannot keep them
 needs the owner's explicit approval first.
 
 - Run exactly one sampler process on each host. It monitors every target on
-  that host. Never add a sampler per target.
+  that host. Never add a sampler per target. The optional eBPF
+  `socket_sampler/` is the one existing second process: it is opt-in, and
+  whether it stays is an open owner decision (design, open question 1).
 - Keep the sampler single-threaded: one loop on a monotonic deadline. Add no
   threads, thread pools, or async runtimes.
-- Keep it lean: after startup or reload, the tick path does no allocation and
-  no disk or network I/O that can block. Use only rate-limited warnings,
-  non-blocking UDP, and no disk writes. Ship a static binary with no runtime
-  dependencies.
+- Keep it lean: after startup or reload, the steady-state tick path does no
+  allocation and no disk or network I/O that can block. Use only
+  rate-limited warnings, non-blocking UDP, and no disk writes. Ship a static
+  binary with no runtime dependencies. New code must follow this. The
+  existing bounded exceptions are the `/dev/kmsg` read for exit reports (at
+  most 50 ms) and netlink `sock_diag` for sockets.
 - Need no privileges: read only the `/proc` files the sampler's user can
-  read. No sudo, capabilities, or ptrace.
+  read. No sudo, capabilities, or ptrace. The existing `/dev/kmsg` read is
+  best effort and may need `CAP_SYSLOG` when `dmesg_restrict=1`. A target of
+  another user is covered only at limited fidelity (no `io` or wait
+  channels), as the design describes.
 - Do the interpretation on the collector. The sampler reads raw counters and
-  sends them. It computes no rates, rules, or alerts.
+  sends them. It computes no rates, rules, or alerts. The one proposed
+  exception is the overhead throttle on the sampler's own CPU use; it is
+  pending owner approval (design, open question 5).
 - Bound the cost of each tick. Share work across targets, such as one `/proc`
   scan per tick, and spread heavy scans (resources, memory maps) so that one
   tick runs at most one of them.
