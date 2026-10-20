@@ -16,9 +16,18 @@ or README: the check command, coding standards, and which paths are sensitive.
 | Comment analyzer | Fix real findings, rebut wrong ones | yes |
 | Test and merge | Run the gate once, merge when it passes | no |
 
-The reviewer and quick reviewer use different models, so they miss different
-things. Configure the quick reviewer as a small, cheap model (Claude Haiku at
-high effort, or a mid-effort model from another vendor through its CLI).
+## Model and reasoning selection
+
+For `full`, use one large, capable model and one small, quick model. Never use
+two large models. Prefer different model families for the two reviewers. When
+possible, also use a reviewer from a different family than the orchestrator.
+If another family is unavailable, keep the large-and-quick pair within the
+available family. For simple changes in `scan`, use only one quick reviewer.
+
+Before starting each role, check the remaining token budget. Use `low` effort
+for simple work and `medium` otherwise. Lower effort when the budget is small
+or unknown. Use `high` only for a concrete, complex risk with enough tokens
+left for fixes and the merge gate. Do not select higher effort by default.
 
 ## Triage
 
@@ -38,7 +47,7 @@ is never downgraded by the orchestrator.
 
 ## Flow
 
-`scan`: the quick reviewer scans the diff once, in scan mode. No blocker or
+`scan`: start only one quick reviewer to scan the diff once. No blocker or
 major: go to the gate. Otherwise treat it as round 1 of `full`, including both
 reviewers on the whole diff, before the analyzer. The scan review's blockers
 and majors stay open: the analyzer runs on them even if both full reviewers
