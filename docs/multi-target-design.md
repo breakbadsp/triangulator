@@ -191,10 +191,30 @@ packet, so **upgrade the collector before the samplers**.
   (about 2.8 GB of address space), and `max_targets` defaults to 8. A larger
   fleet lowers `max_live_samples` or accepts less history per target.
 - **Replay directory.** Recordings made before targets existed stay in
-  `data_dir/replay`. They belong to one fixed legacy target: the pinned
-  sender, or the smallest address in `sampler_ips`. Arrival order never
-  decides it, so a restart keeps every recording with the same target. All
-  other targets record under `data_dir/targets/<hex key>`.
+  `data_dir/replay`. One rule decides who writes there, so at most one slot
+  records into it at any time: the `default` target of one fixed sender. The
+  sender is the smallest address in `sampler_ips`, or the pinned sender when
+  the list is empty (no other sender is accepted). The announced host name does
+  not matter, so an upgraded sampler that announces `<host>/default` keeps its
+  recordings. Every other target records under `data_dir/targets/<hex key>`.
+  The rule uses only the sender address and each slot's current identity, never
+  arrival order, and the main loop evaluates it on every refresh. A restart
+  therefore keeps every recording with the same target, and a TTGT that
+  renames a provisional `<address>/default` slot (for example to `billing`)
+  moves its recorder away through the non-joining `SetRoot`. Frames recorded
+  before that rename stay in the old directory. Limits: without `sampler_ips`
+  the collector serves whichever sender it hears first, so set `sampler_ips`
+  when several samplers may start in any order. If several hosts behind one
+  address announce `default`, the smallest host name present wins.
+- **Idle expiry.** `target_idle_expiry_s` (default 600, range 1..86400) sets
+  how long a slot may stay silent before the collector releases it. The 10 s
+  TTGT announce interval keeps a live sampler far below it. The check runs in
+  the periodic refresh, not on the datagram path. A released slot is closed
+  like a replaced one, disappears from `/api/targets`, and a new target can
+  take it, which frees capacity when SIGHUP replaces a target. Its history
+  stays in storage. The recorder is not joined; it idles until the slot is
+  reused and then moves with `SetRoot`. A sampler that returns later is
+  treated as a new session, and it needs a free slot.
 - **Snapshots.** A slot rebuilds its JSON only when it has received data
   since the last build.
 
@@ -204,7 +224,8 @@ packet, so **upgrade the collector before the samplers**.
   first_seen)` table to each day file. Rollup, resource, and raw rows keep
   their schema. A target's history is a join on `session`.
 - Sessions with no mapping row belong to the `default` target, so existing
-  day files stay readable.
+  day files stay readable. Replay files for that target stay in
+  `data_dir/replay` (see Collector, Replay directory).
 - Replay views are stored for each target. Their disk cost (about 327 KB per
   1,000 threads per view) grows with the number of targets. `replay_interval_s`
   gets a per-target override.

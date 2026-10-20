@@ -34,7 +34,12 @@ def tick(session, pid=123, sequence=0, interval=200):
     return header + record
 
 
-class MultiTargetCollectorTests(unittest.TestCase):
+class CollectorCase(unittest.TestCase):
+    # Settings the subclasses below change.
+    SAMPLER_IPS = 'sampler_ips=["127.0.0.1","127.0.0.2"]\n'
+    MAX_TARGETS = 4
+    EXTRA_CONFIG = ""
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -48,13 +53,17 @@ class MultiTargetCollectorTests(unittest.TestCase):
         config = self.directory / "collector.toml"
         config.write_text(f'udp_host="127.0.0.1"\nudp_port={self.udp_port}\n'
                           f'http_port={self.port}\ndata_dir="{self.directory}/data"\n'
-                          'max_targets=4\nmax_live_samples=10000\nreplay_interval_s=0.5\n'
-                          'sampler_ips=["127.0.0.1","127.0.0.2"]\n')
-        self.process = subprocess.Popen([ROOT / "build/triangulator-collector", config],
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                          f'max_targets={self.MAX_TARGETS}\nmax_live_samples=10000\n'
+                          'replay_interval_s=0.5\n' + self.SAMPLER_IPS + self.EXTRA_CONFIG)
+        self.config = config
         self.addCleanup(self.stop)
         self.sender = socket.socket(type=socket.SOCK_DGRAM)
         self.addCleanup(self.sender.close)
+        self.start()
+
+    def start(self):
+        self.process = subprocess.Popen([ROOT / "build/triangulator-collector", self.config],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self.wait_for(lambda: self.fetch("/api/targets")["targets"] == [])
 
     def stop(self):
@@ -62,6 +71,19 @@ class MultiTargetCollectorTests(unittest.TestCase):
             self.process.terminate()
         _, stderr = self.process.communicate(timeout=10)
         self.assertEqual(self.process.returncode, 0, stderr.decode())
+
+    def restart(self):
+        self.stop()
+        self.start()
+
+    def replay_targets(self, directory):
+        """The target key of every frame recorded in a replay directory."""
+        keys = set()
+        for path in directory.glob("*.sqlite3"):
+            with sqlite3.connect(path) as database:
+                rows = database.execute("SELECT snapshot FROM process_snapshot").fetchall()
+            keys.update(json.loads(row[0])["target"] for row in rows)
+        return keys
 
     def fetch(self, path):
         with urllib.request.urlopen(self.base + path, timeout=2) as response:
@@ -82,6 +104,11 @@ class MultiTargetCollectorTests(unittest.TestCase):
             time.sleep(0.03)
         self.fail("collector condition did not become true")
 
+    def targets(self):
+        return {target["key"] for target in self.fetch("/api/targets")["targets"]}
+
+
+class MultiTargetCollectorTests(CollectorCase):
     def test_interleaved_targets_reordered_announce_and_session_replacement(self):
         self.send(announce(101, "orders", pid=123))
         self.send(tick(101))
@@ -155,9 +182,6 @@ class MultiTargetCollectorTests(unittest.TestCase):
         description = self.fetch("/api/targets")
         self.assertEqual(len(description["targets"]), 4)
         self.assertEqual(description["bad_packets"], 1)
-
-    def targets(self):
-        return {target["key"] for target in self.fetch("/api/targets")["targets"]}
 
     def test_sessions_heard_before_announcements_both_recover(self):
         # A restarted collector hears both ticks before either announcement.
@@ -241,6 +265,48 @@ class MultiTargetCollectorTests(unittest.TestCase):
         frame = self.fetch(f'/api/replay?target=host-a/default&at={bounds["last"]}')["snapshot"]
         self.assertEqual(frame["health"]["pid"], 123)
 
+    def test_delayed_announce_moves_the_provisional_owner_out_of_the_legacy_directory(self):
+        # A tick arrives before its TTGT and a refresh starts a recorder for
+        # "127.0.0.1/default" in data_dir/replay. The TTGT then names it
+        # "billing", and another session announces "default". Only the
+        # default target may record into data_dir/replay from then on.
+        replay = self.directory / "data" / "replay"
+        self.send(tick(101))
+        self.wait_for(lambda: any(replay.glob("*.sqlite3")))
+        self.send(announce(101, "billing"))
+        self.send(announce(202, "default", pid=456))
+        for sequence in range(1, 6):
+            self.send(tick(101, sequence=sequence))
+            self.send(tick(202, pid=456, sequence=sequence))
+            time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"host-a/billing", "host-a/default"})
+        billing = self.directory / "data" / "targets" / b"host-a/billing".hex() / "replay"
+        self.wait_for(lambda: self.replay_targets(billing) == {"host-a/billing"})
+        self.wait_for(lambda: "host-a/default" in self.replay_targets(replay))
+        self.assertEqual(self.replay_targets(replay) - {"127.0.0.1/default"}, {"host-a/default"})
+
+    def test_restart_with_reversed_arrival_keeps_the_legacy_owner(self):
+        replay = self.directory / "data" / "replay"
+        other = self.directory / "data" / "targets" / b"host-b/default".hex() / "replay"
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            for order in ("ab", "ba"):
+                for name in order:
+                    if name == "a":
+                        self.send(announce(101, "default", host="host-a"))
+                        self.send(tick(101))
+                    else:
+                        second.sendto(announce(202, "default", host="host-b", pid=456),
+                                      ("127.0.0.1", self.udp_port))
+                        second.sendto(tick(202, pid=456), ("127.0.0.1", self.udp_port))
+                    time.sleep(0.7)
+                self.wait_for(lambda: self.targets() == {"host-a/default", "host-b/default"})
+                self.wait_for(lambda: self.replay_targets(other) == {"host-b/default"})
+                self.wait_for(lambda: self.replay_targets(replay) == {"host-a/default"})
+                if order == "ab":
+                    self.restart()
+        self.assertEqual(self.replay_targets(replay), {"host-a/default"})
+
     def test_replaced_session_keeps_its_target_mapping(self):
         self.send(announce(101, "orders"))
         self.send(tick(101))
@@ -255,6 +321,55 @@ class MultiTargetCollectorTests(unittest.TestCase):
                     return True
             return False
         self.wait_for(mapped)
+
+class UnpinnedCollectorTests(CollectorCase):
+    SAMPLER_IPS = ""
+
+    def test_second_sender_cannot_share_the_legacy_directory(self):
+        # Without sampler_ips the collector pins the first sender it hears, so
+        # a second sender announcing "default" is ignored and records nothing.
+        self.send(announce(101, "default", host="host-a"))
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            for sequence in range(4):
+                self.send(tick(101, sequence=sequence))
+                second.sendto(announce(202, "default", host="host-b", pid=456),
+                              ("127.0.0.1", self.udp_port))
+                second.sendto(tick(202, pid=456, sequence=sequence),
+                              ("127.0.0.1", self.udp_port))
+                time.sleep(0.2)
+        replay = self.directory / "data" / "replay"
+        self.wait_for(lambda: "host-a/default" in self.replay_targets(replay))
+        self.assertEqual(self.targets(), {"host-a/default"})
+        self.assertEqual(self.replay_targets(replay), {"host-a/default"})
+        self.assertFalse((self.directory / "data" / "targets").exists())
+
+
+class IdleExpiryTests(CollectorCase):
+    MAX_TARGETS = 2
+    EXTRA_CONFIG = "target_idle_expiry_s=1\n"
+
+    def test_replacement_takes_over_a_released_slot_at_full_capacity(self):
+        # "billing" keeps sending; "orders" goes silent and is released.
+        def billing_alive(condition):
+            self.send(tick(202, pid=456))
+            return condition()
+        self.send(announce(101, "orders"))
+        self.send(announce(202, "billing", pid=456))
+        self.wait_for(lambda: billing_alive(
+            lambda: self.targets() == {"host-a/orders", "host-a/billing"}))
+        self.send(announce(303, "gateway", pid=789))
+        self.wait_for(lambda: billing_alive(
+            lambda: self.fetch("/api/targets")["capacity_drops"] >= 1))
+
+        def gateway_takes_over():
+            self.send(announce(303, "gateway", pid=789))
+            self.send(tick(303, pid=789))
+            return self.targets() == {"host-a/billing", "host-a/gateway"}
+        self.wait_for(lambda: billing_alive(gateway_takes_over))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/gateway")["health"]["pid"] == 789)
+        self.assertEqual(self.fetch("/api/live?target=host-a/billing")["health"]["pid"], 456)
+
 
 class MultiTargetSamplerTests(unittest.TestCase):
     def setUp(self):
