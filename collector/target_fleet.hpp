@@ -1,7 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "target_slot.hpp"
@@ -274,6 +277,34 @@ class TargetFleet final
       return slot->ingest_.Handle(p_data, p_peer, p_now);
     }
     return sink_.Status();
+  }
+
+  // Retires the sessions of a target the operator removed. Only a slot whose
+  // current session is in p_sessions is affected: a replacement with the same
+  // ID is a new session and stays.
+  void Remove(std::string_view p_key, std::span<const std::uint64_t> p_sessions)
+  {
+    const auto separator = p_key.rfind('/');
+    if (separator == std::string_view::npos)
+    {
+      return;
+    }
+    for (auto& slot : slots_)
+    {
+      const bool legacy_local =
+          !slot->announced_ &&
+          (slot->peer_.View() == "127.0.0.1" || slot->peer_.View() == "::1");
+      if (slot->active_ && std::ranges::contains(p_sessions, slot->session_) &&
+          slot->id_.View() == p_key.substr(separator + 1) &&
+          (slot->host_.View() == p_key.substr(0, separator) || legacy_local))
+      {
+        Retire(slot->peer_, slot->session_);
+        slot->monitor_.Close();
+        slot->resources_.Drain(0, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
   }
 
   // Frees every slot whose sampler has been silent for longer than

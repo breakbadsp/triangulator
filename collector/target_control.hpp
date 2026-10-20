@@ -26,7 +26,7 @@ namespace triangulator::collector
 // in the UDP loop, and installations without the script need no Python.
 [[nodiscard]] inline std::expected<Json, std::string> RunTargetControl(
     const std::string& p_host, std::int64_t p_port,
-    const std::optional<std::string>& p_target)
+    const std::optional<std::string>& p_target, bool p_multiple = false)
 {
   std::array<char, 4096> executable{};
   const auto length =
@@ -62,7 +62,7 @@ namespace triangulator::collector
   const int action_status =
       ::posix_spawn_file_actions_adddup2(&actions, writer.Get(), STDOUT_FILENO);
   std::string interpreter = "python3";
-  std::string command = "dashboard-target";
+  std::string command = p_multiple ? "dashboard-targets" : "dashboard-target";
   std::string host = p_host;
   std::string port = std::to_string(p_port);
   std::string target = p_target.value_or("");

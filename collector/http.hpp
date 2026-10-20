@@ -603,8 +603,8 @@ class DashboardServer
   void Post(const HttpConnection& p_connection, const Request& p_request)
   {
     const auto& path = p_request.path_;
-    if (path != "/api/target" && path != "/api/watches" &&
-        path != "/api/watches/reset")
+    if (path != "/api/target" && path != "/api/targets" &&
+        path != "/api/watches" && path != "/api/watches/reset")
     {
       Respond(p_connection, 501, "Unsupported method", "text/plain");
       return;
@@ -613,6 +613,11 @@ class DashboardServer
     {
       RespondJson(p_connection, 403,
                   JsonObject{{"error", "dashboard request required"}});
+      return;
+    }
+    if (path == "/api/targets")
+    {
+      Target(p_connection, p_request.body_, true);
       return;
     }
     if (path == "/api/watches" || path == "/api/watches/reset")
@@ -687,7 +692,14 @@ class DashboardServer
   {
     const auto target_key = QueryValue(p_request.query_, "target");
     const auto target = state_.Select(target_key.value_or(""));
-    if (target_key && !target)
+    // The dashboard document and the target list must load even when the
+    // selected target is gone, so the page can offer a way out. Only the
+    // endpoints that read one target's data reject an unknown target.
+    const bool reads_target = p_request.path_ != "/" &&
+                              p_request.path_ != "/api/targets" &&
+                              p_request.path_ != "/api/targets/control" &&
+                              p_request.path_ != "/api/target";
+    if (reads_target && target_key && !target)
     {
       RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
       return;
@@ -719,6 +731,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/targets")
     {
       Respond(p_connection, 200, *state_.Targets(), "application/json");
+    }
+    else if (p_request.path_ == "/api/targets/control")
+    {
+      Target(p_connection, std::nullopt, true);
     }
     else if (p_request.path_ == "/api/target")
     {
@@ -763,7 +779,8 @@ class DashboardServer
   }
 
   void Target(const HttpConnection& p_connection,
-              const std::optional<std::string>& p_target)
+              const std::optional<std::string>& p_target,
+              bool p_multiple = false)
   {
     // Local development control only. Remote deployments keep their existing
     // sampler-side administration, with no new runtime dependency.
@@ -782,12 +799,45 @@ class DashboardServer
                               "on a loopback dashboard"}});
       return;
     }
-    auto result =
-        RunTargetControl(config_.udp_host_, config_.udp_port_, p_target);
+    // Take the sessions of the target being removed before the sampler
+    // changes, so the removal cannot reach a session announced afterwards.
+    std::vector<std::uint64_t> removed_sessions;
+    if (p_multiple && p_target)
+    {
+      const auto change = ParseJson(*p_target);
+      const auto* action = change ? change->Find("action") : nullptr;
+      const auto* id = change ? change->Find("id") : nullptr;
+      if (action && action->IsString() && action->AsString() == "remove" &&
+          id && id->IsString())
+      {
+        removed_sessions = state_.SessionsForId(id->AsString());
+      }
+    }
+    auto result = RunTargetControl(config_.udp_host_, config_.udp_port_,
+                                   p_target, p_multiple);
     if (!result)
     {
       RespondJson(p_connection, 503, JsonObject{{"error", result.error()}});
       return;
+    }
+    if (!removed_sessions.empty() && !result->Find("error"))
+    {
+      const auto change = ParseJson(*p_target);
+      const auto* id = change ? change->Find("id") : nullptr;
+      const auto* host = result->Find("host");
+      if (id && id->IsString() && host && host->IsString())
+      {
+        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString(),
+                                 std::move(removed_sessions)))
+        {
+          RespondJson(p_connection, 503,
+                      JsonObject{{"applied", true},
+                                 {"error",
+                                  "Sampler changed; collector target cleanup "
+                                  "is busy. Reload the target list."}});
+          return;
+        }
+      }
     }
     const auto* enabled = result->Find("enabled");
     const bool available =

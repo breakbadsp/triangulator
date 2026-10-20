@@ -64,7 +64,7 @@ test('section navigation follows viewport position and layout changes', () => {
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target=''} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
@@ -90,7 +90,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   });
   const timers = new Map();
   let timerId = 0, timerNow = 0;
-  const requests = [];
+  const requests = [], navigation = [];
   const context = vm.createContext({
     document: {getElementById(id) {
       if (!elements.has(id)) elements.set(id, Object.assign(element(), {attached: true}));
@@ -101,7 +101,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
     localStorage: {getItem() {return null;}, setItem() {}},
-    history: {replaceState() {}}, location: {hash: '', pathname: '/'},
+    history: {replaceState() {}}, location: {hash: '', pathname: '/',search:target?'?target='+encodeURIComponent(target):'',assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -121,7 +121,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
   `, context);
-  return {run: source => vm.runInContext(source, context), elements, ranges, resourceRanges, timers, requests, storage,
+  return {run: source => vm.runInContext(source, context), elements, ranges, resourceRanges, timers, requests, storage, navigation,
     setFetch: callback => {context.fetch = callback;},
     advance(ms) {
       const until = timerNow + ms;
@@ -2837,4 +2837,78 @@ test('theme selection restores preferences and works when storage is blocked', (
   assert.equal(blocked.root.dataset.theme, 'dark');
   blocked.select('light');
   assert.equal(blocked.root.dataset.theme, 'light');
+});
+
+test('target requests select one key and keep the target list global', async () => {
+  const app = dashboard();
+  const requests = [];
+  app.setFetch(async (url, options) => {requests.push({url, options});return {ok: true};});
+  app.run("selectedTarget='host-a/orders'");
+  await app.run("apiFetch('/api/live')");
+  await app.run("apiFetch('/api/history?session=1&tid=2')");
+  await app.run("apiFetch('/api/targets')");
+  await app.run("apiFetch('/api/watches',{method:'POST'})");
+  assert.equal(requests[0].url, '/api/live?target=host-a%2Forders');
+  assert.equal(requests[1].url, '/api/history?session=1&tid=2&target=host-a%2Forders');
+  assert.equal(requests[2].url, '/api/targets');
+  assert.equal(requests[3].options.method, 'POST');
+  assert.ok(requests[3].url.includes('target=host-a%2Forders'));
+});
+
+test('the target selector shows status, limited access, throttling, and other attention', () => {
+  const app = dashboard();
+  app.run(`selectedTarget='host-a/orders';renderTargetChoices([
+    {key:'host-a/orders',host:'host-a',id:'orders',pid:123,status:'live',access:'limited',throttled:true,effective_rate_hz:2,sampler_cpu_pct:.9,cpu_budget_pct:1},
+    {key:'host-b/billing',host:'host-b',id:'billing',pid:456,status:'absent',access:'full',throttled:false}])`);
+  assert.equal(app.elements.get('target-select').hidden, false);
+  assert.equal(app.elements.get('target-access').hidden, false);
+  assert.equal(app.elements.get('target-budget').hidden, false);
+  assert.match(app.elements.get('target-budget-value').textContent, /2.00 Hz/);
+  assert.match(app.elements.get('target-attention').dataset.label, /1 other target/);
+  app.run(`renderTargetChoices([{key:'host-a/orders',host:'host-a',id:'orders',pid:123,status:'live',access:'full',throttled:false}])`);
+  assert.equal(app.elements.get('target-select').hidden, true);
+  assert.equal(app.elements.get('target-key').dataset.label, 'host-a · orders');
+});
+
+test('the selector stays visible while the selected target is unavailable', () => {
+  const app = dashboard();
+  const one = `[{key:'host-a/orders',host:'host-a',id:'orders',pid:123,status:'live',access:'full',throttled:false}]`;
+  app.run(`selectedTarget='host-a/billing'`);
+  // Two refreshes with the same list: the second must not hide the control.
+  app.run(`renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, false);
+  app.run(`renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, false);
+  assert.equal(app.elements.get('target-key').hidden, true);
+  app.run(`selectedTarget='host-a/orders';renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, true);
+});
+
+test('target management requires confirmation before one global write', async () => {
+  const app = dashboard();
+  let writes = 0;
+  app.setFetch(async () => {writes++;return {ok: true,json:async()=>({targets:[],message:'Reload requested.'})};});
+  app.run(`managedTargets=[{id:'default',target:'123'}];confirm=()=>false;`);
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
+  assert.equal(writes, 0);
+  app.run("confirm=()=>true;refreshTargets=async()=>{}");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
+  assert.equal(writes, 1);
+});
+
+
+test('switching targets clears destination view caches and keeps other tabs independent', async () => {
+  const storage=new Map([
+    ['triangulator:buffer:host-a/orders','old'],
+    ['triangulator:threads:host-b/billing','old'],
+    ['triangulator:frozen:host-b/billing','old'],
+    ['triangulator:buffer:host-c/gateway','keep']]);
+  const first=dashboard(storage,()=>undefined,{target:'host-a/orders'});
+  const second=dashboard(new Map(),()=>undefined,{target:'host-c/gateway'});
+  first.run("selectTarget('host-b/billing')");
+  assert.deepEqual(first.navigation,['/?target=host-b%2Fbilling']);
+  assert.equal(storage.has('triangulator:threads:host-b/billing'),false);
+  assert.equal(storage.has('triangulator:frozen:host-b/billing'),false);
+  assert.equal(storage.get('triangulator:buffer:host-c/gateway'),'keep');
+  assert.equal(second.run('selectedTarget'),'host-c/gateway');
 });

@@ -102,7 +102,7 @@ class SocketIntegrationTests(unittest.TestCase):
             page = response.read().decode()
         self.assertIn('id="socket-panel"', page)
         self.assertIn('data-socket-metric="messages"', page)
-        self.assertIn("fetch('/api/socket-io?pid='", page)
+        self.assertIn("apiFetch('/api/socket-io?pid='", page)
 
     def test_storage_rates_loss_duplicates_reordering_restart(self):
         self.assertFalse(self.fetch()['available'])

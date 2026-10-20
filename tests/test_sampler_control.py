@@ -59,6 +59,24 @@ class ConfigTextTests(unittest.TestCase):
         self.assertEqual(sampler_control.read_setting(text, "target_process"), "a\\q")
         self.assertIsNone(sampler_control.read_setting(text, "rate_hz"))
 
+    def test_target_tables_preserve_globals_and_validate_set_changes(self):
+        text = 'collector="127.0.0.1:9400"\nrate_hz=5\ntarget_pid=123\n# keep global note\n'
+        with mock.patch.object(sampler_control, "require_process"):
+            updated = sampler_control.change_target_set(text, {"action": "add", "id": "orders", "target": "456"})
+        self.assertIn('# keep global note', updated)
+        self.assertNotIn('target_pid=', updated)
+        self.assertEqual(sampler_control.configured_targets(updated),
+                         [{"id": "default", "target": "123"}, {"id": "orders", "target": "456"}])
+        reduced = sampler_control.change_target_set(updated, {"action": "remove", "id": "orders", "target": "456"})
+        self.assertEqual(sampler_control.configured_targets(reduced), [{"id": "default", "target": "123"}])
+        for body in ({"action": "remove", "id": "default"},
+                     {"action": "add", "id": "default", "target": "456"},
+                     {"action": "add", "id": "../escape", "target": "456"}):
+            with self.assertRaises(sampler_control.ControlError):
+                sampler_control.change_target_set(reduced, body)
+        with self.assertRaisesRegex(sampler_control.ControlError, "selector changed"):
+            sampler_control.change_target_set(updated, {"action": "remove", "id": "orders", "target": "999"})
+
 
 class TargetLookupTests(unittest.TestCase):
     def test_thread_ids_and_missing_pids_are_rejected(self):
@@ -182,6 +200,56 @@ class ScriptTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail("dashboard did not report the new target")
 
+    def test_dashboard_adds_and_removes_targets_without_resetting_the_default(self):
+        self.start_dashboard()
+        config = self.runtime / "config/sampler.toml"
+        config.write_text(f'target_pid={self.target.pid}\nrate_hz=5\ncollector="127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        first = self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        status, control = self.api("/api/targets/control")
+        self.assertEqual(status, 200)
+        self.assertEqual(control["targets"], [{"id": "default", "target": str(self.target.pid)}])
+        other = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(stop, other)
+        change = {"action": "add", "id": "other", "target": str(other.pid)}
+        original = config.read_text()
+        self.assertEqual(self.api("/api/targets", change)[0], 403)
+        self.assertEqual(config.read_text(), original)
+        headers = {"X-Triangulator": "1"}
+        status, result = self.api("/api/targets", change, headers)
+        self.assertEqual(status, 200, result)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if {target["id"] for target in entries} == {"default", "other"}:
+                break
+            time.sleep(0.05)
+        self.assertEqual({target["id"] for target in entries}, {"default", "other"})
+        default = next(target for target in entries if target["id"] == "default")
+        self.assertEqual(default["session"], first["session"])
+        status, result = self.api("/api/targets", {**change, "action": "remove"}, headers)
+        self.assertEqual(status, 200, result)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if [target["id"] for target in entries] == ["default"]:
+                break
+            time.sleep(0.05)
+        self.assertEqual([target["id"] for target in entries], ["default"])
+        self.assertEqual(entries[0]["session"], first["session"])
+        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "default"}, headers)[0], 400)
+        self.assertEqual(sampler_control.configured_targets(config.read_text()),
+                         [{"id": "default", "target": str(self.target.pid)}])
+        # The legacy single-target API must work on the converted config too.
+        self.assertIn("[[target]]", config.read_text())
+        self.assertEqual(self.api("/api/target")[1], {"enabled": True, "target": str(self.target.pid)})
+        legacy = {"Content-Type": "application/json", "X-Triangulator": "1"}
+        status, result = self.api("/api/target", {"target": str(other.pid)}, legacy)
+        self.assertEqual(status, 200, result)
+        self.assertEqual(sampler_control.configured_targets(config.read_text()),
+                         [{"id": "default", "target": str(other.pid)}])
+        self.assertEqual(self.api("/api/target")[1]["target"], str(other.pid))
+
     def test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector(self):
         # IPv4 samples and target control both work through an IPv6 wildcard listener.
         self.start_dashboard(udp_host="::")
@@ -202,6 +270,13 @@ class ScriptTests(unittest.TestCase):
         self.start_dashboard(extra='sampler_ips = ["10.0.0.2"]\n')
         status, data = self.api("/api/target")
         self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        status, data = self.api("/api/targets/control")
+        self.assertEqual(status, 200)
+        self.assertFalse(data["enabled"])
+        change = {"action": "add", "id": "other", "target": "1"}
+        status, data = self.api("/api/targets", change, {"X-Triangulator": "1"})
+        self.assertEqual(status, 403)
         self.assertFalse(data["enabled"])
 
     def test_dashboard_changes_pid_name_and_absent_target(self):

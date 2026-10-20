@@ -186,7 +186,7 @@ def running_sampler(root):
     return pid, config.resolve(strict=True)
 
 
-def update_config(root, pattern, setting, collector_endpoint=None):
+def update_config(root, pattern, setting, collector_endpoint=None, transform=None):
     """Write setting into the running sampler's config and request a reload."""
     run_dir = runtime_directory() / "run"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -206,7 +206,8 @@ def update_config(root, pattern, setting, collector_endpoint=None):
             raise ControlError(
                 f"the sampler is using {config}, a tracked example file; refusing to edit it. "
                 f"Restart it with {runtime_directory() / 'config/sampler.toml'}: {RESTART_HINT}")
-        updated = replace_setting(config.read_text(), pattern, setting)
+        original = config.read_text()
+        updated = transform(original) if transform else replace_setting(original, pattern, setting)
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -241,8 +242,19 @@ def set_target(root, target, collector_endpoint=None):
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
-    sampler, config = update_config(root, re.compile(r"\s*target_(?:process|pid)\s*="), setting,
-                                    collector_endpoint)
+    def change_default(text):
+        # After an add/remove the config uses [[target]] tables: change the
+        # default target's table, because a top-level key would be rejected.
+        if not TARGET_TABLE.search(text):
+            return replace_setting(text, re.compile(r"\s*target_(?:process|pid)\s*="), setting)
+        targets = configured_targets(text)
+        default = next((entry for entry in targets if entry["id"] == "default"), None)
+        if default is None:
+            raise ControlError("no default target is configured; add one in the target list")
+        default["target"] = target
+        return replace_targets(text, targets)
+
+    sampler, config = update_config(root, None, None, collector_endpoint, transform=change_default)
     message = "Reload requested. The dashboard will update when the sampler reports."
     if not running:
         message = f"Waiting for a process named {target} to start."
@@ -287,7 +299,98 @@ def dashboard_target(root, host, port, target=None):
             require_local_collector(config, (host, port))
             text = config.read_text()
             result = {"enabled": True,
-                      "target": read_setting(text, "target_pid") or read_setting(text, "target_process")}
+                      "target": default_selector(text)}
+    except (ControlError, OSError, subprocess.TimeoutExpired) as error:
+        result = {"enabled": True, "error": str(error)}
+    print(json.dumps(result))
+
+
+TARGET_TABLE = re.compile(r"(?m)^[ \t]*\[\[target\]\][ \t]*(?:#[^\n]*)?$" )
+
+
+def default_selector(text):
+    """The default target's selector, from top-level keys or its table."""
+    return next((entry["target"] for entry in configured_targets(text) if entry["id"] == "default"), None)
+
+
+def configured_targets(text):
+    """Read the sampler's small configuration syntax without changing escapes."""
+    parts = TARGET_TABLE.split(text)
+    if len(parts) == 1:
+        pid = read_setting(text, "target_pid")
+        name = read_setting(text, "target_process")
+        return [{"id": "default", "target": pid or name}] if pid or name else []
+    return [{"id": read_setting(part, "id"),
+             "target": read_setting(part, "pid") or read_setting(part, "process")}
+            for part in parts[1:]]
+
+
+def replace_targets(text, targets):
+    prefix = TARGET_TABLE.split(text, maxsplit=1)[0]
+    prefix = "".join(line for line in prefix.splitlines(keepends=True)
+                     if not re.match(r"\s*target_(?:pid|process)\s*=", line))
+    output = prefix.rstrip() + "\n\n"
+    for target in targets:
+        selected = target["target"]
+        pid = parse_pid(selected)
+        selector = f"pid = {pid}" if pid is not None else f'process = "{selected}"'
+        output += f'[[target]]\nid = "{target["id"]}"\n{selector}\n\n'
+    return output
+
+
+def change_target_set(text, change):
+    if not isinstance(change, dict) or set(change) - {"action", "id", "target"}:
+        raise ControlError("expected an action, target id, and selector")
+    action, target_id = change.get("action"), change.get("id")
+    if not isinstance(target_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,31}", target_id) or target_id in (".", ".."):
+        raise ControlError("target id must contain 1..31 letters, digits, dots, underscores, or hyphens")
+    targets = configured_targets(text)
+    existing = next((target for target in targets if target["id"] == target_id), None)
+    if action == "add":
+        if existing is not None:
+            raise ControlError("this target id is already configured")
+        if len(targets) >= 16:
+            raise ControlError("at most 16 targets are permitted")
+        selected = change.get("target")
+        if not isinstance(selected, str) or not selected:
+            raise ControlError("enter a process name or PID")
+        pid = parse_pid(selected)
+        if pid is not None:
+            require_process(pid)
+        else:
+            unique_process_named(selected)
+        targets.append({"id": target_id, "target": selected})
+    elif action == "remove":
+        if existing is None:
+            raise ControlError("this target id is no longer configured")
+        if len(targets) <= 1:
+            raise ControlError("keep at least one target configured")
+        if "target" in change and change["target"] != existing["target"]:
+            raise ControlError("this target selector changed; reload the target list")
+        targets.remove(existing)
+    else:
+        raise ControlError("action must be add or remove")
+    return replace_targets(text, targets)
+
+
+def dashboard_targets(root, host, port, body=None):
+    """Apply one set operation under the existing configuration lock."""
+    try:
+        if body is not None:
+            try:
+                change = json.loads(body)
+            except ValueError:
+                raise ControlError("invalid target change JSON") from None
+            update_config(root, None, None, (host, port),
+                          transform=lambda text: change_target_set(text, change))
+        sampler = running_sampler(root)
+        if sampler is None:
+            raise ControlError("the sampler is not running; start it with scripts/start.sh")
+        require_local_collector(sampler[1], (host, port))
+        result = {"enabled": True, "host": os.uname().nodename,
+                  "targets": configured_targets(sampler[1].read_text())}
+        if body is not None:
+            result["message"] = "Reload requested. The target change applies to every viewer."
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": True, "error": str(error)}
     print(json.dumps(result))
@@ -322,6 +425,9 @@ def collector(root):
 
 
 def main(argv):
+    if len(argv) in (4, 5) and argv[1] == "dashboard-targets":
+        dashboard_targets(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
+        return 0
     if len(argv) in (4, 5) and argv[1] == "dashboard-target":
         dashboard_target(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
         return 0
