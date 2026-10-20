@@ -33,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: almalinux-${{ github.head_ref || github.ref_name }}
+  group: almalinux-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'pull_request' && 'normal' || 'static' }}
   cancel-in-progress: true
 
 jobs:

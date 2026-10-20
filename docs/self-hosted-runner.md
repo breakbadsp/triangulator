@@ -14,7 +14,8 @@ nightly or on manual runs. The QA results check keeps its existing path filters.
 Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at 03:00
 in `Asia/Kolkata`. These workflows also support manual runs. Packaging
 still builds and publishes releases for `v*` tags; nightly runs only
-upload test artifacts.
+upload test artifacts. Normal PR runs and full static runs use separate
+cancellation groups, so a manual full run does not cancel a PR check.
 
 ## How jobs choose a runner
 
