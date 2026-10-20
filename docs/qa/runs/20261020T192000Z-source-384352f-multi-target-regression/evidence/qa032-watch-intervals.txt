@@ -1,0 +1,14 @@
+QA-032 at effective 10 Hz (sample_interval_ms 100), fixture PID 4117865, 9 views at 1 s.
+Watch rules from collector.toml: MsgP wake_ms 1000, PrdDist wake_ms 2000. source = config.
+
+MsgP-fast      wake_ms=1000 distinct_last_ran=6 gaps_s=[2.0, 1.0, 2.0, 1.0, 1.0]
+MsgP-peer      wake_ms=1000 distinct_last_ran=6 gaps_s=[2.0, 1.0, 2.0, 1.0, 1.0]
+PrdDist-main   wake_ms=2000 distinct_last_ran=5 gaps_s=[2.0, 2.0, 2.0, 2.0]
+PrdDist-peer   wake_ms=2000 distinct_last_ran=5 gaps_s=[2.0, 2.0, 2.0, 2.0]
+Control-idle   wake_ms=null distinct_last_ran=6 gaps_s=[2.0, 1.0, 2.0, 1.0, 1.0]
+sample_interval_ms 100
+
+Fixture counters: MsgP-fast advanced 12 wakes in 12 s.
+Collector MsgP-fast last_ran sequence (x.63 values): one wake of each three is
+not visible in a poll (for example 427.63 -> 429.63). Largest elapsed value
+observed: 1.72 s, within 1 s + 0.1 s + the case allowances.
