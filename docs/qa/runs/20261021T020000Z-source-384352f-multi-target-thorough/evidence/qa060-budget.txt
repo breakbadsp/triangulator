@@ -1,0 +1,8 @@
+QA-060 with cpu_budget_pct = 0.1, rate_hz 5, two live targets (default healthy, b cpu-spin).
+Throttled within 40 s: effective 2.6 Hz for both targets, reason "Sampler CPU use exceeded its configured budget".
+After stopping the cpu-spin fixture:
+  +45 s: effective 4.07 Hz, throttled true, sampler_cpu_pct 0.069
+  +5 min: effective 4.07 Hz, throttled true, sampler_cpu_pct 0.076 (no further change)
+Recovery rule (sampler/budget.hpp): rate rises only when measured CPU < 0.6 x budget = 0.06%.
+The sampler's own idle CPU here is 0.069-0.076%, so the rate cannot recover at this budget.
+The effective rate floor (0.2 Hz) and the same rate across targets held.
