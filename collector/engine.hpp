@@ -365,7 +365,7 @@ class Monitor
       loss_.PushBack({tick->received_, expected, expected - chunks});
       last_sequence_ = header.sequence_;
       last_monotonic_ = header.monotonic_ns_;
-      Process(*tick);
+      Process(*tick, missing_ticks == 0);
       tick->Release();
     }
   }
@@ -860,7 +860,7 @@ class Monitor
     return static_cast<std::uint32_t>(threads_.Size() - 1);
   }
 
-  void Process(Tick& p_tick)
+  void Process(Tick& p_tick, bool p_consecutive_tick)
   {
     const Packet& header = p_tick.header_;
     const bool complete = p_tick.chunks_seen_.count() == header.chunks_;
@@ -931,19 +931,26 @@ class Monitor
         static_cast<void>(index_.Insert(position, {tid, slot}));
       }
       auto& thread = threads_[index_[position].slot_];
+      const bool consecutive = p_consecutive_tick && thread.seen_ + 1 == stamp;
       thread.seen_ = stamp;
       const auto bucket =
           static_cast<std::int64_t>(std::floor(monotonic / config_.window_s_));
-      if (thread.window_count_ != 0 &&
-          sample.interval_ != thread.latest_.interval_)
+      const double previous_interval = thread.latest_.interval_;
+      double rate_start = thread.latest_.monotonic_;
+      // With missing samples, only the final interval is known. Keep the
+      // higher observed rate for the unknown time so loss stays visible.
+      if (!consecutive && sample.interval_ > previous_interval)
       {
-        // The next packet reports the interval since the preceding tick.
-        // Apply that rate to the remaining time before closing the window.
+        rate_start = std::max(rate_start, monotonic - sample.interval_);
+      }
+      if (thread.window_count_ != 0 && sample.interval_ != previous_interval)
+      {
         const double remaining_s =
-            (static_cast<double>(*thread.bucket_) + 1) * config_.window_s_ -
-            thread.latest_.monotonic_;
+            std::max(0.0, (static_cast<double>(*thread.bucket_) + 1) *
+                                  config_.window_s_ -
+                              rate_start);
         thread.window_expected_ +=
-            remaining_s * (1 / sample.interval_ - 1 / thread.latest_.interval_);
+            remaining_s * (1 / sample.interval_ - 1 / previous_interval);
         thread.window_max_interval_ =
             std::max(thread.window_max_interval_, sample.interval_);
       }
@@ -967,6 +974,11 @@ class Monitor
       {
         thread.window_first_ = sample;
         thread.window_expected_ = config_.window_s_ / sample.interval_;
+        // A gap can put the unknown prefix in this window as well.
+        const double prefix_s = std::max(
+            0.0, rate_start - static_cast<double>(bucket) * config_.window_s_);
+        thread.window_expected_ +=
+            prefix_s * (1 / previous_interval - 1 / sample.interval_);
         thread.window_max_interval_ = sample.interval_;
       }
       ++thread.window_count_;

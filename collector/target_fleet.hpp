@@ -198,7 +198,7 @@ class TargetFleet final
       ++capacity_drops_;
       return {};
     }
-    if (slot->session_ != session)
+    if (!slot->active_ || slot->session_ != session)
     {
       if (slot->active_)
       {
