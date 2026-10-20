@@ -31,6 +31,7 @@
 #include "replay.hpp"
 #include "resources.hpp"
 #include "storage.hpp"
+#include "target_slot.hpp"
 #include "watch.hpp"
 
 namespace
@@ -147,11 +148,12 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                     watches.Path().string()));
   }
   StorageSink sink{storage};
-  Monitor monitor{config, WallNow(), sink};
-  ResourceMonitor resources{sink};
-  MemoryMonitor memory;
-  ExitMonitor exits;
-  ProcessMonitor process;
+  TargetSlot slot{config, WallNow(), sink};
+  auto& monitor = slot.monitor_;
+  auto& resources = slot.resources_;
+  auto& memory = slot.memory_;
+  auto& exits = slot.exits_;
+  auto& process = slot.process_;
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -161,7 +163,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   const int buffer_size = 4 * 1024 * 1024;
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
                sizeof(buffer_size));
-  SharedState state;
+  auto& state = slot.state_;
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
   {
@@ -179,7 +181,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  Ingest ingest{config.sampler_ip_,
+  Ingest ingest{config.sampler_ips_,
                 monitor,
                 resources,
                 memory,
@@ -187,9 +189,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                 process,
                 storage,
                 sink};
-  std::uint64_t published_layout = 0;
+  auto& published_layout = slot.published_layout_;
   // Which target the view in /api/last-target describes, and when.
-  std::optional<Json> last_target;
+  auto& last_target = slot.last_target_;
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -197,8 +199,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   // One byte more than the largest datagram (resource_wire::kMaxPartSize,
   // 1400).
   std::array<std::byte, 1501> buffer{};
-  SnapshotRecorder recorder{config.data_dir_, config.retention_days_,
-                            config.replay_interval_s_};
+  auto& recorder = slot.recorder_;
   if (auto started = recorder.Start(); !started)
   {
     return Stopped(started.error());

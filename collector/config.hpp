@@ -165,6 +165,7 @@ struct Config
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
   std::optional<std::string> sampler_ip_;
+  std::vector<std::string> sampler_ips_;
   // Length of one rollup window in seconds (5..10).
   double window_s_ = 5;
   // True when the file has alert thresholds or delivery settings, which
@@ -396,6 +397,33 @@ namespace detail
                       sampler_ip->AsString()));
     }
     config.sampler_ip_ = std::move(*normalized);
+  }
+  if (const auto* senders = root.Find("sampler_ips"))
+  {
+    if (root.Find("sampler_ip") != nullptr)
+    {
+      return std::unexpected("use sampler_ips or sampler_ip, not both");
+    }
+    if (!senders->IsArray() || senders->AsArray().empty() ||
+        senders->AsArray().size() > 64)
+    {
+      return std::unexpected("sampler_ips must contain 1..64 IP addresses");
+    }
+    for (const auto& sender : senders->AsArray())
+    {
+      auto normalized =
+          sender.IsString() ? NormalizeIp(sender.AsString()) : std::nullopt;
+      if (!normalized || std::ranges::find(config.sampler_ips_, *normalized) !=
+                             config.sampler_ips_.end())
+      {
+        return std::unexpected("sampler_ips must contain unique IP addresses");
+      }
+      config.sampler_ips_.push_back(std::move(*normalized));
+    }
+  }
+  else if (config.sampler_ip_)
+  {
+    config.sampler_ips_.push_back(*config.sampler_ip_);
   }
   std::error_code error;
   auto data_dir = std::filesystem::absolute(config.data_dir_, error);

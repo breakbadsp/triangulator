@@ -6,10 +6,12 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -26,6 +28,7 @@
 
 #include "../collector/engine.hpp"
 #include "../collector/exits.hpp"
+#include "../collector/ingest.hpp"
 #include "../collector/memory.hpp"
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
@@ -1170,6 +1173,18 @@ void TestSnapshotRecorder()
 // them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
 {
+  // Sender lists accept normalized addresses and reject mixed or invalid forms.
+  const auto senders = ParseConfig("sampler_ips=[\"127.0.0.1\",\"::1\"]");
+  Require(senders && senders->sampler_ips_.size() == 2,
+          "multiple sampler addresses are accepted");
+  Require(ParseConfig("sampler_ip=\"127.0.0.1\"")->sampler_ips_.size() == 1,
+          "legacy sender becomes a list of one");
+  for (const auto text : {"sampler_ips=[]", "sampler_ips=[1]",
+                          "sampler_ips=[\"127.0.0.1\",\"127.0.0.1\"]",
+                          "sampler_ip=\"\"\nsampler_ips=[\"::1\"]"})
+  {
+    Require(!ParseConfig(text), "invalid sender list is rejected");
+  }
   const auto defaults = ParseConfig("");
   Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
           "raw storage and one-second recording default to enabled");
@@ -2296,6 +2311,44 @@ void TestMemoryMapSessions()
 
 }  // namespace
 
+// A sender list accepts datagrams from listed addresses only, for every
+// datagram kind. A malformed datagram that is counted as bad was accepted by
+// the filter, so the counters show which senders got through.
+void TestAllowedSenders()
+{
+  MonitorFixture fixture;
+  ResourceMonitor resources{fixture.sink_};
+  MemoryMonitor memory;
+  ExitMonitor exits;
+  ProcessMonitor process;
+  const std::vector<std::string> listed{"10.0.0.1", "10.0.0.2"};
+  Ingest ingest{listed, fixture.monitor_, resources,        memory,
+                exits,  process,          fixture.storage_, fixture.sink_};
+  Require(!ingest.SamplerIp(), "a sender list pins no single address");
+
+  const auto bad_total = [&]
+  {
+    return fixture.monitor_.bad_packets_ + resources.bad_parts_ +
+           memory.bad_parts_;
+  };
+  const auto handle = [&](std::string_view p_magic, const char* p_peer)
+  {
+    std::array<std::byte, 8> data{};
+    std::memcpy(data.data(), p_magic.data(), 4);
+    const auto before = bad_total();
+    Require(ingest.Handle(data, PeerText{p_peer}, 1'700'000'000).has_value(),
+            "datagram handled");
+    return bad_total() - before;
+  };
+  for (const std::string_view magic :
+       {"TSIO", "TRES", "TVMA", "TEND", "TPIN", "XXXX"})
+  {
+    Require(handle(magic, "10.0.0.1") == 1 && handle(magic, "10.0.0.2") == 1,
+            "listed senders are accepted");
+    Require(handle(magic, "10.0.0.3") == 0, "unlisted sender is dropped");
+  }
+}
+
 int main()
 {
   try
@@ -2337,6 +2390,7 @@ int main()
     TestExitReports();
     TestExitStatus();
     TestProcessInfo();
+    TestAllowedSenders();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "
