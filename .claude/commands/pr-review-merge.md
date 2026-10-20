@@ -17,6 +17,8 @@ Follow "Model and reasoning selection" in `docs/pr-review-workflow.md`. If that 
 
 If the change is critical, or touches a critical path, run at least one reviewer as Opus 5.5 at effort `high`. Use Astra 6 at `medium` or `low` instead when it is available and limits allow. Until Astra 6 is configured, use Opus 5.5 `high`. This overrides the budget-based effort for that reviewer.
 
+If the change is critical, or touches a critical path, run at least one reviewer as Opus 5.5 at effort `high`. Use Astra 6 at `medium` or `low` instead when it is available and limits allow. Until Astra 6 is configured, use Opus 5.5 `high`. This overrides the budget-based effort for that reviewer.
+
 Before each role, select effort from the remaining token budget: `low` for simple work, `medium` otherwise. Lower effort if the budget is small or unknown. Use `high` only for a concrete, complex risk with enough tokens left for fixes and the gate. These choices override the agent defaults and effort values below.
 
 ## Triage
