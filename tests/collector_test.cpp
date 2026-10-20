@@ -724,6 +724,83 @@ void TestRateChangesWithinSession()
           "rate changes do not retire the session");
 }
 
+// Checks both rate transitions inside windows with proportional counters.
+// Every completed window must keep its expected count and measured rates.
+void TestRateChangesInsideRollupWindows()
+{
+  MonitorFixture fixture;
+  std::uint32_t sequence = 0;
+  const auto feed = [&](std::uint64_t p_elapsed_ms, std::uint32_t p_interval_ms)
+  {
+    auto record = WithUtime(p_elapsed_ms / 20);
+    record.stime_ = p_elapsed_ms / 20;
+    record.state_ = 'R';
+    record.run_delay_ = p_elapsed_ms * 100'000;
+    record.read_bytes_ = p_elapsed_ms;
+    record.write_bytes_ = p_elapsed_ms / 2;
+    auto packet = MakePacket(sequence++, {record});
+    packet.interval_ms_ = p_interval_ms;
+    packet.monotonic_ns_ = (1'000'000 + p_elapsed_ms) * 1'000'000;
+    packet.wall_ns_ = (1'700'000'000'000 + p_elapsed_ms) * 1'000'000;
+    fixture.Feed(packet);
+  };
+  for (std::uint64_t elapsed_ms = 0; elapsed_ms <= 5800; elapsed_ms += 200)
+  {
+    feed(elapsed_ms, 200);
+  }
+  feed(10800, 5000);
+  for (std::uint64_t elapsed_ms = 11000; elapsed_ms <= 16000; elapsed_ms += 200)
+  {
+    feed(elapsed_ms, 200);
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() == 3, "three completed windows span both transitions");
+  RequireNear(Field(rows[0], "expected_samples").AsNumber(), 25,
+              "the unchanged fast window expects 25 samples");
+  RequireNear(Field(rows[1], "expected_samples").AsNumber(), 4.84,
+              "the slow transition weights time at each rate");
+  RequireNear(Field(rows[2], "expected_samples").AsNumber(), 21.16,
+              "the fast transition weights time at each rate");
+  for (const auto& row : rows)
+  {
+    Require(Field(row, "valid").AsInt() == 1,
+            "every completed transition window is valid");
+    RequireNear(Field(row, "cpu_pct").AsNumber(), 100,
+                "transition windows keep CPU rates");
+    RequireNear(Field(row, "run_delay_pct").AsNumber(), 10,
+                "transition windows keep run delay rates");
+    RequireNear(Field(row, "read_bps").AsNumber(), 1000,
+                "transition windows keep read rates");
+    RequireNear(Field(row, "write_bps").AsNumber(), 500,
+                "transition windows keep write rates");
+  }
+}
+
+// Checks that five of 25 samples at a fixed rate still fail window coverage.
+void TestUnchangedRateLossInvalidatesRollup()
+{
+  MonitorFixture fixture;
+  for (std::uint32_t elapsed_ms = 0; elapsed_ms <= 5000; elapsed_ms += 1000)
+  {
+    auto packet = MakePacket(elapsed_ms / 200, {WithUtime(elapsed_ms / 10)});
+    packet.interval_ms_ = 200;
+    packet.monotonic_ns_ = (1'000'000ULL + elapsed_ms) * 1'000'000;
+    packet.wall_ns_ = (1'700'000'000'000ULL + elapsed_ms) * 1'000'000;
+    fixture.Feed(packet);
+  }
+  const auto rows = fixture.Rollups();
+  Require(rows.size() == 1 && Field(rows[0], "samples").AsInt() == 5,
+          "one completed window retains the five received samples");
+  RequireNear(Field(rows[0], "expected_samples").AsNumber(), 25,
+              "packet loss does not lower the expected count");
+  Require(Field(rows[0], "valid").AsInt() == 0 &&
+              Field(rows[0], "cpu_pct").IsNull() &&
+              Field(rows[0], "run_delay_pct").IsNull() &&
+              Field(rows[0], "read_bps").IsNull() &&
+              Field(rows[0], "write_bps").IsNull(),
+          "insufficient coverage omits the measured rates");
+}
+
 void TestFallbackHasNoRunDelay()
 {
   MonitorFixture fixture;
@@ -2478,6 +2555,8 @@ int main()
     TestExistingDayFileGainsNewRollupColumns();
     TestLowestRateProducesValidWindows();
     TestRateChangesWithinSession();
+    TestRateChangesInsideRollupWindows();
+    TestUnchangedRateLossInvalidatesRollup();
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();

@@ -590,6 +590,7 @@ class Monitor
     std::size_t window_count_ = 0;
     Sample window_first_;
     double window_expected_ = 0;
+    double window_max_interval_ = 0;
     StateCounts window_states_;
     std::optional<Sample> baseline_;
     std::optional<std::int64_t> bucket_;
@@ -933,6 +934,19 @@ class Monitor
       thread.seen_ = stamp;
       const auto bucket =
           static_cast<std::int64_t>(std::floor(monotonic / config_.window_s_));
+      if (thread.window_count_ != 0 &&
+          sample.interval_ != thread.latest_.interval_)
+      {
+        // The next packet reports the interval since the preceding tick.
+        // Apply that rate to the remaining time before closing the window.
+        const double remaining_s =
+            (static_cast<double>(*thread.bucket_) + 1) * config_.window_s_ -
+            thread.latest_.monotonic_;
+        thread.window_expected_ +=
+            remaining_s * (1 / sample.interval_ - 1 / thread.latest_.interval_);
+        thread.window_max_interval_ =
+            std::max(thread.window_max_interval_, sample.interval_);
+      }
       if (thread.bucket_ && bucket != *thread.bucket_)
       {
         FinishWindow(tid, thread);
@@ -952,9 +966,10 @@ class Monitor
       if (thread.window_count_ == 0)
       {
         thread.window_first_ = sample;
+        thread.window_expected_ = config_.window_s_ / sample.interval_;
+        thread.window_max_interval_ = sample.interval_;
       }
       ++thread.window_count_;
-      thread.window_expected_ += config_.window_s_ / sample.interval_;
       thread.window_states_.Count(sample.state_);
       if (config_.store_raw_)
       {
@@ -1022,11 +1037,13 @@ class Monitor
         p_thread.baseline_ ? *p_thread.baseline_ : p_thread.window_first_;
     const double window_s = config_.window_s_;
     const auto count = static_cast<double>(p_thread.window_count_);
-    const double expected = p_thread.window_expected_ / count;
+    const double expected = p_thread.window_expected_;
     const double elapsed = last.monotonic_ - first.monotonic_;
     const bool valid =
         count >= std::ceil(expected / 2) && elapsed > 0 &&
-        elapsed <= window_s + std::max(first.interval_, last.interval_) * 1.5;
+        elapsed <=
+            window_s +
+                std::max(first.interval_, p_thread.window_max_interval_) * 1.5;
     const auto& last_record = last.Get();
     const auto& first_record = first.Get();
     RollupRow row;
