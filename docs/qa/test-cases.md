@@ -1188,9 +1188,10 @@ Feature: Network counter labels. Priority: Low. Case revision: 1.
 
 Preconditions: The dashboard has network resource samples and stored history.
 
-1. Open Network stack drops & errors. Check the column names: Latest rate (/s),
-   Count in selected range, and Cumulative count.
-2. Pause over each column name for 1.2 seconds and open its help guide.
+1. Open Network stack drops & errors. Check the short column names:
+   Rate (/s), In range, and Total.
+2. Pause over each column name for 1.2 seconds. Check that each tooltip
+   explains its time period. Open the help guide.
 3. Change the selected time range. Compare the count with the latest rate and
    cumulative count. Repeat for a counter without stored history.
 
