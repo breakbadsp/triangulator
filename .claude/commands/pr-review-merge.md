@@ -9,7 +9,13 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 1. `gh pr view <PR> --json number,state,headRefName,headRefOid,url`. Stop if the PR is closed or merged.
 2. Use the worktree that holds the PR branch (`git worktree list`), never the primary checkout. Run `git fetch origin`. HEAD must equal `headRefOid` and `git status --porcelain` must be empty. Otherwise stop and report.
-3. Start roles with the Agent tool and the `subagent_type` and model below. Read-only roles (reviewers, test merger) must leave HEAD and the worktree unchanged. If they did not, stop and report.
+3. Start roles with the Agent tool and the `subagent_type` below. Select models and effort as described below; the named models are defaults. Read-only roles (reviewers, test merger) must leave HEAD and the worktree unchanged. If they did not, stop and report.
+
+## Model and reasoning selection
+
+Follow "Model and reasoning selection" in `docs/pr-review-workflow.md`. If that file is absent: use one large model and one small, quick model for `full`, never two large models. Prefer different model families, including a reviewer from a different family than the orchestrator. If another family is unavailable, keep the large-and-quick pair in the available family. Use only one quick reviewer for simple changes in `scan`.
+
+Before each role, select effort from the remaining token budget: `low` for simple work, `medium` otherwise. Lower effort if the budget is small or unknown. Use `high` only for a concrete, complex risk with enough tokens left for fixes and the gate. These choices override the agent defaults and effort values below.
 
 ## Triage
 
@@ -26,13 +32,13 @@ Start one `pr-quick-reviewer` (mode `scan`, round 1). If it reports no `blocker`
 
 ## Full tier: rounds (at most two)
 
-1. Start in parallel, in one message: `pr-adversarial-reviewer` (model `sonnet`, effort `medium`, mode `full`) and `pr-quick-reviewer` (model `haiku`, effort `high`, mode `full`). Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
+1. Start in parallel, in one message: `pr-adversarial-reviewer` (default model `sonnet`, mode `full`) and `pr-quick-reviewer` (default model `haiku`, mode `full`). Apply the model and reasoning selection rules above. Pass the PR number, worktree path, round number, and head SHA. In round 2, also pass the round-1 head SHA. Round 2 reviews only the round-1 fixes and `git diff <round-1 head>..<head>`.
 2. Confirm both reviews reached GitHub (bodies starting with `## Review, round <n>, head <SHA>` and `## Quick review, round <n>, head <SHA>`). If either is missing, stop and report.
 3. If none of the round's reviews (including the scan review, after a scan escalation) lists a `blocker` or `major` finding, go to the merge gate. Skip the analyzer.
 4. Otherwise start `pr-comment-analyzer`, model `sonnet`, effort `medium`. Pass the PR number, worktree path, and round number. It fixes or rebuts each finding from both reviews and pushes.
 5. If the head SHA changed and this was round 1, start round 2. Otherwise go to the merge gate.
 
-The quick reviewer is a cheaper, weaker model. To use a model from another vendor instead, run its CLI in place of this agent (for example `codex exec` with the model and effort you choose) with the same inputs and the same comment format. No such runner is configured by default.
+The quick reviewer must remain a small, cheap model. Prefer an available delegation tool for another model family. If none is available, use a configured vendor CLI with the same role instructions, inputs, and comment format. No such runner is configured by default.
 
 ## Stop for manual handling
 
@@ -45,7 +51,7 @@ Start `pr-test-merger`, model `haiku`, effort `medium`, with the PR number, work
 ## Limits
 
 - Never start a third round or a second gate run.
-- Pass every agent an effort of `medium` or `high`, never lower or higher.
+- Pass each agent the effort selected above. Never exceed `high`.
 - Never merge with an open `blocker` or `major` finding, or a failing check.
 - Neither this command nor its agents ever start `/pr-review-merge` again. Only the user does.
 - If a result is ambiguous, stop and report.
