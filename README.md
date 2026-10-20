@@ -217,8 +217,8 @@ recorded execution result.
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
 | PASSED | 34 | - |
-| FAILED | 3 | QA-004, QA-007, QA-105 |
-| BLOCKED | 8 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051 |
+| FAILED | 2 | QA-004, QA-007 |
+| BLOCKED | 9 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051, QA-112 |
 | NOT_RUN | 41 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-059, QA-060, QA-061, QA-062, QA-063, QA-064, QA-065, QA-066, QA-067, QA-068, QA-069, QA-070, QA-071, QA-072 |
 | **Total** | **86** | |
 <!-- qa-summary:end -->
