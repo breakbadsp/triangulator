@@ -64,6 +64,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-057 | NOT_RUN | - | - | - |
 | QA-058 | NOT_RUN | - | - | - |
 | QA-059 | NOT_RUN | - | - | - |
+| QA-060 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -84,6 +85,22 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-060: Sampler CPU budget
+
+Feature: Sampler CPU budget. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One sampler monitors enough owned threads to exceed a small
+configured `cpu_budget_pct`. A matching collector lists its targets.
+
+1. Set `rate_hz=5` and `cpu_budget_pct=0.1`. Observe at least 10 seconds.
+2. Check that all targets report the same lower effective rate.
+3. Check that CPU use, the budget, and the configured rate remain visible.
+4. Reduce the target thread count. Observe rate recovery after low CPU use.
+5. Check that every target session stays the same during each rate change.
+
+Expected: The rate decreases after excess CPU use and stays at or above
+0.2 Hz. The rate increases after sustained low CPU use. History stays valid.
 
 ## QA-059: Multiple sampler targets and reload
 

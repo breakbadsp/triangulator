@@ -100,3 +100,17 @@ one time limit of at most 50 ms for the full tick.
 
 The sampler sends TTGT at session start and every 10 seconds. Upgrade the
 collector first. Older collectors count TTGT as an invalid packet.
+
+## CPU budget
+
+`cpu_budget_pct` defaults to `1.0`, or 1% of one CPU core. The allowed range is
+0.01..100. The sampler measures `CLOCK_THREAD_CPUTIME_ID` for all targets in
+one fixed window of about five seconds. When use exceeds the budget, it lowers
+the effective rate. It never goes below 0.2 Hz. At the minimum rate, the CPU
+use can still exceed the budget if the targets cost too much to sample.
+
+After CPU use stays below 60% of the budget for five seconds, the rate
+increases by 25%, up to `rate_hz`. All targets use the same effective rate.
+A rate change keeps their sessions. TMON reports the effective interval.
+TTGT reports raw CPU and elapsed time counters, the configured and effective
+rates, and the budget. The collector converts the counters to a percentage.

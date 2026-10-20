@@ -314,7 +314,12 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
              static_cast<double>(announced.effective_millihz_) / 1000},
             {"configured_rate_hz",
              static_cast<double>(announced.configured_millihz_) / 1000},
-            {"throttled", throttled}});
+            {"throttled", throttled},
+            {"cpu_budget_pct",
+             static_cast<double>(announced.budget_basis_points_) / 100},
+            {"throttle_reason",
+             throttled ? Json("Sampler CPU use exceeded its configured budget")
+                       : Json()}});
         // A timer refresh changes health at silence thresholds without
         // rebuilding every target snapshot on every collector refresh.
         if (slot.dirty_ || now >= slot.next_health_ ||

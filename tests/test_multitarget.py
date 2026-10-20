@@ -396,9 +396,11 @@ class MultiTargetSamplerTests(unittest.TestCase):
                 target.terminate()
             target.wait(timeout=5)
 
-    def configure(self, entries, rate=5, heavy=False):
+    def configure(self, entries, rate=5, heavy=False, cpu_budget=None):
         text = (f'collector="127.0.0.1:{self.receiver.getsockname()[1]}"\nrate_hz={rate}\n'
                 f'resource_interval_s={1 if heavy else 0}\nmemory_interval_s={1 if heavy else 0}\n')
+        if cpu_budget is not None:
+            text += f"cpu_budget_pct={cpu_budget}\n"
         for index in entries:
             text += f'[[target]]\nid="target-{index}"\npid={self.targets[index].pid}\n'
         self.config.write_text(text)
@@ -480,3 +482,32 @@ class MultiTargetSamplerTests(unittest.TestCase):
         self.assertEqual(len(sessions), 2)
         self.assertEqual({kind for kind, _ in scans.values()}, {b"TRES", b"TVMA"})
         self.assertEqual({session for _, session in scans.values()}, sessions)
+
+    def test_cpu_budget_changes_wire_interval_without_changing_sessions(self):
+        self.configure([0, 1], rate=10, cpu_budget=0.01)
+        sessions = self.collect_sessions([0, 1])
+        announced = set()
+        changed = set()
+        from wire import decode
+        deadline = time.monotonic() + 14
+        # The approved 0.2 Hz minimum permits five seconds between packets.
+        self.receiver.settimeout(0.5)
+        while time.monotonic() < deadline and (len(announced) < 2 or len(changed) < 2):
+            try:
+                data = self.receiver.recv(1500)
+            except TimeoutError:
+                continue
+            if data.startswith(b"TTGT"):
+                packet = ANNOUNCE.unpack(data)
+                if packet[5] < packet[9]:
+                    self.assertGreater(packet[7], 0)
+                    self.assertGreater(packet[8], 0)
+                    self.assertEqual(packet[10], 1)
+                    self.assertGreaterEqual(packet[5], 200)
+                    announced.add(packet[3])
+            elif data.startswith(b"TMON"):
+                packet = decode(data)
+                if packet.interval_ms > 100:
+                    changed.add(packet.session)
+        self.assertEqual(announced, set(sessions.values()))
+        self.assertEqual(changed, set(sessions.values()), "rate changes keep the target sessions")

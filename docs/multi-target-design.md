@@ -312,6 +312,7 @@ single-target flow unchanged.
    privileged mode wanted later?
 3. Is a default budget of 1% of one core right?
 4. Is the limit of 16 targets per sampler right?
-5. The overhead throttle makes the sampler average its own CPU use and pick
-   its rate. Keep this one local decision in the sampler, or send raw CPU
-   counters and let the collector decide?
+5. Resolved on 2026-10-20: the owner approved automatic sampler throttling
+   with a default budget of 1% of one CPU core. The sampler sends raw CPU
+   counters as well as the effective rate. The collector computes the CPU
+   percentage for the API.

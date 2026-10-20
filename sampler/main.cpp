@@ -11,6 +11,7 @@
 #include <system_error>
 #include <vector>
 
+#include "budget.hpp"
 #include "exit_status.hpp"
 #include "kernel_log.hpp"
 #include "memory.hpp"
@@ -100,6 +101,11 @@ class TargetSampler final
     return ResetSession();
   }
 
+  void AnnounceNextTick() noexcept
+  {
+    next_announcement_ = Nanoseconds{0};
+  }
+
   [[nodiscard]] bool HeavyDue(bool p_memory, Nanoseconds p_now) const
   {
     if (!previous_target_)
@@ -109,11 +115,10 @@ class TargetSampler final
     if (p_memory)
     {
       return MemoryInterval() > Nanoseconds{0} &&
-             (memory_.Busy() ||
-              p_now + config_.settings_.Interval() / 2 >= next_memory_);
+             (memory_.Busy() || p_now + config_.Interval() / 2 >= next_memory_);
     }
     return ResourceInterval() > Nanoseconds{0} &&
-           p_now + config_.settings_.Interval() / 2 >= next_resources_;
+           p_now + config_.Interval() / 2 >= next_resources_;
   }
 
   void StepHeavy(bool p_memory, Nanoseconds p_now)
@@ -252,7 +257,14 @@ class TargetSampler final
     packet.host_ = host_;
     packet.configured_millihz_ = static_cast<std::uint32_t>(
         std::lround(config_.settings_.rate_hz_ * 1000));
-    packet.effective_millihz_ = packet.configured_millihz_;
+    packet.effective_millihz_ = static_cast<std::uint32_t>(std::lround(
+        (config_.effective_rate_hz_ > 0 ? config_.effective_rate_hz_
+                                        : config_.settings_.rate_hz_) *
+        1000));
+    packet.cpu_ns_ = config_.sampler_cpu_ns_;
+    packet.elapsed_ns_ = config_.sampler_elapsed_ns_;
+    packet.budget_basis_points_ = static_cast<std::uint32_t>(
+        std::lround(config_.settings_.cpu_budget_pct_ * 100));
     if (p_target)
     {
       packet.pid_ = static_cast<std::uint32_t>(p_target->pid_);
@@ -278,7 +290,7 @@ class TargetSampler final
   void StepProcessInfo(const TargetIdentity& p_target, Nanoseconds p_monotonic)
   {
     // Half a tick of slack, as for resources.
-    if (p_monotonic + config_.settings_.Interval() / 2 < next_process_info_)
+    if (p_monotonic + config_.Interval() / 2 < next_process_info_)
     {
       return;
     }
@@ -307,7 +319,7 @@ class TargetSampler final
       return Nanoseconds{0};
     }
     return std::max<Nanoseconds>(std::chrono::seconds{seconds},
-                                 config_.settings_.Interval());
+                                 config_.Interval());
   }
 
   // How often an unchanged layout is sent again: every 10 samples, but at
@@ -331,7 +343,7 @@ class TargetSampler final
     // A quarter of a tick, at most 50 ms, including the summary reads in
     // Start(): the rest of the tick stays free for the sleep before the
     // next thread sample. When Start() used it all, maps is read next tick.
-    const auto tick = config_.settings_.Interval();
+    const auto tick = config_.Interval();
     const auto deadline =
         ClockNow(CLOCK_MONOTONIC) + std::min<Nanoseconds>(tick / 4, 50ms);
     if (!memory_.Busy())
@@ -411,7 +423,7 @@ class TargetSampler final
       return Nanoseconds{0};
     }
     return std::max<Nanoseconds>(std::chrono::seconds{seconds},
-                                 config_.settings_.Interval());
+                                 config_.Interval());
   }
 
   // Sends one resource sample: the summary, then the fullest sockets. It
@@ -495,7 +507,7 @@ class TargetSampler final
               .records_ = static_cast<std::uint16_t>(count),
               .monotonic_ns_ = static_cast<std::uint64_t>(p_monotonic.count()),
               .wall_ns_ = static_cast<std::uint64_t>(p_wall.count()),
-              .interval_ms_ = config_.settings_.IntervalMs(),
+              .interval_ms_ = config_.IntervalMs(),
               .pid_ = static_cast<std::uint32_t>(p_pid),
           }};
       std::ranges::copy(p_records.subspan(offset, count),
@@ -560,7 +572,9 @@ class Sampler final
         budget_{p_descriptor_limit > 3 * target_wire::kMaxTargets
                     ? p_descriptor_limit - 3 * target_wire::kMaxTargets
                     : 0,
-                0}
+                0},
+        cpu_budget_(config_.settings_.rate_hz_,
+                    config_.settings_.cpu_budget_pct_)
   {
     if (::gethostname(host_.data(), host_.size() - 1) != 0 ||
         !target_wire::ValidName(target_wire::Text(host_), 63))
@@ -576,6 +590,8 @@ class Sampler final
       return prepared;
     }
     auto deadline = ClockNow(CLOCK_MONOTONIC);
+    auto last_elapsed = deadline;
+    auto last_cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
     while (!stop_requested)
     {
       if (reload_requested)
@@ -588,15 +604,24 @@ class Sampler final
           const auto& after = next->settings_;
           const bool keep_sessions =
               before.rate_hz_ == after.rate_hz_ &&
+              before.cpu_budget_pct_ == after.cpu_budget_pct_ &&
               before.collector_ == after.collector_ &&
               before.status_fallback_ == after.status_fallback_ &&
               before.resource_interval_s_ == after.resource_interval_s_ &&
               before.memory_interval_s_ == after.memory_interval_s_;
           config_ = std::move(*next);
+          if (!keep_sessions)
+          {
+            cpu_budget_ = CpuBudget{config_.settings_.rate_hz_,
+                                    config_.settings_.cpu_budget_pct_};
+          }
+          config_.effective_rate_hz_ = cpu_budget_.RateHz();
           if (auto prepared = PrepareTargets(keep_sessions); !prepared)
           {
             return prepared;
           }
+          last_elapsed = ClockNow(CLOCK_MONOTONIC);
+          last_cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
         }
         else
         {
@@ -607,7 +632,7 @@ class Sampler final
       }
       const auto exit_deadline =
           ClockNow(CLOCK_MONOTONIC) +
-          std::min<Nanoseconds>(config_.settings_.Interval() / 4, 50ms);
+          std::min<Nanoseconds>(config_.Interval() / 4, 50ms);
       const auto lookups = FindTargets(config_.settings_.targets_);
       for (std::size_t index = 0; index < targets_.size(); ++index)
       {
@@ -639,8 +664,25 @@ class Sampler final
           break;
         }
       }
-      const auto interval = config_.settings_.Interval();
       const auto end = ClockNow(CLOCK_MONOTONIC);
+      const auto cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
+      cpu_budget_.Add(cpu - last_cpu, end - last_elapsed);
+      last_cpu = cpu;
+      last_elapsed = end;
+      const auto old_rate = config_.effective_rate_hz_;
+      config_.effective_rate_hz_ = cpu_budget_.RateHz();
+      config_.sampler_cpu_ns_ =
+          static_cast<std::uint64_t>(cpu_budget_.Cpu().count());
+      config_.sampler_elapsed_ns_ =
+          static_cast<std::uint64_t>(cpu_budget_.Elapsed().count());
+      if (old_rate > 0 && old_rate != config_.effective_rate_hz_)
+      {
+        for (auto& target : targets_)
+        {
+          target->AnnounceNextTick();
+        }
+      }
+      const auto interval = config_.Interval();
       deadline += interval;
       if (deadline <= end)
       {
@@ -654,6 +696,7 @@ class Sampler final
  private:
   RuntimeConfig config_;
   DescriptorBudget budget_;
+  CpuBudget cpu_budget_;
   RateLimitedLogger logger_;
   std::array<char, 64> host_{};
   std::vector<std::unique_ptr<TargetSampler>> targets_;
