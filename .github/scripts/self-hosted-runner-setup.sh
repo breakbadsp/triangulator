@@ -20,7 +20,11 @@ runner_sha256=af4b794c1bc41d73d40535e3fe092a39f9679cd8d965954c2aca25a05ca41d32
 token=
 read -r token || true
 
-pacman -S --needed --noconfirm podman python-pipx github-cli
+# Jobs build and test with the host tools. Mark them explicit, so removing a
+# package that pulled one in does not remove it too.
+packages=(podman python-pipx github-cli base-devel sqlite nodejs python)
+pacman -S --needed --noconfirm "${packages[@]}"
+pacman -D --asexplicit "${packages[@]}"
 
 if ! id "$runner_user" >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash "$runner_user"

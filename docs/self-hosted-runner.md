@@ -57,7 +57,8 @@ gh api -X POST repos/breakbadsp/triangulator/actions/runners/registration-token 
   --jq .token | sudo .github/scripts/self-hosted-runner-setup.sh
 ```
 
-The script installs `podman`, `python-pipx`, and `github-cli`, creates
+The script installs `podman`, `python-pipx`, `github-cli`, and the build
+and test tools (`base-devel`, `sqlite`, `nodejs`, and `python`), creates
 `gha-runner`, downloads a checksum-verified runner, registers it with the
 `triangulator` label, and starts the service. The token expires after one
 hour.
