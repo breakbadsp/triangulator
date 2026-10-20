@@ -73,7 +73,7 @@ process = "billing"
   `[[target]]` tables, never both.
 - `rate_hz`, `resource_interval_s`, and `memory_interval_s` apply to every
   target. Per-target rates are left out to keep the loop simple.
-- `max_targets` is fixed at build time (proposed: 16). All per-target state
+- `max_targets` is fixed at build time (default: 8). All per-target state
   is allocated at startup or reload, never during a tick.
 
 ### One tick
@@ -180,8 +180,16 @@ packet, so **upgrade the collector before the samplers**.
 - **Allowed senders.** `sampler_ip` becomes a list, `sampler_ips`. The old key
   is a list of one.
 - **Memory.** Each `Monitor` reserves about 280 bytes of address space per
-  live sample. `max_live_samples` becomes a total that is split across the
-  slots.
+  live sample. Each slot keeps the full `max_live_samples`, so a single target
+  has the history it has today. The reservation grows with `max_targets`, so
+  the product `max_live_samples * max_targets` is capped at 10,000,000
+  (about 2.8 GB of address space), and `max_targets` defaults to 8. A larger
+  fleet lowers `max_live_samples` or accepts less history per target.
+- **Replay directory.** Recordings made before targets existed stay in
+  `data_dir/replay`. They belong to one fixed legacy target: the pinned
+  sender, or the smallest address in `sampler_ips`. Arrival order never
+  decides it, so a restart keeps every recording with the same target. All
+  other targets record under `data_dir/targets/<hex key>`.
 - **Snapshots.** A slot rebuilds its JSON only when it has received data
   since the last build.
 

@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -116,6 +117,20 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
 
+  // Bind the UDP socket first. The kernel then queues the datagrams that
+  // arrive while storage and the target slots start, instead of dropping
+  // them. A sampler sends an unchanged memory layout again only every ten
+  // memory samples (at least once a minute), so a lost first layout leaves
+  // /api/memory-map empty for that long.
+  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
+  if (!bound)
+  {
+    return Stopped(bound.error());
+  }
+  const triangulator::FileDescriptor receiver = std::move(*bound);
+  const int buffer_size = 4 * 1024 * 1024;
+  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
+               sizeof(buffer_size));
   auto created = Storage::Create(config.data_dir_, config.retention_days_);
   if (!created)
   {
@@ -144,15 +159,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   }
   StorageSink sink{storage};
   TargetFleet fleet{config, WallNow(), storage, sink};
-  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
-  if (!bound)
-  {
-    return Stopped(bound.error());
-  }
-  const triangulator::FileDescriptor receiver = std::move(*bound);
-  const int buffer_size = 4 * 1024 * 1024;
-  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
-               sizeof(buffer_size));
   SharedState state;
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
@@ -215,8 +221,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             std::format("{}/{}", slot.host_.View(), slot.id_.View());
         if (slot.reset_view_)
         {
-          slot.recorder_.Stop();
+          // The writer keeps running: SetRoot below moves it without a join.
           slot.recorder_started_ = false;
+          slot.replay_root_.clear();
           slot.last_target_.reset();
           slot.published_layout_ = 0;
           slot.state_.SetLastTarget(
@@ -233,9 +240,20 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         }
         if (!slot.recorder_started_)
         {
-          slot.replay_root_ = slot.announced_
-                                  ? TargetDataRoot(config.data_dir_, key)
-                                  : std::filesystem::path{config.data_dir_};
+          // Recordings made before targets existed live in data_dir itself.
+          // They belong to one fixed legacy target: the only sender when the
+          // sender is pinned, otherwise the smallest address in sampler_ips.
+          // The choice does not depend on arrival order, so a restart keeps
+          // each recording with the same target. Other targets get their own
+          // directory, so frames never overwrite each other.
+          const bool owns_default_root =
+              !slot.announced_ && slot.id_.View() == "default" &&
+              (config.sampler_ips_.empty() ||
+               slot.host_.View() ==
+                   *std::ranges::min_element(config.sampler_ips_));
+          slot.replay_root_ = owns_default_root
+                                  ? std::filesystem::path{config.data_dir_}
+                                  : TargetDataRoot(config.data_dir_, key);
           slot.recorder_.SetRoot(slot.replay_root_);
           if (auto started = slot.recorder_.Start(); !started)
           {
