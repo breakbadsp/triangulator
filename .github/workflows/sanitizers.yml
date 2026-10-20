@@ -28,7 +28,8 @@ concurrency:
 jobs:
   test:
     name: ${{ matrix.sanitizer }}
-    runs-on: ubuntu-24.04
+    # Fork pull requests run on GitHub; everything else on the owner's runner.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -36,16 +37,19 @@ jobs:
         sanitizer: [address, thread]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # The self-hosted runner already has these installed.
       - name: Install build and test dependencies
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y g++-14 libsqlite3-dev nodejs
+      # The self-hosted kernel already defaults to 28 bits.
       - name: Set the address layout for ThreadSanitizer
-        if: matrix.sanitizer == 'thread'
+        if: matrix.sanitizer == 'thread' && runner.environment == 'github-hosted'
         run: sudo sysctl -w vm.mmap_rnd_bits=28
       - name: Run the full test suite
         env:
-          CXX: g++-14
+          CXX: ${{ runner.environment == 'github-hosted' && 'g++-14' || 'g++' }}
         run: |
           set -o pipefail
           make -j2 check SANITIZER=${{ matrix.sanitizer }} 2>&1 | tee sanitizer-check.log

@@ -21,7 +21,8 @@ permissions:
 jobs:
   summary:
     name: Check and publish QA results
-    runs-on: ubuntu-24.04
+    # Fork pull requests run on GitHub; everything else on the owner's runner.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5

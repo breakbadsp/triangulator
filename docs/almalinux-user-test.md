@@ -1,7 +1,9 @@
 # Test a new installation in AlmaLinux
 
-The `AlmaLinux new user test` workflow runs on GitHub-hosted Linux runners.
-It does not need Docker access or `sudo` on your computer.
+The `AlmaLinux new user test` workflow runs on the
+[self-hosted runner](self-hosted-runner.md) in rootless containers. Fork pull
+requests run it on GitHub-hosted runners. You need no Docker access or `sudo`
+to run it.
 It tests the official `almalinux:8` and `almalinux:9` container images.
 Manual runs can also test `almalinux:10`.
 

@@ -34,14 +34,16 @@ concurrency:
 jobs:
   format:
     name: C++ format
-    runs-on: ubuntu-24.04
+    # Fork pull requests run on GitHub; everything else on the owner's runner.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: make format-check CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
   test:
     name: AlmaLinux ${{ matrix.version }}
-    runs-on: ubuntu-24.04
+    # Fork pull requests run on GitHub; everything else on the owner's runner.
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
     timeout-minutes: 30
     needs: format
     strategy:
@@ -91,3 +93,10 @@ jobs:
           name: almalinux-${{ matrix.version }}-new-user-test
           path: reports/
           retention-days: 14
+      # Rootless containers leave files owned by container users in reports/.
+      # Give them back to the runner so the next checkout can delete them.
+      - name: Return report files to the runner user
+        if: always() && runner.environment == 'self-hosted'
+        env:
+          ALMA_VERSION: ${{ matrix.version }}
+        run: docker run --rm -v "$PWD/reports:/reports" "almalinux:$ALMA_VERSION" chown -R 0:0 /reports
