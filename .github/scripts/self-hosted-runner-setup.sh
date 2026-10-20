@@ -80,12 +80,15 @@ After=network-online.target
 WorkingDirectory=$home/actions-runner
 # Jobs inherit this PATH, so `docker` finds the Podman wrapper first.
 Environment=PATH=$home/bin:/usr/local/bin:/usr/bin
+# Make run.sh pass SIGINT on to the runner, which then cancels any running
+# job and exits. Whatever is left after a minute is killed.
+Environment=RUNNER_MANUALLY_TRAP_SIG=1
 ExecStart=$home/actions-runner/run.sh
 Restart=always
 RestartSec=10
-KillMode=process
+KillMode=mixed
 KillSignal=SIGINT
-TimeoutStopSec=5min
+TimeoutStopSec=1min
 
 [Install]
 WantedBy=default.target

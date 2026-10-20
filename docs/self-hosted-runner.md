@@ -63,7 +63,8 @@ The script installs `podman`, `python-pipx`, and `github-cli`, creates
 hour.
 
 To apply a newer version of the script to a registered runner, rerun it
-without a token. It keeps the registration and restarts the service:
+without a token. It keeps the registration and restarts the service, which
+cancels any job that is running:
 
 ```sh
 sudo .github/scripts/self-hosted-runner-setup.sh < /dev/null
