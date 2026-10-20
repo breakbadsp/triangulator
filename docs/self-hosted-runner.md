@@ -9,7 +9,7 @@ owner's computer.
 
 Pull requests run the format check and AlmaLinux 8 tests when their path
 filters match. The QA results check keeps its existing path filters.
-Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at midnight
+Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at 03:00
 in `Asia/Kolkata`. These workflows also support manual runs. Packaging
 still builds and publishes releases for `v*` tags; nightly runs only
 upload test artifacts.

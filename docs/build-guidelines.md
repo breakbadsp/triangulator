@@ -135,7 +135,7 @@ See [configuration](setup.md#configuration) for separate hosts and custom paths.
 
 ## Run tests with sanitizers
 
-The `Sanitizer tests` workflow runs nightly at midnight in `Asia/Kolkata`
+The `Sanitizer tests` workflow runs nightly at 03:00 in `Asia/Kolkata`
 on the latest `master` commit. It also supports manual runs. It does not
 run on each pull request or each push.
 

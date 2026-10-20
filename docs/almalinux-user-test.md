@@ -12,7 +12,7 @@ manual runs test `almalinux:8` and `almalinux:9`. Manual runs can also test
 
 The workflow starts on pull requests that change the workflow, its scripts,
 build files, source files, configuration, tests, or build guidelines.
-Nightly runs start at midnight in `Asia/Kolkata` on the latest `master`
+Nightly runs start at 03:00 in `Asia/Kolkata` on the latest `master`
 commit. AlmaLinux 10 runs only when selected for a manual run.
 To start it by hand:
 
