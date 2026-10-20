@@ -6,6 +6,13 @@ Read Linux thread and resource data. Send samples to the collector over UDP.
   <img src="../docs/assets/sampler-flow.svg" alt="The sampler reads the target process through /proc, samples threads at 0.2 to 10 Hz, and sends UDP datagrams to the collector." width="100%">
 </p>
 
+## Design constraints
+
+The sampler must keep its overhead on the target host negligible. Run exactly
+one sampler on each host, and keep it single-threaded. See
+[Sampler constraints](../AGENTS.md#sampler-constraints) and the
+[multi-target design](../docs/multi-target-design.md).
+
 ## Quick start
 
 Run these commands from the repository root as the target process user.
