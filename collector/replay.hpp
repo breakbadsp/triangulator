@@ -31,6 +31,21 @@ namespace triangulator::collector
   return p_data_dir / "replay";
 }
 
+// Hex encoding prevents path traversal and keeps keys from different hosts
+// separate, including keys that contain IPv6 colons.
+[[nodiscard]] inline std::filesystem::path TargetDataRoot(
+    const std::filesystem::path& p_root, std::string_view p_key)
+{
+  constexpr std::string_view kHex = "0123456789abcdef";
+  std::string encoded;
+  for (const unsigned char character : p_key)
+  {
+    encoded += kHex[character >> 4];
+    encoded += kHex[character & 15];
+  }
+  return p_root / "targets" / encoded;
+}
+
 inline constexpr std::string_view kReplaySchema = R"(
 CREATE TABLE IF NOT EXISTS process_snapshot (
  ts REAL PRIMARY KEY NOT NULL, snapshot TEXT NOT NULL
@@ -170,6 +185,12 @@ class SnapshotRecorder
   }
   SnapshotRecorder(const SnapshotRecorder&) = delete;
   SnapshotRecorder& operator=(const SnapshotRecorder&) = delete;
+
+  void SetRoot(const std::filesystem::path& p_root)
+  {
+    Stop();
+    directory_ = ReplayDirectory(p_root);
+  }
 
   // Starts the writer thread, unless recording is disabled. std::jthread
   // reports failure by throwing; it is caught here and returned.

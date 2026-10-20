@@ -31,7 +31,7 @@
 #include "replay.hpp"
 #include "resources.hpp"
 #include "storage.hpp"
-#include "target_slot.hpp"
+#include "target_fleet.hpp"
 #include "watch.hpp"
 
 namespace
@@ -70,12 +70,9 @@ int Stopped(std::string_view p_reason)
 class SaveOnUnwind
 {
  public:
-  SaveOnUnwind(DashboardServer& p_server, Monitor& p_monitor,
-               ResourceMonitor& p_resources, Storage& p_storage) noexcept
-      : server_(p_server),
-        monitor_(p_monitor),
-        resources_(p_resources),
-        storage_(p_storage)
+  SaveOnUnwind(DashboardServer& p_server, TargetFleet& p_fleet,
+               Storage& p_storage) noexcept
+      : server_(p_server), fleet_(p_fleet), storage_(p_storage)
   {
   }
   SaveOnUnwind(const SaveOnUnwind&) = delete;
@@ -88,15 +85,13 @@ class SaveOnUnwind
       return;
     }
     server_.Stop();
-    monitor_.Close();
-    resources_.Drain(0, true);
+    fleet_.Close();
     static_cast<void>(storage_.Close());
   }
 
  private:
   DashboardServer& server_;
-  Monitor& monitor_;
-  ResourceMonitor& resources_;
+  TargetFleet& fleet_;
   Storage& storage_;
   int exceptions_ = std::uncaught_exceptions();
 };
@@ -148,12 +143,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                     watches.Path().string()));
   }
   StorageSink sink{storage};
-  TargetSlot slot{config, WallNow(), sink};
-  auto& monitor = slot.monitor_;
-  auto& resources = slot.resources_;
-  auto& memory = slot.memory_;
-  auto& exits = slot.exits_;
-  auto& process = slot.process_;
+  TargetFleet fleet{config, WallNow(), storage, sink};
   auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
   if (!bound)
   {
@@ -163,7 +153,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   const int buffer_size = 4 * 1024 * 1024;
   ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
                sizeof(buffer_size));
-  auto& state = slot.state_;
+  SharedState state;
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
   {
@@ -181,17 +171,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   ::sigaction(SIGTERM, &action, nullptr);
   ::signal(SIGPIPE, SIG_IGN);
 
-  Ingest ingest{config.sampler_ips_,
-                monitor,
-                resources,
-                memory,
-                exits,
-                process,
-                storage,
-                sink};
-  auto& published_layout = slot.published_layout_;
-  // Which target the view in /api/last-target describes, and when.
-  auto& last_target = slot.last_target_;
   auto next_refresh = std::chrono::steady_clock::time_point{};
   Log(LogLevel::Info,
       std::format("UDP {}:{}; dashboard http://{}:{}", config.udp_host_,
@@ -199,12 +178,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   // One byte more than the largest datagram (resource_wire::kMaxPartSize,
   // 1400).
   std::array<std::byte, 1501> buffer{};
-  auto& recorder = slot.recorder_;
-  if (auto started = recorder.Start(); !started)
-  {
-    return Stopped(started.error());
-  }
-  const SaveOnUnwind save_on_unwind{server, monitor, resources, storage};
+  const SaveOnUnwind save_on_unwind{server, fleet, storage};
   // The first storage failure. It stops the loop: rows that can't be saved
   // shouldn't be dropped silently.
   SqliteResult storage_ok;
@@ -222,60 +196,196 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     const double now = WallNow();
     if (length >= 0)
     {
-      storage_ok = ingest.Handle(
+      storage_ok = fleet.Handle(
           std::span{buffer.data(), static_cast<std::size_t>(length)},
           PeerAddress(peer), now);
     }
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
-      auto health = monitor.Health(now);
-      const auto watch_state = watches.Current();
-      auto live = monitor.Snapshot(now, watch_state->rules_);
-      const auto* absent = health.Find("target_absent");
-      // A view of the target needs its threads. When a new sampler session
-      // starts, the Monitor drops the old threads at once but reports
-      // target_absent only after the new session's first tick is processed,
-      // so a view without threads can still say the target is present.
-      const bool target_view = absent->IsBool() && !absent->AsBool() &&
-                               !live.Find("threads")->AsArray().empty();
-      if (target_view)
+      std::vector<PublishedTarget> published;
+      JsonArray descriptions;
+      for (auto& owned : fleet.Slots())
       {
-        last_target = JsonObject{{"session", *health.Find("session")},
-                                 {"pid", *health.Find("pid")},
-                                 {"recorded_at", now}};
+        auto& slot = *owned;
+        if (!slot.active_ || !slot.visible_)
+        {
+          continue;
+        }
+        const auto key =
+            std::format("{}/{}", slot.host_.View(), slot.id_.View());
+        if (slot.reset_view_)
+        {
+          slot.recorder_.Stop();
+          slot.recorder_started_ = false;
+          slot.last_target_.reset();
+          slot.published_layout_ = 0;
+          slot.state_.SetLastTarget(
+              std::make_shared<const std::string>(R"({"available":false})"));
+          slot.state_.SetMemoryMap(
+              std::make_shared<const std::string>(R"({"available":false})"));
+          slot.reset_view_ = false;
+        }
+        if (slot.previous_view_)
+        {
+          slot.last_target_ = slot.previous_view_->last_target_;
+          slot.state_.SetLastTarget(slot.previous_view_->state_.LastTarget());
+          slot.previous_view_ = nullptr;
+        }
+        if (!slot.recorder_started_)
+        {
+          slot.replay_root_ = slot.announced_
+                                  ? TargetDataRoot(config.data_dir_, key)
+                                  : std::filesystem::path{config.data_dir_};
+          slot.recorder_.SetRoot(slot.replay_root_);
+          if (auto started = slot.recorder_.Start(); !started)
+          {
+            return Stopped(started.error());
+          }
+          slot.recorder_started_ = true;
+        }
+        auto& monitor = slot.monitor_;
+        auto& resources = slot.resources_;
+        auto& memory = slot.memory_;
+        auto& exits = slot.exits_;
+        auto& process = slot.process_;
+        auto& recorder = slot.recorder_;
+        auto& state_view = slot.state_;
+        auto& published_layout = slot.published_layout_;
+        auto& last_target = slot.last_target_;
+        auto health_summary = monitor.Health(now);
+        const auto& announced = slot.announcement_;
+        const bool throttled =
+            slot.announced_ &&
+            announced.effective_millihz_ < announced.configured_millihz_;
+        const auto* silent = health_summary.Find("sampler_silent");
+        const auto* absent_summary = health_summary.Find("target_absent");
+        const std::string_view status = silent && silent->AsBool() ? "silent"
+                                        : absent_summary &&
+                                                absent_summary->IsBool() &&
+                                                absent_summary->AsBool()
+                                            ? "absent"
+                                            : "live";
+        const auto process_summary = process.Snapshot();
+        const auto* process_start = process_summary.Find("process_start");
+        storage.RememberTarget(
+            slot.session_, slot.host_.View(), slot.id_.View(),
+            slot.announced_ ? announced.pid_
+                            : static_cast<std::uint32_t>(
+                                  health_summary.Find("pid")->AsInt()),
+            slot.announced_ ? announced.process_start_
+            : process_start && process_start->IsNumber()
+                ? static_cast<std::uint64_t>(process_start->AsInt())
+                : 0,
+            slot.first_seen_);
+        descriptions.emplace_back(JsonObject{
+            {"key", key},
+            {"host", slot.host_.View()},
+            {"id", slot.id_.View()},
+            {"pid", *health_summary.Find("pid")},
+            {"session", std::to_string(slot.session_)},
+            {"process", process_summary},
+            {"status", status},
+            {"access",
+             announced.access_ == triangulator::target_wire::Access::Limited
+                 ? "limited"
+                 : "full"},
+            {"sampler_cpu_pct",
+             announced.elapsed_ns_ == 0
+                 ? Json()
+                 : Json(100.0 * static_cast<double>(announced.cpu_ns_) /
+                        static_cast<double>(announced.elapsed_ns_))},
+            {"effective_rate_hz",
+             static_cast<double>(announced.effective_millihz_) / 1000},
+            {"configured_rate_hz",
+             static_cast<double>(announced.configured_millihz_) / 1000},
+            {"throttled", throttled}});
+        // A timer refresh changes health at silence thresholds without
+        // rebuilding every target snapshot on every collector refresh.
+        if (slot.dirty_ || now >= slot.next_health_ ||
+            now - slot.last_seen_ < 1.0)
+        {
+          auto health = monitor.Health(now);
+          const auto watch_state = watches.Current();
+          auto live = monitor.Snapshot(now, watch_state->rules_);
+          const auto* absent = health.Find("target_absent");
+          // A view of the target needs its threads. When a new sampler session
+          // starts, the Monitor drops the old threads at once but reports
+          // target_absent only after the new session's first tick is processed,
+          // so a view without threads can still say the target is present.
+          const bool target_view = absent->IsBool() && !absent->AsBool() &&
+                                   !live.Find("threads")->AsArray().empty();
+          if (target_view)
+          {
+            last_target = JsonObject{{"session", *health.Find("session")},
+                                     {"pid", *health.Find("pid")},
+                                     {"recorded_at", now}};
+          }
+          else if (absent->IsBool() && absent->AsBool() && last_target)
+          {
+            // Tells the dashboard which view /api/last-target holds.
+            health.Set("last_target", *last_target);
+          }
+          health.Set("sampler_ip", slot.ingest_.SamplerIp()
+                                       ? Json(slot.ingest_.SamplerIp()->View())
+                                       : Json(nullptr));
+          live.Set("health", std::move(health));
+          resources.Drain(now);
+          live.Set("resources", resources.Snapshot(now));
+          live.Set("memory", memory.Snapshot(now));
+          live.Set("exit", exits.Snapshot());
+          live.Set("process", process.Snapshot());
+          if (memory.LayoutVersion() != published_layout)
+          {
+            published_layout = memory.LayoutVersion();
+            state_view.SetMemoryMap(
+                std::make_shared<const std::string>(DumpJson(memory.Layout())));
+          }
+          live.Set("target", key);
+          live.Set("recorded_at", now);
+          live.Set("recording_interval_s", slot.config_.replay_interval_s_);
+          auto body = std::make_shared<const std::string>(DumpJson(live));
+          if (live.Find("health")->Find("session")->IsString())
+          {
+            recorder.Offer(now, body);
+          }
+          if (target_view)
+          {
+            state_view.SetLastTarget(body);
+          }
+          state_view.SetLive(std::move(body));
+          slot.dirty_ = false;
+          slot.next_health_ = now + 10;
+        }
+        published.push_back({key, std::string{slot.host_.View()},
+                             std::string{slot.id_.View()}, slot.replay_root_,
+                             slot.state_.Live(), slot.state_.LastTarget(),
+                             slot.state_.MemoryMap()});
       }
-      else if (absent->IsBool() && absent->AsBool() && last_target)
+      if (published.empty())
       {
-        // Tells the dashboard which view /api/last-target holds.
-        health.Set("last_target", *last_target);
+        auto& idle = *fleet.Slots().front();
+        auto health = idle.monitor_.Health(now);
+        health.Set("bad_packets",
+                   static_cast<std::int64_t>(fleet.bad_packets_) +
+                       idle.monitor_.bad_packets_);
+        health.Set("sampler_ip", idle.ingest_.SamplerIp()
+                                     ? Json(idle.ingest_.SamplerIp()->View())
+                                     : Json());
+        auto live = idle.monitor_.Snapshot(now, watches.Current()->rules_);
+        live.Set("health", std::move(health));
+        live.Set("resources", idle.resources_.Snapshot(now));
+        live.Set("memory", idle.memory_.Snapshot(now));
+        live.Set("exit", idle.exits_.Snapshot());
+        live.Set("process", idle.process_.Snapshot());
+        live.Set("recorded_at", now);
+        live.Set("recording_interval_s", config.replay_interval_s_);
+        state.SetLive(std::make_shared<const std::string>(DumpJson(live)));
       }
-      health.Set("sampler_ip", ingest.SamplerIp()
-                                   ? Json(ingest.SamplerIp()->View())
-                                   : Json(nullptr));
-      live.Set("health", std::move(health));
-      resources.Drain(now);
-      live.Set("resources", resources.Snapshot(now));
-      live.Set("memory", memory.Snapshot(now));
-      live.Set("exit", exits.Snapshot());
-      live.Set("process", process.Snapshot());
-      if (memory.LayoutVersion() != published_layout)
-      {
-        published_layout = memory.LayoutVersion();
-        state.SetMemoryMap(
-            std::make_shared<const std::string>(DumpJson(memory.Layout())));
-      }
-      live.Set("recorded_at", now);
-      live.Set("recording_interval_s", config.replay_interval_s_);
-      auto body = std::make_shared<const std::string>(DumpJson(live));
-      if (live.Find("health")->Find("session")->IsString())
-      {
-        recorder.Offer(now, body);
-      }
-      if (target_view)
-      {
-        state.SetLastTarget(body);
-      }
-      state.SetLive(std::move(body));
+      state.PublishTargets(
+          std::move(published),
+          JsonObject{{"targets", std::move(descriptions)},
+                     {"bad_packets", fleet.bad_packets_},
+                     {"capacity_drops", fleet.capacity_drops_}});
       storage_ok = sink.Status();
       if (storage_ok)
       {
@@ -286,9 +396,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     }
   }
   server.Stop();
-  recorder.Stop();
-  monitor.Close();
-  resources.Drain(0, true);
+  fleet.Close();
   if (storage_ok)
   {
     storage_ok = sink.Status();

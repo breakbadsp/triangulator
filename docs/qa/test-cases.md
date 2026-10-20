@@ -62,6 +62,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-055 | NOT_RUN | - | - | - |
 | QA-056 | NOT_RUN | - | - | - |
 | QA-057 | NOT_RUN | - | - | - |
+| QA-058 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -82,6 +83,21 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-058: Target API selection
+
+Feature: Multiple target API. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: A collector accepts two announced targets with different IDs.
+
+1. Read `/api/targets`. Check the host, ID, PID, session, status, and access.
+2. Read `/api/live?target=<host>/<id>` for each target in separate clients.
+3. Read resource history and replay for each target. Check the PID and session.
+4. Replace one target process. Check that only its session changes.
+5. Read an unknown key. Check that the API returns HTTP 404.
+
+Expected: Each response contains only the selected target. The default API
+uses `default` when present, then the first key by host and ID.
 
 ## QA-045: Concurrent viewers and slow connections
 

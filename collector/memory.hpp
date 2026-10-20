@@ -75,6 +75,14 @@ class MemoryMonitor
 
   // Memory is fixed at construction: Accept() allocates nothing.
   // Snapshot() and Layout() build JSON and do allocate.
+  void PrepareSession(std::uint64_t p_session) noexcept
+  {
+    if (!session_ || *session_ != p_session)
+    {
+      StartSession(p_session);
+    }
+  }
+
   void Accept(const memory_wire::Part& p_part, double p_received)
   {
     const auto& header = p_part.header_;

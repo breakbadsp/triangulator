@@ -2111,6 +2111,17 @@ void TestResourceStorageAndHistory()
       ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20, 4);
   Require(limited.truncated_ && limited.rows_.size() == 1,
           "history reads a bounded number of samples");
+  storage->RememberTarget(ResourceHeader(0).session_, "host-a", "orders", 42, 9,
+                          1'700'000'000);
+  Require(storage->Flush(1'700'000'100).has_value(), "target mappings commit");
+  const auto orders =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "orders"});
+  const auto billing =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "billing"});
+  Require(orders.rows_.size() == 4 && billing.rows_.empty(),
+          "resource history is isolated by target mapping");
 }
 
 // Decoded memory-map parts of one sample: the summary, then the layout's

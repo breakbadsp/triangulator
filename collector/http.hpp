@@ -685,6 +685,13 @@ class DashboardServer
 
   void Get(const HttpConnection& p_connection, const Request& p_request)
   {
+    const auto target_key = QueryValue(p_request.query_, "target");
+    const auto target = state_.Select(target_key.value_or(""));
+    if (target_key && !target)
+    {
+      RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
+      return;
+    }
     if (p_request.path_ == "/")
     {
       Respond(p_connection, 200,
@@ -694,15 +701,24 @@ class DashboardServer
     }
     else if (p_request.path_ == "/api/live")
     {
-      Respond(p_connection, 200, *state_.Live(), "application/json");
+      Respond(p_connection, 200, *(target ? target->live_ : state_.Live()),
+              "application/json");
     }
     else if (p_request.path_ == "/api/last-target")
     {
-      Respond(p_connection, 200, *state_.LastTarget(), "application/json");
+      Respond(p_connection, 200,
+              *(target ? target->last_target_ : state_.LastTarget()),
+              "application/json");
     }
     else if (p_request.path_ == "/api/memory-map")
     {
-      Respond(p_connection, 200, *state_.MemoryMap(), "application/json");
+      Respond(p_connection, 200,
+              *(target ? target->memory_map_ : state_.MemoryMap()),
+              "application/json");
+    }
+    else if (p_request.path_ == "/api/targets")
+    {
+      Respond(p_connection, 200, *state_.Targets(), "application/json");
     }
     else if (p_request.path_ == "/api/target")
     {
@@ -757,7 +773,11 @@ class DashboardServer
       return ip && (ip->starts_with("127.") || *ip == "::1");
     };
     if (!loopback(config_.http_host_) ||
-        (config_.sampler_ip_ && !loopback(*config_.sampler_ip_)))
+        std::ranges::any_of(config_.sampler_ips_,
+                            [&](const std::string& p_ip)
+                            {
+                              return !loopback(p_ip);
+                            }))
     {
       RespondJson(p_connection, p_target ? 403 : 200,
                   JsonObject{{"enabled", false},
@@ -782,6 +802,15 @@ class DashboardServer
     RespondJson(p_connection, code, *result);
   }
 
+  [[nodiscard]] std::optional<TargetFilter> SelectedFilter(
+      const Request& p_request)
+  {
+    const auto target =
+        state_.Select(QueryValue(p_request.query_, "target").value_or(""));
+    return target ? std::optional{TargetFilter{target->host_, target->id_}}
+                  : std::nullopt;
+  }
+
   // Stored resource samples between start and end (default: the last 15
   // minutes), combined into at most about 1,000 buckets.
   void Resources(const HttpConnection& p_connection, const Request& p_request)
@@ -803,7 +832,8 @@ class DashboardServer
     }
     const double bucket = std::max(1.0, std::ceil((*end - *start) / 1000));
     auto history =
-        collector::ResourceHistory(config_.data_dir_, *start, *end, bucket);
+        collector::ResourceHistory(config_.data_dir_, *start, *end, bucket,
+                                   200'000, SelectedFilter(p_request));
     RespondJson(p_connection, 200,
                 JsonObject{{"rows", std::move(history.rows_)},
                            {"bucket_s", bucket},
@@ -827,7 +857,12 @@ class DashboardServer
               "application/json");
       return;
     }
-    const auto replay = collector::Replay(config_.data_dir_, {at, direction});
+    const auto selected =
+        state_.Select(QueryValue(p_request.query_, "target").value_or(""));
+    const auto replay =
+        collector::Replay(selected ? selected->replay_root_
+                                   : std::filesystem::path{config_.data_dir_},
+                          {at, direction});
     // The stored view is sent as written; parsing and re-encoding a
     // multi-megabyte view would hold up every other dashboard request.
     Respond(
@@ -883,8 +918,8 @@ class DashboardServer
       invalid();
       return;
     }
-    auto rows =
-        collector::History(config_.data_dir_, *session, tid, *start, *end);
+    auto rows = collector::History(config_.data_dir_, *session, tid, *start,
+                                   *end, 2000, SelectedFilter(p_request));
     const bool truncated = rows.size() == 2000;
     RespondJson(p_connection, 200,
                 JsonObject{{"rows", std::move(rows)},

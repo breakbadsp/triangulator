@@ -164,6 +164,7 @@ struct Config
   // WatchSettings in watch.hpp).
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
+  std::int64_t max_targets_ = 16;
   std::optional<std::string> sampler_ip_;
   std::vector<std::string> sampler_ips_;
   // Length of one rollup window in seconds (5..10).
@@ -257,6 +258,7 @@ namespace detail
        {std::pair{"clock_ticks", &Config::clock_ticks_},
         std::pair{"retention_days", &Config::retention_days_},
         std::pair{"max_live_samples", &Config::max_live_samples_},
+        std::pair{"max_targets", &Config::max_targets_},
         std::pair{"udp_port", &Config::udp_port_},
         std::pair{"http_port", &Config::http_port_}})
   {
@@ -278,6 +280,12 @@ namespace detail
   {
     return std::unexpected(std::format("max_live_samples must be at most {}",
                                        kMaxLiveSamplesLimit));
+  }
+  if (config.max_targets_ > 64 ||
+      config.max_live_samples_ < config.max_targets_)
+  {
+    return std::unexpected(
+        "max_targets must be 1..64 and no greater than max_live_samples");
   }
   for (const auto& [key, member] :
        {std::pair{"data_dir", &Config::data_dir_},
