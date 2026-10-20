@@ -1167,7 +1167,9 @@ workload. Clear the site storage. Use desktop and 390-pixel-wide viewports.
    Settings. Confirm that cards and controls stay within the page. Wide data
    tables must scroll inside their own containers.
 6. Start a CPU-spin workload. Confirm that the assessment shows its finding
-   with text and a status color. Open the affected thread.
+   with text and a status color. Open the affected thread. With more than 8
+   findings, such as a workload with many saturated threads, confirm that
+   Show more lists the rest and keeps keyboard focus across live updates.
 7. Open the page with the collector unavailable. Confirm that Waiting for data
    has a neutral dot. Block browser storage and change the theme. Confirm that
    the control still works for the current page.
@@ -1175,5 +1177,6 @@ workload. Clear the site storage. Use desktop and 390-pixel-wide viewports.
 Expected results: Both themes use readable labels and clear keyboard focus.
 The selected theme persists when storage is available. System follows the
 operating system. Status colors retain their meanings. All existing controls,
-recordings, metric values, and contextual help remain available. No page-wide
+recordings, metric values, contextual help, and every Assessment finding remain
+available. No page-wide
 horizontal overflow occurs at either viewport or at 200% zoom.

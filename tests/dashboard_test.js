@@ -715,6 +715,31 @@ test('memory-map warnings join the overview assessment and set the verdict', () 
   assert.deepEqual(levelsOf(app), ['warning: Mapping count is close to the limit']);
 });
 
+test('the assessment lists 8 findings and shows the rest on request', () => {
+  const app = dashboard();
+  const titles = () => app.elements.get('findings').children.map(row => row.children[1].children[0].textContent);
+  const more = () => app.elements.get('findings-more');
+  const findings = count => JSON.stringify(Array.from({length: count}, (_, index) => ({level: index ? 'warning' : 'critical', title: 'F' + index, detail: ''})));
+  app.run(`renderAssessment=realRenderAssessment;live={health:{session:'s'},threads:[]};assess=()=>${findings(10)};renderAssessment([])`);
+  assert.deepEqual(titles(), ['F0', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7']);
+  assert.equal(more().hidden, false);
+  assert.equal(more().textContent, 'Show 2 more findings');
+  assert.equal(more().attrs['aria-expanded'], 'false');
+  more().onclick();
+  assert.equal(titles().length, 10);
+  assert.equal(more().textContent, 'Show fewer findings');
+  assert.equal(more().attrs['aria-expanded'], 'true');
+  // A poll keeps the choice.
+  app.run('realRenderAssessment([])');
+  assert.equal(titles().length, 10);
+  more().onclick();
+  assert.equal(titles().length, 8);
+  app.run(`assess=()=>${findings(9)};realRenderAssessment([])`);
+  assert.equal(more().textContent, 'Show 1 more finding');
+  app.run(`assess=()=>${findings(8)};realRenderAssessment([])`);
+  assert.equal(more().hidden, true);
+});
+
 test('growing resident memory joins the overview assessment', () => {
   const app = dashboard();
   const now = Date.now() / 1000;
@@ -2762,7 +2787,6 @@ test('a panel the user chose stays closed when storage is blocked', () => {
   app.run(`openFoldsFor([{type:'monitor',level:'critical'}])`);
   assert.equal(app.run('folds[0].open'), false);
 });
-
 
 test('theme selection restores preferences and works when storage is blocked', () => {
   const source = script.slice(script.indexOf("const themes=['auto'"), script.indexOf('let resizeTimer;'));
