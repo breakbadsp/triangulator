@@ -27,8 +27,10 @@ needs the owner's explicit approval first.
   allocation and no disk or network I/O that can block. Use only
   rate-limited warnings, non-blocking UDP, and no disk writes. Ship a static
   binary with no runtime dependencies. New code must follow this. The
-  existing bounded exceptions are the `/dev/kmsg` read for exit reports (at
-  most 50 ms) and netlink `sock_diag` for sockets.
+  existing exceptions, pending owner review, are the `/dev/kmsg` read for exit
+  reports (at most 50 ms) and the netlink `sock_diag` socket dump, which waits
+  up to 1 s per `recv` and has no total time budget (only a cap of 1,000,000
+  sockets).
 - Need no privileges: read only the `/proc` files the sampler's user can
   read. No sudo, capabilities, or ptrace. The existing `/dev/kmsg` read is
   best effort and may need `CAP_SYSLOG` when `dmesg_restrict=1`. A target of
