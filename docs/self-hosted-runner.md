@@ -5,6 +5,15 @@ The repository's GitHub Actions jobs temporarily run on GitHub's
 parallel, within GitHub's concurrency limits. The local runner remains
 configured for later use.
 
+## When jobs run
+
+Pull requests run the format check and AlmaLinux 8 tests when their path
+filters match. The QA results check keeps its existing path filters.
+Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at midnight
+in `Asia/Kolkata`. These workflows also support manual runs. Packaging
+still builds and publishes releases for `v*` tags; nightly runs only
+upload test artifacts.
+
 ## How jobs choose a runner
 
 Each job currently has this line:
