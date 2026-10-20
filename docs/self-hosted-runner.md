@@ -8,7 +8,8 @@ owner's computer.
 ## When jobs run
 
 Pull requests run the format check and AlmaLinux 8 tests when their path
-filters match. Pull requests run the normal AlmaLinux 8 test suite. Static
+filters match. Pull requests run the normal AlmaLinux 8 test suite in a
+prepared build image. Formatting and tests run concurrently. Static
 release builds, their test suite, and copied-binary runtime checks run only
 nightly or on manual runs. The QA results check keeps its existing path filters.
 Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at 03:00
@@ -22,7 +23,7 @@ cancellation groups, so a manual full run does not cancel a PR check.
 Each job has this line:
 
 ```yaml
-runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
 ```
 
 Pushes, tags, manual runs, and pull requests from branches in this
@@ -78,11 +79,24 @@ this limit inside its container. Thus three build jobs can use the six CPUs
 without each build starting six compilers. The slots share the rootless
 Podman image store, but each container has its own network and filesystem.
 
+PR jobs reuse a prepared AlmaLinux image with the build dependencies installed.
+The image tag includes the AlmaLinux version and a hash of the Dockerfile and
+toolchain installation script. A changed toolchain creates a new image. A file
+lock prevents two slots from building the same missing image. Warm PR jobs do
+not pull the base image or install packages. Nightly and full manual runs pull
+the base image and test dependency installation from a clean container.
+
 The AlmaLinux test and package jobs use `ccache` to reuse compiled C++ and
-SQLite objects. `actions/cache` restores and saves each cache by runner OS,
-CPU architecture, and AlmaLinux version. Each runner slot uses a separate
-cache directory. The container installs a checksum-verified static ccache
-binary. Cached compilations are checked against compiler contents, compiler
+SQLite objects. Local caches persist at
+`$HOME/.cache/triangulator/alma<version>`, outside the runner temporary
+directory that GitHub clears after each job. All slots share the objects, so
+a PR can reuse compilations from another slot or branch. Each container has
+its own statistics log. Local caches keep the container build user as their
+owner. Jobs do not change cache ownership after compilation, because another
+slot can still use the cache. Package jobs use a separate cache with the
+`-package` suffix, because they compile as container root. Fork jobs use
+`actions/cache` with the runner OS, CPU architecture, and AlmaLinux version.
+The container installs a checksum-verified static ccache binary. Cached compilations are checked against compiler contents, compiler
 options, source contents, and included headers. Each job still links its
 binaries and runs the selected tests. Cache misses compile normally.
 
@@ -99,6 +113,11 @@ The release workflow builds AlmaLinux 8 and 9 in separate matrix jobs.
 Each job tests both packages and uploads `packages-el8` or `packages-el9`.
 For a version tag, a publication job waits for both builds, downloads both
 artifacts, and creates one release.
+
+Warm PR CI targets 2–3 minutes when a runner is available. This is a target,
+not a time limit. New images, empty caches, source changes, and queued jobs
+can take longer. Tests and linking always execute. Select **Run only the fast
+PR checks with the prepared image** on a manual run to measure this path.
 
 If the computer is off, jobs wait in the queue for up to 24 hours.
 

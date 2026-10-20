@@ -17,7 +17,7 @@ jobs:
   test:
     name: ${{ matrix.sanitizer }}
     # Fork pull requests run on GitHub; everything else on the owner's runner.
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || 'self-hosted' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
     timeout-minutes: 30
     strategy:
       fail-fast: false

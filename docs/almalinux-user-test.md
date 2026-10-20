@@ -4,9 +4,9 @@ The `AlmaLinux new user test` workflow runs on the
 [self-hosted runner pool](self-hosted-runner.md) in rootless containers. Fork
 pull requests use GitHub-hosted runners. You need no local Docker access or
 `sudo` to run the workflow.
-Pull requests run the normal build and test suite in the official
-`almalinux:8` container image. Nightly and manual runs test both the normal
-and static-release builds in `almalinux:8` and `almalinux:9`. Manual runs can also test
+Pull requests run the normal build and test suite in a prepared
+AlmaLinux 8 build image. The image reuses installed dependencies. Nightly and
+full manual runs test both the normal and static-release builds in `almalinux:8` and `almalinux:9`. Manual runs can also test
 `almalinux:10`.
 
 ## Run the test
@@ -21,7 +21,9 @@ To start it by hand:
 2. Select **AlmaLinux new user test**.
 3. Select **Run workflow**.
 4. Select the branch to test.
-5. Select **Also test AlmaLinux 10** if needed.
+5. Select **Also test AlmaLinux 10** if needed. To measure PR CI instead,
+   select **Run only the fast PR checks with the prepared image**. This option
+   tests only AlmaLinux 8 and skips installation and static-release checks.
 6. Start the workflow.
 7. Download the artifacts from the completed run.
 
@@ -29,11 +31,13 @@ Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 
 ## What the test does
 
-Steps 1–11 run on pull requests, nightly runs, and manual runs. Steps 12–17
-run only nightly or on manual runs. The job restores a compiler cache before
-starting its fresh container. It installs the build dependencies in that
-container and reuses only compilations whose compiler, options, source, and
-included headers match. Linking and test execution run each time.
+PR jobs use a prepared image and run steps 6–11. Nightly and full manual runs
+use a clean base image and run all steps, including installation diagnostics.
+Local jobs use persistent compiler caches outside the runner temporary
+directory. Fork jobs restore a compiler cache from GitHub. The cache reuses
+only compilations whose compiler, options, source, and included headers match.
+Linking and test execution run each time. See the
+[runner cache and image details](self-hosted-runner.md#the-runner-host).
 
 1. Save the image details and the initial package list.
 2. Install Git and clone the checked-out commit inside the container.
