@@ -216,7 +216,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Pressure chart and table | CPU/memory/I/O; some/full; host/cgroup; interval/avg10 fallback; peak aggregation; absent series |
 | Limits and headroom | Soft descriptor limit; cgroup memory and events; CPU quota and throttled periods; PID limit; socket memory limits; unlimited/unknown |
 | Queue chart | Receive/send bytes; target scope; time range; aggregation and missing samples |
-| Network counters | Each counter definition; Now/In range/Total; namespace scope; resets and unavailable values |
+| Network counters | Each counter definition; Rate (/s), In range, Total; namespace scope; resets and unavailable values |
 | Fullest sockets | Socket kind/state; local/peer; Recv-Q/Send-Q; listener backlog; buffer fill; drops; RTT; retransmits; coverage |
 | Thread filters and table | Group; sort; active/idle/all; TID and generation; wait channel; last ~10 s; CPU; run delay; switches; read/write; major faults; core |
 | Thread drawer | Watched line (rule interval, last ran, overdue); live versus stored history; five-second summaries; CPU/delay/state/I/O charts; range inputs; bucket time; samples; gaps |

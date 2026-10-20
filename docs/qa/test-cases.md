@@ -61,6 +61,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-054 | NOT_RUN | - | - | - |
 | QA-055 | NOT_RUN | - | - | - |
 | QA-056 | NOT_RUN | - | - | - |
+| QA-057 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -1209,3 +1210,21 @@ Controls and display settings have no Source section. File paths use code
 type, stay readable in both themes, and wrap inside the card.
 
 Source: [Contextual help design](../contextual-help-design.md).
+
+## QA-057: Network counter column names
+
+Feature: Network counter labels. Priority: Low. Case revision: 1.
+
+Preconditions: The dashboard has network resource samples and stored history.
+
+1. Open Network stack drops & errors. Check the short column names:
+   Rate (/s), In range, and Total.
+2. Pause over each column name for 1.2 seconds. Check that each tooltip
+   explains its time period. Open the help guide.
+3. Change the selected time range. Compare the count with the latest rate and
+   cumulative count. Repeat for a counter without stored history.
+
+Expected results: Help explains events per second, events counted in the
+selected range, and the cumulative kernel counter. It gives an example and
+explains that other processes can contribute. The cumulative count can include
+older events. Missing history shows an unavailable value, not zero.
