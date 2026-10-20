@@ -16,7 +16,7 @@ cleanup() {
 trap cleanup EXIT
 
 make clean
-scripts/start.sh
+MAKEFLAGS=-j2 scripts/start.sh
 sleep 120 &
 target_pid=$!
 scripts/set-target.sh "$target_pid"
