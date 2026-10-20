@@ -16,6 +16,16 @@ or README: the check command, coding standards, and which paths are sensitive.
 | Comment analyzer | Fix real findings, rebut wrong ones | yes |
 | Test and merge | Run the gate once, merge when it passes | no |
 
+## Review method
+
+Reviewers spend their time where defects hide: the callers and readers of
+changed code, failure and boundary paths, data that crosses a boundary (wire
+formats, stored files, APIs, configuration), and tests that fail without the
+change. Before posting, each reviewer tries to disprove each finding and drops
+it if a guard, a caller check, or a test prevents the failure. A wrong finding
+costs an analyzer pass and often a second round. Round 2 also checks that the
+fixes do not break the callers of the code they change.
+
 ## Model and reasoning selection
 
 For `full`, use one large, capable model and one small, quick model. Never use
