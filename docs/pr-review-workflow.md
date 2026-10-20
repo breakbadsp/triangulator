@@ -68,8 +68,7 @@ report none.
 1. Start the reviewer and the quick reviewer in parallel on the same head SHA.
 2. Both post a review on the PR. If either is missing, stop and report.
 3. No `blocker` or `major` from either: wait for CI on this head, stopping at
-   the first failed check. The gate waits for CI anyway, so this costs no
-   time. No failed check: go to the gate.
+   the first failed check. No failed check: go to the gate.
 4. Otherwise start the analyzer. It handles the union of the findings,
    deduplicated, and treats quick-reviewer findings with extra suspicion
    because that model is weaker. It also reads the PR's CI checks when it
