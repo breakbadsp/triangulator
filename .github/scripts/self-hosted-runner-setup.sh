@@ -71,14 +71,16 @@ if [[ ! -f "$home/actions-runner/.runner" ]]; then
         --work _work --replace
 fi
 as_runner mkdir -p "$home/.config/systemd/user"
-cat > "$home/.config/systemd/user/actions-runner.service" <<EOF
+# Write as the runner user: jobs control this directory, and root would
+# follow a symlink a job put there.
+as_runner tee "$home/.config/systemd/user/actions-runner.service" >/dev/null <<EOF
 [Unit]
 Description=GitHub Actions runner for triangulator
 After=network-online.target
 
 [Service]
 WorkingDirectory=$home/actions-runner
-# Jobs inherit this PATH, so `docker` finds the Podman wrapper first.
+# Jobs inherit this PATH, so \`docker\` finds the Podman wrapper first.
 Environment=PATH=$home/bin:/usr/local/bin:/usr/bin
 # Make run.sh pass SIGINT on to the runner, which then cancels any running
 # job and exits. Whatever is left after a minute is killed.
@@ -93,7 +95,6 @@ TimeoutStopSec=1min
 [Install]
 WantedBy=default.target
 EOF
-chown "$runner_user:" "$home/.config/systemd/user/actions-runner.service"
 systemctl --user -M "$runner_user@" daemon-reload
 systemctl --user -M "$runner_user@" enable actions-runner.service
 systemctl --user -M "$runner_user@" restart actions-runner.service
