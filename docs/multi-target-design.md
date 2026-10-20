@@ -1,6 +1,7 @@
 # Multi-target design
 
-Status: proposed. Nothing in this document is implemented yet.
+Status: implemented in the six rollout changes below. Automatic throttling
+with a default budget of 1% of one CPU core was approved on 2026-10-20.
 
 Goal: monitor several processes at once. Existing installations keep working
 unchanged, and the sampler's overhead on the target host stays negligible.
@@ -239,7 +240,8 @@ packet, so **upgrade the collector before the samplers**.
   it uses the default target: `default` if present, otherwise the first target
   by host and id. Existing scripts and older dashboards keep working.
 - Watch rules are stored for each target (`data_dir/watch-rules/<target>.json`).
-  The default target keeps the current `watch-rules.json`.
+  The `default` target that keeps `data_dir/replay` (see Collector, Replay
+  directory) also keeps the current `watch-rules.json`.
 - Changing the monitored set (`POST /api/targets`, add or remove) runs the
   sampler control helper, which edits `[[target]]` tables and sends `SIGHUP`.
   As today, this works only when the sampler runs on the collector host as the
@@ -310,8 +312,8 @@ single-target flow unchanged.
    overhead rules, or drop it?
 2. Is limited access for other users' targets enough, or is an optional
    privileged mode wanted later?
-3. Is a default budget of 1% of one core right?
-4. Is the limit of 16 targets per sampler right?
+3. Resolved: the owner approved a default budget of 1% of one core.
+4. The implementation uses a fixed limit of 16 targets per sampler.
 5. Resolved on 2026-10-20: the owner approved automatic sampler throttling
    with a default budget of 1% of one CPU core. The sampler sends raw CPU
    counters as well as the effective rate. The collector computes the CPU

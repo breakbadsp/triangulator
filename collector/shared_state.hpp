@@ -16,6 +16,9 @@
 namespace triangulator::collector
 {
 
+class WatchSettings;
+struct WatchState;
+
 struct PublishedTarget
 {
   std::string key_;
@@ -26,6 +29,12 @@ struct PublishedTarget
   std::shared_ptr<const std::string> live_;
   std::shared_ptr<const std::string> last_target_;
   std::shared_ptr<const std::string> memory_map_;
+  std::shared_ptr<WatchSettings> watches_;
+  double replay_interval_s_ = 1;
+  bool legacy_replay_ = false;
+  std::optional<std::string> socket_observer_;
+  std::uint32_t pid_ = 0;
+  std::string peer_;
 };
 
 // The latest /api/live, /api/last-target and /api/memory-map payloads,
@@ -82,6 +91,20 @@ class SharedState
       }
     }
     return sessions;
+  }
+
+  // True when a published target other than p_key has the PID p_pid. Stored
+  // socket observations carry no sender, so they belong to one target only
+  // when its PID is unique.
+  [[nodiscard]] bool PidShared(std::string_view p_key, std::uint32_t p_pid)
+  {
+    std::lock_guard lock{mutex_};
+    return std::ranges::any_of(targets_,
+                               [&](const PublishedTarget& p_target)
+                               {
+                                 return p_target.key_ != p_key &&
+                                        p_target.pid_ == p_pid;
+                               });
   }
 
   // A removal names the target and the sessions that were published when the

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Shared code for set-target.sh, set-rate.sh and watch-sockets.sh.
 
-Usage: sampler_control.py <set-target NAME|PID | set-rate HZ |
-                           resolve-pid NAME|PID | collector>
+Usage: sampler_control.py <set-target NAME|PID | set-target-id ID NAME|PID |
+                           add-target ID NAME|PID | remove-target ID |
+                           set-rate HZ | resolve-pid NAME|PID | collector>
 
 set-target and set-rate edit the running sampler's config in place and send
 SIGHUP. The new file is first checked by the running sampler binary itself
@@ -136,6 +137,9 @@ def replace_setting(text, pattern, setting):
     Other matching lines are removed (the sampler rejects duplicate keys and
     both target keys at once). Without a match, setting is appended.
     """
+    table = TARGET_TABLE.search(text)
+    if table is not None:
+        return replace_setting(text[:table.start()], pattern, setting) + text[table.start():]
     output = []
     placed = False
     for line in text.splitlines(keepends=True):
@@ -233,7 +237,7 @@ def update_config(root, pattern, setting, collector_endpoint=None, transform=Non
         return pid, config
 
 
-def set_target(root, target, collector_endpoint=None):
+def set_target(root, target, collector_endpoint=None, target_id=None):
     running = True
     pid = parse_pid(target)
     if pid is not None:
@@ -242,19 +246,24 @@ def set_target(root, target, collector_endpoint=None):
     else:
         running = unique_process_named(target) is not None
         setting = f'target_process = "{target}"'
-    def change_default(text):
-        # After an add/remove the config uses [[target]] tables: change the
-        # default target's table, because a top-level key would be rejected.
-        if not TARGET_TABLE.search(text):
-            return replace_setting(text, re.compile(r"\s*target_(?:process|pid)\s*="), setting)
+    pattern = re.compile(r"\s*target_(?:process|pid)\s*=")
+    selected = str(pid) if pid is not None else target
+
+    def transform(text):
+        if TARGET_TABLE.search(text) is None:
+            if target_id not in (None, "default"):
+                raise ControlError("this target id is not configured; use --add ID NAME|PID")
+            return replace_setting(text, pattern, setting)
         targets = configured_targets(text)
-        default = next((entry for entry in targets if entry["id"] == "default"), None)
-        if default is None:
-            raise ControlError("no default target is configured; add one in the target list")
-        default["target"] = target
+        wanted = target_id or next((item["id"] for item in targets if item["id"] == "default"),
+                                   targets[0]["id"] if len(targets) == 1 else None)
+        existing = next((item for item in targets if item["id"] == wanted), None)
+        if existing is None:
+            raise ControlError("specify a configured target ID; use --add ID NAME|PID to add one")
+        existing["target"] = selected
         return replace_targets(text, targets)
 
-    sampler, config = update_config(root, None, None, collector_endpoint, transform=change_default)
+    sampler, config = update_config(root, pattern, setting, collector_endpoint, transform=transform)
     message = "Reload requested. The dashboard will update when the sampler reports."
     if not running:
         message = f"Waiting for a process named {target} to start."
@@ -298,19 +307,18 @@ def dashboard_target(root, host, port, target=None):
             config = sampler[1]
             require_local_collector(config, (host, port))
             text = config.read_text()
-            result = {"enabled": True,
-                      "target": default_selector(text)}
+            targets = configured_targets(text)
+            selected = next((target for target in targets if target["id"] == "default"),
+                            targets[0] if len(targets) == 1 else None)
+            if selected is None:
+                raise ControlError("use Manage targets for this multi-target sampler")
+            result = {"enabled": True, "target": selected["target"]}
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": True, "error": str(error)}
     print(json.dumps(result))
 
 
-TARGET_TABLE = re.compile(r"(?m)^[ \t]*\[\[target\]\][ \t]*(?:#[^\n]*)?$" )
-
-
-def default_selector(text):
-    """The default target's selector, from top-level keys or its table."""
-    return next((entry["target"] for entry in configured_targets(text) if entry["id"] == "default"), None)
+TARGET_TABLE = re.compile(r"(?m)^[ \t]*\[\[target\]\][ \t\r]*(?:#[^\n]*)?$" )
 
 
 def configured_targets(text):
@@ -396,6 +404,13 @@ def dashboard_targets(root, host, port, body=None):
     print(json.dumps(result))
 
 
+def edit_target_set(root, change):
+    sampler, config = update_config(root, None, None,
+        transform=lambda text: change_target_set(text, change))
+    print(f"Updated {config}: {change['action']} target {change['id']}")
+    print(f"Requested reload of sampler {sampler}.")
+
+
 def set_rate(root, text):
     try:
         rate = float(text)
@@ -432,18 +447,21 @@ def main(argv):
         dashboard_target(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
         return 0
     commands = {
-        "set-target": lambda target: set_target(ROOT, target),
-        "set-rate": lambda rate: set_rate(ROOT, rate),
-        "resolve-pid": lambda target: print(resolve_pid(target)),
-        "collector": lambda: collector(ROOT),
+        "set-target": (1, lambda target: set_target(ROOT, target)),
+        "set-target-id": (2, lambda target_id, target: set_target(ROOT, target, target_id=target_id)),
+        "add-target": (2, lambda target_id, target: edit_target_set(ROOT, {"action": "add", "id": target_id, "target": target})),
+        "remove-target": (1, lambda target_id: edit_target_set(ROOT, {"action": "remove", "id": target_id})),
+        "set-rate": (1, lambda rate: set_rate(ROOT, rate)),
+        "resolve-pid": (1, lambda target: print(resolve_pid(target))),
+        "collector": (0, lambda: collector(ROOT)),
     }
     name = argv[1] if len(argv) > 1 else ""
-    if name not in commands or len(argv) != (2 if name == "collector" else 3):
+    if name not in commands or len(argv) != commands[name][0] + 2:
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return 2
     prefix = "watch-sockets" if name in ("resolve-pid", "collector") else name
     try:
-        commands[name](*argv[2:])
+        commands[name][1](*argv[2:])
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         print(f"{prefix}: {error}", file=sys.stderr)
         return 1

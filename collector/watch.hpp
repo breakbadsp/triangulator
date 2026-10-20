@@ -212,14 +212,21 @@ OpenWatchDirectory(const std::filesystem::path& p_path)
 class WatchSettings
 {
  public:
-  WatchSettings(std::vector<WatchRule> p_config_rules,
-                const std::filesystem::path& p_data_dir)
+  WatchSettings(
+      std::vector<WatchRule> p_config_rules,
+      const std::filesystem::path& p_data_dir,
+      std::filesystem::path p_filename = std::filesystem::path{kWatchRulesFile},
+      bool p_read_saved = true)
       : config_rules_(std::move(p_config_rules)),
-        path_(p_data_dir / kWatchRulesFile),
+        path_(p_data_dir / std::move(p_filename)),
         epoch_(std::format(
             "{}-{}", ::getpid(),
             std::chrono::steady_clock::now().time_since_epoch().count())),
-        current_(Load())
+        current_(
+            p_read_saved
+                ? Load()
+                : std::make_shared<const WatchState>(WatchState{
+                      config_rules_, WatchSource::Config, {}, epoch_ + "-0"}))
   {
   }
 

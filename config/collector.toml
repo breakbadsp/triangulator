@@ -4,15 +4,22 @@ udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
 sampler_ip = "127.0.0.1"
+# For several sampler hosts, replace sampler_ip with an allowlist:
+# sampler_ips = ["192.0.2.10", "192.0.2.11"]
+# With neither key, the collector pins the first valid sampler source.
+# Target slots, 1..64 (default 8). Each slot keeps the full max_live_samples.
+max_targets = 8
 data_dir = "./data"
 retention_days = 7
 store_raw = true
-# Record complete dashboard views to data_dir/replay for "Inspect a moment".
+# Record complete dashboard views for "Inspect a moment".
+# Named targets use data_dir/targets/<hex-host-and-id>/replay.
 # Default 1; 0 disables recording; 0.5..60 sets seconds between recordings.
 # Views are large (~327 KB per 1,000 threads); budget disk space accordingly.
 replay_interval_s = 1
-# Live samples kept in memory, at most 10000000. The collector reserves about
-# 280 bytes of address space per sample at startup.
+# Live samples kept in memory for each target slot. The collector reserves
+# about 280 bytes of address space per sample at startup, for every slot, so
+# max_live_samples times max_targets must be at most 10000000.
 max_live_samples = 1000000
 # deadman_url = "https://your-heartbeat-service.example/your-token"
 
@@ -64,7 +71,16 @@ prefix = "misc-"
 # that stops waking up or keeps a core busy. prefix is 1-15 bytes and unique;
 # when several prefixes match a thread name, the longest wins. wake_ms is
 # 10-3600000. At most 64 rules. Rules saved from the dashboard (in
-# data_dir/watch-rules.json) replace these until you reset them there.
+# data_dir/watch-rules/<hex-host-and-id>.json) replace these for that target
+# until reset. The default target that keeps data_dir/replay also keeps
+# data_dir/watch-rules.json.
 # [[watch]]
 # prefix = "worker-"
 # wake_ms = 500
+
+# Optional per-target recording interval. These tables use the announced host
+# and ID. Keep global settings above all table sections.
+# [[target]]
+# host = "app-host"
+# id = "orders"
+# replay_interval_s = 2

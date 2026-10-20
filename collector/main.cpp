@@ -33,6 +33,7 @@
 #include "resources.hpp"
 #include "storage.hpp"
 #include "target_fleet.hpp"
+#include "target_watches.hpp"
 #include "watch.hpp"
 
 namespace
@@ -141,8 +142,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   {
     return Stopped(flushed.error());
   }
-  WatchSettings watches{config.watches_, config.data_dir_};
-  if (const auto startup = watches.Current(); startup->saved_error_)
+  auto watches =
+      std::make_shared<WatchSettings>(config.watches_, config.data_dir_);
+  TargetWatches target_watches{config, watches};
+  if (const auto startup = watches->Current(); startup->saved_error_)
   {
     Log(LogLevel::Warning,
         std::format("Ignoring the watch rules saved from the dashboard, so "
@@ -155,7 +158,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         std::format("Using the watch rules saved from the dashboard in {}; "
                     "the [[watch]] rules in the config file apply after a "
                     "reset",
-                    watches.Path().string()));
+                    watches->Path().string()));
   }
   StorageSink sink{storage};
   TargetFleet fleet{config, WallNow(), storage, sink};
@@ -230,7 +233,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           // The writer keeps running: SetRoot below moves it without a join.
           slot.recorder_started_ = false;
           slot.replay_root_.clear();
+          slot.published_watches_.reset();
           slot.last_target_.reset();
+          slot.last_body_.reset();
+          slot.last_metadata_.reset();
           slot.published_layout_ = 0;
           slot.state_.SetLastTarget(
               std::make_shared<const std::string>(R"({"available":false})"));
@@ -238,30 +244,55 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
               std::make_shared<const std::string>(R"({"available":false})"));
           slot.reset_view_ = false;
         }
-        if (slot.previous_view_)
+        if (slot.previous_body_ && slot.previous_metadata_)
         {
-          slot.last_target_ = slot.previous_view_->last_target_;
-          slot.state_.SetLastTarget(slot.previous_view_->state_.LastTarget());
-          slot.previous_view_ = nullptr;
+          slot.last_body_ = std::move(slot.previous_body_);
+          slot.last_metadata_ = slot.previous_metadata_;
+          const auto& metadata = *slot.previous_metadata_;
+          slot.last_target_ =
+              JsonObject{{"session", metadata.session_.View()},
+                         {"pid", metadata.pid_},
+                         {"recorded_at", metadata.recorded_at_}};
+          slot.state_.SetLastTarget(slot.last_body_);
+          slot.previous_metadata_.reset();
         }
-        // One slot at most records into data_dir/replay (see
-        // TargetFleet::LegacyOwner). The root is checked on every refresh,
-        // so a TTGT that renames a provisional slot moves its recorder.
-        const auto root = &slot == legacy_owner
-                              ? std::filesystem::path{config.data_dir_}
-                              : TargetDataRoot(config.data_dir_, key);
+        // One slot at most owns the data from before targets existed (see
+        // TargetFleet::LegacyOwner): data_dir/replay, unmapped history, and
+        // data_dir/watch-rules.json. Ownership, the recording root, and the
+        // recording interval are checked on every refresh, so a TTGT that
+        // renames a provisional slot moves its recorder and applies the new
+        // identity's interval.
+        const bool owns_legacy = &slot == legacy_owner;
+        slot.legacy_replay_ = owns_legacy;
+        slot.watches_ = target_watches.Get(key, owns_legacy);
+        const auto watch_state =
+            slot.watches_ ? slot.watches_->Current() : nullptr;
+        if (watch_state != slot.published_watches_)
+        {
+          slot.dirty_ = true;
+        }
+        const auto root = owns_legacy ? std::filesystem::path{config.data_dir_}
+                                      : TargetDataRoot(config.data_dir_, key);
         if (root != slot.replay_root_)
         {
           slot.recorder_.SetRoot(root);
           slot.replay_root_ = root;
         }
-        if (!slot.recorder_started_)
+        const double interval_s =
+            ReplayInterval(config, slot.host_.View(), slot.id_.View());
+        if (!slot.recorder_started_ ||
+            interval_s != slot.config_.replay_interval_s_)
         {
+          // Start returns at once when the writer already runs or the
+          // interval is zero. Nothing here stops or joins the writer.
+          slot.config_.replay_interval_s_ = interval_s;
+          slot.recorder_.SetInterval(interval_s);
           if (auto started = slot.recorder_.Start(); !started)
           {
             return Stopped(started.error());
           }
           slot.recorder_started_ = true;
+          slot.dirty_ = true;
         }
         auto& monitor = slot.monitor_;
         auto& resources = slot.resources_;
@@ -330,8 +361,8 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             now - slot.last_seen_ < 1.0)
         {
           auto health = monitor.Health(now);
-          const auto watch_state = watches.Current();
-          auto live = monitor.Snapshot(now, watch_state->rules_);
+          auto live = monitor.Snapshot(
+              now, watch_state ? watch_state->rules_ : config.watches_);
           const auto* absent = health.Find("target_absent");
           // A view of the target needs its threads. When a new sampler session
           // starts, the Monitor drops the old threads at once but reports
@@ -341,6 +372,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                                    !live.Find("threads")->AsArray().empty();
           if (target_view)
           {
+            slot.last_metadata_ = LastTargetMetadata{
+                FixedText<24>{health.Find("session")->AsString()},
+                static_cast<std::uint32_t>(health.Find("pid")->AsInt()), now};
             last_target = JsonObject{{"session", *health.Find("session")},
                                      {"pid", *health.Find("pid")},
                                      {"recorded_at", now}};
@@ -375,16 +409,21 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           }
           if (target_view)
           {
+            slot.last_body_ = body;
             state_view.SetLastTarget(body);
           }
           state_view.SetLive(std::move(body));
+          slot.published_watches_ = watch_state;
           slot.dirty_ = false;
           slot.next_health_ = now + 10;
         }
-        published.push_back(
-            {key, std::string{slot.host_.View()}, std::string{slot.id_.View()},
-             slot.session_, slot.replay_root_, slot.state_.Live(),
-             slot.state_.LastTarget(), slot.state_.MemoryMap()});
+        published.push_back({key, std::string{slot.host_.View()},
+                             std::string{slot.id_.View()}, slot.session_,
+                             slot.replay_root_, slot.state_.Live(),
+                             slot.state_.LastTarget(), slot.state_.MemoryMap(),
+                             slot.watches_, slot.config_.replay_interval_s_,
+                             slot.legacy_replay_, fleet.SocketObserver(slot),
+                             slot.pid_, std::string{slot.peer_.View()}});
       }
       if (published.empty())
       {
@@ -396,7 +435,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         health.Set("sampler_ip", idle.ingest_.SamplerIp()
                                      ? Json(idle.ingest_.SamplerIp()->View())
                                      : Json());
-        auto live = idle.monitor_.Snapshot(now, watches.Current()->rules_);
+        auto live = idle.monitor_.Snapshot(now, watches->Current()->rules_);
         live.Set("health", std::move(health));
         live.Set("resources", idle.resources_.Snapshot(now));
         live.Set("memory", idle.memory_.Snapshot(now));
@@ -406,11 +445,12 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         live.Set("recording_interval_s", config.replay_interval_s_);
         state.SetLive(std::make_shared<const std::string>(DumpJson(live)));
       }
-      state.PublishTargets(
-          std::move(published),
-          JsonObject{{"targets", std::move(descriptions)},
-                     {"bad_packets", fleet.bad_packets_},
-                     {"capacity_drops", fleet.capacity_drops_}});
+      state.PublishTargets(std::move(published),
+                           JsonObject{{"targets", std::move(descriptions)},
+                                      {"bad_packets", fleet.bad_packets_},
+                                      {"capacity_drops", fleet.capacity_drops_},
+                                      {"watch_settings_limit_hits",
+                                       target_watches.limit_hits_}});
       storage_ok = sink.Status();
       if (storage_ok)
       {

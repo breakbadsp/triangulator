@@ -20,8 +20,8 @@ scripts/set-target.sh 1234    # Replace 1234 with the process ID to monitor.
 ```
 
 Open <http://127.0.0.1:9401>. The dashboard shows the selected process and its
-threads. You can also select **Change target**, enter a process name or PID,
-and select **Monitor**. A unique process name works from the command line:
+threads. Use **Manage targets** to add or remove monitored processes. Select
+a target to change only this tab. A unique process name works from the command line:
 
 ```sh
 scripts/set-target.sh ghostty
@@ -735,6 +735,68 @@ version and result.
 - `tests/`: C++ tests (wire format, sampler, collector) and Python tests (alerting, and
   end-to-end runs of the real sampler and collector, including a real `/proc`
   check).
+
+## Multiple targets on one host
+
+Upgrade the collector before the sampler. An older collector rejects TTGT
+announcements. Keep exactly one sampler process on each host.
+
+Put global sampler settings before all target tables:
+
+```toml
+collector = "127.0.0.1:9400"
+rate_hz = 5.0
+cpu_budget_pct = 1.0
+
+[[target]]
+id = "orders"
+process = "orders-api"
+
+[[target]]
+id = "billing"
+pid = 1234
+```
+
+Remove `target_pid` or `target_process` when using tables. The legacy form
+remains one target named `default`. IDs use 1..31 letters, digits, dots,
+underscores, or hyphens. Configure at most 16 targets. A target selector must
+be an exact process name or a positive PID. Name ambiguity produces an absent
+target. Limited process permissions omit some measurements.
+
+Use Manage targets in a local dashboard, or these commands:
+
+```sh
+scripts/set-target.sh --add gateway gateway-api
+scripts/set-target.sh orders 5678
+scripts/set-target.sh --remove gateway
+scripts/set-rate.sh 2
+```
+
+A single selector argument changes `default`, or the sole named target. With
+several named targets, supply the ID. Set-rate changes the global rate. Edits
+are locked and validated before SIGHUP. Unchanged selectors keep their sessions;
+global setting changes start new sessions for all targets.
+
+The sampler lowers its shared effective rate when CPU use exceeds the budget.
+The minimum is 0.2 Hz. At that rate, a large target can still exceed the budget.
+Resource and memory-map work rotates, so a large target set can delay slow
+samples beyond the requested interval. The dashboard shows their age.
+
+For several sampler hosts, use `sampler_ips` in collector.toml. Remove the old
+`sampler_ip` key. `max_targets` defaults to 8 collector slots, including hidden
+sessions waiting for an announcement; it permits 1..64. Each slot keeps the
+full `max_live_samples`, and `max_live_samples` times `max_targets` must be at
+most 10,000,000. To keep more samples per target, lower `max_targets` to the
+number of targets you run. The API reports capacity drops.
+
+Each browser tab selects `?target=<host>/<id>`. A switch resets its view choices.
+It does not change monitoring. Manage targets asks for confirmation because
+its changes affect every viewer. Local control requires a loopback dashboard
+and a local sampler run by the same user. Remote hosts use their sampler-side
+configuration. A target removed outside local control can remain listed as
+silent until `target_idle_expiry_s` (default 600 seconds) passes.
+
+See [per-target recording and watch settings](../collector/README.md#per-target-settings).
 
 ## License
 

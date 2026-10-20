@@ -104,8 +104,8 @@ views in target slots. `max_targets` defaults to 8 and permits 1..64.
 Each slot keeps the full `max_live_samples`; the product of the two is at most
 10,000,000. Hidden sessions
 that await TTGT also use slots. `/api/targets` reports rejected datagrams
-and capacity drops. An allowed sender cannot replace another sender's host
-name during one collector run.
+and capacity drops. A target can move between addresses in the sender list.
+Its host and ID remain its key.
 
 A target slot whose sampler has been silent for longer than
 `target_idle_expiry_s` is released, so a replaced or removed target does not
@@ -117,8 +117,14 @@ a free slot as a new session.
 Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
-return HTTP 404. `/api/socket-io` ignores `?target=`: socket datagrams (TSIO)
-carry no target, so it is selected by `pid` and `observer` only. Replay files
+return HTTP 404. `/api/socket-io` is scoped to one target too: with
+`?target=`, or with neither `?target=` nor `pid` (the default target), it uses
+that target's PID and the socket observer that last reported that PID from the
+same sender. A `pid` or `observer` of another target returns HTTP 400. Until
+an observer reports in this collector run, for example after a restart with the
+observer stopped, it reads the stored observations of the target's PID, unless
+another target has the same PID. A request with `pid` and no `?target=` keeps
+the lookup by `pid` and `observer`. Replay files
 have a separate directory for each announced target. Only the `default` target
 of one fixed sender keeps `data_dir/replay`: the smallest address in
 `sampler_ips`, or the first sender the collector heard when the list is empty.
@@ -127,4 +133,30 @@ target gets its own directory.
 
 Upgrade the collector before installing a sampler that sends TTGT. Each day
 file has a `session_target` mapping table. Existing files remain readable;
-sessions without a mapping belong to `default`.
+sessions without a mapping belong to the same `default` target that keeps
+`data_dir/replay`.
+
+### Per-target settings
+
+In collector.toml, override the recording cadence with a target settings table:
+
+```toml
+[[target]]
+host = "host-a"
+id = "orders"
+replay_interval_s = 0
+```
+
+Use 0 to disable recording for that target, or 0.5..60 seconds. Other targets
+use the global interval. Restart the collector after a configuration change.
+
+Watch rules saved from the dashboard are independent for each target. Files
+use `data_dir/watch-rules/<hex-key>.json`, where the key is the UTF-8 bytes of
+`host/id`, encoded as hexadecimal. The one `default` target that keeps
+`data_dir/replay` (see above) also keeps `data_dir/watch-rules.json`. Every
+other target, including another `default` target behind the same address,
+has its own file.
+
+The collector loads at most 1,024 saved target watch files at startup. New
+settings use configuration rules until saved. `/api/targets` reports watch
+settings limit hits. File reads do not run during target discovery.

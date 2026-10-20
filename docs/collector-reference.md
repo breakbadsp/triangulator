@@ -30,8 +30,10 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 
 **2. Receiving sampler data** (`protocol.hpp`, `main.cpp`)
 - Listens on UDP (IPv4 or IPv6) with a 4 MB receive buffer.
-- Accepts datagrams only from the sampler's IP: `sampler_ip` from the config,
-  or else the first sender it hears from.
+- Accepts datagrams from `sampler_ips`, or the legacy `sampler_ip` key.
+  Without either setting, it pins the first valid sampler sender.
+- TTGT announcements map each session to a `(host, id)` target slot. The
+  monitors and published views remain independent for each slot.
 - Decodes and checks every datagram, using the wire-format definitions
   shared with the sampler (`common/wire.hpp`, `common/resource_wire.hpp`). Malformed datagrams are counted as bad
   packets and dropped.
@@ -105,6 +107,24 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - Commits every 0.5 seconds. Deletes day files older than `retention_days`.
 
 **6. Dashboard and API** (`http.hpp`)
+- `GET /api/targets` lists target keys, identity, state, access, CPU use,
+  effective rate, and capacity counters.
+- Add `?target=<host>/<id>` to select a target. Without it, views and resources
+  use `default` if present, then the first key by host and ID. An explicit
+  session in `/api/history` or PID in `/api/socket-io` keeps its legacy lookup
+  when no target parameter is supplied. Add the target parameter for host
+  isolation when PIDs can be equal.
+- `/api/socket-io` with `?target=`, or with neither `?target=` nor `pid`,
+  reports the selected target: its PID and the observer that last reported it
+  from the same sender. Another target's PID or observer returns 400. Before an
+  observer reports in this collector run, stored observations of a unique PID
+  are used; a PID shared with another target reports `available:false`.
+- `POST /api/targets` accepts `{action:"add", id:"orders", target:"orders-api"}`
+  or `{action:"remove", id:"orders"}` as JSON with quoted property names.
+  The existing dashboard-write and same-origin checks apply. Local sampler
+  control uses `GET /api/targets/control` to read the configured set.
+- [Per-target settings](../collector/README.md#per-target-settings) keep watch
+  edits and recording cadence independent.
 - Serves the dashboard page (`dashboard.html`, built into the
   binary).
 - `GET /api/live`: current threads, group counts and monitor health (sampler
@@ -277,8 +297,9 @@ type, and checks the limits below before it enables **Save**. The tab is
 read-only while you inspect a recorded moment and on a collector build without
 these endpoints.
 
-The dashboard can replace the rules. They are saved in
-`data_dir/watch-rules.json` (written to a temporary file, flushed, then renamed;
+The dashboard can replace the rules of the selected target. They are saved in
+`data_dir/watch-rules/<hex-key>.json`, or in `data_dir/watch-rules.json` for
+the `default` target that keeps `data_dir/replay` (written to a temporary file, flushed, then renamed;
 the data directory is flushed after the rename or a reset).
 While that file exists, its list replaces the `[[watch]]` list completely,
 even when it is empty; the startup log says so. If it can't be read or is

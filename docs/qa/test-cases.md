@@ -68,6 +68,9 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-061 | NOT_RUN | - | - | - |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
+| QA-064 | NOT_RUN | - | - | - |
+| QA-065 | NOT_RUN | - | - | - |
+| QA-066 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -88,6 +91,66 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-064: Per-target watch settings and recordings
+
+Feature: Target settings. Priority: High. Case revision: 2. Status: NOT_RUN.
+
+Preconditions: Two targets have distinct thread names. Both have recordings.
+
+1. Open each target in a separate tab. Save a different watch rule in each tab.
+2. Check the thread watch values. Reset one target and check the other target.
+3. Restart the collector. Check that each saved rule remains with its target.
+4. Set one target's `replay_interval_s` to 0 in its collector `[[target]]`
+   table. Restart the collector and inspect each target's recordings.
+5. Upgrade a single-target data directory. Check its saved watch rules and
+   old recordings through the `default` target.
+6. List the larger sampler address first in `sampler_ips`. Run a `default`
+   target on each host. Save a watch rule for each `default` target.
+7. Start a sampler before the collector, so the collector hears samples before
+   the TTGT of the target with `replay_interval_s = 0`.
+
+Expected: Changes affect only the selected target. Saved settings survive a
+restart. A disabled recording interval stops new recordings for that target,
+also after a late TTGT names it. Old default settings and recordings remain
+available. Only the `default` target of the smallest address uses
+`data_dir/watch-rules.json` and `data_dir/replay`; the other `default` target
+uses its own files.
+
+## QA-065: Target control commands
+
+Feature: Target configuration. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One local sampler runs two named targets.
+
+1. Run `scripts/set-target.sh ID NAME|PID` for one configured target.
+2. Use `--add ID NAME|PID` and `--remove ID`. Check the dashboard after each command.
+3. Run `scripts/set-rate.sh HZ`. Check that all configured target IDs remain.
+4. Try an invalid ID, a duplicate ID, and removal of the last target.
+5. Run `scripts/set-target.sh --help`. Check that the configuration does not change.
+
+Expected: Valid commands update and reload the same sampler process. A selector
+change affects only its target. A rate change applies to all targets. Invalid
+commands preserve the configuration.
+
+## QA-066: Socket reports across hosts
+
+Feature: Target socket data. Priority: High. Case revision: 2. Status: NOT_RUN.
+
+Preconditions: Two allowed sampler hosts have targets with the same PID.
+Each host runs its optional socket observer with a distinct observer ID.
+
+1. Select each target. Compare its socket report with its host's workload.
+2. Stop one socket observer. Check the other target's report.
+3. Request a selected target with the other host's observer ID.
+4. Stop both socket observers and restart the collector. Select a target whose
+   PID is unique, then call `/api/socket-io` without `?target=`.
+
+Expected: Each selected target shows only its host's socket observations.
+A request with the wrong observer ID is rejected. After the restart, the
+unique-PID target and the bare call (the default target) still show the
+stored totals and history; a target whose PID another target shares reports
+no socket observations until its observer reports.
 
 ## QA-061: Per-tab target selection
 

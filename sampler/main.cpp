@@ -75,7 +75,7 @@ extern "C" void OnSignal(int p_number)
     }
     bytes = bytes.subspan(static_cast<std::size_t>(length));
   }
-  return session;
+  return session == 0 ? 1 : session;
 }
 
 class TargetSampler final

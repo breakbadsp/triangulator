@@ -34,6 +34,7 @@
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
 #include "../collector/target_fleet.hpp"
+#include "../collector/target_watches.hpp"
 #include "../collector/watch.hpp"
 
 namespace
@@ -1395,6 +1396,37 @@ void TestSnapshotRecorder()
   Require(new_root.first_.has_value(), "the frame after SetRoot is written");
 }
 
+// Reusing a recorder changes its directory on the worker, keeping views
+// separate.
+void TestRecorderTargetChange()
+{
+  TempDirectory directory;
+  const auto first_root = directory.Path() / "one";
+  const auto second_root = directory.Path() / "two";
+  SnapshotRecorder recorder{first_root, 7, 0.5};
+  Require(recorder.Start().has_value(), "target recorder starts");
+  recorder.Offer(1'700'006'410,
+                 std::make_shared<const std::string>(
+                     R"({"recorded_at":1700006410,"target":"one"})"));
+  recorder.SetRoot(second_root);
+  recorder.Offer(1'700'006'420,
+                 std::make_shared<const std::string>(
+                     R"({"recorded_at":1700006420,"target":"two"})"));
+  recorder.Stop();
+  const auto second = Replay(second_root, {1'700'006'421});
+  Require(
+      second.snapshot_ && second.snapshot_->find("two") != std::string::npos,
+      "new target view uses its own directory");
+  const auto first = Replay(first_root, {});
+  Require(!first.last_ || *first.last_ == 1'700'006'410,
+          "a pending new view cannot enter the old target directory");
+  auto merged = MergeReplay(ReplayResult{20, 30, R"({"recorded_at":25})"},
+                            ReplayResult{1, 10, R"({"recorded_at":5})"}, "at");
+  Require(merged.first_ == 1 && merged.last_ == 30 &&
+              merged.snapshot_ == R"({"recorded_at":25})",
+          "default replay keeps legacy bounds and the newest selected frame");
+}
+
 // Omitted settings enable raw storage and recording; explicit values disable
 // them. Invalid recording intervals and live sample limits fail validation.
 void TestReplayConfig()
@@ -1411,6 +1443,15 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid sender list is rejected");
   }
+  const auto targets = ParseConfig(
+      "[[target]]\nhost=\"host-a\"\nid=\"orders\"\nreplay_interval_s=0\n");
+  Require(targets && targets->targets_.size() == 1 &&
+              targets->targets_[0].replay_interval_s_ == 0,
+          "per-target replay interval");
+  Require(
+      !ParseConfig(
+          "[[target]]\nhost=\"host-a\"\nid=\"orders\"\nreplay_interval_s=-1\n"),
+      "invalid per-target recording interval");
   const auto defaults = ParseConfig("");
   Require(defaults && defaults->store_raw_ && defaults->replay_interval_s_ == 1,
           "raw storage and one-second recording default to enabled");
@@ -2360,6 +2401,14 @@ void TestResourceStorageAndHistory()
       ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20, 4);
   Require(limited.truncated_ && limited.rows_.size() == 1,
           "history reads a bounded number of samples");
+  const auto legacy =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-a", "default", {}, true});
+  const auto other_host =
+      ResourceHistory(directory.Path(), 1'700'000'000, 1'700'000'100, 20,
+                      200000, TargetFilter{"host-b", "default", {}, false});
+  Require(legacy.rows_.size() == 4 && other_host.rows_.empty(),
+          "only the primary default target reads unmapped legacy history");
   storage->RememberTarget(ResourceHeader(0).session_, "host-a", "orders", 42, 9,
                           1'700'000'000);
   Require(storage->Flush(1'700'000'100).has_value(), "target mappings commit");
@@ -2748,6 +2797,90 @@ void TestRemovalKeepsReplacementSession()
   Require(slot.active_ && slot.session_ == 3, "a later session is accepted");
 }
 
+// Checks the one legacy owner when sampler_ips is not sorted: the smallest
+// address wins, not the first entry, and the smallest host name breaks a tie
+// behind that address. Only the owner gets data_dir/watch-rules.json; other
+// default targets behind the same address get separate settings objects.
+void TestLegacyOwnerUsesSmallestSenderForWatches()
+{
+  MonitorFixture fixture;
+  Config config;
+  config.max_targets_ = 4;
+  config.max_live_samples_ = 10000;
+  config.sampler_ips_ = {"192.0.2.20", "192.0.2.10"};
+  config.data_dir_ = fixture.directory_.Path().string();
+  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  const auto announce =
+      [&](std::uint64_t p_session, const char* p_peer, const char* p_host)
+  {
+    target_wire::Packet announcement;
+    announcement.session_ = p_session;
+    announcement.pid_ = static_cast<std::uint32_t>(100 + p_session);
+    announcement.process_start_ = 1;
+    announcement.effective_millihz_ = 1000;
+    announcement.configured_millihz_ = 1000;
+    target_wire::SetText(announcement.host_, p_host);
+    target_wire::SetText(announcement.target_, "default");
+    Require(fleet
+                .Handle(wire::AsBytes(announcement), PeerText{p_peer},
+                        1'700'000'000)
+                .has_value(),
+            "announcement handled");
+  };
+  announce(1, "192.0.2.20", "host-a");
+  announce(2, "192.0.2.10", "host-c");
+  announce(3, "192.0.2.10", "host-b");
+  const auto* owner = fleet.LegacyOwner();
+  Require(owner != nullptr && owner->peer_.View() == "192.0.2.10" &&
+              owner->host_.View() == "host-b",
+          "the smallest sender and host name own the legacy data");
+
+  auto legacy = std::make_shared<WatchSettings>(config.watches_,
+                                                fixture.directory_.Path());
+  TargetWatches watches{config, legacy};
+  std::shared_ptr<WatchSettings> owner_settings;
+  std::vector<std::shared_ptr<WatchSettings>> others;
+  for (const auto& slot : fleet.Slots())
+  {
+    if (!slot->active_)
+    {
+      continue;
+    }
+    const auto key = std::format("{}/{}", slot->host_.View(), slot->id_.View());
+    auto settings = watches.Get(key, slot.get() == owner);
+    Require(settings != nullptr, "every target gets watch settings");
+    if (slot.get() == owner)
+    {
+      owner_settings = std::move(settings);
+    }
+    else
+    {
+      others.push_back(std::move(settings));
+    }
+  }
+  Require(owner_settings == legacy, "the owner keeps watch-rules.json");
+  Require(others.size() == 2 && others[0] != legacy && others[1] != legacy &&
+              others[0] != others[1],
+          "other default targets do not share one settings object");
+  Require(watches.Get("host-c/default", false) ==
+              watches.Get("host-c/default", false),
+          "a target keeps its settings object across refreshes");
+}
+
+// Checks that a [[target]] override applies only to its host and ID, so the
+// main loop can re-evaluate it when a provisional slot is renamed.
+void TestReplayIntervalOverride()
+{
+  Config config;
+  config.replay_interval_s_ = 1;
+  config.targets_ = {{"host-a", "orders", 0}};
+  Require(ReplayInterval(config, "host-a", "orders") == 0,
+          "the override applies to its target");
+  Require(ReplayInterval(config, "127.0.0.1", "default") == 1 &&
+              ReplayInterval(config, "host-b", "orders") == 1,
+          "other targets use the global interval");
+}
+
 int main()
 {
   try
@@ -2784,6 +2917,8 @@ int main()
     TestReplaySnapshots();
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
+    TestRecorderTargetChange();
+    TestReplayIntervalOverride();
     TestReplayConfig();
     TestWatchConfig();
     TestWatchLongestPrefix();
@@ -2797,6 +2932,7 @@ int main()
     TestEverySlotKeepsFullHistoryBudget();
     TestExpiredSlotResumesSameSession();
     TestRemovalKeepsReplacementSession();
+    TestLegacyOwnerUsesSmallestSenderForWatches();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "

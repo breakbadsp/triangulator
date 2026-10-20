@@ -51,6 +51,7 @@ class CollectorCase(unittest.TestCase):
             self.udp_port = udp.getsockname()[1]
         self.base = f"http://127.0.0.1:{self.port}"
         config = self.directory / "collector.toml"
+        self.config = config
         config.write_text(f'udp_host="127.0.0.1"\nudp_port={self.udp_port}\n'
                           f'http_port={self.port}\ndata_dir="{self.directory}/data"\n'
                           f'max_targets={self.MAX_TARGETS}\nmax_live_samples=10000\n'
@@ -103,6 +104,16 @@ class CollectorCase(unittest.TestCase):
             self.assertIsNone(self.process.poll(), "collector exited")
             time.sleep(0.03)
         self.fail("collector condition did not become true")
+
+    def post(self, path, body, revision):
+        request = urllib.request.Request(self.base + path, data=json.dumps(body).encode(),
+            headers={"X-Triangulator": "1", "Content-Type": "application/json", "If-Match": '"' + revision + '"'})
+        try:
+            response = urllib.request.urlopen(request, timeout=3)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            return response.status, json.load(response)
 
     def targets(self):
         return {target["key"] for target in self.fetch("/api/targets")["targets"]}
@@ -184,6 +195,153 @@ class MultiTargetCollectorTests(CollectorCase):
         self.wait_for(lambda: self.fetch("/api/live")["health"].get("target_absent"))
         self.assertEqual(self.fetch("/api/live")["health"]["last_target"]["session"], "111")
         self.assertEqual(len(self.fetch("/api/targets")["targets"]), 1)
+
+    def restart(self, extra=""):
+        self.stop()
+        if extra:
+            self.config.write_text(self.config.read_text() + extra)
+        self.process = subprocess.Popen([ROOT / "build/triangulator-collector", self.config],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self.wait_for(lambda: self.fetch("/api/targets")["targets"] == [])
+
+    def send_pair(self):
+        for session, name, pid in [(1001, "orders", 123), (1002, "billing", 456)]:
+            self.send(announce(session, name, pid=pid))
+            self.send(tick(session, pid=pid))
+        self.wait_for(lambda: len(self.fetch("/api/targets")["targets"]) == 2)
+
+    def test_watch_rules_are_isolated_and_survive_restart(self):
+        self.send_pair()
+        for name, prefix, wake in [("orders", "target-1", 1000), ("billing", "target-4", 2000)]:
+            path = "/api/watches?target=host-a/" + name
+            before = self.fetch(path)
+            status, saved = self.post(path, {"rules": [{"prefix": prefix, "wake_ms": wake}]}, before["revision"])
+            self.assertEqual(status, 200, saved)
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["threads"][0]["wake_ms"] == 1000)
+        self.assertEqual(self.fetch("/api/live?target=host-a/billing")["threads"][0]["wake_ms"], 2000)
+        self.assertEqual(len(list((self.directory / "data/watch-rules").glob("*.json"))), 2)
+        self.restart()
+        self.send_pair()
+        orders = self.fetch("/api/watches?target=host-a/orders")
+        billing = self.fetch("/api/watches?target=host-a/billing")
+        self.assertEqual(orders["rules"], [{"prefix": "target-1", "wake_ms": 1000}])
+        self.assertEqual(billing["rules"], [{"prefix": "target-4", "wake_ms": 2000}])
+        self.assertEqual(self.post("/api/watches?target=host-a/orders", {"rules": []}, billing["revision"])[0], 409)
+        self.assertEqual(self.post("/api/watches/reset?target=host-a/orders", {}, orders["revision"])[0], 200)
+        self.assertEqual(self.fetch("/api/watches?target=host-a/billing")["rules"], billing["rules"])
+
+    def test_replay_interval_can_be_disabled_for_one_target(self):
+        self.restart('[[target]]\nhost="host-a"\nid="orders"\nreplay_interval_s=0\n')
+        self.send_pair()
+        self.wait_for(lambda: self.fetch("/api/replay?target=host-a/billing")["last"] is not None)
+        self.assertEqual(self.fetch("/api/replay?target=host-a/orders")["interval_s"], 0)
+        self.assertIsNone(self.fetch("/api/replay?target=host-a/orders")["last"])
+        self.assertEqual(self.fetch("/api/live?target=host-a/orders")["recording_interval_s"], 0)
+        self.assertEqual(self.fetch("/api/replay?target=host-a/billing")["interval_s"], 0.5)
+
+    def test_lost_announce_applies_the_renamed_targets_replay_interval(self):
+        # The first TTGT is lost, so a provisional 127.0.0.1/default slot
+        # starts recording at the global interval. The next TTGT names it
+        # host-a/orders, whose override disables recording: no frame of the
+        # renamed target may be recorded anywhere.
+        self.restart('[[target]]\nhost="host-a"\nid="orders"\nreplay_interval_s=0\n')
+        replay = self.directory / "data" / "replay"
+        self.send(tick(101))
+        self.wait_for(lambda: any(replay.glob("*.sqlite3")))
+        self.send(announce(101, "orders"))
+        for sequence in range(1, 6):
+            self.send(tick(101, sequence=sequence))
+            time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"host-a/orders"})
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["recording_interval_s"] == 0)
+        bounds = self.fetch("/api/replay?target=host-a/orders")
+        self.assertEqual(bounds["interval_s"], 0)
+        self.assertIsNone(bounds["last"])
+        orders = self.directory / "data" / "targets" / b"host-a/orders".hex() / "replay"
+        self.assertEqual(self.replay_targets(orders), set())
+        self.assertNotIn("host-a/orders", self.replay_targets(replay))
+
+    def test_reordered_slot_reuse_keeps_the_last_view_identity(self):
+        self.send(announce(111, "orders", pid=123))
+        self.send(tick(111))
+        self.wait_for(lambda: bool(self.fetch("/api/live?target=host-a/orders").get("threads")))
+        self.send(tick(333, pid=0))
+        self.send(announce(333, "orders", pid=0))
+        self.send(tick(999, pid=789))
+        self.send(announce(999, "gateway", pid=789))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["health"].get("target_absent"))
+        final = self.fetch("/api/last-target?target=host-a/orders")
+        self.assertEqual(final["health"]["pid"], 123)
+        self.assertEqual(final["health"]["session"], "111")
+        self.assertEqual(self.fetch("/api/live?target=host-a/orders")["health"]["last_target"]["session"], "111")
+
+    def test_zero_legacy_session_and_allowed_sender_address_change(self):
+        self.send(tick(0))
+        self.wait_for(lambda: self.fetch("/api/live").get("health", {}).get("session") == "0")
+        self.send(announce(111, "orders"))
+        self.send(tick(111))
+        self.wait_for(lambda: any(target["id"] == "orders" for target in self.fetch("/api/targets")["targets"]))
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            second.sendto(announce(222, "orders", pid=456), ("127.0.0.1", self.udp_port))
+            second.sendto(tick(222, pid=456), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["health"]["pid"] == 456)
+
+    def test_socket_reports_with_the_same_pid_are_isolated_by_sender(self):
+        from test_socket_metrics import packet as socket_packet
+        self.send(announce(111, "orders", pid=50))
+        self.send(tick(111, pid=50))
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            second.sendto(announce(222, "billing", host="host-b", pid=50), ("127.0.0.1", self.udp_port))
+            second.sendto(tick(222, pid=50), ("127.0.0.1", self.udp_port))
+            self.wait_for(lambda: len(self.fetch("/api/targets")["targets"]) == 2)
+            for sequence in range(2):
+                wall = time.time()
+                for index in range(2):
+                    self.send(socket_packet(sequence, index, observer=91, wall=wall, input_bytes=100 * sequence if index else 0))
+                    second.sendto(socket_packet(sequence, index, observer=92, wall=wall,
+                        input_bytes=1000 * sequence if index else 0), ("127.0.0.1", self.udp_port))
+            self.wait_for(lambda: self.fetch("/api/socket-io?target=host-a/orders").get("totals", {}).get("input", {}).get("total") == "100")
+            self.wait_for(lambda: self.fetch("/api/socket-io?target=host-b/billing").get("totals", {}).get("input", {}).get("total") == "1000")
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.fetch("/api/socket-io?target=host-a/orders&observer=92")
+        self.assertEqual(error.exception.code, 400)
+        error.exception.close()
+
+    def test_stored_socket_reports_survive_a_collector_restart(self):
+        # The socket observer stops, then the collector restarts. The target
+        # announces again, but no TSIO binds an observer to it. Its stored
+        # observations must stay available through ?target= and through a
+        # bare call, which uses the default target as other endpoints do.
+        from test_socket_metrics import packet as socket_packet
+        self.send(announce(111, "default", pid=50))
+        self.send(tick(111, pid=50))
+        self.wait_for(lambda: self.targets() == {"host-a/default"})
+        for sequence in range(2):
+            wall = time.time()
+            for index in range(2):
+                self.send(socket_packet(sequence, index, observer=91, wall=wall,
+                                        input_bytes=100 * sequence if index else 0))
+        self.wait_for(lambda: self.fetch("/api/socket-io?target=host-a/default").get("totals", {})
+                      .get("input", {}).get("total") == "100")
+        self.restart()
+        self.send(announce(222, "default", pid=50))
+        self.send(tick(222, pid=50))
+        self.wait_for(lambda: self.targets() == {"host-a/default"})
+        for path in ("/api/socket-io?target=host-a/default&pid=50", "/api/socket-io"):
+            with self.subTest(path=path):
+                self.wait_for(lambda: self.fetch(path).get("totals", {}).get("input", {}).get("total") == "100")
+                self.assertEqual(self.fetch(path)["observer"], "91")
+        # A second target with the same PID and no observer binding makes the
+        # stored PID ambiguous, so neither target claims those observations.
+        with socket.socket(type=socket.SOCK_DGRAM) as second:
+            second.bind(("127.0.0.2", 0))
+            second.sendto(announce(333, "billing", host="host-b", pid=50), ("127.0.0.1", self.udp_port))
+            second.sendto(tick(333, pid=50), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: self.targets() == {"host-a/default", "host-b/billing"})
+        for key in ("host-a/default", "host-b/billing"):
+            self.wait_for(lambda: self.fetch(f"/api/socket-io?target={key}")["available"] is False)
 
     def test_capacity_and_bad_announcements_are_counted(self):
         for session in range(1, 6):
@@ -332,6 +490,39 @@ class MultiTargetCollectorTests(CollectorCase):
                     return True
             return False
         self.wait_for(mapped)
+
+class UnsortedSenderListTests(CollectorCase):
+    # The first entry is not the smallest address. The legacy owner is the
+    # default target of 127.0.0.1, with the smallest host name behind it.
+    SAMPLER_IPS = 'sampler_ips=["127.0.0.2","127.0.0.1"]\n'
+
+    def test_legacy_watch_file_and_replay_follow_the_legacy_owner(self):
+        with socket.socket(type=socket.SOCK_DGRAM) as first:
+            first.bind(("127.0.0.2", 0))
+            for sequence in range(3):
+                first.sendto(announce(301, "default", host="host-z", pid=301), ("127.0.0.1", self.udp_port))
+                first.sendto(tick(301, pid=301, sequence=sequence), ("127.0.0.1", self.udp_port))
+                self.send(announce(101, "default", host="host-c", pid=101))
+                self.send(tick(101, pid=101, sequence=sequence))
+                self.send(announce(201, "default", host="host-b", pid=201))
+                self.send(tick(201, pid=201, sequence=sequence))
+                time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"host-z/default", "host-c/default", "host-b/default"})
+        data = self.directory / "data"
+        for host, prefix in (("host-b", "target-201"), ("host-c", "target-101"), ("host-z", "target-301")):
+            path = f"/api/watches?target={host}/default"
+            status, saved = self.post(path, {"rules": [{"prefix": prefix, "wake_ms": 1000}]},
+                                      self.fetch(path)["revision"])
+            self.assertEqual(status, 200, saved)
+        legacy = json.loads((data / "watch-rules.json").read_text())
+        self.assertEqual([rule["prefix"] for rule in legacy["rules"]], ["target-201"])
+        for host, prefix in (("host-c", "target-101"), ("host-z", "target-301")):
+            saved = json.loads((data / "watch-rules" / (f"{host}/default".encode().hex() + ".json")).read_text())
+            self.assertEqual([rule["prefix"] for rule in saved["rules"]], [prefix])
+            self.assertEqual(self.fetch(f"/api/watches?target={host}/default")["rules"][0]["prefix"], prefix)
+        self.assertEqual(self.fetch("/api/watches?target=host-b/default")["rules"][0]["prefix"], "target-201")
+        self.wait_for(lambda: self.replay_targets(data / "replay") == {"host-b/default"})
+
 
 class UnpinnedCollectorTests(CollectorCase):
     SAMPLER_IPS = ""
