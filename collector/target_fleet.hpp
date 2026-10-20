@@ -1,7 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "target_slot.hpp"
@@ -18,12 +21,10 @@ class TargetFleet final
               StorageSink& p_sink)
       : config_(p_config), storage_(p_storage), sink_(p_sink)
   {
-    Config slot_config = p_config;
-    slot_config.max_live_samples_ /= p_config.max_targets_;
     for (std::int64_t index = 0; index < p_config.max_targets_; ++index)
     {
       slots_.push_back(
-          std::make_unique<TargetSlot>(slot_config, p_now, p_storage, p_sink));
+          std::make_unique<TargetSlot>(p_config, p_now, p_storage, p_sink));
     }
   }
 
@@ -142,7 +143,8 @@ class TargetFleet final
       ++bad_packets_;
       return {};
     }
-    if (IsRetired(p_peer, session))
+    if (IsRetired(p_peer, session) &&
+        !(announcement && Recover(p_peer, session)))
     {
       return {};
     }
@@ -225,7 +227,10 @@ class TargetFleet final
     {
       if (slot->active_)
       {
-        Retire(slot->peer_, slot->session_);
+        // Without TTGT, a second session from this sender replaces the first
+        // as an old sampler would. If the sender is a new one that was
+        // heard before its announcements, its TTGT recovers the session.
+        Retire(slot->peer_, slot->session_, !announcement && !slot->announced_);
         slot->monitor_.Close();
         slot->resources_.Drain(p_now, true);
       }
@@ -233,6 +238,8 @@ class TargetFleet final
       if (!slot->active_)
       {
         slot->exits_.Clear();
+        // A reused slot must not keep the identity or the views of its
+        // previous target.
         slot->announced_ = false;
         slot->announcement_ = {};
         slot->last_body_.reset();
@@ -299,6 +306,8 @@ class TargetFleet final
     {
       slot->pid_ = *pid;
     }
+    // Cache the mapping now. The session can be replaced before the next
+    // refresh, and its stored rows would otherwise belong to "default".
     if (new_session || announcement)
     {
       storage_.RememberTarget(session, slot->host_.View(), slot->id_.View(),
@@ -332,7 +341,10 @@ class TargetFleet final
                   : std::nullopt;
   }
 
-  void Remove(std::string_view p_key)
+  // Retires the sessions of a target the operator removed. Only a slot whose
+  // current session is in p_sessions is affected: a replacement with the same
+  // ID is a new session and stays.
+  void Remove(std::string_view p_key, std::span<const std::uint64_t> p_sessions)
   {
     const auto separator = p_key.rfind('/');
     if (separator == std::string_view::npos)
@@ -344,7 +356,8 @@ class TargetFleet final
       const bool legacy_local =
           !slot->announced_ &&
           (slot->peer_.View() == "127.0.0.1" || slot->peer_.View() == "::1");
-      if (slot->active_ && slot->id_.View() == p_key.substr(separator + 1) &&
+      if (slot->active_ && std::ranges::contains(p_sessions, slot->session_) &&
+          slot->id_.View() == p_key.substr(separator + 1) &&
           (slot->host_.View() == p_key.substr(0, separator) || legacy_local))
       {
         Retire(slot->peer_, slot->session_);
@@ -354,6 +367,52 @@ class TargetFleet final
         slot->visible_ = false;
       }
     }
+  }
+
+  // Frees every slot whose sampler has been silent for longer than
+  // target_idle_expiry_s, so a replaced or removed target does not hold its
+  // slot forever. The recorder is not stopped or joined: a reused slot moves
+  // it with SetRoot, and an unused one waits idle. Called from the periodic
+  // refresh, never from the datagram path.
+  void ReleaseIdle(double p_now)
+  {
+    for (auto& slot : slots_)
+    {
+      if (slot->active_ &&
+          p_now - slot->last_seen_ > config_.target_idle_expiry_s_)
+      {
+        slot->monitor_.Close();
+        slot->resources_.Drain(p_now, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
+  }
+
+  // The one slot that records into data_dir/replay, or null. Recordings made
+  // before targets existed live there and belong to the "default" target of
+  // one fixed sender: the smallest address in sampler_ips, or the pinned
+  // sender when the list is empty (no other sender is accepted). If several
+  // hosts behind that address announce "default", the smallest host name wins.
+  // Only the current identity counts, so it is recomputed when TTGT renames a
+  // provisional slot and never depends on arrival order.
+  [[nodiscard]] const TargetSlot* LegacyOwner() const
+  {
+    const std::string_view sender =
+        config_.sampler_ips_.empty()
+            ? (pinned_ ? pinned_->View() : std::string_view{})
+            : std::string_view{*std::ranges::min_element(config_.sampler_ips_)};
+    const TargetSlot* owner = nullptr;
+    for (const auto& slot : slots_)
+    {
+      if (slot->active_ && slot->visible_ && slot->id_.View() == "default" &&
+          slot->peer_.View() == sender &&
+          (!owner || slot->host_.View() < owner->host_.View()))
+      {
+        owner = slot.get();
+      }
+    }
+    return owner;
   }
 
   void Close()
@@ -377,6 +436,8 @@ class TargetFleet final
   {
     PeerText peer_;
     std::uint64_t session_ = 0;
+    // Set when a legacy sender's session was replaced by another session.
+    bool inferred_ = false;
   };
   struct SocketBinding
   {
@@ -427,9 +488,28 @@ class TargetFleet final
                                         p_retired.peer_ == p_peer;
                                });
   }
-  void Retire(const PeerText& p_peer, std::uint64_t p_session)
+  void Retire(const PeerText& p_peer, std::uint64_t p_session,
+              bool p_inferred = false)
   {
-    retired_[retired_position_++ % retired_.size()] = {p_peer, p_session};
+    retired_[retired_position_++ % retired_.size()] = {p_peer, p_session,
+                                                       p_inferred};
+  }
+  // A TTGT proves a session that legacy routing retired is a real target.
+  [[nodiscard]] bool Recover(const PeerText& p_peer, std::uint64_t p_session)
+  {
+    const auto found = std::ranges::find_if(
+        retired_,
+        [&](const Retired& p_retired)
+        {
+          return p_retired.inferred_ && p_retired.session_ == p_session &&
+                 p_retired.peer_ == p_peer;
+        });
+    if (found == retired_.end())
+    {
+      return false;
+    }
+    *found = {};
+    return true;
   }
 };
 

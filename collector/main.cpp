@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -117,6 +118,20 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
         "webhook_url, deadman_url and [alerts.smtp] are ignored");
   }
 
+  // Bind the UDP socket first. The kernel then queues the datagrams that
+  // arrive while storage and the target slots start, instead of dropping
+  // them. A sampler sends an unchanged memory layout again only every ten
+  // memory samples (at least once a minute), so a lost first layout leaves
+  // /api/memory-map empty for that long.
+  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
+  if (!bound)
+  {
+    return Stopped(bound.error());
+  }
+  const triangulator::FileDescriptor receiver = std::move(*bound);
+  const int buffer_size = 4 * 1024 * 1024;
+  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
+               sizeof(buffer_size));
   auto created = Storage::Create(config.data_dir_, config.retention_days_);
   if (!created)
   {
@@ -147,15 +162,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   }
   StorageSink sink{storage};
   TargetFleet fleet{config, WallNow(), storage, sink};
-  auto bound = BindSocket(config.udp_host_, config.udp_port_, SOCK_DGRAM);
-  if (!bound)
-  {
-    return Stopped(bound.error());
-  }
-  const triangulator::FileDescriptor receiver = std::move(*bound);
-  const int buffer_size = 4 * 1024 * 1024;
-  ::setsockopt(receiver.Get(), SOL_SOCKET, SO_RCVBUF, &buffer_size,
-               sizeof(buffer_size));
   SharedState state;
   auto listener = Listen(config.http_host_, config.http_port_);
   if (!listener)
@@ -205,12 +211,14 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     }
     if (storage_ok && std::chrono::steady_clock::now() >= next_refresh)
     {
-      for (const auto& key : state.TakeRemovals())
+      for (const auto& removal : state.TakeRemovals())
       {
-        fleet.Remove(key);
+        fleet.Remove(removal.key_, removal.sessions_);
       }
       std::vector<PublishedTarget> published;
       JsonArray descriptions;
+      fleet.ReleaseIdle(now);
+      const TargetSlot* const legacy_owner = fleet.LegacyOwner();
       for (auto& owned : fleet.Slots())
       {
         auto& slot = *owned;
@@ -222,7 +230,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             std::format("{}/{}", slot.host_.View(), slot.id_.View());
         if (slot.reset_view_)
         {
+          // The writer keeps running: SetRoot below moves it without a join.
           slot.recorder_started_ = false;
+          slot.replay_root_.clear();
           slot.published_watches_.reset();
           slot.last_target_.reset();
           slot.last_body_.reset();
@@ -258,11 +268,19 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             config.sampler_ips_.empty() ||
             config.sampler_ips_.front() == slot.peer_.View();
         slot.legacy_replay_ = slot.id_.View() == "default" && primary_sender;
+        // One slot at most records into data_dir/replay (see
+        // TargetFleet::LegacyOwner). The root is checked on every refresh,
+        // so a TTGT that renames a provisional slot moves its recorder.
+        const auto root = &slot == legacy_owner
+                              ? std::filesystem::path{config.data_dir_}
+                              : TargetDataRoot(config.data_dir_, key);
+        if (root != slot.replay_root_)
+        {
+          slot.recorder_.SetRoot(root);
+          slot.replay_root_ = root;
+        }
         if (!slot.recorder_started_)
         {
-          slot.replay_root_ = !slot.announced_ && primary_sender
-                                  ? std::filesystem::path{config.data_dir_}
-                                  : TargetDataRoot(config.data_dir_, key);
           slot.config_.replay_interval_s_ = config.replay_interval_s_;
           for (const auto& setting : config.targets_)
           {
@@ -274,7 +292,6 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             }
           }
           slot.recorder_.SetInterval(slot.config_.replay_interval_s_);
-          slot.recorder_.SetRoot(slot.replay_root_);
           if (auto started = slot.recorder_.Start(); !started)
           {
             return Stopped(started.error());
@@ -405,10 +422,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.next_health_ = now + 10;
         }
         published.push_back({key, std::string{slot.host_.View()},
-                             std::string{slot.id_.View()}, slot.replay_root_,
-                             slot.state_.Live(), slot.state_.LastTarget(),
-                             slot.state_.MemoryMap(), slot.watches_,
-                             slot.config_.replay_interval_s_,
+                             std::string{slot.id_.View()}, slot.session_,
+                             slot.replay_root_, slot.state_.Live(),
+                             slot.state_.LastTarget(), slot.state_.MemoryMap(),
+                             slot.watches_, slot.config_.replay_interval_s_,
                              slot.legacy_replay_, fleet.SocketObserver(slot),
                              slot.pid_, std::string{slot.peer_.View()}});
       }

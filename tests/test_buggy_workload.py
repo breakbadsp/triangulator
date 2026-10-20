@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import tempfile
 import time
@@ -14,6 +15,21 @@ WORKLOAD = ROOT / "build/buggy-workload"
 
 
 class BuggyWorkloadTests(unittest.TestCase):
+    def setUp(self):
+        self.environment = self.scenario_environment()
+
+    @staticmethod
+    def scenario_environment():
+        # Separate ports let sanitizer jobs and local checks run concurrently.
+        with socket.socket() as http, socket.socket(type=socket.SOCK_DGRAM) as udp:
+            http.bind(("127.0.0.1", 0))
+            udp.bind(("127.0.0.1", 0))
+            return {
+                **os.environ,
+                "BUGGY_HTTP_PORT": str(http.getsockname()[1]),
+                "BUGGY_UDP_PORT": str(udp.getsockname()[1]),
+            }
+
     def test_bad_duration_does_not_run_forever(self):
         for duration in ("bad", "-1", "1extra", "2147483648"):
             result = subprocess.run([WORKLOAD, "idle-baseline", duration],
@@ -60,7 +76,7 @@ class BuggyWorkloadTests(unittest.TestCase):
             sentinel = base / "keep.txt"
             sentinel.write_text("keep")
             runner = subprocess.Popen([EXAMPLE / "run-scenario.sh", "idle-baseline"],
-                                      env={**os.environ, "BUGGY_HOME": directory},
+                                      env={**self.environment, "BUGGY_HOME": directory},
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                       start_new_session=True)
             try:
@@ -77,12 +93,41 @@ class BuggyWorkloadTests(unittest.TestCase):
             for pid in child_pids:
                 self.assertFalse(Path(f"/proc/{pid}").exists(), f"child {pid} survived")
 
+    def test_scenarios_can_run_at_the_same_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_base = Path(directory) / "first"
+            second_base = Path(directory) / "second"
+            first = subprocess.Popen(
+                [EXAMPLE / "run-scenario.sh", "idle-baseline"],
+                env={**self.environment, "BUGGY_HOME": str(first_base)},
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True)
+            try:
+                first_run = self.wait_for_run(first_base, first)
+                # Select another pair while the first collector owns its ports.
+                self.environment = self.scenario_environment()
+                second = subprocess.Popen(
+                    [EXAMPLE / "run-scenario.sh", "idle-baseline"],
+                    env={**self.environment, "BUGGY_HOME": str(second_base)},
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True)
+                try:
+                    second_run = self.wait_for_run(second_base, second)
+                    self.assertNotEqual((first_run / "sampler.toml").read_text(),
+                                        (second_run / "sampler.toml").read_text())
+                    self.assertIsNone(first.poll())
+                    self.assertIsNone(second.poll())
+                finally:
+                    self.assertEqual(self.stop(second), 143)
+            finally:
+                self.assertEqual(self.stop(first), 143)
+
     def test_capture_interrupt_stops_the_scenario(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             runner = subprocess.Popen(
                 [EXAMPLE / "capture-screenshots.sh", base / "output", "idle-baseline"],
-                env={**os.environ, "BUGGY_HOME": directory},
+                env={**self.environment, "BUGGY_HOME": directory},
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 start_new_session=True)
             try:
@@ -111,7 +156,7 @@ class BuggyWorkloadTests(unittest.TestCase):
             chromium.chmod(0o755)
             runner = subprocess.Popen(
                 [EXAMPLE / "capture-screenshots.sh", base / "output", "idle-baseline"],
-                env={**os.environ, "BUGGY_HOME": directory,
+                env={**self.environment, "BUGGY_HOME": directory,
                      "BROWSER_MARKER": str(marker),
                      "PATH": str(helpers) + os.pathsep + os.environ["PATH"]},
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

@@ -1,18 +1,20 @@
 # Test a new installation in AlmaLinux
 
 The `AlmaLinux new user test` workflow runs on the
-[self-hosted runner](self-hosted-runner.md) in rootless containers. Fork pull
-requests run it on GitHub-hosted runners. You need no Docker access or `sudo`
-to run it.
-It tests the official `almalinux:8` and `almalinux:9` container images.
-Manual runs can also test `almalinux:10`.
+[self-hosted runner pool](self-hosted-runner.md) in rootless containers. Fork
+pull requests use GitHub-hosted runners. You need no local Docker access or
+`sudo` to run the workflow.
+Pull requests run the normal build and test suite in the official
+`almalinux:8` container image. Nightly and manual runs test both the normal
+and static-release builds in `almalinux:8` and `almalinux:9`. Manual runs can also test
+`almalinux:10`.
 
 ## Run the test
 
 The workflow starts on pull requests that change the workflow, its scripts,
 build files, source files, configuration, tests, or build guidelines.
-Pull requests test AlmaLinux 8 and 9. AlmaLinux 10 runs only when selected
-for a manual run.
+Nightly runs start at 03:00 in `Asia/Kolkata` on the latest `master`
+commit. AlmaLinux 10 runs only when selected for a manual run.
 To start it by hand:
 
 1. Open the repository's **Actions** page.
@@ -26,6 +28,12 @@ To start it by hand:
 Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 
 ## What the test does
+
+Steps 1–11 run on pull requests, nightly runs, and manual runs. Steps 12–17
+run only nightly or on manual runs. The job restores a compiler cache before
+starting its fresh container. It installs the build dependencies in that
+container and reuses only compilations whose compiler, options, source, and
+included headers match. Linking and test execution run each time.
 
 1. Save the image details and the initial package list.
 2. Install Git and clone the checked-out commit inside the container.
@@ -54,9 +62,9 @@ Each AlmaLinux version has a separate artifact. Artifacts expire after 14 days.
 
 Package installation uses root inside the disposable build container.
 Compilation and normal operation use an ordinary user.
-The second container installs no packages. It has no Linux capabilities.
-The test saves both normal and release binaries, logs, exit statuses, and package
-lists. The link reports show the shared-library dependencies of each build.
+The nightly and manual runtime checks use a second container that installs no packages. It has no Linux capabilities.
+The test saves normal binaries, logs, exit statuses, package lists, and
+compiler-cache statistics. Nightly and manual runs also save release binaries. The link reports show the shared-library dependencies of each build.
 
 ## Limits
 

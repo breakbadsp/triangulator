@@ -708,7 +708,14 @@ class DashboardServer
   {
     const auto target_key = QueryValue(p_request.query_, "target");
     const auto target = state_.Select(target_key.value_or(""));
-    if (target_key && !target)
+    // The dashboard document and the target list must load even when the
+    // selected target is gone, so the page can offer a way out. Only the
+    // endpoints that read one target's data reject an unknown target.
+    const bool reads_target = p_request.path_ != "/" &&
+                              p_request.path_ != "/api/targets" &&
+                              p_request.path_ != "/api/targets/control" &&
+                              p_request.path_ != "/api/target";
+    if (reads_target && target_key && !target)
     {
       RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
       return;
@@ -831,11 +838,7 @@ class DashboardServer
       return ip && (ip->starts_with("127.") || *ip == "::1");
     };
     if (!loopback(config_.http_host_) ||
-        (!p_multiple && std::ranges::any_of(config_.sampler_ips_,
-                                            [&](const std::string& p_ip)
-                                            {
-                                              return !loopback(p_ip);
-                                            })))
+        !std::ranges::all_of(config_.sampler_ips_, loopback))
     {
       RespondJson(p_connection, p_target ? 403 : 200,
                   JsonObject{{"enabled", false},
@@ -844,6 +847,20 @@ class DashboardServer
                               "on a loopback dashboard"}});
       return;
     }
+    // Take the sessions of the target being removed before the sampler
+    // changes, so the removal cannot reach a session announced afterwards.
+    std::vector<std::uint64_t> removed_sessions;
+    if (p_multiple && p_target)
+    {
+      const auto change = ParseJson(*p_target);
+      const auto* action = change ? change->Find("action") : nullptr;
+      const auto* id = change ? change->Find("id") : nullptr;
+      if (action && action->IsString() && action->AsString() == "remove" &&
+          id && id->IsString())
+      {
+        removed_sessions = state_.SessionsForId(id->AsString());
+      }
+    }
     auto result = RunTargetControl(config_.udp_host_, config_.udp_port_,
                                    p_target, p_multiple);
     if (!result)
@@ -851,16 +868,15 @@ class DashboardServer
       RespondJson(p_connection, 503, JsonObject{{"error", result.error()}});
       return;
     }
-    if (p_multiple && p_target && !result->Find("error"))
+    if (!removed_sessions.empty() && !result->Find("error"))
     {
       const auto change = ParseJson(*p_target);
-      const auto* action = change ? change->Find("action") : nullptr;
       const auto* id = change ? change->Find("id") : nullptr;
       const auto* host = result->Find("host");
-      if (action && action->IsString() && action->AsString() == "remove" &&
-          id && id->IsString() && host && host->IsString())
+      if (id && id->IsString() && host && host->IsString())
       {
-        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString()))
+        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString(),
+                                 std::move(removed_sessions)))
         {
           RespondJson(p_connection, 503,
                       JsonObject{{"applied", true},

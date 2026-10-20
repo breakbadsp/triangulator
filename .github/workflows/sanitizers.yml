@@ -2,21 +2,9 @@ name: Sanitizer tests
 
 on:
   workflow_dispatch:
-  push:
-    branches: [master]
-  pull_request:
-    paths:
-      - Makefile
-      - .github/workflows/sanitizers.yml
-      - common/**
-      - sampler/**
-      - collector/**
-      - metrics/**
-      - socket_sampler/**
-      - examples/**
-      - scripts/**
-      - tests/**
-      - config/**
+  schedule:
+    - cron: '0 3 * * *'
+      timezone: Asia/Kolkata
 
 permissions:
   contents: read

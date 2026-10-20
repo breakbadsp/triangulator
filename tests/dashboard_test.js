@@ -2870,6 +2870,20 @@ test('the target selector shows status, limited access, throttling, and other at
   assert.equal(app.elements.get('target-key').dataset.label, 'host-a · orders');
 });
 
+test('the selector stays visible while the selected target is unavailable', () => {
+  const app = dashboard();
+  const one = `[{key:'host-a/orders',host:'host-a',id:'orders',pid:123,status:'live',access:'full',throttled:false}]`;
+  app.run(`selectedTarget='host-a/billing'`);
+  // Two refreshes with the same list: the second must not hide the control.
+  app.run(`renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, false);
+  app.run(`renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, false);
+  assert.equal(app.elements.get('target-key').hidden, true);
+  app.run(`selectedTarget='host-a/orders';renderTargetChoices(${one})`);
+  assert.equal(app.elements.get('target-select').hidden, true);
+});
+
 test('target management requires confirmation before one global write', async () => {
   const app = dashboard();
   let writes = 0;

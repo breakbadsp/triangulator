@@ -7,6 +7,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,7 @@ struct PublishedTarget
   std::string key_;
   std::string host_;
   std::string id_;
+  std::uint64_t session_ = 0;
   std::filesystem::path replay_root_;
   std::shared_ptr<const std::string> live_;
   std::shared_ptr<const std::string> last_target_;
@@ -74,17 +76,44 @@ class SharedState
     return memory_map_;
   }
 
-  [[nodiscard]] bool QueueRemoval(std::string p_key)
+  // The sessions currently published for a target ID, on any host. A removal
+  // request takes them before it asks the sampler, so it names exactly the
+  // sessions the operator saw.
+  [[nodiscard]] std::vector<std::uint64_t> SessionsForId(std::string_view p_id)
+  {
+    std::lock_guard lock{mutex_};
+    std::vector<std::uint64_t> sessions;
+    for (const auto& target : targets_)
+    {
+      if (target.id_ == p_id)
+      {
+        sessions.push_back(target.session_);
+      }
+    }
+    return sessions;
+  }
+
+  // A removal names the target and the sessions that were published when the
+  // operator asked. The collector retires only those sessions, so a target
+  // added again with the same ID keeps its new session, however late the
+  // refresh runs.
+  struct Removal
+  {
+    std::string key_;
+    std::vector<std::uint64_t> sessions_;
+  };
+  [[nodiscard]] bool QueueRemoval(std::string p_key,
+                                  std::vector<std::uint64_t> p_sessions)
   {
     std::lock_guard lock{mutex_};
     if (removals_.size() >= 64)
     {
       return false;
     }
-    removals_.push_back(std::move(p_key));
+    removals_.push_back({std::move(p_key), std::move(p_sessions)});
     return true;
   }
-  [[nodiscard]] std::vector<std::string> TakeRemovals()
+  [[nodiscard]] std::vector<Removal> TakeRemovals()
   {
     std::lock_guard lock{mutex_};
     return std::exchange(removals_, {});
@@ -136,7 +165,7 @@ class SharedState
  private:
   std::mutex mutex_;
   std::vector<PublishedTarget> targets_;
-  std::vector<std::string> removals_;
+  std::vector<Removal> removals_;
   std::shared_ptr<const std::string> targets_json_ =
       std::make_shared<const std::string>(R"({"targets":[]})");
   std::shared_ptr<const std::string> live_ =

@@ -500,6 +500,18 @@ std::size_t MeasureFleet()
                 .has_value(),
             "route target announcement");
   }
+  fleet.ReleaseIdle(1'700'001'000);
+  announcement.session_ = 99;
+  target_wire::SetText(announcement.target_, "one");
+  {
+    Counter count{phase};
+    Require(fleet.Handle(wire::AsBytes(announcement), peer, 1'700'001'001)
+                .has_value(),
+            "resume expired target");
+    Require(
+        fleet.Slots().front()->active_ && fleet.Slots().front()->session_ == 99,
+        "same session is active after expiry");
+  }
   fleet.Close();
   Require(storage.Close().has_value(), "close fleet storage");
   std::filesystem::remove_all(directory);

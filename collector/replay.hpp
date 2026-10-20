@@ -96,7 +96,9 @@ class ReplayWriter
   }
 
  private:
+  // directory_ and root_generation_ are guarded by mutex_.
   std::filesystem::path directory_;
+  std::uint64_t root_generation_ = 0;
   std::int64_t retention_days_;
   std::optional<Days> day_;
   Database database_;
@@ -188,13 +190,23 @@ class SnapshotRecorder
   SnapshotRecorder(const SnapshotRecorder&) = delete;
   SnapshotRecorder& operator=(const SnapshotRecorder&) = delete;
 
+  // Switches the recording directory without waiting for the writer thread,
+  // which may be inside a slow SQLite call. The waiting view belongs to the
+  // old directory and is dropped; the writer reopens in the new one.
   void SetRoot(const std::filesystem::path& p_root)
   {
-    std::lock_guard lock{mutex_};
-    directory_ = ReplayDirectory(p_root);
+    auto directory = ReplayDirectory(p_root);
+    {
+      const std::scoped_lock lock{mutex_};
+      directory_ = std::move(directory);
+      ++root_generation_;
+      pending_.reset();
+    }
     next_offer_ = {};
   }
 
+  // Changes the recording cadence. Called by the main loop only, which is
+  // the only reader of interval_; zero stops new offers.
   void SetInterval(double p_interval_s)
   {
     interval_ = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -206,8 +218,8 @@ class SnapshotRecorder
   // reports failure by throwing; it is caught here and returned.
   [[nodiscard]] std::expected<void, std::string> Start()
   {
-    if (worker_.joinable() ||
-        interval_ <= std::chrono::steady_clock::duration::zero())
+    if (interval_ <= std::chrono::steady_clock::duration::zero() ||
+        worker_.joinable())
     {
       return {};
     }
@@ -258,7 +270,7 @@ class SnapshotRecorder
     next_offer_ = now + interval_;
     {
       const std::scoped_lock lock{mutex_};
-      pending_ = Pending{p_timestamp, std::move(p_view), directory_};
+      pending_ = Pending{p_timestamp, std::move(p_view)};
     }
     ready_.notify_one();
   }
@@ -268,9 +280,10 @@ class SnapshotRecorder
   {
     double timestamp_{};
     std::shared_ptr<const std::string> view_;
-    std::filesystem::path directory_;
   };
+  // directory_ and root_generation_ are guarded by mutex_.
   std::filesystem::path directory_;
+  std::uint64_t root_generation_ = 0;
   std::int64_t retention_days_;
   std::chrono::steady_clock::duration interval_;
   // Read and written by the main loop only.
@@ -283,11 +296,13 @@ class SnapshotRecorder
   void Work(std::stop_token p_stop)
   {
     std::optional<ReplayWriter> writer;
-    std::filesystem::path writer_directory;
+    std::uint64_t writer_generation = 0;
     bool failing = false;
     while (true)
     {
       Pending pending;
+      std::filesystem::path directory;
+      std::uint64_t generation = 0;
       {
         std::unique_lock lock{mutex_};
         ready_.wait(lock,
@@ -301,19 +316,23 @@ class SnapshotRecorder
         }
         pending = std::move(*pending_);
         pending_.reset();
+        directory = directory_;
+        generation = root_generation_;
       }
       SqliteResult written;
       try
       {
-        if (!writer || writer_directory != pending.directory_)
+        if (writer && writer_generation != generation)
         {
           writer.reset();
-          auto created =
-              ReplayWriter::Create(pending.directory_, retention_days_);
+        }
+        if (!writer)
+        {
+          auto created = ReplayWriter::Create(directory, retention_days_);
           if (created)
           {
             writer = std::move(*created);
-            writer_directory = pending.directory_;
+            writer_generation = generation;
           }
           else
           {

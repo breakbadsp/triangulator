@@ -75,12 +75,12 @@ A limit is a documented value. The collector counts the work that goes over it.
 - 2,550 threads at one time (`kMaxTrackedThreads`). A sample of a thread over
   the limit is dropped. `Monitor::Health` reports `dropped_samples`.
 - Per slot: 128 pending ticks, 128 retired sessions, 4,096 loss entries.
-- Fleet: at most 64 slots (default 16), 1,024 retired source/session keys,
+- Fleet: at most 64 slots (default 8), 1,024 retired source/session keys,
   128 socket observer bindings, and 256 cached session mappings.
 - At most 1,024 target watch files are loaded at startup. New target settings
   are created during refresh without disk reads. The HTTP worker saves them.
-- `max_live_samples` is at most 10,000,000 and is divided across reserved
-  target slots. The arena takes about 280 bytes
+- Every slot keeps the full `max_live_samples`, so `max_live_samples` times
+  `max_targets` is at most 10,000,000. The arena takes about 280 bytes
   of address space for each sample, so a larger value could make the
   reservation fail at startup. `--check-config` rejects a larger value.
 - The stored sockets column holds up to 4,096 bytes. A socket that does not fit
