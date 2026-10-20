@@ -187,6 +187,26 @@ class MultiTargetCollectorTests(unittest.TestCase):
             frame = self.fetch(f'/api/replay?target={key}&at={bounds["last"]}')["snapshot"]
             self.assertEqual(frame["health"]["pid"], pid)
 
+    def test_legacy_recording_owner_ignores_arrival_order(self):
+        # 127.0.0.1 is the smallest allowed address, so its recordings stay in
+        # data_dir/replay whichever sender arrives first.
+        with socket.socket(type=socket.SOCK_DGRAM) as other:
+            other.bind(("127.0.0.2", 0))
+            for sequence in range(3):
+                other.sendto(tick(222, pid=456, sequence=sequence), ("127.0.0.1", self.udp_port))
+                time.sleep(0.2)
+                self.send(tick(111, pid=123, sequence=sequence))
+                time.sleep(0.2)
+        self.wait_for(lambda: self.targets() == {"127.0.0.1/default", "127.0.0.2/default"})
+        replay = self.directory / "data" / "replay"
+        self.wait_for(lambda: replay.is_dir() and any(replay.iterdir()))
+        key = b"127.0.0.2/default".hex()
+        self.wait_for(lambda: (self.directory / "data" / "targets" / key / "replay").is_dir())
+        self.assertFalse((self.directory / "data" / "targets" / b"127.0.0.1/default".hex()).exists())
+        bounds = self.fetch("/api/replay?target=127.0.0.1/default")
+        frame = self.fetch(f'/api/replay?target=127.0.0.1/default&at={bounds["last"]}')["snapshot"]
+        self.assertEqual(frame["health"]["pid"], 123)
+
     def test_replaced_session_keeps_its_target_mapping(self):
         self.send(announce(101, "orders"))
         self.send(tick(101))

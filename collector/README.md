@@ -100,8 +100,9 @@ hosts. The legacy `sampler_ip` key remains valid. Use only one form. Without
 either key, the collector accepts and pins the first valid sender.
 
 The collector keeps each target's monitors, replay recorder, and published
-views in target slots. `max_targets` defaults to 16 and permits 1..64.
-`max_live_samples` is the total budget, divided across slots. Hidden sessions
+views in target slots. `max_targets` defaults to 8 and permits 1..64.
+Each slot keeps the full `max_live_samples`; the product of the two is at most
+10,000,000. Hidden sessions
 that await TTGT also use slots. `/api/targets` reports rejected datagrams
 and capacity drops. An allowed sender cannot replace another sender's host
 name during one collector run.

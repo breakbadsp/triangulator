@@ -18,12 +18,10 @@ class TargetFleet final
               StorageSink& p_sink)
       : config_(p_config), storage_(p_storage), sink_(p_sink)
   {
-    Config slot_config = p_config;
-    slot_config.max_live_samples_ /= p_config.max_targets_;
     for (std::int64_t index = 0; index < p_config.max_targets_; ++index)
     {
       slots_.push_back(
-          std::make_unique<TargetSlot>(slot_config, p_now, p_storage, p_sink));
+          std::make_unique<TargetSlot>(p_config, p_now, p_storage, p_sink));
     }
   }
 

@@ -33,6 +33,7 @@
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/target_fleet.hpp"
 #include "../collector/watch.hpp"
 
 namespace
@@ -1223,9 +1224,15 @@ void TestReplayConfig()
   {
     Require(!ParseConfig(text), "invalid recording cadence is rejected");
   }
-  Require(ParseConfig("max_live_samples=10000000").has_value() &&
-              !ParseConfig("max_live_samples=10000001"),
+  Require(ParseConfig("max_live_samples=10000000\nmax_targets=1").has_value() &&
+              !ParseConfig("max_live_samples=10000001\nmax_targets=1"),
           "max_live_samples has an upper limit");
+  Require(ParseConfig("").has_value(),
+          "the default history budget for every slot fits the limit");
+  Require(ParseConfig("max_live_samples=2500000\nmax_targets=4").has_value() &&
+              !ParseConfig("max_live_samples=2500001\nmax_targets=4") &&
+              !ParseConfig("max_targets=0"),
+          "the history budget of all slots has an upper limit");
 }
 
 // Checks [[watch]] parsing: valid rules keep their order, and each invalid
@@ -2379,6 +2386,32 @@ void TestAllowedSenders()
   }
 }
 
+// Every slot keeps the whole max_live_samples budget, so a single target
+// keeps the history it had before targets existed.
+void TestEverySlotKeepsFullHistoryBudget()
+{
+  MonitorFixture fixture;
+  Config config;
+  config.max_targets_ = 4;
+  config.max_live_samples_ = 40;
+  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  for (std::uint32_t sequence = 0; sequence < 30; ++sequence)
+  {
+    const auto data = Encode(MakePacket(sequence));
+    Require(
+        fleet.Handle(data, PeerText{"127.0.0.1"}, 1'700'000'000.0 + sequence)
+            .has_value(),
+        "datagram handled");
+  }
+  const auto retained =
+      Field(fleet.Slots().front()->monitor_.Health(1'700'000'030),
+            "raw_samples")
+          .AsInt();
+  Require(retained > config.max_live_samples_ / config.max_targets_ &&
+              retained <= config.max_live_samples_,
+          "one target keeps more than a share of the budget");
+}
+
 int main()
 {
   try
@@ -2421,6 +2454,7 @@ int main()
     TestExitStatus();
     TestProcessInfo();
     TestAllowedSenders();
+    TestEverySlotKeepsFullHistoryBudget();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
         "sessions, rollups, storage, health, resource samples, memory map, "
