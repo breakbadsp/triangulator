@@ -128,10 +128,15 @@ class MultiTargetCollectorTests(CollectorCase):
                 self.assertEqual([thread["tid"] for thread in view["threads"]], [expected])
         self.assertEqual(self.fetch("/api/live")["health"]["pid"], 456,
                          "the first key by host and id is the default")
-        with self.assertRaises(urllib.error.HTTPError) as error:
-            self.fetch("/api/live?target=host-a/missing")
-        self.assertEqual(error.exception.code, 404)
-        error.exception.close()
+        for path in ("/api/live", "/api/last-target", "/api/memory-map",
+                     "/api/history?start=0&end=1", "/api/resources",
+                     "/api/replay", "/api/socket-io?pid=1"):
+            with self.subTest(path=path):
+                joiner = "&" if "?" in path else "?"
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    self.fetch(path + joiner + "target=host-a/missing")
+                self.assertEqual(error.exception.code, 404)
+                error.exception.close()
         # The dashboard page itself loads for a missing target, so the user
         # keeps the controls needed to leave it.
         with urllib.request.urlopen(self.base + "/?target=host-a/missing", timeout=2) as page:

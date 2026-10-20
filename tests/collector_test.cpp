@@ -2702,9 +2702,10 @@ void TestExpiredSlotResumesSameSession()
   }
 }
 
-// A removal is queued when the sampler confirms it and applied at the next
-// refresh. A target added again with the same ID in between is a new session
-// and must survive that refresh.
+// A removal names the sessions published when the operator asked, and is
+// applied at the next refresh. A target added again with the same ID in
+// between is a new session and must survive that refresh, however late the
+// refresh runs.
 void TestRemovalKeepsReplacementSession()
 {
   MonitorFixture fixture;
@@ -2728,16 +2729,19 @@ void TestRemovalKeepsReplacementSession()
   };
   announce(1, 1'700'000'000);
   auto& slot = *fleet.Slots().front();
-  // Removal confirmed at ...001; the same ID returns as session 2 before the
-  // refresh applies the removal.
+  // The operator removes session 1; the same ID returns as session 2 before
+  // the refresh applies the removal.
   announce(2, 1'700'000'002);
-  fleet.Remove("host-a/orders", 1'700'000'001);
+  const std::vector<std::uint64_t> removed{1};
+  fleet.Remove("host-a/orders", removed);
   Require(slot.active_ && slot.visible_ && slot.session_ == 2,
-          "a stale removal leaves the replacement session");
+          "a removal of the old session leaves the replacement session");
   announce(1, 1'700'000'002.5);
   Require(slot.session_ == 2, "the removed session stays retired");
-  fleet.Remove("host-a/orders", 1'700'000'003);
-  Require(!slot.active_ && !slot.visible_, "a current removal retires it");
+  const std::vector<std::uint64_t> current{2};
+  fleet.Remove("host-a/orders", current);
+  Require(!slot.active_ && !slot.visible_,
+          "a removal of the session retires it");
   announce(2, 1'700'000'004);
   Require(!slot.active_, "the removed session is not accepted again");
   announce(3, 1'700'000'005);

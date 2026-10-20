@@ -1,7 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "target_slot.hpp"
@@ -276,10 +279,10 @@ class TargetFleet final
     return sink_.Status();
   }
 
-  // Retires the session of a target the operator removed. Only a slot first
-  // seen at or before p_removed_at is affected: a replacement with the same
-  // ID that announced itself before this refresh is a new session and stays.
-  void Remove(std::string_view p_key, double p_removed_at)
+  // Retires the sessions of a target the operator removed. Only a slot whose
+  // current session is in p_sessions is affected: a replacement with the same
+  // ID is a new session and stays.
+  void Remove(std::string_view p_key, std::span<const std::uint64_t> p_sessions)
   {
     const auto separator = p_key.rfind('/');
     if (separator == std::string_view::npos)
@@ -291,7 +294,7 @@ class TargetFleet final
       const bool legacy_local =
           !slot->announced_ &&
           (slot->peer_.View() == "127.0.0.1" || slot->peer_.View() == "::1");
-      if (slot->active_ && slot->first_seen_ <= p_removed_at &&
+      if (slot->active_ && std::ranges::contains(p_sessions, slot->session_) &&
           slot->id_.View() == p_key.substr(separator + 1) &&
           (slot->host_.View() == p_key.substr(0, separator) || legacy_local))
       {

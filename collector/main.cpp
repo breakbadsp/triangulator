@@ -210,7 +210,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
     {
       for (const auto& removal : state.TakeRemovals())
       {
-        fleet.Remove(removal.key_, removal.at_);
+        fleet.Remove(removal.key_, removal.sessions_);
       }
       std::vector<PublishedTarget> published;
       JsonArray descriptions;
@@ -381,10 +381,10 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.dirty_ = false;
           slot.next_health_ = now + 10;
         }
-        published.push_back({key, std::string{slot.host_.View()},
-                             std::string{slot.id_.View()}, slot.replay_root_,
-                             slot.state_.Live(), slot.state_.LastTarget(),
-                             slot.state_.MemoryMap()});
+        published.push_back(
+            {key, std::string{slot.host_.View()}, std::string{slot.id_.View()},
+             slot.session_, slot.replay_root_, slot.state_.Live(),
+             slot.state_.LastTarget(), slot.state_.MemoryMap()});
       }
       if (published.empty())
       {
