@@ -1,0 +1,21 @@
+QA-059 and QA-065 on one sampler process (one thread, one PID). Collector 384352f, isolated runtime.
+
+Start: default (healthy) and cpu (cpu-spin) live. Sessions recorded.
+1. Add c (owned fixture close-wait, PID 4179006) with set-target.sh --add c:
+   default and cpu sessions unchanged. c live.
+2. Reorder [[target]] tables (c, default, cpu) and send SIGHUP:
+   all three sessions unchanged. One sampler process.
+3. set-rate.sh 5 (global): every target gets a new session, all effective rate 5.0.
+4. Invalid and duplicate:
+   --add default <pid>  -> "this target id is already configured"; config md5 unchanged.
+   --add 'bad id!' <pid> -> "target id must contain 1..31 letters, digits, dots, underscores, or hyphens"; md5 unchanged.
+   Edit that left a stray "id =" key, then SIGHUP -> sampler kept all sessions (config rejected:
+   "unknown configuration key: id"). set-rate.sh rejected the same file and left it unchanged.
+5. Stop the c fixture: only c absent. default and cpu stay live.
+6. set-target.sh --help: config md5 unchanged.
+7. --remove c: [[target]] c removed from config.
+   --remove cpu: removed from config.
+   --remove default (last target): "remove-target: keep at least one target configured", config unchanged.
+   Note: the API keeps removed keys listed as "silent" and their data endpoints return 200 until
+   target_idle_expiry_s (see qa071 note).
+8. set-target.sh default <pid> with two named targets: changes default (documented behavior).

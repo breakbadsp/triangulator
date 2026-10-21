@@ -1,0 +1,3 @@
+bad_packets 0 capacity_drops 0
+omarchy/default pid 4093996 live access full rate 5.0 sampler_cpu_pct 0.8433395827794978 cmd /tmp/tri-qa/bin/bugbench healthy 3600
+omarchy/cpu pid 4093998 live access full rate 5.0 sampler_cpu_pct 0.8572173287506692 cmd /tmp/tri-qa/bin/bugbench cpu-spin 3600

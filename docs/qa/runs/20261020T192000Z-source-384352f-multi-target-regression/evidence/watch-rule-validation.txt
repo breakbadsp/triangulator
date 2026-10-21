@@ -1,0 +1,20 @@
+POST /api/watches with X-Triangulator: 1 and If-Match (current revision).
+Collector source, 384352f build, isolated HTTP 19401.
+
+[1] prefix ""                     HTTP 400 watch rule 1: prefix must be text of 1 to 15 bytes
+[2] prefix 27 bytes               HTTP 400 watch rule 1: prefix must be text of 1 to 15 bytes
+[3] wake_ms 5                     HTTP 400 wake_ms must be a whole number of milliseconds from 10 to 3600000
+[4] wake_ms 1.5                   HTTP 400 wake_ms must be a whole number of milliseconds from 10 to 3600000
+[5] duplicate prefix "worker-"    HTTP 400 rule 2 (prefix "worker-"): rule 1 has the same prefix
+[6] nine 2-byte chars (18 bytes)  HTTP 400 watch rule 1: prefix must be text of 1 to 15 bytes
+[7] 65 rules                      HTTP 400 too many watch rules (65); at most 64 are allowed
+[8] wake_ms 3600001               HTTP 400 wake_ms must be a whole number of milliseconds from 10 to 3600000
+[9] wake_ms 10                    HTTP 200 source dashboard, revision ...-1
+[10] prefix 15 bytes              HTTP 200 source dashboard, revision ...-2
+[11] reset                        HTTP 200 source config, rules MsgP 1000 and PrdDist 2000
+
+Guards:
+- stale If-Match "0-0-0"          HTTP 409
+- no If-Match                     HTTP 428
+- no X-Triangulator header        HTTP 403
+- rules after rejected writes     unchanged (source config)

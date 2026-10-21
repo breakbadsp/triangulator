@@ -1,0 +1,542 @@
+Triangulator
+○ omarchy · cpu · · absent
+● omarchy · default · /var/tmp/triangulator-bug-lab.EmEk1v/bugbench PID 4172119 · live
+1 other target needs attention
+bb-thread-leak PID 4172119 · Live · just now
+Manage targets
+Theme
+System
+Light
+Dark
+Summary
+Threads
+Resources
+Sockets
+Memory
+Monitor
+Settings
+Summary
+
+bb-thread-leak · 602 threads. Trends kept in this tab since 01:23:19 AM.
+
+1 min
+5 min
+15 min
+Assessment
+Worth a look
+as of 01:26:02 AM
+
+602 of 602 threads are waiting: 600 futex wait, 2 sleep. No thread is using noticeable CPU. Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.
+
+!
+2 watch rules match no thread
+No thread matches watch rules “MsgP”, “PrdDist”: the threads may have exited or been renamed. Check the prefix, or remove the rule.
+!
+Thread count keeps growing
+8 to 602 threads in 2.5 min, +238 threads/min, and still rising. Each thread holds a stack; if none ever exit, this is a leak (for example workers or requests that wait forever). The cgroup allows 18824 processes and threads (728 in use); at this rate it is full in about 76 min.
+!
+Resident memory grows without a plateau
+RSS rose in 75 of the last 80 samples (+2.1 MiB/min over 3 min). Anonymous: 5.5 MiB; heap: 132.0 KiB.
+i
+High thread churn
+At least 183 threads started and 1 ended in the last minute (threads that start and exit between samples are not counted). Short-lived threads cost creation time; consider a pool.
+Active threads
+2
+of 602 · 600 idle for 10 s+
+Context switches
+7/s
+3.5/s per active thread
+Disk & syscall I/O
+0 B/s
+read 0 B/s · write 0 B/s
+Thread churn
++183 / −1
+lower bound · seen starting / ending, last minute
+Process load
+
+Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.
+
+0.00
+1-minute load
+5 min
+0.00
+15 min (3 min of data)
+0.00
+On CPU now
+0.00 cores
+Waiting for CPU
+negligible
+Busiest thread
+all idle
+0
+0.03
+0.05
+01:23:19 AM
+01:24:40 AM
+01:26:02 AM
+On CPU
+0.00
+Waiting for CPU
+0.00
+1-min average
+Memory use
+
+Physical memory and mapped address space.
+
+Resident memory (RSS)
+7.5 MiB
+0 B
+5 MiB
+10 MiB
+01:23:19 AM
+01:24:40 AM
+01:26:02 AM
+Virtual size (VmSize)
+605.1 MiB
+0 B
+512 MiB
+1 GiB
+01:23:19 AM
+01:24:40 AM
+01:26:02 AM
+Timeline
+Recordings & past assessments
+Process details
+Last process exit
+Exited normally
+bb-thread-churn · PID 4160075 · 3 min ago · 18 exits since the collector started
+Threads (2 of 602)
+
+Thread activity and wait states. Select a row for history; press / to search.
+
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+500
+1000
+01:23:19 AM
+01:24:40 AM
+01:26:02 AM
+Futex wait
+600
+Sleep
+2
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+__futex_wait
+600
+hrtimer_nanosleep
+2
+Thread map
+
+One tile per thread (602), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+Futex wait
+600
+Sleep
+2
+Hover a square for its CPU · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+worker-park
+0.0%×600
+bb-thread-leak
+0.0%×1
+worker-ok
+0.0%×1
+Core placement
+Thread details
+Active 2
+Idle 600
+All 602
+Group
+All groups
+ungrouped (1)
+worker (601)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+2
+Sleep
+2
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+2
+hrtimer_nanosleep
+2
+
+600 idle threads hidden (600 futex wait). Longest futex wait: over 3 min.Show them
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+bb-thread-leak
+TID 4172119
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	5.0	·	·	·	3
+worker-ok
+TID 4172122
+	worker	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	2.0	·	·	·	4
+Pressure, limits & sockets
+
+Resource stalls, remaining capacity, and socket queues. Updated just now.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+0.1%
+full 0.0% · cgroup
+Memory (RSS)
+7.5 MB
+peak 7.5 MB · swap 0 B
+Open files
+3
+0.0% of limit 524288 · 0 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+0 B
+unread 0 B · unsent 0 B
+Network drops
+0.00/s
+connections and packets, namespace-wide
+TCP retransmits
+0.00/s
+0.0% of segments sent
+CLOSE-WAIT
+0
+closed by the peer, not by the app
+Pressure stalls (PSI)
+
+Time lost waiting for CPU, memory, or I/O. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+01:11:04 AM
+01:18:34 AM
+01:26:04 AM
+CPU some
+0.1%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	0.1%	0.0%	0.1%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+3 / 524288
+Cgroup memory
+no memory.max limit
+1.6 GB
+Processes & threads
+cgroup pids.max
+728 / 18824
+TCP memory
+pressure at 974.2 MB, limit 1.4 GB · host-wide
+0 B
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+0 B
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+15 · 0 orphaned · 423 time-wait
+Bytes waiting in the target's sockets
+
+Receive: waiting for the app. Send: waiting for the peer or network.
+
+0 B
+97.7 KB
+195.3 KB
+01:11:04 AM
+01:18:34 AM
+01:26:04 AM
+Receive queue (unread)
+0 B
+Send queue (unsent)
+0 B
+0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listening
+Network stack drops & errors
+Fullest sockets (0 of 0 reported)
+
+Sockets ranked by buffer use in the latest sample.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+The target has no sockets the sampler could list.
+
+Sample 82 · every 2 s · 0 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.
+
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 20 µs. Updated 5 s ago.
+
+Virtual size (VmSize)
+605.1 MiB
+limit: unlimited · peak 605.1 MiB
+Resident (RSS)
+7.5 MiB
+▲ 2.1 MiB / min
+Anonymous / file / shared
+5.5 / 2.1 / 0.0
+MiB: RssAnon / File / Shmem
+Mappings (VMAs)
+45
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+0 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+WARNING
+Resident memory grows without a plateau
+RSS rose in 75 of the last 80 samples (+2.1 MiB/min over 3 min). Anonymous: 5.5 MiB; heap: 132.0 KiB.
+NOTICE
+Main stack is at 1.6% of its limit
+[stack] is 132.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+45 / 1048576
+Address space
+no RLIMIT_AS limit
+605.1 MiB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+132.0 KiB / 8.0 MiB
+Peak virtual size
+605.1 MiB
+Data + heap (VmData)
+155.4 MiB
+Page tables
+376.0 KiB
+Locked
+0 B
+Page faults since start
+0 major · 1516 minor
+Longest maps read
+20 µs (2 reads, 20 µs total)
+
+Address space & zoom
+Every mapping, and a zoom into one
+Address space 18 regions · updated 15 s ago
+
+High addresses at the top. Unmapped spaces between mappings are shortened.
+
+ffffffffff600000
+[vsyscall]
+--xp · 4.0 KiB
+⋮
+kernel half of the address space
+7ffffbb16000
+[stack]
+rw-p · 132.0 KiB · grows ↓
+⋮
+≈ 389.0 GiB not mapped
+7f9ebcdab000
+[anonymous]
+rw-p · 4.0 KiB
+7f9ebcd6b000
+ld-linux-x86-64.so.2
+rwxp · 256.0 KiB
+7f9ebcd63000
+[vvar] [vvar_vclock] [vdso]
+r-xp r--p · 32.0 KiB
+7f9ebcd3a000
+ld.so.cache
+r--p · 164.0 KiB
+7f9ebcc1b000
+2 anonymous regions
+rw-p · 1.1 MiB
+7f9ebca00000
+libc.so.6
+rwxp · 2.1 MiB
+7f9e97209000
+4 anonymous regions
+rw-p · 599.8 MiB
+⋮
+≈ 41.8 TiB not mapped
+55c71864a000
+[heap]
+rw-p · 132.0 KiB · grows ↑
+55c701364000
+[anonymous]
+rw-p · 1.3 MiB
+55c70135b000
+bugbench (probably the program)
+rwxp · 36.0 KiB
+program / library code
+heap (brk)
+anonymous (arenas, mmap)
+stack
+file mapping
+guard (no access)
+kernel
+
+The darker part of a bar is its size on a log scale, from 4 KB to the largest bar. Adjacent mappings of the same kind are joined into one bar. Mapped is not resident: a bar can be large and use little RAM. Click a bar to zoom.
+
+Zoom: [heap]
+
+0x55c71864a000 – 0x55c71866b000 · rw-p · grows ↑
+
+Size (mapped)
+132.0 KiB
+Address span
+132.0 KiB
+Regions / VMAs
+1 / 1
+Share of VmSize
+0.0%
+Not mapped inside
+0 B
+Largest unmapped gap
+0 B
+Largest region
+132.0 KiB
+Heap mapping size change
+0 B in 3 min
+Page size
+4.0 KiB
+
+Top = high address. One square = 4.0 KiB (1 page), 49 squares.
+Heap display margin · heap mapping end 0x55c71866b000 · grid 0x55c71864a000 – 0x55c71867b000
+
+heap (brk)
+not mapped
+
+Cells show mappings, not resident pages.
+
+Heap mapping end ↑
+0 B / min
+Offset: 0 B → 0 B
+Main stack start ↓
+0 B / min
+Offset: 0 B → 0 B
+Resident anonymous
++2.1 MiB / min
+192.0 KiB → 5.5 MiB
+
+Boundary offsets start at the first available sample. History covers up to 15 minutes.
+
+Thread stacks can keep a fixed reserved size while residency changes.
+
+Member regions
+Monitor
+Monitor health
+Monitor diagnostics (raw health JSON)
+How to read this page
+Settings
+
+Change how the collector watches this process, without editing files on the collector host. Changes apply at once.
+
+Watched threads
+
+Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.
+
+From the config file (collector.toml).
+
+Thread name prefix	Wakes at least every (ms)	Matching threads now	Remove
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+Add rule
+Save
+Reset to config file
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

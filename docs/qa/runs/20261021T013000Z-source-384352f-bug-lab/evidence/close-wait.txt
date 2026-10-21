@@ -1,0 +1,615 @@
+Triangulator
+○ omarchy · cpu · · absent
+● omarchy · default · /var/tmp/triangulator-bug-lab.EmEk1v/bugbench PID 4157854 · live
+1 other target needs attention
+bb-close-wait PID 4157854 · Live · just now
+Manage targets
+Theme
+System
+Light
+Dark
+Summary
+Threads
+Resources
+Sockets
+Memory
+Monitor
+Settings
+Summary
+
+bb-close-wait · 4 threads. Trends kept in this tab since 01:19:35 AM.
+
+1 min
+5 min
+15 min
+Assessment
+Worth a look
+as of 01:20:44 AM
+
+4 of 4 threads are waiting: 3 sleep, 1 socket wait. No thread is using noticeable CPU.
+
+!
+2 watch rules match no thread
+No thread matches watch rules “MsgP”, “PrdDist”: the threads may have exited or been renamed. Check the prefix, or remove the rule.
+!
+885 connections in CLOSE-WAIT
+Peers closed these connections but the app never closed its end. Usually a missing close() on an error path: a descriptor leak.
+Active threads
+4
+of 4 · 0 idle for 10 s+
+Context switches
+32/s
+8.1/s per active thread
+Disk & syscall I/O
+62 B/s
+read 0 B/s · write 62 B/s
+Thread churn
++0 / −0
+lower bound · seen starting / ending, last minute
+Process load
+
+Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.
+
+0.00
+1-minute load
+5 min
+0.00
+15 min (69 s of data)
+0.00
+On CPU now
+0.00 cores
+Waiting for CPU
+negligible
+Busiest thread
+all idle
+0
+0.03
+0.05
+01:19:35 AM
+01:20:09 AM
+01:20:44 AM
+On CPU
+0.00
+Waiting for CPU
+0.00
+1-min average
+Memory use
+
+Physical memory and mapped address space.
+
+Resident memory (RSS)
+2.0 MiB
+0 B
+1 MiB
+2 MiB
+01:19:35 AM
+01:20:09 AM
+01:20:44 AM
+Virtual size (VmSize)
+197.0 MiB
+0 B
+100 MiB
+200 MiB
+01:19:35 AM
+01:20:09 AM
+01:20:44 AM
+Timeline
+Recordings & past assessments
+Process details
+Last process exit
+Exited normally
+bb-udp-drop · PID 4156735 · 73 s ago · 15 exits since the collector started
+Threads (4)
+
+Thread activity and wait states. Select a row for history; press / to search.
+
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+3
+5
+01:19:35 AM
+01:20:09 AM
+01:20:44 AM
+Socket wait
+1
+Sleep
+3
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+hrtimer_nanosleep
+3
+inet_csk_accept
+1
+Thread map
+
+One tile per thread (4), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+<0.1%
+<0.1%
+<0.1%
+<0.1%
+Socket wait
+1
+Sleep
+3
+Number = CPU % of one core, last ~10 s · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+bb-close-wait
+0.0%×1
+worker-accept
+0.0%×1
+sender
+0.0%×1
+worker-ok
+0.0%×1
+Core placement
+Thread details
+Active 4
+Idle 0
+All 4
+Group
+All groups
+ungrouped (1)
+worker (2)
+sender (1)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+4
+Socket wait
+1
+Sleep
+3
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+4
+hrtimer_nanosleep
+3
+inet_csk_accept
+1
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+bb-close-wait
+TID 4157854
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	5.0	·	·	·	4
+worker-accept
+TID 4157856
+	worker	
+Socket wait
+inet_csk_accept
+	
+	
+0.0%
+	0.0%	12.5	·	·	·	2
+sender-1
+TID 4157857
+	sender	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	12.9	·	62 B	·	1
+worker-ok
+TID 4157858
+	worker	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	2.0	·	·	·	4
+Pressure, limits & sockets
+
+Resource stalls, remaining capacity, and socket queues. Updated just now.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+0.0%
+full 0.0% · cgroup
+Memory (RSS)
+2.0 MB
+peak 2.0 MB · swap 0 B
+Open files
+889
+0.2% of limit 524288 · 886 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+5.2 KB
+unread 5.2 KB · unsent 0 B
+Network drops
+0.00/s
+connections and packets, namespace-wide
+TCP retransmits
+0.00/s
+0.0% of segments sent
+CLOSE-WAIT
+885
+closed by the peer, not by the app
+Pressure stalls (PSI)
+
+Time lost waiting for CPU, memory, or I/O. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+01:05:45 AM
+01:13:15 AM
+01:20:45 AM
+CPU some
+0.0%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	0.0%	0.0%	0.1%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+889 / 524288
+Cgroup memory
+no memory.max limit
+1.4 GB
+Processes & threads
+cgroup pids.max
+141 / 18824
+TCP memory
+pressure at 974.2 MB, limit 1.4 GB · host-wide
+3.5 MB
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+2.1 MB
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+901 · 1 orphaned · 1189 time-wait
+Bytes waiting in the target's sockets
+
+Receive: waiting for the app. Send: waiting for the peer or network.
+
+0 B
+97.7 KB
+195.3 KB
+01:05:45 AM
+01:13:15 AM
+01:20:45 AM
+Receive queue (unread)
+5.2 KB
+Send queue (unsent)
+0 B
+886 TCP · 0 UDP · 0 UNIX · 0 established · 885 close-wait · 1 listening
+Network stack drops & errors
+
+Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.
+
+Counter	Rate (/s)	In range	Total
+Retransmitted segments
+Segments sent again: packet loss or congestion on some path.
+	0.00/s	10	29K
+Connections reset
+Established connections reset, by the peer or locally.
+	0.00/s	3	5267
+UDP receive buffer full
+Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.
+	0.00/s	247.4K	256.7K
+UDP input errors
+Datagrams that could not be delivered, including receive-buffer drops.
+	0.00/s	247.4K	256.7K
+Receive queue pruning
+The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.
+	0.00/s	—	488
+Retransmission timeouts
+A retransmission timer fired: a peer went quiet or the loss was severe.
+	0.00/s	0	356
+Aborted after timeouts
+Connections given up after repeated timeouts.
+	0.00/s	—	16
+Failed connection attempts
+Outgoing connections that failed (refused or timed out).
+	0.00/s	—	24K
+UDP to closed ports
+Datagrams to ports nobody listens on.
+	0.00/s	—	1580
+Interface transmit drops
+A network interface dropped outgoing packets (queue full or link trouble).
+	0.00/s	—	38
+16 other counters are zero.
+Fullest sockets (24 of 24 reported, more not listed)
+
+Sockets ranked by buffer use in the latest sample.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+TCP CLOSE-WAIT · fd 371	127.0.0.1:58169 → 127.0.0.1:36894	6 B	
+1.5%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 4	127.0.0.1:58169 → 127.0.0.1:47550	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 5	127.0.0.1:58169 → 127.0.0.1:47558	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 6	127.0.0.1:58169 → 127.0.0.1:47574	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 7	127.0.0.1:58169 → 127.0.0.1:47586	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 8	127.0.0.1:58169 → 127.0.0.1:47590	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 9	127.0.0.1:58169 → 127.0.0.1:47040	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 10	127.0.0.1:58169 → 127.0.0.1:47052	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.03 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 11	127.0.0.1:58169 → 127.0.0.1:47068	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 12	127.0.0.1:58169 → 127.0.0.1:47084	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 13	127.0.0.1:58169 → 127.0.0.1:47096	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 14	127.0.0.1:58169 → 127.0.0.1:47108	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 15	127.0.0.1:58169 → 127.0.0.1:47112	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.02 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 16	127.0.0.1:58169 → 127.0.0.1:47114	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 17	127.0.0.1:58169 → 127.0.0.1:47122	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 18	127.0.0.1:58169 → 127.0.0.1:47130	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 19	127.0.0.1:58169 → 127.0.0.1:47140	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 20	127.0.0.1:58169 → 127.0.0.1:47196	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 21	127.0.0.1:58169 → 127.0.0.1:47150	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 22	127.0.0.1:58169 → 127.0.0.1:47160	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.02 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 23	127.0.0.1:58169 → 127.0.0.1:47174	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.02 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 24	127.0.0.1:58169 → 127.0.0.1:47178	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.02 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 25	127.0.0.1:58169 → 127.0.0.1:47184	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.02 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+TCP CLOSE-WAIT · fd 26	127.0.0.1:58169 → 127.0.0.1:47246	6 B	
+0.7%
+	0 B	
+0.0%
+	0	0.01 ms	0	Unread data waitingPeer closed; the app has not closed its socket
+
+Sample 35 · every 2 s · 886 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.
+
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 18 µs. Updated 4 s ago.
+
+Virtual size (VmSize)
+197.0 MiB
+limit: unlimited · peak 229.0 MiB
+Resident (RSS)
+2.0 MiB
+peak 2.0 MiB · swap 0 B
+Anonymous / file / shared
+0.1 / 1.9 / 0.0
+MiB: RssAnon / File / Shmem
+Mappings (VMAs)
+33
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+1 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+NOTICE
+Main stack is at 1.6% of its limit
+[stack] is 132.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.
+OK
+Nothing unusual in the memory map
+Mappings, address space and stack are well within their limits.
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+33 / 1048576
+Address space
+no RLIMIT_AS limit
+197.0 MiB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+132.0 KiB / 8.0 MiB
+Peak virtual size
+229.0 MiB
+Data + heap (VmData)
+2.7 MiB
+Page tables
+60.0 KiB
+Locked
+0 B
+Page faults since start
+1 major · 148 minor
+Longest maps read
+18 µs (2 reads, 18 µs total)
+
+Address space & zoom
+Every mapping, and a zoom into one
+Monitor
+Monitor health
+Monitor diagnostics (raw health JSON)
+How to read this page
+Settings
+
+Change how the collector watches this process, without editing files on the collector host. Changes apply at once.
+
+Watched threads
+
+Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.
+
+From the config file (collector.toml).
+
+Thread name prefix	Wakes at least every (ms)	Matching threads now	Remove
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+Add rule
+Save
+Reset to config file
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

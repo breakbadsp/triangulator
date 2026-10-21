@@ -1,0 +1,550 @@
+Triangulator
+○ omarchy · cpu · · absent
+● omarchy · default · /var/tmp/triangulator-bug-lab.EmEk1v/bugbench PID 4158940 · live
+1 other target needs attention
+bb-listen-full PID 4158940 · Live · just now
+Manage targets
+Theme
+System
+Light
+Dark
+Summary
+Threads
+Resources
+Sockets
+Memory
+Monitor
+Settings
+Summary
+
+bb-listen-full · 6 threads. Trends kept in this tab since 01:20:49 AM.
+
+1 min
+5 min
+15 min
+Assessment
+Something is struggling
+as of 01:21:58 AM
+
+6 of 6 threads are waiting: 4 poll / epoll, 2 sleep. No thread is using noticeable CPU.
+
+▲
+12 incoming connections dropped
+Accept queue of 127.0.0.1:54781 is 300% full. A listener’s accept queue overflowed in the last interval (namespace-wide counter). The app is not accepting fast enough, or the backlog is too small.
+!
+2 watch rules match no thread
+No thread matches watch rules “MsgP”, “PrdDist”: the threads may have exited or been renamed. Check the prefix, or remove the rule.
+Active threads
+6
+of 6 · 0 idle for 10 s+
+Context switches
+10/s
+1.7/s per active thread
+Disk & syscall I/O
+0 B/s
+read 0 B/s · write 0 B/s
+Thread churn
++0 / −0
+lower bound · seen starting / ending, last minute
+Process load
+
+Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.
+
+0.00
+1-minute load
+5 min
+0.00
+15 min (68 s of data)
+0.00
+On CPU now
+0.00 cores
+Waiting for CPU
+negligible
+Busiest thread
+all idle
+0
+0.03
+0.05
+01:20:49 AM
+01:21:24 AM
+01:21:58 AM
+On CPU
+0.00
+Waiting for CPU
+0.00
+1-min average
+Memory use
+
+Physical memory and mapped address space.
+
+Resident memory (RSS)
+2.0 MiB
+0 B
+2.5 MiB
+5 MiB
+01:20:49 AM
+01:21:24 AM
+01:21:58 AM
+Virtual size (VmSize)
+325.5 MiB
+0 B
+250 MiB
+500 MiB
+01:20:49 AM
+01:21:24 AM
+01:21:58 AM
+Timeline
+Recordings & past assessments
+Process details
+Last process exit
+Exited normally
+bb-close-wait · PID 4157854 · 73 s ago · 16 exits since the collector started
+Threads (6)
+
+Thread activity and wait states. Select a row for history; press / to search.
+
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+5
+10
+01:20:49 AM
+01:21:24 AM
+01:21:58 AM
+Poll / epoll
+4
+Sleep
+2
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+poll_schedule_timeout
+4
+hrtimer_nanosleep
+2
+Thread map
+
+One tile per thread (6), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+<0.1%
+<0.1%
+<0.1%
+<0.1%
+<0.1%
+<0.1%
+Poll / epoll
+4
+Sleep
+2
+Number = CPU % of one core, last ~10 s · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+sender
+0.0%×4
+bb-listen-full
+0.0%×1
+worker-ok
+0.0%×1
+Core placement
+Thread details
+Active 6
+Idle 0
+All 6
+Group
+All groups
+ungrouped (1)
+sender (4)
+worker (1)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+6
+Poll / epoll
+4
+Sleep
+2
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+6
+poll_schedule_timeout
+4
+hrtimer_nanosleep
+2
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+bb-listen-full
+TID 4158940
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	·	5.1	·	·	·	5
+sender-0
+TID 4158942
+	sender	
+Poll / epoll
+poll_schedule_timeout
+	
+	
+0.0%
+	·	0.7	·	·	·	2
+sender-1
+TID 4158943
+	sender	
+Poll / epoll
+poll_schedule_timeout
+	
+	
+0.0%
+	·	0.7	·	·	·	2
+sender-2
+TID 4158944
+	sender	
+Poll / epoll
+poll_schedule_timeout
+	
+	
+0.0%
+	·	0.7	·	·	·	5
+sender-3
+TID 4158945
+	sender	
+Poll / epoll
+poll_schedule_timeout
+	
+	
+0.0%
+	0.0%	0.7	·	·	·	3
+worker-ok
+TID 4158946
+	worker	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	·	2.0	·	·	·	2
+Pressure, limits & sockets
+
+Resource stalls, remaining capacity, and socket queues. Updated 2 s ago.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+0.3%
+full 0.3% · cgroup
+Memory (RSS)
+2.0 MB
+peak 2.0 MB · swap 0 B
+Open files
+8
+0.0% of limit 524288 · 5 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+4 B
+unread 0 B · unsent 4 B
+Network drops
+6.00/s
+connections and packets, namespace-wide
+TCP retransmits
+2.00/s
+0.8% of segments sent
+CLOSE-WAIT
+0
+closed by the peer, not by the app
+Pressure stalls (PSI)
+
+Time lost waiting for CPU, memory, or I/O. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+01:07:00 AM
+01:14:30 AM
+01:22:00 AM
+CPU some
+0.3%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	0.3%	0.3%	0.3%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+8 / 524288
+Cgroup memory
+no memory.max limit
+1.4 GB
+Processes & threads
+cgroup pids.max
+134 / 18824
+Accept backlog
+127.0.0.1:54781
+3 / 1
+TCP memory
+pressure at 974.2 MB, limit 1.4 GB · host-wide
+1.9 MB
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+2.1 MB
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+23 · 1 orphaned · 435 time-wait
+Bytes waiting in the target's sockets
+
+Receive: waiting for the app. Send: waiting for the peer or network.
+
+0 B
+97.7 KB
+195.3 KB
+01:07:00 AM
+01:14:30 AM
+01:22:00 AM
+Receive queue (unread)
+0 B
+Send queue (unsent)
+4 B
+5 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 1 listening
+Network stack drops & errors
+
+Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.
+
+Counter	Rate (/s)	In range	Total
+Accept queue overflows
+A listener’s accept queue was full and a new connection was dropped. The app is not calling accept() fast enough, or the backlog (listen(), somaxconn) is too small.
+	6.00/s	346	383
+Listen drops
+Every dropped incoming connection attempt, overflows included.
+	6.00/s	346	383
+Retransmitted segments
+Segments sent again: packet loss or congestion on some path.
+	2.00/s	186	29.2K
+Retransmission timeouts
+A retransmission timer fired: a peer went quiet or the loss was severe.
+	2.00/s	174	548
+Connections reset
+Established connections reset, by the peer or locally.
+	0.00/s	3	6173
+UDP receive buffer full
+Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.
+	0.00/s	247.4K	256.7K
+UDP input errors
+Datagrams that could not be delivered, including receive-buffer drops.
+	0.00/s	247.4K	256.7K
+SYN cookies sent
+The SYN queue overflowed and the kernel fell back to SYN cookies: a connection burst, a flood, or a slow accept loop.
+	0.00/s	—	1
+Receive queue pruning
+The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.
+	0.00/s	—	488
+Aborted after timeouts
+Connections given up after repeated timeouts.
+	0.00/s	—	16
+Failed connection attempts
+Outgoing connections that failed (refused or timed out).
+	0.00/s	—	24K
+UDP to closed ports
+Datagrams to ports nobody listens on.
+	0.00/s	—	1580
+Interface transmit drops
+A network interface dropped outgoing packets (queue full or link trouble).
+	0.00/s	—	38
+13 other counters are zero.
+Fullest sockets (5 of 5 reported)
+
+Sockets ranked by buffer use in the latest sample.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+TCP LISTEN · fd 3
+listener
+	127.0.0.1:54781	3 pending	
+300%
+	—	—	383 (+12)	—	0	Accept queue full: new connections are dropped12 dropped in the last interval
+TCP SYN-SENT · fd 4	127.0.0.1:39872 → 127.0.0.1:54781	0 B	
+0.0%
+	1 B	
+5.9%
+	0	0.00 ms	0	Connect unanswered: check accept queue
+TCP SYN-SENT · fd 5	127.0.0.1:39878 → 127.0.0.1:54781	0 B	
+0.0%
+	1 B	
+5.9%
+	0	0.00 ms	0	Connect unanswered: check accept queue
+TCP SYN-SENT · fd 6	127.0.0.1:39856 → 127.0.0.1:54781	0 B	
+0.0%
+	1 B	
+5.9%
+	0	0.00 ms	0	Connect unanswered: check accept queue
+TCP SYN-SENT · fd 7	127.0.0.1:39884 → 127.0.0.1:54781	0 B	
+0.0%
+	1 B	
+5.9%
+	0	0.00 ms	0	Connect unanswered: check accept queue
+
+Sample 34 · every 2 s · 5 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.
+
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 17 µs. Updated 4 s ago.
+
+Virtual size (VmSize)
+325.5 MiB
+limit: unlimited · peak 389.5 MiB
+Resident (RSS)
+2.0 MiB
+peak 2.0 MiB · swap 0 B
+Anonymous / file / shared
+0.2 / 1.9 / 0.0
+MiB: RssAnon / File / Shmem
+Mappings (VMAs)
+36
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+0 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+NOTICE
+Main stack is at 1.6% of its limit
+[stack] is 132.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.
+OK
+Nothing unusual in the memory map
+Mappings, address space and stack are well within their limits.
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+36 / 1048576
+Address space
+no RLIMIT_AS limit
+325.5 MiB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+132.0 KiB / 8.0 MiB
+Peak virtual size
+389.5 MiB
+Data + heap (VmData)
+3.4 MiB
+Page tables
+68.0 KiB
+Locked
+0 B
+Page faults since start
+0 major · 156 minor
+Longest maps read
+17 µs (2 reads, 18 µs total)
+
+Address space & zoom
+Every mapping, and a zoom into one
+Monitor
+Monitor health
+Monitor diagnostics (raw health JSON)
+How to read this page
+Settings
+
+Change how the collector watches this process, without editing files on the collector host. Changes apply at once.
+
+Watched threads
+
+Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.
+
+From the config file (collector.toml).
+
+Thread name prefix	Wakes at least every (ms)	Matching threads now	Remove
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+Add rule
+Save
+Reset to config file
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

@@ -11,11 +11,11 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Live page](runs/20261011T110000Z-ci-5189c47/evidence/qa001-live.txt) |
-| QA-002 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Second target](runs/20261011T110000Z-ci-5189c47/evidence/qa002-second.txt) |
-| QA-003 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Validation page](runs/20261011T110000Z-ci-5189c47/evidence/qa003-invalid.txt) |
-| QA-004 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Named target](runs/20261011T110000Z-ci-5189c47/evidence/qa004-2-running.txt) |
-| QA-005 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Replay drawer](runs/20261011T110000Z-ci-5189c47/evidence/qa005-3-replay-drawer.txt) |
+| QA-001 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
+| QA-002 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
+| QA-003 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
+| QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
+| QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Help sweep](runs/20261011T110000Z-ci-5189c47/evidence/qa007-help.json) |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
@@ -41,8 +41,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-029 | NOT_RUN | - | - | - |
 | QA-030 | NOT_RUN | - | - | - |
 | QA-031 | NOT_RUN | - | - | - |
-| QA-032 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
-| QA-033 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
+| QA-032 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Watch intervals](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa032-watch-intervals.txt) |
+| QA-033 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Stopped views](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa033-stopped-views.txt) |
 | QA-034 | NOT_RUN | - | - | - |
 | QA-035 | NOT_RUN | - | - | - |
 | QA-036 | NOT_RUN | - | - | - |
@@ -51,7 +51,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-039 | NOT_RUN | - | - | - |
 | QA-045 | NOT_RUN | - | - | - |
 | QA-046 | NOT_RUN | - | - | - |
-| QA-047 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/initial-a.json) |
+| QA-047 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Two viewers](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa047-two-viewers.txt) |
 | QA-048 | NOT_RUN | - | - | - |
 | QA-049 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/stale-target-a.json) |
 | QA-050 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
@@ -63,40 +63,40 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-056 | NOT_RUN | - | - | - |
 | QA-057 | NOT_RUN | - | - | - |
 | QA-058 | NOT_RUN | - | - | - |
-| QA-059 | NOT_RUN | - | - | - |
-| QA-060 | NOT_RUN | - | - | - |
+| QA-059 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
+| QA-060 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Budget](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa060-budget.txt) |
 | QA-061 | NOT_RUN | - | - | - |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
 | QA-064 | NOT_RUN | - | - | - |
-| QA-065 | NOT_RUN | - | - | - |
-| QA-066 | NOT_RUN | - | - | - |
+| QA-065 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
+| QA-066 | BLOCKED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | - |
 | QA-067 | NOT_RUN | - | - | - |
 | QA-068 | NOT_RUN | - | - | - |
 | QA-069 | NOT_RUN | - | - | - |
 | QA-070 | NOT_RUN | - | - | - |
-| QA-071 | NOT_RUN | - | - | - |
-| QA-072 | NOT_RUN | - | - | - |
-| QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
-| QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
-| QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
-| QA-104 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Quota page](runs/20261011T110000Z-ci-5189c47/evidence/qa104-cpu-throttle.txt) |
-| QA-105 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Yield page](runs/20261011T110000Z-ci-5189c47/evidence/qa105-yield-storm.txt) |
-| QA-106 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Contention page](runs/20261011T110000Z-ci-5189c47/evidence/qa106-lock-convoy.txt) |
-| QA-107 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Futex page](runs/20261011T110000Z-ci-5189c47/evidence/qa107-deadlock.txt) |
-| QA-108 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa108-mem-leak.txt) |
-| QA-109 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Pressure page](runs/20261011T110000Z-ci-5189c47/evidence/qa109-mem-oom.txt) |
-| QA-110 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Address-space page](runs/20261011T110000Z-ci-5189c47/evidence/qa110-vm-bloat.txt) |
-| QA-111 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Descriptor page](runs/20261011T110000Z-ci-5189c47/evidence/qa111-fd-leak.txt) |
-| QA-112 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Storage page](runs/20261011T110000Z-ci-5189c47/evidence/qa112-disk-sync.txt) |
-| QA-113 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Fault page](runs/20261011T110000Z-ci-5189c47/evidence/qa113-major-faults.txt) |
-| QA-114 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [TCP page](runs/20261011T110000Z-ci-5189c47/evidence/qa114-tcp-slow.txt) |
-| QA-115 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [UDP page](runs/20261011T110000Z-ci-5189c47/evidence/qa115-udp-drop.txt) |
-| QA-116 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Socket page](runs/20261011T110000Z-ci-5189c47/evidence/qa116-close-wait.txt) |
-| QA-117 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Listen page](runs/20261011T110000Z-ci-5189c47/evidence/qa117-listen-full.txt) |
-| QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
-| QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
-| QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+| QA-071 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Removed target](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa071-removed-target.txt) |
+| QA-072 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Timeline](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa072-clean-timeline.txt) |
+| QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
+| QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
+| QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
+| QA-104 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-throttle.txt) |
+| QA-105 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/yield-storm.txt) |
+| QA-106 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/lock-convoy.txt) |
+| QA-107 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/deadlock.txt) |
+| QA-108 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/mem-leak.txt) |
+| QA-109 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/mem-oom.txt) |
+| QA-110 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/vm-bloat.txt) |
+| QA-111 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/fd-leak.txt) |
+| QA-112 | BLOCKED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Recheck](runs/20261021T013000Z-source-384352f-bug-lab/evidence/qa112-recheck.txt) |
+| QA-113 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/major-faults.txt) |
+| QA-114 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/tcp-slow.txt) |
+| QA-115 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/udp-drop.txt) |
+| QA-116 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/close-wait.txt) |
+| QA-117 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/listen-full.txt) |
+| QA-118 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-churn.txt) |
+| QA-119 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-leak.txt) |
+| QA-120 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/stopped.txt) |
 
 ## QA-067: Single-target install after a collector-only upgrade
 
