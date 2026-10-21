@@ -40,10 +40,10 @@ or unknown. Use `high` only for a concrete, complex risk with enough tokens
 left for fixes and the merge gate. Do not select higher effort by default.
 
 Critical changes: if the change is critical, or touches a critical path, run at
-least one reviewer as Opus 5.5 at effort `high`. Use Astra 6 at `medium` or
-`low` instead when it is available and the limits allow. Until Astra 6 is
-configured, use Opus 5.5 `high`. This rule overrides the budget-based effort
-above for that reviewer.
+least one reviewer as Opus 5.5 at effort `high`. Use GPT 6.1 Sol at effort
+`high` instead when it is available and the limits allow. Never use Astra 6.
+Whenever Astra 6 would be chosen, use GPT 6.1 Sol at `high`. This rule
+overrides the budget-based effort above for that reviewer.
 
 ## Triage
 
