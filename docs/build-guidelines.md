@@ -20,6 +20,9 @@ See [the test report](almalinux-user-test.md) for the evidence and test limits.
 
 Make compares saved build options without an external command.
 The build does not require `cmp` or diffutils.
+Default C++ builds use link-time optimization (`-flto`) during compilation and
+linking. To disable it, set the complete flags explicitly:
+`make CXXFLAGS='-O2 -Wall -Wextra -Werror -Wconversion -Wshadow'`.
 The dashboard tests require Node.js. An absent Node.js executable fails the tests.
 The optional eBPF kernel test is separate and remains disabled in normal checks.
 
