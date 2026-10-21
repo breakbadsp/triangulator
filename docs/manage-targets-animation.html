@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage targets and multi-target monitoring · Triangulator</title>
+<style>
+  :root { color-scheme:light dark; --ink:var(--foreground,light-dark(#17342e,#e2eee8)); --dim:var(--muted-foreground,light-dark(#526b62,#a0b9ae)); --line:var(--border,light-dark(#c9d9d0,#344f44)); --panel:var(--card,light-dark(#f5f9f6,#182a23)); --green:var(--success-foreground,light-dark(#12674d,#78d8ad)); --blue:var(--info-foreground,light-dark(#285caa,#93b8ff)); --orange:var(--warning-foreground,light-dark(#965015,#f2bb77)); --radius:12px; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); font:15px/1.5 system-ui,sans-serif; }
+  main { max-width:1050px; margin:24px auto; }
+  h1 { font-size:clamp(23px,4vw,32px); line-height:1.2; letter-spacing:-.03em; margin:0 0 10px; }
+  h2 { font-size:18px; margin:0 0 8px; }
+  p { margin:0 0 12px; }
+  .lead,.muted { color:var(--dim); }
+  .lead { max-width:800px; }
+  a { color:var(--blue); text-underline-offset:3px; }
+  code,pre { font-family:ui-monospace,monospace; font-size:.86em; overflow-wrap:anywhere; }
+  button,select { font:inherit; color:inherit; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--green); }
+  button:disabled { opacity:.45; cursor:default; }
+  button:focus-visible,select:focus-visible,a:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+  .scenarios,.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .scenarios { margin:20px 0 14px; }
+  .scenarios button[aria-pressed=true],#play { background:var(--primary,var(--green)); color:var(--primary-foreground,light-dark(#fff,#10261c)); border-color:var(--primary,var(--green)); }
+  .scene { display:grid; grid-template-columns:1fr auto; align-items:start; gap:12px; margin-bottom:12px; }
+  .scene h2 { margin:0; }
+  .scope { font-size:12px; border:1px solid var(--line); border-radius:30px; padding:4px 10px; white-space:nowrap; }
+  .board { border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:16px 0; }
+  .lane-title { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--dim); margin:0 0 8px; }
+  .lane-title strong { text-transform:uppercase; letter-spacing:.07em; font-size:11px; color:var(--ink); }
+  .flow { display:grid; grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr); align-items:stretch; }
+  .node { min-width:0; padding:14px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); transition:border-color .2s,box-shadow .2s; }
+  .node strong { display:block; font-size:15px; }
+  .node small { display:block; color:var(--dim); font-size:12px; }
+  .node.active { border-color:var(--green); box-shadow:inset 0 0 0 1px var(--green); }
+  .node.python.active { border-color:var(--orange); box-shadow:inset 0 0 0 1px var(--orange); }
+  .node .state { display:block; font-size:12px; margin-top:9px; color:var(--green); }
+  .node.python .state { color:var(--orange); }
+  .wire { position:relative; display:grid; place-items:center; color:var(--dim); overflow:hidden; }
+  .wire::before { content:'→'; }
+  .wire i { display:none; position:absolute; left:0; top:calc(50% - 4px); width:8px; height:8px; border-radius:50%; background:var(--green); }
+  .wire.active i { display:block; animation:travel 1.7s linear infinite; }
+  .wire.samples i:nth-child(2) { background:var(--blue); animation-delay:-.55s; }
+  .wire.samples i:nth-child(3) { background:var(--orange); animation-delay:-1.1s; }
+  .two-targets .wire.samples i:nth-child(3) { display:none; }
+  @keyframes travel { from { transform:translateX(-8px); } to { transform:translateX(36px); } }
+  .configuration { margin:12px 0 18px; display:grid; grid-template-columns:1fr 1.25fr; gap:12px; }
+  pre { margin:8px 0 0; white-space:pre-wrap; }
+  .reload { font-size:13px; color:var(--dim); }
+  .targets { margin:9px 0 0; padding:0; list-style:none; }
+  .targets li { display:flex; align-items:center; gap:7px; font-size:12px; padding:3px 0; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
+  .billing .dot { background:var(--blue); }
+  .gateway .dot { background:var(--orange); }
+  #processes .sampling { font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+  .views { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  .views label { display:block; font-size:12px; color:var(--dim); margin:8px 0; }
+  .views select { display:block; width:100%; padding:5px; font-size:13px; margin-top:4px; }
+  .view-note { font-size:12px; color:var(--dim); margin:8px 0 0; }
+  .narration { padding:16px; background:var(--panel); border-radius:var(--radius); margin:16px 0 12px; min-height:132px; }
+  .narration h3 { font-size:17px; margin:0 0 5px; }
+  .narration p { margin:0; color:var(--dim); }
+  .step-count { color:var(--green); font-size:12px; font-weight:650; margin-bottom:4px; }
+  .controls label { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:13px; }
+  .progress { height:3px; background:var(--line); margin:12px 0; }
+  #progress { height:100%; background:var(--green); width:0; }
+  .steps { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:20px; }
+  .steps button { font-size:12px; padding:5px 9px; }
+  .steps button[aria-current=step] { border-color:var(--green); color:var(--green); box-shadow:inset 0 -2px var(--green); }
+  .notes { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:24px; }
+  .notes p,.notes li { font-size:14px; color:var(--dim); }
+  .notes ul { margin:0; padding-left:18px; }
+  details { margin-top:20px; border-top:1px solid var(--line); padding-top:14px; }
+  summary { cursor:pointer; font-weight:650; }
+  details p { margin-top:10px; font-size:14px; color:var(--dim); }
+  footer { border-top:1px solid var(--line); margin-top:22px; padding-top:14px; font-size:12px; color:var(--dim); }
+  body.paused .wire i { animation-play-state:paused; }
+  @media(prefers-reduced-motion:reduce) { .wire i { animation:none !important; left:40%; } .node { transition:none; } }
+  @media(max-width:650px) { main { margin:16px 0; } .node { padding:12px; } .flow { grid-template-columns:minmax(0,1fr); gap:6px; } .wire { height:12px; } .wire::before { content:'↓'; line-height:12px; } .wire.active i { display:none; } .configuration,.notes { grid-template-columns:1fr; } .scene { grid-template-columns:1fr; gap:5px; } .scope { justify-self:start; } .lane-title { flex-wrap:wrap; gap:2px; } .controls label { margin-left:0; } .narration { min-height:0; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>One sampler. Several targets.</h1>
+  <p class="lead">“Manage targets” changes which processes the sampler monitors. Python handles local control requests. The C++ sampler and collector handle continuous monitoring.</p>
+  <p class="muted"><small>Interactive explanation. Names, PIDs, sessions, and timings are examples. This page does not control a running sampler.</small></p>
+  <nav class="scenarios" aria-label="Animation scenario">
+    <button type="button" data-scenario="add" aria-pressed="true">Add target</button>
+    <button type="button" data-scenario="monitor" aria-pressed="false">Monitor targets</button>
+    <button type="button" data-scenario="switch" aria-pressed="false">Switch this tab</button>
+    <button type="button" data-scenario="remove" aria-pressed="false">Remove target</button>
+  </nav>
+  <div class="scene"><h2 id="scene-title">Add gateway to the shared target list</h2><span class="scope" id="scope">Affects every viewer</span></div>
+  <section class="narration" aria-live="polite" aria-atomic="true">
+    <div class="step-count" id="step-count"></div><h3 id="step-title"></h3><p id="step-text"></p>
+  </section>
+  <div class="controls" aria-label="Playback controls">
+    <button type="button" id="play">Pause</button><button type="button" id="previous">Previous</button><button type="button" id="next">Next</button><button type="button" id="restart">Restart</button>
+    <label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+  </div>
+  <div class="progress" aria-hidden="true"><div id="progress"></div></div>
+  <nav class="steps" id="steps" aria-label="Animation steps"></nav>
+  <div class="board" id="board" aria-label="Control and sample flow">
+    <div class="lane-title"><strong>Local control requests</strong><span>Same host and user · loopback dashboard</span></div>
+    <div class="flow">
+      <section class="node" id="control-browser"><strong>Browser</strong><small>Manage targets panel</small><span class="state" id="browser-state">Open target list</span></section>
+      <span class="wire" id="request-wire" aria-hidden="true"><i></i></span>
+      <section class="node" id="control-collector"><strong>Collector · C++</strong><small>HTTP API</small><span class="state" id="collector-state">Checks local control</span></section>
+      <span class="wire" id="helper-wire" aria-hidden="true"><i></i></span>
+      <section class="node python" id="python"><strong>Helper · Python</strong><small><code>sampler_control.py</code></small><span class="state" id="python-state">Runs for each request</span></section>
+    </div>
+    <div class="configuration">
+      <section class="node" id="config"><strong>Active sampler configuration</strong><small>Normally <code>~/triangulator/config/sampler.toml</code></small><pre id="config-text"></pre></section>
+      <section class="node reload" id="reload"><strong>Apply a confirmed change</strong><p>Lock edits → validate a temporary file with the running sampler binary → replace the configuration → send <code>SIGHUP</code>.</p><span class="state" id="reload-state">No change yet</span></section>
+    </div>
+    <div class="lane-title"><strong>Continuous monitoring</strong><span id="sample-status">2 targets · Python is outside this flow</span></div>
+    <div class="flow">
+      <section class="node" id="processes"><strong>Linux /proc</strong><small>Raw counters for each target</small><ul class="targets" id="process-list"></ul></section>
+      <span class="wire samples active" id="read-wire" aria-hidden="true"><i></i><i></i><i></i></span>
+      <section class="node" id="sampler"><strong>Sampler · C++</strong><small>One process · one thread</small><span class="state" id="sampler-state">One shared sampling loop</span><small>One process scan per tick.<br>Heavy scans rotate across targets.<br>Shared CPU budget: 1% by default.</small></section>
+      <span class="wire samples active" id="udp-wire" aria-hidden="true"><i></i><i></i><i></i></span>
+      <section class="node" id="data-collector"><strong>Collector · C++</strong><small>UDP → target slots → HTTP</small><ul class="targets" id="slot-list"></ul></section>
+    </div>
+    <div class="views">
+      <section class="node" id="tab-a"><strong>Browser tab A</strong><label>Selected target<select id="select-a"></select></label><small id="view-a"></small></section>
+      <section class="node" id="tab-b"><strong>Browser tab B</strong><label>Selected target<select id="select-b"></select></label><small id="view-b"></small></section>
+    </div>
+    <p class="view-note">Try either selector. Each tab reads one target through HTTP. The shared monitored target list stays the same. The two collector cards show the same collector process.</p>
+  </div>
+  <div class="notes">
+    <section><h2>Why does control use Python?</h2><p>The dashboard reuses the helper used by <code>scripts/set-target.sh</code> and <code>scripts/set-rate.sh</code>. It finds the local sampler, reads its configuration, checks edits, and requests a reload.</p><p>Each control request starts a short Python process. Opening the panel also uses it to read the target list. It exits after the request. It does not collect samples.</p><p>The documented requirement is Python 3.11+. Python 3.6.8 lacks functions this helper uses, such as <code>str.removesuffix()</code> and <code>Path.is_relative_to()</code>. Python is a dependency of the current control helper. Multi-target sampling itself runs in C++.</p></section>
+    <section><h2>What stays shared?</h2><ul><li>One sampler monitors all configured targets on each host.</li><li>Each target has its own session. A reload keeps sessions for unchanged selectors when global settings stay the same.</li><li>The collector routes samples by session. TTGT announcements map sessions to a host and target ID.</li><li>Add and remove change monitoring for every viewer. A target selector changes only its browser tab.</li><li>The default CPU budget is 1% of one core. The sampler reduces the shared rate when needed. This is a budget, not a hard limit.</li></ul></section>
+  </div>
+  <details><summary>Why can “Manage targets” be missing?</summary><p>The collector enables local control only when its HTTP listener and all configured sampler source addresses are loopback addresses. For example, <code>http_host = "0.0.0.0"</code> disables this control.</p><p>The helper must be at <code>../scripts/sampler_control.py</code> relative to the directory of the collector executable. A compatible <code>python3</code> must be on the collector process PATH. The sampler must run locally as the same user, with a writable configuration, and send to this collector. An error can also leave the panel unavailable.</p><p>A Git pull alone does not replace a running collector. From the updated checkout, run <code>scripts/restart.sh all</code>, then reload the dashboard. Preserve the active configuration. For remote samplers, edit their configuration or run the control scripts on the sampler host.</p><p>Check the response on the collector host: <code>curl -sS http://127.0.0.1:9401/api/targets/control</code>. Use the configured HTTP port.</p></details>
+  <details><summary>Limits, removal, and process restarts</summary><p>The sampler accepts at most 16 targets. The collector has <code>max_targets = 8</code> slots by default. Control checks capacity and keeps at least one configured target.</p><p>A process name follows restarts. A fixed PID identifies one process. A missing process is shown as absent. An ambiguous process name is also absent.</p><p>Manage targets removes a target from the list at once. Removal through a script or a remote configuration can leave a silent target until <code>target_idle_expiry_s</code> passes (600 seconds by default). Recorded history remains available.</p></details>
+  <footer>Open this file directly in a browser. No server, packages, or network connection are required.<br>Read: <a href="setup.md#multiple-targets-on-one-host">Setup</a> · <a href="multi-target-design.md">Multi-target design</a><br>Implementation: <a href="../collector/dashboard.html">dashboard.html</a> · <a href="../collector/target_control.hpp">target_control.hpp</a> · <a href="../scripts/sampler_control.py">sampler_control.py</a> · <a href="../sampler/main.cpp">sampler/main.cpp</a></footer>
+</main>
+<script>
+'use strict';
+const targets = [
+  {id:'orders', process:'orders-api', pid:1234, session:'A'},
+  {id:'billing', process:'billing-api', pid:5678, session:'B'},
+  {id:'gateway', process:'gateway-api', pid:9012, session:'C'}
+];
+// Every step describes a complete illustration, so Previous and direct jumps
+// produce the same state as sequential playback. No real control API is used.
+const scenarios = {
+  add:{title:'Add gateway to the shared target list',scope:'Affects every viewer',steps:[
+    {label:'Read list',title:'Open Manage targets',text:'The browser sends GET /api/targets/control. The C++ collector checks local control and starts the Python helper to read the running sampler configuration.',active:['control-browser','control-collector','python','request-wire','helper-wire'],count:2,python:'Read list, then exit'},
+    {label:'Check add',title:'Check the new target before confirmation',text:'Enter ID gateway and exact process name gateway-api. The browser sends POST /api/targets with check:true. The helper checks the selector, ID, and capacity. It does not write the configuration.',active:['control-browser','control-collector','python','request-wire','helper-wire'],count:2,python:'Validate input, then exit'},
+    {label:'Confirm',title:'Confirm a shared change',text:'The browser asks: Add gateway? This changes monitoring for every viewer. Cancel leaves the configuration unchanged. This example continues with confirmation.',active:['control-browser'],count:2,python:'Idle · no control request'},
+    {label:'Lock + validate',title:'Validate the candidate configuration',text:'The browser sends the confirmed POST /api/targets. A new helper process locks edits and checks the sampler endpoint. It writes a temporary file and runs /proc/PID/exe --check-config against that file. A failed check leaves the active file unchanged.',active:['control-collector','python','config','reload','request-wire','helper-wire'],count:2,python:'Lock and validate',reload:'Temporary file checked · active file unchanged'},
+    {label:'Write + signal',title:'Replace the file and send SIGHUP',text:'After a successful check, the helper atomically replaces the active configuration and sends SIGHUP to the existing sampler. The sampler stays one process. The helper returns a response and exits.',active:['python','config','reload'],count:2,configured:3,python:'Write, signal, then exit',reload:'Configuration replaced · SIGHUP sent'},
+    {label:'Reload',title:'The same sampler adds gateway',text:'The sampler reloads the target set. Orders and billing keep their sessions because their selectors and global settings did not change. Gateway gets its own session. TTGT announcements tell the collector which host and target ID own each session.',active:['sampler','data-collector','udp-wire'],count:3,python:'Idle · no sample work',reload:'Reload applied · unchanged sessions retained'},
+    {label:'Read views',title:'All three targets are monitored',text:'The collector keeps separate target state and history. Both browser tabs can list gateway through GET /api/targets. Each tab still displays its selected target. Python is outside the continuous sample flow.',active:['data-collector','tab-a','tab-b'],count:3,python:'Idle · no sample work',reload:'Three configured targets'}
+  ]},
+  monitor:{title:'One loop monitors all three targets',scope:'Monitoring continues for every viewer',steps:[
+    {label:'Find processes',title:'Share one process scan',text:'One sampler process runs one thread on a monotonic deadline. It shares process discovery across the targets. Exact names orders-api, billing-api, and gateway-api resolve to their own PIDs.',active:['processes','sampler','read-wire'],count:3,sampling:'orders'},
+    {label:'Read counters',title:'Read each target in the same tick',text:'The sampler reads raw thread counters for every target. It sends counters rather than alerts or interpreted rates. Resource and memory-map work rotates across targets, with at most one heavy scan in a tick.',active:['processes','sampler','read-wire'],count:3,sampling:'billing'},
+    {label:'Route UDP',title:'Keep each target separate',text:'Non-blocking UDP carries the samples. Each target has a session. TTGT maps that session to host-a/orders, host-a/billing, or host-a/gateway. The collector uses the mapping to update the correct target slot and store its history.',active:['sampler','data-collector','udp-wire'],count:3,sampling:'gateway'},
+    {label:'Read HTTP',title:'Each browser reads its selected target',text:'Tab A requests /api/live?target=host-a/orders. Tab B can request host-a/billing. The collector computes counter rates; the dashboard computes findings such as Assessment. Python does not run on the sample path.',active:['data-collector','tab-a','tab-b'],count:3}
+  ]},
+  switch:{title:'Switch the view in browser tab A',scope:'Affects tab A only',steps:[
+    {label:'Before',title:'Two tabs can show different targets',text:'All three targets are monitored. Tab A shows orders and tab B shows billing. Their selections are independent.',active:['tab-a','tab-b'],count:3,viewA:'orders',viewB:'billing'},
+    {label:'Switch',title:'Tab A selects gateway',text:'Tab A changes its URL to ?target=host-a/gateway and reads that target through HTTP. It resets its target view and loads live data. It does not write sampler configuration or ask Python to change targets. Tab B stays on billing.',active:['tab-a','data-collector'],count:3,viewA:'gateway',viewB:'billing'}
+  ]},
+  remove:{title:'Remove gateway from shared monitoring',scope:'Affects every viewer',steps:[
+    {label:'Confirm remove',title:'Confirm removal of gateway',text:'The browser asks for confirmation. This example starts with three targets, so two remain. Removing the last configured target is refused.',active:['control-browser'],count:3},
+    {label:'Validate + signal',title:'Apply the smaller target list',text:'The confirmed POST /api/targets uses action:remove. The helper locks edits, checks that gateway still matches, validates a temporary configuration, replaces the file, and sends SIGHUP.',active:['control-collector','python','config','reload','request-wire','helper-wire'],count:3,configured:2,python:'Validate, write, signal, then exit',reload:'Configuration replaced · SIGHUP sent'},
+    {label:'Remove',title:'The same sampler continues with two targets',text:'The sampler reloads and stops sampling gateway. The collector removes gateway from the managed list at once for all viewers. Orders and billing continue with their existing sessions. Recorded history is retained.',active:['sampler','data-collector','tab-a','tab-b'],count:2,python:'Idle · no sample work',reload:'Gateway removed · orders and billing continue'}
+  ]}
+};
+const element = id => document.getElementById(id);
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let scenario = 'add', step = 0, playing = !reducedMotion.matches, elapsed = 0, lastTime = null;
+const duration = 6500;
+let selection = {a:'orders',b:'billing'};
+function setPlaying(value) {
+  playing = value;
+  element('play').textContent = playing ? 'Pause' : 'Play';
+  document.body.classList.toggle('paused', !playing);
+}
+function renderTargets(list, count, slots, sampling) {
+  list.replaceChildren(...targets.slice(0,count).map(target => {
+    const row = document.createElement('li'); row.className = target.id;
+    row.classList.toggle('sampling',target.id===sampling);
+    const dot = document.createElement('span'); dot.className='dot'; dot.setAttribute('aria-hidden','true');
+    const label = document.createElement('span'); label.textContent = slots ? target.id+' · session '+target.session : target.process+' · PID '+target.pid;
+    row.append(dot,label); return row;
+  }));
+}
+function renderViews(count) {
+  for (const tab of ['a','b']) {
+    const select=element('select-'+tab);
+    if (!targets.slice(0,count).some(target=>target.id===selection[tab])) selection[tab]='orders';
+    select.replaceChildren(...targets.slice(0,count).map(target=>new Option(target.id,target.id)));
+    select.value=selection[tab];
+    element('view-'+tab).textContent='GET /api/live?target=host-a/'+selection[tab];
+  }
+}
+function render() {
+  const scene=scenarios[scenario], current=scene.steps[step];
+  document.querySelectorAll('.active').forEach(node=>node.classList.remove('active'));
+  for (const id of [...current.active,'read-wire','udp-wire']) element(id).classList.add('active');
+  element('scene-title').textContent=scene.title; element('scope').textContent=scene.scope;
+  element('step-count').textContent='Step '+(step+1)+' of '+scene.steps.length;
+  element('step-title').textContent=current.title; element('step-text').textContent=current.text;
+  element('python-state').textContent=current.python||'Idle · no sample work';
+  element('reload-state').textContent=current.reload||'No configuration change';
+  element('browser-state').textContent=scenario==='add'||scenario==='remove'?'Shared target list':'View selection only';
+  element('collector-state').textContent=current.active.includes('control-collector')?'Handle control request':'Control API idle';
+  element('sampler-state').textContent=current.count+' targets · sessions '+targets.slice(0,current.count).map(target=>target.session).join(', ');
+  element('sample-status').textContent=current.count+' targets · Python is outside this flow';
+  element('board').classList.toggle('two-targets',current.count===2);
+  const configured=current.configured||current.count;
+  element('config-text').textContent=targets.slice(0,configured).map(target=>'[[target]]\nid = "'+target.id+'"\nprocess = "'+target.process+'"').join('\n\n');
+  renderTargets(element('process-list'),current.count,false,current.sampling);
+  renderTargets(element('slot-list'),current.count,true);
+  if (current.viewA) selection.a=current.viewA;
+  if (current.viewB) selection.b=current.viewB;
+  renderViews(current.count);
+  element('previous').disabled=step===0; element('next').disabled=step===scene.steps.length-1;
+  document.querySelectorAll('[data-scenario]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.scenario===scenario)));
+  element('steps').querySelectorAll('button').forEach((button,index)=>{
+    if(index===step) button.setAttribute('aria-current','step');
+    else button.removeAttribute('aria-current');
+  });
+  element('progress').style.width='0%';
+}
+function renderSteps() {
+  element('steps').replaceChildren(...scenarios[scenario].steps.map((item,index)=>{
+    const button=document.createElement('button'); button.type='button'; button.textContent=(index+1)+'. '+item.label;
+    if(index===step) button.setAttribute('aria-current','step');
+    button.onclick=()=>jump(index); return button;
+  }));
+}
+function jump(index) { step=index; elapsed=0; setPlaying(false); render(); }
+document.querySelectorAll('[data-scenario]').forEach(button=>button.onclick=()=>{
+  scenario=button.dataset.scenario; step=0; elapsed=0; selection={a:'orders',b:'billing'}; renderSteps(); render();
+});
+element('previous').onclick=()=>jump(Math.max(0,step-1));
+element('next').onclick=()=>jump(Math.min(scenarios[scenario].steps.length-1,step+1));
+element('restart').onclick=()=>{ step=0; elapsed=0; selection={a:'orders',b:'billing'}; render(); };
+element('play').onclick=()=>{
+  if(!playing&&step===scenarios[scenario].steps.length-1&&elapsed>=duration) { step=0; elapsed=0; render(); }
+  setPlaying(!playing);
+};
+for(const tab of ['a','b']) element('select-'+tab).onchange=event=>{
+  selection[tab]=event.target.value; setPlaying(false); renderViews(scenarios[scenario].steps[step].count);
+};
+reducedMotion.addEventListener('change',event=>{ if(event.matches) setPlaying(false); });
+document.addEventListener('visibilitychange',()=>{ lastTime=null; });
+function animate(time) {
+  const delta=lastTime===null?0:Math.min(time-lastTime,100); lastTime=time;
+  if(playing&&!document.hidden) {
+    elapsed+=delta*Number(element('speed').value);
+    if(elapsed>=duration) {
+      if(step<scenarios[scenario].steps.length-1) { step++; elapsed=0; render(); }
+      else { elapsed=duration; setPlaying(false); }
+    }
+    element('progress').style.width=(elapsed/duration*100)+'%';
+  }
+  requestAnimationFrame(animate);
+}
+renderSteps(); render(); setPlaying(playing); requestAnimationFrame(animate);
+</script>
+</body>
+</html>

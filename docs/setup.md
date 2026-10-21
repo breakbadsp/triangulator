@@ -738,6 +738,10 @@ version and result.
 
 ## Multiple targets on one host
 
+The [Manage targets animation](manage-targets-animation.html) shows add,
+remove, sampling, and per-tab selection. It explains why local control uses
+Python. Download the HTML file and open it in a browser. It works offline.
+
 Upgrade the collector before the sampler. An older collector rejects TTGT
 announcements. Keep exactly one sampler process on each host.
 

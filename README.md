@@ -14,8 +14,8 @@
 
 Monitor a Linux process, its threads, CPU demand, wait channels, memory, and socket I/O.
 Inspect live activity or return to a recorded moment.
-The current sampler monitors one target process. Support for several targets
-is [proposed](docs/multi-target-design.md).
+One sampler monitors several target processes on each host. See the
+[multi-target design](docs/multi-target-design.md).
 
 ## Dashboard tour
 
@@ -62,6 +62,9 @@ scripts/set-target.sh 1234  # Replace 1234 with your process ID.
 
 Open **<http://127.0.0.1:9401>**. Use **Manage targets** to add or remove
 monitored processes. The target selector changes only the current tab.
+See the [Manage targets animation](docs/manage-targets-animation.html) for
+the control requests, Python helper, and shared sampler loop. Download the
+HTML file and open it in a browser. It also works offline.
 
 | Default | Value |
 | --- | --- |
@@ -219,8 +222,8 @@ recorded execution result.
 | PASSED | 41 | - |
 | FAILED | 7 | QA-004, QA-007, QA-060, QA-061, QA-071, QA-075, QA-078 |
 | BLOCKED | 10 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051, QA-066, QA-112 |
-| NOT_RUN | 34 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-062, QA-063, QA-064, QA-067, QA-068, QA-069, QA-070 |
-| **Total** | **92** | |
+| NOT_RUN | 35 | QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-062, QA-063, QA-064, QA-067, QA-068, QA-069, QA-070, QA-079 |
+| **Total** | **93** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

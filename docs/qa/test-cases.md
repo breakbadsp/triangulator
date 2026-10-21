@@ -83,6 +83,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
+| QA-079 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -1645,6 +1646,27 @@ Controls and display settings have no Source section. File paths use code
 type, stay readable in both themes, and wrap inside the card.
 
 Source: [Contextual help design](../contextual-help-design.md).
+
+## QA-079: Manage targets documentation animation
+
+Feature: Interactive documentation. Priority: Low. Case revision: 1.
+Status: NOT_RUN.
+
+Preconditions: Open `docs/manage-targets-animation.html` directly in a browser.
+No running sampler or collector is required.
+
+1. Play Add target. Use Pause, Previous, Next, Restart, step buttons, and Speed.
+2. Select Monitor targets, Switch this tab, and Remove target. Inspect each step.
+3. Change the target selector in tab A. Check tab B and the monitored target count.
+4. Repeat at a 390-pixel viewport. Check keyboard focus and reduced motion.
+5. Disconnect the network and reload. Open both explanatory disclosures.
+
+Expected: All scenarios work offline. Add changes two monitored targets to
+three after reload. Remove returns to two. The Python helper runs for control
+requests. One C++ sampler process and thread monitor all targets. Sessions A
+and B remain stable. A tab selection changes only that tab. The page has no
+horizontal overflow. Reduced motion starts playback paused. The page makes
+no sampler or collector API requests.
 
 ## QA-057: Network counter column names
 
