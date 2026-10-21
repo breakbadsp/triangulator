@@ -687,38 +687,36 @@ static void listen_full(void)
 
 // ---------------------------------------------------------------- threads
 
+// A short task: a little work, then a 5 ms wait, like a small request that
+// waits on I/O. Each thread lives a few milliseconds.
 static void* short_task(void* arg)
 {
   (void)arg;
   volatile uint64_t x = 0;
-    (void)x;
   for (int i = 0; i < 20000; ++i)
   {
     x += (uint64_t)i;
   }
+  (void)x;
+  sleep_ms(5);
   return NULL;
 }
 
-// BUG: starts a new thread per task instead of using a pool, about 150 per second.
+// BUG: starts a new thread per task instead of using a pool, about 150 per
+// second. At 0.2-10 Hz the sampler sees only the threads alive at a sample, so
+// the dashboard shows a lower bound, far below the real rate.
 static void* churn_spawner(void* arg)
 {
   (void)arg;
   while (running())
   {
-    pthread_t t[15];
-    int n = 0;
-    for (; n < 15; ++n)
+    pthread_t t;
+    int started = pthread_create(&t, NULL, short_task, NULL) == 0;
+    sleep_ms(6);
+    if (started)
     {
-      if (pthread_create(&t[n], NULL, short_task, NULL) != 0)
-      {
-        break;
-      }
+      pthread_join(t, NULL);
     }
-    for (int i = 0; i < n; ++i)
-    {
-      pthread_join(t[i], NULL);
-    }
-    sleep_ms(100);
   }
   return NULL;
 }
