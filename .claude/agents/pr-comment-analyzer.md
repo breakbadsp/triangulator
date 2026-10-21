@@ -26,7 +26,7 @@ PR number, worktree path, round number. Read the findings yourself from GitHub: 
 
 ## Limits
 
-- Never approve, merge, or close. Never start agents or run `/pr-review-merge`. Never rerun or cancel CI jobs.
+- Never approve, merge, or close. Never start agents or run `/loomflow`. Never rerun or cancel CI jobs.
 - If a fix breaks the check and you cannot repair it quickly, revert it, mark the finding `OUT-OF-SCOPE`, and include the failing output.
 
 ## Final message

@@ -1,7 +1,7 @@
-# Pull request review workflow
+# LoomFlow: pull request review workflow
 
 Tool-neutral spec. Any agent runner can follow it: Claude Code, Codex, or a
-script. `.claude/commands/pr-review-merge.md` and `.claude/agents/` are the
+script. `.claude/commands/loomflow.md` and `.claude/agents/` are the
 Claude Code adapter. The spec uses only `git` and `gh`, so it works for any
 GitHub repository. Repository details come from that repository's `AGENTS.md`
 or README: the check command, coding standards, and which paths are sensitive.

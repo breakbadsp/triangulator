@@ -21,7 +21,7 @@ PR. If build and test inputs match and the base branch has no untested code
 changes, the format and container jobs are skipped. The log links to the
 reused run. Test fixtures, including Markdown files under `tests/`, remain
 inputs. Missing history or API access causes a full run. Manual and nightly
-dispatches always run the tests. See [check reuse](pr-review-workflow.md#reuse-passing-checks).
+dispatches always run the tests. See [check reuse](loomflow.md#reuse-passing-checks).
 T3 dispatches full nightly runs at 03:00 in `Asia/Kolkata` on the latest
 `master` commit. GitHub cron triggers are disabled. The T3 host must be awake
 and its scheduling service must be running. See
