@@ -37,6 +37,11 @@
 #include <time.h>
 #include <unistd.h>
 
+// Linux defines this advice as 21. Older libc headers do not expose it.
+#ifndef MADV_PAGEOUT
+#define MADV_PAGEOUT 21
+#endif
+
 static volatile sig_atomic_t g_stop;
 static double g_deadline;
 static double g_start;

@@ -67,6 +67,18 @@ class CommandTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertFalse(self.home.exists())
 
+    @unittest.skipUnless(shutil.which("gcc"), "GCC is required to install the fixture")
+    def test_fixture_builds_when_headers_lack_madv_pageout(self):
+        headers = self.root / "headers"
+        (headers / "sys").mkdir(parents=True)
+        (headers / "sys/mman.h").write_text(
+            "#include_next <sys/mman.h>\n#undef MADV_PAGEOUT\n"
+        )
+        self.environment["CPATH"] = str(headers)
+        result = self.run_command("list")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("major-faults", result.stdout.splitlines())
+
 
 class SessionTest(unittest.TestCase):
     def setUp(self):
