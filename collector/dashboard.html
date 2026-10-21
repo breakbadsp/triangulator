@@ -2033,7 +2033,7 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   const queued=['tcp_rcvq_drop','tcp_backlog_drop','tcp_zero_window_drop'].reduce((sum,key)=>sum+grew(key),0);
   if(queued)add('warning',`${queued} TCP packets dropped at full socket queues`,'Receive buffers or socket backlogs were full in the last interval: a reader is too slow.');
   const sent=grew('tcp_out_segs'),retrans=grew('tcp_retrans_segs');
-  if(sent>=100&&retrans/sent>=.01)add('warning',`${pct(100*retrans/sent)} of TCP segments retransmitted`,'Packet loss or congestion on some path; expect latency spikes. Check the sockets with retransmits below.');
+  if(sent>=100&&retrans/sent>=.02)add('warning',`${pct(100*retrans/sent)} of TCP segments retransmitted`,'Packet loss or congestion on some path; expect latency spikes. Check the sockets with retransmits below.');
   const tcpMemory=r.sockstat?.tcp_mem,pressureAt=r.limits?.tcp_mem?.[1];
   if(grew('tcp_memory_pressures')||(isNum(tcpMemory)&&isNum(pressureAt)&&pressureAt>0&&tcpMemory>=pressureAt))add('serious','TCP is under memory pressure','The kernel is shrinking socket buffers (net.ipv4.tcp_mem), which slows every TCP connection on the host.');
   const closeWait=r.sockets?.tcp_states?.close_wait||0;

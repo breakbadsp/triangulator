@@ -416,6 +416,18 @@ test('socket rules name the slow reader, the slow peer and overflowing listeners
   assert.ok(notes.includes('Zero-window probing (2)'), notes.join('\n'));
 });
 
+test('TCP retransmissions become a finding at 2% of segments sent', () => {
+  const app = dashboard();
+  const sample = resources();
+  const retransmitted = delta => {
+    sample.network.tcp_retrans_segs = {delta, per_s: delta / 5, total: delta};
+    return findingsOf(app, sample).filter(item => item.title.includes('TCP segments retransmitted'))
+      .map(item => `${item.level}: ${item.title}`).join('\n');
+  };
+  assert.equal(retransmitted(15), '');
+  assert.equal(retransmitted(20), 'warning: 2.0% of TCP segments retransmitted');
+});
+
 test('a socket that is not transferring data is never called a zero-window peer', () => {
   const app = dashboard();
   const sample = resources();
