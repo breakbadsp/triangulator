@@ -2,6 +2,7 @@ import os
 import json
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -320,13 +321,13 @@ class ScriptTests(unittest.TestCase):
         # QA-078. The collector holds five targets; a sixth must not disturb them.
         self.start_dashboard(extra="max_targets = 5\n")
         config = self.runtime / "config/sampler.toml"
-        others = [subprocess.Popen(["sleep", "60"]) for _ in range(5)]
+        others = [subprocess.Popen(["sleep", "60"]) for _ in range(6)]
         for other in others:
             self.addCleanup(stop, other)
         tables = "".join(f'[[target]]\nid = "t{index}"\npid = {process.pid}\n'
                          for index, process in enumerate([self.target] + others[:4]))
         config.write_text(f'rate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n{tables}')
-        self.start_sampler(config)
+        sampler = self.start_sampler(config)
         headers = {"X-Triangulator": "1"}
 
         def ids():
@@ -354,8 +355,21 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual({entry["id"]: entry["session"] for entry in targets["targets"]}, sessions)
         self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "t4"}, headers)[0], 200)
         wait_ids(["t0", "t1", "t2", "t3"])
-        self.assertEqual(self.api("/api/targets", sixth, headers)[0], 200)
+        # Two adds back to back at four targets. The paused sampler cannot
+        # reload, so the collector still publishes four targets when the
+        # second add arrives; the configured count must refuse it.
+        seventh = {"action": "add", "id": "t6", "target": str(others[5].pid)}
+        os.kill(sampler.pid, signal.SIGSTOP)
+        try:
+            self.assertEqual(self.api("/api/targets", sixth, headers)[0], 200)
+            for body in (seventh, {**seventh, "check": True}):
+                status, data = self.api("/api/targets", body, headers)
+                self.assertEqual(status, 409, data)
+                self.assertIn("limit of 5 targets", data["error"])
+        finally:
+            os.kill(sampler.pid, signal.SIGCONT)
         wait_ids(["t0", "t1", "t2", "t3", "t5"])
+        self.assertEqual(self.api("/api/targets")[1]["capacity_drops"], 0)
         after = {entry["id"]: entry["session"] for entry in self.api("/api/targets")[1]["targets"]}
         for name in ("t0", "t1", "t2", "t3"):
             self.assertEqual(after[name], sessions[name])
