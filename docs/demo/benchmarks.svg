@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" width="1200" height="780" role="img" aria-labelledby="t d">
+<title id="t">Benchmarks and performance numbers</title>
+<desc id="d">Sampler cost at 5 Hz is 0.46 percent of one core at 100 threads, 1.29 percent at 300 and 2.10 percent at 500, with 0.89, 2.52 and 4.12 ms thread-sample latency. The C++ collector uses 4.08 percent of one core at 1,000 threads and 10 Hz against 32.2 percent for the former Python collector, with a p95 live API latency of 0.89 ms against 78.8 ms. No packets were lost.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a0f1f"/><stop offset="1" stop-color="#121c3b"/></linearGradient>
+<pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#7f9bff" fill-opacity="0.12"/></pattern>
+<clipPath id="round"><rect width="1200" height="780" rx="20"/></clipPath>
+</defs>
+<style>
+text { font-family: Inter, "Segoe UI", -apple-system, Helvetica, Arial, sans-serif; fill: #dbe4ff; }
+.h { font-size: 18px; font-weight: 700; }
+.s { font-size: 13px; fill: #9db0d6; }
+.m { font-size: 12px; fill: #9db0d6; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.zone { font-size: 12px; font-weight: 700; letter-spacing: 2.4px; fill: #7f93c4; }
+.big { font-size: 34px; font-weight: 800; }
+.box { fill: #101a38; stroke-width: 1.6; }
+</style>
+<g clip-path="url(#round)"><rect width="1200" height="780" fill="url(#bg)"/><rect width="1200" height="780" fill="url(#dots)"/>
+<text class="h" x="30" y="40" style="font-size:22px">Benchmarks and performance numbers</text>
+<text class="s" x="30" y="58">Measured on one desktop host (Intel i5-9500, Linux, loopback UDP). Results are host-specific. Bars grow in a loop.</text>
+<rect class="box" x="30" y="82" width="270" height="104" rx="12" stroke="#34d399" stroke-opacity="0.8"/>
+<text class="big" x="48" y="130" style="fill:#34d399">2.1%<animate attributeName="fill-opacity" values="1;0.7;1" dur="3.2s" begin="0.0s" repeatCount="indefinite"/></text>
+<text class="h" x="48" y="154" style="font-size:14px">of one core</text>
+<text class="s" x="48" y="173">sampler, 500 threads at 5 Hz</text>
+<rect class="box" x="320" y="82" width="270" height="104" rx="12" stroke="#60a5fa" stroke-opacity="0.8"/>
+<text class="big" x="338" y="130" style="fill:#60a5fa">4.1 ms<animate attributeName="fill-opacity" values="1;0.7;1" dur="3.2s" begin="0.4s" repeatCount="indefinite"/></text>
+<text class="h" x="338" y="154" style="font-size:14px">per thread sample</text>
+<text class="s" x="338" y="173">500 threads, median</text>
+<rect class="box" x="610" y="82" width="270" height="104" rx="12" stroke="#a78bfa" stroke-opacity="0.8"/>
+<text class="big" x="628" y="130" style="fill:#a78bfa">2 MiB<animate attributeName="fill-opacity" values="1;0.7;1" dur="3.2s" begin="0.8s" repeatCount="indefinite"/></text>
+<text class="h" x="628" y="154" style="font-size:14px">sampler memory</text>
+<text class="s" x="628" y="173">RSS, 100 to 500 threads</text>
+<rect class="box" x="900" y="82" width="270" height="104" rx="12" stroke="#fbbf24" stroke-opacity="0.8"/>
+<text class="big" x="918" y="130" style="fill:#fbbf24">0<animate attributeName="fill-opacity" values="1;0.7;1" dur="3.2s" begin="1.2000000000000002s" repeatCount="indefinite"/></text>
+<text class="h" x="918" y="154" style="font-size:14px">packets lost</text>
+<text class="s" x="918" y="173">2,500 threads × 10 Hz</text>
+<rect class="box" x="30" y="206" width="560" height="400" rx="14" stroke="#6b7aa5" stroke-opacity="0.5"/>
+<text class="zone" x="50" y="234">SAMPLER · 5 HZ DEFAULT</text>
+<text class="s" x="50" y="254">CPU as % of one core, and median time for one complete thread sample.</text>
+<text class="h" x="50" y="296" style="font-size:15px">100 threads</text>
+<rect x="190" y="284" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="284" width="55.2" height="14" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;55.2;55.2;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="296" style="fill:#dbe4ff">0.46%</text><text class="m" x="182" y="296" text-anchor="end">CPU</text>
+<rect x="190" y="306" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="306" width="53.4" height="14" rx="4" fill="#60a5fa" fill-opacity="0.9"><animate attributeName="width" values="0;0;53.4;53.4;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="318" style="fill:#dbe4ff">0.89 ms</text><text class="m" x="182" y="318" text-anchor="end">latency</text>
+<text class="h" x="50" y="374" style="font-size:15px">300 threads</text>
+<rect x="190" y="362" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="362" width="154.8" height="14" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;154.8;154.8;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="374" style="fill:#dbe4ff">1.29%</text><text class="m" x="182" y="374" text-anchor="end">CPU</text>
+<rect x="190" y="384" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="384" width="151.2" height="14" rx="4" fill="#60a5fa" fill-opacity="0.9"><animate attributeName="width" values="0;0;151.2;151.2;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="396" style="fill:#dbe4ff">2.52 ms</text><text class="m" x="182" y="396" text-anchor="end">latency</text>
+<text class="h" x="50" y="452" style="font-size:15px">500 threads</text>
+<rect x="190" y="440" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="440" width="252.0" height="14" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;252.0;252.0;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="452" style="fill:#dbe4ff">2.10%</text><text class="m" x="182" y="452" text-anchor="end">CPU</text>
+<rect x="190" y="462" width="300" height="14" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="190" y="462" width="247.2" height="14" rx="4" fill="#60a5fa" fill-opacity="0.9"><animate attributeName="width" values="0;0;247.2;247.2;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="500" y="474" style="fill:#dbe4ff">4.12 ms</text><text class="m" x="182" y="474" text-anchor="end">latency</text>
+<text class="s" x="50" y="512">At 10 Hz the same cases use 0.89%, 2.51% and 4.11% of one core.</text>
+<text class="s" x="50" y="532">At 1 Hz: 0.10%, 0.27% and 0.43%.</text>
+<rect class="box" x="610" y="206" width="560" height="400" rx="14" stroke="#6b7aa5" stroke-opacity="0.5"/>
+<text class="zone" x="630" y="234">COLLECTOR · C++ VS FORMER PYTHON · 10 HZ</text>
+<text class="s" x="630" y="254">Same synthetic load, same datagrams. Lower is better.</text>
+<text class="h" x="630" y="278" style="font-size:14px">CPU used, % of one core</text>
+<rect x="740" y="290" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="290" width="100.6" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;100.6;100.6;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="300" style="fill:#dbe4ff">Python 32.2%</text><text class="m" x="732" y="300" text-anchor="end">1,000 thr</text>
+<rect x="740" y="306" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="306" width="12.8" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;12.8;12.8;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="316" style="fill:#dbe4ff">C++ 4.08%</text><text class="m" x="732" y="316" text-anchor="end"></text>
+<rect x="740" y="330" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="330" width="224.1" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;224.1;224.1;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="340" style="fill:#dbe4ff">Python 71.7%</text><text class="m" x="732" y="340" text-anchor="end">2,500 thr</text>
+<rect x="740" y="346" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="346" width="38.4" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;38.4;38.4;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="356" style="fill:#dbe4ff">C++ 12.3%</text><text class="m" x="732" y="356" text-anchor="end"></text>
+<text class="h" x="630" y="378" style="font-size:14px">Dashboard p95 /api/live, ms</text>
+<rect x="740" y="390" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="390" width="246.2" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;246.2;246.2;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="400" style="fill:#dbe4ff">Python 78.8 ms</text><text class="m" x="732" y="400" text-anchor="end">1,000 thr</text>
+<rect x="740" y="406" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="406" width="3.0" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;3.0;3.0;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="416" style="fill:#dbe4ff">C++ 0.89 ms</text><text class="m" x="732" y="416" text-anchor="end"></text>
+<rect x="740" y="430" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="430" width="68.8" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;68.8;68.8;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="440" style="fill:#dbe4ff">Python 22 ms</text><text class="m" x="732" y="440" text-anchor="end">2,500 thr</text>
+<rect x="740" y="446" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="446" width="5.3" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;5.3;5.3;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="456" style="fill:#dbe4ff">C++ 1.69 ms</text><text class="m" x="732" y="456" text-anchor="end"></text>
+<text class="h" x="630" y="478" style="font-size:14px">Peak memory (PSS), MB</text>
+<rect x="740" y="490" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="490" width="232.3" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;232.3;232.3;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="500" style="fill:#dbe4ff">Python 557.5 MB</text><text class="m" x="732" y="500" text-anchor="end">1,000 thr</text>
+<rect x="740" y="506" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="506" width="101.7" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;101.7;101.7;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="516" style="fill:#dbe4ff">C++ 244 MB</text><text class="m" x="732" y="516" text-anchor="end"></text>
+<rect x="740" y="530" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="530" width="242.8" height="12" rx="4" fill="#f26a2e" fill-opacity="0.9"><animate attributeName="width" values="0;0;242.8;242.8;0" keyTimes="0;0.020;0.220;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="540" style="fill:#dbe4ff">Python 582.6 MB</text><text class="m" x="732" y="540" text-anchor="end">2,500 thr</text>
+<rect x="740" y="546" width="250" height="12" rx="4" fill="#0a0f1f" fill-opacity="0.7"/><rect x="740" y="546" width="110.3" height="12" rx="4" fill="#34d399" fill-opacity="0.9"><animate attributeName="width" values="0;0;110.3;110.3;0" keyTimes="0;0.060;0.260;0.92;1" dur="9s" repeatCount="indefinite"/></rect><text class="m" x="1000" y="556" style="fill:#dbe4ff">C++ 264.6 MB</text><text class="m" x="732" y="556" text-anchor="end"></text>
+<text class="s" x="630" y="590">Packet loss was 0.0% for both collectors in every run.</text>
+<rect class="box" x="30" y="624" width="1140" height="108" rx="12" stroke="#fbbf24" stroke-opacity="0.7" stroke-dasharray="6 5"/>
+<text class="zone" x="50" y="650" style="fill:#fbbf24">SLOWER SAMPLES · COST OF ONE (SERVICE TARGET, 500 DESCRIPTORS)</text>
+<text class="h" x="50" y="678" style="font-size:14px">Resource sample: 4.5 ms</text>
+<text class="s" x="50" y="698">0.23% of one core every 2 s. 0.09% every 5 s.</text>
+<text class="h" x="420" y="678" style="font-size:14px">Memory-map sample: 3.2 ms</text>
+<text class="s" x="420" y="698">0.06% of one core every 5 s. Default is every 30 s.</text>
+<text class="h" x="800" y="678" style="font-size:14px">Sampler on its own core</text>
+<text class="s" x="800" y="698">No effect on the target above host noise.</text>
+<text class="s" x="50" y="719">Keep the sampler off the cores of latency-critical threads. Sources: sampler-benchmark.json, collector-comparison.md, target-impact.md.</text>
+</g></svg>
