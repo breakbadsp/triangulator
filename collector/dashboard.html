@@ -1893,7 +1893,7 @@ function openThread(thread){
   element('history-title').textContent=thread.name;
   element('drawer').classList.add('open');element('drawer').setAttribute('aria-hidden','false');element('scrim').classList.add('open');
   setRange(historyRange);renderDrawerLive();renderThreads();renderMosaic(live.threads||[]);element('drawer-close').focus()}
-function closeThread(){closeGuide(false);helpTimer.cancel(true);selected=null;element('drawer').classList.remove('open');element('drawer').setAttribute('aria-hidden','true');element('scrim').classList.remove('open');history.replaceState(null,'',location.pathname);hideTip();renderThreads();renderMosaic(live.threads||[])}
+function closeThread(){closeGuide(false);helpTimer.cancel(true);selected=null;element('drawer').classList.remove('open');element('drawer').setAttribute('aria-hidden','true');element('scrim').classList.remove('open');history.replaceState(null,'',location.pathname+location.search);hideTip();renderThreads();renderMosaic(live.threads||[])}
 function renderDrawerLive(){
   if(!selected||helpContext&&helpReturnThread||helpOwns(element('drawer-tiles'))||helpOwns(element('drawer-state')))return;const thread=live.health.session===selected.session?(live.threads||[]).find(item=>item.tid===selected.tid&&item.generation===selected.generation):null;
   element('drawer-meta').textContent=`TID ${selected.tid}`+(thread?` · group ${thread.group} · family ${family(thread.name)}`:'');
