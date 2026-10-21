@@ -12,7 +12,16 @@ full manual runs test both the normal and static-release builds in `almalinux:8`
 ## Run the test
 
 The workflow starts on pull requests that change the workflow, its scripts,
-build files, source files, configuration, tests, or build guidelines.
+build files, source files, configuration, tests, or workload fixtures.
+Documentation alone does not start the container build. The QA results
+workflow still checks QA summary changes.
+
+For an updated PR, a small input check looks for a passing run for the same
+PR. If build and test inputs match and the base branch has no untested code
+changes, the format and container jobs are skipped. The log links to the
+reused run. Test fixtures, including Markdown files under `tests/`, remain
+inputs. Missing history or API access causes a full run. Manual and nightly
+dispatches always run the tests. See [check reuse](pr-review-workflow.md#reuse-passing-checks).
 T3 dispatches full nightly runs at 03:00 in `Asia/Kolkata` on the latest
 `master` commit. GitHub cron triggers are disabled. The T3 host must be awake
 and its scheduling service must be running. See
@@ -40,7 +49,7 @@ use a clean base image and run all steps, including installation diagnostics.
 Local jobs use persistent compiler caches outside the runner temporary
 directory. Fork jobs restore a compiler cache from GitHub. The cache reuses
 only compilations whose compiler, options, source, and included headers match.
-Linking and test execution run each time. See the
+Linking and test execution run when build or test inputs need verification. See the
 [runner cache and image details](self-hosted-runner.md#the-runner-host).
 
 1. Save the image details and the initial package list.
