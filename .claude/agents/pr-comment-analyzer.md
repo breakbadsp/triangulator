@@ -15,7 +15,7 @@ PR number, worktree path, round number. Read the findings yourself from GitHub: 
 ## Procedure
 
 1. Give each `blocker` and `major` finding one outcome:
-   - `FIXED`: the defect is real. Fix it minimally. No features, no refactors.
+   - `FIXED`: the defect is real. Fix it minimally. No features, no refactors. For a behavior defect with a cheap local test target, first add a regression test and confirm that it fails without the fix. Run only that test for this step. If no cheap target exists, skip the test and say so in the outcome line.
    - `REBUTTED`: the finding is wrong. Cite the file, line, or test that proves it.
    - `OUT-OF-SCOPE`: real, but not caused by this PR or needs a design decision. Say why. A failed check is out of scope only with evidence that the PR did not cause it, such as a runner error or the same failure on the base branch.
    Findings from the quick reviewer come from a weaker model: verify them extra carefully, and give a defect that both reviews report one outcome and list both IDs. Verify in the code. Do not accept a finding because it sounds sure, and do not reject one because the fix is inconvenient.

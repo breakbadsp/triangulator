@@ -26,6 +26,20 @@ it if a guard, a caller check, or a test prevents the failure. A wrong finding
 costs an analyzer pass and often a second round. Round 2 also checks that the
 fixes do not break the callers of the code they change.
 
+The deep reviewer also checks the diff against the claims in the PR title and
+body. It finds the one fact that makes the change safe and checks that fact
+first. A measured number in the PR, such as sampler overhead, counts only if
+the run had no errors and the timed work ran the changed code.
+
+Before the analyzer fixes a behavior defect, it adds a regression test and
+confirms that the test fails without the fix. It does this only when a cheap
+local test target exists, and it runs only that test for this step.
+
+These three rules come from Poteto's pstack skills `blast-radius`,
+`benchmark-checklist` (questions 4 and 7), and `tdd`. LoomFlow takes no other
+pstack parts, to keep each run fast and cheap. Reviewers stay read-only and
+run no builds or tests.
+
 ## Model and reasoning selection
 
 For `full`, use one large, capable model and one small, quick model. Never use
