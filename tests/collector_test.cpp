@@ -2797,6 +2797,97 @@ void TestRemovalKeepsReplacementSession()
   Require(slot.active_ && slot.session_ == 3, "a later session is accepted");
 }
 
+// A collector that restarts while a two-target sampler runs hears untagged
+// ticks before the next TTGT. Legacy routing gives them one provisional
+// "default" slot, which moves from session 1 to session 2. In every order,
+// each target must then get its own slot, and both must take new ticks.
+void TestCollectorRestartRebindsEveryTarget()
+{
+  enum class Order : std::uint8_t
+  {
+    BothTicksBFirst = 0,
+    BothTicksDefaultFirst,
+    OnlyBTickDefaultFirst
+  };
+  for (const auto order : {Order::BothTicksBFirst, Order::BothTicksDefaultFirst,
+                           Order::OnlyBTickDefaultFirst})
+  {
+    MonitorFixture fixture;
+    Config config;
+    config.max_targets_ = 2;
+    config.max_live_samples_ = 10000;
+    TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+    const PeerText peer{"127.0.0.1"};
+    const auto tick = [&](std::uint64_t p_session, std::uint32_t p_sequence)
+    {
+      auto packet = MakePacket(p_sequence);
+      packet.session_ = p_session;
+      packet.pid_ = static_cast<std::uint32_t>(100 + p_session);
+      Require(fleet.Handle(Encode(packet), peer, 1'700'000'000.0 + p_sequence)
+                  .has_value(),
+              "tick handled");
+    };
+    const auto announce = [&](std::uint64_t p_session, const char* p_id)
+    {
+      target_wire::Packet announcement;
+      announcement.session_ = p_session;
+      announcement.pid_ = static_cast<std::uint32_t>(100 + p_session);
+      announcement.process_start_ = 1;
+      announcement.effective_millihz_ = 1000;
+      announcement.configured_millihz_ = 1000;
+      target_wire::SetText(announcement.host_, "host-a");
+      target_wire::SetText(announcement.target_, p_id);
+      Require(fleet.Handle(wire::AsBytes(announcement), peer, 1'700'000'003)
+                  .has_value(),
+              "announcement handled");
+    };
+    if (order == Order::OnlyBTickDefaultFirst)
+    {
+      tick(2, 0);
+    }
+    else
+    {
+      tick(1, 0);
+      tick(2, 0);
+      tick(1, 1);
+    }
+    if (order == Order::BothTicksBFirst)
+    {
+      announce(2, "b");
+      announce(1, "default");
+    }
+    else
+    {
+      announce(1, "default");
+      announce(2, "b");
+    }
+    tick(1, 4);
+    tick(2, 4);
+    for (const auto& [session, id] :
+         {std::pair<std::uint64_t, std::string_view>{1, "default"},
+          std::pair<std::uint64_t, std::string_view>{2, "b"}})
+    {
+      const auto found =
+          std::ranges::find_if(fleet.Slots(),
+                               [&](const auto& p_slot)
+                               {
+                                 return p_slot->active_ && p_slot->visible_ &&
+                                        p_slot->session_ == session;
+                               });
+      Require(found != fleet.Slots().end() && (*found)->id_.View() == id &&
+                  (*found)->pid_ == 100 + session,
+              std::format("session {} is bound to target {}", session, id));
+      auto& monitor = (*found)->monitor_;
+      monitor.Drain(1'700'000'004, true);
+      const auto health = monitor.Health(1'700'000'004);
+      Require(Field(health, "pid").AsInt() == static_cast<int>(100 + session) &&
+                  !Field(health, "sampler_silent").AsBool() &&
+                  Field(health, "last_seen").AsNumber() == 1'700'000'004,
+              std::format("target {} takes new ticks", id));
+    }
+  }
+}
+
 // Checks the one legacy owner when sampler_ips is not sorted: the smallest
 // address wins, not the first entry, and the smallest host name breaks a tie
 // behind that address. Only the owner gets data_dir/watch-rules.json; other
@@ -2932,6 +3023,7 @@ int main()
     TestEverySlotKeepsFullHistoryBudget();
     TestExpiredSlotResumesSameSession();
     TestRemovalKeepsReplacementSession();
+    TestCollectorRestartRebindsEveryTarget();
     TestLegacyOwnerUsesSmallestSenderForWatches();
     std::puts(
         "C++ collector tests passed (decoding, classification, ticks, "
