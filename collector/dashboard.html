@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Triangulator · Thread monitor</title>
+<title>Thread monitor</title>
 <style>
 /* Colors are roles, not hex in the markup. The eight state colors are the
    validated categorical palette, in its fixed order; light and dark each
@@ -34,9 +34,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 /* Top bar */
 .topbar{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
 .topbar-inner{max-width:1480px;margin:auto;padding:16px 32px 12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.04em}
-.brand svg{width:24px;height:24px}
-.target{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:10px;min-width:0;padding-left:20px;border-left:1px solid var(--line)}
+.target{display:flex;flex:1;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}
 .target>div{min-width:0;overflow-wrap:anywhere}
 .target .muted{font-size:12px}
 .theme-picker{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;color:var(--muted)}
@@ -419,7 +417,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 @media (max-width:800px){
 .assessment-card{grid-template-columns:minmax(0,1fr);gap:16px}
 .assessment-body{padding-left:0;border-left:0}
-.target{border:0;padding-left:0;order:3;flex-basis:100%}
+.target{order:3;flex-basis:100%}
 .topbar-inner{gap:10px 16px}
 }
 @media (max-width:640px){
@@ -436,7 +434,6 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 <body>
 <header class="topbar">
 <div class="topbar-inner">
-<div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4 29 27H3z" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/><circle cx="16" cy="19" r="3.5" fill="var(--series-2)"/></svg>Triangulator</div>
 <div class="target" data-help="target" data-hint="The process being monitored"><div class="target-choice"><span id="target-key" data-help="target-switch"></span><select id="target-select" aria-label="Selected monitoring target" data-help="target-switch" hidden></select><span id="target-attention" class="target-badge" data-help="target-attention" hidden></span><span id="target-access" class="target-badge help-label" data-help="target-access" hidden>Limited access</span><span id="target-budget" class="target-badge help-label" data-help="sampler-budget" hidden>Sampler throttled <span id="target-budget-value"></span></span></div><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" data-help="manage-targets" aria-expanded="false" aria-controls="target-settings" hidden>Manage targets</button></div>
 <button id="history-pill" class="history-pill" data-help="replay" hidden></button>
 
@@ -3297,7 +3294,7 @@ function renderTop(){const health=live.health,dot=element('live-dot');
   element('target-name').textContent=health.target_absent===null?'No target yet':targetName();
   // A recording's time is in the top-bar button beside it.
   element('target-meta').textContent=(health.pid?'PID '+health.pid+' · ':'')+state[1]+(replayAt!==null?'':frozen?' · at '+clock(frozen.at):health.last_seen?' · '+ago(viewNow()-health.last_seen):'');
-  document.title=(health.pid?targetName()+' · ':'')+'Triangulator';
+  document.title=(health.pid?targetName()+' · ':'')+'Thread monitor';
   element('error').textContent=health.sampler_silent?'⚠ Sampler is silent. Displayed thread data may be stale.':''}
 async function refresh(){try{const response=await apiFetch('/api/live');if(response.status===404){element('error').textContent='Selected target is unavailable. Select another target.';return}if(!response.ok)throw Error('Collector HTTP error');
     latestLive=await response.json();
