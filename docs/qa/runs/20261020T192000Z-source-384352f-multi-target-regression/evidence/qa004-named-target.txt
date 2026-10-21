@@ -1,0 +1,10 @@
+QA-004 named target "qa-named" (9 bytes) on target id cpu.
+Process binary: copy of /bin/sleep named qa-named, run from /tmp/tri-qa.
+
+1. set-target.sh cpu qa-named -> accepted; config [[target]] cpu process = "qa-named".
+2. API before start:    omarchy/cpu  pid 0  absent
+3. Start qa-named:      omarchy/cpu  pid 4113671 live (API). Dashboard header live.
+   Main view still showed the previous process's final view with the banner
+   "bb-cpu-spin (PID 4093998) stopped reporting ... no longer the target".
+   The process was still alive (ps). After "Show live", qa-named showed 1 thread.
+4. Stop qa-named (SIGTERM): API absent. Header absent. Final view "ended (Killed by SIGTERM)".

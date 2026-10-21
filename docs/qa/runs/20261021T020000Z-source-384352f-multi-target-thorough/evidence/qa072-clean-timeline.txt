@@ -1,0 +1,96 @@
+01:51:34 == step1: renamed b to c, SIGHUP
+01:51:34 s1 default:live:29947 b:live:29949
+01:51:39 s1 default:live:29947 b:live:29949
+01:51:44 s1 default:live:29947 b:live:29949
+01:51:49 s1 default:live:29947 b:silent:29949
+01:51:54 s1 default:live:29947 b:silent:29949
+01:51:59 s1 default:live:29947 b:silent:29949
+01:52:04 s1 default:live:29947 b:silent:29949
+01:52:09 s1 default:live:29947 b:silent:29949
+01:52:14 s1 default:live:29947 b:silent:29949
+01:52:19 s1 default:live:29947 b:silent:29949
+01:52:24 s1 default:live:29947 b:silent:29949
+01:52:29 s1 default:live:29947 b:silent:29949
+01:52:34 s1 default:live:29947 b:silent:29949
+01:52:39 s1 default:live:29947 c:live:29949
+01:52:44 s1 default:live:29947 c:live:29949
+01:52:49 s1 default:live:29947 c:live:29949
+01:52:54 s1 default:live:29947 c:live:29949
+01:52:59 s1 default:live:29947 c:live:29949
+01:53:04 s1 default:live:29947 c:live:29949
+01:53:09 s1 default:live:29947 c:live:29949
+01:53:14 s1 default:live:29947 c:live:29949
+01:53:19 s1 default:live:29947 c:live:29949
+01:53:24 s1 default:live:29947 c:live:29949
+01:53:29 s1 default:live:29947 c:live:29949
+01:53:34 s1 default:live:29947 c:live:29949
+01:53:39 s1 default:live:29947 c:live:29949
+01:53:44 s1 default:live:29947 c:live:29949
+01:53:49 s1 default:live:29947 c:live:29949
+01:53:54 s1 default:live:29947 c:live:29949
+01:53:59 s1 default:live:29947 c:live:29949
+01:54:05 == step2: SIGSTOP 30s
+01:54:05 s2-paused default:live:29947 c:live:29949
+01:54:10 s2-paused default:live:29947 c:live:29949
+01:54:15 s2-paused default:live:29947 c:live:29949
+01:54:20 s2-paused default:silent:29947 c:silent:29949
+01:54:25 s2-paused default:silent:29947 c:silent:29949
+01:54:30 s2-paused default:silent:29947 c:silent:29949
+01:54:35 == step2: SIGCONT
+01:54:35 s2-resumed default:silent:29947 c:silent:29949
+01:54:40 s2-resumed default:live:29947 c:live:29949
+01:54:45 s2-resumed default:live:29947 c:live:29949
+01:54:50 s2-resumed default:live:29947 c:live:29949
+01:54:55 s2-resumed default:live:29947 c:live:29949
+01:55:00 s2-resumed default:live:29947 c:live:29949
+01:55:05 s2-resumed default:live:29947 c:live:29949
+01:55:10 s2-resumed default:live:29947 c:live:29949
+01:55:15 s2-resumed default:live:29947 c:live:29949
+01:55:20 s2-resumed default:live:29947 c:live:29949
+01:55:25 s2-resumed default:live:29947 c:live:29949
+01:55:30 s2-resumed default:live:29947 c:live:29949
+01:55:35 == step3: SIGSTOP 90s
+01:55:35 s3-paused default:live:29947 c:live:29949
+01:55:40 s3-paused default:live:29947 c:live:29949
+01:55:45 s3-paused default:live:29947 c:live:29949
+01:55:50 s3-paused default:silent:29947 c:silent:29949
+01:55:55 s3-paused default:silent:29947 c:silent:29949
+01:56:00 s3-paused default:silent:29947 c:silent:29949
+01:56:05 s3-paused default:silent:29947 c:silent:29949
+01:56:10 s3-paused default:silent:29947 c:silent:29949
+01:56:15 s3-paused default:silent:29947 c:silent:29949
+01:56:20 s3-paused default:silent:29947 c:silent:29949
+01:56:25 s3-paused default:silent:29947 c:silent:29949
+01:56:30 s3-paused default:silent:29947 c:silent:29949
+01:56:35 s3-paused 
+01:56:40 s3-paused 
+01:56:45 s3-paused 
+01:56:50 s3-paused 
+01:56:55 s3-paused 
+01:57:00 s3-paused 
+01:57:05 == step3: SIGCONT
+01:57:05 s3-resumed 
+01:57:10 s3-resumed default:live:29947 c:live:29949
+01:57:15 s3-resumed default:live:29947 c:live:29949
+01:57:20 s3-resumed default:live:29947 c:live:29949
+01:57:25 s3-resumed default:live:29947 c:live:29949
+01:57:30 s3-resumed default:live:29947 c:live:29949
+01:57:35 s3-resumed default:live:29947 c:live:29949
+01:57:40 s3-resumed default:live:29947 c:live:29949
+01:57:45 s3-resumed default:live:29947 c:live:29949
+01:57:50 s3-resumed default:live:29947 c:live:29949
+01:57:55 s3-resumed default:live:29947 c:live:29949
+01:58:01 s3-resumed default:live:29947 c:live:29949
+01:58:06 s3-resumed default:live:29947 c:live:29949
+01:58:11 s3-resumed default:live:29947 c:live:29949
+01:58:16 s3-resumed default:live:29947 c:live:29949
+01:58:21 s3-resumed default:live:29947 c:live:29949
+01:58:26 s3-resumed default:live:29947 c:live:29949
+01:58:31 s3-resumed default:live:29947 c:live:29949
+01:58:36 s3-resumed default:live:29947 c:live:29949
+01:58:41 s3-resumed default:live:29947 c:live:29949
+01:58:46 s3-resumed default:live:29947 c:live:29949
+01:58:51 s3-resumed default:live:29947 c:live:29949
+01:58:56 s3-resumed default:live:29947 c:live:29949
+01:59:01 s3-resumed default:live:29947 c:live:29949
+01:59:06 == DONE

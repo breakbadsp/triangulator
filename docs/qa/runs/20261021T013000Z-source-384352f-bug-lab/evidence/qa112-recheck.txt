@@ -1,0 +1,8 @@
+QA-112 recheck, disk-sync fixture PID 4176259 selected as default, 40 s after start.
+Thread states from /api/live:
+  io-writer0..3  running  cpu 98.8-98.9%   (kernel syscall work, not uninterruptible wait)
+  worker-ok      sleep    hrtimer_nanosleep
+Host I/O pressure: some 0.0%, full 0.0%.
+Process I/O: write_bps 0, syscw/s 65927.4.
+Reading: fsync completes in kernel on this host's scratch storage. No I/O stall develops,
+so the required symptom is absent. Case result BLOCKED for this host.

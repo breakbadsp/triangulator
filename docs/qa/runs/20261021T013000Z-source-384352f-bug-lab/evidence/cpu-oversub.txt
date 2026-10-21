@@ -1,0 +1,597 @@
+Triangulator
+○ omarchy · cpu · · absent
+● omarchy · default · /var/tmp/triangulator-bug-lab.EmEk1v/bugbench PID 4143019 · live
+1 other target needs attention
+bb-cpu-oversub PID 4143019 · Live · just now
+Manage targets
+Theme
+System
+Light
+Dark
+Summary
+Threads
+Resources
+Sockets
+Memory
+Monitor
+Settings
+Summary
+
+bb-cpu-oversub · 19 threads. Trends kept in this tab since 01:03:24 AM.
+
+1 min
+5 min
+15 min
+Assessment
+Worth a look
+as of 01:04:32 AM
+
+1 of 19 threads are waiting: 1 sleep. 18 threads are busy (≥1% CPU).
+
+!
+2 watch rules match no thread
+No thread matches watch rules “MsgP”, “PrdDist”: the threads may have exited or been renamed. Check the prefix, or remove the rule.
+!
+Threads are waiting for CPU
+Run delay is 233% of CPU time: for every second on a core, threads spent 2.33 s waiting for one. The host may be oversubscribed.
+!
+Runnable tasks wait for CPU 76.7% of the time
+CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.
+Active threads
+19
+of 19 · 0 idle for 10 s+
+Context switches
+3320/s
+174.7/s per active thread
+Disk & syscall I/O
+0 B/s
+read 0 B/s · write 0 B/s
+Thread churn
++0 / −0
+lower bound · seen starting / ending, last minute
+Process load
+
+Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.
+
+17.94
+1-minute load
+5 min
+17.87
+15 min (68 s of data)
+17.85
+On CPU now
+5.41 cores
+Waiting for CPU
+69.9% of demand
+Busiest thread
+worker-4 · 42.9%
+0
+10
+20
+01:03:24 AM
+01:03:58 AM
+01:04:32 AM
+On CPU
+5.41
+Waiting for CPU
+12.58
+1-min average
+Memory use
+
+Physical memory and mapped address space.
+
+Resident memory (RSS)
+2.1 MiB
+0 B
+2.5 MiB
+5 MiB
+01:03:24 AM
+01:03:58 AM
+01:04:32 AM
+Virtual size (VmSize)
+456.8 MiB
+0 B
+250 MiB
+500 MiB
+01:03:24 AM
+01:03:58 AM
+01:04:32 AM
+Timeline
+Recordings & past assessments
+Process details
+Last process exit
+Exited normally
+bb-cpu-spin · PID 4141471 · 73 s ago · 2 exits since the collector started
+Threads (19)
+
+Thread activity and wait states. Select a row for history; press / to search.
+
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+10
+20
+01:03:24 AM
+01:03:58 AM
+01:04:32 AM
+Running
+18
+Sleep
+1
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+hrtimer_nanosleep
+1
+Thread map
+
+One tile per thread (19), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+43%
+41%
+39%
+35%
+35%
+31%
+30%
+29%
+28%
+28%
+28%
+27%
+26%
+26%
+25%
+25%
+24%
+23%
+<0.1%
+Running
+18
+Sleep
+1
+Number = CPU % of one core, last ~10 s · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+worker
+541%×18
+bb-cpu-oversub
+0.0%×1
+Core placement
+Thread details
+Active 19
+Idle 0
+All 19
+Group
+All groups
+ungrouped (1)
+worker (18)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+19
+Running
+18
+Sleep
+1
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+19
+—
+18
+hrtimer_nanosleep
+1
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+worker-4
+TID 4143025
+	worker	
+Running	
+	
+42.9%
+	57.0%	221.8	·	·	·	1
+worker-17
+TID 4143038
+	worker	
+Running	
+	
+41.1%
+	58.8%	216.4	·	·	·	5
+worker-16
+TID 4143037
+	worker	
+Running	
+	
+38.8%
+	61.0%	182.9	·	·	·	3
+worker-0
+TID 4143021
+	worker	
+Running	
+	
+35.3%
+	64.6%	175.2	·	·	·	4
+worker-11
+TID 4143032
+	worker	
+Running	
+	
+34.5%
+	65.4%	162.8	·	·	·	2
+worker-7
+TID 4143028
+	worker	
+Running	
+	
+30.7%
+	69.1%	186.1	·	·	·	2
+worker-5
+TID 4143026
+	worker	
+Running	
+	
+29.8%
+	70.1%	179.1	·	·	·	0
+worker-6
+TID 4143027
+	worker	
+Running	
+	
+28.9%
+	71.0%	140.6	·	·	·	5
+worker-13
+TID 4143034
+	worker	
+Running	
+	
+28.3%
+	71.5%	429.6	·	·	·	2
+worker-8
+TID 4143029
+	worker	
+Running	
+	
+27.9%
+	72.1%	144.8	·	·	·	5
+worker-15
+TID 4143036
+	worker	
+Running	
+	
+27.7%
+	72.1%	168.5	·	·	·	5
+worker-2
+TID 4143023
+	worker	
+Running	
+	
+26.7%
+	73.3%	218.2	·	·	·	5
+worker-10
+TID 4143031
+	worker	
+Running	
+	
+25.7%
+	74.3%	144.8	·	·	·	4
+worker-1
+TID 4143022
+	worker	
+Running	
+	
+25.6%
+	74.4%	145.1	·	·	·	4
+worker-3
+TID 4143024
+	worker	
+Running	
+	
+25.3%
+	74.6%	145.3	·	·	·	2
+worker-12
+TID 4143033
+	worker	
+Running	
+	
+25.3%
+	74.7%	165.2	·	·	·	3
+worker-14
+TID 4143035
+	worker	
+Running	
+	
+23.6%
+	76.3%	141.0	·	·	·	3
+worker-9
+TID 4143030
+	worker	
+Running	
+	
+22.5%
+	77.5%	147.8	·	·	·	4
+bb-cpu-oversub
+TID 4143019
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	5.0	·	·	·	2
+Pressure, limits & sockets
+
+Resource stalls, remaining capacity, and socket queues. Updated 2 s ago.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+76.7%
+full 0.7% · cgroup
+Memory (RSS)
+2.1 MB
+peak 2.1 MB · swap 0 B
+Open files
+3
+0.0% of limit 524288 · 0 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+0 B
+unread 0 B · unsent 0 B
+Network drops
+0.00/s
+connections and packets, namespace-wide
+TCP retransmits
+0.00/s
+0.0% of segments sent
+Pressure stalls (PSI)
+
+Time lost waiting for CPU, memory, or I/O. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+12:49:34 AM
+12:57:04 AM
+01:04:34 AM
+CPU some
+76.7%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	76.7%	0.7%	76.8%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+3 / 524288
+Cgroup memory
+no memory.max limit
+1.0 GB
+Processes & threads
+cgroup pids.max
+143 / 18824
+TCP memory
+pressure at 974.2 MB, limit 1.4 GB · host-wide
+0 B
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+860.0 KB
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+15 · 0 orphaned · 436 time-wait
+Bytes waiting in the target's sockets
+
+Receive: waiting for the app. Send: waiting for the peer or network.
+
+0 B
+1000 B
+2.0 KB
+12:49:34 AM
+12:57:04 AM
+01:04:34 AM
+Receive queue (unread)
+0 B
+Send queue (unsent)
+0 B
+0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listening
+Network stack drops & errors
+
+Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.
+
+Counter	Rate (/s)	In range	Total
+Retransmitted segments
+Segments sent again: packet loss or congestion on some path.
+	0.00/s	70	29K
+Retransmission timeouts
+A retransmission timer fired: a peer went quiet or the loss was severe.
+	0.00/s	2	356
+Connections reset
+Established connections reset, by the peer or locally.
+	0.00/s	5	5262
+Receive queue pruning
+The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.
+	0.00/s	—	487
+Aborted after timeouts
+Connections given up after repeated timeouts.
+	0.00/s	—	16
+Failed connection attempts
+Outgoing connections that failed (refused or timed out).
+	0.00/s	—	24K
+UDP to closed ports
+Datagrams to ports nobody listens on.
+	0.00/s	—	1579
+Interface transmit drops
+A network interface dropped outgoing packets (queue full or link trouble).
+	0.00/s	—	38
+18 other counters are zero.
+Fullest sockets (0 of 0 reported)
+
+Sockets ranked by buffer use in the latest sample.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+The target has no sockets the sampler could list.
+
+Sample 34 · every 2 s · 0 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.
+
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 22 µs. Updated 5 s ago.
+
+Virtual size (VmSize)
+456.8 MiB
+limit: unlimited · peak 518.2 MiB
+Resident (RSS)
+2.1 MiB
+peak 2.1 MiB · swap 0 B
+Anonymous / file / shared
+0.3 / 1.9 / 0.0
+MiB: RssAnon / File / Shmem
+Mappings (VMAs)
+42
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+0 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+NOTICE
+Main stack is at 1.6% of its limit
+[stack] is 132.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.
+OK
+Nothing unusual in the memory map
+Mappings, address space and stack are well within their limits.
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+42 / 1048576
+Address space
+no RLIMIT_AS limit
+456.8 MiB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+132.0 KiB / 8.0 MiB
+Peak virtual size
+518.2 MiB
+Data + heap (VmData)
+7.0 MiB
+Page tables
+92.0 KiB
+Locked
+0 B
+Page faults since start
+0 major · 179 minor
+Longest maps read
+22 µs (2 reads, 22 µs total)
+
+Address space & zoom
+Every mapping, and a zoom into one
+Monitor
+Monitor health
+Monitor diagnostics (raw health JSON)
+How to read this page
+Settings
+
+Change how the collector watches this process, without editing files on the collector host. Changes apply at once.
+
+Watched threads
+
+Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.
+
+From the config file (collector.toml).
+
+Thread name prefix	Wakes at least every (ms)	Matching threads now	Remove
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+Add rule
+Save
+Reset to config file
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

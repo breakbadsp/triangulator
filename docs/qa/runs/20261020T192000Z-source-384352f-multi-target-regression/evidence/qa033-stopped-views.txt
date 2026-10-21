@@ -1,0 +1,14 @@
+QA-033 after SIGUSR1 to the fixture (MsgP-fast stops its timer loop, thread stays alive).
+Five /api/live views at 3 s intervals:
+
+view0 MsgP-fast tid=4117866 present=True wake=1000 stale=False state=futex wchan=__futex_wait last_ran=...453.63 MsgP-peer_last_ran=...454.63
+view1 same TID, same last_ran, MsgP-peer_last_ran=...457.63
+view2 same TID, same last_ran, MsgP-peer_last_ran=...460.63
+view3 same TID, same last_ran, MsgP-peer_last_ran=...463.63
+view4 same TID, same last_ran, MsgP-peer_last_ran=...466.63
+/proc: wchan __futex_wait, state S.
+
+Browser (earlier instance of the same fixture, TID 4114288): All threads filter shows
+"MsgP-fast TID 4114288 ungrouped Futex wait __futex_wait idle for over 44 s".
+Assessment (watch warning, not in the case text): "TID ... is set to wake at least every
+1000 ms, but it has not run for 31 s ... Last state: Futex wait in __futex_wait."

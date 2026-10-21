@@ -1,0 +1,505 @@
+Triangulator
+○ omarchy · cpu · · absent
+● omarchy · default · /var/tmp/triangulator-bug-lab.EmEk1v/bugbench PID 4146300 · live
+1 other target needs attention
+bb-lock-convoy PID 4146300 · Live · just now
+Manage targets
+Theme
+System
+Light
+Dark
+Summary
+Threads
+Resources
+Sockets
+Memory
+Monitor
+Settings
+Summary
+
+bb-lock-convoy · 9 threads. Trends kept in this tab since 01:07:07 AM.
+
+1 min
+5 min
+15 min
+Assessment
+Worth a look
+as of 01:08:16 AM
+
+9 of 9 threads are waiting: 7 futex wait, 2 sleep. No thread is using noticeable CPU. Futex waits are locks, condition variables or idle pool workers. Idle workers wait this way normally; a thread blocked on a lock that never frees waits the same way.
+
+!
+2 watch rules match no thread
+No thread matches watch rules “MsgP”, “PrdDist”: the threads may have exited or been renamed. Check the prefix, or remove the rule.
+i
+8 of 8 “worker” threads mostly wait on a futex but keep waking
+Together they used 1.2% of one core and switched 101 times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.
+Active threads
+9
+of 9 · 0 idle for 10 s+
+Context switches
+106/s
+11.8/s per active thread
+Disk & syscall I/O
+0 B/s
+read 0 B/s · write 0 B/s
+Thread churn
++0 / −0
+lower bound · seen starting / ending, last minute
+Process load
+
+Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.
+
+0.01
+1-minute load
+5 min
+0.00
+15 min (68 s of data)
+0.00
+On CPU now
+0.01 cores
+Waiting for CPU
+2.4% of demand
+Busiest thread
+worker-2 · 0.2%
+0
+0.03
+0.05
+01:07:07 AM
+01:07:42 AM
+01:08:16 AM
+On CPU
+0.01
+Waiting for CPU
+0.00
+1-min average
+Memory use
+
+Physical memory and mapped address space.
+
+Resident memory (RSS)
+2.1 MiB
+0 B
+2.5 MiB
+5 MiB
+01:07:07 AM
+01:07:42 AM
+01:08:16 AM
+Virtual size (VmSize)
+454.2 MiB
+0 B
+250 MiB
+500 MiB
+01:07:07 AM
+01:07:42 AM
+01:08:16 AM
+Timeline
+Recordings & past assessments
+Process details
+Last process exit
+Exited normally
+bb-yield-storm · PID 4145218 · 73 s ago · 5 exits since the collector started
+Threads (9)
+
+Thread activity and wait states. Select a row for history; press / to search.
+
+What the threads are doing
+
+Thread count by latest state, stacked. Hover to read a moment.
+
+0
+5
+10
+01:07:07 AM
+01:07:42 AM
+01:08:16 AM
+Running
+0
+Futex wait
+7
+Sleep
+2
+Where threads wait
+
+Kernel wait channels right now. Click to filter the thread table.
+
+__futex_wait
+7
+hrtimer_nanosleep
+2
+Thread map
+
+One tile per thread (9), grouped by current state, busiest now first. Click a tile for details.
+
+Now
+1 min
+5 min
+15 min
+0.2%
+0.2%
+0.1%
+0.1%
+0.1%
+0.1%
+0.1%
+0.2%
+<0.1%
+Futex wait
+7
+Sleep
+2
+Number = CPU % of one core, last ~10 s · faded = idle
+Where the CPU goes
+
+Process CPU by thread family (name without its number).
+
+Name family
+Config group
+Thread
+worker
+1.2%×8
+bb-lock-convoy
+0.0%×1
+Core placement
+Thread details
+Active 9
+Idle 0
+All 9
+Group
+All groups
+ungrouped (1)
+worker (8)
+Sort
+CPU
+Run delay
+Switches/s
+I/O
+Major faults/s
+TID
+Name
+Clear filters
+STATE / BLOCK TYPE
+All
+9
+Futex wait
+7
+Sleep
+2
+WAIT CHANNEL (kernel function the thread is blocked in)
+All
+9
+__futex_wait
+7
+hrtimer_nanosleep
+2
+
+Thread	Group	State / wait channel	Last ~10 s	CPU	Run delay	Switches/s	Read/s	Write/s	Maj. faults/s	Core
+worker-2
+TID 4146304
+	worker	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.2%
+	0.0%	12.9	·	·	·	4
+worker-3
+TID 4146305
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.2%
+	0.0%	13.2	·	·	·	1
+worker-7
+TID 4146309
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.2%
+	0.0%	12.7	·	·	·	1
+worker-0
+TID 4146302
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.1%
+	0.0%	12.4	·	·	·	4
+worker-1
+TID 4146303
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.1%
+	0.0%	12.5	·	·	·	5
+worker-4
+TID 4146306
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.1%
+	0.0%	12.5	·	·	·	3
+worker-5
+TID 4146307
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.1%
+	0.0%	12.5	·	·	·	1
+worker-6
+TID 4146308
+	worker	
+Futex wait
+__futex_wait
+	
+	
+0.1%
+	0.0%	12.4	·	·	·	4
+bb-lock-convoy
+TID 4146300
+	ungrouped	
+Sleep
+hrtimer_nanosleep
+	
+	
+0.0%
+	0.0%	5.1	·	·	·	1
+Pressure, limits & sockets
+
+Resource stalls, remaining capacity, and socket queues. Updated 2 s ago.
+
+15 min
+1 h
+6 h
+24 h
+I/O pressure
+0.0%
+full 0.0% · cgroup
+Memory pressure
+0.0%
+full 0.0% · cgroup
+CPU pressure
+0.0%
+full 0.0% · cgroup
+Memory (RSS)
+2.1 MB
+peak 2.1 MB · swap 0 B
+Open files
+3
+0.0% of limit 524288 · 0 sockets
+Disk I/O
+0 B/s
+read 0 B/s · write 0 B/s (block layer)
+Queued in sockets
+0 B
+unread 0 B · unsent 0 B
+Network drops
+0.00/s
+connections and packets, namespace-wide
+TCP retransmits
+0.00/s
+0.0% of segments sent
+Pressure stalls (PSI)
+
+Time lost waiting for CPU, memory, or I/O. Peaks per interval.
+
+Target's cgroup
+Whole host
+0.0%
+50.0%
+100%
+12:53:18 AM
+01:00:48 AM
+01:08:18 AM
+CPU some
+0.0%
+Memory some
+0.0%
+I/O some
+0.0%
+Resource	Cgroup some	Cgroup full	Host some	Host full
+CPU	0.0%	0.0%	0.1%	0.0%
+Memory	0.0%	0.0%	0.0%	0.0%
+I/O	0.0%	0.0%	0.0%	0.0%
+Limits & headroom
+
+How close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.
+
+Open files
+hard limit 524288
+3 / 524288
+Cgroup memory
+no memory.max limit
+1.0 GB
+Processes & threads
+cgroup pids.max
+140 / 18824
+TCP memory
+pressure at 974.2 MB, limit 1.4 GB · host-wide
+1.9 MB
+UDP memory
+pressure at 1.9 GB, limit 2.9 GB · host-wide
+792.0 KB
+Max SO_RCVBUF (rmem_max)
+4.0 MB
+Max SO_SNDBUF (wmem_max)
+4.0 MB
+Max listen backlog (somaxconn)
+4096
+TCP sockets in namespace
+15 · 0 orphaned · 417 time-wait
+Bytes waiting in the target's sockets
+
+Receive: waiting for the app. Send: waiting for the peer or network.
+
+0 B
+1000 B
+2.0 KB
+12:53:18 AM
+01:00:48 AM
+01:08:18 AM
+Receive queue (unread)
+0 B
+Send queue (unsent)
+0 B
+0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listening
+Network stack drops & errors
+Fullest sockets (0 of 0 reported)
+
+Sockets ranked by buffer use in the latest sample.
+
+ Only sockets with data, drops or retransmits
+Socket	Local → peer	Recv-Q	Receive buffer	Send-Q	Send buffer	Drops	RTT	Retrans	What it means
+The target has no sockets the sampler could list.
+
+Sample 34 · every 2 s · 0 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.
+
+Socket I/O & message processing
+Not available
+
+Socket traffic and message completion require the optional observer. Expand setup below to connect it.
+
+Socket observer not connected. Start the optional socket sampler to measure I/O.
+What is measured · setup
+Memory map
+
+The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 20 µs. Updated 4 s ago.
+
+Virtual size (VmSize)
+454.2 MiB
+limit: unlimited · peak 454.2 MiB
+Resident (RSS)
+2.1 MiB
+peak 2.1 MiB · swap 0 B
+Anonymous / file / shared
+0.2 / 1.9 / 0.0
+MiB: RssAnon / File / Shmem
+Mappings (VMAs)
+42
+0.0% of vm.max_map_count
+Major faults
+0.0 /s
+0 since start
+Memory pressure (PSI some)
+0.0%
+cgroup full 0.0%
+Findings
+
+Worked out in the browser from the latest memory-map, resource and thread samples.
+
+NOTICE
+Main stack is at 1.6% of its limit
+[stack] is 132.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.
+OK
+Nothing unusual in the memory map
+Mappings, address space and stack are well within their limits.
+Limits & headroom
+
+Limits that make mmap, malloc or thread creation fail, or stop the main stack from growing.
+
+Mappings
+vm.max_map_count
+42 / 1048576
+Address space
+no RLIMIT_AS limit
+454.2 MiB
+Main stack
+RLIMIT_STACK; the [stack] mapping
+132.0 KiB / 8.0 MiB
+Peak virtual size
+454.2 MiB
+Data + heap (VmData)
+4.4 MiB
+Page tables
+80.0 KiB
+Locked
+0 B
+Page faults since start
+0 major · 160 minor
+Longest maps read
+20 µs (2 reads, 20 µs total)
+
+Address space & zoom
+Every mapping, and a zoom into one
+Monitor
+Monitor health
+Monitor diagnostics (raw health JSON)
+How to read this page
+Settings
+
+Change how the collector watches this process, without editing files on the collector host. Changes apply at once.
+
+Watched threads
+
+Threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.
+
+From the config file (collector.toml).
+
+Thread name prefix	Wakes at least every (ms)	Matching threads now	Remove
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+
+	
+	0
+No live thread name starts with this prefix.
+	✕
+Add rule
+Save
+Reset to config file
+Thread
+✕
+Recent live CPU
+
+Last two minutes from the live feed.
+
+History
+
+5-second summaries stored by the collector.
+
+15 min
+1 h
+6 h
+24 h
+Load
+
+CPU
+Run delay
+State mix
+I/O
+Read/s
+Write/s
+Table view

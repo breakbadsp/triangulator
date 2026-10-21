@@ -1,0 +1,21 @@
+== healthy
+== cpu-spin
+== cpu-oversub
+== cpu-throttle
+== yield-storm
+== lock-convoy
+== deadlock
+== mem-leak
+== mem-oom
+== vm-bloat
+== fd-leak
+== disk-sync
+== major-faults
+== tcp-slow
+== udp-drop
+== close-wait
+== listen-full
+== thread-churn
+== thread-leak
+== stopped
+screenshots in /tmp/tri-qa/bug-lab-out
