@@ -5,6 +5,36 @@ descriptors, storage, sockets, threads) and a healthy control. Run one at a time
 against Triangulator and see whether the dashboard finds the bug.
 It is a test fixture, not product code, and is not built by `make`.
 
+Run the session without an agent with `scripts/bugbench-session`. To make the
+command available on PATH, run these commands from the repository root:
+
+```sh
+mkdir -p "$HOME/.local/bin"
+ln -s "$PWD/scripts/bugbench-session" "$HOME/.local/bin/bugbench-session"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Add the `export` line to your shell configuration to keep it for new shells.
+Keep the source checkout: the symlink calls its existing session helper.
+Python 3, GCC, and a working user systemd manager are required.
+
+```sh
+bugbench-session                         # start or resume the saved scenario
+bugbench-session list
+bugbench-session next
+bugbench-session previous
+bugbench-session run fd-leak --seconds 300
+bugbench-session status
+bugbench-session stop
+```
+
+The command runs one scenario at a time. The default duration is 1,800 seconds.
+It installs the fixture in `~/triangular/bin/` and shares the agent's saved
+session in `~/triangular/bugbench-session/`. Use `--home DIR` for a separate
+session. It preserves the CPU and memory limits described in the skill below.
+Select the reported PID as the dashboard target. For `mem-oom`, select it
+immediately. For `thread-leak`, observe it for at least 165 seconds.
+
 For an interactive agent session, use
 [`bugbench-session`](../.agents/skills/bugbench-session/SKILL.md).
 Ask the agent to start the session, then ask for the next or previous program.

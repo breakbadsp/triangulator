@@ -19,7 +19,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Help sweep](runs/20261011T110000Z-ci-5189c47/evidence/qa007-help.json) |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
-| QA-009 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Session log](runs/20261011T110000Z-ci-5189c47/evidence/qa009-2-navigation.txt) |
+| QA-009 | NOT_RUN | - | - | - |
 | QA-010 | PASSED | source 93946af | [Run](runs/20261011T095009Z-v0.1.0-retest/index.md) | [Interactive log](runs/20261011T095009Z-v0.1.0-retest/evidence/qa010-drops.json) |
 | QA-011 | PASSED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
 | QA-012 | BLOCKED | PR65 44decf5 (CI baadbd7) | [Run](runs/20261011T090200Z-pr65/index.md) | [Evidence](runs/20261011T090200Z-pr65/evidence/observations.json) |
@@ -900,7 +900,7 @@ Source: [Memory map](../memory-map.md).
 
 ## QA-009: Interactive bugbench session
 
-Feature: Agent workload session. Priority: Medium. Case revision: 1.
+Feature: Agent and command workload session. Priority: Medium. Case revision: 2.
 
 Preconditions: Python 3, GCC, and the user systemd manager are available.
 Use a test home with the helper's `--home` option.
@@ -914,6 +914,14 @@ Use a test home with the helper's `--home` option.
 4. Run `cpu-throttle` and inspect its 50% CPU quota. Run `mem-oom` and inspect
    its 256 MiB memory limit and disabled swap. After it exits, request status.
 5. Stop the session. Verify that unrelated services continue to run.
+6. Add a PATH symlink to `scripts/bugbench-session` as described in
+   [Bug lab](../../bug-lab/README.md). Change to a directory outside the checkout.
+   Run `bugbench-session --help`, then run it with no action and the same
+   `--home` test directory. Verify that it resumes the saved scenario.
+7. Use the command's `list`, `next`, `previous`, `run healthy --seconds 60`,
+   `status`, and `stop` actions. Verify that the command and agent share the
+   saved position and limits. Reject an unknown scenario or a nonpositive
+   duration without stopping a running scenario.
 
 Expected results: Only one session workload runs at a time. Navigation persists
 across conversations. An exited process is reported as stopped. The helper does
