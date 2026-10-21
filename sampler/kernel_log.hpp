@@ -10,6 +10,11 @@
 // messages about an earlier process with the same PID are not read. When
 // kernel.dmesg_restrict = 1 (the default on Ubuntu, Debian and Arch), only
 // CAP_SYSLOG may read it; the report then says so and has no messages.
+//
+// The kernel names a process by its PID in the initial PID namespace. A
+// sampler in a nested one, such as a WSL2 distribution or a container that
+// can read /dev/kmsg, sees other PIDs and cannot learn the outer ones. There
+// it matches messages by the process and thread names instead.
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -164,13 +169,77 @@ namespace triangulator
          NamesHungTask(p_text, p_sorted_ids);
 }
 
+// Whether p_text names a task called p_name in one of the forms NamesTask()
+// reads, whatever its ID: "name[1234]: segfault", "traps: name[1234] trap",
+// "Killed process 1234 (name)", "task=name,pid=1234," in the OOM killer's
+// summary, "PID: 1234 Comm: name" and "INFO: task name:1234 blocked". For a
+// sampler in a nested PID namespace, where the IDs in the log are not its own.
+[[nodiscard]] inline bool NamesTaskCalled(std::string_view p_text,
+                                          std::string_view p_name)
+{
+  if (p_name.empty())
+  {
+    return false;
+  }
+  for (auto at = p_text.find(p_name); at != std::string_view::npos;
+       at = p_text.find(p_name, at + 1))
+  {
+    const auto before = p_text.substr(0, at);
+    const auto after = p_text.substr(at + p_name.size());
+    const auto bracketed = (before.empty() || before.ends_with(' ')) &&
+                           after.starts_with('[') &&
+                           LeadingId(after.substr(1), "]");
+    auto process = before;
+    if (process.ends_with(" ("))
+    {
+      process.remove_suffix(2);
+      while (!process.empty() && process.back() >= '0' && process.back() <= '9')
+      {
+        process.remove_suffix(1);
+      }
+    }
+    const auto killed = before.ends_with(" (") && after.starts_with(')') &&
+                        process.ends_with("process ") &&
+                        process.size() + 2 < before.size();
+    const auto summary = (before == "task=" || before.ends_with(",task=")) &&
+                         after.starts_with(",pid=");
+    const auto header =
+        before.ends_with("Comm: ") && (after.empty() || after.starts_with(' '));
+    const auto hung = before.ends_with("task ") && after.starts_with(':') &&
+                      LeadingId(after.substr(1), " ");
+    if (bracketed || killed || summary || header || hung)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Whether this process is in the initial PID namespace, whose PIDs the
+// kernel log uses. p_path is /proc/self/ns/pid, a link to "pid:[INODE]";
+// the initial namespace always has inode 0xEFFFFFFC. When the link cannot
+// be read, the answer is yes, so messages are matched by ID as before.
+[[nodiscard]] inline bool InInitialPidNamespace(const char* p_path)
+{
+  constexpr std::string_view kInitial = "pid:[4026531836]";
+  std::array<char, 64> link{};
+  const auto length = ::readlink(p_path, link.data(), link.size());
+  return length < 0 ||
+         std::string_view{link.data(), static_cast<std::size_t>(length)} ==
+             kInitial;
+}
+
 // Keeps the newest kernel messages that name the ended process or one of
 // its threads: a segfault names the thread that faulted, the OOM killer
 // names the process.
 class ExitMessages
 {
  public:
-  // p_tids: the sorted thread IDs to match, besides the process ID.
+  // The most distinct thread names matched in a nested PID namespace.
+  static constexpr std::size_t kMaxNames = 16;
+
+  // Matches by ID. p_tids: the sorted thread IDs to match, besides the
+  // process ID.
   ExitMessages(int p_pid, std::span<const std::uint32_t> p_tids)
   {
     ids_[id_count_++] = static_cast<std::uint32_t>(p_pid);
@@ -182,13 +251,32 @@ class ExitMessages
     std::ranges::sort(std::span{ids_}.first(id_count_));
   }
 
+  // Matches by the names of p_threads, for a sampler in a nested PID
+  // namespace. Two processes with the same name cannot be told apart. The
+  // names refer to p_threads, which must outlive this object.
+  explicit ExitMessages(std::span<const wire::Record> p_threads)
+  {
+    for (const auto& thread : p_threads)
+    {
+      const std::string_view name{
+          thread.comm_.data(),
+          ::strnlen(thread.comm_.data(), thread.comm_.size())};
+      const auto known = std::span{names_}.first(name_count_);
+      if (name_count_ == names_.size() || name.empty() ||
+          std::ranges::contains(known, name))
+      {
+        continue;
+      }
+      names_[name_count_++] = name;
+    }
+  }
+
   void Offer(std::string_view p_record)
   {
     const auto text = KmsgText(p_record);
     // Lines that start with '[' are rows of the OOM killer's task table,
     // which lists every process, not only the one it kills.
-    if (!text || text->empty() || text->front() == '[' ||
-        !NamesTask(*text, std::span{ids_}.first(id_count_)))
+    if (!text || text->empty() || text->front() == '[' || !Names(*text))
     {
       return;
     }
@@ -209,8 +297,23 @@ class ExitMessages
   }
 
  private:
+  [[nodiscard]] bool Names(std::string_view p_text) const
+  {
+    if (id_count_ > 0)
+    {
+      return NamesTask(p_text, std::span{ids_}.first(id_count_));
+    }
+    return std::ranges::any_of(std::span{names_}.first(name_count_),
+                               [p_text](std::string_view p_name)
+                               {
+                                 return NamesTaskCalled(p_text, p_name);
+                               });
+  }
+
   std::array<std::uint32_t, wire::kMaxThreads + 1> ids_{};
   std::size_t id_count_ = 0;
+  std::array<std::string_view, kMaxNames> names_{};
+  std::size_t name_count_ = 0;
   std::array<exit_wire::Line, exit_wire::kMaxLines> lines_{};
   std::size_t matched_ = 0;
 };
@@ -219,16 +322,20 @@ class KernelLog
 {
  public:
   static constexpr const char* kPath = "/dev/kmsg";
+  static constexpr const char* kPidNamespacePath = "/proc/self/ns/pid";
   // The longest the drain in Collect() may take when the caller gives no
   // budget. Reading is one read() per record and runs on the sampling
   // thread, so the time is bounded, not the number of records.
   static constexpr Nanoseconds kDefaultBudget = 50ms;
 
   // Starts watching a newly found target: later Collect() calls read only
-  // the messages logged from now on.
-  void Watch(RateLimitedLogger& p_logger, const char* p_path = kPath)
+  // the messages logged from now on. p_pid_namespace tells whether the
+  // messages are matched by ID or, in a nested PID namespace, by name.
+  void Watch(RateLimitedLogger& p_logger, const char* p_path = kPath,
+             const char* p_pid_namespace = kPidNamespacePath)
   {
     tid_count_ = 0;
+    by_name_ = !InInitialPidNamespace(p_pid_namespace);
     log_ = FileDescriptor{::open(p_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)};
     error_ = log_ ? 0 : errno;
     if (log_ && ::lseek(log_.Get(), 0, SEEK_END) < 0)
@@ -311,7 +418,8 @@ class KernelLog
       report.error_ = static_cast<std::uint32_t>(error_ ? error_ : EBADF);
       return report;
     }
-    ExitMessages messages{p_target.pid_, Threads()};
+    auto messages = by_name_ ? ExitMessages{p_threads}
+                             : ExitMessages{p_target.pid_, Threads()};
     const auto deadline = ClockNow(CLOCK_MONOTONIC) + p_budget;
     bool drained = false;
     while (!drained)
@@ -345,6 +453,7 @@ class KernelLog
  private:
   FileDescriptor log_;
   int error_ = EBADF;
+  bool by_name_ = false;
   // Sorted thread IDs seen since Watch(); current_ and merged_ are scratch
   // space for Note().
   std::array<std::uint32_t, wire::kMaxThreads> tids_{};
