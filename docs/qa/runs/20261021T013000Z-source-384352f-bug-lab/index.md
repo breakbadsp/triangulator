@@ -67,3 +67,14 @@ documentation, wording, or an observation for the owner.
   capture. The capture does not show the recovered state.
 
 No blocker or major issue found. QA-112 is blocked by host storage, not by the product.
+
+## Issue follow-up
+
+Status on 2026-10-21. The results above stay as recorded for `384352f`.
+
+- ISS-9: intended behavior. QA-035 expects "A watch rule matches no thread".
+- ISS-10: QA-103 part fixed in PR #123. When `cpu.max` is `max`, the CPU
+  pressure finding says that the cgroup has no CPU quota. The QA-107 text
+  ("Possible deadlock or lost wake-up") already claims no proved deadlock,
+  so it is unchanged.
+- ISS-11: open. The runner change is in `TODO.md`.

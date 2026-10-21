@@ -90,3 +90,18 @@ documented expected result. **Minor** is a wrong or confusing behavior with a wo
 Carried from the sanity run: ISS-1 (Minor), ISS-2 (Low), ISS-3 (Low, unconfirmed).
 
 No blocker or major issue found. One Minor failure (QA-004) is listed above.
+
+## Issue follow-up
+
+Status on 2026-10-21. The results above stay as recorded for `384352f`.
+
+- ISS-4 and ISS-8: intended behavior. A selector change made outside the tab
+  keeps the final view until **Show live**
+  ([final view](../../../collector-reference.md#final-view-after-the-target-exits)).
+  QA-004 revision 2 (PR #123) expects this. Retest QA-004.
+- ISS-5: fixed in PR #123. QA-033 revision 2 expects the watch warning.
+- ISS-6: not a defect. `last_ran` is the time of the sample that saw the wake,
+  and the collector processes a tick after a drain grace of
+  max(0.25 s, 2 × sample interval), 0.4 s at 5 Hz. With 1 s polls, the
+  elapsed value for a 1 s wake can reach about 1.7 s.
+- ISS-7: fixed in PR #123. `set-target.sh` names the `[[target]]` entry it wrote.

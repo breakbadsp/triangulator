@@ -89,3 +89,16 @@ ISS-5 (Low), ISS-6 (Low), ISS-7 (Low), ISS-8 (Minor), ISS-9 (Low, test artifact)
 ISS-11 (Low).
 
 One Major issue (ISS-12) and two Minor failures (QA-060, QA-071) are open from this run.
+
+## Issue follow-up
+
+Status on 2026-10-21. The results above stay as recorded for `384352f`.
+
+- ISS-12 and ISS-16: fixed in PR #122. After a collector-only restart, each
+  target gets its own slot, and a target pushed out of the temporary
+  `default` slot comes back with its own announcement. Retest QA-068 step 3.
+- ISS-14: documentation fixed in PR #123. Manage targets removes a target at
+  once. A removal through `scripts/set-target.sh --remove`, as in this run,
+  waits for `target_idle_expiry_s`. QA-071 revision 2 says this. Retest QA-071.
+- ISS-15: open for an owner decision on the throttle recovery rule. See
+  "Sampler rate and CPU budget" in `TODO.md`.

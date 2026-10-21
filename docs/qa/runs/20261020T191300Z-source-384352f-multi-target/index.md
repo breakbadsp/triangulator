@@ -78,3 +78,13 @@ workaround. **Low** is documentation or wording drift.
   replay time (12:47:16 AM with banner 12:47:17 AM). Retest in regression.
 
 No blocker or major issue found in the sanity scope.
+
+## Issue follow-up
+
+Status on 2026-10-21. The results above stay as recorded for `384352f`.
+
+- ISS-1: fixed in PR #123. Manage targets asks the server to check an add
+  (`"check": true`) before the confirmation.
+- ISS-2: fixed in PR #123. QA-002, QA-003, and QA-004 (revision 2) use Manage
+  targets and Add target. "Change target" stays only as a help search alias.
+- ISS-3: still unconfirmed. Retest the QA-005 replay drawer (see `TODO.md`).
