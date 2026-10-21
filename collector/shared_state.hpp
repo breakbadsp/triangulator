@@ -170,6 +170,13 @@ class SharedState
     return found == targets_.end() ? std::nullopt : std::optional{*found};
   }
 
+  // The number of published targets, which hold the collector's slots.
+  [[nodiscard]] std::size_t TargetCount()
+  {
+    std::lock_guard lock{mutex_};
+    return targets_.size();
+  }
+
   [[nodiscard]] std::shared_ptr<const std::string> Targets()
   {
     std::lock_guard lock{mutex_};
