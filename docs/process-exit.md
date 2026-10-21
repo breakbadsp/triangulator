@@ -84,7 +84,11 @@ flowchart LR
    since it found the process (up to 2,550 at a time; when more have come and
    gone, the threads alive in the last tick). A segfault names the thread that faulted; the OOM killer names the
    process. The OOM killer's task table lists every process, so its rows are
-   skipped.
+   skipped. The kernel uses PIDs of the initial PID namespace. A sampler in
+   a nested one, such as in a WSL2 distribution, sees other PIDs and
+   cannot learn the outer ones. It detects this from `/proc/self/ns/pid` and
+   matches the names of the threads in the last tick instead, such as
+   `Killed process 1314628 (app)` or `app[1314630]: segfault`.
 3. It reads the exit status. The sampler is not the target's parent, so it
    cannot call `waitpid()`. It opens a pidfd (`pidfd_open`) when it finds the
    target, after which it checks that the PID still names the same process.
@@ -170,6 +174,10 @@ did not crash. That reason means the exit status was not available either.
   pool threads make this more likely. The report then has no kernel message;
   the exit status still names the signal.
 - A crash before the sampler found the process is not read.
+- In a nested PID namespace, such as WSL2, messages are matched by name. A
+  crash of another process with the same name after the sampler found the
+  target can then appear in its report. Only the first 16 distinct thread
+  names of the last tick are matched.
 - When `pidfd_open` fails, such as under a seccomp filter, the status is read
   only from a zombie.
 - The sampler reads the kernel log for at most a quarter of a tick, and 50 ms
