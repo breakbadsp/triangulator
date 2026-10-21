@@ -72,6 +72,12 @@ class Session:
         print(f"Duration: {state['seconds']} seconds")
         print(f"Log: {state['log']}")
         print(f"Command: {shlex.join(state['command'])}")
+        if active:
+            print(f"Select PID {properties['MainPID']} as the dashboard target.")
+            if state["scenario"] == "mem-oom":
+                print("Select it immediately. The kernel can kill it in about 30 seconds.")
+            elif state["scenario"] == "thread-leak":
+                print("Observe this scenario for at least 165 seconds.")
 
     def stop(self):
         state = self.state()
@@ -150,8 +156,10 @@ class Session:
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["start", "next", "previous", "run", "list", "status", "stop"])
+    parser = argparse.ArgumentParser(prog="bugbench-session", description=__doc__)
+    parser.add_argument("action", nargs="?", default="start",
+                        choices=["start", "next", "previous", "run", "list", "status", "stop"],
+                        help="session command (default: start)")
     parser.add_argument("scenario", nargs="?")
     parser.add_argument("--seconds", type=int, default=1800)
     parser.add_argument("--home", type=Path, default=Path.home() / "triangular")

@@ -14,6 +14,9 @@ Run the helper from the repository root:
 python3 .agents/skills/bugbench-session/scripts/session.py start
 ```
 
+The PATH command `bugbench-session` calls the same helper. With no action, it
+uses `start`. See [command setup](../../../bug-lab/README.md).
+
 `start` copies `bug-lab/bugbench.c` to `~/triangular/bin/bugbench.c`, compiles
 `~/triangular/bin/bugbench`, and starts the first scenario. If a session already
 has a running process, report it. If its process has ended, restart that scenario.
