@@ -15,7 +15,7 @@ Run the review workflow for pull request $ARGUMENTS. You are the orchestrator. D
 
 Follow "Model and reasoning selection" in `docs/pr-review-workflow.md`. If that file is absent: use one large model and one small, quick model for `full`, never two large models. Prefer different model families, including a reviewer from a different family than the orchestrator. If another family is unavailable, keep the large-and-quick pair in the available family. Use only one quick reviewer for simple changes in `scan`.
 
-If the change is critical, or touches a critical path, run at least one reviewer as Opus 5.5 at effort `high`. Use Astra 6 at `medium` or `low` instead when it is available and limits allow. Until Astra 6 is configured, use Opus 5.5 `high`. This overrides the budget-based effort for that reviewer.
+If the change is critical, or touches a critical path, run at least one reviewer as Opus 5.5 at effort `high`. Use GPT 6.1 Sol at effort `high` instead when it is available and limits allow. Never use Astra 6. Whenever Astra 6 would be chosen, use GPT 6.1 Sol at `high`. This overrides the budget-based effort for that reviewer.
 
 Before each role, select effort from the remaining token budget: `low` for simple work, `medium` otherwise. Lower effort if the budget is small or unknown. Use `high` only for a concrete, complex risk with enough tokens left for fixes and the gate. These choices override the agent defaults and effort values below.
 
