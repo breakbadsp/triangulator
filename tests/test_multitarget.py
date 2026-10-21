@@ -364,6 +364,23 @@ class MultiTargetCollectorTests(CollectorCase):
         self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["health"]["pid"] == 123)
         self.wait_for(lambda: self.fetch("/api/live?target=host-a/billing")["health"]["pid"] == 456)
 
+    def test_restarted_collector_rebinds_default_and_second_target(self):
+        # The default announcement comes first, while the provisional default
+        # slot holds the second target's session.
+        self.send(tick(101))
+        self.send(tick(202, pid=456))
+        self.send(tick(101, sequence=1))
+        self.send(announce(101, "default"))
+        self.send(announce(202, "b", pid=456))
+        self.wait_for(lambda: self.targets() == {"host-a/default", "host-a/b"})
+        self.send(tick(101, sequence=2))
+        self.send(tick(202, pid=456, sequence=2))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/default")["health"]["pid"] == 123)
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/b")["health"]["pid"] == 456)
+        statuses = {target["key"]: (target["pid"], target["status"])
+                    for target in self.fetch("/api/targets")["targets"]}
+        self.assertEqual(statuses, {"host-a/default": (123, "live"), "host-a/b": (456, "live")})
+
     def test_reused_slot_forgets_its_announced_identity(self):
         self.send(announce(101, "orders"))
         self.send(tick(101))

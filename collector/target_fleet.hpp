@@ -143,10 +143,17 @@ class TargetFleet final
       ++bad_packets_;
       return {};
     }
-    if (IsRetired(p_peer, session) &&
-        !(announcement && Recover(p_peer, session)))
+    // A recovered session lost the legacy sender key to another session of
+    // the same sampler, as after a collector restart. That session still
+    // holds the key, so the recovered one must not adopt it.
+    bool recovered = false;
+    if (IsRetired(p_peer, session))
     {
-      return {};
+      recovered = announcement && Recover(p_peer, session);
+      if (!recovered)
+      {
+        return {};
+      }
     }
     if (!pinned_)
     {
@@ -177,7 +184,8 @@ class TargetFleet final
       }
       // The first TTGT can be lost before the collector binds its socket.
       // A later default announcement adopts the legacy sender key.
-      if (!known && target_wire::Text(announcement->target_) == "default")
+      if (!known && !recovered &&
+          target_wire::Text(announcement->target_) == "default")
       {
         for (auto& candidate : slots_)
         {
@@ -230,7 +238,9 @@ class TargetFleet final
         // Without TTGT, a second session from this sender replaces the first
         // as an old sampler would. If the sender is a new one that was
         // heard before its announcements, its TTGT recovers the session.
-        Retire(slot->peer_, slot->session_, !announcement && !slot->announced_);
+        // This also holds when a TTGT of another session adopts the slot:
+        // the unannounced session can be a second target of that sampler.
+        Retire(slot->peer_, slot->session_, !slot->announced_);
         slot->monitor_.Close();
         slot->resources_.Drain(p_now, true);
       }
