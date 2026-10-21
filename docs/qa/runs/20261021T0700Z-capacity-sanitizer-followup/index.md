@@ -18,6 +18,10 @@ Evidence: [test log](evidence/qa078-test.log). The new test
 `test_sixth_target_over_capacity_is_refused_until_a_slot_frees` keeps the safe
 behavior and records the missing add-time error.
 
+Later update: master commits 61b46cb and ba64e70 now refuse the add with HTTP
+409 ("limit of 5 targets"). That test on master asserts the refusal. This
+result describes the earlier source and was not run again.
+
 ## ThreadSanitizer failure in `make check-sanitizers`
 
 `test_cpu_budget_changes_wire_interval_without_changing_sessions` failed only

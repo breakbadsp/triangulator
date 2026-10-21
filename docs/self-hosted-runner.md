@@ -12,11 +12,68 @@ filters match. Pull requests run the normal AlmaLinux 8 test suite in a
 prepared build image. Formatting and tests run concurrently. Static
 release builds, their test suite, and copied-binary runtime checks run only
 nightly or on manual runs. The QA results check keeps its existing path filters.
-Sanitizers, AlmaLinux 8 and 9 tests, and packaging run nightly at 03:00
-in `Asia/Kolkata`. These workflows also support manual runs. Packaging
+T3 dispatches sanitizers, AlmaLinux 8 and 9 tests, and packaging daily at
+03:00 in `Asia/Kolkata` on `master`, with full default inputs. These workflows
+also support manual runs. GitHub cron triggers are disabled. Packaging
 still builds and publishes releases for `v*` tags; nightly runs only
 upload test artifacts. Normal PR runs and full static runs use separate
 cancellation groups, so a manual full run does not cancel a PR check.
+
+## Nightly dispatch and monitoring
+
+The T3 daily task runs this command from an updated checkout of `master`:
+
+```sh
+python3 .github/scripts/dispatch-nightly.py
+```
+
+The T3 host must be awake, its scheduling service must be running, and `gh`
+must be authenticated for `breakbadsp/triangulator` with Actions write access.
+The self-hosted runner services must also be available to execute the jobs.
+T3 submits the workflows at 03:00; GitHub queue time can delay job execution.
+If the host misses 03:00, run the dispatcher later that IST date. It does not
+submit before 03:00 or backfill earlier dates.
+
+The dispatcher uses a process lock and atomic state writes. Its default state
+is `~/.local/state/triangulator/nightly-dispatch.json`, outside the checkout.
+Keep this file across checkout changes. Use the same state path for every
+invocation on the dispatch host. Do not run independent dispatch hosts.
+`--state-path PATH` selects a different file for tests.
+`--dry-run` reads GitHub and local state, reports each decision, and does not
+submit workflows or write state or lock files.
+
+Before submission, the dispatcher queries runs created on the current IST
+date on `master`. Existing scheduled runs suppress duplicate builds during
+migration, regardless of their result. Manual sanitizers and package runs
+also qualify because they always use the full checks. A manual AlmaLinux run
+qualifies only when its jobs include `AlmaLinux 9`; a lean AlmaLinux 8 run does
+not suppress the full nightly checks.
+
+The dispatcher writes a `pending` record before each submission. A successful
+`gh` response changes it to `submitted`. Each workflow retains its own record,
+so one failure does not discard other submissions. If submission is interrupted
+or its network result is uncertain, the next invocation inspects GitHub but
+never submits that workflow again automatically. An observed full run changes
+the record to `observed`. If no full run is found, inspect GitHub Actions and
+the pending record manually. Keep the record while the result is uncertain.
+Remove only that workflow's pending record for that date after confirming that
+GitHub did not accept the request. Do not delete the complete state file.
+
+The T3 result-monitor task runs hourly. It checks the three full nightly runs
+for the current IST date, reports missing, queued, running, and failed runs,
+and inspects failed-job logs before proposing a fix. Its response state is
+`~/.local/state/triangulator/nightly-ci-response.json`, separate from dispatch
+state. Deduplicate responses by run ID and attempt. Result monitoring must not
+submit replacement builds for missing or uncertain dispatches. The dispatcher
+returns status 0 for successful submissions, known skips, and dry-runs. It
+returns status 1 for errors or unresolved pending submissions; errors identify
+the workflow. Diagnose these errors before the next automatic invocation.
+
+Run the focused behavior tests without GitHub access:
+
+```sh
+python3 -m unittest discover -s tests -p test_nightly_dispatch.py -v
+```
 
 ## How jobs choose a runner
 

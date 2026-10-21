@@ -31,6 +31,14 @@ class ControlError(Exception):
     pass
 
 
+class TargetLimitError(ControlError):
+    """The collector has no free target slot for one more target."""
+
+    def __init__(self, max_targets):
+        super().__init__(f"The collector is at its limit of {max_targets} targets. Remove a target, "
+                         "or raise max_targets in the collector configuration, then add this one.")
+
+
 def runtime_directory():
     """All user runtime files share this directory."""
     return Path(os.environ.get("TRIANGULATOR_HOME") or Path.home() / "triangulator").resolve()
@@ -351,7 +359,7 @@ def replace_targets(text, targets):
     return output
 
 
-def change_target_set(text, change):
+def change_target_set(text, change, max_targets=None):
     if not isinstance(change, dict) or set(change) - {"action", "id", "target"}:
         raise ControlError("expected an action, target id, and selector")
     action, target_id = change.get("action"), change.get("id")
@@ -364,6 +372,11 @@ def change_target_set(text, change):
             raise ControlError("this target id is already configured")
         if len(targets) >= 16:
             raise ControlError("at most 16 targets are permitted")
+        # The collector drops a target beyond max_targets. Its published count
+        # lags a reload, so the configured count, read under the lock, also
+        # counts adds that it has not seen yet.
+        if max_targets is not None and len(targets) >= max_targets:
+            raise TargetLimitError(max_targets)
         selected = change.get("target")
         if not isinstance(selected, str) or not selected:
             raise ControlError("enter a process name or PID")
@@ -386,7 +399,7 @@ def change_target_set(text, change):
     return replace_targets(text, targets)
 
 
-def dashboard_targets(root, host, port, body=None):
+def dashboard_targets(root, host, port, max_targets, body=None):
     """Apply one set operation under the existing configuration lock."""
     check = False
     try:
@@ -405,10 +418,10 @@ def dashboard_targets(root, host, port, body=None):
                 if sampler is None:
                     raise ControlError("the sampler is not running; start it with scripts/start.sh")
                 require_local_collector(sampler[1], (host, port))
-                change_target_set(sampler[1].read_text(), change)
+                change_target_set(sampler[1].read_text(), change, max_targets)
             else:
                 update_config(root, None, None, (host, port),
-                              transform=lambda text: change_target_set(text, change))
+                              transform=lambda text: change_target_set(text, change, max_targets))
         sampler = running_sampler(root)
         if sampler is None:
             raise ControlError("the sampler is not running; start it with scripts/start.sh")
@@ -419,6 +432,8 @@ def dashboard_targets(root, host, port, body=None):
             result["message"] = "Reload requested. The target change applies to every viewer."
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": True, "error": str(error)}
+        if isinstance(error, TargetLimitError):
+            result["at_limit"] = True
     print(json.dumps(result))
 
 
@@ -458,8 +473,8 @@ def collector(root):
 
 
 def main(argv):
-    if len(argv) in (4, 5) and argv[1] == "dashboard-targets":
-        dashboard_targets(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
+    if len(argv) in (5, 6) and argv[1] == "dashboard-targets":
+        dashboard_targets(ROOT, argv[2], argv[3], int(argv[4]), argv[5] if len(argv) == 6 else None)
         return 0
     if len(argv) in (4, 5) and argv[1] == "dashboard-target":
         dashboard_target(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)

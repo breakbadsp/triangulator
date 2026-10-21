@@ -253,16 +253,17 @@ After every restart the memory map appears within a few seconds. One sampler
 process runs. Its CPU use is close to the old sampler's. With the default
 budget, the effective rate equals `rate_hz` and no throttle badge appears.
 
-## QA-069: Change the single target from the dashboard and scripts
+## QA-069: Change the single target through the API and scripts
 
-Feature: Multi-target compatibility. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Multi-target compatibility. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: QA-068 setup. A local sampler and a loopback dashboard. Two owned
 processes, A and B. The sampler monitors A.
 
-1. From the dashboard, switch monitoring from A to B by PID, as in QA-002.
-2. Switch to a process name that is not running yet, then start it, as in
-   QA-004. Enter invalid input, as in QA-003.
+1. With `POST /api/target` (JSON `{"target":"PID"}` and `X-Triangulator: 1`),
+   switch monitoring from A to B by PID.
+2. Switch to a process name that is not running yet, then start it. Send an
+   empty target and a nonexistent PID.
 3. Run `scripts/set-target.sh <pid>` and `scripts/set-target.sh <name>`.
    Run `scripts/set-rate.sh 2`, then `scripts/set-rate.sh 5`.
 4. After each change, reload the dashboard. Check the saved watch rules, the
@@ -272,12 +273,13 @@ processes, A and B. The sampler monitors A.
    to an address that is not loopback. Check target control in the dashboard
    and through `POST /api/target`.
 
-Expected: You can change the single target from the dashboard without entering
-a target ID, as before. The target stays `default` and keeps its watch rules
-and earlier recordings. Invalid input changes nothing. The one-argument script
-and `/api/target` work before and after the add-and-remove cycle. A setup with
-a remote sampler or a dashboard that is not loopback offers no target control,
-and the API refuses the change.
+Expected: You can change the single target through `POST /api/target` and the
+one-argument script without a target ID, as before. The dashboard offers
+Manage targets, which adds or removes targets by ID. The target stays `default`
+and keeps its watch rules and earlier recordings. Invalid input changes
+nothing. The one-argument script and `/api/target` work before and after the
+add-and-remove cycle. A setup with a remote sampler or a dashboard that is not
+loopback offers no target control, and the API refuses the change.
 
 ## QA-070: Shipped and earlier configuration files
 
@@ -439,14 +441,14 @@ stale changes preserve it. One sampler process handles the resulting set.
 
 ## QA-063: Target access and sampler budget badges
 
-Feature: Dashboard target status. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Dashboard target status. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: Targets include limited access and a throttled sampler.
 
 1. Select the limited-access target. Read its badge and contextual help.
 2. Select a throttled target. Compare CPU, effective rate, and budget with the API.
 3. Make an unselected target absent or silent. Check the attention count.
-4. Change targets. Check the count and badges for the selected target.
+4. Select another target. Check the count and badges for the selected target.
 5. Open help with keyboard focus. Check the labels in light and dark themes.
 
 Expected: Badges explain access limits and the shared sampler CPU budget.
@@ -578,7 +580,7 @@ Source: [Sampling defaults](../setup.md#install-from-a-release-package).
 
 ## QA-026: Final view after the target exits
 
-Feature: Dashboard target exit. Priority: High. Case revision: 2.
+Feature: Dashboard target exit. Priority: High. Case revision: 3.
 
 Preconditions: Start `bug-lab/bugbench.c` with a busy scenario and monitor its
 PID. Keep the dashboard open for at least five minutes.
@@ -600,14 +602,13 @@ PID. Keep the dashboard open for at least five minutes.
    trends.
 6. Start a new target. Verify the banner names its PID and the final view stays.
    Select **Show live** and verify the new target appears and the banner closes.
-7. Use **Change target** to select a process name that is not running. Verify no
-   final view appears in that tab. Repeat while a final view is shown and a new
-   target is monitored.
+7. In Manage targets, add a target with a process name that is not running.
+   Select it in the target selector. Verify that it shows as absent with no
+   final view.
 8. Pause over the banner. Verify its help explains the final view and its limits.
 
 Expected results: The exited process stays inspectable until **Show live**.
-Nothing is cleared silently. A deliberate target change in the same tab is not
-reported as an exit.
+Nothing is cleared silently. A newly selected target is not reported as an exit.
 
 ## QA-021: Dashboard HTTP server animation
 
@@ -645,7 +646,7 @@ the static diagram, route table, and source links remain available.
 
 ## QA-023: Reason the target process ended
 
-Feature: Process exit reasons. Priority: High. Case revision: 2.
+Feature: Process exit reasons. Priority: High. Case revision: 3.
 
 Preconditions: The dashboard is open with live samples. Use an owned test
 process on Linux 6.15 or later. Run two passes on the target host: one with
@@ -669,8 +670,9 @@ process on Linux 6.15 or later. Run two passes on the target host: one with
    the target three more times. Verify the card opens while each crashed
    process is absent, folds once the next one runs, and the line counts the
    exits since the collector started.
-7. End the target again, then change the target to a PID or name that does
-   not exist. Verify the Assessment says "Target process is absent", not
+7. End the target again, then run `scripts/set-target.sh ID NAME` with a
+   process name that is not running. Verify the Assessment says
+   "Target process is absent", not
    "Target process ended", and the header does not use the ended process's
    name.
 8. Open a recording after the exit on the Timeline. Verify the card shows the recorded
@@ -1122,7 +1124,7 @@ JavaScript, the complete table and measurement method remain available.
 
 ## QA-028: Process details card
 
-Feature: Dashboard process details. Priority: Medium. Case revision: 1.
+Feature: Dashboard process details. Priority: Medium. Case revision: 2.
 
 Preconditions: Run the sampler as the target's user with no extra privileges.
 Start a test process from a known directory with arguments, such as
@@ -1136,7 +1138,8 @@ cores with `taskset -c 0,1`. Open the dashboard Summary section.
 4. Start the target as another user, or replace its executable on disk while it
    runs. Wait up to 10 seconds. Check Executable and Working directory.
 5. Start a target with a command line over 380 characters.
-6. Restart the target, or select another with **Change target**. Watch the card.
+6. Restart the target, or select another target in the target selector. Watch
+   the card.
 7. Inspect a recorded moment, then return to **Live**. Stop the target and open
    the final view.
 
@@ -1269,7 +1272,7 @@ no rules, no watch finding or Watched line remains.
 
 ## QA-035: Watched thread busy loop and rule with no match
 
-Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 1.
+Feature: Dashboard watched-thread assessment. Priority: High. Case revision: 2.
 
 Preconditions: Use the `cpu-spin` scenario (threads `worker-spin` and
 `worker-poll`) with an isolated runtime directory and unused ports.
@@ -1278,7 +1281,9 @@ Preconditions: Use the `cpu-spin` scenario (threads `worker-spin` and
    Wait about 10 seconds.
 2. Read the Assessment and its help for each watched finding.
 3. Replace the rules with `misc-` at 1000 ms. Wait for the next refresh.
-4. Select **Change target** and choose a process that has no `misc-` thread.
+4. Run `scripts/set-target.sh ID PID` for a process that has no `misc-` thread.
+   The target keeps its ID, so its watch rules stay. If a final view banner
+   appears, select **Show live**.
 5. Stop the target and read the final view.
 
 Expected results: `worker-spin` has a serious "is running instead of sleeping"
@@ -1453,36 +1458,37 @@ Opening the second view does not stop the first view.
 
 ## QA-048: Local search and replay state
 
-Feature: Multiple viewers. Priority: High. Case revision: 2.
+Feature: Multiple viewers. Priority: High. Case revision: 3.
 
-Preconditions: QA-047 setup. Recording is enabled. Two owned targets run.
+Preconditions: QA-047 setup. Recording is enabled. Two owned processes run, and
+each is a configured target.
 
 1. In A, enter an exact worker name in thread search. Leave B unfiltered.
 2. In A, select a recording on the Timeline. Keep B Live. Observe both views.
-3. In B, change the target to the second process. Observe both views again.
+3. In B, select the second target in the target selector. Observe both views
+   again.
 
 Expected results: A retains its search value and historical process. B retains
 an empty search and receives live data from the selected process. Replay and
 search selections do not propagate between viewers.
 
-## QA-049: Shared target change and another viewer's target editor
+## QA-049: Shared target set and another viewer's Manage targets
 
-Feature: Shared target control. Priority: High. Case revision: 1.
+Feature: Shared target control. Priority: High. Case revision: 2.
 
-Preconditions: Two views monitor the same owned target. A second owned target
-runs. Both views initially load the first target into their target editor.
+Preconditions: Two views show the same owned target. A second owned process
+runs. Local target control is available.
 
-1. Put A in replay. In B, select Change target, enter the second PID, and
-   select Monitor.
-2. Observe B update to the second PID. Observe A retain its historical process.
-3. In A, select Live. Verify the header changes to the second PID.
-4. Open Change target in A. Wait for its target read to complete and the input
-   and Monitor button to become enabled. Read its value and status without
-   submitting it.
+1. Put A in replay. In B, add a target for the second PID in Manage targets.
+2. Observe that A keeps its recorded view and its selected target.
+3. In A, select Live. Verify that A still shows its selected target, and that
+   the target selector lists the new target.
+4. Open Manage targets in A. Wait for the target list to load and **Add
+   target** to become enabled. Read the list without a change.
 
-Expected results: The live target is shared. Replay remains local. After the target read completes and the
-editor is enabled in A, its value identifies the current shared target. The editor
-must not silently offer the earlier target as the current target.
+Expected results: The target set is shared. The selected target and replay
+stay local to each view. After the list loads, A lists the target that B added.
+A must not show the earlier target set as the current one.
 
 ## QA-050: New viewer and stored history
 

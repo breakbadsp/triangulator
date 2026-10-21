@@ -6,9 +6,6 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'
-      timezone: Asia/Kolkata
 
 permissions:
   contents: read

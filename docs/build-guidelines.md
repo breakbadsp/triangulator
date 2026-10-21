@@ -155,11 +155,13 @@ on every job.
 
 Pull requests run the normal AlmaLinux 8 build and test suite. The static
 release build, static test suite, and copied-release runtime checks run
-nightly at 03:00 in `Asia/Kolkata`, and on manual runs.
+nightly through T3 at 03:00 in `Asia/Kolkata`, and on manual runs.
+See [nightly dispatch and monitoring](self-hosted-runner.md#nightly-dispatch-and-monitoring)
+for host requirements, duplicate prevention, and uncertain submissions.
 
 ## Run tests with sanitizers
 
-The `Sanitizer tests` workflow runs nightly at 03:00 in `Asia/Kolkata`
+T3 dispatches the `Sanitizer tests` workflow nightly at 03:00 in `Asia/Kolkata`
 on the latest `master` commit. It also supports manual runs. It does not
 run on each pull request or each push.
 
