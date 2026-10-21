@@ -248,8 +248,11 @@ def set_target(root, target, collector_endpoint=None, target_id=None):
         setting = f'target_process = "{target}"'
     pattern = re.compile(r"\s*target_(?:process|pid)\s*=")
     selected = str(pid) if pid is not None else target
+    # The setting that was written, for the success message.
+    written = setting
 
     def transform(text):
+        nonlocal written
         if TARGET_TABLE.search(text) is None:
             if target_id not in (None, "default"):
                 raise ControlError("this target id is not configured; use --add ID NAME|PID")
@@ -261,6 +264,8 @@ def set_target(root, target, collector_endpoint=None, target_id=None):
         if existing is None:
             raise ControlError("specify a configured target ID; use --add ID NAME|PID to add one")
         existing["target"] = selected
+        selector = f"pid = {pid}" if pid is not None else f'process = "{target}"'
+        written = f'[[target]] id = "{wanted}", {selector}'
         return replace_targets(text, targets)
 
     sampler, config = update_config(root, pattern, setting, collector_endpoint, transform=transform)
@@ -269,7 +274,7 @@ def set_target(root, target, collector_endpoint=None, target_id=None):
         message = f"Waiting for a process named {target} to start."
     if collector_endpoint is not None:
         return {"enabled": True, "target": target, "message": message}
-    print(f"Updated {config}: {setting}")
+    print(f"Updated {config}: {written}")
     print(f"Requested reload of sampler {sampler}; check the dashboard and "
           f"{runtime_directory() / 'logs/sampler.log'}.")
     if not running:
@@ -383,21 +388,34 @@ def change_target_set(text, change):
 
 def dashboard_targets(root, host, port, body=None):
     """Apply one set operation under the existing configuration lock."""
+    check = False
     try:
         if body is not None:
             try:
                 change = json.loads(body)
             except ValueError:
                 raise ControlError("invalid target change JSON") from None
-            update_config(root, None, None, (host, port),
-                          transform=lambda text: change_target_set(text, change))
+            # A check validates an add without a change, so the dashboard
+            # can reject bad input before it asks for confirmation.
+            check = isinstance(change, dict) and change.pop("check", None) is True
+            if check:
+                if change.get("action") != "add":
+                    raise ControlError("only an add can be checked")
+                sampler = running_sampler(root)
+                if sampler is None:
+                    raise ControlError("the sampler is not running; start it with scripts/start.sh")
+                require_local_collector(sampler[1], (host, port))
+                change_target_set(sampler[1].read_text(), change)
+            else:
+                update_config(root, None, None, (host, port),
+                              transform=lambda text: change_target_set(text, change))
         sampler = running_sampler(root)
         if sampler is None:
             raise ControlError("the sampler is not running; start it with scripts/start.sh")
         require_local_collector(sampler[1], (host, port))
         result = {"enabled": True, "host": os.uname().nodename,
                   "targets": configured_targets(sampler[1].read_text())}
-        if body is not None:
+        if body is not None and not check:
             result["message"] = "Reload requested. The target change applies to every viewer."
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": True, "error": str(error)}

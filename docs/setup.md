@@ -793,8 +793,10 @@ Each browser tab selects `?target=<host>/<id>`. A switch resets its view choices
 It does not change monitoring. Manage targets asks for confirmation because
 its changes affect every viewer. Local control requires a loopback dashboard
 and a local sampler run by the same user. Remote hosts use their sampler-side
-configuration. A target removed outside local control can remain listed as
-silent until `target_idle_expiry_s` (default 600 seconds) passes.
+configuration. Manage targets removes a target from the list at once. A target
+removed in another way, such as with `scripts/set-target.sh --remove` or in a
+remote sampler's configuration, can remain listed as silent until
+`target_idle_expiry_s` (default 600 seconds) passes.
 
 See [per-target recording and watch settings](../collector/README.md#per-target-settings).
 
