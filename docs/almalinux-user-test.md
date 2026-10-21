@@ -13,8 +13,12 @@ full manual runs test both the normal and static-release builds in `almalinux:8`
 
 The workflow starts on pull requests that change the workflow, its scripts,
 build files, source files, configuration, tests, or build guidelines.
-Nightly runs start at 03:00 in `Asia/Kolkata` on the latest `master`
-commit. AlmaLinux 10 runs only when selected for a manual run.
+T3 dispatches full nightly runs at 03:00 in `Asia/Kolkata` on the latest
+`master` commit. GitHub cron triggers are disabled. The T3 host must be awake
+and its scheduling service must be running. See
+[nightly dispatch and monitoring](self-hosted-runner.md#nightly-dispatch-and-monitoring)
+for hourly monitoring, duplicate prevention, and uncertain submissions.
+AlmaLinux 10 runs only when selected for a manual run.
 To start it by hand:
 
 1. Open the repository's **Actions** page.
