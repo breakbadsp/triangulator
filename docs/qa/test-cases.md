@@ -85,6 +85,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
+| QA-081 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -1714,3 +1715,24 @@ including wait-channel bars. Other and No access use separate gray colors.
 Wait-channel groups with multiple states and the combined remaining channels
 use neutral gray. The wait-channel filter still selects the matching threads.
 Help explains the color mapping and mixed groups.
+
+## QA-081: Past assessments show resident memory growth
+
+Feature: Timeline. Priority: High. Case revision: 1.
+
+Preconditions: Use an isolated runtime, unused ports, enabled recording, and
+resource samples. Run the bug-lab `mem-leak` workload for at least 3 minutes,
+then stop its growth or the process. Open the dashboard after that.
+
+1. Open **Timeline**, then **Past assessments**. Set the type filter to
+   **Memory**. Read the rows and the Timeline marks.
+2. Select the "Resident memory grows without a plateau" row. Read the
+   Assessment, the Memory section RSS tile, and the top bar.
+3. Select **Load earlier** until the leak period is in an earlier period.
+   Compare the row times with the first check.
+
+Expected results: A Memory row "Resident memory grows without a plateau"
+covers the leak period, with a matching Timeline mark. Selecting it shows the
+same finding in the Assessment of the recorded view, and the RSS tile shows the
+recorded growth rate. Times in earlier periods can be less exact, but the row
+stays.

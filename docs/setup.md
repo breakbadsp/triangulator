@@ -463,6 +463,10 @@ Limits:
 - Each recording is judged on its own, so these rules do not run: the ones that
   need trends from a live tab (thread growth, thread churn, long futex waits)
   and the watch rule with no thread.
+- Resident memory growth uses the stored resource samples before each
+  recording. For long periods these samples are combined into coarser steps.
+  The main-stack rule runs only while the recording's memory map is still the
+  newest one.
 - Nothing is stored. A reload checks the recordings again.
 - Every checked recording is downloaded, about 330 KB each with 1,000 threads.
   Opening the page reads up to 120 of them.

@@ -1030,7 +1030,7 @@ helpTopic('sockettotal','Socket total','Process or breakdown · cumulative bytes
 helpTopic('rates','Socket rates','Process or breakdown · per second','Current, average, minimum, and maximum rates over their labeled observation windows.','','Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.','Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.',['coverage','socketio'],['Current rate','Now /s','Average since start','Average /s','Recent minimum','Recent min /s','Recent maximum','Recent max /s']);
 helpTopic('coverage','Data coverage','Available observations','Coverage notes identify missing, partial, stale, or unavailable observations.','','Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.','Do not treat gaps or unreadable values as zero activity.',['health','socketio']);
 helpTopic('assessment','Assessment','Fixed rules applied to observed data','A summary of conditions that deserve inspection.','','Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Watched-thread rules (see Watched threads) add findings for a thread that stopped waking up, a watched thread that is busy, and a rule that matches no thread. Read the specific finding and its scope. The card lists the most severe findings first and shows up to 8; Show more lists the rest until you select Show fewer.','These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.',['watched','health','cpu','pressure'],['What it means']);
-helpTopic('assesshistory','Past assessments','Recordings · checked period','What the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.','When the page opens, up to 120 recordings of the last 15 minutes are checked, one every ~8 s. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 25 checked recordings is one row, and one red mark on the timeline.','Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.','Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.',['replay','assessment','historyfilters'],['Load earlier']);
+helpTopic('assesshistory','Past assessments','Recordings · checked period','What the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.','When the page opens, up to 120 recordings of the last 15 minutes are checked, one every ~8 s. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 25 checked recordings is one row, and one red mark on the timeline.','Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.','Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.',['replay','assessment','historyfilters'],['Load earlier']);
 helpTopic('historyfilters','Past assessment filters','Rows already checked','Show only past findings of the chosen severities and type, in the list and as timeline marks. The type is the area the rule looks at.','Severity Critical and Serious with type Watched threads lists only watched threads that stopped waking or kept a core busy.','Monitoring: sampler, target and packet loss. Threads & CPU: CPU, run delay, kernel waits, faults, stopped and unreadable threads, lock hints. Watched threads: the watch rules. Resources & network: pressure, limits, descriptors and sockets. Memory: memory-map findings. A row keeps the worst severity it reached. Filters apply at once and read nothing new.','Info is off at first because info findings are notes, not problems. Filters only hide rows; the status line counts all of them.',['assesshistory','assessment']);
 helpTopic('watched','Watched threads','Threads that match a watch rule · wake interval','A watch rule says that threads whose name starts with a prefix wake at least every N milliseconds, as workers that wait with a timeout do. The dashboard compares each such thread with its rule: the finding “stopped waking up” means it has not run for much longer than that interval, “is running instead of sleeping” means it uses 90% of a core or more, and “watch rule matches no thread” means no current thread has that prefix. “Watched: wakes at least every N ms” in a thread\'s details shows its rule and when it last ran.','Rule worker- with 500 ms. worker-3 last ran 4.2 s before the latest sample, so the Assessment says it stopped waking up. Stopped waking means more than twice the interval plus two sample intervals; at 500 ms and 200 ms sampling that is 1.4 s.','The time without running is counted between samples, not against the browser clock, so a paused sampler or a recorded view does not cause an alarm. A stuck thread may be deadlocked or may wait without a timeout: open it and check its wait channel, then take a stack dump to name the lock. A busy one may be in an infinite or retry loop. For a rule with no thread, check the prefix or whether the threads exited or were renamed. When every watched thread ran on time, one line says so.','The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In a recorded view on the Timeline and in the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.',['assessment','states','wchan','thread'],['Watched','Stopped waking','Watch rule']);
 helpTopic('alerts','Alert settings','Separate alerting program','Rules evaluate observations and manage alert state outside the collector.','','Read the unit and duration for each threshold. Saving applies changes immediately. Disabling a rule resolves its open alerts; Reset restores configured settings.','Alert delivery and rule evaluation are separate. The feature is shown only when an alerting program is available.',['assessment','health'],['Open alerts','Recent alert events','On','Rule','Settings','Save changes','Reset to config file']);
@@ -1939,7 +1939,8 @@ element('drawer-close').onclick=closeThread;element('scrim').onclick=closeThread
 
 // ---------- Resources ----------
 // Live values come from live.resources; trends from stored samples.
-let resourceHistory=null,resourceRange=900,pressureScope='cgroup';
+// replayResources: the resource samples up to the recorded view, for its RSS trend.
+let resourceHistory=null,replayResources=[],resourceRange=900,pressureScope='cgroup';
 const KIND_LABELS={tcp4:'TCP',tcp6:'TCP6',udp4:'UDP',udp6:'UDP6',unix_stream:'Unix stream',unix_dgram:'Unix datagram',unix_seqpacket:'Unix seqpacket'};
 const PRESSURE_SERIES=[['cpu','CPU','var(--s-running)'],['memory','Memory','var(--s-futex)'],['io','I/O','var(--s-poll)']];
 // Namespace counters: [live key, label, what it means, history column].
@@ -2057,7 +2058,12 @@ function meter(label,sub,value,max,text){const row=node('div',undefined,'meter')
   row.append(name,track,node('div',text??(share===null?'—':pct(share)),'val'));return row}
 function fillCell(value,title){const cell=node('td');if(!isNum(value)){cell.textContent='—';return cell}
   const box=node('div',undefined,'fillcell'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');fill.style.width=Math.min(100,value)+'%';const level=fillLevel(value);if(level)fill.classList.add(level);track.append(fill);box.append(track,node('span',pct(value)));cell.append(box);if(title)cell.dataset.hint=title;return cell}
-function resourcePoints(){return (resourceHistory?.rows||[]).map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}))}
+const asResourcePoints=rows=>rows.map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}));
+function resourcePoints(){return asResourcePoints(resourceHistory?.rows||[])}
+// The stored resource samples of a time range; none when they cannot be read.
+async function fetchResourcePoints(start,end){
+  try{const response=await apiFetch('/api/resources?'+new URLSearchParams({start:Math.max(0,start),end}));return response.ok?asResourcePoints((await response.json()).rows||[]):[]}
+  catch{return []}}
 function renderResourceTiles(r,points){
   if(helpOwns(element('resource-tiles')))return;
   observeHelp(element('resource-tiles'),r);
@@ -2395,11 +2401,13 @@ async function inspectTime(at,direction='at'){
     if(!response.ok)throw Error(data.error||'Unable to read recordings.');
     setReplayBounds(data);
     if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No recording at or before this time. Choose a later time on the timeline.':'No more recorded snapshots in this direction.';replayControls();return}
+    const recorded=data.snapshot.recorded_at,points=data.snapshot.resources?.available?await fetchResourcePoints(recorded-RSS_TREND_WINDOWS.at(-1),recorded):[];
+    if(request!==replayRequest)return;
     if(replayAt===null){saveBuffer();liveMapWindow=mapWindow;
       // Keep live analysis in memory: session storage does not contain CPU samples.
       savedLiveAnalysis={view:live,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}}
     if(selected)closeThread();
-    replayAt=data.snapshot.recorded_at;live=data.snapshot;
+    replayAt=recorded;live=data.snapshot;replayResources=points;
     loadBuffer(live.health.session);ingest();setMapWindow(0);
     const gap=Math.max(0,at-replayAt);
     element('replay-note').textContent=`Recorded view · ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
@@ -2481,13 +2489,14 @@ let past={samples:[],episodes:[],oldest:null,newest:null,step:null,chunk:PAST_FI
 // The findings the Assessment card shows for one recorded view. The page's
 // view and analysis state are swapped out and put back; nothing awaits in
 // between, so the live view never sees the recorded one.
-function assessRecorded(view){
-  const saved={live,replayAt,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince};
-  try{live=view;replayAt=view.recorded_at;loadBuffer(view.health.session);ingest();const findings=assess(view.threads||[],buffer);
+// points are the resource samples of the checked period, for the RSS trend.
+function assessRecorded(view,points){
+  const saved={live,replayAt,replayResources,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince};
+  try{live=view;replayAt=view.recorded_at;replayResources=points.filter(point=>point.t<=view.recorded_at);loadBuffer(view.health.session);ingest();const findings=assess(view.threads||[],buffer);
     for(const item of findings)if(item.action?.tid!==undefined){const thread=view.threads?.find(thread=>thread.tid===item.action.tid);
       Object.assign(item.action,{session:view.health.session,generation:thread?.generation})}
     return findings}
-  finally{({live,replayAt,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=saved)}}
+  finally{({live,replayAt,replayResources,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=saved)}}
 // The same finding in two views: same type, same title once numbers are
 // ignored ("Packet loss 2.1%" and "Packet loss 3.4%"), and the same thread
 // generation in the same sampler session. A reused TID is a different thread.
@@ -2506,14 +2515,15 @@ function historyEpisodes(samples){
   return [...done,...open.values()].sort((a,b)=>b.first-a.first||rank(a.level)-rank(b.level))}
 // Fetches and judges the recording for each time; slot i covers
 // (times[i] - step, times[i]], and a view from an earlier slot is a gap.
+// One read of resource samples serves the RSS trend of every recording.
 async function checkRecordings(times,step){
-  const samples=new Array(times.length);let next=0,failed=false;
+  const samples=new Array(times.length),points=await fetchResourcePoints(times[0]-step-RSS_TREND_WINDOWS.at(-1),times.at(-1));let next=0,failed=false;
   const worker=async()=>{
     while(!failed&&next<times.length){const index=next++;
       try{const reply=await apiFetch('/api/replay?'+new URLSearchParams({at:times[index],direction:'at'}));const data=await reply.json();
         if(!reply.ok)throw Error(data.error||'Unable to read recordings.');
         const view=data.snapshot;
-        samples[index]=view?.health&&view.recorded_at>times[index]-step?{at:view.recorded_at,findings:assessRecorded(view)}:null}
+        samples[index]=view?.health&&view.recorded_at>times[index]-step?{at:view.recorded_at,findings:assessRecorded(view,points)}:null}
       catch(error){failed=true;throw error}}};
   await Promise.all(Array.from({length:Math.min(PAST_PARALLEL,times.length)},worker));
   return samples}
@@ -2708,16 +2718,17 @@ function memorySlope(points,key){const values=points.filter(point=>isNum(point[k
   const mean=(list)=>list.reduce((sum,value)=>sum+value,0)/list.length,t0=mean(values.map(point=>point.t)),v0=mean(values.map(point=>point[key]));
   let covariance=0,variance=0;for(const point of values){covariance+=(point.t-t0)*(point[key]-v0);variance+=(point.t-t0)**2}
   return variance>0?60*covariance/variance:null}
-// RSS trend of the current process. A restart or crash loop puts an older,
+// RSS trend of the process in view; a recorded view uses the resource samples
+// up to its recording. A restart or crash loop puts an older,
 // smaller process into the stored history, and a leak that began a minute ago
 // has flat time before it. Both would be averaged into the rate, so: only the
 // newest run of samples with the newest PID, and the steepest of the last 60,
 // 120 and 180 s that still climbs steadily (at least four steps in five rise).
 // {slope, span, rises, steps, steady}; null when there is no usable run.
 const RSS_TREND_WINDOWS=[60,120,180],RSS_TREND_MIN_SPAN=30,RSS_TREND_MIN_POINTS=6;
-function rssTrend(){if(replayAt!==null||!live.resources?.available||live.resources.stale)return null;
-  const all=resourcePoints();if(!all.length)return null;
-  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||liveNow()-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+function rssTrend(){if(!live.resources?.available||live.resources.stale)return null;
+  const all=replayAt===null?resourcePoints():replayResources;if(!all.length)return null;
+  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||viewNow()-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
   if(!isNum(live.health?.pid)||newest.pid!==live.health.pid)return null;
   let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
   const run=all.slice(first).filter(point=>isNum(point.rss_bytes));let best=null;
