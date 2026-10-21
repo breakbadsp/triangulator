@@ -101,7 +101,11 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
     localStorage: {getItem() {return null;}, setItem() {}},
-    history: {replaceState() {}}, location: {hash: '', pathname: '/',search:target?'?target='+encodeURIComponent(target):'',assign(url){navigation.push(url);}},
+    history: {replaceState(state, title, url) {
+      const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
+      Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
+    }},
+    location: {hash: '', pathname: '/',search:target?'?target='+encodeURIComponent(target):'',assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -2867,6 +2871,14 @@ test('target requests select one key and keep the target list global', async () 
   assert.equal(requests[2].url, '/api/targets');
   assert.equal(requests[3].options.method, 'POST');
   assert.ok(requests[3].url.includes('target=host-a%2Forders'));
+});
+
+test('closing the thread drawer keeps the selected target in the URL', () => {
+  const app = dashboard(new Map(), () => undefined, {target: 'omarchy/cpu'});
+  app.run("live={health:{session:1},threads:[{tid:7,name:'worker',generation:1}]};openThread(live.threads[0])");
+  assert.equal(app.run('location.search + location.hash'), '?target=omarchy%2Fcpu#thread=7');
+  app.run('closeThread()');
+  assert.equal(app.run('location.search + location.hash'), '?target=omarchy%2Fcpu');
 });
 
 test('the target selector shows status, limited access, throttling, and other attention', () => {

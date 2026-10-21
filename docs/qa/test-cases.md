@@ -309,6 +309,7 @@ Preconditions: Two targets have different PIDs, thread names, and stored views.
 
 1. Open two tabs with different `?target=<host>/<id>` values.
 2. Set a filter, select a thread, open memory details, and inspect a recording.
+2a. Close the thread drawer with Escape, then with Close thread details. Check that the URL keeps `?target=` and drops `#thread=`.
 3. Switch one tab to the other target. Check that those view choices reset.
 4. Check that the second tab retains its target. Open the first tab's URL again.
 5. Open a new tab without a target. Check the remembered choice.
