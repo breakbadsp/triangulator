@@ -1,0 +1,10 @@
+QA-070 configuration checks (--check-config only):
+shipped config/collector.toml        valid
+shipped config/sampler.toml          valid
+max_targets = 0                      error: max_targets must be a positive integer
+max_targets = 65                     error: max_targets must be 1..64
+max_targets 8 x max_live_samples 2000000  error: max_live_samples times max_targets must be at most 10000000
+duplicate [[target]] ids             error: target ids must be unique
+invalid [[target]] id "bad id!"      error: target id must contain 1..31 letters, digits, dots, underscores, or hyphens
+mixing target_process and [[target]] error: use target tables or a top-level target, not both
+Not run: earlier collector and sampler configs from QA-067 (needs an older build), start.sh and stop.sh steps.

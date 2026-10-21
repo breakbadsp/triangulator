@@ -1,0 +1,33 @@
+Browser observations, source 384352f, isolated runtime (HTTP 19401, UDP 19400).
+Browser: T3 preview tab, viewport 1280 x 800.
+
+QA-001
+- /?target=omarchy%2Fdefault loaded. Header: "bb-healthy PID 4093996 · Live".
+- Summary: Assessment "Healthy". Five threads listed in the Threads section.
+- Screenshot: summary card and process load visible without an application error.
+
+QA-002
+- Manage targets > Target ID "cpu", Process name or PID "4093998" > Add target.
+- Browser confirm: "Add cpu? This changes monitoring for every viewer." Accepted.
+- Sampler config gained [[target]] id = "cpu", pid = 4093998. API shows omarchy/cpu live.
+- Navigate to /?target=omarchy%2Fcpu: header "bb-cpu-spin PID 4093998 · Live",
+  Assessment "Something is struggling", finding "worker-hot is saturating a core".
+- Reload: URL and header keep omarchy/cpu. Both targets appear in the header switcher.
+
+QA-003
+- Empty Target ID and Process name: native required-field message "Please fill out this field."
+  for both fields. No config change.
+- Target ID "ghost", PID 999999 > Add target. Browser confirm "Add ghost? This changes
+  monitoring for every viewer." appears BEFORE validation. After accepting, the form shows
+  "no running process with PID 999999". Config unchanged (still two targets).
+- Close (Close button) and reload: target stays omarchy/cpu.
+
+QA-005
+- Thread row "worker-hot" opens the drawer: CPU 99.7%, run delay, switches/s, last core,
+  live CPU chart (last two minutes), history with 15 min / 1 h / 6 h / 24 h.
+- Replay: Previous recorded snapshot. Banner "12:46:01 AM · Back to live". Summary shows
+  "Historical". Drawer opened in replay shows "Last sample 12:46:01 AM".
+- Observation (not reproduced on retry): a drawer that was already open in live mode
+  showed "Last sample 12:46:13 AM" while the banner read 12:46:01 AM. Reopening the
+  drawer in replay showed the correct time. A second attempt also showed the replay time.
+- Replay > Live: banner removed; Summary "as of" advanced to live time within 5 s.

@@ -369,6 +369,20 @@ test('pressure, descriptor and TCP memory rules use the cgroup when it reports',
   assert.equal(findingsOf(app, first)[0].title, 'Tasks wait for memory 8.0% of the time');
 });
 
+test('cgroup CPU pressure names the quota only when cpu.max may set one', () => {
+  const app = dashboard();
+  const detail = cpu => {
+    const sample = resources();
+    sample.pressure.cgroup.cpu = {some: {pct: 40}, full: {pct: 0}};
+    sample.cgroup_limits = {cpu};
+    return findingsOf(app, sample).find(item => item.title.startsWith('Runnable tasks wait for CPU')).detail;
+  };
+  assert.equal(detail({quota_us: null, period_us: 100000}),
+               'More tasks are runnable than the cores can run. The cgroup has no CPU quota (cpu.max is max).');
+  assert.match(detail({quota_us: 50000, period_us: 100000}), /CPU quota \(cpu\.max\)/);
+  assert.match(detail({}), /CPU quota \(cpu\.max\)/);
+});
+
 test('socket rules name the slow reader, the slow peer and overflowing listeners', () => {
   const app = dashboard();
   const sample = resources();
@@ -2884,16 +2898,36 @@ test('the selector stays visible while the selected target is unavailable', () =
   assert.equal(app.elements.get('target-select').hidden, true);
 });
 
-test('target management requires confirmation before one global write', async () => {
+test('target management checks an add, then requires confirmation before one global write', async () => {
+  const app = dashboard();
+  const bodies = [];
+  app.setFetch(async (url, options) => {bodies.push(JSON.parse(options.body));return {ok: true,json:async()=>({targets:[],message:'Reload requested.'})};});
+  app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return false};`);
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
+  assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true}]);
+  assert.equal(app.run('questions'), 1);
+  app.run("confirm=()=>true;refreshTargets=async()=>{}");
+  bodies.length = 0;
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
+  assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true},
+                            {action: 'add', id: 'orders', target: '456'}]);
+  // A removal is not checked first.
+  bodies.length = 0;
+  await app.run("changeManagedTarget({action:'remove',id:'orders',target:'456'})");
+  assert.deepEqual(bodies, [{action: 'remove', id: 'orders', target: '456'}]);
+});
+
+test('an add that fails its check is rejected before the confirmation', async () => {
   const app = dashboard();
   let writes = 0;
-  app.setFetch(async () => {writes++;return {ok: true,json:async()=>({targets:[],message:'Reload requested.'})};});
-  app.run(`managedTargets=[{id:'default',target:'123'}];confirm=()=>false;`);
-  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
-  assert.equal(writes, 0);
-  app.run("confirm=()=>true;refreshTargets=async()=>{}");
-  await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
+  app.setFetch(async () => {writes++;return {ok: false,json:async()=>({error:'no running process with PID 999999'})};});
+  app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return true};`);
+  await app.run("changeManagedTarget({action:'add',id:'ghost',target:'999999'})");
   assert.equal(writes, 1);
+  assert.equal(app.run('questions'), 0);
+  assert.equal(app.elements.get('target-status').textContent, 'no running process with PID 999999');
+  assert.equal(app.elements.get('target-status').className, 'bad');
+  assert.equal(app.elements.get('target-save').disabled, false);
 });
 
 

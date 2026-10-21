@@ -1,0 +1,11 @@
+QA-071 step 6 check: a removed target's data requests.
+After --remove c and --remove cpu, the collector still lists them:
+  omarchy/cpu  silent   (config no longer has the target)
+  omarchy/c    silent
+  GET /api/live?target=omarchy/cpu  -> 200
+  GET /api/resources?target=omarchy/cpu -> 200
+  GET /api/replay?target=omarchy/cpu -> 200
+  (same for omarchy/c)
+Design (docs/multi-target-design.md, Idle expiry): a slot stays until target_idle_expiry_s, then is released.
+Expected per QA-071: 404. Setup doc (docs/setup.md, Multiple targets): only targets removed
+outside local control remain listed as silent. Local removal was used here.

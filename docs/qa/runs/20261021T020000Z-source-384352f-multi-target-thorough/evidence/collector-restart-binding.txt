@@ -1,0 +1,10 @@
+Collector-only restart while the sampler keeps running (ISS-12 reproduction).
+Two targets: default (PID 4093996 healthy) and b (PID 4093998 cpu-spin). Collector restarted with
+max_targets 8 (default) and then with max_targets 2 and target_idle_expiry_s 60 or 600.
+Result, reproduced 3 times:
+  omarchy/default  silent  pid 4093998   (PID of target b)
+  b                not listed
+  GET /api/live?target=omarchy/default  process.pid 4093996, command healthy; /api/targets pid 4093998.
+  Datagrams arrive (kernel InDatagrams +101 in 6 s) but the collector keeps both targets silent or absent.
+Recovery: restart the sampler (scripts/restart.sh sampler). Both targets then went live.
+Note: an earlier run's "absent" results were invalid, because the fixtures had exited at their 3600 s limit.

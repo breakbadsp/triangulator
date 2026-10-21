@@ -222,6 +222,15 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(self.api("/api/targets", change)[0], 403)
         self.assertEqual(config.read_text(), original)
         headers = {"X-Triangulator": "1"}
+        # A check validates an add and changes nothing.
+        status, result = self.api("/api/targets", {**change, "check": True}, headers)
+        self.assertEqual(status, 200, result)
+        self.assertNotIn("message", result)
+        status, result = self.api("/api/targets", {**change, "target": "999999999", "check": True}, headers)
+        self.assertEqual((status, result.get("error")), (400, "no running process with PID 999999999"))
+        status, result = self.api("/api/targets", {**change, "action": "remove", "check": True}, headers)
+        self.assertEqual(status, 400, result)
+        self.assertEqual(config.read_text(), original)
         status, result = self.api("/api/targets", change, headers)
         self.assertEqual(status, 200, result)
         deadline = time.monotonic() + 5
@@ -265,6 +274,7 @@ class ScriptTests(unittest.TestCase):
         self.addCleanup(stop, other)
         changed = self.run_script("set-target.sh", "orders", str(other.pid))
         self.assertEqual(changed.returncode, 0, changed.stderr)
+        self.assertIn(f'[[target]] id = "orders", pid = {other.pid}', changed.stdout)
         self.receive_until(lambda packet: packet.pid == other.pid)
         added = self.run_script("set-target.sh", "--add", "billing", str(self.target.pid))
         self.assertEqual(added.returncode, 0, added.stderr)

@@ -1,0 +1,13 @@
+QA-028 steps 1 and 2 (API and /proc comparison) for PID 4114286 (python3 -I fixture).
+
+api command:      python3 -I /tmp/tri-qa/qa-fixtures/pr83_fixture.py
+proc cmdline:     python3 -I /tmp/tri-qa/qa-fixtures/pr83_fixture.py
+api executable:   /usr/bin/python3.14   proc exe: /usr/bin/python3.14
+api cwd:          /tmp/tri-qa           proc cwd: /tmp/tri-qa
+api parent:       4114285               proc PPid: 4114285
+api uid/gid:      1000 1000             proc Uid/Gid: 1000 1000 1000 1000
+api cpus:         0-5                   proc Cpus_allowed_list: 0-5
+api started_at:   00:51:42 local        ps lstart: 00:51:41 local (within about 1 s)
+
+Not run: taskset pinning, other-user target, long command line, recorded and final views,
+and browser label help (steps 3-7).

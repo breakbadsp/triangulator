@@ -808,7 +808,7 @@ let replayAt=null,replayRequest=0,replayBounds=null,latestLive=null,liveMapWindo
 // The final view of a target that exited: {at, live}. It stays on screen,
 // with the trends kept in this tab, until the user selects Show live.
 let frozen=null,frozenChecked=false,finalViewChecked=null,settleSince=null,frozenUnsaved=false,finalViewLoading=null;
-// The sessions the user left with Change target; leaving them is not an exit.
+// The sessions the user left with the legacy single-target control; leaving them is not an exit.
 const leftByChoice=new Set();
 const liveNow=()=>frozen?.at??Date.now()/1000;
 const viewNow=()=>replayAt??liveNow();
@@ -2013,7 +2013,9 @@ function assessResources(r){const findings=[];if(!r?.available)return findings;
   else if(stall(io.some)>=10)add('warning',`Tasks wait for I/O ${pct(stall(io.some))} of the time`,`Some tasks ${where} were stalled on I/O. Storage reads ${perSec(r.io?.read_bps)}, writes ${perSec(r.io?.write_bps)} by this process.`);
   if(stall(memory.full)>=2)add('serious',`Memory is thrashing (${pct(stall(memory.full))} full stall)`,`All tasks ${where} were waiting on reclaim or swap at once. The workload needs more memory or a higher memory.high.`);
   else if(stall(memory.some)>=5)add('warning',`Tasks wait for memory ${pct(stall(memory.some))} of the time`,`Reclaim, swap-in or refaults ${where}. Check memory limits and growth.`);
-  if(stall(cpu.some)>=20)add('warning',`Runnable tasks wait for CPU ${pct(stall(cpu.some))} of the time`,scope==='cgroup'?'CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.':'The host is oversubscribed.');
+  // Name the quota only when cpu.max sets one; "max" has a period and no quota.
+  const cpuLimit=r.cgroup_limits?.cpu||{},noQuota=!isNum(cpuLimit.quota_us)&&isNum(cpuLimit.period_us);
+  if(stall(cpu.some)>=20)add('warning',`Runnable tasks wait for CPU ${pct(stall(cpu.some))} of the time`,scope!=='cgroup'?'The host is oversubscribed.':noQuota?'More tasks are runnable than the cores can run. The cgroup has no CPU quota (cpu.max is max).':'CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.');
   const fds=r.fds||{};
   if(isNum(fds.open)&&isNum(fds.soft_limit)&&fds.soft_limit>0){const used=100*fds.open/fds.soft_limit;
     if(used>=75)add(used>=90?'critical':'warning',`${pct(used)} of file descriptors in use`,`${fds.open} of ${fds.soft_limit} (soft RLIMIT_NOFILE). At the limit, accept(), open() and socket() fail with EMFILE. Look for a descriptor leak or raise LimitNOFILE.`)}
@@ -2278,12 +2280,16 @@ function renderManagedTargets(){
     remove.onclick=()=>changeManagedTarget({action:'remove',id:target.id,target:target.target});row.append(remove);list.append(row);
   }
 }
+const postTargets=async body=>{const response=await apiFetch('/api/targets',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(body)});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to change targets');return data};
 async function changeManagedTarget(change){
   if(element('target-save').disabled)return;
-  if(!confirm((change.action==='add'?'Add ':'Remove ')+change.id+'? This changes monitoring for every viewer.'))return;
-  element('target-save').disabled=true;targetStatus('Applying…');
-  try{const response=await apiFetch('/api/targets',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(change)});
-    const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to change targets');
+  element('target-save').disabled=true;
+  try{
+    // The server checks an add first, so invalid input is rejected before the confirmation.
+    if(change.action==='add'){targetStatus('Checking…');await postTargets({...change,check:true});targetStatus('')}
+    if(!confirm((change.action==='add'?'Add ':'Remove ')+change.id+'? This changes monitoring for every viewer.'))return;
+    targetStatus('Applying…');const data=await postTargets(change);
     managedTargets=data.targets;renderManagedTargets();targetStatus(data.message);element('target-id').value='';element('target-input').value='';
     await refreshTargets();
   }catch(error){targetStatus(error.message,true)}finally{element('target-save').disabled=false}

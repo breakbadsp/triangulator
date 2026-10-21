@@ -1,0 +1,6 @@
+QA-047: two independent browser tabs (tab e and tab f) on /?target=omarchy%2Fdefault.
+Target: PID 4114286 (python3 -I pr83 fixture). Both tabs: header "python3 PID 4114286 · Live".
+
+Reading 1 (after 20 s open): tab f "as of 12:54:09 AM"; tab e "as of 12:54:11 AM".
+Reading 2 (10 s later):      tab f "as of 12:54:29 AM"; tab e "as of 12:54:28 AM".
+Both tabs show "Live · just now". Opening the second tab did not stop the first.

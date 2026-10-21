@@ -11,11 +11,11 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
-| QA-002 | BLOCKED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
-| QA-003 | BLOCKED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
-| QA-004 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Named target](runs/20261011T110000Z-ci-5189c47/evidence/qa004-2-running.txt) |
-| QA-005 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-001 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
+| QA-002 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
+| QA-003 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
+| QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
+| QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Help sweep](runs/20261011T110000Z-ci-5189c47/evidence/qa007-help.json) |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
@@ -41,8 +41,8 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-029 | NOT_RUN | - | - | - |
 | QA-030 | NOT_RUN | - | - | - |
 | QA-031 | NOT_RUN | - | - | - |
-| QA-032 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/healthy-browser.json) |
-| QA-033 | PASSED | PR83 c454915 (source) | [Run](runs/20261014T172600Z-pr83-c454915/index.md) | [Browser observations](runs/20261014T172600Z-pr83-c454915/evidence/stopped-browser.json) |
+| QA-032 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Watch intervals](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa032-watch-intervals.txt) |
+| QA-033 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Stopped views](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa033-stopped-views.txt) |
 | QA-034 | NOT_RUN | - | - | - |
 | QA-035 | NOT_RUN | - | - | - |
 | QA-036 | NOT_RUN | - | - | - |
@@ -51,7 +51,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-039 | NOT_RUN | - | - | - |
 | QA-045 | NOT_RUN | - | - | - |
 | QA-046 | NOT_RUN | - | - | - |
-| QA-047 | PASSED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/initial-a.json) |
+| QA-047 | PASSED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Two viewers](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa047-two-viewers.txt) |
 | QA-048 | NOT_RUN | - | - | - |
 | QA-049 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/stale-target-a.json) |
 | QA-050 | BLOCKED | 0.1.0 | [Run](runs/20261015T091100Z-v0.1.0-multiple-viewers/index.md) | [Evidence](runs/20261015T091100Z-v0.1.0-multiple-viewers/evidence/browser-tool-errors.txt) |
@@ -63,46 +63,46 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-056 | NOT_RUN | - | - | - |
 | QA-057 | NOT_RUN | - | - | - |
 | QA-058 | NOT_RUN | - | - | - |
-| QA-059 | NOT_RUN | - | - | - |
-| QA-060 | NOT_RUN | - | - | - |
+| QA-059 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
+| QA-060 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Budget](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa060-budget.txt) |
 | QA-061 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
 | QA-064 | NOT_RUN | - | - | - |
-| QA-065 | NOT_RUN | - | - | - |
-| QA-066 | NOT_RUN | - | - | - |
+| QA-065 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
+| QA-066 | BLOCKED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | - |
 | QA-067 | NOT_RUN | - | - | - |
 | QA-068 | NOT_RUN | - | - | - |
 | QA-069 | NOT_RUN | - | - | - |
 | QA-070 | NOT_RUN | - | - | - |
-| QA-071 | NOT_RUN | - | - | - |
-| QA-072 | NOT_RUN | - | - | - |
+| QA-071 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Removed target](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa071-removed-target.txt) |
+| QA-072 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Timeline](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa072-clean-timeline.txt) |
 | QA-073 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-074 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-075 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-078 | NOT_RUN | - | - | - |
-| QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
-| QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
-| QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
-| QA-104 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Quota page](runs/20261011T110000Z-ci-5189c47/evidence/qa104-cpu-throttle.txt) |
-| QA-105 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Yield page](runs/20261011T110000Z-ci-5189c47/evidence/qa105-yield-storm.txt) |
-| QA-106 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Contention page](runs/20261011T110000Z-ci-5189c47/evidence/qa106-lock-convoy.txt) |
-| QA-107 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Futex page](runs/20261011T110000Z-ci-5189c47/evidence/qa107-deadlock.txt) |
-| QA-108 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa108-mem-leak.txt) |
-| QA-109 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Pressure page](runs/20261011T110000Z-ci-5189c47/evidence/qa109-mem-oom.txt) |
-| QA-110 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Address-space page](runs/20261011T110000Z-ci-5189c47/evidence/qa110-vm-bloat.txt) |
-| QA-111 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Descriptor page](runs/20261011T110000Z-ci-5189c47/evidence/qa111-fd-leak.txt) |
-| QA-112 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Storage page](runs/20261011T110000Z-ci-5189c47/evidence/qa112-disk-sync.txt) |
-| QA-113 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Fault page](runs/20261011T110000Z-ci-5189c47/evidence/qa113-major-faults.txt) |
-| QA-114 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [TCP page](runs/20261011T110000Z-ci-5189c47/evidence/qa114-tcp-slow.txt) |
-| QA-115 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [UDP page](runs/20261011T110000Z-ci-5189c47/evidence/qa115-udp-drop.txt) |
-| QA-116 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Socket page](runs/20261011T110000Z-ci-5189c47/evidence/qa116-close-wait.txt) |
-| QA-117 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Listen page](runs/20261011T110000Z-ci-5189c47/evidence/qa117-listen-full.txt) |
-| QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
-| QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
-| QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+| QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
+| QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
+| QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
+| QA-104 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-throttle.txt) |
+| QA-105 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/yield-storm.txt) |
+| QA-106 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/lock-convoy.txt) |
+| QA-107 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/deadlock.txt) |
+| QA-108 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/mem-leak.txt) |
+| QA-109 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/mem-oom.txt) |
+| QA-110 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/vm-bloat.txt) |
+| QA-111 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/fd-leak.txt) |
+| QA-112 | BLOCKED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Recheck](runs/20261021T013000Z-source-384352f-bug-lab/evidence/qa112-recheck.txt) |
+| QA-113 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/major-faults.txt) |
+| QA-114 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/tcp-slow.txt) |
+| QA-115 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/udp-drop.txt) |
+| QA-116 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/close-wait.txt) |
+| QA-117 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/listen-full.txt) |
+| QA-118 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-churn.txt) |
+| QA-119 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-leak.txt) |
+| QA-120 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/stopped.txt) |
 
 ## QA-073: Five production targets remain separate
 
@@ -303,7 +303,7 @@ continue unchanged.
 
 ## QA-071: Two or three targets: add, remove, and re-add
 
-Feature: Multi-target lifecycle. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Multi-target lifecycle. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: A local sampler and a loopback dashboard with one `default`
 target. Owned processes A (monitored), B, and C.
@@ -316,12 +316,14 @@ target. Owned processes A (monitored), B, and C.
 4. Add `b` again for C within one second of removing it. Keep it open for
    2 minutes.
 5. Add `c` for B, for three targets. Check each tab. Stop process B.
-6. Remove `c` and `b`.
+6. In Manage targets, remove `c` and `b`.
 
 Expected: Adding or removing one target never interrupts the others. A
 removed target's tab still loads the dashboard and keeps the picker visible to
 choose another target. Its data requests return HTTP 404 and never show
-another target's data. A target that is removed and quickly added again stays
+another target's data. A target removed with `scripts/set-target.sh --remove`
+instead stays listed as silent until `target_idle_expiry_s`, because the
+collector does not see that change. A target that is removed and quickly added again stays
 live. With three targets, each tab shows only its own target, and only the
 stopped target becomes absent. Back at one target, the label is plain, the
 picker is hidden, and the earlier recordings remain.
@@ -724,7 +726,7 @@ no application error that prevents this behavior.
 
 Source: [Package installation](../setup.md#install-from-a-release-package).
 
-## QA-002: Change target by PID
+## QA-002: Add a target by PID
 
 Feature: Target control. Priority: High. Case revision: 2.
 
@@ -732,12 +734,14 @@ Preconditions: QA-001 setup is running. Python and local target control are
 available. Two owned processes with different PIDs are running. Use one free target slot.
 
 1. Open the dashboard. Select **Manage targets**.
-2. Enter a new Target ID and the second process PID. Select **Add target** and
-   confirm. Select the new target in the target picker.
-3. Wait for its samples. Reload the explicit target URL.
+2. Enter a new target ID and the second process PID. Select **Add target**,
+   then accept the confirmation.
+3. Select the new target in the target selector. Wait for its samples. Reload
+   the page.
 
-Expected results: The dashboard identifies the second process and displays
-its threads. The saved target remains selected after page reload.
+Expected results: The new target is listed. The dashboard identifies the
+second process and displays its threads. The first target continues to report.
+The selected target remains selected after page reload.
 
 Source: [Target control](../setup.md#quick-start).
 
@@ -747,33 +751,40 @@ Feature: Target validation. Priority: High. Case revision: 2.
 
 Preconditions: QA-002 setup is available. A valid target is selected.
 
-1. Open **Manage targets**. Enter a new Target ID. Clear **Process name or PID**
-   and select **Add target** if enabled.
-2. Inspect the validation message and the current target.
-3. Enter a nonexistent numeric PID. Select **Add target**. Confirm if asked.
+1. Open **Manage targets**. Enter a new target ID. Clear the process field.
+   Select **Add target**.
+2. Inspect the validation message and the configured targets.
+3. Enter a nonexistent numeric PID. Select **Add target**.
 4. Inspect the validation message. Close the form and reload the dashboard.
 
-Expected results: Both invalid inputs are rejected. Empty input cannot be submitted;
-a nonexistent PID shows a validation message. The original target remains active and saved.
+Expected results: Both invalid inputs are rejected with a validation message,
+and no confirmation is shown. No target is added. The original targets remain
+active and saved.
 
 Source: [Target validation](../setup.md#quick-start).
 
 ## QA-004: Wait for a named process
 
-Feature: Target lifecycle. Priority: High. Case revision: 1.
+Feature: Target lifecycle. Priority: High. Case revision: 2.
 
 Preconditions: Local target control is available. Choose an exact Linux process
 name of at most 15 bytes. No process with that name is running. Prepare an owned
 test process that can start with this name.
 
-1. Set the absent process name through **Change target** and **Monitor**.
+1. In **Manage targets**, add a new target ID with the absent process name.
+   Accept the confirmation. Select the new target in the target selector.
 2. Inspect the dashboard after the sampler reloads.
 3. Start the prepared process with that exact name.
 4. Wait for samples. Stop only that process. Wait for the next target scan.
 
 Expected results: The name is accepted. The dashboard first reports the target
-as absent, then identifies it and shows threads when it starts. It reports an
-absent target again after the process stops.
+as absent, then identifies it and shows threads when it starts. After the
+process stops, the target is absent again, and the tab keeps the final view of
+the process with a **Show live** banner
+([final view](../collector-reference.md#final-view-after-the-target-exits)).
+A selector changed on an existing target with `scripts/set-target.sh ID NAME`
+also keeps the earlier process's final view until **Show live**: the tab cannot
+tell this change from an exit.
 
 Source: [Named targets](../setup.md#quick-start).
 
@@ -1210,7 +1221,7 @@ watch-specific assessment warnings to the dashboard.
 
 ## QA-033: A watched worker stops waking but remains alive
 
-Feature: Collector watch activity. Priority: High. Case revision: 1.
+Feature: Collector watch activity. Priority: High. Case revision: 2.
 
 Preconditions: QA-032 passes. The fixture can stop `MsgP-fast`'s timer loop and
 block on an Event without ending the thread. Its peers continue their timers.
@@ -1225,8 +1236,8 @@ Expected results: The same TID remains present, with `wake_ms = 1000`,
 `stale = false`, and a futex wait. `last_ran` stays fixed while `last_sample`
 advances. Elapsed time increases beyond 1 second. Healthy peers continue to
 advance. The All threads table shows the blocked worker as idle in a futex wait.
-Watch-specific dashboard warnings are outside PR #83; a Healthy assessment is
-not evidence that the collector missed the stopped wakeups.
+The Assessment warns that the TID is set to wake at least every 1000 ms but has
+not run for the elapsed time.
 
 ## QA-034: Watched thread stops waking
 

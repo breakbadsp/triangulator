@@ -1,0 +1,12 @@
+Sampler CPU, measured from /proc/PID/stat utime+stime over 9 s (CLK_TCK 100).
+
+Earlier, budget 1.0%, 5 Hz, one live target:      0.79%  (API sampler_cpu_pct)
+Earlier, budget 1.0%, 5 Hz, two live targets:     0.84% and 0.86% (API)
+Budget 1.0%, configured 10 Hz, one live target:   throttled to 5.94 Hz, sampler_cpu_pct 0.97%
+Budget 2.0%, configured 10 Hz, one live target
+  and one absent target:                          effective 10.0 Hz, sample_interval_ms 100,
+                                                  measured 1.44% CPU
+
+Reading: CPU use scales with the sample rate. At the default 1% budget, 10 Hz on
+this 7-thread target is throttled by design. This run raised the budget only in
+the isolated runtime to test the 10 Hz precondition.
