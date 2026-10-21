@@ -1075,11 +1075,16 @@ test('history episodes join consecutive findings and end at a recording gap', ()
 });
 
 // A dashboard whose collector has recordings from `first` to `last` (one a
-// second); snapshotAt(at) gives the view for a request. Patch the checkbox
-// query the DOM substitute does not answer.
-function historyApp(snapshotAt, bounds = {first: 1000, last: 1900}) {
+// second); snapshotAt(at) gives the view for a request and resourcesIn(start,
+// end) the stored resource rows. Patch the checkbox query the DOM substitute
+// does not answer.
+function historyApp(snapshotAt, bounds = {first: 1000, last: 1900}, resourcesIn = () => []) {
   const app = dashboard(new Map(), url => {
     if (url === '/api/replay') return jsonResponse({...bounds, interval_s: 1, snapshot: null});
+    if (url.startsWith('/api/resources?')) {
+      const query = new URLSearchParams(url.split('?')[1]);
+      return jsonResponse({rows: resourcesIn(Number(query.get('start')), Number(query.get('end')))});
+    }
     if (!url.startsWith('/api/replay?')) return undefined;
     const query = new URLSearchParams(url.split('?')[1]);
     return jsonResponse({...bounds, interval_s: 1, snapshot: snapshotAt(Number(query.get('at')), query.get('direction'))});
@@ -1167,6 +1172,42 @@ test('past assessments check the latest recordings when the page opens and leave
   pill.onclick();
   assert.equal(app.run('replayAt'), null);
   assert.equal(pill.hidden, true);
+});
+
+// RSS grows 8 MB/s from 1300 to 1500 and is flat before and after.
+const leakRss = at => 100e6 + 8e6 * Math.min(200, Math.max(0, at - 1300));
+const leakView = at => {
+  const view = frame(Math.floor(at));
+  view.threads[0].cpu_pct = 1;
+  view.memory = {available: true, stale: false, pid: 9, updated: view.recorded_at, values: {vma_count: 100, max_map_count: 65530}};
+  view.resources = {available: true, stale: false, pid: 9, session: 'old-session', memory: {rss: leakRss(view.recorded_at)}};
+  return view;
+};
+const leakRows = (start, end) => {
+  const rows = [];
+  for (let at = Math.max(1000, Math.ceil(start)); at <= end; at++) rows.push({ts: at, pid: 9, rss_bytes: leakRss(at)});
+  return rows;
+};
+
+test('past assessments find RSS growth from the stored resource samples', async () => {
+  const app = historyApp(leakView, {first: 1000, last: 1900}, leakRows);
+  await settle();
+  assert.deepEqual(historyRows(app), ['Resident memory grows without a plateau']);
+  const episode = JSON.parse(app.run('JSON.stringify(past.episodes[0])'));
+  assert.equal(episode.type, 'memory');
+  assert.ok(episode.first > 1300 && episode.first < 1360 && episode.last > 1500 && episode.last < 1700, JSON.stringify(episode));
+  const periodReads = app.requests.filter(url => url.startsWith('/api/resources?') && Number(new URLSearchParams(url.split('?')[1]).get('end')) === 1900);
+  assert.equal(periodReads.length, 1, 'one resource read for the period');
+  assert.equal(app.run('replayResources.length'), 0, 'the live view keeps no recorded samples');
+  // The row opens the recording, and the Assessment there shows the same finding.
+  app.elements.get('history-list').children[0].onclick();
+  await settle();
+  assert.equal(app.run('replayAt'), episode.at);
+  assert.ok(app.run('assess(live.threads,buffer)').some(item => item.title === 'Resident memory grows without a plateau'));
+  // Without stored resource samples there is no trend.
+  const bare = historyApp(leakView);
+  await settle();
+  assert.deepEqual(historyRows(bare), ['The Assessment found nothing in the checked recordings.']);
 });
 
 test('scrolling to the end of the list or the start of the timeline checks an earlier period', async () => {
