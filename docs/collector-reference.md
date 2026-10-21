@@ -121,6 +121,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
   are used; a PID shared with another target reports `available:false`.
 - `POST /api/targets` accepts `{action:"add", id:"orders", target:"orders-api"}`
   or `{action:"remove", id:"orders"}` as JSON with quoted property names.
+  An add with `"check": true` validates the change and writes nothing; the
+  dashboard uses it before it asks for confirmation.
   The existing dashboard-write and same-origin checks apply. Local sampler
   control uses `GET /api/targets/control` to read the configured set.
 - [Per-target settings](../collector/README.md#per-target-settings) keep watch
@@ -153,7 +155,8 @@ build/triangulator-collector ~/triangulator/config/collector.toml --check-config
 - `GET /api/target`: the local sampler's configured process name or PID.
   `POST /api/target` with JSON `{"target":"NAME_OR_PID"}` and
   `X-Triangulator: 1` validates, saves and requests a sampler reload. The
-  dashboard exposes this through **Change target**. This optional control uses
+  dashboard uses it only with a collector that has no `/api/targets/control`;
+  its form then has a **Monitor** button. This optional control uses
   `scripts/sampler_control.py` and Python 3, requires a loopback HTTP listener
   and a local sampler started from the same checkout, and checks that the
   sampler sends to this collector's loopback UDP endpoint. Errors leave the

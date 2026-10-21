@@ -197,7 +197,7 @@ continue unchanged.
 
 ## QA-071: Two or three targets: add, remove, and re-add
 
-Feature: Multi-target lifecycle. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Multi-target lifecycle. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: A local sampler and a loopback dashboard with one `default`
 target. Owned processes A (monitored), B, and C.
@@ -210,12 +210,14 @@ target. Owned processes A (monitored), B, and C.
 4. Add `b` again for C within one second of removing it. Keep it open for
    2 minutes.
 5. Add `c` for B, for three targets. Check each tab. Stop process B.
-6. Remove `c` and `b`.
+6. In Manage targets, remove `c` and `b`.
 
 Expected: Adding or removing one target never interrupts the others. A
 removed target's tab still loads the dashboard and keeps the picker visible to
 choose another target. Its data requests return HTTP 404 and never show
-another target's data. A target that is removed and quickly added again stays
+another target's data. A target removed with `scripts/set-target.sh --remove`
+instead stays listed as silent until `target_idle_expiry_s`, because the
+collector does not see that change. A target that is removed and quickly added again stays
 live. With three targets, each tab shows only its own target, and only the
 stopped target becomes absent. Back at one target, the label is plain, the
 picker is hidden, and the earlier recordings remain.
@@ -618,54 +620,65 @@ no application error that prevents this behavior.
 
 Source: [Package installation](../setup.md#install-from-a-release-package).
 
-## QA-002: Change target by PID
+## QA-002: Add a target by PID
 
-Feature: Target control. Priority: High. Case revision: 1.
+Feature: Target control. Priority: High. Case revision: 2.
 
 Preconditions: QA-001 setup is running. Python and local target control are
 available. Two owned processes with different PIDs are running.
 
-1. Open the dashboard. Select **Change target**.
-2. Enter the second process PID. Select **Monitor**.
-3. Wait for its samples. Reload the page.
+1. Open the dashboard. Select **Manage targets**.
+2. Enter a new target ID and the second process PID. Select **Add target**,
+   then accept the confirmation.
+3. Select the new target in the target selector. Wait for its samples. Reload
+   the page.
 
-Expected results: The dashboard identifies the second process and displays
-its threads. The saved target remains selected after page reload.
+Expected results: The new target is listed. The dashboard identifies the
+second process and displays its threads. The first target continues to report.
+The selected target remains selected after page reload.
 
 Source: [Target control](../setup.md#quick-start).
 
 ## QA-003: Invalid target input
 
-Feature: Target validation. Priority: High. Case revision: 1.
+Feature: Target validation. Priority: High. Case revision: 2.
 
 Preconditions: QA-002 setup is available. A valid target is selected.
 
-1. Open **Change target**. Clear the target field. Select **Monitor**.
-2. Inspect the validation message and the current target.
-3. Enter a nonexistent numeric PID. Select **Monitor**.
+1. Open **Manage targets**. Enter a new target ID. Clear the process field.
+   Select **Add target**.
+2. Inspect the validation message and the configured targets.
+3. Enter a nonexistent numeric PID. Select **Add target**.
 4. Inspect the validation message. Close the form and reload the dashboard.
 
-Expected results: Both invalid inputs are rejected with a form validation
-message. The original target remains active and saved.
+Expected results: Both invalid inputs are rejected with a validation message,
+and no confirmation is shown. No target is added. The original targets remain
+active and saved.
 
 Source: [Target validation](../setup.md#quick-start).
 
 ## QA-004: Wait for a named process
 
-Feature: Target lifecycle. Priority: High. Case revision: 1.
+Feature: Target lifecycle. Priority: High. Case revision: 2.
 
 Preconditions: Local target control is available. Choose an exact Linux process
 name of at most 15 bytes. No process with that name is running. Prepare an owned
 test process that can start with this name.
 
-1. Set the absent process name through **Change target** and **Monitor**.
+1. In **Manage targets**, add a new target ID with the absent process name.
+   Accept the confirmation. Select the new target in the target selector.
 2. Inspect the dashboard after the sampler reloads.
 3. Start the prepared process with that exact name.
 4. Wait for samples. Stop only that process. Wait for the next target scan.
 
 Expected results: The name is accepted. The dashboard first reports the target
-as absent, then identifies it and shows threads when it starts. It reports an
-absent target again after the process stops.
+as absent, then identifies it and shows threads when it starts. After the
+process stops, the target is absent again, and the tab keeps the final view of
+the process with a **Show live** banner
+([final view](../collector-reference.md#final-view-after-the-target-exits)).
+A selector changed on an existing target with `scripts/set-target.sh ID NAME`
+also keeps the earlier process's final view until **Show live**: the tab cannot
+tell this change from an exit.
 
 Source: [Named targets](../setup.md#quick-start).
 
@@ -1102,7 +1115,7 @@ watch-specific assessment warnings to the dashboard.
 
 ## QA-033: A watched worker stops waking but remains alive
 
-Feature: Collector watch activity. Priority: High. Case revision: 1.
+Feature: Collector watch activity. Priority: High. Case revision: 2.
 
 Preconditions: QA-032 passes. The fixture can stop `MsgP-fast`'s timer loop and
 block on an Event without ending the thread. Its peers continue their timers.
@@ -1117,8 +1130,8 @@ Expected results: The same TID remains present, with `wake_ms = 1000`,
 `stale = false`, and a futex wait. `last_ran` stays fixed while `last_sample`
 advances. Elapsed time increases beyond 1 second. Healthy peers continue to
 advance. The All threads table shows the blocked worker as idle in a futex wait.
-Watch-specific dashboard warnings are outside PR #83; a Healthy assessment is
-not evidence that the collector missed the stopped wakeups.
+The Assessment warns that the TID is set to wake at least every 1000 ms but has
+not run for the elapsed time.
 
 ## QA-034: Watched thread stops waking
 

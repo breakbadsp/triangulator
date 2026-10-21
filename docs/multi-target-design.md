@@ -245,7 +245,11 @@ packet, so **upgrade the collector before the samplers**.
 - Changing the monitored set (`POST /api/targets`, add or remove) runs the
   sampler control helper, which edits `[[target]]` tables and sends `SIGHUP`.
   As today, this works only when the sampler runs on the collector host as the
-  same user. Viewing a target never changes the sampler.
+  same user. Viewing a target never changes the sampler. A removal through
+  this API releases the slot at the next refresh. A removal that the collector
+  does not see, such as `scripts/set-target.sh --remove`, waits for idle expiry.
+- An add with `"check": true` validates the change and writes nothing. The
+  dashboard uses it to reject invalid input before it asks for confirmation.
 
 ## Dashboard
 
