@@ -14,9 +14,6 @@ on:
   pull_request:
     paths:
       - Makefile
-      - README.md
-      - docs/build-guidelines.md
-      - docs/almalinux-user-test.md
       - .github/workflows/almalinux-user-test.yml
       - .github/scripts/almalinux-*.sh
       - .github/scripts/almalinux-ci.Dockerfile
@@ -30,17 +27,38 @@ on:
       - scripts/**
       - tests/**
       - config/**
+      - bug-lab/**
+      - examples/**
+      - .agents/skills/bugbench-session/scripts/**
+      - .github/scripts/ci-reuse.py
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: almalinux-${{ github.head_ref || github.ref_name }}-${{ (github.event_name == 'pull_request' || inputs.lean_pr) && 'normal' || 'static' }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Check CI inputs
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
+    timeout-minutes: 5
+    outputs:
+      run_tests: ${{ steps.inputs.outputs.run_tests }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - id: inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/ci-reuse.py
   format:
     name: C++ format
+    needs: changes
+    if: needs.changes.outputs.run_tests == 'true'
     # Fork pull requests run on GitHub; everything else on the owner's runner.
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
     timeout-minutes: 5
@@ -49,6 +67,8 @@ jobs:
       - run: make format-check CLANG_FORMAT='pipx run --spec clang-format==22.1.8 clang-format'
   test:
     name: AlmaLinux ${{ matrix.version }}
+    needs: changes
+    if: needs.changes.outputs.run_tests == 'true'
     # Fork pull requests run on GitHub; everything else on the owner's runner.
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted", "Linux", "X64", "triangulator"]') }}
     timeout-minutes: 30

@@ -73,8 +73,8 @@ report none.
 
 1. Start the reviewer and the quick reviewer in parallel on the same head SHA.
 2. Both post a review on the PR. If either is missing, stop and report.
-3. No `blocker` or `major` from either: wait for CI on this head, stopping at
-   the first failed check. No failed check: go to the gate.
+3. No `blocker` or `major` from either: apply the check reuse rule below before
+   waiting for CI. Stop at the first failed check. No failed check: go to the gate.
 4. Otherwise start the analyzer. It handles the union of the findings,
    deduplicated, and treats quick-reviewer findings with extra suspicion
    because that model is weaker. It also reads the PR's CI checks when it
@@ -86,17 +86,40 @@ report none.
 After round 2, an open `blocker` or `major` stops the run: do not merge, report
 for manual handling.
 
+## Reuse passing checks
+
+Check the build and test inputs, not only the commit SHA. Reuse a passing CI
+or local result when it covers the current code, tests, build configuration,
+and base branch. Do not run the same full suite locally after CI passed it.
+Do not update the PR branch or restart CI only to obtain a new check result.
+If CI is already checking the required inputs, wait for it instead of starting
+a duplicate local run.
+
+For a documentation or generated QA summary conflict, preserve both changes
+and run the affected documentation check, such as
+`python3 scripts/qa_summary.py --write-readme --check`. Reuse the full test
+results if no build or test input changed. If base branch code changed,
+verify the combined code once. Use CI or a local run; do not require both.
+
+The AlmaLinux workflow uses `.github/scripts/ci-reuse.py` to compare inputs
+with a passing run for the same PR. It excludes documentation but keeps test
+fixtures. It also checks for untested base branch changes. Missing evidence
+requires a full run. Manual and nightly dispatches always run the tests.
+
 ## Gate (once)
 
 - Head SHA equals the expected SHA, and the worktree is clean.
-- `full`: run the repository's check command on a throwaway merge of the PR
-  into the base branch.
-- `scan`: skip the local check only when every changed file matches the paths
-  filter of a passing CI workflow that builds or tests. Run it otherwise.
-- CI checks show only `pass` or `skipping`. `no checks reported` passes only
+- Apply the check reuse rule above. Run the repository's check command on a
+  throwaway merge only when no passing result covers the combined inputs.
+- For documentation changes, run the affected documentation checks. Do not
+  run a full build or test suite only because the review tier is `full`.
+- CI checks show only `pass` or `skipping`, or a recorded passing result covers
+  a pending duplicate check. Never ignore a failed check. `no checks reported` passes only
   when no changed file matches a `pull_request` `paths` filter. Stop waiting
   for pending checks as soon as one check or the local check fails.
-- The PR is `MERGEABLE` and `CLEAN`.
+- The PR is `MERGEABLE` and `CLEAN`. A pending duplicate covered by the reuse
+  rule may leave the status `UNSTABLE`; use the normal merge command and
+  respect required branch checks.
 - Merge with `--match-head-commit`. Never `--admin`, never force.
 
 A failed gate is reported, not retried.
