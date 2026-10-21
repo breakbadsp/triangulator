@@ -1,0 +1,6 @@
+test_sixth_target_over_capacity_is_refused_until_a_slot_frees (test_sampler_control.ScriptTests.test_sixth_target_over_capacity_is_refused_until_a_slot_frees) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 7.524s
+
+OK

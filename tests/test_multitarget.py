@@ -608,7 +608,9 @@ class MultiTargetSamplerTests(unittest.TestCase):
     def stop(self):
         if self.sampler is not None:
             self.sampler.terminate()
-            _, stderr = self.sampler.communicate(timeout=5)
+            # ThreadSanitizer defers SIGTERM until the next tick, which is up
+            # to five seconds away at the 0.2 Hz minimum rate.
+            _, stderr = self.sampler.communicate(timeout=15)
             self.assertEqual(self.sampler.returncode, 0, stderr.decode())
         for target in self.targets:
             if target.poll() is None:
