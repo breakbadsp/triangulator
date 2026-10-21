@@ -11,11 +11,11 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Live page](runs/20261011T110000Z-ci-5189c47/evidence/qa001-live.txt) |
-| QA-002 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Second target](runs/20261011T110000Z-ci-5189c47/evidence/qa002-second.txt) |
-| QA-003 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Validation page](runs/20261011T110000Z-ci-5189c47/evidence/qa003-invalid.txt) |
+| QA-001 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-002 | BLOCKED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-003 | BLOCKED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-004 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Named target](runs/20261011T110000Z-ci-5189c47/evidence/qa004-2-running.txt) |
-| QA-005 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Replay drawer](runs/20261011T110000Z-ci-5189c47/evidence/qa005-3-replay-drawer.txt) |
+| QA-005 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Help sweep](runs/20261011T110000Z-ci-5189c47/evidence/qa007-help.json) |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
@@ -65,7 +65,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-058 | NOT_RUN | - | - | - |
 | QA-059 | NOT_RUN | - | - | - |
 | QA-060 | NOT_RUN | - | - | - |
-| QA-061 | NOT_RUN | - | - | - |
+| QA-061 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
 | QA-064 | NOT_RUN | - | - | - |
@@ -77,6 +77,12 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-070 | NOT_RUN | - | - | - |
 | QA-071 | NOT_RUN | - | - | - |
 | QA-072 | NOT_RUN | - | - | - |
+| QA-073 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-074 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-075 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-078 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Healthy page](runs/20261011T110000Z-ci-5189c47/evidence/qa101-healthy.txt) |
 | QA-102 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [CPU page](runs/20261011T110000Z-ci-5189c47/evidence/qa102-cpu-spin.txt) |
 | QA-103 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Oversubscription page](runs/20261011T110000Z-ci-5189c47/evidence/qa103-cpu-oversub.txt) |
@@ -97,6 +103,106 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Churn page](runs/20261011T110000Z-ci-5189c47/evidence/qa118-thread-churn.txt) |
 | QA-119 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Thread-growth page](runs/20261011T110000Z-ci-5189c47/evidence/qa119-thread-leak.txt) |
 | QA-120 | PASSED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Stopped page](runs/20261011T110000Z-ci-5189c47/evidence/qa120-stopped-stopped.txt) |
+
+## QA-073: Five production targets remain separate
+
+Feature: Multi-target investigation. Priority: High. Case revision: 1.
+
+Preconditions: One packaged sampler monitors five owned bugbench processes.
+Use target IDs `control`, `cpu`, `memory`, `fds`, and `locks` for `healthy`,
+`cpu-spin`, `mem-leak`, `fd-leak`, and `deadlock`. Enable resources and memory.
+
+1. Select each target in the target picker. Wait for its named process and PID.
+2. Compare thread names, counts, CPU use, RSS, descriptor limits, and wait states.
+3. Keep a second tab on `cpu`. Switch the first tab through the other targets.
+4. Reload an explicit target URL.
+
+Expected: All five processes appear under one sampler. Each selected view shows
+only its process, threads, resources, and memory. The other tab keeps its target.
+An explicit target URL restores that target. Shared host and cgroup values are
+labelled with their scope.
+
+## QA-074: One of five production processes stops and restarts
+
+Feature: Multi-target lifecycle. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup. Select targets by exact process name. Keep `locks`
+and `control` in separate tabs.
+
+1. Stop only the `deadlock` fixture. Inspect both tabs and the picker.
+2. Start a new `deadlock` fixture with the same process name.
+3. Inspect the old view, then select Show live.
+
+Expected: Only `locks` becomes absent. Its final view identifies the old PID and
+exit. The restarted process has a new PID. The final view names the new process
+without replacing its old data. Show live displays the new process. Other
+processes remain live.
+
+## QA-075: Thread drawer preserves a target URL
+
+Feature: Multi-target links. Priority: High. Case revision: 1.
+
+Preconditions: At least two targets with threads. Open an explicit URL for a
+nondefault target. Use a second browser profile with no saved target choice.
+
+1. Open a thread row. Check the URL target and thread fragment.
+2. Close the drawer with Escape. Check the URL and selected target.
+3. Restore the explicit URL. Open the thread and close it with Close thread details.
+4. Open the resulting URL in the second profile.
+
+Expected: Both close actions remove only the thread fragment. The target query
+remains. The second profile opens the same process.
+
+## QA-076: Add and remove a sixth investigation target
+
+Feature: Local target management. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup with at least one free collector target slot. A
+second tab observes another target. Record the sampler PID and configuration.
+
+1. In Manage targets, enter `extra` and an owned PID. Select Add target, then
+   cancel confirmation. Check the target list and configuration.
+2. Repeat the add and confirm. Wait for `extra` in both target pickers.
+3. Remove `extra` and confirm. Wait for it to leave both pickers.
+4. Try an existing ID. Confirm if asked. Inspect the error and configuration.
+
+Expected: Cancel makes no change. Confirmed add and removal update both viewers
+and keep the same sampler process. Existing targets remain available. A duplicate
+ID is rejected and preserves the configuration.
+
+## QA-077: Five-target diagnosis includes the fault findings
+
+Feature: Multi-target diagnosis. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup. Use the fault expectations of QA-101, QA-102,
+QA-107, QA-108, and QA-111. Keep the memory target open for at least 70 seconds.
+
+1. Inspect the healthy and CPU targets. Open the hot worker detail.
+2. After at least 70 seconds, inspect the deadlock target and its waiting workers.
+3. Inspect descriptor count, soft limit, and top assessment after exhaustion.
+4. Observe memory growth for 70 seconds without switching its tab. Inspect Memory
+   and the top assessment. Compare the other target tabs.
+
+Expected: Healthy has no process resource-fault warning. CPU identifies the hot
+worker. Locks shows a possible stuck-thread hint and wait duration without a
+proved-deadlock claim. Descriptor exhaustion appears in Resources and assessment.
+Sustained RSS growth appears in Memory and a warning in assessment. Findings
+refer to the correct process. Sampler-budget and host-scope facts remain distinct.
+
+## QA-078: Collector target capacity with five active processes
+
+Feature: Target capacity. Priority: Medium. Case revision: 1.
+
+Preconditions: Five active targets. Set collector `max_targets = 5` before start.
+Record the sampler configuration and sessions.
+
+1. Try to add a sixth owned target through Manage targets.
+2. Inspect validation, all five existing targets, and the configuration.
+3. Remove one target. Add the sixth target. Wait for its samples.
+
+Expected: An add beyond capacity has a clear error and preserves active targets.
+After a slot is free, the new target becomes live. No target receives another
+process's data.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
