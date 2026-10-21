@@ -11,9 +11,6 @@ on:
         description: Also test AlmaLinux 10
         type: boolean
         default: false
-  schedule:
-    - cron: '0 3 * * *'
-      timezone: Asia/Kolkata
   pull_request:
     paths:
       - Makefile
