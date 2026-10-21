@@ -874,12 +874,35 @@ class DashboardServer
       {
         removed_sessions = state_.SessionsForId(id->AsString());
       }
+      // The collector drops targets beyond max_targets without a trace, so
+      // refuse the add before the sampler configuration changes.
+      if (action && action->IsString() && action->AsString() == "add" &&
+          state_.TargetCount() >=
+              static_cast<std::size_t>(config_.max_targets_))
+      {
+        RespondJson(
+            p_connection, 409,
+            JsonObject{
+                {"error", std::format("The collector is at its limit of {} "
+                                      "targets. Remove a target, or raise "
+                                      "max_targets in the collector "
+                                      "configuration, then add this one.",
+                                      config_.max_targets_)}});
+        return;
+      }
     }
     auto result = RunTargetControl(config_.udp_host_, config_.udp_port_,
-                                   p_target, p_multiple);
+                                   p_target, p_multiple, config_.max_targets_);
     if (!result)
     {
       RespondJson(p_connection, 503, JsonObject{{"error", result.error()}});
+      return;
+    }
+    // The helper counts configured targets under its lock, so it also refuses
+    // an add that the published count above has not seen yet.
+    if (result->Find("at_limit"))
+    {
+      RespondJson(p_connection, 409, *result);
       return;
     }
     if (!removed_sessions.empty() && !result->Find("error"))

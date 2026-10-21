@@ -2,6 +2,7 @@ import os
 import json
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -315,6 +316,63 @@ class ScriptTests(unittest.TestCase):
         status, data = self.api("/api/targets", change, {"X-Triangulator": "1"})
         self.assertEqual(status, 403)
         self.assertFalse(data["enabled"])
+
+    def test_sixth_target_over_capacity_is_refused_until_a_slot_frees(self):
+        # QA-078. The collector holds five targets; a sixth must not disturb them.
+        self.start_dashboard(extra="max_targets = 5\n")
+        config = self.runtime / "config/sampler.toml"
+        others = [subprocess.Popen(["sleep", "60"]) for _ in range(6)]
+        for other in others:
+            self.addCleanup(stop, other)
+        tables = "".join(f'[[target]]\nid = "t{index}"\npid = {process.pid}\n'
+                         for index, process in enumerate([self.target] + others[:4]))
+        config.write_text(f'rate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n{tables}')
+        sampler = self.start_sampler(config)
+        headers = {"X-Triangulator": "1"}
+
+        def ids():
+            return sorted(entry["id"] for entry in self.api("/api/targets")[1]["targets"])
+
+        def wait_ids(expected):
+            deadline = time.monotonic() + 25
+            while time.monotonic() < deadline and ids() != expected:
+                time.sleep(0.05)
+            self.assertEqual(ids(), expected)
+
+        five = [f"t{index}" for index in range(5)]
+        wait_ids(five)
+        sessions = {entry["id"]: entry["session"] for entry in self.api("/api/targets")[1]["targets"]}
+        sixth = {"action": "add", "id": "t5", "target": str(others[4].pid)}
+        # The add is refused with a clear error, and the five targets stay.
+        for body in (sixth, {**sixth, "check": True}):
+            status, data = self.api("/api/targets", body, headers)
+            self.assertEqual(status, 409, data)
+            self.assertIn("limit of 5 targets", data["error"])
+        time.sleep(2)
+        self.assertEqual(ids(), five)
+        targets = self.api("/api/targets")[1]
+        self.assertEqual(targets["capacity_drops"], 0)
+        self.assertEqual({entry["id"]: entry["session"] for entry in targets["targets"]}, sessions)
+        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "t4"}, headers)[0], 200)
+        wait_ids(["t0", "t1", "t2", "t3"])
+        # Two adds back to back at four targets. The paused sampler cannot
+        # reload, so the collector still publishes four targets when the
+        # second add arrives; the configured count must refuse it.
+        seventh = {"action": "add", "id": "t6", "target": str(others[5].pid)}
+        os.kill(sampler.pid, signal.SIGSTOP)
+        try:
+            self.assertEqual(self.api("/api/targets", sixth, headers)[0], 200)
+            for body in (seventh, {**seventh, "check": True}):
+                status, data = self.api("/api/targets", body, headers)
+                self.assertEqual(status, 409, data)
+                self.assertIn("limit of 5 targets", data["error"])
+        finally:
+            os.kill(sampler.pid, signal.SIGCONT)
+        wait_ids(["t0", "t1", "t2", "t3", "t5"])
+        self.assertEqual(self.api("/api/targets")[1]["capacity_drops"], 0)
+        after = {entry["id"]: entry["session"] for entry in self.api("/api/targets")[1]["targets"]}
+        for name in ("t0", "t1", "t2", "t3"):
+            self.assertEqual(after[name], sessions[name])
 
     def test_dashboard_changes_pid_name_and_absent_target(self):
         self.start_dashboard()
