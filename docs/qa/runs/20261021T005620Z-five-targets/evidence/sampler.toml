@@ -1,0 +1,26 @@
+rate_hz = 4.0
+collector = "127.0.0.1:19470"
+resource_interval_s = 2
+memory_interval_s = 5
+cpu_budget_pct = 1.0
+
+[[target]]
+id = "control"
+process = "bb-healthy"
+
+[[target]]
+id = "cpu"
+process = "bb-cpu-spin"
+
+[[target]]
+id = "memory"
+process = "bb-mem-leak"
+
+[[target]]
+id = "fds"
+process = "bb-fd-leak"
+
+[[target]]
+id = "locks"
+process = "bb-deadlock"
+

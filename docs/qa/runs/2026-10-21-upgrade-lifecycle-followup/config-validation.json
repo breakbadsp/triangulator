@@ -1,0 +1,27 @@
+[
+  {
+    "name": "zero",
+    "code": 2,
+    "out": "usage: triangulator-collector [-h] [--check-config] config\ntriangulator-collector: error: max_targets must be a positive integer\n"
+  },
+  {
+    "name": "65",
+    "code": 2,
+    "out": "usage: triangulator-collector [-h] [--check-config] config\ntriangulator-collector: error: max_targets must be 1..64\n"
+  },
+  {
+    "name": "capacity",
+    "code": 2,
+    "out": "usage: triangulator-collector [-h] [--check-config] config\ntriangulator-collector: error: duplicate key 'max_live_samples' (at line 18)\n"
+  },
+  {
+    "name": "shipped-collector",
+    "code": 0,
+    "out": "Collector configuration is valid\n"
+  },
+  {
+    "name": "shipped-sampler",
+    "code": 0,
+    "out": "Sampler configuration is valid\n"
+  }
+]

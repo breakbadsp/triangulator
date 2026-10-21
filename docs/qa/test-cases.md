@@ -65,7 +65,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-058 | NOT_RUN | - | - | - |
 | QA-059 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
 | QA-060 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Budget](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa060-budget.txt) |
-| QA-061 | NOT_RUN | - | - | - |
+| QA-061 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
 | QA-064 | NOT_RUN | - | - | - |
@@ -77,6 +77,12 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-070 | NOT_RUN | - | - | - |
 | QA-071 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Removed target](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa071-removed-target.txt) |
 | QA-072 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Timeline](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa072-clean-timeline.txt) |
+| QA-073 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-074 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-075 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -97,6 +103,106 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-118 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-churn.txt) |
 | QA-119 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-leak.txt) |
 | QA-120 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/stopped.txt) |
+
+## QA-073: Five production targets remain separate
+
+Feature: Multi-target investigation. Priority: High. Case revision: 1.
+
+Preconditions: One packaged sampler monitors five owned bugbench processes.
+Use target IDs `control`, `cpu`, `memory`, `fds`, and `locks` for `healthy`,
+`cpu-spin`, `mem-leak`, `fd-leak`, and `deadlock`. Enable resources and memory.
+
+1. Select each target in the target picker. Wait for its named process and PID.
+2. Compare thread names, counts, CPU use, RSS, descriptor limits, and wait states.
+3. Keep a second tab on `cpu`. Switch the first tab through the other targets.
+4. Reload an explicit target URL.
+
+Expected: All five processes appear under one sampler. Each selected view shows
+only its process, threads, resources, and memory. The other tab keeps its target.
+An explicit target URL restores that target. Shared host and cgroup values are
+labelled with their scope.
+
+## QA-074: One of five production processes stops and restarts
+
+Feature: Multi-target lifecycle. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup. Select targets by exact process name. Keep `locks`
+and `control` in separate tabs.
+
+1. Stop only the `deadlock` fixture. Inspect both tabs and the picker.
+2. Start a new `deadlock` fixture with the same process name.
+3. Inspect the old view, then select Show live.
+
+Expected: Only `locks` becomes absent. Its final view identifies the old PID and
+exit. The restarted process has a new PID. The final view names the new process
+without replacing its old data. Show live displays the new process. Other
+processes remain live.
+
+## QA-075: Thread drawer preserves a target URL
+
+Feature: Multi-target links. Priority: High. Case revision: 1.
+
+Preconditions: At least two targets with threads. Open an explicit URL for a
+nondefault target. Use a second browser profile with no saved target choice.
+
+1. Open a thread row. Check the URL target and thread fragment.
+2. Close the drawer with Escape. Check the URL and selected target.
+3. Restore the explicit URL. Open the thread and close it with Close thread details.
+4. Open the resulting URL in the second profile.
+
+Expected: Both close actions remove only the thread fragment. The target query
+remains. The second profile opens the same process.
+
+## QA-076: Add and remove a sixth investigation target
+
+Feature: Local target management. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup with at least one free collector target slot. A
+second tab observes another target. Record the sampler PID and configuration.
+
+1. In Manage targets, enter `extra` and an owned PID. Select Add target, then
+   cancel confirmation. Check the target list and configuration.
+2. Repeat the add and confirm. Wait for `extra` in both target pickers.
+3. Remove `extra` and confirm. Wait for it to leave both pickers.
+4. Try an existing ID. Confirm if asked. Inspect the error and configuration.
+
+Expected: Cancel makes no change. Confirmed add and removal update both viewers
+and keep the same sampler process. Existing targets remain available. A duplicate
+ID is rejected and preserves the configuration.
+
+## QA-077: Five-target diagnosis includes the fault findings
+
+Feature: Multi-target diagnosis. Priority: High. Case revision: 1.
+
+Preconditions: QA-073 setup. Use the fault expectations of QA-101, QA-102,
+QA-107, QA-108, and QA-111. Keep the memory target open for at least 70 seconds.
+
+1. Inspect the healthy and CPU targets. Open the hot worker detail.
+2. After at least 70 seconds, inspect the deadlock target and its waiting workers.
+3. Inspect descriptor count, soft limit, and top assessment after exhaustion.
+4. Observe memory growth for 70 seconds without switching its tab. Inspect Memory
+   and the top assessment. Compare the other target tabs.
+
+Expected: Healthy has no process resource-fault warning. CPU identifies the hot
+worker. Locks shows a possible stuck-thread hint and wait duration without a
+proved-deadlock claim. Descriptor exhaustion appears in Resources and assessment.
+Sustained RSS growth appears in Memory and a warning in assessment. Findings
+refer to the correct process. Sampler-budget and host-scope facts remain distinct.
+
+## QA-078: Collector target capacity with five active processes
+
+Feature: Target capacity. Priority: Medium. Case revision: 1.
+
+Preconditions: Five active targets. Set collector `max_targets = 5` before start.
+Record the sampler configuration and sessions.
+
+1. Try to add a sixth owned target through Manage targets.
+2. Inspect validation, all five existing targets, and the configuration.
+3. Remove one target. Add the sixth target. Wait for its samples.
+
+Expected: An add beyond capacity has a clear error and preserves active targets.
+After a slot is free, the new target becomes live. No target receives another
+process's data.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
@@ -628,7 +734,7 @@ Source: [Package installation](../setup.md#install-from-a-release-package).
 Feature: Target control. Priority: High. Case revision: 2.
 
 Preconditions: QA-001 setup is running. Python and local target control are
-available. Two owned processes with different PIDs are running.
+available. Two owned processes with different PIDs are running. Use one free target slot.
 
 1. Open the dashboard. Select **Manage targets**.
 2. Enter a new target ID and the second process PID. Select **Add target**,

@@ -1,0 +1,12 @@
+{
+  "/api/socket-io?target=wire-0/default": {
+    "available": false,
+    "loading": true,
+    "reason": "Starting socket report\u2026"
+  },
+  "/api/socket-io": {
+    "available": false,
+    "loading": true,
+    "reason": "Starting socket report\u2026"
+  }
+}
