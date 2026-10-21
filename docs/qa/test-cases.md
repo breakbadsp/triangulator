@@ -85,6 +85,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
+| QA-081 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -1692,7 +1693,30 @@ selected range, and the cumulative kernel counter. It gives an example and
 explains that other processes can contribute. The cumulative count can include
 older events. Missing history shows an unavailable value, not zero.
 
-## QA-080: Past assessments show resident memory growth
+## QA-080: Thread state colors agree across views
+
+Feature: Thread state colors. Priority: Medium. Case revision: 1.
+
+Preconditions: Run Bugbench `cpu-spin` and select its PID as the target.
+
+1. Open Threads. Compare `worker-hot` with the main thread and `worker-idle`
+   threads in the thread map, state chart, current state pills, and Last ~10 s.
+2. Compare the `hrtimer_nanosleep` bar in Where threads wait with the Sleep
+   legend. Select it and check the table filter. Open a sleeping thread and
+   compare its state mix and state history colors.
+3. Repeat in Light, Dark, and System themes. Read the Thread states and Wait
+   channel help guides.
+4. When available, inspect samples with Other and No access. Compare their
+   separate state chart bands and legend entries with the map and state mix.
+   Check that a state still has a legend entry when only older samples show it.
+
+Expected results: Running is blue. Sleep is green in every state view,
+including wait-channel bars. Other and No access use separate gray colors.
+Wait-channel groups with multiple states and the combined remaining channels
+use neutral gray. The wait-channel filter still selects the matching threads.
+Help explains the color mapping and mixed groups.
+
+## QA-081: Past assessments show resident memory growth
 
 Feature: Timeline. Priority: High. Case revision: 1.
 

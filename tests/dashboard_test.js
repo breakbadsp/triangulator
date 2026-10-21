@@ -120,7 +120,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
   });
   vm.runInContext(script, context);
   vm.runInContext(`
-    realRenderTiles=renderTiles; realRenderAssessment=renderAssessment;
+    realRenderTiles=renderTiles; realRenderAssessment=renderAssessment; realRenderWchans=renderWchans;
     timeChart=()=>{}; renderAssessment=()=>{}; renderTiles=()=>{};
     renderCores=()=>{}; renderMosaic=()=>{}; renderFamilies=()=>{};
     renderWchans=()=>{}; renderThreads=()=>{}; renderDrawerLive=()=>{};
@@ -249,6 +249,56 @@ test('summary points record RSS and VmSize only from current samples', () => {
   // A 2.5 top would put 1.25 GiB at the midpoint, labelled 1.3 GiB.
   assert.equal(app.run('niceBytes(2.2*2**30)'), 5 * 2 ** 30);
   assert.equal(app.run('axisBytes(niceBytes(2.2*2**30)/2)'), '2.5 GiB');
+});
+
+test('thread state charts keep Other and No access separate, including historical data', () => {
+  const app = dashboard();
+  app.run(`timeChart=(host,options)=>{host.chart=options};
+    live={health:{session:'s'},threads:[]};
+    buffer=[{t:1,s:{running:1,sleep:4,other:2,no_access:3}},{t:2,s:{running:1,sleep:4}}];
+    renderOverview()`);
+  const chart = app.elements.get('chart-states').chart;
+  for (const [label, state, count] of [['Running','running',1], ['Sleep','sleep',4], ['Other','other',2], ['No access','no_access',3]]) {
+    const series = chart.series.find(item => item.label === label);
+    assert.ok(series, label);
+    assert.equal(series.color, `var(--s-${state})`);
+    assert.equal(series.get(chart.points[0]), count);
+    const legend = app.elements.get('states-legend').children.find(item => item.children[1] === label);
+    assert.ok(legend, `${label} remains in the legend when only earlier samples contain it`);
+    assert.equal(legend.children[0].className, 'sw ' + state);
+  }
+});
+
+test('wait channels use thread state colors and neutral colors for mixed groups', () => {
+  const app = dashboard();
+  const states = ['futex','poll','socket','pipe','sleep','stopped','kernel','other','no_access'];
+  const threads = states.map(state => ({state, wchan: state + '-wait'}));
+  threads.push({state:'running',wchan:''});
+  const render = items => {
+    app.run(`realRenderWchans(${JSON.stringify(items)})`);
+    return app.elements.get('wchan-bars').children.map(row => ({
+      label: row.children[0].textContent, color: row.children[1].children[0].style.background,
+    }));
+  };
+  const bars = render(threads);
+  assert.equal(bars.length, states.length, 'running threads are not waiting');
+  for (const state of states) assert.equal(bars.find(bar => bar.label === state + '-wait').color, `var(--s-${state})`);
+  assert.equal(render([{state:'sleep',wchan:'shared'}, {state:'kernel',wchan:'shared'}])[0].color, 'var(--s-other)');
+  const many = Array.from({length:12}, (_, i) => ({state:'sleep',wchan:'timer-' + i}));
+  const collapsed = render(many);
+  assert.equal(collapsed.length, 10);
+  assert.equal(collapsed.at(-1).color, 'var(--s-other)', 'combined channels do not imply one state');
+});
+
+test('each theme gives every thread state a distinct color', () => {
+  const palettes = [...html.matchAll(/\{([^{}]*--s-running:[^{}]*)\}/g)];
+  assert.equal(palettes.length, 3, 'light, system dark, and explicit dark');
+  for (const [, declarations] of palettes) {
+    const colors = [...declarations.matchAll(/--s-([\w_]+):([^;]+)/g)];
+    assert.equal(colors.length, 10);
+    assert.equal(new Set(colors.map(([, , color]) => color.trim().toLowerCase())).size, 10,
+      'Running, Sleep, and every other state must have distinct colors');
+  }
 });
 
 // With memory sampling off the load chart still supplies points, so the
@@ -414,6 +464,18 @@ test('socket rules name the slow reader, the slow peer and overflowing listeners
   const notes = app.run(`socketNotes(${JSON.stringify(sample.sockets.top[2])}).map(note=>note[0])`);
   assert.ok(notes.includes('Peer window is zero: the peer is not reading'), notes.join('\n'));
   assert.ok(notes.includes('Zero-window probing (2)'), notes.join('\n'));
+});
+
+test('TCP retransmissions become a finding at 2% of segments sent', () => {
+  const app = dashboard();
+  const sample = resources();
+  const retransmitted = delta => {
+    sample.network.tcp_retrans_segs = {delta, per_s: delta / 5, total: delta};
+    return findingsOf(app, sample).filter(item => item.title.includes('TCP segments retransmitted'))
+      .map(item => `${item.level}: ${item.title}`).join('\n');
+  };
+  assert.equal(retransmitted(15), '');
+  assert.equal(retransmitted(20), 'warning: 2.0% of TCP segments retransmitted');
 });
 
 test('a socket that is not transferring data is never called a zero-window peer', () => {

@@ -227,7 +227,7 @@ to look; they are not a diagnosis, and the collector evaluates no alert rules.
 | A send queue with a buffer ≥ 80% full, or a zero peer window on an ESTABLISHED, CLOSE-WAIT, FIN-WAIT-1 or LAST-ACK TCP socket (the window is unreported before Linux 6.2) | warning |
 | UDP receive buffer errors in the last interval | serious |
 | TCP receive-queue, backlog or zero-window drops | warning |
-| Retransmissions ≥ 1% of segments sent (≥ 100 sent) | warning |
+| Retransmissions ≥ 2% of segments sent (≥ 100 sent) | warning |
 | TCP memory pressure | serious |
 | 10 or more CLOSE-WAIT connections | warning |
 | OOM kill in the last interval | critical |
