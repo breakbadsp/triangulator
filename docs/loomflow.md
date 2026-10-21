@@ -1,7 +1,7 @@
-# Pull request review workflow
+# LoomFlow: pull request review workflow
 
 Tool-neutral spec. Any agent runner can follow it: Claude Code, Codex, or a
-script. `.claude/commands/pr-review-merge.md` and `.claude/agents/` are the
+script. `.claude/commands/loomflow.md` and `.claude/agents/` are the
 Claude Code adapter. The spec uses only `git` and `gh`, so it works for any
 GitHub repository. Repository details come from that repository's `AGENTS.md`
 or README: the check command, coding standards, and which paths are sensitive.
@@ -25,6 +25,20 @@ change. Before posting, each reviewer tries to disprove each finding and drops
 it if a guard, a caller check, or a test prevents the failure. A wrong finding
 costs an analyzer pass and often a second round. Round 2 also checks that the
 fixes do not break the callers of the code they change.
+
+The deep reviewer also checks the diff against the claims in the PR title and
+body. It finds the one fact that makes the change safe and checks that fact
+first. A measured number in the PR, such as sampler overhead, counts only if
+the run had no errors and the timed work ran the changed code.
+
+Before the analyzer fixes a behavior defect, it adds a regression test and
+confirms that the test fails without the fix. It does this only when a cheap
+local test target exists, and it runs only that test for this step.
+
+These three rules come from Poteto's pstack skills `blast-radius`,
+`benchmark-checklist` (questions 4 and 7), and `tdd`. LoomFlow takes no other
+pstack parts, to keep each run fast and cheap. Reviewers stay read-only and
+run no builds or tests.
 
 ## Model and reasoning selection
 

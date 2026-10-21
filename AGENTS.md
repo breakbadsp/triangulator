@@ -73,14 +73,14 @@ See [Multi-target design](docs/multi-target-design.md).
    documentation. Never edit in the primary checkout or on `master`.
 2. When the change is complete and checks pass, commit, push, and open a pull
    request against `master` without a separate request. In Claude Code, then
-   run `/pr-review-merge <PR>` (`.claude/commands/pr-review-merge.md`;
-   tool-neutral definition in [PR review workflow](docs/pr-review-workflow.md)).
+   run `/loomflow <PR>` (`.claude/commands/loomflow.md`;
+   tool-neutral definition in [LoomFlow](docs/loomflow.md)).
    It first triages the PR: docs and small changes get one quick scan, and
    everything else gets two independent reviewers. A comment analyzer runs when
    needed, then one test-and-merge agent. It stops after two review rounds and
    one merge-gate run, merges only when no `blocker` or `major` issue is open,
    and reports anything still open for manual handling. A run never starts
-   itself again, and agents that `/pr-review-merge` starts never run it. Other
+   itself again, and agents that `/loomflow` starts never run it. Other
    agents, such as Codex, stop after they open the PR and report its URL.
 3. After confirmed merge, preserve uncommitted and untracked work. Remove the
    worktree with `git worktree remove` from another checkout. Never force removal
@@ -91,4 +91,4 @@ See [Multi-target design](docs/multi-target-design.md).
 - Check command for the merge gate: `make check`. Formatter: `make format`.
 - Sensitive paths, which always get the full review: `sampler/`,
   `socket_sampler/`, `collector/`, `common/`, `Makefile`, `deploy/`,
-  `.github/`, `.claude/`, `AGENTS.md`, and `docs/pr-review-workflow.md`.
+  `.github/`, `.claude/`, `AGENTS.md`, and `docs/loomflow.md`.

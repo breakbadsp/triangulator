@@ -22,7 +22,7 @@ PR number, worktree path, round number, head SHA, mode (`scan` or `full`). In ro
 
 ## Rules
 
-- Review only. Never edit files, commit, push, approve, merge, or close. Never start agents or run `/pr-review-merge`.
+- Review only. Never edit files, commit, push, approve, merge, or close. Never start agents or run `/loomflow`.
 - Read-only commands only (`git`, `gh pr view/diff`, `gh api` GET). No builds or tests.
 - Report a finding only if you confirmed it in the code and can state a concrete failure. Before posting, try to disprove each finding by looking for a guard, a caller check, or a test that prevents it. Drop it if you find one, and drop anything uncertain.
 - At most 3 findings, most severe first.

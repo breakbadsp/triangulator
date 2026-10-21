@@ -42,6 +42,6 @@ Records
 
 Completion
 - Follow the project's worktree, commit, and pull request rules for the record.
-  Do not run /pr-review-merge and do not merge. Report package identity, status
+  Do not run /loomflow and do not merge. Report package identity, status
   counts, failures, and record links in under ten lines.
 """
