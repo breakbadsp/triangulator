@@ -65,6 +65,8 @@ and [the loader](../socket_sampler/main.cpp) for coverage and kernel requirement
 Kernel log access and kernel support determine the available evidence.
 `/dev/kmsg` can be restricted or absent in a container. Allowing all users to
 read kernel messages changes host policy; it is not a monitoring prerequisite.
+In a nested PID namespace, such as WSL2, kernel messages are matched by process
+name, because the kernel names processes by their outer PIDs.
 PID file descriptor exit status depends on kernel support. An unknown reason
 is not proof of a normal exit. A signal alone does not identify who sent it.
 See [exit_status.hpp](../sampler/exit_status.hpp) and

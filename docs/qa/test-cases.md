@@ -83,6 +83,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
+| QA-079 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -203,6 +204,24 @@ Record the sampler configuration and sessions.
 Expected: An add beyond capacity has a clear error and preserves active targets.
 After a slot is free, the new target becomes live. No target receives another
 process's data.
+
+## QA-079: Kernel crash message on WSL2
+
+Feature: Process exit reasons. Priority: High. Case revision: 1.
+
+Preconditions: A WSL2 distribution with `kernel.dmesg_restrict = 0`. Check
+that `readlink /proc/self/ns/pid` is not `pid:[4026531836]`. The dashboard is
+open with live samples.
+
+1. Monitor the `bug-lab` `mem-oom` workload until the OOM killer ends it.
+2. Compare the PID on the Last process exit card with the PID in
+   `dmesg | grep 'Killed process'`. They differ.
+3. Monitor an owned target that writes through a null pointer, and wait for
+   the segfault.
+
+Expected: The card shows "Killed by the out-of-memory killer" and then
+"Segmentation fault", not "No kernel crash message". Kernel messages show the
+kernel lines with the outer PID and the target's name.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
