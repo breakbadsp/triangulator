@@ -142,3 +142,12 @@ and retained command session are reusable. No existing installation was changed.
 This run used more than the 40-call Sanity target because it added feature
 scenarios, checked several tabs, restored setup preconditions, and corrected
 browser locators. No case status depends on the call budget.
+
+## Follow-up records
+
+- [Dashboard](../20261021T010700Z-dashboard-followup/index.md)
+- [Contract and merge script](../20261021T010800Z-followup/index.md)
+- [Sanitizers](../20261021T011600Z-sanitizers-followup/index.md)
+- [Capacity and sanitizer stop](../20261021T0700Z-capacity-sanitizer-followup/index.md)
+- [Memory and API](../2026-10-21-memory-api-followup/index.md)
+- [Upgrade lifecycle](../2026-10-21-upgrade-lifecycle-followup/index.md)
