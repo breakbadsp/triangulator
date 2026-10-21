@@ -486,5 +486,87 @@
       }
     ],
     "capacity_drops": 89
+  },
+  {
+    "stage": "before-resume-30",
+    "elapsed": 150.1,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "silent"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "resumed-30",
+    "elapsed": 158.1,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "pause-90",
+    "elapsed": 158.1,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "before-resume-90",
+    "elapsed": 248.1,
+    "targets": [],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "resumed-90",
+    "elapsed": 256.1,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
   }
 ]

@@ -163,4 +163,212 @@ test_lost_initial_announce_preserves_the_default_last_view (test_multitarget.Mul
 test_reordered_slot_reuse_keeps_the_last_view_identity (test_multitarget.MultiTargetCollectorTests.test_reordered_slot_reuse_keeps_the_last_view_identity) ... ok
 test_replaced_session_keeps_its_target_mapping (test_multitarget.MultiTargetCollectorTests.test_replaced_session_keeps_its_target_mapping) ... ok
 test_replay_interval_can_be_disabled_for_one_target (test_multitarget.MultiTargetCollectorTests.test_replay_interval_can_be_disabled_for_one_target) ... ok
-test_restart_with_reversed_arrival_keeps_the_legacy_owner (test_multitarget.MultiTargetCollectorTests.test_restart_with_reversed_arrival_keeps_the_legacy_owner) ... 
+test_restart_with_reversed_arrival_keeps_the_legacy_owner (test_multitarget.MultiTargetCollectorTests.test_restart_with_reversed_arrival_keeps_the_legacy_owner) ... ok
+test_reused_slot_forgets_its_announced_identity (test_multitarget.MultiTargetCollectorTests.test_reused_slot_forgets_its_announced_identity) ... ok
+test_sessions_heard_before_announcements_both_recover (test_multitarget.MultiTargetCollectorTests.test_sessions_heard_before_announcements_both_recover) ... ok
+test_socket_reports_with_the_same_pid_are_isolated_by_sender (test_multitarget.MultiTargetCollectorTests.test_socket_reports_with_the_same_pid_are_isolated_by_sender) ... ok
+test_stored_socket_reports_survive_a_collector_restart (test_multitarget.MultiTargetCollectorTests.test_stored_socket_reports_survive_a_collector_restart) ... ok
+test_upgraded_legacy_sampler_keeps_its_replay_directory (test_multitarget.MultiTargetCollectorTests.test_upgraded_legacy_sampler_keeps_its_replay_directory) ... ok
+test_watch_rules_are_isolated_and_survive_restart (test_multitarget.MultiTargetCollectorTests.test_watch_rules_are_isolated_and_survive_restart) ... ok
+test_zero_legacy_session_and_allowed_sender_address_change (test_multitarget.MultiTargetCollectorTests.test_zero_legacy_session_and_allowed_sender_address_change) ... ok
+test_cpu_budget_changes_wire_interval_without_changing_sessions (test_multitarget.MultiTargetSamplerTests.test_cpu_budget_changes_wire_interval_without_changing_sessions) ... ok
+test_heavy_scans_rotate_with_at_most_one_scan_per_tick (test_multitarget.MultiTargetSamplerTests.test_heavy_scans_rotate_with_at_most_one_scan_per_tick) ... ok
+test_one_process_keeps_unmodified_sessions_on_target_reload (test_multitarget.MultiTargetSamplerTests.test_one_process_keeps_unmodified_sessions_on_target_reload) ... ok
+test_second_sender_cannot_share_the_legacy_directory (test_multitarget.UnpinnedCollectorTests.test_second_sender_cannot_share_the_legacy_directory) ... ok
+test_legacy_watch_file_and_replay_follow_the_legacy_owner (test_multitarget.UnsortedSenderListTests.test_legacy_watch_file_and_replay_follow_the_legacy_owner) ... ok
+test_case_procedures_do_not_require_result_rows (test_qa_summary.QaSummaryTests.test_case_procedures_do_not_require_result_rows) ... ok
+test_every_status_is_counted (test_qa_summary.QaSummaryTests.test_every_status_is_counted) ... ok
+test_recorded_results_are_consistent (test_qa_summary.QaSummaryTests.test_recorded_results_are_consistent) ... FAIL
+test_default_layout_preserves_configs_and_controls_installed_sampler (test_runtime.RuntimeTests.test_default_layout_preserves_configs_and_controls_installed_sampler) ... ok
+test_override_keeps_runtime_files_inside_the_selected_directory (test_runtime.RuntimeTests.test_override_keeps_runtime_files_inside_the_selected_directory) ... ok
+test_clock_going_backwards_is_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_clock_going_backwards_is_rejected) ... ok
+test_failed_sampler_stops_the_workload (test_sampler_benchmark.SamplerBenchmarkTests.test_failed_sampler_stops_the_workload) ... ok
+test_incomplete_duplicate_and_lost_ticks_are_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_incomplete_duplicate_and_lost_ticks_are_rejected) ... /usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb9035b0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7971f0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb795f30>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797100>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7972e0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796b60>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797010>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797d30>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7962f0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796d40>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796200>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7973d0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797970>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb795d50>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797a60>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796f20>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7967a0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797f10>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796890>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7976a0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796c50>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb795990>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb796980>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb7975b0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797c40>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbb797b50>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bbba3ec50>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb8418040>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb8418130>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb8418310>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb8418220>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb84185e0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb84186d0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.14/unittest/mock.py:2259: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f7bb84184f0>
+  def __init__(self, name, parent):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_invalid_target_count (test_sampler_benchmark.SamplerBenchmarkTests.test_invalid_target_count) ... ok
+test_kernel_timestamp_and_complete_sample (test_sampler_benchmark.SamplerBenchmarkTests.test_kernel_timestamp_and_complete_sample) ... ok
+test_late_tick_is_counted_not_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_late_tick_is_counted_not_rejected) ... ok
+test_nonfinite_duration_is_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_nonfinite_duration_is_rejected) ... ok
+test_real_busy_target_and_all_rates (test_sampler_benchmark.SamplerBenchmarkTests.test_real_busy_target_and_all_rates) ... ok
+test_target_thread_count_after_warmup (test_sampler_benchmark.SamplerBenchmarkTests.test_target_thread_count_after_warmup) ... ok
+test_thread_matrix_and_partial_packet (test_sampler_benchmark.SamplerBenchmarkTests.test_thread_matrix_and_partial_packet) ... ok
+test_committed_page_and_infographic_match_the_renderer (test_sampler_benchmark_page.BenchmarkPageTests.test_committed_page_and_infographic_match_the_renderer) ... ok
+test_incomplete_duplicate_and_missing_trials_are_rejected (test_sampler_benchmark_page.BenchmarkPageTests.test_incomplete_duplicate_and_missing_trials_are_rejected) ... ok
+test_invalid_observations_are_rejected (test_sampler_benchmark_page.BenchmarkPageTests.test_invalid_observations_are_rejected) ... ok
+test_percentiles_pool_samples_instead_of_averaging_trials (test_sampler_benchmark_page.BenchmarkPageTests.test_percentiles_pool_samples_instead_of_averaging_trials) ... ok
+test_rendered_snapshot_escapes_metadata_and_keeps_exact_data (test_sampler_benchmark_page.BenchmarkPageTests.test_rendered_snapshot_escapes_metadata_and_keeps_exact_data) ... ok
+test_sample_count_must_match (test_sampler_benchmark_page.BenchmarkPageTests.test_sample_count_must_match) ... ok
+test_global_rate_is_inserted_before_target_tables (test_sampler_control.ConfigTextTests.test_global_rate_is_inserted_before_target_tables) ... ok
+test_read_setting_follows_the_sampler_rules (test_sampler_control.ConfigTextTests.test_read_setting_follows_the_sampler_rules) ... ok
+test_replace_setting_keeps_position_comments_and_line_endings (test_sampler_control.ConfigTextTests.test_replace_setting_keeps_position_comments_and_line_endings) ... ok
+test_target_tables_preserve_globals_and_validate_set_changes (test_sampler_control.ConfigTextTests.test_target_tables_preserve_globals_and_validate_set_changes) ... ok
+test_cli_target_ids_add_remove_and_global_rate (test_sampler_control.ScriptTests.test_cli_target_ids_add_remove_and_global_rate) ... ok
+test_collector_does_not_fall_back_when_pidfile_points_to_another_program (test_sampler_control.ScriptTests.test_collector_does_not_fall_back_when_pidfile_points_to_another_program) ... ok
+test_collector_does_not_fall_back_when_running_config_disappears (test_sampler_control.ScriptTests.test_collector_does_not_fall_back_when_running_config_disappears) ... ok
+test_collector_follows_the_running_sampler (test_sampler_control.ScriptTests.test_collector_follows_the_running_sampler) ... ok
+test_dashboard_adds_and_removes_targets_without_resetting_the_default (test_sampler_control.ScriptTests.test_dashboard_adds_and_removes_targets_without_resetting_the_default) ... ok
+test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector (test_sampler_control.ScriptTests.test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector) ... ok
+test_dashboard_changes_pid_name_and_absent_target (test_sampler_control.ScriptTests.test_dashboard_changes_pid_name_and_absent_target) ... ok
+test_dashboard_control_is_disabled_on_public_listener (test_sampler_control.ScriptTests.test_dashboard_control_is_disabled_on_public_listener) ... ok
+test_dashboard_control_is_hidden_without_the_optional_helper (test_sampler_control.ScriptTests.test_dashboard_control_is_hidden_without_the_optional_helper) ... ok
+test_dashboard_named_target_follows_restart_and_survives_reopening (test_sampler_control.ScriptTests.test_dashboard_named_target_follows_restart_and_survives_reopening) ... ok
+test_dashboard_reads_split_body_and_rejects_oversized_requests (test_sampler_control.ScriptTests.test_dashboard_reads_split_body_and_rejects_oversized_requests) ... ok
+test_dashboard_requires_local_same_origin_write_and_live_sampler (test_sampler_control.ScriptTests.test_dashboard_requires_local_same_origin_write_and_live_sampler) ... ok
+test_rate_and_target_reload_in_place (test_sampler_control.ScriptTests.test_rate_and_target_reload_in_place) ... ok
+test_rejected_changes_leave_the_config_unchanged (test_sampler_control.ScriptTests.test_rejected_changes_leave_the_config_unchanged) ... ok
+test_stale_pidfile_and_other_programs_are_refused (test_sampler_control.ScriptTests.test_stale_pidfile_and_other_programs_are_refused) ... ok
+test_target_control_refuses_a_remote_sender_list (test_sampler_control.ScriptTests.test_target_control_refuses_a_remote_sender_list) ... ok
+test_tracked_example_config_is_not_edited (test_sampler_control.ScriptTests.test_tracked_example_config_is_not_edited) ... ok
+test_names_must_be_unique (test_sampler_control.TargetLookupTests.test_names_must_be_unique) ... ok
+test_thread_ids_and_missing_pids_are_rejected (test_sampler_control.TargetLookupTests.test_thread_ids_and_missing_pids_are_rejected) ... ok
+test_comparison_rejects_incomplete_or_different_settings (test_sampling_benchmark.SamplingBenchmarkTests.test_comparison_rejects_incomplete_or_different_settings) ... ok
+test_known_percentiles_and_throughput (test_sampling_benchmark.SamplingBenchmarkTests.test_known_percentiles_and_throughput) ... ok
+test_real_sampler_functions_at_all_thread_counts (test_sampling_benchmark.SamplingBenchmarkTests.test_real_sampler_functions_at_all_thread_counts) ... ok
+test_discarded_child_report_fails_an_otherwise_successful_suite (test_sanitizer_checks.SanitizerChecksTests.test_discarded_child_report_fails_an_otherwise_successful_suite) ... No next scenario.
+Sanitizer reports: /tmp/tmpcioch4ob/build/sanitizer-reports/thread/run-iw9isu63
+ok
+test_empty_report_directory_passes (test_sanitizer_checks.SanitizerChecksTests.test_empty_report_directory_passes) ... ok
+test_native_test_failure_stops_the_suite (test_sanitizer_checks.SanitizerChecksTests.test_native_test_failure_stops_the_suite) ... ok
+test_required_runtime_options_follow_caller_options (test_sanitizer_checks.SanitizerChecksTests.test_required_runtime_options_follow_caller_options) ... ok
+test_driver_reports_both_kinds_for_a_small_target (test_slow_samples.SlowSampleBenchmarkTests.test_driver_reports_both_kinds_for_a_small_target) ... ok
+test_missing_target_is_rejected_for_both_sample_kinds (test_slow_samples.SlowSampleBenchmarkTests.test_missing_target_is_rejected_for_both_sample_kinds) ... ok
+test_unknown_sample_kind_is_rejected (test_slow_samples.SlowSampleBenchmarkTests.test_unknown_sample_kind_is_rejected) ... ok
+test_socket_paths_thread_attribution_and_completion_marker (test_socket_kernel.SocketKernelTests.test_socket_paths_thread_attribution_and_completion_marker) ... skipped 'requires an explicit privileged BPF test environment'
+test_dashboard_serves_socket_entrypoint (test_socket_metrics.SocketIntegrationTests.test_dashboard_serves_socket_entrypoint) ... ok
+test_day_boundary_partial_snapshot (test_socket_metrics.SocketIntegrationTests.test_day_boundary_partial_snapshot) ... ok
+test_latest_observer_queries_use_indexes (test_socket_metrics.SocketIntegrationTests.test_latest_observer_queries_use_indexes) ... ok
+test_legacy_day_files_and_covered_window (test_socket_metrics.SocketIntegrationTests.test_legacy_day_files_and_covered_window) ... ok
+test_marker_session_identity_and_invalid_wire (test_socket_metrics.SocketIntegrationTests.test_marker_session_identity_and_invalid_wire) ... ok
+test_maximum_snapshot_uses_paced_sender (test_socket_metrics.SocketIntegrationTests.test_maximum_snapshot_uses_paced_sender) ... ok
+test_report_helper_timeout_does_not_stop_ingestion (test_socket_metrics.SocketIntegrationTests.test_report_helper_timeout_does_not_stop_ingestion) ... ok
+test_storage_rates_loss_duplicates_reordering_restart (test_socket_metrics.SocketIntegrationTests.test_storage_rates_loss_duplicates_reordering_restart) ... ok
+test_real_sampler_against_the_victim (test_target_impact.DriverTests.test_real_sampler_against_the_victim) ... ok
+test_too_few_cpus_are_reported_before_any_run (test_target_impact.DriverTests.test_too_few_cpus_are_reported_before_any_run) ... ok
+test_an_inconsistent_histogram_is_rejected (test_target_impact.SummaryTests.test_an_inconsistent_histogram_is_rejected) ... ok
+test_cpus_need_one_per_role_and_must_be_allowed (test_target_impact.SummaryTests.test_cpus_need_one_per_role_and_must_be_allowed) ... ok
+test_merge_adds_counts_and_keeps_the_largest_maximum (test_target_impact.SummaryTests.test_merge_adds_counts_and_keeps_the_largest_maximum) ... ok
+test_percentile_is_the_bucket_upper_bound_capped_at_the_maximum (test_target_impact.SummaryTests.test_percentile_is_the_bucket_upper_bound_capped_at_the_maximum) ... ok
+test_zero_durations_have_a_zero_percentile (test_target_impact.SummaryTests.test_zero_durations_have_a_zero_percentile) ... ok
+test_bad_arguments_are_rejected (test_target_impact.VictimTests.test_bad_arguments_are_rejected) ... ok
+test_closing_stdin_before_the_start_line_does_not_hang (test_target_impact.VictimTests.test_closing_stdin_before_the_start_line_does_not_hang) ... ok
+test_failed_thread_creation_exits_instead_of_hanging (test_target_impact.VictimTests.test_failed_thread_creation_exits_instead_of_hanging) ... ok
+test_mappings_files_and_sockets_are_created_before_ready (test_target_impact.VictimTests.test_mappings_files_and_sockets_are_created_before_ready) ... ok
+test_probes_report_and_the_thread_set_stays_constant (test_target_impact.VictimTests.test_probes_report_and_the_thread_set_stays_constant) ... ok
+test_unknown_or_negative_options_are_rejected (test_target_impact.VictimTests.test_unknown_or_negative_options_are_rejected) ... ok
+
+======================================================================
+FAIL: test_recorded_results_are_consistent (test_qa_summary.QaSummaryTests.test_recorded_results_are_consistent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/daksh/.t3/worktrees/triangulator/qa-five-prod-targets/tests/test_qa_summary.py", line 24, in test_recorded_results_are_consistent
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : error: README.md QA summary is stale; run scripts/qa_summary.py --write-readme
+
+
+----------------------------------------------------------------------
+Ran 167 tests in 168.441s
+
+FAILED (failures=1, skipped=1)
+make: *** [Makefile:224: check] Error 1

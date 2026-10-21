@@ -9,5 +9,28 @@
     "started_utc": "2026-10-21T01:08:24Z",
     "elapsed_s": 682.88,
     "exit_code": 2
+  },
+  {
+    "name": "normal-check",
+    "command": [
+      "make",
+      "-j2",
+      "check"
+    ],
+    "started_utc": "2026-10-21T01:19:47Z",
+    "elapsed_s": 250.97,
+    "exit_code": 2
+  },
+  {
+    "name": "invalid-static-thread",
+    "command": [
+      "make",
+      "check",
+      "SANITIZER=thread",
+      "STATIC=1"
+    ],
+    "started_utc": "2026-10-21T01:23:58Z",
+    "elapsed_s": 0.0,
+    "exit_code": 2
   }
 ]
