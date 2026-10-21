@@ -1,0 +1,490 @@
+[
+  {
+    "stage": "before-rename",
+    "elapsed": 0.01,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 0
+  },
+  {
+    "stage": "rename",
+    "elapsed": 5.04,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 9
+  },
+  {
+    "stage": "rename",
+    "elapsed": 10.05,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 15
+  },
+  {
+    "stage": "rename",
+    "elapsed": 15.05,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 25
+  },
+  {
+    "stage": "rename",
+    "elapsed": 20.05,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 29
+  },
+  {
+    "stage": "rename",
+    "elapsed": 25.06,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 37
+  },
+  {
+    "stage": "rename",
+    "elapsed": 30.06,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 46
+  },
+  {
+    "stage": "rename",
+    "elapsed": 35.07,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 52
+  },
+  {
+    "stage": "rename",
+    "elapsed": 40.07,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 58
+  },
+  {
+    "stage": "rename",
+    "elapsed": 45.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 68
+  },
+  {
+    "stage": "rename",
+    "elapsed": 50.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 72
+  },
+  {
+    "stage": "rename",
+    "elapsed": 55.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/b",
+        "pid": 354684,
+        "session": "16569626095601805933",
+        "status": "silent"
+      }
+    ],
+    "capacity_drops": 80
+  },
+  {
+    "stage": "rename",
+    "elapsed": 60.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 65.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 70.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 75.08,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 80.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 85.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 90.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 95.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 100.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 105.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 110.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 115.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "rename",
+    "elapsed": 120.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  },
+  {
+    "stage": "pause-30",
+    "elapsed": 120.09,
+    "targets": [
+      {
+        "key": "omarchy/default",
+        "pid": 330706,
+        "session": "18194765673151619543",
+        "status": "live"
+      },
+      {
+        "key": "omarchy/c",
+        "pid": 354684,
+        "session": "6286691394497387733",
+        "status": "live"
+      }
+    ],
+    "capacity_drops": 89
+  }
+]

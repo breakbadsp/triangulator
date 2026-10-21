@@ -726,14 +726,15 @@ Source: [Package installation](../setup.md#install-from-a-release-package).
 
 ## QA-002: Change target by PID
 
-Feature: Target control. Priority: High. Case revision: 1.
+Feature: Target control. Priority: High. Case revision: 2.
 
 Preconditions: QA-001 setup is running. Python and local target control are
-available. Two owned processes with different PIDs are running.
+available. Two owned processes with different PIDs are running. Use one free target slot.
 
-1. Open the dashboard. Select **Change target**.
-2. Enter the second process PID. Select **Monitor**.
-3. Wait for its samples. Reload the page.
+1. Open the dashboard. Select **Manage targets**.
+2. Enter a new Target ID and the second process PID. Select **Add target** and
+   confirm. Select the new target in the target picker.
+3. Wait for its samples. Reload the explicit target URL.
 
 Expected results: The dashboard identifies the second process and displays
 its threads. The saved target remains selected after page reload.
@@ -742,17 +743,18 @@ Source: [Target control](../setup.md#quick-start).
 
 ## QA-003: Invalid target input
 
-Feature: Target validation. Priority: High. Case revision: 1.
+Feature: Target validation. Priority: High. Case revision: 2.
 
 Preconditions: QA-002 setup is available. A valid target is selected.
 
-1. Open **Change target**. Clear the target field. Select **Monitor**.
+1. Open **Manage targets**. Enter a new Target ID. Clear **Process name or PID**
+   and select **Add target** if enabled.
 2. Inspect the validation message and the current target.
-3. Enter a nonexistent numeric PID. Select **Monitor**.
+3. Enter a nonexistent numeric PID. Select **Add target**. Confirm if asked.
 4. Inspect the validation message. Close the form and reload the dashboard.
 
-Expected results: Both invalid inputs are rejected with a form validation
-message. The original target remains active and saved.
+Expected results: Both invalid inputs are rejected. Empty input cannot be submitted;
+a nonexistent PID shows a validation message. The original target remains active and saved.
 
 Source: [Target validation](../setup.md#quick-start).
 

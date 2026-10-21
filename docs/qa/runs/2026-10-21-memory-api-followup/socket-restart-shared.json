@@ -1,0 +1,10 @@
+{
+  "wire-0/default": {
+    "available": false,
+    "reason": "No socket observations for this target. Another target has the same PID; its socket observer must report before the collector can tell them apart."
+  },
+  "wire-1/billing": {
+    "available": false,
+    "reason": "No socket observations for this target. Another target has the same PID; its socket observer must report before the collector can tell them apart."
+  }
+}

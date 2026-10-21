@@ -1,0 +1,149 @@
+{
+  "/api/socket-io?target=wire-0/default": {
+    "status": 200,
+    "body": {
+      "available": true,
+      "observer": "91",
+      "pid": 50,
+      "process_start": "123",
+      "messages_enabled": true,
+      "stale": true,
+      "stopped": false,
+      "losses": "0",
+      "lower_bound": false,
+      "duration": 11.0,
+      "updated": 1792545542.9834569,
+      "gaps": 0,
+      "truncated": false,
+      "window_seconds": 1,
+      "rate_windows": 2,
+      "source": "eBPF socket length tracepoints",
+      "coverage": "Observed socket paths only. UDP, receive splice, bypass paths and async submitter attribution are not covered. Byte counts follow kernel operation results; receive truncation can discard additional bytes. Operations are not application messages.",
+      "totals": {
+        "input": {
+          "total": "200",
+          "average": 18.181818181818183,
+          "current": null,
+          "minimum": 100.0,
+          "maximum": 100.0
+        },
+        "output": {
+          "total": "0",
+          "average": 0.0,
+          "current": null,
+          "minimum": 0.0,
+          "maximum": 0.0
+        },
+        "receives": {
+          "total": "2",
+          "average": 0.18181818181818182,
+          "current": null,
+          "minimum": 1.0,
+          "maximum": 1.0
+        },
+        "sends": {
+          "total": "0",
+          "average": 0.0,
+          "current": null,
+          "minimum": 0.0,
+          "maximum": 0.0
+        },
+        "messages": {
+          "total": "0",
+          "average": 0.0,
+          "current": null,
+          "minimum": 0.0,
+          "maximum": 0.0
+        }
+      },
+      "rows": [
+        {
+          "tid": 50,
+          "name": "",
+          "thread_start": "123000",
+          "kind": "TCP IPv4",
+          "kind_id": 1,
+          "metrics": {
+            "input": {
+              "total": "200",
+              "average": 18.181818181818183,
+              "current": null,
+              "minimum": 100.0,
+              "maximum": 100.0
+            },
+            "output": {
+              "total": "0",
+              "average": 0.0,
+              "current": null,
+              "minimum": 0.0,
+              "maximum": 0.0
+            },
+            "receives": {
+              "total": "2",
+              "average": 0.18181818181818182,
+              "current": null,
+              "minimum": 1.0,
+              "maximum": 1.0
+            },
+            "sends": {
+              "total": "0",
+              "average": 0.0,
+              "current": null,
+              "minimum": 0.0,
+              "maximum": 0.0
+            },
+            "messages": {
+              "total": "0",
+              "average": 0.0,
+              "current": null,
+              "minimum": 0.0,
+              "maximum": 0.0
+            }
+          }
+        }
+      ],
+      "history": [
+        {
+          "ts": 1792545540.9827952,
+          "valid": false,
+          "input": null,
+          "output": null,
+          "receives": null,
+          "sends": null,
+          "messages": null
+        },
+        {
+          "ts": 1792545541.9830325,
+          "valid": true,
+          "input": 100.0,
+          "output": 0.0,
+          "receives": 1.0,
+          "sends": 0.0,
+          "messages": 0.0
+        },
+        {
+          "ts": 1792545542.983386,
+          "valid": true,
+          "input": 100.0,
+          "output": 0.0,
+          "receives": 1.0,
+          "sends": 0.0,
+          "messages": 0.0
+        }
+      ],
+      "read_error": false
+    }
+  },
+  "/api/socket-io?target=wire-1/billing": {
+    "status": 200,
+    "body": {
+      "available": false,
+      "loading": true,
+      "reason": "Starting socket report\u2026"
+    }
+  },
+  "/api/socket-io?target=wire-0/default&observer=92": {
+    "status": 400,
+    "body": "{\"error\":\"PID or observer does not belong to the selected target\"}"
+  }
+}

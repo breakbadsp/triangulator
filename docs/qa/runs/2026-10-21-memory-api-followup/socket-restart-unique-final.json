@@ -1,0 +1,284 @@
+{
+  "/api/socket-io?target=wire-0/default": {
+    "available": true,
+    "observer": "92",
+    "pid": 50,
+    "process_start": "123",
+    "messages_enabled": true,
+    "stale": true,
+    "stopped": false,
+    "losses": "0",
+    "lower_bound": false,
+    "duration": 12.0,
+    "updated": 1792545566.0378222,
+    "gaps": 0,
+    "truncated": false,
+    "window_seconds": 1,
+    "rate_windows": 3,
+    "source": "eBPF socket length tracepoints",
+    "coverage": "Observed socket paths only. UDP, receive splice, bypass paths and async submitter attribution are not covered. Byte counts follow kernel operation results; receive truncation can discard additional bytes. Operations are not application messages.",
+    "totals": {
+      "input": {
+        "total": "3000",
+        "average": 250.0,
+        "current": null,
+        "minimum": 1000.0,
+        "maximum": 1000.0
+      },
+      "output": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "receives": {
+        "total": "3",
+        "average": 0.25,
+        "current": null,
+        "minimum": 1.0,
+        "maximum": 1.0
+      },
+      "sends": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "messages": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      }
+    },
+    "rows": [
+      {
+        "tid": 50,
+        "name": "",
+        "thread_start": "123000",
+        "kind": "TCP IPv4",
+        "kind_id": 1,
+        "metrics": {
+          "input": {
+            "total": "3000",
+            "average": 250.0,
+            "current": null,
+            "minimum": 1000.0,
+            "maximum": 1000.0
+          },
+          "output": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          },
+          "receives": {
+            "total": "3",
+            "average": 0.25,
+            "current": null,
+            "minimum": 1.0,
+            "maximum": 1.0
+          },
+          "sends": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          },
+          "messages": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          }
+        }
+      }
+    ],
+    "history": [
+      {
+        "ts": 1792545540.9828262,
+        "valid": false,
+        "input": null,
+        "output": null,
+        "receives": null,
+        "sends": null,
+        "messages": null
+      },
+      {
+        "ts": 1792545541.9831052,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      },
+      {
+        "ts": 1792545542.9834142,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      },
+      {
+        "ts": 1792545566.0365577,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      }
+    ],
+    "read_error": false
+  },
+  "/api/socket-io": {
+    "available": true,
+    "observer": "92",
+    "pid": 50,
+    "process_start": "123",
+    "messages_enabled": true,
+    "stale": true,
+    "stopped": false,
+    "losses": "0",
+    "lower_bound": false,
+    "duration": 12.0,
+    "updated": 1792545566.0378222,
+    "gaps": 0,
+    "truncated": false,
+    "window_seconds": 1,
+    "rate_windows": 3,
+    "source": "eBPF socket length tracepoints",
+    "coverage": "Observed socket paths only. UDP, receive splice, bypass paths and async submitter attribution are not covered. Byte counts follow kernel operation results; receive truncation can discard additional bytes. Operations are not application messages.",
+    "totals": {
+      "input": {
+        "total": "3000",
+        "average": 250.0,
+        "current": null,
+        "minimum": 1000.0,
+        "maximum": 1000.0
+      },
+      "output": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "receives": {
+        "total": "3",
+        "average": 0.25,
+        "current": null,
+        "minimum": 1.0,
+        "maximum": 1.0
+      },
+      "sends": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "messages": {
+        "total": "0",
+        "average": 0.0,
+        "current": null,
+        "minimum": 0.0,
+        "maximum": 0.0
+      }
+    },
+    "rows": [
+      {
+        "tid": 50,
+        "name": "",
+        "thread_start": "123000",
+        "kind": "TCP IPv4",
+        "kind_id": 1,
+        "metrics": {
+          "input": {
+            "total": "3000",
+            "average": 250.0,
+            "current": null,
+            "minimum": 1000.0,
+            "maximum": 1000.0
+          },
+          "output": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          },
+          "receives": {
+            "total": "3",
+            "average": 0.25,
+            "current": null,
+            "minimum": 1.0,
+            "maximum": 1.0
+          },
+          "sends": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          },
+          "messages": {
+            "total": "0",
+            "average": 0.0,
+            "current": null,
+            "minimum": 0.0,
+            "maximum": 0.0
+          }
+        }
+      }
+    ],
+    "history": [
+      {
+        "ts": 1792545540.9828262,
+        "valid": false,
+        "input": null,
+        "output": null,
+        "receives": null,
+        "sends": null,
+        "messages": null
+      },
+      {
+        "ts": 1792545541.9831052,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      },
+      {
+        "ts": 1792545542.9834142,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      },
+      {
+        "ts": 1792545566.0365577,
+        "valid": true,
+        "input": 1000.0,
+        "output": 0.0,
+        "receives": 1.0,
+        "sends": 0.0,
+        "messages": 0.0
+      }
+    ],
+    "read_error": false
+  }
+}

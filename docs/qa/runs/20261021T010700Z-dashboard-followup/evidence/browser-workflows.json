@@ -1,0 +1,975 @@
+[
+  {
+    "stage": "chromium-version",
+    "time": "2026-10-21T01:14:03.617Z",
+    "value": "154.0.8037.97"
+  },
+  {
+    "stage": "qa045-twenty-initial",
+    "time": "2026-10-21T01:14:35.977Z",
+    "value": [
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8080\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8045\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8045\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8065\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8045\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8045\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8065\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      }
+    ]
+  },
+  {
+    "stage": "qa045-slow-deadline",
+    "time": "2026-10-21T01:14:47.221Z",
+    "value": {
+      "closedMs": 6070,
+      "views": [
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8350\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8360\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8350\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8360\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8360\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8380\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8380\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        },
+        {
+          "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+          "name": "bb-healthy",
+          "meta": "PID 265522 · Live · just now",
+          "health": "",
+          "search": "",
+          "replay": ""
+        }
+      ]
+    }
+  },
+  {
+    "stage": "qa045-local-replay",
+    "time": "2026-10-21T01:14:48.610Z",
+    "value": [
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Historical",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8045\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": "Recorded view · 10/21/2026, 6:44:33 AM · session 5006182860925037985. State is the latest sampled observation; rates cover the preceding ~10 seconds."
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8410\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8410\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8425\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8395\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8410\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8410\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      }
+    ]
+  },
+  {
+    "stage": "qa051-outage",
+    "time": "2026-10-21T01:15:04.858Z",
+    "value": [
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8425\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": "Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time."
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8440\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8440\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8425\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8425\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8440\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n8425\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      }
+    ]
+  },
+  {
+    "stage": "qa051-recovery",
+    "time": "2026-10-21T01:15:22.309Z",
+    "value": [
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n195\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": "Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time."
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n180\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n195\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n210\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n165\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n195\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n180\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      },
+      {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": ""
+      }
+    ]
+  },
+  {
+    "stage": "firefox-version",
+    "time": "2026-10-21T01:15:25.752Z",
+    "value": "157.0"
+  },
+  {
+    "stage": "qa052-independent-filter-replay",
+    "time": "2026-10-21T01:15:28.966Z",
+    "value": {
+      "firefox": {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Historical",
+        "health": "",
+        "search": "worker-0",
+        "replay": "Recorded view · 10/21/2026, 6:45:27 AM · session 5006182860925037985. State is the latest sampled observation; rates cover the preceding ~10 seconds."
+      },
+      "chromium": {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n390\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": "Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time."
+      }
+    }
+  },
+  {
+    "stage": "qa052-target-isolation",
+    "time": "2026-10-21T01:15:29.782Z",
+    "value": {
+      "firefox": {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Flocks",
+        "name": "bb-deadlock",
+        "meta": "PID 274898 · Live · just now",
+        "health": "",
+        "search": "",
+        "replay": "Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time."
+      },
+      "chromium": {
+        "url": "http://127.0.0.1:19571/?target=omarchy%2Fdefault",
+        "name": "bb-healthy",
+        "meta": "PID 265522 · Live · just now",
+        "health": "Sampler\nConnected\nLast data\njust now\nSample interval\n200 ms\nPacket loss (1 min)\n0.0%\nBad · duplicate · late\n0 · 0 · 0\nRaw samples held\n390\nSampler address\n127.0.0.1\nSession\n5006182860925037985",
+        "search": "",
+        "replay": "Live view. Drag the timeline back, or select a past finding, to see the dashboard at that time."
+      }
+    }
+  },
+  {
+    "stage": "animation-reduced-offline",
+    "time": "2026-10-21T01:15:30.869Z",
+    "value": {
+      "text": "TRIANGULATOR / C++ INTERNALS\nHow the dashboard HTTP server works\n\nFollow a request from the browser into DashboardServer and back. See how the HTTP workers serve the page, read live snapshots, and query stored history.\n\nOne collector process. Separate receive loop and HTTP workers.\nPaused\nCOLLECTOR PROCESS\nTCP\nUDP\nwrite rollups\nBrowser\ndashboard.html\nfetch() → render charts\nHTTP workers\nServe() → worker\n127.0.0.1:9401\nRequest routing\nGet() / Target()\nSelect a path and payload\nEmbedded page\nkDashboardHtml[]\nHTML + CSS + JavaScript\nSharedState\nshared_ptr<const string>\nLive JSON / memory layout\nSampler\nThread / resource samples\nOptional socket sampler\nMain receive loop\nIngest → Monitor\nPublish JSON every ~0.5 s\nSQLite day files\nHistory() / Replay()\nHTTP reads stored samples\nCurrent step / moving data\nConnections between parts\nSTEP 1 OF 9\nSeparate workers, one collector\n\nDashboardServer accepts connections on its own thread and starts bounded connection workers. It shares published JSON with the main receive loop. Live requests use SharedState; history requests read stored data.\n\nmain loop: UDP → metrics → JSON\nHTTP workers: request → payload\nSharedState: immutable snapshots\nSource: collector/http.hpp\nPlay\n← Previous\nNext →\nRestart\nSpeed\n0.5×\n1×\n2×\n01\nDesign\n02\nBuild\n03\nListen\n04\nRead\n05\nPage\n06\nPublish\n07\nLive\n08\nHistory\n09\nSend / close\nWhy the threads are separate\n\nThe main loop receives UDP samples. The HTTP workers can wait on a browser or a history query without doing that work in the receive loop.\n\nA mutex protects the snapshot pointer exchange. Each HTTP worker retains an immutable JSON string and sends it after the lock is released.\n\nConnection limits\n\nServe() starts up to 64 connection workers. A slow request uses one worker. The listener backlog is 128. Reading the complete request has a 5-second total deadline. Sending the response has a separate 5-second total deadline. Excess connections receive HTTP 503.\n\nResponses use HTTP/1.0. The connection closes after each request. The C++ server uses plain HTTP and has no TLS handshake.\n\nExplore the API routes\nSource: collector/http.hpp · collector/main.cpp · collector/dashboard.html · Makefile. Animation timings are illustrative. Collector reference.",
+      "layout": {
+        "width": 390,
+        "scroll": 390,
+        "reduced": true
+      }
+    }
+  },
+  {
+    "stage": "animation-keyboard-focus",
+    "time": "2026-10-21T01:15:30.880Z",
+    "value": {
+      "tag": "DIV",
+      "text": "COLLECTOR PROCESS\nTCP\nUDP\nwrite rollups\nBrowser\ndashboard.html\nfetch() → render charts\nHTTP workers\nServe() → worker\n127.0.0.1:9401\nRequest routing\nGet() / Target()\nSelect a path and payload\nEmbedded page\nkDashboardHtml[]\nHTML + CSS + JavaScript\nSharedState\nshared_ptr<const string>\nLive JSON / memory layout\nSampler\nThread / resource samples\nOptional socket sampler\nMain receive loop\nIngest → Monitor\nPublish JSON every ~0.5 s\nSQLite day files\nHistory() / Replay()\nHTTP reads stored samples\nCurrent step / moving data\nConnections between parts",
+      "outline": "rgb(16, 16, 16) auto 1px"
+    }
+  },
+  {
+    "stage": "animation-reduced-play",
+    "time": "2026-10-21T01:15:30.976Z",
+    "value": {
+      "marker": "visible",
+      "text": "TRIANGULATOR / C++ INTERNALS\nHow the dashboard HTTP server works\n\nFollow a request from the browser into DashboardServer and back. See how the HTTP workers serve the page, read live snapshots, and query stored history.\n\nOne collector process. Separate receive loop and HTTP workers.\nPlaying\nCOLLECTOR PROCESS\nTCP\nUDP\nwrite rollups\nBrowser\ndashboard.html\nfetch() → render charts\nHTTP workers\nServe() → worker\n127.0.0.1:9401\nRequest routing\nGet() / Target()\nSelect a path and payload\nEmbedded page\nkDashboardHtml[]\nHTML + CSS + JavaScript\nSharedState\nshared_ptr<const string>\nLive JSON / memory layout\nSampler\nThread / resource samples\nOptional socket sampler\nMain receive loop\nIngest → Monitor\nPublish"
+    }
+  },
+  {
+    "stage": "animation-no-javascript",
+    "time": "2026-10-21T01:15:31.383Z",
+    "value": {
+      "text": "TRIANGULATOR / C++ INTERNALS\nHow the dashboard HTTP server works\n\nFollow a request from the browser into DashboardServer and back. See how the HTTP workers serve the page, read live snapshots, and query stored history.\n\nOne collector process. Separate receive loop and HTTP workers.\nPlaying\nCOLLECTOR PROCESS\nTCP\nUDP\nwrite rollups\nBrowser\ndashboard.html\nfetch() → render charts\nHTTP workers\nServe() → worker\n127.0.0.1:9401\nRequest routing\nGet() / Target()\nSelect a path and payload\nEmbedded page\nkDashboardHtml[]\nHTML + CSS + JavaScript\nSharedState\nshared_ptr<const string>\nLive JSON / memory layout\nSampler\nThread / resource samples\nOptional socket sampler\nMain receive loop\nIngest → Monitor\nPublish JSON every ~0.5 s\nSQLite day files\nHistory() / Replay()\nHTTP reads stored samples\nCurrent step / moving data\nConnections between parts\n\nRead the source\nPause\n← Previous\nNext →\nRestart\nSpeed\n0.5×\n1×\n2×\nWhy the threads are separate\n\nThe main loop receives UDP samples. The HTTP workers can wait on a browser or a history query without doing that work in the receive loop.\n\nA mutex protects the snapshot pointer exchange. Each HTTP worker retains an immutable JSON string and sends it after the lock is released.\n\nConnection limits\n\nServe() starts up to 64 connection workers. A slow request uses one worker. The listener backlog is 128. Reading the complete request has a 5-second total deadline. Sending the response has a separate 5-second total deadline. Excess connections receive HTTP 503.\n\nResponses use HTTP/1.0. The connection closes after each request. The C++ server uses plain HTTP and has no TLS handshake.\n\nExplore the API routes\nSource: collector/http.hpp · collector/main.cpp · collector/dashboard.html · Makefile. Animation timings are illustrative. Collector reference.\n\nJavaScript is required to play the animation. The diagram, route table, and source links remain available.",
+      "layout": {
+        "width": 390,
+        "scroll": 390
+      }
+    }
+  },
+  {
+    "stage": "benchmark-reduced-offline",
+    "time": "2026-10-21T01:15:31.900Z",
+    "value": {
+      "text": "△\ntriangulator\nPERFORMANCE LAB\nEnable motion\nNATIVE C++ / LINUX / MEASURED 2026-10-12 UTC\nEvery thread.\nA few milliseconds.\n\n100, 300, or 500 native threads. See the time to collect a complete sample, then increase the frequency. All numbers come from real sampler runs.\n\n36 measured trials\n3 thread counts × 4 frequencies\n3 × 30.0 s per case\nONE COMPLETE SAMPLE\n500 THREADS\n4.08 ms median · 10 samples/s\nEach square = one thread · 1 busy · others asleep\n01 / CHOOSE YOUR SAMPLING FREQUENCY\nSmall samples. A steady rate.\n1 Hz\n2 Hz\n5 Hz\n10 Hz\n100 threads\n0.86\nms\nMedian complete-sample latency\np95 0.95 ms\n1,000 records/s\n300 threads\n2.48\nms\nMedian complete-sample latency\np95 2.69 ms\n3,000 records/s\n500 threads\nSELECTED\n4.08\nms\nMedian complete-sample latency\np95 4.37 ms\n5,000 records/s\n\nSelect a thread count to inspect its sample interval. Latency includes /proc reads and loopback UDP. i\n\n500 threads · 10 Hz · 900 complete samples across 3 trials. Median range across trials: 4.07–4.09 ms.\n\nLatency × thread count\ni\n\nComplete-sample latency · milliseconds · lower is faster\n\n0\n1\n2\n3\n4\n5\n0\n100\n300\n500\nNative target threads\n0.86\n2.48\n4.08\n1 Hz\n2 Hz\n5 Hz\n10 Hz\nSelected p95\n\nSolid lines: median. Dashed line: 95% of samples completed by this time. All series use the same axis.\n\nThroughput × thread count\ni\n\nDelivered thread records per second · higher is more data\n\n0\n1,000\n2,000\n3,000\n4,000\n5,000\n6,000\n0\n100\n300\n500\nNative target threads\n1,000\n3,000\n5,000\n1 Hz\n2 Hz\n5 Hz\n10 Hz\n\nOne thread produces one record per sample. This measures delivered data at the configured frequency; it does not measure maximum capacity.\n\nFrequency and thread count\ni\n\nSelect any cell to compare a measured case.\n\nMedian latency · ms\nSampler CPU · %\nHz / threads\n100\n300\n500\n1 Hz\n0.89\n2.53\n4.14\n2 Hz\n0.88\n2.53\n4.13\n5 Hz\n0.89\n2.52\n4.12\n10 Hz\n0.86\n2.48\n4.08\n0.86 ms · lower\n4.14 ms · higher\n\nBrighter cells mean higher values. Exact values stay visible. CPU is a percentage of one core.\n\nInside one sample interval\ni\n\n500 threads at 10 Hz · 100 ms between sample starts\n\n4.37%\n\nof the interval to deliver a complete sample at p95\n\n4.37 ms · p95\n100 ms interval\n4.11%\nSampler CPU · one core\ni\n2.03 MiB\nMean resident memory\ni\n\nThe bar compares delivery latency with the configured interval. CPU time also includes resource and memory-map sampling after thread delivery.\n\nSAMPLING LOOP / NO FREQUENCY LIMIT\nAbout 150,000 thread records per second.\n\nA separate benchmark (make benchmark-sampling) times the production thread-reading functions in a continuous loop. Each count has 30,000 timed batches. This measures the sampling path before UDP delivery.\n\nSampling-path latency\n\nMilliseconds per batch · production /proc functions\n\n0\n1\n2\n3\n4\n5\n6\n0.61\n1.90\n3.15\n0\n100\n300\n500\nNative target threads\np50\np99\nSampling-path throughput\n\nThread records per second · continuous loop\n\n0\n30k\n60k\n90k\n120k\n150k\n180k\n160.2k\n149.7k\n153.7k\n0\n100\n300\n500\nNative target threads\n\nTotal records divided by total timed sampling duration.\n\nDirect sampling-loop results from docs/sampling-performance.json. UDP, auxiliary sampling, and collector work are outside this measurement.\nThreads\tRecords/s\tp50 · ms\tp99 · ms\tMean · ms\tBatches\n100\t160,215\t0.614\t0.747\t0.624\t30,000\n300\t149,685\t1.901\t2.641\t2.004\t30,000\n500\t153,726\t3.152\t4.435\t3.253\t30,000\nSampling-loop method and evidence\n02 / THE MEASUREMENTS\nEvery case. Every number.\nDownload raw trials ↗\n\nLatency pools observations from 3 trials. CPU, memory, and throughput are means across trials. Select a frequency above to highlight its rows. i\n\nHost-specific measurements. Latency ends when the last thread packet reaches the loopback receive path. RSS = resident set size. CPU = percent of one core.\nThreads\tRate\tp50 · ms\tp95 · ms\tMax · ms\tRecords/s\tCPU · %\tRSS · MiB\tSamples\n100\t1 Hz\t0.887\t0.952\t1.010\t100.0\t0.099\t2.01\t90\n300\t1 Hz\t2.533\t2.866\t3.211\t300.0\t0.267\t2.02\t90\n500\t1 Hz\t4.142\t4.661\t4.965\t500.0\t0.430\t2.03\t90\n100\t2 Hz\t0.883\t0.932\t0.992\t200.0\t0.189\t2.01\t180\n300\t2 Hz\t2.529\t2.737\t3.147\t600.0\t0.523\t2.02\t180\n500\t2 Hz\t4.128\t4.379\t4.897\t1,000.0\t0.844\t2.03\t180\n100\t5 Hz\t0.887\t0.972\t2.476\t500.0\t0.464\t2.01\t450\n300\t5 Hz\t2.518\t2.740\t6.071\t1,500.0\t1.289\t2.02\t450\n500\t5 Hz\t4.122\t4.475\t5.339\t2,500.0\t2.098\t2.03\t450\n100\t10 Hz\t0.860\t0.951\t1.248\t1,000.0\t0.885\t2.01\t900\n300\t10 Hz\t2.479\t2.685\t4.330\t3,000.0\t2.508\t2.02\t900\n500\t10 Hz\t4.077\t4.372\t5.147\t5,000.0\t4.113\t2.03\t900\n36 trials\n4,860 complete samples\n1,458,000 thread records\nAll expected thread IDs verified\n03 / REPRODUCE THE RESULT\nMeasured",
+      "layout": {
+        "width": 390,
+        "scroll": 390,
+        "reduced": true
+      }
+    }
+  },
+  {
+    "stage": "benchmark-keyboard-focus",
+    "time": "2026-10-21T01:15:31.924Z",
+    "value": {
+      "tag": "A",
+      "text": "△\ntriangulator\nPERFORMANCE LAB",
+      "outline": "rgb(208, 252, 146) solid 3px"
+    }
+  },
+  {
+    "stage": "benchmark-keyboard-return",
+    "time": "2026-10-21T01:15:32.209Z",
+    "value": {
+      "focus": "Explain sampler CPU",
+      "text": "Sampler CPUCPU is execution time from /proc/PID/schedstat divided by monotonic elapsed time. 100% equals one core. The sampler used 0.523% of one core for 300 threads at 2 Hz.This mean includes default resource and memory-map work. The target workload’s CPU use and the receiver’s CPU use are separate.Close",
+      "open": false
+    }
+  },
+  {
+    "stage": "benchmark-no-javascript",
+    "time": "2026-10-21T01:15:32.869Z",
+    "value": {
+      "text": "△\ntriangulator\nPERFORMANCE LAB\nPause motion\nNATIVE C++ / LINUX / MEASURED 2026-10-12 UTC\nEvery thread.\nA few milliseconds.\n\n100, 300, or 500 native threads. See the time to collect a complete sample, then increase the frequency. All numbers come from real sampler runs.\n\n36 measured trials\n3 thread counts × 4 frequencies\n3 × 30.0 s per case\nONE COMPLETE SAMPLE\n500 THREADS\nMeasured latency below\nEach square = one thread · 1 busy · others asleep\n\nThe full measurement table and method are available below. Enable JavaScript for the interactive charts and frequency controls. This page has no external scripts or fonts.\n\n01 / CHOOSE YOUR SAMPLING FREQUENCY\nSmall samples. A steady rate.\n1 Hz\n2 Hz\n5 Hz\n10 Hz\n100 threads\n—\nms\nMedian complete-sample latency\np95 —\n— records/s\n300 threads\n—\nms\nMedian complete-sample latency\np95 —\n— records/s\n500 threads\nSELECTED\n—\nms\nMedian complete-sample latency\np95 —\n— records/s\n\nSelect a thread count to inspect its sample interval. Latency includes /proc reads and loopback UDP. i\n\nLatency × thread count\ni\n\nComplete-sample latency · milliseconds · lower is faster\n\n1 Hz\n2 Hz\n5 Hz\n10 Hz\nSelected p95\n\nSolid lines: median. Dashed line: 95% of samples completed by this time. All series use the same axis.\n\nThroughput × thread count\ni\n\nDelivered thread records per second · higher is more data\n\n1 Hz\n2 Hz\n5 Hz\n10 Hz\n\nOne thread produces one record per sample. This measures delivered data at the configured frequency; it does not measure maximum capacity.\n\nFrequency and thread count\ni\n\nSelect any cell to compare a measured case.\n\nMedian latency · ms\nSampler CPU · %\nLower\nHigher\n\nBrighter cells mean higher values. Exact values stay visible. CPU is a percentage of one core.\n\nInside one sample interval\ni\n\n500 threads at 10 Hz · 100 ms between sample starts\n\n—\n\nof the interval to deliver a complete sample at p95\n\np95 sample latency\n100 ms interval\n—\nSampler CPU · one core\ni\n—\nMean resident memory\ni\n\nThe bar compares delivery latency with the configured interval. CPU time also includes resource and memory-map sampling after thread delivery.\n\nSAMPLING LOOP / NO FREQUENCY LIMIT\nAbout 150,000 thread records per second.\n\nA separate benchmark (make benchmark-sampling) times the production thread-reading functions in a continuous loop. Each count has 30,000 timed batches. This measures the sampling path before UDP delivery.\n\nSampling-path latency\n\nMilliseconds per batch · production /proc functions\n\n0\n1\n2\n3\n4\n5\n6\n0.61\n1.90\n3.15\n0\n100\n300\n500\nNative target threads\np50\np99\nSampling-path throughput\n\nThread records per second · continuous loop\n\n0\n30k\n60k\n90k\n120k\n150k\n180k\n160.2k\n149.7k\n153.7k\n0\n100\n300\n500\nNative target threads\n\nTotal records divided by total timed sampling duration.\n\nDirect sampling-loop results from docs/sampling-performance.json. UDP, auxiliary sampling, and collector work are outside this measurement.\nThreads\tRecords/s\tp50 · ms\tp99 · ms\tMean · ms\tBatches\n100\t160,215\t0.614\t0.747\t0.624\t30,000\n300\t149,685\t1.901\t2.641\t2.004\t30,000\n500\t153,726\t3.152\t4.435\t3.253\t30,000\nSampling-loop method and evidence\n02 / THE MEASUREMENTS\nEvery case. Every number.\nDownload raw trials ↗\n\nLatency pools observations from 3 trials. CPU, memory, and throughput are means across trials. Select a frequency above to highlight its rows. i\n\nHost-specific measurements. Latency ends when the last thread packet reaches the loopback receive path. RSS = resident set size. CPU = percent of one core.\nThreads\tRate\tp50 · ms\tp95 · ms\tMax · ms\tRecords/s\tCPU · %\tRSS · MiB\tSamples\n100\t1 Hz\t0.887\t0.952\t1.010\t100.0\t0.099\t2.01\t90\n300\t1 Hz\t2.533\t2.866\t3.211\t300.0\t0.267\t2.02\t90\n500\t1 Hz\t4.142\t4.661\t4.965\t500.0\t0.430\t2.03\t90\n100\t2 Hz\t0.883\t0.932\t0.992\t200.0\t0.189\t2.01\t180\n300\t2 Hz\t2.529\t2.737\t3.147\t600.0\t0.523\t2.02\t180\n500\t2 Hz\t4.128\t4.379\t4.897\t1,000.0\t0.844\t2.03\t180\n100\t5 Hz\t0.887\t0.972\t2.476\t500.0\t0.464\t2.01\t450\n300\t5 Hz\t2.518\t2.740\t6.071\t1,500.0\t1.289\t2.02\t450\n500\t5 Hz\t4.122\t4.475\t5.339\t2,500.0\t2.098\t2.03\t450\n100\t10 Hz\t0.860\t0.951\t1.248\t1,000.0\t0.885\t2.01\t900\n300\t10 Hz\t2.479\t2.685\t4.330\t3,000.0\t2.508\t2.02\t900\n500\t10 Hz\t4.077\t4.372\t5.147\t5,000.0\t4.113\t2.03\t900\n36 trials\n4,860 complete samples\n1,458,000 thread records\nAll expected thread IDs verified\n03 / REPRODUCE THE RESULT\nMeasured. Defined. Repeatable.\nWhat ran\nHost\nIntel(R) Core(TM) i5-9500 CPU @ 3.00GHz · 6 permitted logical CPUs\nSystem\nLinux 7.2.5-3-omarchy · x86_64\nTarget workload\n1 busy native thread. The remaining 99, 299, or 499 threads wait on a condition variable.\nMeasurement window\n3 × 30.0 seconds per case, after at least 5 seconds of warm-up. Frequency and thread count cases rotate across repeats.\nDefault auxiliary sampling\nResources every 5 seconds; memory maps every 30 seconds. status_fallback = false.\nRepeat the matrix\nmake benchmark-sampler-matrix\ncp build/sampler-benchmark.json docs/\npython3 scripts/render_sampler_benchmark.py\n\nThe default matrix takes about 22 minutes. It writes all trials to JSON. The renderer updates this page and the README infographic from those measurements.\n\nFor a different duration, use python3 tests/benchmark_sampler.py --threads 100 300 500 --duration 60 --repeats 3. Add --output build/sampler-benchmark.json before rendering.\n\nThe matrix used two measurement sessions. An interrupted turn stopped the first session after 31 trials. The five missing trials resumed with identical sampler, workload, and driver hashes. Each trial retained its own warm-up and measurement window. The raw JSON records the interruption.\n\nMetric definitions and measurement limits\nSource, build, and evidence\nTRIANGULATOR / SAMPLER PERFORMANCE LAB\nMeasured 2026-10-12 UTC · Back to README",
+      "layout": {
+        "width": 390,
+        "scroll": 390
+      }
+    }
+  },
+  {
+    "stage": "completed",
+    "time": "2026-10-21T01:15:33.054Z",
+    "value": true
+  }
+]

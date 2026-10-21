@@ -1,0 +1,148 @@
+{
+  "available": true,
+  "id": "11804968157025798196:60",
+  "updated": 1792545325.7613792,
+  "pid": 409609,
+  "flags": {
+    "maps_hidden": false,
+    "maps_partial": false,
+    "regions_truncated": false
+  },
+  "regions": [
+    {
+      "start": "0x557030e59000",
+      "end": "0x557030e5e000",
+      "size": 20480,
+      "vmas": 5,
+      "kind": "file",
+      "permissions": "rwxp",
+      "name": "ulator-memory-api-followup/fixture-next"
+    },
+    {
+      "start": "0x55706d4e7000",
+      "end": "0x55706d708000",
+      "size": 2232320,
+      "vmas": 1,
+      "kind": "heap",
+      "permissions": "rw-p",
+      "name": "[heap]"
+    },
+    {
+      "start": "0x7fa1dfa00000",
+      "end": "0x7fa1e0400000",
+      "size": 10485760,
+      "vmas": 3,
+      "kind": "anonymous",
+      "permissions": "rw-p",
+      "name": ""
+    },
+    {
+      "start": "0x7fa1e0500000",
+      "end": "0x7fa1e2200000",
+      "size": 30408704,
+      "vmas": 1,
+      "kind": "anonymous",
+      "permissions": "rw-p",
+      "name": ""
+    },
+    {
+      "start": "0x7fa1e2200000",
+      "end": "0x7fa1e241b000",
+      "size": 2207744,
+      "vmas": 5,
+      "kind": "file",
+      "permissions": "rwxp",
+      "name": "/usr/lib/libc.so.6"
+    },
+    {
+      "start": "0x7fa1e241b000",
+      "end": "0x7fa1e2423000",
+      "size": 32768,
+      "vmas": 1,
+      "kind": "anonymous",
+      "permissions": "rw-p",
+      "name": ""
+    },
+    {
+      "start": "0x7fa1e2519000",
+      "end": "0x7fa1e251e000",
+      "size": 20480,
+      "vmas": 1,
+      "kind": "anonymous",
+      "permissions": "rw-p",
+      "name": ""
+    },
+    {
+      "start": "0x7fa1e251e000",
+      "end": "0x7fa1e2547000",
+      "size": 167936,
+      "vmas": 1,
+      "kind": "file",
+      "permissions": "r--p",
+      "name": "/etc/ld.so.cache"
+    },
+    {
+      "start": "0x7fa1e2547000",
+      "end": "0x7fa1e254b000",
+      "size": 16384,
+      "vmas": 1,
+      "kind": "kernel",
+      "permissions": "r--p",
+      "name": "[vvar]"
+    },
+    {
+      "start": "0x7fa1e254b000",
+      "end": "0x7fa1e254d000",
+      "size": 8192,
+      "vmas": 1,
+      "kind": "kernel",
+      "permissions": "r--p",
+      "name": "[vvar_vclock]"
+    },
+    {
+      "start": "0x7fa1e254d000",
+      "end": "0x7fa1e254f000",
+      "size": 8192,
+      "vmas": 1,
+      "kind": "kernel",
+      "permissions": "r-xp",
+      "name": "[vdso]"
+    },
+    {
+      "start": "0x7fa1e254f000",
+      "end": "0x7fa1e258f000",
+      "size": 262144,
+      "vmas": 5,
+      "kind": "file",
+      "permissions": "rwxp",
+      "name": "/usr/lib/ld-linux-x86-64.so.2"
+    },
+    {
+      "start": "0x7fa1e258f000",
+      "end": "0x7fa1e2590000",
+      "size": 4096,
+      "vmas": 1,
+      "kind": "anonymous",
+      "permissions": "rw-p",
+      "name": ""
+    },
+    {
+      "start": "0x7ffe22c62000",
+      "end": "0x7ffe22ccd000",
+      "size": 438272,
+      "vmas": 1,
+      "kind": "stack",
+      "permissions": "rw-p",
+      "name": "[stack]"
+    },
+    {
+      "start": "0xffffffffff600000",
+      "end": "0xffffffffff601000",
+      "size": 4096,
+      "vmas": 1,
+      "kind": "kernel",
+      "permissions": "--xp",
+      "name": "[vsyscall]"
+    }
+  ]
+}
