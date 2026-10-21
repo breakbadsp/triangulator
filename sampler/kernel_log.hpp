@@ -237,6 +237,8 @@ class ExitMessages
  public:
   // The most distinct thread names matched in a nested PID namespace.
   static constexpr std::size_t kMaxNames = 16;
+  // A thread name as in wire::Record::comm_: up to 15 bytes, NUL-padded.
+  using ThreadName = decltype(wire::Record::comm_);
 
   // Matches by ID. p_tids: the sorted thread IDs to match, besides the
   // process ID.
@@ -251,23 +253,21 @@ class ExitMessages
     std::ranges::sort(std::span{ids_}.first(id_count_));
   }
 
-  // Matches by the names of p_threads, for a sampler in a nested PID
-  // namespace. Two processes with the same name cannot be told apart. The
-  // names refer to p_threads, which must outlive this object.
-  explicit ExitMessages(std::span<const wire::Record> p_threads)
+  // Matches by the distinct thread names p_names, for a sampler in a nested
+  // PID namespace. Two processes with the same name cannot be told apart.
+  // The views refer to p_names, which must outlive this object.
+  explicit ExitMessages(std::span<const ThreadName> p_names)
   {
-    for (const auto& thread : p_threads)
+    for (const auto& thread_name :
+         p_names.first(std::min(p_names.size(), names_.size())))
     {
       const std::string_view name{
-          thread.comm_.data(),
-          ::strnlen(thread.comm_.data(), thread.comm_.size())};
-      const auto known = std::span{names_}.first(name_count_);
-      if (name_count_ == names_.size() || name.empty() ||
-          std::ranges::contains(known, name))
+          thread_name.data(),
+          ::strnlen(thread_name.data(), thread_name.size())};
+      if (!name.empty())
       {
-        continue;
+        names_[name_count_++] = name;
       }
-      names_[name_count_++] = name;
     }
   }
 
@@ -335,6 +335,7 @@ class KernelLog
              const char* p_pid_namespace = kPidNamespacePath)
   {
     tid_count_ = 0;
+    name_count_ = 0;
     by_name_ = !InInitialPidNamespace(p_pid_namespace);
     log_ = FileDescriptor{::open(p_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)};
     error_ = log_ ? 0 : errno;
@@ -357,9 +358,14 @@ class KernelLog
   // missing from the last tick. The IDs seen since Watch() are kept, up to
   // wire::kMaxThreads. Threads come and go on a long-running process, so
   // when the union would not fit, only this tick's IDs stay: the threads
-  // alive now are always kept. Allocates nothing.
+  // alive now are always kept. In a nested PID namespace, the thread names
+  // are kept the same way. Allocates nothing.
   void Note(std::span<const wire::Record> p_records) noexcept
   {
+    if (by_name_)
+    {
+      NoteNames(p_records);
+    }
     const auto count = std::min(p_records.size(), current_.size());
     for (std::size_t index = 0; index < count; ++index)
     {
@@ -385,6 +391,13 @@ class KernelLog
   [[nodiscard]] std::span<const std::uint32_t> Threads() const noexcept
   {
     return std::span{tids_}.first(tid_count_);
+  }
+
+  // The distinct thread names remembered by Note() in a nested PID
+  // namespace, at most ExitMessages::kMaxNames.
+  [[nodiscard]] std::span<const ExitMessages::ThreadName> Names() const noexcept
+  {
+    return std::span{names_}.first(name_count_);
   }
 
   // The report for p_target, which has ended. p_threads is the last
@@ -418,7 +431,7 @@ class KernelLog
       report.error_ = static_cast<std::uint32_t>(error_ ? error_ : EBADF);
       return report;
     }
-    auto messages = by_name_ ? ExitMessages{p_threads}
+    auto messages = by_name_ ? ExitMessages{Names()}
                              : ExitMessages{p_target.pid_, Threads()};
     const auto deadline = ClockNow(CLOCK_MONOTONIC) + p_budget;
     bool drained = false;
@@ -451,9 +464,53 @@ class KernelLog
   }
 
  private:
+  // Note() for the thread names: the distinct names seen since Watch(), or,
+  // when they would not fit, the first ones of this tick.
+  void NoteNames(std::span<const wire::Record> p_records) noexcept
+  {
+    std::size_t count = 0;
+    for (const auto& record : p_records)
+    {
+      if (count == current_names_.size())
+      {
+        break;
+      }
+      if (record.comm_.front() != '\0' &&
+          !std::ranges::contains(std::span{current_names_}.first(count),
+                                 record.comm_))
+      {
+        current_names_[count++] = record.comm_;
+      }
+    }
+    const auto now = std::span{current_names_}.first(count);
+    const auto known = std::span{names_}.first(name_count_);
+    auto merged_count = name_count_;
+    for (const auto& name : now)
+    {
+      if (std::ranges::contains(known, name))
+      {
+        continue;
+      }
+      if (merged_count == names_.size())
+      {
+        std::ranges::copy(now, names_.begin());
+        name_count_ = count;
+        return;
+      }
+      names_[merged_count++] = name;
+    }
+    name_count_ = merged_count;
+  }
+
   FileDescriptor log_;
   int error_ = EBADF;
   bool by_name_ = false;
+  // Distinct thread names seen since Watch(), in a nested PID namespace;
+  // current_names_ is scratch space for NoteNames().
+  std::array<ExitMessages::ThreadName, ExitMessages::kMaxNames> names_{};
+  std::size_t name_count_ = 0;
+  std::array<ExitMessages::ThreadName, ExitMessages::kMaxNames>
+      current_names_{};
   // Sorted thread IDs seen since Watch(); current_ and merged_ are scratch
   // space for Note().
   std::array<std::uint32_t, wire::kMaxThreads> tids_{};

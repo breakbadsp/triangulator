@@ -1074,6 +1074,61 @@ void TestThreadIdsSeenBeforeTheLastTick()
   Require(log.Threads().empty(), "a new target starts with no threads");
 }
 
+// In a nested PID namespace the thread names are remembered as the IDs are:
+// the worker that faults can be missing from the last tick. A regular file
+// stands in for /dev/kmsg, with one record after the watch.
+void TestThreadNamesSeenBeforeTheLastTick()
+{
+  const auto path =
+      std::filesystem::temp_directory_path() /
+      std::format("triangulator-kmsg-names-{}", static_cast<int>(::getpid()));
+  std::ofstream{path, std::ios::trunc} << "6,1,1,-;old[1]: segfault\n";
+  const auto nested = PidNamespaceLink("nested-names", "pid:[4026532221]");
+  RateLimitedLogger logger;
+  KernelLog log;
+  log.Watch(logger, path.c_str(), nested.c_str());
+  auto early = TickOf(100, 101, 102);
+  std::ranges::copy(std::string_view{"app"}, early[0].comm_.begin());
+  std::ranges::copy(std::string_view{"io-worker"}, early[1].comm_.begin());
+  std::ranges::copy(std::string_view{"app"}, early[2].comm_.begin());
+  auto last = early;
+  last[1].tid_ = 103;
+  last[1].comm_ = early[0].comm_;
+  log.Note(early);
+  log.Note(last);
+  Require(log.Names().size() == 2, "each distinct name is kept once");
+  std::ofstream{path, std::ios::app}
+      << "6,2,2,-;io-worker[1314630]: segfault at 0 ip 0 sp 0 error 6\n";
+  const auto report = log.Collect({.pid_ = 100, .starttime_ = 7}, last,
+                                  Nanoseconds{1}, logger, 1s);
+  std::filesystem::remove(path);
+  Require(report.kernel_log_ == exit_wire::KernelLog::Read &&
+              report.line_count_ == 1 &&
+              exit_wire::FieldText(report.lines_[0]) ==
+                  "io-worker[1314630]: segfault at 0 ip 0 sp 0 error 6",
+          "a thread name seen in an earlier tick, not the last, is matched");
+
+  // A tick with more new names than fit keeps the last tick's names.
+  log.Watch(logger, "/nonexistent/kmsg", nested.c_str());
+  std::array<wire::Record, ExitMessages::kMaxNames> many{};
+  for (std::size_t index = 0; index < many.size(); ++index)
+  {
+    many[index].comm_[0] = 'n';
+    many[index].comm_[1] = static_cast<char>('a' + index);
+  }
+  std::array<wire::Record, 1> other{};
+  std::ranges::copy(std::string_view{"other"}, other[0].comm_.begin());
+  log.Note(many);
+  Require(log.Names().size() == ExitMessages::kMaxNames,
+          "names up to the limit are kept");
+  log.Note(other);
+  Require(log.Names().size() == 1 && log.Names()[0] == other[0].comm_,
+          "when the union does not fit, the last tick's names are kept");
+  log.Watch(logger, "/nonexistent/kmsg", nested.c_str());
+  std::filesystem::remove(nested);
+  Require(log.Names().empty(), "a new target starts with no names");
+}
+
 // In a nested PID namespace, such as WSL2, the kernel log names the process
 // by an outer PID the sampler cannot know, so messages are matched by name.
 void TestNestedPidNamespace()
@@ -1123,7 +1178,8 @@ void TestNestedPidNamespace()
   std::ranges::copy(std::string_view{"bb-mem-oom"}, threads[0].comm_.begin());
   threads[1].tid_ = 1272305;
   std::ranges::copy(std::string_view{"bb-mem-oom"}, threads[1].comm_.begin());
-  ExitMessages messages{threads};
+  const std::array<ExitMessages::ThreadName, 1> names{threads[0].comm_};
+  ExitMessages messages{names};
   messages.Offer("4,2,2,-;bb-mem-oom invoked oom-killer: gfp_mask=0xcc0\n");
   messages.Offer(
       "6,3,3,-;oom-kill:constraint=CONSTRAINT_MEMCG,task=bb-mem-oom,"
@@ -1250,6 +1306,7 @@ void TestExitMessages()
           "messages about another task are not kept for this one");
 
   TestThreadIdsSeenBeforeTheLastTick();
+  TestThreadNamesSeenBeforeTheLastTick();
   TestNestedPidNamespace();
 
   RateLimitedLogger logger;
