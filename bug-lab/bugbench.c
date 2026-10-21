@@ -307,7 +307,8 @@ static void mem_oom(void)
 
 // BUG: reserves a huge address range, then splits another range into thousands
 // of one-page mappings with alternating protections (so they cannot merge).
-// RLIMIT_AS is set low, like a container with a virtual-memory ulimit.
+// RLIMIT_AS is set low, like a container with a virtual-memory ulimit. On a
+// host with the default vm.max_map_count (65530) the split stops at that limit.
 static void* vm_worker(void* arg)
 {
   (void)arg;
@@ -330,9 +331,15 @@ static void* vm_worker(void* arg)
     say("fragment arena failed: %s", strerror(errno));
     return NULL;
   }
-  for (size_t i = 0; i < count && running(); i += 2)
+  size_t i = 0;
+  for (; i < count && running(); i += 2)
   {
-    mprotect(base + i * page, page, PROT_READ | PROT_WRITE);
+    if (mprotect(base + i * page, page, PROT_READ | PROT_WRITE) != 0)
+    {
+      // Writing to this page would crash: it is still PROT_NONE.
+      say("mprotect failed: %s (vm.max_map_count reached)", strerror(errno));
+      break;
+    }
     if ((i & 0x3ff) == 0)
     {
       base[i * page] = 1;  // touch a few so RSS is not zero
@@ -342,7 +349,7 @@ static void* vm_worker(void* arg)
       sleep_ms(50);
     }
   }
-  say("split arena into up to %zu mappings", count);
+  say("split arena into up to %zu mappings", i);
   while (running())
   {
     // Later requests for address space fail with ENOMEM.
