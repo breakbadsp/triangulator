@@ -506,7 +506,7 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 <p id="fleet-empty" class="fleet-empty" hidden>No targets yet. A target appears here when its sampler sends its first data to this collector.</p>
 <dialog id="target-settings" class="target-dialog" aria-labelledby="target-dialog-title">
 <h2 id="target-dialog-title" data-help="manage-targets">Add target</h2><p class="muted">Monitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.</p>
-<form id="target-form" class="target-form"><span id="target-id-wrap" data-help="target-id"><label for="target-id">Target ID</label><input id="target-id" maxlength="31" pattern="[A-Za-z0-9_.-]+" required autocomplete="off" spellcheck="false" placeholder="e.g. orders"></span><span><label for="target-input">Process name or PID</label><input id="target-input" name="target" placeholder="e.g. ghostty or 1234" required autocomplete="off" spellcheck="false"></span>
+<form id="target-form" class="target-form"><span id="target-id-wrap" data-help="target-id"><label for="target-id">Target ID</label><input id="target-id" maxlength="31" pattern="[A-Za-z0-9_.\-]+" required autocomplete="off" spellcheck="false" placeholder="e.g. orders"></span><span><label for="target-input">Process name or PID</label><input id="target-input" name="target" placeholder="e.g. ghostty or 1234" required autocomplete="off" spellcheck="false"></span>
 <div class="dialog-actions"><button id="target-cancel" type="button">Cancel</button><button id="target-save" class="primary" type="submit">Add target</button></div></form>
 <p id="target-status" role="status" class="muted"></p>
 </dialog>
