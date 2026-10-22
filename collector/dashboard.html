@@ -414,6 +414,44 @@ tr.zero td{color:var(--muted)}
 .notes{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.6}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto}
 kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--surface-2)}
+
+/* Two pages share this document: the overview of all targets (no ?target=)
+   and the dashboard of one target. The dark overview is matte black. */
+:root[data-page=fleet] .process-only,:root:not([data-page=fleet]) .fleet-only{display:none!important}
+@media (prefers-color-scheme:dark){:root[data-page=fleet]:where(:not([data-theme=light])){--page:#09090a;--surface:#121214;--surface-2:#0e0e10;--raised:#1c1c20;--line:#242428;--grid:#1e1e22;--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px -16px rgba(0,0,0,.9)}}
+:root[data-page=fleet][data-theme=dark]{--page:#09090a;--surface:#121214;--surface-2:#0e0e10;--raised:#1c1c20;--line:#242428;--grid:#1e1e22;--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px -16px rgba(0,0,0,.9)}
+.fleet-back{font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;padding:4px 10px;border:1px solid var(--line);border-radius:999px}
+.fleet-back:hover{background:var(--raised)}
+.fleet-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;margin-bottom:22px}
+.fleet-head h2{font-size:28px;letter-spacing:-.035em}
+.fleet-head p{margin:4px 0 0;color:var(--muted)}
+.fleet-counts{display:flex;gap:8px;flex-wrap:wrap}
+.fleet-counts span{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;color:var(--ink-2)}
+.fleet-counts span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--lvl)}
+.fleet-counts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}
+.fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;min-width:0;padding:20px 22px 18px 24px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;overflow:hidden;
+  background:radial-gradient(130% 90% at 100% 0%,color-mix(in srgb,var(--lvl) 13%,transparent),transparent 62%),linear-gradient(180deg,var(--surface),var(--surface-2));box-shadow:var(--shadow);transition:transform .16s,border-color .16s,box-shadow .16s}
+.fleet-tile::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--lvl)}
+.fleet-tile:hover,.fleet-tile:focus-visible{transform:translateY(-2px);border-color:color-mix(in srgb,var(--lvl) 55%,var(--line));box-shadow:var(--shadow),0 14px 32px -18px color-mix(in srgb,var(--lvl) 75%,transparent)}
+.fleet-tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fleet-tile[data-level=good],.fleet-tile[data-level=info]{--lvl:var(--good)}
+.fleet-tile[data-level=warning]{--lvl:var(--warning)}
+.fleet-tile[data-level=serious]{--lvl:var(--serious)}
+.fleet-tile[data-level=critical]{--lvl:var(--critical)}
+.ft-top{display:flex;align-items:center;gap:10px;min-width:0}
+.ft-name{flex:1;min-width:0;font-size:18px;font-weight:600;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-verdict{flex:none;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;color:var(--ink);background:color-mix(in srgb,var(--lvl) 18%,transparent);border:1px solid color-mix(in srgb,var(--lvl) 40%,transparent)}
+.ft-key{margin-top:-8px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.ft-summary{margin:0;font-size:14px;line-height:1.45;color:var(--ink-2);min-height:40px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ft-summary b{color:var(--ink);font-weight:600}
+.ft-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0;padding-top:12px;border-top:1px solid var(--line)}
+.ft-stats .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.ft-stats .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-badges{display:flex;gap:6px;flex-wrap:wrap}
+.ft-badges:empty{display:none}
+.fleet-empty{padding:48px 24px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
+@media (prefers-reduced-motion:reduce){.fleet-tile{transition:none}.fleet-tile:hover,.fleet-tile:focus-visible{transform:none}}
 @media (max-width:800px){
 .assessment-card{grid-template-columns:minmax(0,1fr);gap:16px}
 .assessment-body{padding-left:0;border-left:0}
@@ -434,18 +472,24 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 <body>
 <header class="topbar">
 <div class="topbar-inner">
-<div class="target" data-help="target" data-hint="The process being monitored"><div class="target-choice"><span id="target-key" data-help="target-switch"></span><select id="target-select" aria-label="Selected monitoring target" data-help="target-switch" hidden></select><span id="target-attention" class="target-badge" data-help="target-attention" hidden></span><span id="target-access" class="target-badge help-label" data-help="target-access" hidden>Limited access</span><span id="target-budget" class="target-badge help-label" data-help="sampler-budget" hidden>Sampler throttled <span id="target-budget-value"></span></span></div><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" data-help="manage-targets" aria-expanded="false" aria-controls="target-settings" hidden>Manage targets</button></div>
-<button id="history-pill" class="history-pill" data-help="replay" hidden></button>
+<a id="fleet-back" class="fleet-back process-only" href="./" data-help="fleet">← All targets</a>
+<div class="target process-only" data-help="target" data-hint="The process being monitored"><div class="target-choice"><span id="target-key" data-help="target-switch"></span><select id="target-select" aria-label="Selected monitoring target" data-help="target-switch" hidden></select><span id="target-attention" class="target-badge" data-help="target-attention" hidden></span><span id="target-access" class="target-badge help-label" data-help="target-access" hidden>Limited access</span><span id="target-budget" class="target-badge help-label" data-help="sampler-budget" hidden>Sampler throttled <span id="target-budget-value"></span></span></div><span id="live-dot" class="status-dot"></span><div><strong id="target-name">Connecting…</strong> <span id="target-meta" class="muted"></span></div><button id="target-toggle" data-help="manage-targets" aria-expanded="false" aria-controls="target-settings" hidden>Manage targets</button></div>
+<button id="history-pill" class="history-pill process-only" data-help="replay" hidden></button>
 
-<button id="settings-toggle" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
+<button id="settings-toggle" class="process-only" aria-expanded="false" aria-controls="settings" hidden>Alert settings</button>
 <div class="theme-picker"><span class="help-label" data-help="appearance">Theme</span><select id="theme" aria-label="Color theme"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
 </div>
-<nav class="tabs" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a><a id="nav-settings" href="#collector-settings">Settings</a></nav>
+<nav class="tabs process-only" aria-label="Sections" data-help="section-navigation"><a href="#overview" aria-current="location">Summary</a><a href="#threads-section">Threads</a><a href="#resources">Resources</a><a href="#socket-panel">Sockets</a><a href="#memory-map">Memory</a><a href="#monitor">Monitor</a><a id="nav-settings" href="#collector-settings">Settings</a></nav>
 </header>
 <div id="error" class="banner" role="status"></div>
-<div id="exited" class="banner exited" role="status" data-help="exited" hidden><span id="exited-text"></span><button id="exited-live">Show live</button></div>
+<div id="exited" class="banner exited process-only" role="status" data-help="exited" hidden><span id="exited-text"></span><button id="exited-live">Show live</button></div>
 
-<main>
+<main id="fleet" class="fleet-only" aria-labelledby="fleet-title">
+<div class="fleet-head"><div><h2 id="fleet-title" data-help="fleet">Targets</h2><p>Every monitored process and its current assessment. Select a tile to open its dashboard.</p></div><div id="fleet-counts" class="fleet-counts" data-help="fleet" aria-live="polite"></div></div>
+<div id="fleet-grid" class="fleet-grid"></div>
+<p id="fleet-empty" class="fleet-empty" hidden>No targets yet. A target appears here when its sampler sends its first data to this collector.</p>
+</main>
+<main class="process-only">
 <section id="target-settings" class="card" aria-label="Manage targets" data-help="manage-targets" hidden>
 <h2 data-help="manage-targets">Manage targets</h2><p class="muted">Add or remove targets on the local sampler. Changes apply to every viewer. A process name follows the process when it restarts.</p><div id="managed-targets" data-help="manage-targets"></div>
 <form id="target-form" class="target-form"><span id="target-id-wrap" data-help="target-id"><label for="target-id">Target ID</label> <input id="target-id" maxlength="31" pattern="[A-Za-z0-9_.-]+" required autocomplete="off" spellcheck="false"></span><label for="target-input">Process name or PID</label><input id="target-input" name="target" placeholder="e.g. ghostty or 1234" required autocomplete="off" spellcheck="false"><button id="target-save" class="primary" type="submit">Add target</button><button id="target-cancel" type="button">Close</button></form>
@@ -686,7 +730,7 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 </main>
 
 <div id="scrim" class="scrim"></div>
-<aside id="drawer" class="drawer" aria-label="Thread details" aria-hidden="true">
+<aside id="drawer" class="drawer process-only" aria-label="Thread details" aria-hidden="true">
 <div class="drawer-head"><div style="flex:1;min-width:0"><h2 id="history-title">Thread</h2><div id="drawer-meta" class="muted"></div></div><button id="drawer-close" class="icon-btn" aria-label="Close thread details">✕</button></div>
 <div class="drawer-body">
 <div id="drawer-state"></div>
@@ -738,10 +782,13 @@ const stateColor=state=>`var(--s-${STATES.includes(state)?state:'other'})`;
 const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
 
 // Each page instance fixes its API selection. Navigation aborts old requests.
+// Without ?target= the page is the overview of all targets; ?target= with
+// an empty value opens the collector's default target.
 const targetQuery=new URLSearchParams(location.search||'');
+const fleetPage=!targetQuery.has('target');
 const explicitTarget=targetQuery.get('target')||'';
 let selectedTarget=explicitTarget;
-try{if(!selectedTarget)selectedTarget=localStorage.getItem('triangulator:last-target')||'';if(selectedTarget)localStorage.setItem('triangulator:last-target',selectedTarget)}catch{}
+document.documentElement.dataset.page=fleetPage?'fleet':'target';
 const targetStorageKey=key=>key+(selectedTarget?':'+selectedTarget:'');
 function apiFetch(path,options){
   if(selectedTarget&&path.startsWith('/api/')&&!path.startsWith('/api/targets'))
@@ -753,7 +800,6 @@ function selectTarget(key){
   for(const target of [selectedTarget,key])for(const name of ['triangulator:buffer','triangulator:threads','triangulator:frozen']){
     try{sessionStorage.removeItem(name+(target?':'+target:''))}catch{}
   }
-  try{localStorage.setItem('triangulator:last-target',key)}catch{}
   const query=new URLSearchParams(location.search||'');query.set('target',key);
   location.assign(location.pathname+'?'+query);
 }
@@ -792,8 +838,6 @@ async function refreshTargets(){
     const valid=data.targets.some(target=>target.key===selectedTarget);
     if(!explicitTarget&&!valid&&data.targets.length){
       const ordered=[...data.targets].sort((a,b)=>a.key<b.key?-1:a.key>b.key?1:0);const chosen=ordered.find(target=>target.id==='default')||ordered[0];selectTarget(chosen.key);
-    }else if(selectedTarget&&!explicitTarget&&valid){
-      const query=new URLSearchParams(location.search||'');query.set('target',selectedTarget);history.replaceState(null,'',location.pathname+'?'+query+(location.hash||''));
     }
   }catch{}finally{clearTimeout(targetRefreshTimer);targetRefreshTimer=setTimeout(refreshTargets,2000)}
 }
@@ -989,7 +1033,9 @@ helpTopic('health','Monitor health','Sampler and collector','Connection status, 
 helpTopic('interval','Sample interval','Sampler · milliseconds','The configured time between thread samples.','200 ms corresponds to five samples per second.','Resource samples and the optional socket observer have separate reporting intervals.','Short events between samples can be missed. A shorter interval increases sampling overhead.',['health','history']);
 helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The reported share of missing sampler packets in the last minute.','','Compare loss with sample age and incomplete data before drawing conclusions.','Packet loss in the monitor is different from application network drops.',['health','netdrops']);
 helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
-helpTopic('target-switch','Monitoring target','This browser tab','Select the host and target ID shown in this tab.','Two tabs can show different processes.','The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. New tabs remember the last choice.','Viewing a target does not change the sampler.',['target','manage-targets'],['Selected monitoring target']);
+helpTopic('target-switch','Monitoring target','This browser tab','Select the host and target ID shown in this tab.','Two tabs can show different processes.','The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. All targets returns to the overview of every target.','Viewing a target does not change the sampler.',['target','manage-targets'],['Selected monitoring target']);
+helpTopic('fleet','Targets overview','Every target of this collector · latest live view','The first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.','Critical 1 · Healthy 3 means one process needs attention now and three show no problem.','Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process\'s dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.','Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.',['fleet-tile','target-switch','assessment'],['All targets','Targets']);
+helpTopic('fleet-tile','Target tile','One target · latest live view','The process name, host and target ID, PID, and the verdict of the Assessment rules for its latest live view. The colored edge and the verdict show the worst finding: red critical, orange serious, amber warning, green healthy, gray no data. The text names the worst finding and counts the others.','“worker-3 is saturating a core · 2 more findings” with Something is struggling: the worst finding is serious. Threads 42, CPU 134%, Memory 512 MiB, Updated just now.','Threads counts the threads in the view. CPU adds up the threads\' CPU use, in percent of one core. Memory is resident memory (RSS). Updated is the time since the sampler last reported. Limited access and Sampler throttled mean the same as on the dashboard. Open the tile to see every finding.','The tile judges one view, as Past assessments judges a recording: rules that need trends kept in an open dashboard (thread growth, thread churn, long futex waits) and memory-map layout rules do not run, so the dashboard can show more findings than the tile.',['fleet','assessment','assesshistory','target-access','sampler-budget'],['Target tiles']);
 helpTopic('target-attention','Other targets need attention','Targets outside this view','Count of other targets that are absent, silent, or throttled.','A count of 2 means two other targets need inspection.','Open the target selector and inspect their status.','This count does not identify the cause.',['target-switch','health','sampler-budget']);
 helpTopic('target-access','Limited access','Selected target','The sampler cannot read all process files.','CPU and thread states can remain available while I/O and memory maps are hidden.','Run the sampler as the target user for full access when process permissions permit it.','Access can also be limited for a process that disables inspection.',['wchan','memmap']);
 helpTopic('sampler-budget','Sampler throttled','Sampler host · all targets','The sampler reduced its shared rate because its CPU use exceeded the configured budget.','A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.','The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.','The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.',['health','target-switch']);
@@ -1109,6 +1155,8 @@ helpSource('health','Collector: datagrams received from the sampler','The collec
 helpSource('interval','`rate_hz` in sampler.toml','The sampler sends its interval in every datagram. It comes from `rate_hz` in sampler.toml, which `scripts/set-rate.sh` changes (0.2–10 Hz, 5 Hz by default).');
 helpSource('loss','Collector: gaps in the numbered sampler datagrams','The sampler numbers each sample and the datagrams it is split into. Over the last minute, the collector counts the datagrams that never arrived, including whole skipped samples, and divides by the number expected.');
 helpSource('session','Random ID chosen by the sampler','The sampler picks a random session ID when it starts, reloads its configuration, or finds a new target process, and puts it in every datagram. The collector stores history under that ID.');
+helpSource('fleet','Collector: `/api/targets` and `/api/live?target=host/id` for each target','The page reads the target list, then the latest live view of each target, at most 4 at a time, every 5 seconds.');
+helpSource('fleet-tile','Collector: `/api/targets` and `/api/live?target=host/id`; verdict computed in this page','The name, PID, status, access and throttle come from the target list. Threads, CPU, memory and the findings come from the live view, judged by the same rules as the Assessment card.');
 helpSource('target-switch','Collector: `/api/targets`; URL `?target=host/id`','TTGT announcements identify each host and target ID. The collector routes sessions and returns target metadata. This tab adds the selected key to its API requests.');
 helpSource('target-attention','Collector target status and sampler rate','The page counts absent, silent, and throttled entries from `/api/targets`, excluding the selected target.');
 helpSource('target-access','Sampler access checks for `/proc/PID/io` and `/proc/PID/maps`','The sampler reports limited access when these files cannot be opened. Permission changes are checked with each announcement.');
@@ -1612,6 +1660,7 @@ function kernelShare(thread){
   const share=Math.min(1,thread.system_pct/thread.cpu_pct);
   return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
 const LEVEL_ORDER=['critical','serious','warning','info','good'];
+const VERDICTS={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'};
 // Each finding has a type, the area its rule looks at, so the past-assessment
 // list can filter by it: monitor, threads, watched, resources or memory.
 const ofType=(type,items)=>items.map(item=>Object.assign(item,{type}));
@@ -1673,7 +1722,7 @@ function profile(threads){
 const FINDINGS_SHOWN=8;let allFindings=false;
 function renderAssessment(threads){
   const findings=assess(threads,buffer);const order=LEVEL_ORDER;openFoldsFor(findings);const worst=findings.map(item=>item.level).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0];
-  const verdict=element('verdict');verdict.textContent={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'}[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);element('assessment-card').dataset.level=worst;
+  const verdict=element('verdict');verdict.textContent=VERDICTS[worst];verdict.style.setProperty('--lvl',`var(--${worst==='info'?'good':worst})`);element('assessment-card').dataset.level=worst;
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   // A poll replaces every row; keep them while a finding's help is pending or open.
   const list=element('findings');if(helpOwns(list))return;list.replaceChildren();
@@ -2305,6 +2354,76 @@ element('target-toggle').onclick=toggleTarget;
 element('target-cancel').onclick=()=>{element('target-settings').hidden=true;element('target-toggle').setAttribute('aria-expanded','false');element('target-toggle').focus()};
 element('target-form').onsubmit=saveTarget;
 
+// ---------- Overview of all targets ----------
+// One tile per target, worst first. Each tile judges the target's latest
+// live view with the Assessment card's rules, as a recorded view is judged:
+// rules that need trends kept in a tab (thread growth, churn, long futex
+// waits) do not run. A hidden tab polls nothing.
+const FLEET_EVERY_MS=5000,FLEET_PARALLEL=4;
+const fleetTiles=new Map();
+const targetHref=key=>'?'+new URLSearchParams({target:key});
+// The process name: the main thread, else the command's program, else the ID.
+function fleetName(target,view){
+  const main=view?.threads?.find(thread=>thread.tid===view.health?.pid)?.name;
+  return main||target.process?.command?.split(' ')[0].split('/').pop()||endedTarget(view||{})?.name||target.id}
+// The worst level and its findings, worst first, or null without a view.
+function fleetAssessment(view){
+  if(!view?.health)return null;
+  const findings=assessRecorded({...view,recorded_at:Date.now()/1000},[]).filter(item=>item.level!=='good')
+    .sort((a,b)=>LEVEL_ORDER.indexOf(a.level)-LEVEL_ORDER.indexOf(b.level));
+  return {level:findings.find(item=>item.level!=='info')?.level||'good',findings}}
+function fillFleetTile(tile,target,view){
+  const assessment=fleetAssessment(view),level=assessment?.level||'unknown',health=view?.health||{};
+  const problems=assessment?.findings.filter(item=>item.level!=='info')||[];
+  tile.dataset.level=level;tile.href=targetHref(target.key);
+  const name=fleetName(target,view),pid=health.pid||target.pid;
+  const dot=node('span',undefined,'status-dot '+(target.status==='live'?'live':'critical'));
+  const top=node('div',undefined,'ft-top');top.append(dot,node('span',name,'ft-name'),node('span',assessment?VERDICTS[level]:'No data','ft-verdict'));
+  const summary=node('p',undefined,'ft-summary');
+  if(!assessment)summary.textContent='The collector has no live view of this target yet.';
+  else if(!problems.length)summary.textContent='No problems detected.';
+  else{summary.append(node('b',problems[0].title));if(problems.length>1)summary.append(` · ${problems.length-1} more finding${problems.length>2?'s':''}`)}
+  const threads=view?.threads||[],cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
+  const stats=node('div',undefined,'ft-stats');
+  for(const [label,shown] of [['Threads',view?String(threads.length):'—'],['CPU',view&&threads.some(thread=>isNum(thread.cpu_pct))?pct(cpu):'—'],
+    ['Memory',memoryBytes(view?.resources?.memory?.rss)],['Updated',health.last_seen?ago(Date.now()/1000-health.last_seen):'—']]){
+    const fact=node('div');fact.append(helpButtonLabel(label,'fleet-tile','k'),node('div',shown,'v'));stats.append(fact)}
+  const badges=node('div',undefined,'ft-badges');
+  if(target.access==='limited')badges.append(node('span','Limited access','target-badge'));
+  if(target.throttled)badges.append(node('span','Sampler throttled','target-badge'));
+  tile.setAttribute('aria-label',`${name}, ${target.host} · ${target.id}: ${assessment?VERDICTS[level]:'no data'}. Open its dashboard.`);
+  tile.replaceChildren(top,node('div',target.host+' · '+target.id+(pid?' · PID '+pid:''),'ft-key'),summary,stats,badges)}
+// Tiles stay the same elements across polls, so focus and hover survive;
+// they move only when the order changes.
+function renderFleet(targets,views){
+  const grid=element('fleet-grid'),ranked=[],counts={};
+  for(const target of targets){
+    let tile=fleetTiles.get(target.key);if(!tile){tile=node('a',undefined,'fleet-tile');tile.dataset.help='fleet-tile';fleetTiles.set(target.key,tile)}
+    if(!helpOwns(tile))fillFleetTile(tile,target,views.get(target.key));
+    const level=tile.dataset.level;counts[level]=(counts[level]||0)+1;
+    ranked.push({key:target.key,tile,rank:LEVEL_ORDER.includes(level)?LEVEL_ORDER.indexOf(level):LEVEL_ORDER.length})}
+  for(const key of fleetTiles.keys())if(!targets.some(target=>target.key===key))fleetTiles.delete(key);
+  ranked.sort((a,b)=>a.rank-b.rank||(a.key<b.key?-1:a.key>b.key?1:0));
+  if(ranked.length!==grid.children.length||ranked.some((entry,index)=>grid.children[index]!==entry.tile))grid.replaceChildren(...ranked.map(entry=>entry.tile));
+  element('fleet-empty').hidden=targets.length>0;
+  const groups=[['critical','Critical','var(--critical)'],['serious','Serious','var(--serious)'],['warning','Warning','var(--warning)'],['good','Healthy','var(--good)'],['unknown','No data','var(--s-other)']];
+  const pills=[];
+  for(const [level,label,color] of groups){const count=(counts[level]||0)+(level==='good'?counts.info||0:0);if(!count)continue;
+    const pill=node('span');pill.style.setProperty('--lvl',color);pill.append(node('b',String(count)),' '+label);pills.push(pill)}
+  element('fleet-counts').replaceChildren(...pills);
+  const attention=(counts.critical||0)+(counts.serious||0)+(counts.warning||0);
+  document.title=(attention?`(${attention}) `:'')+'Targets · Thread monitor'}
+async function refreshFleet(){
+  try{if(document.hidden)return;
+    const response=await apiFetch('/api/targets');if(!response.ok)throw Error();const data=await response.json();
+    const targets=Array.isArray(data.targets)?data.targets:[],views=new Map();let next=0;
+    const worker=async()=>{while(next<targets.length){const key=targets[next++].key;
+      try{const reply=await apiFetch('/api/live?'+new URLSearchParams({target:key}));views.set(key,reply.ok?await reply.json():null)}catch{views.set(key,null)}}};
+    await Promise.all(Array.from({length:Math.min(FLEET_PARALLEL,targets.length)},worker));
+    renderFleet(targets,views);element('error').textContent=''}
+  catch{element('error').textContent='⚠ Collector unavailable. Displayed data is stale.'}
+  finally{setTimeout(refreshFleet,FLEET_EVERY_MS)}}
+
 // ---------- Final view of an exited target ----------
 // When the target disappears, the sampler starts a new session without it.
 // The collector then reports no threads, and ingest() would discard this
@@ -2589,7 +2708,6 @@ element('history-more').onclick=loadOlder;
 for(const box of document.querySelectorAll('#history-levels input'))box.onchange=()=>{renderHistory();renderTimeline()};
 element('history-type').onchange=()=>{renderHistory();renderTimeline()};
 async function timelineTick(){await loadReplayBounds();if(past.oldest===null)loadOlder();else if(replayAt===null)loadNewer();setTimeout(timelineTick,TIMELINE_EVERY_MS)}
-timelineTick();
 
 // ---------- Memory map ----------
 // The summary comes from live.memory. The layout is the latest complete one
@@ -3197,7 +3315,7 @@ function initSectionNavigation(){
   // Samples can change section heights without a scroll or window resize.
   if(typeof ResizeObserver!=='undefined'){
     const observer=new ResizeObserver(schedule);
-    observer.observe(document.querySelector('main'));observer.observe(topbar);
+    observer.observe(document.querySelector('main.process-only'));observer.observe(topbar);
   }
   update();
 }
@@ -3340,15 +3458,19 @@ try{applyTheme(localStorage.getItem('triangulator:theme')||'auto')}catch{applyTh
 let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(live.health){renderOverview();renderResources();renderDrawerLive();if(socketData?.available)renderSocketChart()}},150)});
 addEventListener('pagehide',saveBuffer);
 initHelp();
-initFolds();
-initSectionNavigation();
-refresh();
-refreshTargets();
-loadTarget();
-loadWatches();
-pollResources();
-refreshSocket();
-if(location.hash==='#settings')toggleSettings();
+if(fleetPage){document.title='Targets · Thread monitor';refreshFleet()}
+else{
+  initFolds();
+  initSectionNavigation();
+  refresh();
+  refreshTargets();
+  loadTarget();
+  loadWatches();
+  pollResources();
+  refreshSocket();
+  timelineTick();
+  if(location.hash==='#settings')toggleSettings();
+}
 </script>
 </body>
 </html>

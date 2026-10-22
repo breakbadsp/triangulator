@@ -105,7 +105,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
       Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
     }},
-    location: {hash: '', pathname: '/',search:target?'?target='+encodeURIComponent(target):'',assign(url){navigation.push(url);}},
+    location: {hash: '', pathname: '/',search:target===null?'':'?target='+encodeURIComponent(target),assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -3060,4 +3060,64 @@ test('switching targets clears destination view caches and keeps other tabs inde
   assert.equal(storage.has('triangulator:frozen:host-b/billing'),false);
   assert.equal(storage.get('triangulator:buffer:host-c/gateway'),'keep');
   assert.equal(second.run('selectedTarget'),'host-c/gateway');
+});
+
+// The page without ?target= is the overview: one tile per target, worst first,
+// each judged by the Assessment rules on that target's latest live view.
+function fleetView(pid, name, cpu) {
+  const now = Date.now() / 1000;
+  return {health: {session: String(pid), pid, last_seen: now, sampler_silent: false, target_absent: false},
+    threads: [{tid: pid, generation: 1, name, last_sample: now, cpu_pct: cpu, run_delay_pct: 0, state: cpu >= 90 ? 'running' : 'sleep'}]};
+}
+const fleetTargets = [
+  {key: 'h/api', host: 'h', id: 'api', pid: 10, status: 'live', access: 'full', throttled: false},
+  {key: 'h/busy', host: 'h', id: 'busy', pid: 20, status: 'live', access: 'limited', throttled: true},
+  {key: 'h/gone', host: 'h', id: 'gone', pid: 30, status: 'silent', access: 'full', throttled: false}];
+function fleetRespond(url) {
+  if (url === '/api/targets') return jsonResponse({targets: fleetTargets});
+  if (url === '/api/live?target=h%2Fapi') return jsonResponse(fleetView(10, 'api', 5));
+  if (url === '/api/live?target=h%2Fbusy') return jsonResponse(fleetView(20, 'busy', 99));
+  if (url === '/api/live?target=h%2Fgone') return Promise.resolve({ok: false, json: async () => ({})});
+  return undefined;
+}
+const tileText = tile => JSON.stringify(tile, (key, value) => key === 'parent' ? undefined : value);
+
+test('overview page shows one tile per target, worst first, and links to each dashboard', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  assert.equal(app.run('document.documentElement.dataset.page'), 'fleet');
+  await app.run('refreshFleet()');
+  assert.ok(!app.requests.some(url => /^\/api\/(live|replay|resources|socket-io|watches)$|^\/api\/(replay|resources)\?/.test(url)), 'the overview starts no dashboard loop');
+  const tiles = app.elements.get('fleet-grid').children;
+  assert.deepEqual(tiles.map(tile => tile.href), ['?target=h%2Fbusy', '?target=h%2Fapi', '?target=h%2Fgone']);
+  assert.deepEqual(tiles.map(tile => tile.dataset.level), ['serious', 'good', 'unknown']);
+  assert.match(tileText(tiles[0]), /busy is saturating a core/);
+  assert.match(tileText(tiles[0]), /Limited access/);
+  assert.match(tileText(tiles[0]), /Sampler throttled/);
+  assert.match(tileText(tiles[1]), /No problems detected/);
+  assert.match(tileText(tiles[2]), /no live view/);
+  assert.equal(app.run('document.title'), '(1) Targets · Thread monitor');
+  assert.equal(app.elements.get('fleet-empty').hidden, true);
+  // A later poll keeps the same tile elements, so focus and hover survive.
+  const first = tiles[0];
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('fleet-grid').children[0], first);
+});
+
+test('overview page polls nothing while the tab is hidden and reports a lost collector', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  app.run('document.hidden=true');
+  const before = app.requests.length;
+  await app.run('refreshFleet()');
+  assert.equal(app.requests.length, before);
+  app.run('document.hidden=false');
+  app.setFetch(async () => {throw Error('down');});
+  await app.run('refreshFleet()');
+  assert.match(app.elements.get('error').textContent, /Collector unavailable/);
+});
+
+test('a target dashboard does not start the overview', () => {
+  const app = dashboard(new Map(), () => undefined, {target: 'h/api'});
+  assert.equal(app.run('document.documentElement.dataset.page'), 'target');
+  assert.ok(app.requests.includes('/api/live?target=h%2Fapi'));
+  assert.equal(app.run('fleetTiles.size'), 0);
 });
