@@ -2372,6 +2372,7 @@ function fleetAssessment(view){
   const findings=assessRecorded({...view,recorded_at:Date.now()/1000},[]).filter(item=>item.level!=='good')
     .sort((a,b)=>LEVEL_ORDER.indexOf(a.level)-LEVEL_ORDER.indexOf(b.level));
   return {level:findings.find(item=>item.level!=='info')?.level||'good',findings}}
+function currentRss(view){const r=view?.resources,h=view?.health;return r?.available&&!r.stale&&r.session===h?.session&&r.pid===h?.pid?r.memory?.rss:null}
 function fillFleetTile(tile,target,view){
   const assessment=fleetAssessment(view),level=assessment?.level||'unknown',health=view?.health||{};
   const problems=assessment?.findings.filter(item=>item.level!=='info')||[];
@@ -2386,7 +2387,7 @@ function fillFleetTile(tile,target,view){
   const threads=view?.threads||[],cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
   const stats=node('div',undefined,'ft-stats');
   for(const [label,shown] of [['Threads',view?String(threads.length):'—'],['CPU',view&&threads.some(thread=>isNum(thread.cpu_pct))?pct(cpu):'—'],
-    ['Memory',memoryBytes(view?.resources?.memory?.rss)],['Updated',health.last_seen?ago(Date.now()/1000-health.last_seen):'—']]){
+    ['Memory',memoryBytes(currentRss(view))],['Updated',health.last_seen?ago(Date.now()/1000-health.last_seen):'—']]){
     const fact=node('div');fact.append(helpButtonLabel(label,'fleet-tile','k'),node('div',shown,'v'));stats.append(fact)}
   const badges=node('div',undefined,'ft-badges');
   if(target.access==='limited')badges.append(node('span','Limited access','target-badge'));
@@ -2417,9 +2418,10 @@ async function refreshFleet(){
   try{if(document.hidden)return;
     const response=await apiFetch('/api/targets');if(!response.ok)throw Error();const data=await response.json();
     const targets=Array.isArray(data.targets)?data.targets:[],views=new Map();let next=0;
-    const worker=async()=>{while(next<targets.length){const key=targets[next++].key;
+    const worker=async()=>{while(next<targets.length&&!document.hidden){const key=targets[next++].key;
       try{const reply=await apiFetch('/api/live?'+new URLSearchParams({target:key}));views.set(key,reply.ok?await reply.json():null)}catch{views.set(key,null)}}};
     await Promise.all(Array.from({length:Math.min(FLEET_PARALLEL,targets.length)},worker));
+    if(document.hidden)return;
     renderFleet(targets,views);element('error').textContent=''}
   catch{element('error').textContent='⚠ Collector unavailable. Displayed data is stale.'}
   finally{setTimeout(refreshFleet,FLEET_EVERY_MS)}}

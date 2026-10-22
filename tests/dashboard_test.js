@@ -3115,6 +3115,34 @@ test('overview page polls nothing while the tab is hidden and reports a lost col
   assert.match(app.elements.get('error').textContent, /Collector unavailable/);
 });
 
+test('overview page starts no new live request once the tab is hidden mid-batch', async () => {
+  const many = Array.from({length: 8}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live', access: 'full', throttled: false}));
+  let app, started = 0;
+  app = dashboard(new Map(), url => {
+    if (url === '/api/targets') return jsonResponse({targets: many});
+    if (url.startsWith('/api/live?')) {if (++started === 4) app.run('document.hidden=true'); return jsonResponse(fleetView(1, 'x', 1));}
+    return undefined;
+  }, {target: null});
+  const before = app.requests.length;
+  await app.run('refreshFleet()');
+  const live = app.requests.slice(before).filter(url => url.startsWith('/api/live?'));
+  assert.equal(live.length, 4, 'only the first batch is in flight');
+});
+
+test('overview tile shows memory only from a current resource sample of this process', async () => {
+  const withResources = resources => ({...fleetView(10, 'api', 5), resources});
+  const sample = {available: true, stale: false, session: '10', pid: 10, memory: {rss: 5 * 1048576}};
+  const shown = async resources => {
+    const app = dashboard(new Map(), url => url === '/api/targets' ? jsonResponse({targets: [fleetTargets[0]]})
+      : url.startsWith('/api/live?') ? jsonResponse(withResources(resources)) : undefined, {target: null});
+    await app.run('refreshFleet()');
+    return tileText(app.elements.get('fleet-grid').children[0]);
+  };
+  assert.match(await shown(sample), /5(\.0)? MiB/);
+  for (const bad of [{...sample, stale: true}, {...sample, available: false}, {...sample, pid: 11}, {...sample, session: '9'}])
+    assert.doesNotMatch(await shown(bad), /MiB/);
+});
+
 test('a target dashboard does not start the overview', () => {
   const app = dashboard(new Map(), () => undefined, {target: 'h/api'});
   assert.equal(app.run('document.documentElement.dataset.page'), 'target');
