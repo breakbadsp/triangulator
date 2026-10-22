@@ -737,21 +737,27 @@ class Sampler final
 
   static void SleepUntil(Nanoseconds p_deadline)
   {
-    const auto seconds =
-        std::chrono::duration_cast<std::chrono::seconds>(p_deadline);
-    const timespec wake{
-        .tv_sec = static_cast<time_t>(seconds.count()),
-        .tv_nsec = static_cast<long>((p_deadline - seconds).count())};
     while (!stop_requested && !reload_requested)
     {
-      const auto error =
-          ::clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wake, nullptr);
-      if (error == 0)
+      const auto remaining = p_deadline - ClockNow(CLOCK_MONOTONIC);
+      if (remaining <= Nanoseconds{0})
       {
         break;
       }
-      // EINVAL (a bad deadline) is the only other failure for this clock,
-      // and the deadline is ours, so it would be a bug.
+      const auto seconds =
+          std::chrono::duration_cast<std::chrono::seconds>(remaining);
+      const timespec wait{
+          .tv_sec = static_cast<time_t>(seconds.count()),
+          .tv_nsec = static_cast<long>((remaining - seconds).count())};
+      // ThreadSanitizer intercepts nanosleep so it can deliver signals during
+      // the wait. With clock_nanosleep it can defer the handler past EINTR.
+      // Recompute from the monotonic deadline after each interruption.
+      if (::nanosleep(&wait, nullptr) == 0)
+      {
+        break;
+      }
+      [[maybe_unused]] const auto error = errno;
+      // The timespec is valid and non-null, so other errors are bugs.
       assert(error == EINTR);
     }
   }

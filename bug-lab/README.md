@@ -60,4 +60,5 @@ Each runner invocation uses a new temporary directory for the executable and
 storage workloads. `BUGBENCH` and `BUG_LAB_DIR` can override these paths. The
 runner removes only its own temporary directory.
 
-Results: [docs/bug-lab-report.md](../docs/bug-lab-report.md).
+Results: [current QA results](../docs/qa/test-cases.md#current-results).
+Interpretation: [measurement limits](../docs/measurement-limits.md).

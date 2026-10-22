@@ -1,8 +1,6 @@
 # TODO
 
-See [monitoring coverage](docs/linux-monitoring.md) for metric details and
-the [bug lab report](docs/bug-lab-report.md) for known limits. See
-[measurement limits](docs/measurement-limits.md) for interpretation constraints.
+- Keep unresolved work here. Measurement constraints: [limits](docs/measurement-limits.md).
 
 ## Diagnostic accuracy
 
@@ -41,8 +39,8 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 - [ ] Decide the default rate and budget for larger targets. CPU use scales
   with the rate: 0.79% at 5 Hz and 1.44% at 10 Hz on a 7-thread target. The
   default 1% budget throttles a 10 Hz configuration to about 6 Hz. Decide
-  whether to keep the 1% default and the 10 Hz maximum, and document the cost
-  for each thread and each hertz in `docs/setup.md`.
+  whether to keep the 1% default and the 10 Hz maximum, and record the cost
+  for each thread and each hertz with the benchmark results.
 - [ ] Decide what the sampler does when the 0.2 Hz minimum rate still exceeds
   the budget, as on a large target. Options: also slow the heavy scans
   (resources, memory maps), or only report the excess on the dashboard.
@@ -58,12 +56,6 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
   Test isolated cores and document sampler CPU placement from the results.
 - [ ] Define the oldest supported kernel and test release binaries there.
   Document required kernel features and behavior when they are unavailable.
-
-## Dashboard history
-
-- [ ] Show past assessments, filterable by type and severity.
-- [ ] Click a past critical, serious or warning assessment to see the system
-  state at that time.
 
 ## Targets overview page
 
@@ -83,6 +75,9 @@ this page goes to the `feature/fleet-overview` branch first.
   full live view of every target (about 330 KB with 1,000 threads). If it
   is too much, add a collector summary endpoint with a few numbers per
   target and run only the rules that need threads in the browser.
+- [ ] Poll the target control state less often. Each overview poll (5 s)
+  reads `/api/targets/control`, which starts the Python control helper on
+  the collector host.
 - [ ] Decide whether the whole dark theme uses the matte black of the
   overview page, so both pages look the same.
 

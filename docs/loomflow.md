@@ -1,156 +1,63 @@
-# LoomFlow: pull request review workflow
+# LoomFlow
 
-Tool-neutral spec. Any agent runner can follow it: Claude Code, Codex, or a
-script. `.claude/commands/loomflow.md` and `.claude/agents/` are the
-Claude Code adapter. The spec uses only `git` and `gh`, so it works for any
-GitHub repository. Repository details come from that repository's `AGENTS.md`
-or README: the check command, coding standards, and which paths are sensitive.
+- This is the tool-neutral review workflow. Use `git` and `gh`; take checks, standards, and sensitive paths from the repository's `AGENTS.md`.
+- Claude Code adapter: [command](../.claude/commands/loomflow.md) and [role prompts](../.claude/agents/).
+- Roles: orchestrator selects and coordinates; reviewers stay read-only; analyzer fixes or rebuts; test-and-merge runs the gate once.
+- Only the user starts a run. Roles never start LoomFlow. Maximum: two review rounds and one merge gate.
 
-## Roles
+## Select the review
 
-| Role | Job | Edits code |
-| --- | --- | --- |
-| Orchestrator | Triage, start roles, enforce limits, report | no |
-| Reviewer | Deep review, `blocker` and `major` only | no |
-| Quick reviewer | Cheap second opinion or scan, `blocker` and `major` only | no |
-| Comment analyzer | Fix real findings, rebut wrong ones | yes |
-| Test and merge | Run the gate once, merge when it passes | no |
+- Use `scan` only when no sensitive path changes and either all files are documentation or at most 30 lines change in at most three files.
+- Sensitive paths include CI, build files, dependency manifests/locks, auth/secrets, storage/wire formats, and the repository's list. Documentation on these paths still needs `full`.
+- Use `full` for every other change or any doubt. A user-requested `full` cannot be downgraded.
+- `scan` uses one quick reviewer. `full` uses one large capable reviewer and one small quick reviewer, in parallel on the same head SHA.
+- Prefer different model families, including one different from the orchestrator. If unavailable, keep the large-and-small pair in the available family. Never use two large reviewers.
+- Check the remaining token budget before each role. Use low effort for simple work or small/unknown budgets; medium otherwise. Use high only for a concrete complex risk with enough budget for fixes and the gate.
+- Critical paths require Opus 5.5 at high effort, or GPT 6.1 Sol at high when available and limits permit. Never select Astra 6; use GPT 6.1 Sol at high instead. This overrides the normal effort rule.
 
 ## Review method
 
-Reviewers spend their time where defects hide: the callers and readers of
-changed code, failure and boundary paths, data that crosses a boundary (wire
-formats, stored files, APIs, configuration), and tests that fail without the
-change. Before posting, each reviewer tries to disprove each finding and drops
-it if a guard, a caller check, or a test prevents the failure. A wrong finding
-costs an analyzer pass and often a second round. Round 2 also checks that the
-fixes do not break the callers of the code they change.
+- Report only blocker and major findings. Check callers, readers, failure paths, boundaries, and regression coverage.
+- Try to disprove each finding before posting it. Drop it if a guard, caller, or test prevents the failure.
+- The deep reviewer checks PR claims and the fact that makes the change safe. Measurements count only when error-free runs execute the changed code.
+- Reviewers run no builds or tests. They leave HEAD and worktree unchanged.
+- Each reviewer posts a PR comment. A missing required review stops the run.
 
-The deep reviewer also checks the diff against the claims in the PR title and
-body. It finds the one fact that makes the change safe and checks that fact
-first. A measured number in the PR, such as sampler overhead, counts only if
-the run had no errors and the timed work ran the changed code.
+## Rounds
 
-Before the analyzer fixes a behavior defect, it adds a regression test and
-confirms that the test fails without the fix. It does this only when a cheap
-local test target exists, and it runs only that test for this step.
-
-These three rules come from Poteto's pstack skills `blast-radius`,
-`benchmark-checklist` (questions 4 and 7), and `tdd`. LoomFlow takes no other
-pstack parts, to keep each run fast and cheap. Reviewers stay read-only and
-run no builds or tests.
-
-## Model and reasoning selection
-
-For `full`, use one large, capable model and one small, quick model. Never use
-two large models. Prefer different model families for the two reviewers. When
-possible, also use a reviewer from a different family than the orchestrator.
-If another family is unavailable, keep the large-and-quick pair within the
-available family. For simple changes in `scan`, use only one quick reviewer.
-
-Before starting each role, check the remaining token budget. Use `low` effort
-for simple work and `medium` otherwise. Lower effort when the budget is small
-or unknown. Use `high` only for a concrete, complex risk with enough tokens
-left for fixes and the merge gate. Do not select higher effort by default.
-
-Critical changes: if the change is critical, or touches a critical path, run at
-least one reviewer as Opus 5.5 at effort `high`. Use GPT 6.1 Sol at effort
-`high` instead when it is available and the limits allow. Never use Astra 6.
-Whenever Astra 6 would be chosen, use GPT 6.1 Sol at `high`. This rule
-overrides the budget-based effort above for that reviewer.
-
-## Triage
-
-The orchestrator picks a tier from `gh pr diff --name-only` and `--stat`.
-Rules are objective. When unsure, pick `full`.
-
-- `scan`: the PR touches no sensitive path, and either every changed file is
-  documentation (`*.md`, `*.txt`, images, `docs/`) or it changes at most 30
-  lines in at most 3 files. Documentation on a sensitive path (such as
-  `AGENTS.md` or `.claude/`) is `full`. Sensitive paths: CI workflows, build files, dependency
-  manifests and lockfiles, auth or secrets, storage or wire formats, and
-  anything the repository's `AGENTS.md` calls critical.
-- `full`: everything else.
-
-A user can force a tier by naming it in the command (`full` or `scan`). `full`
-is never downgraded by the orchestrator.
-
-## Flow
-
-`scan`: start only one quick reviewer to scan the diff once. No blocker or
-major: go to the gate. Otherwise treat it as round 1 of `full`, including both
-reviewers on the whole diff, before the analyzer. The scan review's blockers
-and majors stay open: the analyzer runs on them even if both full reviewers
-report none.
-
-`full`: at most two rounds.
-
-1. Start the reviewer and the quick reviewer in parallel on the same head SHA.
-2. Both post a review on the PR. If either is missing, stop and report.
-3. No `blocker` or `major` from either: apply the check reuse rule below before
-   waiting for CI. Stop at the first failed check. No failed check: go to the gate.
-4. Otherwise start the analyzer. It handles the union of the findings,
-   deduplicated, and treats quick-reviewer findings with extra suspicion
-   because that model is weaker. It also reads the PR's CI checks when it
-   starts and before it pushes. Each failed check is a `blocker` finding:
-   it reads the failed log and fixes the cause. It never reruns CI.
-5. If the head SHA changed and this was round 1, run round 2: both reviewers
-   look only at the round-1 fixes and the new commits.
-
-After round 2, an open `blocker` or `major` stops the run: do not merge, report
-for manual handling.
+- For `scan`, no blocker/major means proceed to checks and gate.
+- A scan finding escalates to full round 1 with both reviewers on the whole diff. Keep the scan findings open for the analyzer even if later reviewers find none.
+- For `full`, collect both reviews on the same head SHA.
+- With no blocker/major, apply check reuse, then proceed to the gate. Stop at the first failed check.
+- With findings, start one analyzer on their deduplicated union. Check quick-reviewer findings with extra care.
+- The analyzer reads CI at start and before pushing. Each failed check is a blocker: read its log and fix its cause. Never rerun CI.
+- Before fixing behavior, add a regression test and confirm failure without the fix when a cheap local target exists. Run only that test for this step.
+- If round 1 changes HEAD, run round 2 on the fixes and new commits only. Check their callers too. Pass the original and new SHAs.
+- After round 2, any open blocker/major or user-raised critical issue stops the run for manual handling.
+- No third round, second gate, or automatic restart. Report commits pushed after the last review as unreviewed.
 
 ## Reuse passing checks
 
-Check the build and test inputs, not only the commit SHA. Reuse a passing CI
-or local result when it covers the current code, tests, build configuration,
-and base branch. Do not run the same full suite locally after CI passed it.
-Do not update the PR branch or restart CI only to obtain a new check result.
-If CI is already checking the required inputs, wait for it instead of starting
-a duplicate local run.
-
-For a documentation or generated QA summary conflict, preserve both changes
-and run the affected documentation check, such as
-`python3 scripts/qa_summary.py --write-readme --check`. Reuse the full test
-results if no build or test input changed. If base branch code changed,
-verify the combined code once. Use CI or a local run; do not require both.
-
-The AlmaLinux workflow uses `.github/scripts/ci-reuse.py` to compare inputs
-with a passing run for the same PR. It excludes documentation but keeps test
-fixtures. It also checks for untested base branch changes. Missing evidence
-requires a full run. Manual and nightly dispatches always run the tests.
+- Compare code, tests, build configuration, and base inputs. Reuse a passing local or CI result that covers the combined inputs.
+- If CI already checks those inputs, wait for it. Do not run another full suite locally or update the branch just to trigger checks.
+- For documentation or generated-summary conflicts, preserve both changes and run the affected documentation check. Reuse full results if build/test inputs did not change.
+- If base code changed, verify the combined code once through CI or a local run.
+- AlmaLinux reuse is implemented in [ci-reuse.py](../.github/scripts/ci-reuse.py). It excludes documentation, retains test fixtures, and checks untested base changes. Missing evidence requires full tests; manual/nightly runs always test.
 
 ## Gate (once)
 
-- Head SHA equals the expected SHA, and the worktree is clean.
-- Apply the check reuse rule above. Run the repository's check command on a
-  throwaway merge only when no passing result covers the combined inputs.
-- For documentation changes, run the affected documentation checks. Do not
-  run a full build or test suite only because the review tier is `full`.
-- CI checks show only `pass` or `skipping`, or a recorded passing result covers
-  a pending duplicate check. Never ignore a failed check. `no checks reported` passes only
-  when no changed file matches a `pull_request` `paths` filter. Stop waiting
-  for pending checks as soon as one check or the local check fails.
-- The PR is `MERGEABLE` and `CLEAN`. A pending duplicate covered by the reuse
-  rule may leave the status `UNSTABLE`; use the normal merge command and
-  respect required branch checks.
-- Merge with `--match-head-commit`. Never `--admin`, never force.
-
-A failed gate is reported, not retried.
-
-## Limits
-
-- Never a third round or a second gate run.
-- No role starts the workflow again. Only the user does.
-- Read-only roles leave HEAD and the worktree unchanged.
-- Report commits pushed after the last review as not reviewed.
+- Confirm the expected head SHA and a clean worktree.
+- Apply check reuse. Run the repository check on a throwaway merge only when no passing result covers the combined inputs.
+- Run affected documentation checks for documentation changes. A full review tier alone does not require a full build.
+- Require CI pass/skipping, or recorded passing coverage for a pending duplicate. Never ignore failures. Stop waiting when any check fails.
+- No reported checks pass only when no changed file matches a pull-request path filter.
+- Require `MERGEABLE` and `CLEAN`. A covered pending duplicate may leave `UNSTABLE`; use normal merge and respect required branch checks.
+- Merge with `--match-head-commit`. Never use `--admin` or force.
+- Report a failed gate without retrying or starting another fix pass.
 
 ## PR comments
 
-Every role posts one comment that starts with a fixed heading, so other roles
-can find it:
-
-- `## Review, round <n>, head <SHA>` (reviewer)
-- `## Quick review, round <n>, head <SHA>` (quick reviewer)
-- `## Analyzer, round <n>`
-- `## Merge gate, head <SHA>`
+- Reviewer: `## Review, round <n>, head <SHA>`.
+- Quick reviewer: `## Quick review, round <n>, head <SHA>`.
+- Analyzer: `## Analyzer, round <n>`.
+- Test and merge: `## Merge gate, head <SHA>`.
