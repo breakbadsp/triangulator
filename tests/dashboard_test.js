@@ -72,6 +72,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
       append(...items) {for (const item of items) if (item && typeof item === 'object') item.parent = this; this.children.push(...items);},
+      remove() {if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null;},
       replaceChildren(...items) {
         for (const old of this.children) if (old && typeof old === 'object') old.parent = null;
         this.children = []; this.append(...items);
@@ -3130,7 +3131,7 @@ test('overview tiles offer Remove only for targets of the local sampler', async 
   app.run("managedTargets=[{id:'api',target:'api'},{id:'busy',target:'busy'}];controlHost='h'");
   await app.run('refreshFleet()');
   const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
-  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
   assert.deepEqual(tiles.map(tile => !!remove(tile)), [true, true, false]);
   const bodies = [];
   app.run('confirm=()=>true;refreshFleet=async()=>{}');
@@ -3148,7 +3149,7 @@ test('overview polls refresh Remove controls and stay quiet about control errors
   const control = {enabled: true, host: 'h', targets: [{id: 'api', target: 'api'}, {id: 'busy', target: 'busy'}]};
   const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse(control) : fleetRespond(url), {target: null});
   await app.run('refreshFleet()');
-  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
   const tiles = () => app.elements.get('fleet-grid').children.slice(0, -1);
   assert.deepEqual(tiles().map(tile => !!remove(tile)), [true, true, false]);
   // A target added from another tab becomes removable on the next poll.
@@ -3215,4 +3216,62 @@ test('the ambiguous-name status counts every match and a local validation error 
   app.run("element('target-id').value='.';element('target-input').value='other'");
   await app.run('addManagedTarget()');
   assert.equal(app.elements.get('target-candidates').hidden, true);
+});
+
+test('a tile with findings carries a card with the worst findings and the process start', async () => {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/live?target=h%2Fbusy') {
+      const view = fleetView(20, 'busy', 99);
+      view.process = {session: '20', started_at: Date.now() / 1000 - 7200, command: '/usr/bin/busy --spin'};
+      return jsonResponse(view);
+    }
+    return fleetRespond(url);
+  }, {target: null});
+  await app.run('refreshFleet()');
+  const [busy, api] = app.elements.get('fleet-grid').children;
+  const card = tile => tile.children.find(child => child.className === 'ft-card');
+  assert.equal(card(api), undefined, 'a healthy tile has no card');
+  assert.match(tileText(card(busy)), /Started 2 h ago · \/usr\/bin\/busy --spin/);
+  assert.match(tileText(card(busy)), /busy is saturating a core/);
+  assert.match(tileText(card(busy)), /uses 99/);
+  assert.equal(card(busy).children[1].children[0].className, 'lvl-serious');
+});
+
+test('a poll keeps the tile link element, so keyboard focus survives', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children[0];
+  const link = tile.children[0].children[1];
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.href, '?target=h%2Fbusy');
+  assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
+});
+
+test('a tile that holds keyboard focus is not refilled until focus leaves it', async () => {
+  let cpu = 99;
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.dataset.level === 'critical' || item.dataset.level === 'serious' || item.dataset.level === 'warning');
+  const key = tile.children.find(child => child.className === 'ft-key');
+  const link = tile.children[0].children[1];
+  app.run('document.activeElement = null');
+  cpu = 5;
+  app.run('document.activeElement = fleetTiles.get("h/busy").children[0].children[1]');
+  await app.run('refreshFleet()');
+  assert.ok(tile.children.includes(key), 'the focused tile keeps its elements');
+  assert.equal(tile.children[0].children[1], link);
+  app.run('document.activeElement = null');
+  await app.run('refreshFleet()');
+  assert.ok(!tile.children.includes(key), 'the tile refills after focus leaves');
+});
+
+test('a tile with only informational findings has no card', async () => {
+  const info = fleetView(10, 'api', 5);
+  info.threads.push({tid: 11, generation: 1, name: 'side', last_sample: info.threads[0].last_sample, cpu_pct: 1, run_delay_pct: 0, state: 'sleep'});
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fapi' ? jsonResponse(info) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const api = app.elements.get('fleet-grid').children.find(tile => tile.dataset.level === 'good');
+  assert.match(tileText(api), /No problems detected/);
+  assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
 });
