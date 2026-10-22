@@ -30,10 +30,7 @@
 
 ## Sockets and process exits
 
-- Keep eBPF optional. Requiring it would remove the unprivileged deployment path.
-- Use socket operation results for per-thread byte counts. Transport receipt and `/proc/io` do not establish application consumption.
-- Require an explicit application marker for completed messages. Bytes and receive operations do not establish message completion.
-- Use socket-length tracepoints to include internal batched send and receive paths. Public socket entry points alone miss some operations.
+- Socket decisions: see [socket I/O design](socket-ingress-design.md#decisions).
 - Never treat a futex wait as proof of deadlock. An idle worker can have the same kernel wait channel.
 - Treat kernel logs as optional exit evidence. Broad kernel-log access changes host policy and must not be required for monitoring.
 
