@@ -1932,3 +1932,5 @@ healthy target (for example `idle-baseline`).
 
 Expected results: Only tiles with findings have a card. The card opens on
 hover and keyboard focus, after a short delay, and does not block the click.
+While a control in a tile has keyboard focus, the tile keeps its last values
+and updates at the next refresh after focus leaves it.

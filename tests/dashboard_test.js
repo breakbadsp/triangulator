@@ -3248,6 +3248,24 @@ test('a poll keeps the tile link element, so keyboard focus survives', async () 
   assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
 });
 
+test('a tile that holds keyboard focus is not refilled until focus leaves it', async () => {
+  let cpu = 99;
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.dataset.level === 'critical' || item.dataset.level === 'serious' || item.dataset.level === 'warning');
+  const key = tile.children.find(child => child.className === 'ft-key');
+  const link = tile.children[0].children[1];
+  app.run('document.activeElement = null');
+  cpu = 5;
+  app.run('document.activeElement = fleetTiles.get("h/busy").children[0].children[1]');
+  await app.run('refreshFleet()');
+  assert.ok(tile.children.includes(key), 'the focused tile keeps its elements');
+  assert.equal(tile.children[0].children[1], link);
+  app.run('document.activeElement = null');
+  await app.run('refreshFleet()');
+  assert.ok(!tile.children.includes(key), 'the tile refills after focus leaves');
+});
+
 test('a tile with only informational findings has no card', async () => {
   const info = fleetView(10, 'api', 5);
   info.threads.push({tid: 11, generation: 1, name: 'side', last_sample: info.threads[0].last_sample, cpu_pct: 1, run_delay_pct: 0, state: 'sleep'});
