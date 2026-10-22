@@ -1,60 +1,14 @@
-# Bug lab manual cases
+# Bug lab cases
 
-Fixture: [`bug-lab/bugbench.c`](../../bug-lab/bugbench.c) from PR #47.
-Each row below is one case definition. It uses the common preconditions and
-numbered steps, plus its scenario-specific setup and expected results.
-Record results only in the [current-result table](test-cases.md) and new run
-records. All cases start as NOT_RUN.
-
-## Common preconditions
-
-Use downloaded sampler and collector packages for the requested version.
-QA-001 setup is running in an isolated installation. The test host has enough
-CPU, memory, descriptors, and scratch storage for the selected fixture.
-Run one scenario at a time. Record host limits and any added resource limits.
-
-Build the fixture with `gcc -O2 -pthread bug-lab/bugbench.c -o PATH` in a test
-directory. Record its source revision, executable SHA-256, and compiler version.
-Set `BUG_LAB_DIR` to separate scratch storage for this run. Use matching sampler
-and collector thread groups from the documented bug lab setup.
-Use 2 Hz thread sampling, 2-second resource samples, 5-second memory samples,
-and 5-second replay recording. Record any change to these settings.
-
-Select the owned fixture by PID with the downloaded package's `set-target.sh`.
-For a `systemd-run` scope, identify the fixture PID inside the scope before
-target selection. The wrapper PID must not become the monitored target.
-Python is required for these control scripts. The cgroup cases require a working
-user systemd manager and support for the specified limits.
-
-Source: [Bug lab setup](../../bug-lab/README.md) and
-[report method](../bug-lab-report.md#how-it-was-run).
-
-## Common steps
-
-1. Run QA-101 as the control before the fault cases. Record its result separately.
-2. Start the row's scenario with a duration at least 30 seconds longer than its
-   observation interval. Use 70 seconds of observation unless the row specifies
-   another interval. Apply the row's additional setup.
-3. Select the fixture PID. Open the dashboard in the shared real browser at the
-   start of observation. Confirm the target PID and fresh samples. Keep the page
-   open for the full interval. Inspect Overview, Threads, Resources, and Memory
-   map as relevant. Open thread details and help text where the row requires it.
-4. Check the expected results. Save browser evidence and fixture logs. Check that
-   the intended fault developed. If the host cannot produce the required symptom,
-   record BLOCKED with the reason. An observed fault with a missing required
-   finding is FAILED. Do not require historical screenshot numbers to match.
-5. Stop the owned fixture. Resume a stopped fixture before termination. Stop only
-   test-owned scopes. Retain evidence and remove only run-owned scratch files.
-   Run the healthy control again if a fault leaves stale state or apparent
-   findings in the next case.
-
-The fixture's intentional faults are the test input. Judge the dashboard's
-documented response. Known measurement limits are part of the expected result.
-The historic report provides context; its verdicts are not current test results.
-
-## Case definitions
-
-All cases have case revision 1. The Feature column names the behavior under test.
+- Fixture: [bugbench.c](../../bug-lab/bugbench.c). Compile only the fixture; test downloaded product binaries.
+- Use QA-001 setup, isolated scratch storage, and one owned scenario at a time. Select the fixture PID, not its wrapper.
+- Record package version, fixture revision and hash, compiler, host limits, and configuration.
+- Use 2 Hz thread samples, 2-second resource samples, 5-second memory samples, and 5-second recordings. Record changes.
+- Run QA-101 first. Run each fault for at least 30 seconds longer than observation. Observe for 70 seconds unless the row says otherwise.
+- Keep a real browser open from the start. Inspect the selected process, relevant sections, thread details, and help.
+- Confirm that the fault developed. Missing host support is `BLOCKED`; a missing required response to an observed fault is `FAILED`.
+- Save fixture logs and browser evidence. Resume stopped fixtures before termination. Stop only owned processes and scopes.
+- Record results in [current results](test-cases.md#current-results). Case revision: 1 for every row.
 
 | Case ID | Scenario | Feature | Priority | Additional setup | Expected results |
 | --- | --- | --- | --- | --- | --- |

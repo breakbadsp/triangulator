@@ -8,7 +8,7 @@ from pathlib import Path
 class DashboardTests(unittest.TestCase):
     def test_dashboard_regressions(self):
         node = shutil.which("node")
-        self.assertIsNotNone(node, "dashboard tests require Node.js; see docs/build-guidelines.md")
+        self.assertIsNotNone(node, "dashboard tests require Node.js; see README.md#quick-start")
         result = subprocess.run(
             [node, "--test", str(Path(__file__).with_name("dashboard_test.js"))],
             capture_output=True, text=True, timeout=30,

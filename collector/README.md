@@ -29,7 +29,7 @@ scripts/start.sh collector
 ```
 
 [Configuration example](../config/collector.toml) ·
-[Collector reference](../docs/collector-reference.md) ·
+[Design decisions](../docs/design-decisions.md) ·
 [Sampler](../sampler/README.md) ·
 [Performance](../docs/collector-comparison.md)
 
@@ -72,11 +72,11 @@ memory use. Assessment shows up to eight findings, most severe first. Select
 The section links are **Summary**, **Threads**, **Resources**, **Sockets**,
 **Memory**, **Monitor**, and **Settings**. Open **Timeline** below the Summary
 charts for recordings and **Past assessments**. Settings currently edits only
-[watched-thread rules](../docs/collector-reference.md#watched-threads).
+[watched-thread rules](../config/collector.toml).
 
 Use **Theme** in the header to select **System**, **Light**, or **Dark**.
 Theme and panel open/closed choices are saved in the browser. See the
-[dashboard guide](../docs/setup.md#dashboard) for panel behavior and replay limits.
+[measurement limits](../docs/measurement-limits.md) for replay constraints.
 
 ## Dashboard help
 
