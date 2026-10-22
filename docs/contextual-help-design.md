@@ -202,6 +202,7 @@ and value. Legend help explains the series without changing its toggle action.
 | Targets overview heading and counts (`fleet`) | Level count pills; number of tiles; worst-first sort, then key; tab title count prefix; No targets yet empty state; Collector unavailable banner; 5 s polling and no polling while the tab is hidden |
 | Target tiles (`fleet-tile`) | Status dot and left edge color by level; verdict pill; host, target ID, and PID line; worst finding and N more findings; Threads, CPU, Memory, and Updated stats; Limited access and Sampler throttled badges; verdicts use only the latest live view, so trend rules do not run on tiles; tile link and middle-click |
 | All targets link (`fleet`) | Back link at the left of the top bar in a target dashboard; return to the overview; browser Back; empty `?target=` opens the default target; no remembered last target |
+| Matching processes (`target-pid`) | Add target dialog; list of processes with the entered name; PID, user, start time, command line; a choice fills in the PID; a PID does not follow a restart; at most 20 entries |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Color theme | System, Light, and Dark; saved browser preference; blocked storage |
 | Memory use | Physical memory versus mapped address space; RSS and VmSize charts and their sample steps; shared chart window; missing samples |

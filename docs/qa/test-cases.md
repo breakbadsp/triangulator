@@ -93,6 +93,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-086 | NOT_RUN | - | - | - |
 | QA-087 | NOT_RUN | - | - | - |
 | QA-088 | NOT_RUN | - | - | - |
+| QA-089 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -1887,3 +1888,24 @@ Preconditions: At least two targets at different levels.
 Expected results: Each tile can get keyboard focus, and Enter opens its target.
 The `fleet` and `fleet-tile` help topics open with the same delay and
 behavior as other dashboard help.
+
+## QA-089: Select one of several processes with the same name
+
+Feature: Targets overview target management. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: QA-062 setup. Start two owned processes with the same name, for
+example two copies of `build/buggy-workload idle-baseline`.
+
+1. On the Targets overview, open **Add target**. Enter a new target ID and the
+   shared process name. Select **Add target**.
+2. Check that the status says how many processes have the name, and that
+   **Matching processes** lists each one with its PID, user, start time, and
+   command line.
+3. Select the second process. Check that its PID fills **Process name or PID**
+   and that the status says a PID does not follow a restart.
+4. Select **Add target** and confirm. Check that the new tile shows the
+   selected PID.
+5. Open **Add target** again. Check that the list is hidden.
+
+Expected results: An ambiguous name does not change the configuration. The
+list shows every matching process, at most 20. The chosen PID is added.
