@@ -70,10 +70,6 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 The dashboard opens on the Targets overview: one tile per target. Work for
 this page goes to the `feature/fleet-overview` branch first.
 
-- [ ] Move target add and remove to the overview. Show an "Add target" tile
-  at the end of the grid and a remove action on each tile, with the same
-  confirmation and server check as Manage targets today. Remove the Manage
-  targets panel from the target dashboard.
 - [ ] When a process name matches more than one process, list the matching
   PIDs (with command line, user, and start time) and let the user select
   one, instead of the "multiple processes named" error.

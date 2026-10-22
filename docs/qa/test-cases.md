@@ -455,16 +455,21 @@ A new tab does not reopen the last target.
 
 ## QA-062: Manage local targets
 
-Feature: Dashboard target management. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Dashboard target management. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: A local sampler uses a runtime configuration owned by the user.
 The dashboard listens on loopback. A second browser tab observes the targets.
 
-1. Add a target with a new ID. Cancel confirmation, then confirm it.
-2. Check that all viewers see the new target and existing sessions stay.
-3. Remove that target. Check that it leaves the list in both tabs.
-4. Try a duplicate ID, invalid ID, stale selector, and removal of the last target.
-5. Check that remote sampler viewing offers no unsupported remote control.
+1. On the Targets overview, select Add target. Check that a dialog opens with
+   focus in Target ID, and that Escape and Cancel close it.
+2. Add a target with a new ID. Cancel confirmation, then confirm it. Check
+   that the dialog closes and the status line under the heading reports it.
+3. Check that all viewers see the new tile and existing sessions stay.
+4. Select Remove on that tile. Check that it leaves the overview in both tabs.
+5. Try a duplicate ID, invalid ID, stale selector, and removal of the last
+   target (Remove is disabled when one target is left).
+6. Check that a target page has no Manage targets control, and that tiles of
+   a remote sampler host have no Remove.
 
 Expected: Only confirmed changes edit the sampler configuration. Invalid or
 stale changes preserve it. One sampler process handles the resulting set.
@@ -765,11 +770,10 @@ Feature: Target control. Priority: High. Case revision: 2.
 Preconditions: QA-001 setup is running. Python and local target control are
 available. Two owned processes with different PIDs are running. Use one free target slot.
 
-1. Open the dashboard. Select **Manage targets**.
+1. Open the dashboard. On the Targets overview, select the **Add target** tile.
 2. Enter a new target ID and the second process PID. Select **Add target**,
    then accept the confirmation.
-3. Select the new target in the target selector. Wait for its samples. Reload
-   the page.
+3. Select the new target's tile. Wait for its samples. Reload the page.
 
 Expected results: The new target is listed. The dashboard identifies the
 second process and displays its threads. The first target continues to report.
@@ -783,7 +787,7 @@ Feature: Target validation. Priority: High. Case revision: 2.
 
 Preconditions: QA-002 setup is available. A valid target is selected.
 
-1. Open **Manage targets**. Enter a new target ID. Clear the process field.
+1. On the Targets overview, open **Add target**. Enter a new target ID. Clear the process field.
    Select **Add target**.
 2. Inspect the validation message and the configured targets.
 3. Enter a nonexistent numeric PID. Select **Add target**.

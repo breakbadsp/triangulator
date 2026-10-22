@@ -20,8 +20,8 @@ scripts/set-target.sh 1234    # Replace 1234 with the process ID to monitor.
 ```
 
 Open <http://127.0.0.1:9401>. The dashboard shows the selected process and its
-threads. Use **Manage targets** to add or remove monitored processes. Select
-a target to change only this tab. A unique process name works from the command line:
+threads. On the **Targets** overview, use **Add target** and **Remove** on a
+tile to change the monitored processes. Select a target to change only this tab. A unique process name works from the command line:
 
 ```sh
 scripts/set-target.sh ghostty
@@ -773,7 +773,7 @@ underscores, or hyphens. Configure at most 16 targets. A target selector must
 be an exact process name or a positive PID. Name ambiguity produces an absent
 target. Limited process permissions omit some measurements.
 
-Use Manage targets in a local dashboard, or these commands:
+Use Add target and Remove on the Targets overview of a local dashboard, or these commands:
 
 ```sh
 scripts/set-target.sh --add gateway gateway-api
@@ -800,10 +800,10 @@ most 10,000,000. To keep more samples per target, lower `max_targets` to the
 number of targets you run. The API reports capacity drops.
 
 Each browser tab selects `?target=<host>/<id>`. A switch resets its view choices.
-It does not change monitoring. Manage targets asks for confirmation because
+It does not change monitoring. Add target and Remove ask for confirmation because
 its changes affect every viewer. Local control requires a loopback dashboard
 and a local sampler run by the same user. Remote hosts use their sampler-side
-configuration. Manage targets removes a target from the list at once. A target
+configuration. Remove on a tile removes a target from the overview at once. A target
 removed in another way, such as with `scripts/set-target.sh --remove` or in a
 remote sampler's configuration, can remain listed as silent until
 `target_idle_expiry_s` (default 600 seconds) passes.
