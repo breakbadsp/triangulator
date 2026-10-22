@@ -257,8 +257,12 @@ There is one dashboard. Each browser tab chooses which target it shows.
 
 - **Per-tab selection.** The selected target is in the URL
   (`?target=hostA/orders`). Two people, or two tabs, can watch different
-  targets at once, and a link opens the same target. The browser remembers the
-  last choice for new tabs. The collector keeps no "current target".
+  targets at once, and a link opens the same target. The collector keeps no
+  "current target".
+- **Targets overview.** The URL without `?target=` opens the overview: one
+  tile per target with its current assessment, worst first. A tile opens that
+  target's dashboard, and **All targets** in the dashboard header returns.
+  `?target=` with an empty value opens the default target.
 - **Target switcher.** It is in the header, before the Assessment. Each entry
   shows `host · id`, the process name and PID, and a status dot (live, absent,
   silent). It also shows a **Limited access** or **Sampler throttled** badge

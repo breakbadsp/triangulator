@@ -86,6 +86,13 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
 | QA-081 | NOT_RUN | - | - | - |
+| QA-082 | NOT_RUN | - | - | - |
+| QA-083 | NOT_RUN | - | - | - |
+| QA-084 | NOT_RUN | - | - | - |
+| QA-085 | NOT_RUN | - | - | - |
+| QA-086 | NOT_RUN | - | - | - |
+| QA-087 | NOT_RUN | - | - | - |
+| QA-088 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -146,7 +153,7 @@ processes remain live.
 Feature: Multi-target links. Priority: High. Case revision: 1.
 
 Preconditions: At least two targets with threads. Open an explicit URL for a
-nondefault target. Use a second browser profile with no saved target choice.
+nondefault target. Use a fresh browser profile.
 
 1. Open a thread row. Check the URL target and thread fragment.
 2. Close the drawer with Escape. Check the URL and selected target.
@@ -430,7 +437,7 @@ no socket observations until its observer reports.
 
 ## QA-061: Per-tab target selection
 
-Feature: Dashboard target selection. Priority: High. Case revision: 1. Status: NOT_RUN.
+Feature: Dashboard target selection. Priority: High. Case revision: 2. Status: NOT_RUN.
 
 Preconditions: Two targets have different PIDs, thread names, and stored views.
 
@@ -439,11 +446,12 @@ Preconditions: Two targets have different PIDs, thread names, and stored views.
 2a. Close the thread drawer with Escape, then with Close thread details. Check that the URL keeps `?target=` and drops `#thread=`.
 3. Switch one tab to the other target. Check that those view choices reset.
 4. Check that the second tab retains its target. Open the first tab's URL again.
-5. Open a new tab without a target. Check the remembered choice.
-6. Test one target and an unavailable saved target. Test narrow screen and zoom.
+5. Open a new tab at the dashboard URL without `?target=`. Check that the Targets overview opens and no earlier target opens.
+6. Test one target and an unavailable target in the URL. Test narrow screen and zoom.
 
 Expected: Each tab shows only its selected target. A switch does not change
 sampler configuration. One target uses a plain label. Links retain selection.
+A new tab does not reopen the last target.
 
 ## QA-062: Manage local targets
 
@@ -1736,3 +1744,137 @@ covers the leak period, with a matching Timeline mark. Selecting it shows the
 same finding in the Assessment of the recorded view, and the RSS tile shows the
 recorded growth rate. Times in earlier periods can be less exact, but the row
 stays.
+
+## QA-082: Targets overview lists every target
+
+Feature: Targets overview. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Use an isolated runtime and unused ports. Run two bug-lab
+workloads, for example `cpu-spin` and `memory-leak`, as two targets.
+
+1. Open `http://127.0.0.1:9401/` without `?target=`.
+2. Count the tiles. Compare the count with the monitored targets.
+3. Read one tile. Check the status dot, process name, verdict pill, the line
+   `host · target-id · PID n`, the worst finding title, and "N more findings".
+4. Check the stats Threads, CPU, Memory, and Updated. Check the badges
+   "Limited access" and "Sampler throttled" when their condition applies.
+
+Expected results: The Targets overview opens by default. It shows one tile for
+each target. Each tile shows its own process, PID, and stats. A badge appears
+only when its condition applies.
+
+## QA-083: Tile sort order, level colors, and count pills
+
+Feature: Targets overview. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Targets at several levels. For example, run `cpu-spin` for a
+serious or critical level and `idle-baseline` for a healthy level. Use a target with
+no samples for the no data level, if available.
+
+1. Read the order of the tiles. Check that the worst tile is first.
+2. Check the left edge of each tile. Red is critical, orange is serious, amber
+   is warning, green is healthy, and gray is no data.
+3. Read the count pills above the grid. Check that each count equals the
+   number of tiles at that level.
+4. Read the browser tab title. Check that it starts with "(N) " when N targets
+   are at warning or worse. Check that it has no prefix when none are.
+5. Check that tiles at the same level sort by target key.
+
+Expected results: Tiles sort worst first, then by key. Each color matches its
+level. Each count pill matches its tiles. The tab title count matches the
+number of targets at warning or worse.
+
+## QA-084: Open a target from its tile and return
+
+Feature: Targets overview navigation. Priority: High. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: At least two targets. Start with the Targets overview open.
+
+1. Select a tile. Check that the URL changes to `?target=host%2Fid` and that
+   the dashboard shows only that target.
+2. Select **← All targets** at the left of the top bar. Check that the
+   Targets overview opens.
+3. Open a tile. Select the browser Back button. Check that the overview returns.
+4. Open the dashboard URL with an empty value, `?target=`. Check that the
+   collector default target opens.
+5. Open a new tab at the dashboard URL without `?target=`. Check that the
+   overview opens and that no earlier target opens.
+6. Middle-click a tile. Check that a new tab opens that target and that the
+   overview tab stays open.
+
+Expected results: Each tile opens its own target. **← All targets** returns to
+the overview. Browser Back returns to the overview. An empty `?target=` opens
+the default target. A new tab does not reopen the last target. Middle-click
+opens the target in a new tab.
+
+## QA-085: Overview empty state and collector outage
+
+Feature: Targets overview. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: Use an isolated runtime with a collector that you can stop and
+start. Remove all targets for step 1.
+
+1. Open the overview with no targets. Check the text "No targets yet...".
+2. Add one target. Check that a tile replaces the empty text.
+3. Stop the collector while the overview is open. Wait for one 5 s poll. Check
+   the banner "Collector unavailable".
+4. Start the collector again. Check that the banner clears and that the tiles
+   update.
+
+Expected results: With no targets, the page shows "No targets yet...". When
+the collector stops, the banner "Collector unavailable" appears. The banner
+clears and the tiles update when the collector returns.
+
+## QA-086: Overview polling and hidden tab
+
+Feature: Targets overview. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: At least two targets. Open the overview in one browser tab.
+Open the browser network panel.
+
+1. Watch the collector requests for 30 s. Check that the overview requests
+   data about every 5 s.
+2. Switch to another browser tab for 30 s. Check that the overview sends no
+   requests while its tab is hidden.
+3. Return to the overview tab. Check that the tiles update.
+
+Expected results: The overview polls every 5 s while its tab is visible. It
+polls nothing while its tab is hidden. The tiles update when the tab returns.
+
+## QA-087: Overview in dark and light themes
+
+Feature: Targets overview appearance. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: At least two targets at different levels.
+
+1. Set the theme to Dark. Check that the page background is matte black.
+2. Check that the status dots, colored left edges, count pills, verdict pills,
+   and badges are readable.
+3. Set the theme to Light. Check that the overview uses light colors and that
+   each level keeps its color meaning.
+4. Set the theme to System. Change the operating system between dark and light.
+   Check that the overview follows the change.
+
+Expected results: The dark overview has a matte black background. Level
+colors keep their meaning in both themes. The overview follows System.
+
+## QA-088: Keyboard focus and help topics on the overview
+
+Feature: Targets overview help. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: At least two targets at different levels.
+
+1. Press Tab until a tile has focus. Check that the focus is visible.
+2. Press Enter on the focused tile. Check that the target dashboard opens.
+3. Return with the browser Back button. Press Tab again. Check that the focus
+   order follows the sorted tile order.
+4. Focus a tile and wait 1,200 ms. Check that the help card for `fleet-tile`
+   opens. Check that its text says the verdict uses only the latest live view
+   and that trend rules do not run on tiles.
+5. Open the help for the Targets heading. Check that the help card for `fleet`
+   describes the level counts. Open its detailed guide from the information
+   button.
+
+Expected results: Each tile can get keyboard focus, and Enter opens its target.
+The `fleet` and `fleet-tile` help topics open with the same delay and
+behavior as other dashboard help.

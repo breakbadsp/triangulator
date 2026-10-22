@@ -24,7 +24,9 @@ is [proposed](docs/multi-target-design.md).
 </p>
 
 The animation shows an earlier layout. The current dashboard opens on
-**Summary**: Assessment, key measurements, process load, and memory use.
+**Targets**: one tile per monitored process, with its assessment. Select a
+tile to open that process on **Summary**: Assessment, key measurements,
+process load, and memory use.
 Use the section links for **Threads**, **Resources**, **Sockets**, **Memory**,
 **Monitor**, and **Settings**. Open **Timeline** below the summary charts for
 recordings and past assessments.
@@ -219,8 +221,8 @@ recorded execution result.
 | PASSED | 40 | - |
 | FAILED | 7 | QA-004, QA-007, QA-060, QA-061, QA-071, QA-075, QA-078 |
 | BLOCKED | 10 | QA-006, QA-008, QA-012, QA-013, QA-014, QA-049, QA-050, QA-051, QA-066, QA-112 |
-| NOT_RUN | 38 | QA-009, QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-062, QA-063, QA-064, QA-067, QA-068, QA-069, QA-070, QA-079, QA-080, QA-081 |
-| **Total** | **95** | |
+| NOT_RUN | 45 | QA-009, QA-020, QA-021, QA-022, QA-023, QA-024, QA-025, QA-026, QA-028, QA-029, QA-030, QA-031, QA-034, QA-035, QA-036, QA-037, QA-038, QA-039, QA-045, QA-046, QA-048, QA-052, QA-053, QA-054, QA-055, QA-056, QA-057, QA-058, QA-062, QA-063, QA-064, QA-067, QA-068, QA-069, QA-070, QA-079, QA-080, QA-081, QA-082, QA-083, QA-084, QA-085, QA-086, QA-087, QA-088 |
+| **Total** | **102** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

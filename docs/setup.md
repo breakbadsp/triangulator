@@ -355,7 +355,13 @@ Remaining work is tracked in [TODO.md](../TODO.md#deployment-dependencies).
 
 ## Dashboard
 
-The page opens on **Summary**. It shows Assessment first, then key measurements,
+The dashboard opens on **Targets**, one tile per monitored process, worst
+first. Each tile shows the verdict of the Assessment rules for the latest live
+view, the worst finding, and threads, CPU, memory, and the last update. Select
+a tile to open that process. **All targets** in the header returns to the
+overview. A link with `?target=host/id` opens one process directly.
+
+The process page opens on **Summary**. It shows Assessment first, then key measurements,
 process load, and memory use. The browser builds this view from `/api/live`.
 The summary adds no sampler measurements. The collector records the API view
 when dashboard recording is enabled.

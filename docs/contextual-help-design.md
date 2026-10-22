@@ -199,6 +199,9 @@ and value. Legend help explains the series without changing its toggle action.
 | Folded panels | ▸ heading opens and closes; choice kept in this browser; Monitor health, Address space & zoom and Network stack drops open by themselves for an Assessment warning of their kind (monitoring, memory, resources and network) until the user chooses; covered by the page guide and each panel's own topic |
 | Target and connection | Process name versus PID; name matching; session; connected, silent, and absent states |
 | Multiple targets | Per-tab URL selection; host and ID; state reset on a switch; limited access; sampler CPU budget and effective rate; attention on other targets; local add/remove confirmation |
+| Targets overview heading and counts (`fleet`) | Level count pills; number of tiles; worst-first sort, then key; tab title count prefix; No targets yet empty state; Collector unavailable banner; 5 s polling and no polling while the tab is hidden |
+| Target tiles (`fleet-tile`) | Status dot and left edge color by level; verdict pill; host, target ID, and PID line; worst finding and N more findings; Threads, CPU, Memory, and Updated stats; Limited access and Sampler throttled badges; verdicts use only the latest live view, so trend rules do not run on tiles; tile link and middle-click |
+| All targets link (`fleet`) | Back link at the left of the top bar in a target dashboard; return to the overview; browser Back; empty `?target=` opens the default target; no remembered last target |
 | Final view banner | Target stopped reporting; final view and kept trends; Show live; collector copy after reload; restart without an absent session |
 | Color theme | System, Light, and Dark; saved browser preference; blocked storage |
 | Memory use | Physical memory versus mapped address space; RSS and VmSize charts and their sample steps; shared chart window; missing samples |
