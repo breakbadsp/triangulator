@@ -65,6 +65,38 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 - [ ] Click a past critical, serious or warning assessment to see the system
   state at that time.
 
+## Targets overview page
+
+The dashboard opens on the Targets overview: one tile per target. Work for
+this page goes to the `feature/fleet-overview` branch first.
+
+- [ ] Move target add and remove to the overview. Show an "Add target" tile
+  at the end of the grid and a remove action on each tile, with the same
+  confirmation and server check as Manage targets today. Remove the Manage
+  targets panel from the target dashboard.
+- [ ] When a process name matches more than one process, list the matching
+  PIDs (with command line, user, and start time) and let the user select
+  one, instead of the "multiple processes named" error.
+  `scripts/sampler_control.py` already finds the PIDs.
+- [ ] When the pointer stays on a tile that has findings, show a card with
+  the findings (level, title, detail), worst first. Keep it reachable with
+  the keyboard (focus shows the same card).
+- [ ] Add a filter box and severity filters when there are more than about
+  12 tiles, and keep the filter in the URL so a support link shows the same
+  view.
+- [ ] Add previous and next target shortcuts on the target dashboard, in
+  the order of the overview, so support can step through problem targets.
+- [ ] Run the trend rules (thread growth, thread churn, long futex waits)
+  for tiles. They need history: store thread-count history in the collector
+  (see Diagnostic accuracy), or let the collector send a short summary per
+  target. A deadlocked process shows "Healthy" on its tile today.
+- [ ] Measure the overview cost with many targets. Each poll reads the
+  full live view of every target (about 330 KB with 1,000 threads). If it
+  is too much, add a collector summary endpoint with a few numbers per
+  target and run only the rules that need threads in the browser.
+- [ ] Decide whether the whole dark theme uses the matte black of the
+  overview page, so both pages look the same.
+
 ## Release QA
 
 - [ ] Test package upgrades (QA-006) when a second release is available.
