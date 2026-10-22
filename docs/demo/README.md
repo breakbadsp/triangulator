@@ -12,4 +12,4 @@ the animation.
 | [constraints.svg](constraints.svg) | The sampler rules, the two known exceptions, and the split between core and separate programs. |
 
 The rates are defaults. A local `sampler.toml` or `collector.toml` can set other
-values. See [setup](../setup.md) and [target impact](../target-impact.md).
+values. See [configuration](../../config/) and [target impact](../target-impact.md).

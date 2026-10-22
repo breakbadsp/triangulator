@@ -12,9 +12,8 @@ The sampler must keep its overhead on the target host negligible. Run exactly
 one sampler on each host, and keep it single-threaded. See
 [Sampler constraints](../AGENTS.md#sampler-constraints) and the
 [multi-target design](../docs/multi-target-design.md).
-The current sampler monitors one target process and its threads. Multi-target
-support is proposed. The optional eBPF socket observer is a separate, opt-in
-process; see [Socket I/O setup](../docs/setup.md#socket-io-and-messages-processed).
+One sampler monitors several targets and their threads. The optional eBPF socket observer is a separate, opt-in
+process; see [socket observer startup](../scripts/watch-sockets.sh).
 
 ## Quick start
 
@@ -58,8 +57,8 @@ Set `target_process` or `target_pid` in the configuration.
 Send `SIGHUP` to apply configuration changes.
 
 [Configuration example](../config/sampler.toml) ·
-[Architecture](../docs/architecture.md) ·
-[Resource data](../docs/resource-monitoring.md) ·
+[Design decisions](../docs/design-decisions.md) ·
+[Measurement limits](../docs/measurement-limits.md) ·
 [Collector](../collector/README.md)
 
 ## Multiple targets
