@@ -97,7 +97,7 @@ Status on 2026-10-21. The results above stay as recorded for `384352f`.
 
 - ISS-4 and ISS-8: intended behavior. A selector change made outside the tab
   keeps the final view until **Show live**
-  ([final view](../../../collector-reference.md#final-view-after-the-target-exits)).
+  ([final view](../../../design-decisions.md)).
   QA-004 revision 2 (PR #123) expects this. Retest QA-004.
 - ISS-5: fixed in PR #123. QA-033 revision 2 expects the watch warning.
 - ISS-6: not a defect. `last_ran` is the time of the sample that saw the wake,

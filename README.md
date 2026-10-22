@@ -14,8 +14,8 @@
 
 Monitor a Linux process, its threads, CPU demand, wait channels, memory, and socket I/O.
 Inspect live activity or return to a recorded moment.
-The current sampler monitors one target process. Support for several targets
-is [proposed](docs/multi-target-design.md).
+One sampler monitors several targets on each host. See the
+[multi-target decisions](docs/multi-target-design.md).
 
 ## Dashboard tour
 
@@ -38,20 +38,17 @@ header to select **System**, **Light**, or **Dark**. Metric help includes a
   <img src="docs/assets/features.svg" alt="Animated examples: thread states, wait timelines, and resource pressure." width="100%">
 </p>
 
-| Find the problem | Open the guide |
-| --- | --- |
-| CPU demand, busy threads, kernel waits | [Dashboard](docs/setup.md#dashboard) · [Metric help](collector/README.md#dashboard-help) |
-| Threads that stop waking or keep a core busy | [Watched threads and settings](docs/collector-reference.md#watched-threads) |
-| Memory use, address mappings, page faults | [Memory map](docs/memory-map.md) |
-| CPU, memory, and I/O pressure; resource limits | [Resource monitoring](docs/resource-monitoring.md) |
-| Why the process died: segfault, OOM killer | [Process exit reasons](docs/process-exit.md) |
-| Socket bytes, rates, and message completion | [Optional eBPF setup](docs/setup.md#socket-io-and-messages-processed) · [Measurement limits](docs/socket-ingress-design.md) |
+- Read metric help in the dashboard for sources, units, and interpretation.
+- See [measurement limits](docs/measurement-limits.md) before drawing conclusions from samples.
+- See [collector settings](config/collector.toml) for watched threads.
 
 ## Quick start
 
 Use Linux and run as the monitored process user.
-Install the [build requirements](docs/build-guidelines.md#dependencies), including Python 3.11+ for target control.
-Prefer binaries? Use the [release package guide](docs/setup.md#install-from-a-release-package).
+Source builds need a C++23 compiler with `std::expected` and `std::format`, Make,
+SQLite development files, and static C/C++ runtime libraries.
+Target control needs Python 3.11+. Tests also need Node.js.
+Prefer binaries? See [release packages](#release-packages).
 
 ```sh
 git clone https://github.com/breakbadsp/triangulator.git
@@ -69,9 +66,11 @@ monitored processes. The target selector changes only the current tab.
 | History | Recordings: 1 s · Retention: 7 days · Raw samples: enabled |
 | Runtime files | `~/triangulator/` |
 
-[Stop and restart](docs/setup.md#stop-restart-and-change-settings) ·
-[Settings and logs](docs/setup.md#active-files-and-logs) ·
-[Storage costs](docs/collector-reference.md#historical-process-inspection)
+Use `scripts/stop.sh` to stop. Use `scripts/restart.sh all` after source changes.
+Active configuration, logs, and data are under `~/triangulator/`.
+Use `TRIANGULATOR_HOME` for an isolated installation.
+Raw samples and recordings can use substantial disk space; configure retention
+in [collector.toml](config/collector.toml).
 
 Monitor several processes with one sampler:
 
@@ -91,8 +90,9 @@ Use unique target IDs. Keep at least one target. See
   <img src="docs/assets/architecture.svg" alt="The sampler reads /proc and sends UDP to the collector. The collector stores SQLite day files and serves the dashboard over HTTP. Alerting is not connected." width="100%">
 </p>
 
-[Sampler benchmark](docs/sampler-benchmark.html) · [Sampler impact on the target](docs/target-impact.md) · [Architecture](docs/architecture.md) · [Sampler design](docs/thread-monitor-design.md) ·
-[Collector and API](docs/collector-reference.md) · [Deployment](docs/setup.md#production-setup)
+[Design decisions](docs/design-decisions.md) ·
+[Sampler impact](docs/target-impact.md) ·
+[Sampler](sampler/README.md) · [Collector and API](collector/README.md)
 
 <details>
 <summary>Inside the collector: animated data flow and packet recovery</summary>
@@ -101,7 +101,7 @@ Use unique target IDs. Keep at least one target. See
 
 <img src="docs/assets/resilience.svg" alt="The collector reorders datagrams and uses partial ticks when packets are lost." width="100%">
 
-[Protocol and limits](docs/setup.md#how-it-behaves) · [Wire format overview](docs/wire-format-overview.html) (open the HTML file locally)
+[Measurement limits](docs/measurement-limits.md) · [Wire format overview](docs/wire-format-overview.html) (open the HTML file locally)
 
 </details>
 
@@ -117,7 +117,7 @@ recorded moment. Filter past findings by severity and type. Scroll the list or
 select **Load earlier** to check an earlier period. Select **Live** to return.
 Past assessments check selected recordings in the browser. They can miss brief
 problems and are computed again after a page reload.
-[Recording and replay limits](docs/collector-reference.md#historical-process-inspection)
+[Recording and replay limits](docs/measurement-limits.md#sampling-and-history)
 
 ## Performance
 
@@ -230,17 +230,24 @@ recorded execution result.
 
 ## Documentation
 
-| Task | Links |
-| --- | --- |
-| Install and run | [Setup guide](docs/setup.md) · [Release packages](docs/setup.md#install-from-a-release-package) · [Build](docs/build-guidelines.md) |
-| Configure and deploy | [Configuration](docs/setup.md#configuration) · [Systemd services](docs/setup.md#production-setup) · [Files and logs](docs/setup.md#active-files-and-logs) |
-| Understand measurements | [Linux metric coverage](docs/linux-monitoring.md) · [Resources](docs/resource-monitoring.md) · [Memory](docs/memory-map.md) · [Sockets](docs/socket-ingress-design.md) |
-| Inspect data | [Dashboard](docs/setup.md#dashboard) · [Collector, storage, and API](docs/collector-reference.md) |
-| Understand the code | [Sampler benchmark](docs/sampler-benchmark.html) · [Architecture](docs/architecture.md) · [HTTP server animation](docs/dashboard-http-animation.html) · [Repository layout](docs/setup.md#layout) · [C++ standards](docs/cpp-coding-standards.md) |
-| Test and contribute | [Bug lab](bug-lab/README.md) · [Manual QA](docs/manual-qa.md) · [Test cases](docs/qa/test-cases.md) · [Planned work](TODO.md) |
+- [Design decisions](docs/design-decisions.md) and [multi-target decisions](docs/multi-target-design.md).
+- [Measurement limits](docs/measurement-limits.md) and [C++ standards](docs/cpp-coding-standards.md).
+- [Sampler](sampler/README.md), [collector](collector/README.md), and [configuration](config/).
+- [HTTP server animation](docs/dashboard-http-animation.html) and [wire format animation](docs/wire-format-overview.html).
+- [Bug lab](bug-lab/README.md), [manual QA](docs/manual-qa.md), [test cases](docs/qa/test-cases.md), and [planned work](TODO.md).
+
+## Release packages
+
+- Download matching sampler and collector archives and their `.sha256` files from [Releases](https://github.com/breakbadsp/triangulator/releases).
+- Choose `el8` or `el9` for the target platform. Install the sampler on the monitored host and the collector on the monitoring host.
+- Check each archive with `sha256sum -c ARCHIVE.sha256`, then extract with `tar -xzf ARCHIVE -C ~`.
+- On one host, run `~/triangulator/scripts/start.sh`, then `~/triangulator/scripts/set-target.sh PID`.
+- For separate hosts, set the sampler's collector address and the collector's allowed sampler address in their active configuration. Set `clock_ticks` from `getconf CLK_TCK` on the sampler host.
+- Keep HTTP on loopback. For remote access, use `ssh -L 9401:127.0.0.1:9401 USER@COLLECTOR_HOST` and open <http://127.0.0.1:9401>.
+- Service examples: [deploy](deploy/). Optional socket observer: [startup script](scripts/watch-sockets.sh).
 
 **Limits:** Socket observation requires optional eBPF setup. Message counts require an application marker.
 [Alert delivery](alerting/README.md) is not connected. UDP and HTTP have no authentication;
-use the [remote access setup](docs/setup.md#install-from-a-release-package).
+use loopback HTTP and the SSH tunnel above.
 
 [MIT license](LICENSE)

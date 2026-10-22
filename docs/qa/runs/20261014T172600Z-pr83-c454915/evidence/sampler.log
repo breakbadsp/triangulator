@@ -1,2 +1,0 @@
-triangulator: kernel log (/dev/kmsg) not readable: Operation not permitted; exit reports will have no kernel messages. Set kernel.dmesg_restrict = 0 to allow it
-triangulator: kernel log (/dev/kmsg) not readable: Operation not permitted; exit reports will have no kernel messages. Set kernel.dmesg_restrict = 0 to allow it
