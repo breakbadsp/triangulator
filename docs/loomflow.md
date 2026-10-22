@@ -20,7 +20,7 @@ Pick the models from the size of the change. Pass the model and effort to every 
 | --- | --- | --- | --- | --- | --- |
 | Small | `scan` | Haiku 5.5, medium | none | Sonnet 5.5, medium | Haiku 5.5, low |
 | Normal | other `full` changes | GPT 6.1 Sol or Sonnet 5.5, medium | Haiku 5.5, medium | Sonnet 5.5, medium | Haiku 5.5, low |
-| Major | a new feature or redesign; C++ on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
+| Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
 
 - Use two model families for A and B when possible. In any doubt between two sizes, use the larger one.
 - Never use Astra 6, also not as a fallback. Never use effort above `high`.

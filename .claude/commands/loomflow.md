@@ -13,13 +13,13 @@ Run LoomFlow, the review workflow, for pull request $ARGUMENTS. You are the orch
 
 ## Model and reasoning selection
 
-Follow "Model and reasoning selection" in `docs/loomflow.md`: it sets the model and effort of each role from the size of the change. If that file is absent: one reviewer for `scan`, two reviewers from different families for `full`, a stronger pair for major changes, Haiku for the gate. Never use Astra 6, and never use effort above `high`.
+Follow "Model and reasoning selection" in `docs/loomflow.md`: it sets the model and effort of each role from the size of the change. If that file is absent: one reviewer for `scan`, two reviewers from different families for `full`, a stronger pair, with one reviewer at `high`, for major changes and every sensitive-path change, Haiku for the gate. Never use Astra 6, and never use effort above `high`.
 
 ## Triage
 
 Pick the tier from `gh pr diff <PR> --name-only` and `gh pr diff <PR> | diffstat` (or count `+`/`-` lines). A tier named in the arguments wins. Never downgrade `full`.
 
-- `scan`: no changed file is on a sensitive path, and either all changed files are documentation (`*.md`, `*.txt`, images, `docs/`) or at most 30 lines change in at most 3 files. Sensitive paths: the list under "Review triage" in `AGENTS.md` (read it), plus `.github/workflows/`, build files (`Makefile`, `CMakeLists.txt`, `Cargo.toml`, `package.json`), lockfiles, auth or secrets, storage or wire formats, anything `AGENTS.md` calls critical. Documentation files on a sensitive path (for example `AGENTS.md`, `.claude/**/*.md`, `docs/loomflow.md`) are `full`.
+- `scan`: no changed file is on a sensitive path, and either all changed files are documentation (`*.md`, `*.txt`, images, `docs/`) or at most 30 lines change in at most 3 files. Sensitive paths: the list under "Review triage" in `AGENTS.md` (read it), plus `.github/workflows/`, build files (`Makefile`, `CMakeLists.txt`, `Cargo.toml`, `package.json`), lockfiles, auth or secrets, storage or wire formats. Documentation files on a sensitive path (for example `AGENTS.md`, `.claude/**/*.md`, `docs/loomflow.md`) are `full`.
 - `full`: everything else, and any doubt.
 
 State the tier and the reason in one line before continuing.
