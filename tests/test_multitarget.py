@@ -608,9 +608,7 @@ class MultiTargetSamplerTests(unittest.TestCase):
     def stop(self):
         if self.sampler is not None:
             self.sampler.terminate()
-            # ThreadSanitizer defers SIGTERM until the next tick, which is up
-            # to five seconds away at the 0.2 Hz minimum rate.
-            _, stderr = self.sampler.communicate(timeout=15)
+            _, stderr = self.sampler.communicate(timeout=5)
             self.assertEqual(self.sampler.returncode, 0, stderr.decode())
         for target in self.targets:
             if target.poll() is None:
@@ -732,3 +730,22 @@ class MultiTargetSamplerTests(unittest.TestCase):
                     changed.add(packet.session)
         self.assertEqual(announced, set(sessions.values()))
         self.assertEqual(changed, set(sessions.values()), "rate changes keep the target sessions")
+
+    def test_stop_interrupts_the_minimum_rate_sleep(self):
+        # Stop during a five-second wait, including with ThreadSanitizer.
+        self.configure([0], rate=0.2)
+        self.collect_sessions([0])
+        time.sleep(0.1)
+        self.sampler.terminate()
+        _, stderr = self.sampler.communicate(timeout=1)
+        self.assertEqual(self.sampler.returncode, 0, stderr.decode())
+
+    def test_reload_interrupts_the_minimum_rate_sleep(self):
+        # Reload during a five-second wait and receive the new session promptly.
+        self.configure([0], rate=0.2)
+        sessions = self.collect_sessions([0])
+        time.sleep(0.1)
+        self.configure([0], rate=10)
+        self.receiver.settimeout(1)
+        changed = self.collect_sessions([0], sessions, changed=True)
+        self.assertNotEqual(changed, sessions)
