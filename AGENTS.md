@@ -60,6 +60,15 @@ See [Multi-target design](docs/multi-target-design.md).
   disclosure needs a contextual help topic in the same change. Follow
   [Help for new dashboard features](docs/contextual-help-design.md#help-for-new-dashboard-features).
 
+## Documentation
+
+- Do not write docs for what the code shows. Write them only for what code
+  cannot show: why x was chosen over y, constraints, and how to operate or
+  verify the system. Prefer a clear name or a short code comment to a doc
+  page. Keep docs short, and remove a doc when the code makes it redundant.
+- Dashboard help topics and manual QA cases are product and test material.
+  They stay required.
+
 ## Manual QA
 
 - When adding a user-visible feature, add or update its cases in
