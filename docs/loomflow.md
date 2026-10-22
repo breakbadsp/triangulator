@@ -10,10 +10,22 @@
 - Use `scan` only when no sensitive path changes and either all files are documentation or at most 30 lines change in at most three files.
 - Sensitive paths include CI, build files, dependency manifests/locks, auth/secrets, storage/wire formats, and the repository's list. Documentation on these paths still needs `full`.
 - Use `full` for every other change or any doubt. A user-requested `full` cannot be downgraded.
-- `scan` uses one quick reviewer. `full` uses one large capable reviewer and one small quick reviewer, in parallel on the same head SHA.
-- Prefer different model families, including one different from the orchestrator. If unavailable, keep the large-and-small pair in the available family. Never use two large reviewers.
-- Check the remaining token budget before each role. Use low effort for simple work or small/unknown budgets; medium otherwise. Use high only for a concrete complex risk with enough budget for fixes and the gate.
-- Critical paths require Opus 5.5 at high effort, or GPT 6.1 Sol at high when available and limits permit. Never select Astra 6; use GPT 6.1 Sol at high instead. This overrides the normal effort rule.
+- `scan` uses one reviewer. `full` uses two reviewers in parallel on the same head SHA.
+
+## Model and reasoning selection
+
+Pick the models from the size of the change. Pass the model and effort to every role; role defaults are only fallbacks.
+
+| Size | When | Reviewer A | Reviewer B | Analyzer | Gate |
+| --- | --- | --- | --- | --- | --- |
+| Small | `scan` | Haiku 5.5, medium | none | Sonnet 5.5, medium | Haiku 5.5, low |
+| Normal | other `full` changes | GPT 6.1 Sol or Sonnet 5.5, medium | Haiku 5.5, medium | Sonnet 5.5, medium | Haiku 5.5, low |
+| Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
+
+- Use two model families for A and B when possible. In any doubt between two sizes, use the larger one.
+- Never use Astra 6, also not as a fallback. Never use effort above `high`.
+- Haiku does the gate and other mechanical work: its runs stay far below its context limit, and they need no deep reasoning. It is not a reviewer for major changes.
+- Lower the effort, never the size, when the token budget is low.
 
 ## Review method
 
