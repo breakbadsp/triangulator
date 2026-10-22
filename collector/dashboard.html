@@ -41,9 +41,9 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .theme-picker select{font-size:13px;min-height:36px;background:var(--surface-2)}
 .target strong{font-size:14px}
 .target button{font-size:12px;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.target-form{display:grid;gap:14px;margin-top:16px}
+.target-form{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:16px}
 .target-form label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
-.target-form input{width:100%}
+.target-form input,.target-form select{width:100%;min-width:0;text-overflow:ellipsis}
 .target-choice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .target:has(#target-select:not([hidden])) .target-choice{flex-basis:100%}
 .target .help-button{padding:0;border-radius:6px}
