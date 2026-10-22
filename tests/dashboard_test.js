@@ -3170,3 +3170,13 @@ test('Add target dialog holds the help surfaces so they stay usable', async () =
   const dialog = app.elements.get('target-settings');
   for (const id of ['help-guide', 'tip', 'help-scrim']) assert.equal(app.elements.get(id).parent, dialog, id);
 });
+
+test('narrow-viewport help guide inside the Add target dialog is not made inert', async () => {
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse({enabled: true}) : fleetRespond(url), {target: null});
+  await app.run('openTargetDialog()');
+  app.run(`innerWidth=1000;innerHeight=800;helpContext={};
+    var fleetMain=element('fleet'),otherMain={contains:()=>false,inert:false};fleetMain.inert=false;fleetMain.children=[element('target-settings')];
+    document.querySelectorAll=()=>[fleetMain,otherMain];syncHelpLayout()`);
+  assert.equal(app.run('fleetMain.inert'), false);
+  assert.equal(app.run('otherMain.inert'), true);
+});

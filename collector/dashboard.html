@@ -1434,7 +1434,9 @@ function syncHelpLayout(){
   const guide=element('help-guide');guide.setAttribute('role',helpModal?'dialog':'complementary');
   if(helpModal)guide.setAttribute('aria-modal','true');else guide.removeAttribute('aria-modal');
   element('help-scrim').hidden=!helpModal;
-  for(const el of document.querySelectorAll('body > header,body > main,body > #drawer,body > #error'))el.inert=helpModal;
+  // An open modal dialog already blocks the page behind it. Its parent must not be inert, or the guide inside it would be too.
+  const dialog=element('target-settings');
+  for(const el of document.querySelectorAll('body > header,body > main,body > #drawer,body > #error'))el.inert=helpModal&&!(dialog.open&&el.contains(dialog));
   element('scrim').classList.remove('open');
   if(helpModal&&!guide.contains(document.activeElement))element('help-guide-title').focus();
 }
