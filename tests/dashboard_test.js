@@ -80,7 +80,8 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       get isConnected() {return this.attached || !!this.parent?.isConnected;},
       contains(other) {return other === this || this.children.some(child => child?.contains?.(other));},
       getBoundingClientRect() {return {top: 10, bottom: 30, left: 10, right: 100, width: 90, height: 20};},
-      matches() {return false;}, focus() {}, addEventListener() {}};
+      matches() {return false;}, focus() {}, addEventListener() {},
+      showModal() {this.open = true;}, close() {this.open = false;}};
   }
   const ranges = [900, 3600, 21600, 86400].map(seconds => {
     const button = element(); button.dataset.range = String(seconds); return button;
@@ -139,12 +140,12 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
 }
 
 test('target editor loads the selector and sends one validated dashboard write', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   app.setFetch(async () => ({ok: true, json: async () => ({enabled: true, target: 'worker'})}));
-  app.run("element('target-settings').hidden=true");
-  await app.run('toggleTarget()');
-  assert.equal(app.elements.get('target-toggle').hidden, false);
-  assert.equal(app.elements.get('target-toggle').attrs['aria-expanded'], 'true');
+  await app.run('openTargetDialog()');
+  assert.equal(app.elements.get('fleet-add').hidden, false);
+  assert.equal(app.elements.get('target-settings').open, true);
+  app.run('refreshFleet=async()=>{}');
   assert.equal(app.elements.get('target-input').value, 'worker');
   app.elements.get('target-input').value = ' 1234 ';
   const writes = [];
@@ -169,10 +170,10 @@ test('target editor loads the selector and sends one validated dashboard write',
 });
 
 test('target editor reports rejection and can retry; unavailable control stays hidden', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   app.setFetch(async () => ({ok: true, json: async () => ({enabled: false})}));
   await app.run('loadTarget()');
-  assert.equal(app.elements.get('target-toggle').hidden, true);
+  assert.equal(app.elements.get('fleet-add').hidden, true);
   app.run("element('target-input').value='worker'");
   app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker'})}));
   await app.run('saveTarget({preventDefault(){}})');
@@ -1487,16 +1488,6 @@ test('a reloaded tab restores the final view and its saved trends', async () => 
   assert.equal(restored.run('buffer.length'), 101);
 });
 
-test('changing the target from this tab is not reported as an exit', async () => {
-  const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'session-1'})));
-  tick(app, 1000, 50);
-  app.run('leftByChoice.add(bufferSession)');
-  await app.run('refresh()');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-2');
-  assert.ok(!app.requests.includes('/api/last-target'));
-});
-
 test('a tab opened after the exit uses the collector view once, and Show live keeps it closed', async () => {
   const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'old-session'}), frame(1000)));
   // The dashboard's own first poll fetches the view; let it finish.
@@ -1532,29 +1523,6 @@ test('returning from a recording goes back to the final view', async () => {
   assert.equal(app.run('live.health.session'), 'session-1');
   assert.equal(app.run('buffer.length'), 101);
   assert.ok(app.run('frozen') !== null);
-});
-
-test('changing the target from a final view does not freeze the session that was monitored', async () => {
-  let view = absent();
-  const app = dashboard(new Map(), url => url === '/api/target'
-    ? jsonResponse({target: 'other', message: 'Target changed'}) : polls(() => view)(url));
-  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
-  await app.run('refresh()');
-  assert.equal(app.run('live.health.session'), 'session-1');
-  // The sampler now monitors session-3; this tab still shows session-1.
-  view = {health: {session: 'session-3', target_absent: false, pid: 77},
-    threads: [{tid: 77, generation: 1, name: 'next', last_sample: 1200, cpu_pct: 5, state: 'sleep'}]};
-  await app.run('refresh()');
-  app.run("element('target-input').value='other'");
-  await app.run('saveTarget({preventDefault(){}})');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-3');
-  for (let time = 1201; time <= 1210; time++) tick(app, time, 5, 'session-3');
-  view = absent('session-4', {session: 'session-3'});
-  await app.run('refresh()');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-4');
-  assert.ok(!app.requests.includes('/api/last-target'));
 });
 
 test('an exit during a recording returns to the final view, not the next process', async () => {
@@ -3014,18 +2982,20 @@ test('the selector stays visible while the selected target is unavailable', () =
 });
 
 test('target management checks an add, then requires confirmation before one global write', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   const bodies = [];
   app.setFetch(async (url, options) => {bodies.push(JSON.parse(options.body));return {ok: true,json:async()=>({targets:[],message:'Reload requested.'})};});
   app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return false};`);
   await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
   assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true}]);
   assert.equal(app.run('questions'), 1);
-  app.run("confirm=()=>true;refreshTargets=async()=>{}");
+  app.run("confirm=()=>true;refreshFleet=async()=>{};element('target-settings').showModal()");
   bodies.length = 0;
   await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
   assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true},
                             {action: 'add', id: 'orders', target: '456'}]);
+  assert.equal(app.elements.get('target-settings').open, false, 'a completed add closes the dialog');
+  assert.equal(app.elements.get('fleet-status').textContent, 'Reload requested.');
   // A removal is not checked first.
   bodies.length = 0;
   await app.run("changeManagedTarget({action:'remove',id:'orders',target:'456'})");
@@ -3033,7 +3003,7 @@ test('target management checks an add, then requires confirmation before one glo
 });
 
 test('an add that fails its check is rejected before the confirmation', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   let writes = 0;
   app.setFetch(async () => {writes++;return {ok: false,json:async()=>({error:'no running process with PID 999999'})};});
   app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return true};`);
@@ -3087,8 +3057,10 @@ test('overview page shows one tile per target, worst first, and links to each da
   assert.equal(app.run('document.documentElement.dataset.page'), 'fleet');
   await app.run('refreshFleet()');
   assert.ok(!app.requests.some(url => /^\/api\/(live|replay|resources|socket-io|watches)$|^\/api\/(replay|resources)\?/.test(url)), 'the overview starts no dashboard loop');
-  const tiles = app.elements.get('fleet-grid').children;
-  assert.deepEqual(tiles.map(tile => tile.href), ['?target=h%2Fbusy', '?target=h%2Fapi', '?target=h%2Fgone']);
+  const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
+  assert.equal(app.elements.get('fleet-grid').children.at(-1), app.elements.get('fleet-add'));
+  const link = tile => tile.children[0].children[1];
+  assert.deepEqual(tiles.map(tile => link(tile).href), ['?target=h%2Fbusy', '?target=h%2Fapi', '?target=h%2Fgone']);
   assert.deepEqual(tiles.map(tile => tile.dataset.level), ['serious', 'good', 'unknown']);
   assert.match(tileText(tiles[0]), /busy is saturating a core/);
   assert.match(tileText(tiles[0]), /Limited access/);
@@ -3148,4 +3120,23 @@ test('a target dashboard does not start the overview', () => {
   assert.equal(app.run('document.documentElement.dataset.page'), 'target');
   assert.ok(app.requests.includes('/api/live?target=h%2Fapi'));
   assert.equal(app.run('fleetTiles.size'), 0);
+});
+
+test('overview tiles offer Remove only for targets of the local sampler', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  app.run("managedTargets=[{id:'api',target:'api'},{id:'busy',target:'busy'}];controlHost='h'");
+  await app.run('refreshFleet()');
+  const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
+  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  assert.deepEqual(tiles.map(tile => !!remove(tile)), [true, true, false]);
+  const bodies = [];
+  app.run('confirm=()=>true;refreshFleet=async()=>{}');
+  app.setFetch(async (url, options) => {bodies.push(JSON.parse(options.body)); return {ok: true, json: async () => ({targets: [], message: 'Reload requested.'})};});
+  await remove(tiles[1]).onclick();
+  assert.deepEqual(bodies, [{action: 'remove', id: 'api', target: 'api'}]);
+  assert.equal(app.elements.get('fleet-status').textContent, 'Reload requested.');
+  // A tile of another host has no Remove, even with the same target ID.
+  app.run("controlHost='other'");
+  app.run(`renderFleet(${JSON.stringify(fleetTargets)}, new Map())`);
+  assert.ok(app.elements.get('fleet-grid').children.slice(0, -1).every(tile => !remove(tile)));
 });
