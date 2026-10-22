@@ -3180,3 +3180,39 @@ test('narrow-viewport help guide inside the Add target dialog is not made inert'
   assert.equal(app.run('fleetMain.inert'), false);
   assert.equal(app.run('otherMain.inert'), true);
 });
+
+test('an ambiguous process name lists the matching processes and a choice fills in the PID', async () => {
+  const app = dashboard(new Map(), () => undefined, {target: null});
+  const candidates = [{pid: 4100, user: 'app', started_at: Date.now() / 1000 - 7200, command: 'worker --queue orders'},
+    {pid: 4377, user: 'app', started_at: null, command: 'worker --queue billing'}];
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker; pass a PID from: [4100, 4377]', candidates})}));
+  app.run("managedTargets=[{id:'default',target:'1'}];confirm=()=>true");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'worker'})");
+  assert.equal(app.elements.get('target-candidates').hidden, false);
+  const options = app.elements.get('target-pid').children;
+  assert.deepEqual(options.map(option => option.value), ['', '4100', '4377']);
+  assert.equal(options[1].textContent, 'PID 4100 · app · started 2 h ago · worker --queue orders');
+  assert.equal(options[2].textContent, 'PID 4377 · app · worker --queue billing');
+  assert.match(app.elements.get('target-status').textContent, /2 processes are named worker/);
+  app.elements.get('target-pid').value = '4377';
+  app.run("element('target-pid').onchange()");
+  assert.equal(app.elements.get('target-input').value, '4377');
+  assert.match(app.elements.get('target-status').textContent, /does not follow a restart/);
+  // Another error, or a new dialog, hides the list.
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'no running process with PID 4377'})}));
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'4377'})");
+  assert.equal(app.elements.get('target-candidates').hidden, true);
+});
+
+test('the ambiguous-name status counts every match and a local validation error hides the list', async () => {
+  const app = dashboard(new Map(), () => undefined, {target: null});
+  const candidates = Array.from({length: 20}, (_, i) => ({pid: 5000 + i, user: 'app', started_at: null, command: 'worker'}));
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker', candidates, total: 25})}));
+  app.run("managedTargets=[{id:'default',target:'1'}];confirm=()=>true");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'worker'})");
+  assert.equal(app.elements.get('target-pid').children.length, 21);
+  assert.match(app.elements.get('target-status').textContent, /25 processes are named worker; the first 20 are listed/);
+  app.run("element('target-id').value='.';element('target-input').value='other'");
+  await app.run('addManagedTarget()');
+  assert.equal(app.elements.get('target-candidates').hidden, true);
+});

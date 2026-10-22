@@ -70,10 +70,6 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 The dashboard opens on the Targets overview: one tile per target. Work for
 this page goes to the `feature/fleet-overview` branch first.
 
-- [ ] When a process name matches more than one process, list the matching
-  PIDs (with command line, user, and start time) and let the user select
-  one, instead of the "multiple processes named" error.
-  `scripts/sampler_control.py` already finds the PIDs.
 - [ ] When the pointer stays on a tile that has findings, show a card with
   the findings (level, title, detail), worst first. Keep it reachable with
   the keyboard (focus shows the same card).

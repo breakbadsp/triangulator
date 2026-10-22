@@ -41,9 +41,9 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .theme-picker select{font-size:13px;min-height:36px;background:var(--surface-2)}
 .target strong{font-size:14px}
 .target button{font-size:12px;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.target-form{display:grid;gap:14px;margin-top:16px}
+.target-form{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:16px}
 .target-form label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
-.target-form input{width:100%}
+.target-form input,.target-form select{width:100%;min-width:0;text-overflow:ellipsis}
 .target-choice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .target:has(#target-select:not([hidden])) .target-choice{flex-basis:100%}
 .target .help-button{padding:0;border-radius:6px}
@@ -507,6 +507,7 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 <dialog id="target-settings" class="target-dialog" aria-labelledby="target-dialog-title">
 <h2 id="target-dialog-title" data-help="manage-targets">Add target</h2><p class="muted">Monitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.</p>
 <form id="target-form" class="target-form"><span id="target-id-wrap" data-help="target-id"><label for="target-id">Target ID</label><input id="target-id" maxlength="31" pattern="[A-Za-z0-9_.\-]+" required autocomplete="off" spellcheck="false" placeholder="e.g. orders"></span><span><label for="target-input">Process name or PID</label><input id="target-input" name="target" placeholder="e.g. ghostty or 1234" required autocomplete="off" spellcheck="false"></span>
+<span id="target-candidates" data-help="target-pid" hidden><label for="target-pid">Matching processes</label><select id="target-pid"></select></span>
 <div class="dialog-actions"><button id="target-cancel" type="button">Cancel</button><button id="target-save" class="primary" type="submit">Add target</button></div></form>
 <p id="target-status" role="status" class="muted"></p>
 </dialog>
@@ -1054,6 +1055,7 @@ helpTopic('fleet-tile','Target tile','One target · latest live view','The proce
 helpTopic('target-attention','Other targets need attention','Targets outside this view','Count of other targets that are absent, silent, or throttled.','A count of 2 means two other targets need inspection.','Open the target selector and inspect their status.','This count does not identify the cause.',['target-switch','health','sampler-budget']);
 helpTopic('target-access','Limited access','Selected target','The sampler cannot read all process files.','CPU and thread states can remain available while I/O and memory maps are hidden.','Run the sampler as the target user for full access when process permissions permit it.','Access can also be limited for a process that disables inspection.',['wchan','memmap']);
 helpTopic('sampler-budget','Sampler throttled','Sampler host · all targets','The sampler reduced its shared rate because its CPU use exceeded the configured budget.','A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.','The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.','The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.',['health','target-switch']);
+helpTopic('target-pid','Matching processes','Add target · processes with the entered name','When the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.','Two processes named worker: PID 4100 · app · started 3 h ago · worker --queue orders, and PID 4377 · app · started 2 min ago · worker --queue billing. Select the first to monitor the orders worker.','A choice fills in its PID. Then select Add target. To monitor by name instead, stop the extra processes, or give them different names.','A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.',['manage-targets','target-id']);
 helpTopic('manage-targets','Manage targets','Targets overview · local sampler · every viewer','Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.','Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.','Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.','Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.',['target-id','target-switch','target']);
 helpTopic('target-id','Target ID','Sampler configuration','A stable name for one monitored target.','orders remains the same ID when orders-api restarts.','Use 1 to 31 letters, digits, dots, underscores, or hyphens. Each ID must be unique on its host.','An ID is not a process selector. Set a process name or PID as well.',['manage-targets','target-switch']);
 helpTopic('target','Process name or PID','Target selection','An exact process name follows matching process restarts. A PID selects one running process.','worker-service selects an exact name; 1234 selects a process ID.','A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.','Linux process names are limited to 15 bytes. A thread ID is not a process ID.',['session','health'],['Change target']);
@@ -1176,6 +1178,7 @@ helpSource('target-switch','Collector: `/api/targets`; URL `?target=host/id`','T
 helpSource('target-attention','Collector target status and sampler rate','The page counts absent, silent, and throttled entries from `/api/targets`, excluding the selected target.');
 helpSource('target-access','Sampler access checks for `/proc/PID/io` and `/proc/PID/maps`','The sampler reports limited access when these files cannot be opened. Permission changes are checked with each announcement.');
 helpSource('sampler-budget','`CLOCK_THREAD_CPUTIME_ID` and monotonic elapsed time','The sampler measures CPU time for all targets and sends raw counters in TTGT. The collector computes the percentage. The sampler lowers the rate after about five seconds above its budget.');
+helpSource('target-pid','Local control helper: `/proc/PID/comm`, `cmdline`, `stat`, and the owner of `/proc/PID`','The helper finds every process whose name equals the entered name, as the sampler does, and returns each PID with its user, start time (`/proc/PID/stat` field 22 and `btime`), and command line.');
 helpSource('manage-targets','Sampler configuration and the local control helper','The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.');
 helpSource('target-id','`[[target]] id` in sampler.toml','The sampler sends this stable ID in TTGT. A target key combines the sampler host name and this ID.');
 helpSource('target','Sampler `[[target]]` tables or legacy `target_process` and `target_pid`; names match `/proc/PID/comm`','Manage targets and `scripts/set-target.sh` write the configuration and ask the sampler to reload. For a name, the sampler compares it with `/proc/PID/comm` of every process. Check it yourself: `pgrep -x NAME`.');
@@ -2332,7 +2335,7 @@ async function loadTarget(quiet=false){try{let response=await apiFetch('/api/tar
 // A modal dialog makes everything outside it inert, so the help surfaces live inside it while it is open.
 const helpSurfaces=['help-scrim','help-guide','tip'];
 element('target-settings').addEventListener('close',()=>{closeGuide(false);document.body.append(...helpSurfaces.map(element))});
-async function openTargetDialog(){element('target-settings').showModal();element('target-settings').append(...helpSurfaces.map(element));
+async function openTargetDialog(){element('target-settings').showModal();element('target-settings').append(...helpSurfaces.map(element));showCandidates('',null);
   element('target-input').disabled=true;element('target-save').disabled=true;await loadTarget();element('target-input').disabled=false;element('target-save').disabled=false;
   element(managedTargets===null?'target-input':'target-id').focus()}
 async function saveTarget(event){event.preventDefault();if(element('target-save').disabled)return;
@@ -2346,7 +2349,15 @@ async function saveTarget(event){event.preventDefault();if(element('target-save'
   catch(error){targetStatus(error.message,true)}
   finally{element('target-save').disabled=false;element('target-input').disabled=false}}
 const postTargets=async body=>{const response=await apiFetch('/api/targets',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(body)});
-  const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to change targets');return data};
+  const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Unable to change targets'),{candidates:data.candidates,total:data.total});return data};
+// A name that matches several processes: list them, and a choice fills in its PID.
+function showCandidates(name,candidates,total=candidates?.length){
+  const wrap=element('target-candidates'),picker=element('target-pid');wrap.hidden=!candidates?.length;if(wrap.hidden)return;
+  const prompt=node('option',`Select one of ${candidates.length} listed`);prompt.value='';picker.replaceChildren(prompt);
+  for(const item of candidates){const option=node('option',['PID '+item.pid,item.user,isNum(item.started_at)?'started '+ago(Date.now()/1000-item.started_at):'',item.command].filter(Boolean).join(' · '));option.value=String(item.pid);picker.append(option)}
+  targetStatus(`${total} processes are named ${name}${total>candidates.length?`; the first ${candidates.length} are listed`:''}. Select one to monitor it by PID.`,true);picker.focus()}
+element('target-pid').onchange=()=>{const pid=element('target-pid').value;if(!pid)return;element('target-input').value=pid;
+  targetStatus(`PID ${pid} selected. A PID does not follow a restart. Select Add target.`);element('target-save').focus()};
 async function changeManagedTarget(change){
   if(element('target-save').disabled)return;
   element('target-save').disabled=true;
@@ -2358,9 +2369,10 @@ async function changeManagedTarget(change){
     managedTargets=data.targets;targetStatus(data.message);element('target-id').value='';element('target-input').value='';
     if(change.action==='add')element('target-settings').close();
     await refreshFleet();
-  }catch(error){targetStatus(error.message,true)}finally{element('target-save').disabled=false}
+  }catch(error){targetStatus(error.message,true);showCandidates(change.target,error.candidates,error.total)}finally{element('target-save').disabled=false}
 }
 async function addManagedTarget(){
+  showCandidates('',null);
   const id=element('target-id').value.trim(),target=element('target-input').value.trim();
   if(!/^[A-Za-z0-9_.-]{1,31}$/.test(id)||id==='.'||id==='..'||!target){targetStatus('Enter a valid target ID and process name or PID.',true);return}
   await changeManagedTarget({action:'add',id,target});
