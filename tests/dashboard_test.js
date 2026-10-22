@@ -72,6 +72,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
       append(...items) {for (const item of items) if (item && typeof item === 'object') item.parent = this; this.children.push(...items);},
+      remove() {if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null;},
       replaceChildren(...items) {
         for (const old of this.children) if (old && typeof old === 'object') old.parent = null;
         this.children = []; this.append(...items);
@@ -3234,4 +3235,25 @@ test('a tile with findings carries a card with the worst findings and the proces
   assert.match(tileText(card(busy)), /busy is saturating a core/);
   assert.match(tileText(card(busy)), /uses 99/);
   assert.equal(card(busy).children[1].children[0].className, 'lvl-serious');
+});
+
+test('a poll keeps the tile link element, so keyboard focus survives', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children[0];
+  const link = tile.children[0].children[1];
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.href, '?target=h%2Fbusy');
+  assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
+});
+
+test('a tile with only informational findings has no card', async () => {
+  const info = fleetView(10, 'api', 5);
+  info.threads.push({tid: 11, generation: 1, name: 'side', last_sample: info.threads[0].last_sample, cpu_pct: 1, run_delay_pct: 0, state: 'sleep'});
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fapi' ? jsonResponse(info) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const api = app.elements.get('fleet-grid').children.find(tile => tile.dataset.level === 'good');
+  assert.match(tileText(api), /No problems detected/);
+  assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
 });

@@ -2416,10 +2416,14 @@ function fillFleetTile(tile,target,view){
   const problems=assessment?.findings.filter(item=>item.level!=='info')||[];
   tile.dataset.level=level;
   const name=fleetName(target,view),pid=health.pid||target.pid;
-  const dot=node('span',undefined,'status-dot '+(target.status==='live'?'live':'critical'));
-  const link=node('a',name,'ft-name');link.href=targetHref(target.key);
+  // The top row stays the same elements across polls, so the focused link keeps focus.
+  let top=tile.firstChild;
+  if(!top){top=node('div',undefined,'ft-top');top.append(node('span'),node('a',undefined,'ft-name'),node('span',undefined,'ft-verdict'));tile.append(top)}
+  const [dot,link,verdict]=top.children;
+  dot.className='status-dot '+(target.status==='live'?'live':'critical');
+  link.textContent=name;link.href=targetHref(target.key);
   link.setAttribute('aria-label',`${name}, ${target.host} · ${target.id}: ${assessment?VERDICTS[level]:'no data'}. Open its dashboard.`);
-  const top=node('div',undefined,'ft-top');top.append(dot,link,node('span',assessment?VERDICTS[level]:'No data','ft-verdict'));
+  verdict.textContent=assessment?VERDICTS[level]:'No data';
   const summary=node('p',undefined,'ft-summary');
   if(!assessment)summary.textContent='The collector has no live view of this target yet.';
   else if(!problems.length)summary.textContent='No problems detected.';
@@ -2437,8 +2441,9 @@ function fillFleetTile(tile,target,view){
   if(managed){const remove=node('button','Remove','ft-remove');remove.type='button';remove.dataset.help='manage-targets';
     remove.setAttribute('aria-label',`Remove target ${target.id}`);remove.disabled=managedTargets.length<=1;
     remove.onclick=()=>changeManagedTarget({action:'remove',id:managed.id,target:managed.target});foot.append(remove)}
-  tile.replaceChildren(top,node('div',target.host+' · '+target.id+(pid?' · PID '+pid:''),'ft-key'),summary,stats,foot);
-  if(assessment?.findings.length)tile.append(findingsCard(view,assessment.findings))}
+  for(const old of [...tile.children].slice(1))old.remove();
+  tile.append(node('div',target.host+' · '+target.id+(pid?' · PID '+pid:''),'ft-key'),summary,stats,foot);
+  if(problems.length)tile.append(findingsCard(view,assessment.findings))}
 // The findings worst first, with their detail, and how long the process has run.
 const CARD_FINDINGS=4;
 function findingsCard(view,findings){
