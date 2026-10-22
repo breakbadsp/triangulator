@@ -62,8 +62,9 @@ scripts/start.sh
 scripts/set-target.sh 1234  # Replace 1234 with your process ID.
 ```
 
-Open **<http://127.0.0.1:9401>**. Use **Manage targets** to add or remove
-monitored processes. The target selector changes only the current tab.
+Open **<http://127.0.0.1:9401>**. On the **Targets** overview, use **Add target**
+and the **Remove** button on a tile to change the monitored processes. The
+target selector on a process page changes only the current tab.
 
 | Default | Value |
 | --- | --- |

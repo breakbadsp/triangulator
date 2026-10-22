@@ -275,7 +275,9 @@ There is one dashboard. Each browser tab chooses which target it shows.
   history range, memory map, and replay position. It then loads the new
   target's live view and timeline.
 - **Manage targets** replaces **Change target**. It adds or removes targets
-  and asks for confirmation, because the change affects every viewer.
+  and asks for confirmation, because the change affects every viewer. It is on
+  the Targets overview: **Add target** opens a dialog, and **Remove** is on each
+  tile of the local sampler.
 - Each new element gets a contextual help topic
   ([help rules](contextual-help-design.md#help-for-new-dashboard-features)),
   and the change adds cases to [QA test cases](qa/test-cases.md).
