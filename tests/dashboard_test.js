@@ -3203,3 +3203,16 @@ test('an ambiguous process name lists the matching processes and a choice fills 
   await app.run("changeManagedTarget({action:'add',id:'orders',target:'4377'})");
   assert.equal(app.elements.get('target-candidates').hidden, true);
 });
+
+test('the ambiguous-name status counts every match and a local validation error hides the list', async () => {
+  const app = dashboard(new Map(), () => undefined, {target: null});
+  const candidates = Array.from({length: 20}, (_, i) => ({pid: 5000 + i, user: 'app', started_at: null, command: 'worker'}));
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker', candidates, total: 25})}));
+  app.run("managedTargets=[{id:'default',target:'1'}];confirm=()=>true");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'worker'})");
+  assert.equal(app.elements.get('target-pid').children.length, 21);
+  assert.match(app.elements.get('target-status').textContent, /25 processes are named worker; the first 20 are listed/);
+  app.run("element('target-id').value='.';element('target-input').value='other'");
+  await app.run('addManagedTarget()');
+  assert.equal(app.elements.get('target-candidates').hidden, true);
+});

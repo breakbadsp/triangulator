@@ -1898,7 +1898,8 @@ example two copies of `build/buggy-workload idle-baseline`.
 
 1. On the Targets overview, open **Add target**. Enter a new target ID and the
    shared process name. Select **Add target**.
-2. Check that the status says how many processes have the name, and that
+2. Check that the status says how many processes have the name (and, above 20,
+   that only the first 20 are listed), and that
    **Matching processes** lists each one with its PID, user, start time, and
    command line.
 3. Select the second process. Check that its PID fills **Process name or PID**
@@ -1908,4 +1909,5 @@ example two copies of `build/buggy-workload idle-baseline`.
 5. Open **Add target** again. Check that the list is hidden.
 
 Expected results: An ambiguous name does not change the configuration. The
-list shows every matching process, at most 20. The chosen PID is added.
+list shows the matching processes, at most 20, and the status gives the full
+count. Any later submit with invalid input hides the list. The chosen PID is added.

@@ -1055,7 +1055,7 @@ helpTopic('fleet-tile','Target tile','One target · latest live view','The proce
 helpTopic('target-attention','Other targets need attention','Targets outside this view','Count of other targets that are absent, silent, or throttled.','A count of 2 means two other targets need inspection.','Open the target selector and inspect their status.','This count does not identify the cause.',['target-switch','health','sampler-budget']);
 helpTopic('target-access','Limited access','Selected target','The sampler cannot read all process files.','CPU and thread states can remain available while I/O and memory maps are hidden.','Run the sampler as the target user for full access when process permissions permit it.','Access can also be limited for a process that disables inspection.',['wchan','memmap']);
 helpTopic('sampler-budget','Sampler throttled','Sampler host · all targets','The sampler reduced its shared rate because its CPU use exceeded the configured budget.','A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.','The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.','The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.',['health','target-switch']);
-helpTopic('target-pid','Matching processes','Add target · processes with the entered name','When the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.','Two processes named worker: PID 4100 · app · started 3 h ago · worker --queue orders, and PID 4377 · app · started 2 min ago · worker --queue billing. Select the first to monitor the orders worker.','A choice fills in its PID. Then select Add target. To monitor by name instead, stop the extra processes, or give them different names.','A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes.',['manage-targets','target-id']);
+helpTopic('target-pid','Matching processes','Add target · processes with the entered name','When the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.','Two processes named worker: PID 4100 · app · started 3 h ago · worker --queue orders, and PID 4377 · app · started 2 min ago · worker --queue billing. Select the first to monitor the orders worker.','A choice fills in its PID. Then select Add target. To monitor by name instead, stop the extra processes, or give them different names.','A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.',['manage-targets','target-id']);
 helpTopic('manage-targets','Manage targets','Targets overview · local sampler · every viewer','Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.','Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.','Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.','Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.',['target-id','target-switch','target']);
 helpTopic('target-id','Target ID','Sampler configuration','A stable name for one monitored target.','orders remains the same ID when orders-api restarts.','Use 1 to 31 letters, digits, dots, underscores, or hyphens. Each ID must be unique on its host.','An ID is not a process selector. Set a process name or PID as well.',['manage-targets','target-switch']);
 helpTopic('target','Process name or PID','Target selection','An exact process name follows matching process restarts. A PID selects one running process.','worker-service selects an exact name; 1234 selects a process ID.','A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.','Linux process names are limited to 15 bytes. A thread ID is not a process ID.',['session','health'],['Change target']);
@@ -2349,13 +2349,13 @@ async function saveTarget(event){event.preventDefault();if(element('target-save'
   catch(error){targetStatus(error.message,true)}
   finally{element('target-save').disabled=false;element('target-input').disabled=false}}
 const postTargets=async body=>{const response=await apiFetch('/api/targets',{method:'POST',headers:{'Content-Type':'application/json','X-Triangulator':'1'},body:JSON.stringify(body)});
-  const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Unable to change targets'),{candidates:data.candidates});return data};
+  const data=await response.json();if(!response.ok)throw Object.assign(Error(data.error||'Unable to change targets'),{candidates:data.candidates,total:data.total});return data};
 // A name that matches several processes: list them, and a choice fills in its PID.
-function showCandidates(name,candidates){
+function showCandidates(name,candidates,total=candidates?.length){
   const wrap=element('target-candidates'),picker=element('target-pid');wrap.hidden=!candidates?.length;if(wrap.hidden)return;
-  const prompt=node('option',`Select one of ${candidates.length} processes`);prompt.value='';picker.replaceChildren(prompt);
+  const prompt=node('option',`Select one of ${candidates.length} listed`);prompt.value='';picker.replaceChildren(prompt);
   for(const item of candidates){const option=node('option',['PID '+item.pid,item.user,isNum(item.started_at)?'started '+ago(Date.now()/1000-item.started_at):'',item.command].filter(Boolean).join(' · '));option.value=String(item.pid);picker.append(option)}
-  targetStatus(`${candidates.length} processes are named ${name}. Select one to monitor it by PID.`,true);picker.focus()}
+  targetStatus(`${total} processes are named ${name}${total>candidates.length?`; the first ${candidates.length} are listed`:''}. Select one to monitor it by PID.`,true);picker.focus()}
 element('target-pid').onchange=()=>{const pid=element('target-pid').value;if(!pid)return;element('target-input').value=pid;
   targetStatus(`PID ${pid} selected. A PID does not follow a restart. Select Add target.`);element('target-save').focus()};
 async function changeManagedTarget(change){
@@ -2369,9 +2369,10 @@ async function changeManagedTarget(change){
     managedTargets=data.targets;targetStatus(data.message);element('target-id').value='';element('target-input').value='';
     if(change.action==='add')element('target-settings').close();
     await refreshFleet();
-  }catch(error){targetStatus(error.message,true);showCandidates(change.target,error.candidates)}finally{element('target-save').disabled=false}
+  }catch(error){targetStatus(error.message,true);showCandidates(change.target,error.candidates,error.total)}finally{element('target-save').disabled=false}
 }
 async function addManagedTarget(){
+  showCandidates('',null);
   const id=element('target-id').value.trim(),target=element('target-input').value.trim();
   if(!/^[A-Za-z0-9_.-]{1,31}$/.test(id)||id==='.'||id==='..'||!target){targetStatus('Enter a valid target ID and process name or PID.',true);return}
   await changeManagedTarget({action:'add',id,target});

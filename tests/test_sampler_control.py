@@ -115,6 +115,7 @@ class TargetLookupTests(unittest.TestCase):
                     sampler_control.unique_process_named(name)
                 candidates = caught.exception.candidates
                 self.assertEqual([item["pid"] for item in candidates], sorted([first.pid, second.pid]))
+                self.assertEqual(caught.exception.total, 2)
                 for item in candidates:
                     self.assertTrue(item["user"] and item["command"], item)
                     self.assertLessEqual(abs(item["started_at"] - time.time()), 600, item)

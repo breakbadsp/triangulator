@@ -38,6 +38,7 @@ class AmbiguousNameError(ControlError):
     def __init__(self, name, pids):
         super().__init__(f"multiple processes named {name}; pass a PID from: {pids}")
         self.candidates = [process_summary(pid) for pid in pids[:20]]
+        self.total = len(pids)
 
 
 class TargetLimitError(ControlError):
@@ -472,6 +473,7 @@ def dashboard_targets(root, host, port, max_targets, body=None):
             result["at_limit"] = True
         if isinstance(error, AmbiguousNameError):
             result["candidates"] = error.candidates
+            result["total"] = error.total
     print(json.dumps(result))
 
 
