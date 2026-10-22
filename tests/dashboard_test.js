@@ -3043,7 +3043,9 @@ const fleetTargets = [
   {key: 'h/api', host: 'h', id: 'api', pid: 10, status: 'live', access: 'full', throttled: false},
   {key: 'h/busy', host: 'h', id: 'busy', pid: 20, status: 'live', access: 'limited', throttled: true},
   {key: 'h/gone', host: 'h', id: 'gone', pid: 30, status: 'silent', access: 'full', throttled: false}];
+const noControl = Promise.resolve({ok: false});
 function fleetRespond(url) {
+  if (url === '/api/targets/control') return noControl;
   if (url === '/api/targets') return jsonResponse({targets: fleetTargets});
   if (url === '/api/live?target=h%2Fapi') return jsonResponse(fleetView(10, 'api', 5));
   if (url === '/api/live?target=h%2Fbusy') return jsonResponse(fleetView(20, 'busy', 99));
@@ -3091,6 +3093,7 @@ test('overview page starts no new live request once the tab is hidden mid-batch'
   const many = Array.from({length: 8}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live', access: 'full', throttled: false}));
   let app, started = 0;
   app = dashboard(new Map(), url => {
+    if (url === '/api/targets/control') return noControl;
     if (url === '/api/targets') return jsonResponse({targets: many});
     if (url.startsWith('/api/live?')) {if (++started === 4) app.run('document.hidden=true'); return jsonResponse(fleetView(1, 'x', 1));}
     return undefined;
@@ -3105,7 +3108,7 @@ test('overview tile shows memory only from a current resource sample of this pro
   const withResources = resources => ({...fleetView(10, 'api', 5), resources});
   const sample = {available: true, stale: false, session: '10', pid: 10, memory: {rss: 5 * 1048576}};
   const shown = async resources => {
-    const app = dashboard(new Map(), url => url === '/api/targets' ? jsonResponse({targets: [fleetTargets[0]]})
+    const app = dashboard(new Map(), url => url === '/api/targets/control' ? noControl : url === '/api/targets' ? jsonResponse({targets: [fleetTargets[0]]})
       : url.startsWith('/api/live?') ? jsonResponse(withResources(resources)) : undefined, {target: null});
     await app.run('refreshFleet()');
     return tileText(app.elements.get('fleet-grid').children[0]);
@@ -3139,4 +3142,31 @@ test('overview tiles offer Remove only for targets of the local sampler', async 
   app.run("controlHost='other'");
   app.run(`renderFleet(${JSON.stringify(fleetTargets)}, new Map())`);
   assert.ok(app.elements.get('fleet-grid').children.slice(0, -1).every(tile => !remove(tile)));
+});
+
+test('overview polls refresh Remove controls and stay quiet about control errors', async () => {
+  const control = {enabled: true, host: 'h', targets: [{id: 'api', target: 'api'}, {id: 'busy', target: 'busy'}]};
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse(control) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  const tiles = () => app.elements.get('fleet-grid').children.slice(0, -1);
+  assert.deepEqual(tiles().map(tile => !!remove(tile)), [true, true, false]);
+  // A target added from another tab becomes removable on the next poll.
+  control.targets.push({id: 'extra', target: 'extra'});
+  app.run("targetStatus('half-typed form message')");
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('target-status').textContent, 'half-typed form message');
+  // A remote dashboard or a stopped sampler shows no error until the user acts.
+  Object.assign(control, {enabled: false, error: 'target control is available for a local sampler on a loopback dashboard'});
+  app.run("targetStatus('')");
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('fleet-status').textContent, '');
+  assert.equal(app.elements.get('fleet-add').hidden, true);
+});
+
+test('Add target dialog holds the help surfaces so they stay usable', async () => {
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse({enabled: true}) : fleetRespond(url), {target: null});
+  await app.run('openTargetDialog()');
+  const dialog = app.elements.get('target-settings');
+  for (const id of ['help-guide', 'tip', 'help-scrim']) assert.equal(app.elements.get(id).parent, dialog, id);
 });

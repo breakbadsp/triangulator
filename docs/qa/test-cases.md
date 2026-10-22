@@ -455,7 +455,7 @@ A new tab does not reopen the last target.
 
 ## QA-062: Manage local targets
 
-Feature: Dashboard target management. Priority: High. Case revision: 2. Status: NOT_RUN.
+Feature: Dashboard target management. Priority: High. Case revision: 3. Status: NOT_RUN.
 
 Preconditions: A local sampler uses a runtime configuration owned by the user.
 The dashboard listens on loopback. A second browser tab observes the targets.
@@ -470,6 +470,11 @@ The dashboard listens on loopback. A second browser tab observes the targets.
    target (Remove is disabled when one target is left).
 6. Check that a target page has no Manage targets control, and that tiles of
    a remote sampler host have no Remove.
+7. With the dialog open, select the help button beside its heading. Check
+   that the guide opens and its controls work. Check that a remote dashboard
+   shows no control error under the Targets heading.
+8. Add a target in the second tab. Check that Remove updates in the first tab
+   without a reload.
 
 Expected: Only confirmed changes edit the sampler configuration. Invalid or
 stale changes preserve it. One sampler process handles the resulting set.

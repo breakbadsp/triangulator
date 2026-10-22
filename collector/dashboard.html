@@ -2318,15 +2318,19 @@ function targetStatus(message,bad=false){for(const id of ['target-status','fleet
 // The configured target behind a tile; only targets of the local sampler can be removed.
 let controlHost='';
 const managedTarget=target=>target.host===controlHost&&managedTargets?.find(entry=>entry.id===target.id)||null;
-async function loadTarget(){try{let response=await apiFetch('/api/targets/control');if(response.status===404)response=await apiFetch('/api/target');if(!response.ok)throw Error('Target control unavailable');
+// quiet: the overview poll updates the control state only; it leaves the form and its message alone.
+async function loadTarget(quiet=false){try{let response=await apiFetch('/api/targets/control');if(response.status===404)response=await apiFetch('/api/target');if(!response.ok)throw Error('Target control unavailable');
     const data=await response.json();element('fleet-add').hidden=!data.enabled;
-    managedTargets=Array.isArray(data.targets)?data.targets:null;controlHost=data.host||'';
+    managedTargets=Array.isArray(data.targets)?data.targets:null;controlHost=data.host||'';if(quiet)return;
     element('target-id-wrap').hidden=managedTargets===null;element('target-id').required=managedTargets!==null;
     element('target-save').textContent=managedTargets===null?'Monitor':'Add target';
     if(data.target)element('target-input').value=data.target;
     targetStatus(data.error||'',!!data.error)}
-  catch(error){targetStatus(error.message,true)}}
-async function openTargetDialog(){element('target-settings').showModal();
+  catch(error){if(!quiet)targetStatus(error.message,true)}}
+// A modal dialog makes everything outside it inert, so the help surfaces live inside it while it is open.
+const helpSurfaces=['help-scrim','help-guide','tip'];
+element('target-settings').addEventListener('close',()=>{closeGuide(false);document.body.append(...helpSurfaces.map(element))});
+async function openTargetDialog(){element('target-settings').showModal();element('target-settings').append(...helpSurfaces.map(element));
   element('target-input').disabled=true;element('target-save').disabled=true;await loadTarget();element('target-input').disabled=false;element('target-save').disabled=false;
   element(managedTargets===null?'target-input':'target-id').focus()}
 async function saveTarget(event){event.preventDefault();if(element('target-save').disabled)return;
@@ -2435,6 +2439,7 @@ let fleetTimer=0;
 async function refreshFleet(){
   clearTimeout(fleetTimer);
   try{if(document.hidden)return;
+    await loadTarget(true);
     const response=await apiFetch('/api/targets');if(!response.ok)throw Error();const data=await response.json();
     const targets=Array.isArray(data.targets)?data.targets:[],views=new Map();let next=0;
     const worker=async()=>{while(next<targets.length&&!document.hidden){const key=targets[next++].key;
@@ -3480,7 +3485,7 @@ let resizeTimer;addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeT
 addEventListener('pagehide',saveBuffer);
 initHelp();
 // The control state first, so the first tiles already show Remove.
-if(fleetPage){document.title='Targets · Thread monitor';loadTarget().finally(refreshFleet)}
+if(fleetPage){document.title='Targets · Thread monitor';refreshFleet()}
 else{
   initFolds();
   initSectionNavigation();
