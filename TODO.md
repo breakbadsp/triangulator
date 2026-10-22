@@ -70,9 +70,6 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 The dashboard opens on the Targets overview: one tile per target. Work for
 this page goes to the `feature/fleet-overview` branch first.
 
-- [ ] When the pointer stays on a tile that has findings, show a card with
-  the findings (level, title, detail), worst first. Keep it reachable with
-  the keyboard (focus shows the same card).
 - [ ] Add a filter box and severity filters when there are more than about
   12 tiles, and keep the filter in the URL so a support link shows the same
   view.

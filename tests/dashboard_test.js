@@ -3130,7 +3130,7 @@ test('overview tiles offer Remove only for targets of the local sampler', async 
   app.run("managedTargets=[{id:'api',target:'api'},{id:'busy',target:'busy'}];controlHost='h'");
   await app.run('refreshFleet()');
   const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
-  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
   assert.deepEqual(tiles.map(tile => !!remove(tile)), [true, true, false]);
   const bodies = [];
   app.run('confirm=()=>true;refreshFleet=async()=>{}');
@@ -3148,7 +3148,7 @@ test('overview polls refresh Remove controls and stay quiet about control errors
   const control = {enabled: true, host: 'h', targets: [{id: 'api', target: 'api'}, {id: 'busy', target: 'busy'}]};
   const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse(control) : fleetRespond(url), {target: null});
   await app.run('refreshFleet()');
-  const remove = tile => tile.children.at(-1).children.find(child => child.className === 'ft-remove');
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
   const tiles = () => app.elements.get('fleet-grid').children.slice(0, -1);
   assert.deepEqual(tiles().map(tile => !!remove(tile)), [true, true, false]);
   // A target added from another tab becomes removable on the next poll.
@@ -3215,4 +3215,23 @@ test('the ambiguous-name status counts every match and a local validation error 
   app.run("element('target-id').value='.';element('target-input').value='other'");
   await app.run('addManagedTarget()');
   assert.equal(app.elements.get('target-candidates').hidden, true);
+});
+
+test('a tile with findings carries a card with the worst findings and the process start', async () => {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/live?target=h%2Fbusy') {
+      const view = fleetView(20, 'busy', 99);
+      view.process = {session: '20', started_at: Date.now() / 1000 - 7200, command: '/usr/bin/busy --spin'};
+      return jsonResponse(view);
+    }
+    return fleetRespond(url);
+  }, {target: null});
+  await app.run('refreshFleet()');
+  const [busy, api] = app.elements.get('fleet-grid').children;
+  const card = tile => tile.children.find(child => child.className === 'ft-card');
+  assert.equal(card(api), undefined, 'a healthy tile has no card');
+  assert.match(tileText(card(busy)), /Started 2 h ago · \/usr\/bin\/busy --spin/);
+  assert.match(tileText(card(busy)), /busy is saturating a core/);
+  assert.match(tileText(card(busy)), /uses 99/);
+  assert.equal(card(busy).children[1].children[0].className, 'lvl-serious');
 });

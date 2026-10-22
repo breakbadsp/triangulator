@@ -430,9 +430,20 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 .fleet-counts span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--lvl)}
 .fleet-counts b{color:var(--ink);font-variant-numeric:tabular-nums}
 .fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}
-.fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;min-width:0;padding:20px 22px 18px 24px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;overflow:hidden;
+.fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;min-width:0;padding:20px 22px 18px 24px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;
   background:radial-gradient(130% 90% at 100% 0%,color-mix(in srgb,var(--lvl) 13%,transparent),transparent 62%),linear-gradient(180deg,var(--surface),var(--surface-2));box-shadow:var(--shadow);transition:transform .16s,border-color .16s,box-shadow .16s}
-.fleet-tile::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--lvl)}
+.fleet-tile::before{content:"";position:absolute;inset:-1px auto -1px -1px;width:5px;border-radius:16px 0 0 16px;background:var(--lvl)}
+/* Findings card: below the tile on hover or keyboard focus, after a short delay so a pointer that crosses the grid does not flash it. */
+.ft-card{position:absolute;z-index:5;top:calc(100% - 10px);left:14px;right:14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--lvl) 45%,var(--line));border-radius:12px;background:var(--surface);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility 0s .15s;pointer-events:none}
+.fleet-tile:hover .ft-card,.fleet-tile:focus-within .ft-card{opacity:1;visibility:visible;transform:none;transition-delay:.3s}
+.fleet-tile:hover,.fleet-tile:focus-within{z-index:4}
+.ft-proc{font-size:12px;color:var(--muted);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-card ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.ft-card li{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.35}
+.ft-card .ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#fff;flex:none}
+.ft-card li small{display:block;color:var(--muted);font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ft-more{margin-top:8px;font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.ft-card{transition:none;transform:none}}
 .fleet-tile:hover,.fleet-tile:focus-within{transform:translateY(-2px);border-color:color-mix(in srgb,var(--lvl) 55%,var(--line));box-shadow:var(--shadow),0 14px 32px -18px color-mix(in srgb,var(--lvl) 75%,transparent)}
 .fleet-tile:has(.ft-name:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
 /* The name link covers the whole tile, so the tile opens on a click anywhere
@@ -1051,7 +1062,7 @@ helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The r
 helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
 helpTopic('target-switch','Monitoring target','This browser tab','Select the host and target ID shown in this tab.','Two tabs can show different processes.','The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. All targets returns to the overview of every target.','Viewing a target does not change the sampler.',['target','manage-targets'],['Selected monitoring target']);
 helpTopic('fleet','Targets overview','Every target of this collector · latest live view','The first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.','Critical 1 · Healthy 3 means one process needs attention now and three show no problem.','Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process\'s dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.','Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.',['fleet-tile','target-switch','assessment'],['All targets','Targets']);
-helpTopic('fleet-tile','Target tile','One target · latest live view','The process name, host and target ID, PID, and the verdict of the Assessment rules for its latest live view. The colored edge and the verdict show the worst finding: red critical, orange serious, amber warning, green healthy, gray no data. The text names the worst finding and counts the others.','“worker-3 is saturating a core · 2 more findings” with Something is struggling: the worst finding is serious. Threads 42, CPU 134%, Memory 512 MiB, Updated just now.','Threads counts the threads in the view. CPU adds up the threads\' CPU use, in percent of one core. Memory is resident memory (RSS). Updated is the time since the sampler last reported. Limited access and Sampler throttled mean the same as on the dashboard. Open the tile to see every finding.','The tile judges one view, as Past assessments judges a recording: rules that need trends kept in an open dashboard (thread growth, thread churn, long futex waits) and memory-map layout rules do not run, so the dashboard can show more findings than the tile.',['fleet','assessment','assesshistory','target-access','sampler-budget'],['Target tiles']);
+helpTopic('fleet-tile','Target tile','One target · latest live view','The process name, host and target ID, PID, and the verdict of the Assessment rules for its latest live view. The colored edge and the verdict show the worst finding: red critical, orange serious, amber warning, green healthy, gray no data. The text names the worst finding and counts the others.','“worker-3 is saturating a core · 2 more findings” with Something is struggling: the worst finding is serious. Threads 42, CPU 134%, Memory 512 MiB, Updated just now.','Threads counts the threads in the view. CPU adds up the threads\' CPU use, in percent of one core. Memory is resident memory (RSS). Updated is the time since the sampler last reported. Limited access and Sampler throttled mean the same as on the dashboard. Point at a tile with findings, or move the keyboard focus to it, to see a card with up to 4 findings and their details, and when the process started. Open the tile to see every finding.','The tile judges one view, as Past assessments judges a recording: rules that need trends kept in an open dashboard (thread growth, thread churn, long futex waits) and memory-map layout rules do not run, so the dashboard can show more findings than the tile.',['fleet','assessment','assesshistory','target-access','sampler-budget'],['Target tiles']);
 helpTopic('target-attention','Other targets need attention','Targets outside this view','Count of other targets that are absent, silent, or throttled.','A count of 2 means two other targets need inspection.','Open the target selector and inspect their status.','This count does not identify the cause.',['target-switch','health','sampler-budget']);
 helpTopic('target-access','Limited access','Selected target','The sampler cannot read all process files.','CPU and thread states can remain available while I/O and memory maps are hidden.','Run the sampler as the target user for full access when process permissions permit it.','Access can also be limited for a process that disables inspection.',['wchan','memmap']);
 helpTopic('sampler-budget','Sampler throttled','Sampler host · all targets','The sampler reduced its shared rate because its CPU use exceeded the configured budget.','A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.','The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.','The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.',['health','target-switch']);
@@ -1680,6 +1691,7 @@ function kernelShare(thread){
   const share=Math.min(1,thread.system_pct/thread.cpu_pct);
   return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
 const LEVEL_ORDER=['critical','serious','warning','info','good'];
+const LEVEL_ICONS={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
 const VERDICTS={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'};
 // Each finding has a type, the area its rule looks at, so the past-assessment
 // list can filter by it: monitor, threads, watched, resources or memory.
@@ -1746,13 +1758,12 @@ function renderAssessment(threads){
   element('profile').textContent=profile(threads);element('assess-time').textContent=lastTick?'as of '+clock(lastTick):'';
   // A poll replaces every row; keep them while a finding's help is pending or open.
   const list=element('findings');if(helpOwns(list))return;list.replaceChildren();
-  const icons={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
   const ranked=findings.map((item,index)=>({item,index})).sort((a,b)=>order.indexOf(a.item.level)-order.indexOf(b.item.level)||a.index-b.index).map(entry=>entry.item);
   // The button stays in place across polls, so it keeps keyboard focus.
   const hidden=ranked.length-FINDINGS_SHOWN,more=element('findings-more');more.hidden=hidden<=0;
   more.textContent=allFindings?'Show fewer findings':`Show ${hidden} more finding${hidden===1?'':'s'}`;more.setAttribute('aria-expanded',String(allFindings&&hidden>0));
   more.onclick=()=>{allFindings=!allFindings;renderAssessment(threads)};
-  for(const item of allFindings?ranked:ranked.slice(0,FINDINGS_SHOWN)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',icons[item.level],'ic');icon.setAttribute('aria-label',item.level);
+  for(const item of allFindings?ranked:ranked.slice(0,FINDINGS_SHOWN)){const row=node('li',undefined,'finding lvl-'+item.level);const icon=node('span',LEVEL_ICONS[item.level],'ic');icon.setAttribute('aria-label',item.level);
     const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));row.append(icon,body);if(item.help)row.dataset.help=item.help;
     if(item.action){row.dataset.action='1';row.tabIndex=0;row.dataset.hint=item.hint||(item.action.tid?'Open thread details':'Show these threads');const run=()=>{if(item.action.tid){const thread=(live.threads||[]).find(entry=>entry.tid===item.action.tid);if(thread)openThread(thread)}else{stateFilter=item.action.state;wchanFilter='';setActivity(item.action.activity||'all');element('thread-details').scrollIntoView({behavior:'smooth'})}};row.onclick=run;row.onkeydown=event=>{if(event.key==='Enter')run()}}
     list.append(row)}}
@@ -2426,13 +2437,25 @@ function fillFleetTile(tile,target,view){
   if(managed){const remove=node('button','Remove','ft-remove');remove.type='button';remove.dataset.help='manage-targets';
     remove.setAttribute('aria-label',`Remove target ${target.id}`);remove.disabled=managedTargets.length<=1;
     remove.onclick=()=>changeManagedTarget({action:'remove',id:managed.id,target:managed.target});foot.append(remove)}
-  tile.replaceChildren(top,node('div',target.host+' · '+target.id+(pid?' · PID '+pid:''),'ft-key'),summary,stats,foot)}
+  tile.replaceChildren(top,node('div',target.host+' · '+target.id+(pid?' · PID '+pid:''),'ft-key'),summary,stats,foot);
+  if(assessment?.findings.length)tile.append(findingsCard(view,assessment.findings))}
+// The findings worst first, with their detail, and how long the process has run.
+const CARD_FINDINGS=4;
+function findingsCard(view,findings){
+  const card=node('div',undefined,'ft-card'),health=view.health||{},process=view.process?.session===health.session?view.process:null;
+  if(process)card.append(node('div',[isNum(process.started_at)?'Started '+ago(Date.now()/1000-process.started_at):'',process.command].filter(Boolean).join(' · '),'ft-proc'));
+  const list=node('ul');
+  for(const item of findings.slice(0,CARD_FINDINGS)){const row=node('li',undefined,'lvl-'+item.level),text=node('div',item.title);
+    if(item.detail)text.append(node('small',item.detail));row.append(node('span',LEVEL_ICONS[item.level],'ic'),text);list.append(row)}
+  card.append(list);
+  const more=findings.length-CARD_FINDINGS;if(more>0)card.append(node('div',`${more} more finding${more>1?'s':''} on the dashboard`,'ft-more'));
+  return card}
 // Tiles stay the same elements across polls, so focus and hover survive;
 // they move only when the order changes.
 function renderFleet(targets,views){
   const grid=element('fleet-grid'),ranked=[],counts={};
   for(const target of targets){
-    let tile=fleetTiles.get(target.key);if(!tile){tile=node('article',undefined,'fleet-tile');tile.dataset.help='fleet-tile';fleetTiles.set(target.key,tile)}
+    let tile=fleetTiles.get(target.key);if(!tile){tile=node('article',undefined,'fleet-tile');fleetTiles.set(target.key,tile)}
     if(!helpOwns(tile))fillFleetTile(tile,target,views.get(target.key));
     const level=tile.dataset.level;counts[level]=(counts[level]||0)+1;
     ranked.push({key:target.key,tile,rank:LEVEL_ORDER.includes(level)?LEVEL_ORDER.indexOf(level):LEVEL_ORDER.length})}

@@ -94,6 +94,7 @@ The [bug lab cases](bug-lab-cases.md) define QA-101 through QA-120.
 | QA-087 | NOT_RUN | - | - | - |
 | QA-088 | NOT_RUN | - | - | - |
 | QA-089 | NOT_RUN | - | - | - |
+| QA-090 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -1911,3 +1912,23 @@ example two copies of `build/buggy-workload idle-baseline`.
 Expected results: An ambiguous name does not change the configuration. The
 list shows the matching processes, at most 20, and the status gives the full
 count. Any later submit with invalid input hides the list. The chosen PID is added.
+
+## QA-090: Findings card on a tile
+
+Feature: Targets overview. Priority: Medium. Case revision: 1. Status: NOT_RUN.
+
+Preconditions: One target with findings (for example `cpu-spin`) and one
+healthy target (for example `idle-baseline`).
+
+1. Point at the tile with findings and keep the pointer still for half a
+   second. Check that a card opens below the tile.
+2. Check that the card shows when the process started and its command line,
+   then up to 4 findings, worst first, each with its level icon, title, and
+   detail. With more than 4 findings, check the "more findings" line.
+3. Move the pointer quickly across several tiles. Check that no card flashes.
+4. Press Tab until the tile link has focus. Check that the same card opens.
+5. Point at the healthy tile. Check that no card opens.
+6. Select a tile while its card is open. Check that the dashboard opens.
+
+Expected results: Only tiles with findings have a card. The card opens on
+hover and keyboard focus, after a short delay, and does not block the click.
