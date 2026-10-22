@@ -17,6 +17,7 @@ import json
 import math
 import os
 from pathlib import Path
+import pwd
 import re
 import signal
 import subprocess
@@ -29,6 +30,14 @@ RESTART_HINT = "scripts/stop.sh sampler && scripts/start.sh"
 
 class ControlError(Exception):
     pass
+
+
+class AmbiguousNameError(ControlError):
+    """More than one process has the name. The dashboard offers the candidates."""
+
+    def __init__(self, name, pids):
+        super().__init__(f"multiple processes named {name}; pass a PID from: {pids}")
+        self.candidates = [process_summary(pid) for pid in pids[:20]]
 
 
 class TargetLimitError(ControlError):
@@ -88,6 +97,33 @@ def processes_named(name):
     return sorted(matches)
 
 
+def process_summary(pid):
+    """PID, user, start time (Unix seconds), and command line of a process.
+
+    A field that cannot be read, for example after the process exits, is None.
+    """
+    proc = Path(f"/proc/{pid}")
+    summary = {"pid": pid, "user": None, "started_at": None, "command": None}
+    try:
+        summary["user"] = pwd.getpwuid(proc.stat().st_uid).pw_name
+    except (OSError, KeyError):
+        pass
+    try:
+        command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").strip()
+        summary["command"] = os.fsdecode(command)[:200] or None
+    except OSError:
+        pass
+    try:
+        # Field 22 of /proc/PID/stat is the start time in clock ticks after boot.
+        ticks = int((proc / "stat").read_text().rsplit(")", 1)[1].split()[19])
+        boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
+                    if line.startswith("btime "))
+        summary["started_at"] = boot + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration):
+        pass
+    return summary
+
+
 def check_name(name):
     if not 1 <= len(os.fsencode(name)) <= 15:
         raise ControlError("process name must contain 1..15 bytes")
@@ -104,7 +140,7 @@ def unique_process_named(name):
     check_name(name)
     matches = processes_named(name)
     if len(matches) > 1:
-        raise ControlError(f"multiple processes named {name}; pass a PID from: {matches}")
+        raise AmbiguousNameError(name, matches)
     return matches[0] if matches else None
 
 
@@ -434,6 +470,8 @@ def dashboard_targets(root, host, port, max_targets, body=None):
         result = {"enabled": True, "error": str(error)}
         if isinstance(error, TargetLimitError):
             result["at_limit"] = True
+        if isinstance(error, AmbiguousNameError):
+            result["candidates"] = error.candidates
     print(json.dumps(result))
 
 

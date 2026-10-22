@@ -110,6 +110,14 @@ class TargetLookupTests(unittest.TestCase):
             try:
                 with self.assertRaisesRegex(sampler_control.ControlError, str(sorted([first.pid, second.pid]))):
                     sampler_control.resolve_pid(name)
+                # The dashboard lists the matching processes so the user can pick one.
+                with self.assertRaises(sampler_control.AmbiguousNameError) as caught:
+                    sampler_control.unique_process_named(name)
+                candidates = caught.exception.candidates
+                self.assertEqual([item["pid"] for item in candidates], sorted([first.pid, second.pid]))
+                for item in candidates:
+                    self.assertTrue(item["user"] and item["command"], item)
+                    self.assertLessEqual(abs(item["started_at"] - time.time()), 600, item)
             finally:
                 stop(second)
         finally:
