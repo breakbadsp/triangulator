@@ -64,7 +64,7 @@ test('section navigation follows viewport position and layout changes', () => {
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target=''} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local,search} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
@@ -102,12 +102,12 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     addEventListener() {}},
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
-    localStorage: {getItem() {return null;}, setItem() {}},
+    localStorage: local || {getItem() {return null;}, setItem() {}},
     history: {replaceState(state, title, url) {
       const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
       Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
     }},
-    location: {hash: '', pathname: '/',search:target===null?'':'?target='+encodeURIComponent(target),assign(url){navigation.push(url);}},
+    location: {hash: '', pathname: '/',search:search??(target===null?'':'?target='+encodeURIComponent(target)),assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -1895,7 +1895,7 @@ test('help topics keep metric denominators separate and all related links resolv
 // may lack a source.
 test('every data help topic names its source', () => {
   const app = dashboard();
-  const controls = ['appearance', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
+  const controls = ['appearance', 'fleet-density', 'fleet-filter', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
     'watchremove', 'watchadd', 'watchsave', 'watchreload', 'watchreset'];
   const missing = app.run(`Object.values(HELP).filter(t=>!t.source||!t.sourceDetail).map(t=>t.id)`);
   assert.deepEqual([...missing].sort(), [...controls].sort());
@@ -3258,6 +3258,21 @@ test('a poll keeps the tile link element, so keyboard focus survives', async () 
   assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
 });
 
+test('a tile link has the full process name as its title and keeps it current across polls', async () => {
+  let name = 'postgres-00-primary-replica-sha';
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, name, 99)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.children[0].children[1].href === '?target=h%2Fbusy');
+  const link = tile.children[0].children[1];
+  assert.equal(link.title, 'postgres-00-primary-replica-sha');
+  assert.match(link.attrs['aria-label'], /^postgres-00-primary-replica-sha, h · busy: /);
+  name = 'postgres-01-standby';
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.title, 'postgres-01-standby');
+  assert.match(link.attrs['aria-label'], /^postgres-01-standby, h · busy: /);
+});
+
 test('a tile that holds keyboard focus is not refilled until focus leaves it', async () => {
   let cpu = 99;
   const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
@@ -3285,4 +3300,108 @@ test('a tile with only informational findings has no card', async () => {
   assert.match(tileText(api), /Healthy/);
   assert.doesNotMatch(tileText(api), /No problems detected/);
   assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
+});
+
+// Browser storage that survives a reload, or that throws as blocked storage does.
+function localStore() {
+  const saved = new Map();
+  return {getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, String(value))};
+}
+const blockedStore = {getItem() {throw Error('blocked');}, setItem() {throw Error('blocked');}};
+function chooseDensity(app, density) {
+  app.elements.get('fleet-density').value = density;
+  app.elements.get('fleet-density').onchange();
+}
+const density = app => [app.elements.get('fleet-density').value, app.elements.get('fleet-grid').dataset.density];
+
+test('tile density starts Comfortable, survives reload, and ignores target count and polls', async () => {
+  const local = localStore();
+  let targets = fleetTargets;
+  const respond = url => url === '/api/targets' ? jsonResponse({targets}) : url.startsWith('/api/live?') ? jsonResponse(fleetView(1, 'x', 1)) : fleetRespond(url);
+  const app = dashboard(new Map(), respond, {target: null, local});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  await app.run('refreshFleet()');
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  targets = Array.from({length: 64}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live'}));
+  await app.run('refreshFleet()');
+  targets = fleetTargets.slice(0, 1);
+  await app.run('refreshFleet()');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['compact', 'compact']);
+  chooseDensity(app, 'comfortable');
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['comfortable', 'comfortable']);
+});
+
+test('blocked storage keeps the density choice only until reload', () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, local: blockedStore});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), fleetRespond, {target: null, local: blockedStore})), ['comfortable', 'comfortable']);
+});
+
+const shownTiles = app => app.elements.get('fleet-grid').children.slice(0, -1)
+  .filter(tile => !tile.hidden).map(tile => tile.children.find(child => child.className === 'ft-key').textContent);
+function filterFleet(app, text, status = '') {
+  app.elements.get('fleet-search').value = text;
+  app.elements.get('fleet-search').oninput();
+  app.elements.get('fleet-level').value = status;
+  app.elements.get('fleet-level').onchange();
+}
+
+test('search and status show matching tiles with no request while the counts keep every target', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const requests = app.requests.length, grid = app.elements.get('fleet-grid');
+  const tiles = grid.children.slice(0, -1);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 3 of 3 targets');
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+  filterFleet(app, 'API');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 1 of 3 targets');
+  filterFleet(app, 'h/', 'attention');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  filterFleet(app, '', 'good');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  filterFleet(app, '', 'unknown');
+  assert.deepEqual(shownTiles(app), ['h · gone']);
+  assert.equal(app.requests.length, requests, 'filtering starts no request');
+  filterFleet(app, '', 'critical');
+  assert.deepEqual(shownTiles(app), []);
+  assert.equal(app.elements.get('fleet-none').hidden, false);
+  assert.equal(app.elements.get('fleet-add').hidden, undefined, 'Add target is never filtered');
+  assert.equal(grid.children.at(-1), app.elements.get('fleet-add'));
+  assert.equal(app.elements.get('fleet-clear').hidden, false);
+  assert.match(tileText(app.elements.get('fleet-counts')), /Totals for all targets.*"1".*Serious.*"1".*Healthy.*"1".*No data/);
+  // A poll keeps the filter and the tile elements.
+  filterFleet(app, 'busy');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  assert.ok(grid.children.slice(0, -1).every(tile => tiles.includes(tile)));
+  app.elements.get('fleet-clear').onclick();
+  assert.deepEqual(shownTiles(app), ['h · busy', 'h · api', 'h · gone']);
+  assert.equal(app.elements.get('fleet-none').hidden, true);
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+});
+
+test('the URL keeps search and status, and target links carry them back to All targets', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, search: '?q=bus&status=attention'});
+  assert.equal(app.elements.get('fleet-search').value, 'bus');
+  assert.equal(app.elements.get('fleet-level').value, 'attention');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  const link = tile => tile.children[0].children[1].href;
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy&q=bus&status=attention');
+  filterFleet(app, 'a b', 'serious');
+  assert.equal(app.run('location.search'), '?q=a+b&status=serious');
+  assert.equal(link(app.elements.get('fleet-grid').children[1]), '?target=h%2Fapi&q=a+b&status=serious');
+  filterFleet(app, '');
+  assert.equal(app.run('location.search'), '');
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy');
+  assert.equal(dashboard(new Map(), fleetRespond, {target: null, search: '?status=bogus'}).elements.get('fleet-level').value, '');
+  // All targets on the target page comes from its own URL, with browser storage blocked.
+  const target = dashboard(new Map(), () => undefined, {search: '?target=h%2Fbusy&q=a+b&status=serious', local: blockedStore});
+  assert.equal(target.elements.get('fleet-back').href, './?q=a+b&status=serious');
+  assert.equal(dashboard(new Map(), () => undefined, {target: 'h/api'}).elements.get('fleet-back').href, './');
 });

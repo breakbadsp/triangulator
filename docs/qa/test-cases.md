@@ -89,10 +89,13 @@
 | QA-084 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-087 | NOT_RUN | - | - | - |
-| QA-088 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-087 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
+| QA-088 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
 | QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-090 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-090 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-091 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-092 | PASSED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -519,9 +522,9 @@
 
 ## QA-087: Overview themes and tile spacing
 
-- Case revision: 4.
-- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Check Remove placement.
-- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target have a 140 px minimum height and grow when long identity text needs more room. No fixed aspect ratio forces empty height. Grid gaps are 24 px. Names and identities wrap within the tile. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
+- Case revision: 5.
+- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths, in both Tiles densities. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Point at a long name and read the link's accessible name. Check Remove placement.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. In Comfortable, target tiles and Add target have a 140 px minimum height and grid gaps are 24 px. In Compact, the minimum height is 104 px and gaps are 16 px. Tiles grow when long identity text needs more room. No fixed aspect ratio forces empty height. Host and target identities wrap within the tile. A long process name may stay on one line with an ellipsis; the link's title and accessible name give the full name. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
 
 ## QA-088: Keyboard focus and help on the overview
 
@@ -538,3 +541,19 @@
 
 - Test: Use one target with findings and one healthy target. Point at each tile, move quickly across the grid, and Tab to a tile link. Select a tile while its card is open.
 - Expected: Only a tile with warning or worse findings shows a card, after a short delay, with the process start time, command line, and up to four findings with details. No card flashes during quick movement. Keyboard focus shows the card, and the tile keeps its values until focus leaves. A click still opens the dashboard.
+
+## QA-091: Overview tile density
+
+- Setup: `python3 tests/fleet_fixture.py --targets 64` starts an isolated collector with deterministic targets and prints its URL and the expected levels. Use `--targets 20` and `--targets 50` for the other counts. It cannot produce No data; make one `/api/live` request fail for that level.
+- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Select Compact in Tiles, then Comfortable. Reload after each choice, and change the number of targets between polls. Repeat with browser storage blocked. Open the `fleet-density` help.
+- Expected: Comfortable is the default. Comfortable tiles have a 140 px minimum height and 24 px gaps; Compact tiles have a 104 px minimum height, 16 px gaps, and 12 to 14 px padding, with the same text sizes and controls. Compact shows more full tiles on one screen at 1280 and 1920 px. The choice survives reload. Polls and target count changes never change it. With storage blocked, the choice lasts until reload. Nothing scrolls sideways; the page scrolls vertically.
+
+## QA-092: Overview search and status
+
+- Test: Use the QA-091 fixture with 64 targets at critical, serious, warning, healthy, and no-data levels, with long identities and the same process name on different hosts. Search by name, host, and target ID. Select each Status choice. Combine a search and a status that match nothing. Watch network requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters. Open the `fleet-filter` help.
+- Expected: Only matching tiles show, worst first. Needs attention shows critical, serious, and warning tiles. "Showing N of M targets" gives the matching count and the count of all targets. The count pills, labeled "Totals for all targets", do not change with filters. Typing starts no request. Polls keep the filter, the tile elements, and keyboard focus. With no match, the page says so, and Clear filters and Add target remain usable. Clear filters shows every tile. Nothing scrolls sideways at 320 px.
+
+## QA-093: A filtered overview survives navigation
+
+- Test: Filter the overview by search and status. Open the URL in a new tab. Open a tile, then use browser Back. Open a tile again and use All targets. Middle-click a tile and use All targets in the new tab. Repeat with browser storage blocked.
+- Expected: The URL carries `q` and `status`. Each path returns to the overview with the same search, status, and matching tiles. Blocked storage affects only the saved tile density.

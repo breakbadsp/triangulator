@@ -429,6 +429,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 .fleet-counts span{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;color:var(--ink-2)}
 .fleet-counts span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--lvl)}
 .fleet-counts b{color:var(--ink);font-variant-numeric:tabular-nums}
+.fleet-counts small{align-self:center;color:var(--muted);font-size:12.5px}
 .fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:24px}
 .fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;min-height:140px;min-width:0;padding:20px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;
   background:var(--surface);box-shadow:var(--shadow);transition:transform .16s,border-color .16s,box-shadow .16s}
@@ -457,6 +458,11 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 .fleet-add span{font-size:30px;line-height:1;font-weight:300}
 .fleet-add:hover{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-wash)}
 .fleet-status:empty{display:none}.fleet-status{margin:-8px 0 16px}
+.fleet-toolbar{margin:-8px 0 18px}
+/* Compact: smaller tiles, gaps, and padding; the same text and controls. */
+.fleet-grid[data-density=compact]{grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr));gap:16px}
+.fleet-grid[data-density=compact] .fleet-tile{min-height:104px;padding:12px 14px}
+.fleet-grid[data-density=compact] .fleet-add{min-height:104px}
 .target-dialog{width:min(440px,calc(100vw - 32px));padding:24px 26px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 24px 64px -24px rgba(0,0,0,.6)}
 .target-dialog::backdrop{background:rgba(0,0,0,.6)}
 .target-dialog h2{font-size:20px}
@@ -486,7 +492,7 @@ nav.tabs{padding:0 16px;gap:22px}
 .section-head{align-items:flex-start}.section-head h2{font-size:22px}
 .hero-side{gap:12px 18px}.toolbar input[type=search]{min-width:0;width:100%}
 .theme-picker{gap:4px}.target{flex-wrap:wrap}.target button{min-height:32px}
-html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-charts{grid-template-columns:minmax(0,1fr)}main,.topbar-inner{padding-left:12px;padding-right:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
+html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-charts{grid-template-columns:minmax(0,1fr)}main,.topbar-inner{padding-left:12px;padding-right:12px}main#fleet{padding-top:16px}.fleet-head{gap:8px 20px;margin-bottom:14px}.fleet-head h2{line-height:1.2}.fleet-counts{gap:6px 8px}.fleet-toolbar{gap:8px;margin-bottom:12px}.mini-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{font-size:40px}}
 </style>
 </head>
 <body>
@@ -506,8 +512,10 @@ html{scroll-padding-top:var(--header-offset,16px)}.topbar{position:static}.mem-c
 
 <main id="fleet" class="fleet-only" aria-labelledby="fleet-title">
 <div class="fleet-head"><div><h2 id="fleet-title" data-help="fleet">Targets</h2><p>Every monitored process and its current assessment. Select a tile to open its dashboard.</p></div><div id="fleet-counts" class="fleet-counts" data-help="fleet" aria-live="polite"></div></div>
+<div class="toolbar fleet-toolbar"><input id="fleet-search" type="search" placeholder="Name, host or target ID" aria-label="Find target"><label><span class="help-label" data-help="fleet-filter">Status</span><select id="fleet-level" aria-label="Assessment status"><option value="">All</option><option value="attention">Needs attention</option><option value="critical">Critical</option><option value="serious">Serious</option><option value="warning">Warning</option><option value="good">Healthy</option><option value="unknown">No data</option></select></label><label><span class="help-label" data-help="fleet-density">Tiles</span><select id="fleet-density" aria-label="Tile density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><button id="fleet-clear" type="button" data-help="fleet-filter" hidden>Clear filters</button><span id="fleet-shown" class="muted" data-help="fleet-filter" aria-live="polite"></span></div>
 <p id="fleet-status" role="status" class="muted fleet-status"></p>
-<div id="fleet-grid" class="fleet-grid"><button id="fleet-add" class="fleet-add" type="button" data-help="manage-targets" aria-haspopup="dialog" hidden><span aria-hidden="true">+</span>Add target</button></div>
+<div id="fleet-grid" class="fleet-grid" data-density="comfortable"><button id="fleet-add" class="fleet-add" type="button" data-help="manage-targets" aria-haspopup="dialog" hidden><span aria-hidden="true">+</span>Add target</button></div>
+<p id="fleet-none" class="fleet-empty" data-help="fleet-filter" hidden>No targets match this search and status. Clear filters shows every target.</p>
 <p id="fleet-empty" class="fleet-empty" hidden>No targets yet. A target appears here when its sampler sends its first data to this collector.</p>
 <dialog id="target-settings" class="target-dialog" aria-labelledby="target-dialog-title">
 <h2 id="target-dialog-title" data-help="manage-targets">Add target</h2><p class="muted">Monitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.</p>
@@ -1055,8 +1063,10 @@ helpTopic('interval','Sample interval','Sampler · milliseconds','The configured
 helpTopic('loss','Packet loss (1 min)','Sampler link · preceding minute','The reported share of missing sampler packets in the last minute.','','Compare loss with sample age and incomplete data before drawing conclusions.','Packet loss in the monitor is different from application network drops.',['health','netdrops']);
 helpTopic('session','Session','Sampler session','A session separates one sampler run or sampling configuration from another.','','Use the session and thread generation when comparing observations across restarts.','A new session does not necessarily mean that the target process restarted.',['thread','health']);
 helpTopic('target-switch','Monitoring target','This browser tab','Select the host and target ID shown in this tab.','Two tabs can show different processes.','The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. All targets returns to the overview of every target.','Viewing a target does not change the sampler.',['target','manage-targets'],['Selected monitoring target']);
-helpTopic('fleet','Targets overview','Every target of this collector · latest live view','The first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.','Critical 1 · Healthy 3 means one process needs attention now and three show no problem.','Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process\'s dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.','Tiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.',['fleet-tile','target-switch','assessment'],['All targets','Targets']);
-helpTopic('fleet-tile','Target tile','One target · latest live view','The process name, host and target ID identify the target. One dot shows the assessment of its latest live view: red critical, orange serious, amber warning, green healthy, gray no data. The dot and colored edge use the same assessment. The dot does not show sampler activity.','An orange dot means a serious finding, even when the sampler is sending data.','Point at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.','Tiles do not run trend rules for thread growth, thread churn, or long futex waits, or memory-map layout rules. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.',['fleet','assessment','assesshistory','target-access','sampler-budget'],['Target tiles']);
+helpTopic('fleet','Targets overview','Every target of this collector · latest live view','The first page: one tile per monitored process, with its current assessment. The counts above the tiles total every target by level, including targets that a search or status hides.','Critical 1 · Healthy 3 means one process needs attention now and three show no problem.','Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process\'s dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.','Tiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.',['fleet-tile','target-switch','assessment'],['All targets','Targets']);
+helpTopic('fleet-filter','Find targets','This browser tab · Targets overview','Search shows the tiles whose process name, host, or target ID contains the text. Status shows the tiles at one assessment level, or Needs attention for critical, serious, and warning.','Search db with Status Critical shows only critical targets whose name, host, or ID contains db.','Showing N of M targets counts the tiles that match out of every monitored target. The count pills always total all targets. Clear filters shows every tile again. The page address keeps the search and status, and target links carry them, so a copied link, browser Back, and All targets on a target dashboard return to the same view. Add target stays available when no tile matches.','Search and status only show or hide tiles: they start no request and do not change monitoring. A tile with keyboard focus keeps its last level until focus leaves it, so it can stay shown or hidden until the next refresh.',['fleet','fleet-tile','fleet-density'],['Find target','Needs attention']);
+helpTopic('fleet-density','Tile density','This browser · Targets overview','Select Comfortable or Compact target tiles.','Compact tiles start at 200 px wide and 104 px tall, instead of 240 px and 140 px, so more targets fit on one screen.','Comfortable uses larger tiles and gaps. Compact uses smaller tiles, gaps, and padding with the same text and controls. Your selection is saved in this browser. The number of targets and the 5-second refresh never change it.','If browser storage is blocked, the selection lasts only until the page reloads. Density does not change assessments or which targets show.',['fleet','fleet-tile','appearance'],['Tile density']);
+helpTopic('fleet-tile','Target tile','One target · latest live view','The process name, host and target ID identify the target. A long name ends with an ellipsis; point at it to see the full name. One dot shows the assessment of its latest live view: red critical, orange serious, amber warning, green healthy, gray no data. The dot and colored edge use the same assessment. The dot does not show sampler activity.','An orange dot means a serious finding, even when the sampler is sending data.','Point at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.','Tiles do not run trend rules for thread growth, thread churn, or long futex waits, or memory-map layout rules. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.',['fleet','assessment','assesshistory','target-access','sampler-budget'],['Target tiles']);
 helpTopic('target-attention','Other targets need attention','Targets outside this view','Count of other targets that are absent, silent, or throttled.','A count of 2 means two other targets need inspection.','Open the target selector and inspect their status.','This count does not identify the cause.',['target-switch','health','sampler-budget']);
 helpTopic('target-access','Limited access','Selected target','The sampler cannot read all process files.','CPU and thread states can remain available while I/O and memory maps are hidden.','Run the sampler as the target user for full access when process permissions permit it.','Access can also be limited for a process that disables inspection.',['wchan','memmap']);
 helpTopic('sampler-budget','Sampler throttled','Sampler host · all targets','The sampler reduced its shared rate because its CPU use exceeded the configured budget.','A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.','The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.','The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.',['health','target-switch']);
@@ -1475,7 +1485,7 @@ function initHelp(){
     if(label.closest('.hero-side')&&/^(5|15) min/.test(title))id='load';
     if(id)addHelp(label,id);
   }
-  const fields={'target-input':'target',theme:'appearance','timeline-range':'replay',from:'history',to:'history',search:'thread',sort:'active',group:'group','family-mode':'families','pressure-scope':'pressure','sockets-busy-only':'queues','socket-kind':'endpoint','socket-search':'thread'};
+  const fields={'target-input':'target',theme:'appearance','fleet-density':'fleet-density','fleet-search':'fleet-filter','fleet-level':'fleet-filter','timeline-range':'replay',from:'history',to:'history',search:'thread',sort:'active',group:'group','family-mode':'families','pressure-scope':'pressure','sockets-busy-only':'queues','socket-kind':'endpoint','socket-search':'thread'};
   for(const el of document.querySelectorAll('input,select,button[data-hint]')){
     // Segmented buttons are named by their group, so "Now" or "5 min" cannot match another topic.
     const name=el.getAttribute('aria-label')||el.closest('[role=group]')?.getAttribute('aria-label')||el.closest('label')?.firstChild?.textContent||helpText(el);
@@ -2393,7 +2403,14 @@ element('target-form').onsubmit=saveTarget;
 // waits) do not run. A hidden tab polls nothing.
 const FLEET_EVERY_MS=5000,FLEET_PARALLEL=4;
 const fleetTiles=new Map();
-const targetHref=key=>'?'+new URLSearchParams({target:key});
+// The overview URL keeps the search and status (?q=, ?status=). Target links
+// carry them, so All targets on a target page returns to the same view
+// without browser storage.
+const FLEET_STATUSES=['attention','critical','serious','warning','good','unknown'];
+function fleetQuery(){
+  const query=new URLSearchParams(),text=element('fleet-search').value.trim(),status=element('fleet-level').value;
+  if(text)query.set('q',text);if(status)query.set('status',status);return query}
+const targetHref=key=>'?'+new URLSearchParams([['target',key],...fleetQuery()]);
 // The process name: the main thread, else the command's program, else the ID.
 function fleetName(target,view){
   const main=view?.threads?.find(thread=>thread.tid===view.health?.pid)?.name;
@@ -2409,13 +2426,15 @@ function fillFleetTile(tile,target,view){
   const problems=assessment?.findings.filter(item=>item.level!=='info')||[];
   tile.dataset.level=level;
   const name=fleetName(target,view);
+  tile.dataset.search=(name+' '+target.key).toLowerCase();
   // The top row stays the same elements across polls, so the focused link keeps focus.
   let top=tile.firstChild;
   if(!top){top=node('div',undefined,'ft-top');top.append(node('span',undefined,'status-dot ft-assessment'),node('a',undefined,'ft-name'));tile.append(top)}
   const [dot,link]=top.children;
   dot.setAttribute('role','img');dot.setAttribute('aria-label','Assessment: '+(assessment?VERDICTS[level]:'No data'));
   dot.title=assessment?VERDICTS[level]:'No data';
-  link.textContent=name;link.href=targetHref(target.key);
+  // One line with an ellipsis; the title and accessible name keep the full name.
+  link.textContent=name;link.title=name;link.href=targetHref(target.key);
   link.setAttribute('aria-label',`${name}, ${target.host} · ${target.id}: ${assessment?VERDICTS[level]:'no data'}. Open its dashboard.`);
   const foot=node('div',undefined,'ft-foot');
   const managed=managedTarget(target);
@@ -2456,9 +2475,41 @@ function renderFleet(targets,views){
   const pills=[];
   for(const [level,label,color] of groups){const count=(counts[level]||0)+(level==='good'?counts.info||0:0);if(!count)continue;
     const pill=node('span');pill.style.setProperty('--lvl',color);pill.append(node('b',String(count)),' '+label);pills.push(pill)}
-  element('fleet-counts').replaceChildren(...pills);
+  element('fleet-counts').replaceChildren(...(pills.length?[node('small','Totals for all targets'),...pills]:[]));
+  applyFleetFilter();
   const attention=(counts.critical||0)+(counts.serious||0)+(counts.warning||0);
   document.title=(attention?`(${attention}) `:'')+'Targets · Thread monitor'}
+// Tile density is a choice saved in this browser. The target count and polls
+// never change it.
+const FLEET_DENSITY_KEY='triangulator:fleet-density';
+function applyDensity(density){
+  if(density!=='compact')density='comfortable';
+  element('fleet-grid').dataset.density=density;element('fleet-density').value=density}
+element('fleet-density').onchange=()=>{applyDensity(element('fleet-density').value);try{localStorage.setItem(FLEET_DENSITY_KEY,element('fleet-grid').dataset.density)}catch{}};
+try{applyDensity(localStorage.getItem(FLEET_DENSITY_KEY))}catch{applyDensity()}
+// Search and status only show or hide the tiles already drawn, so a change
+// starts no request. The Add target tile is never hidden.
+function applyFleetFilter(){
+  const text=element('fleet-search').value.trim().toLowerCase(),status=element('fleet-level').value;
+  let shown=0;
+  for(const [key,tile] of fleetTiles){
+    const level=tile.dataset.level;
+    tile.hidden=!(tile.dataset.search.includes(text)&&(!status||status===level||status==='attention'&&['critical','serious','warning'].includes(level)));
+    if(!tile.hidden)shown++;
+    tile.firstChild.children[1].href=targetHref(key)}
+  const total=fleetTiles.size,line=total?`Showing ${shown} of ${total} targets`:'';
+  if(element('fleet-shown').textContent!==line)element('fleet-shown').textContent=line;
+  element('fleet-clear').hidden=!text&&!status;
+  element('fleet-none').hidden=!total||shown>0}
+function fleetFilterChanged(){
+  applyFleetFilter();
+  const query=String(fleetQuery());history.replaceState(null,'',location.pathname+(query&&'?'+query))}
+element('fleet-search').value=targetQuery.get('q')||'';
+element('fleet-level').value=FLEET_STATUSES.includes(targetQuery.get('status'))?targetQuery.get('status'):'';
+element('fleet-search').oninput=element('fleet-level').onchange=fleetFilterChanged;
+element('fleet-clear').onclick=()=>{element('fleet-search').value='';element('fleet-level').value='';fleetFilterChanged();element('fleet-search').focus()};
+// All targets returns to the overview with the search and status this page came with.
+{const back=String(new URLSearchParams([...targetQuery].filter(([name])=>name==='q'||name==='status')));element('fleet-back').href='./'+(back&&'?'+back)}
 let fleetTimer=0;
 async function refreshFleet(){
   clearTimeout(fleetTimer);
