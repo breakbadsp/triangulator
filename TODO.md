@@ -78,8 +78,6 @@ this page goes to the `feature/fleet-overview` branch first.
 - [ ] Poll the target control state less often. Each overview poll (5 s)
   reads `/api/targets/control`, which starts the Python control helper on
   the collector host.
-- [ ] Decide whether the whole dark theme uses the matte black of the
-  overview page, so both pages look the same.
 
 ## Release QA
 
