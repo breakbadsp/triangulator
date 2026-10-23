@@ -89,8 +89,8 @@
 | QA-084 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-087 | NOT_RUN | - | - | - |
-| QA-088 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-087 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
+| QA-088 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
 | QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-090 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-091 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
