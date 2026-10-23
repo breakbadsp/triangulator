@@ -93,6 +93,7 @@
 | QA-088 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-090 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-091 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -538,3 +539,8 @@
 
 - Test: Use one target with findings and one healthy target. Point at each tile, move quickly across the grid, and Tab to a tile link. Select a tile while its card is open.
 - Expected: Only a tile with warning or worse findings shows a card, after a short delay, with the process start time, command line, and up to four findings with details. No card flashes during quick movement. Keyboard focus shows the card, and the tile keeps its values until focus leaves. A click still opens the dashboard.
+
+## QA-091: Overview tile density
+
+- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Select Compact in Tiles, then Comfortable. Reload after each choice, and change the number of targets between polls. Repeat with browser storage blocked. Open the `fleet-density` help.
+- Expected: Comfortable is the default. Comfortable tiles have a 140 px minimum height and 24 px gaps; Compact tiles have a 104 px minimum height, 16 px gaps, and 12 to 14 px padding, with the same text sizes and controls. Compact shows more full tiles on one screen at 1280 and 1920 px. The choice survives reload. Polls and target count changes never change it. With storage blocked, the choice lasts until reload. Nothing scrolls sideways; the page scrolls vertically.

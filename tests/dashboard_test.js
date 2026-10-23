@@ -64,7 +64,7 @@ test('section navigation follows viewport position and layout changes', () => {
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target=''} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
@@ -102,7 +102,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     addEventListener() {}},
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
-    localStorage: {getItem() {return null;}, setItem() {}},
+    localStorage: local || {getItem() {return null;}, setItem() {}},
     history: {replaceState(state, title, url) {
       const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
       Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
@@ -1895,7 +1895,7 @@ test('help topics keep metric denominators separate and all related links resolv
 // may lack a source.
 test('every data help topic names its source', () => {
   const app = dashboard();
-  const controls = ['appearance', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
+  const controls = ['appearance', 'fleet-density', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
     'watchremove', 'watchadd', 'watchsave', 'watchreload', 'watchreset'];
   const missing = app.run(`Object.values(HELP).filter(t=>!t.source||!t.sourceDetail).map(t=>t.id)`);
   assert.deepEqual([...missing].sort(), [...controls].sort());
@@ -3285,4 +3285,43 @@ test('a tile with only informational findings has no card', async () => {
   assert.match(tileText(api), /Healthy/);
   assert.doesNotMatch(tileText(api), /No problems detected/);
   assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
+});
+
+// Browser storage that survives a reload, or that throws as blocked storage does.
+function localStore() {
+  const saved = new Map();
+  return {getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, String(value))};
+}
+const blockedStore = {getItem() {throw Error('blocked');}, setItem() {throw Error('blocked');}};
+function chooseDensity(app, density) {
+  app.elements.get('fleet-density').value = density;
+  app.elements.get('fleet-density').onchange();
+}
+const density = app => [app.elements.get('fleet-density').value, app.elements.get('fleet-grid').dataset.density];
+
+test('tile density starts Comfortable, survives reload, and ignores target count and polls', async () => {
+  const local = localStore();
+  let targets = fleetTargets;
+  const respond = url => url === '/api/targets' ? jsonResponse({targets}) : url.startsWith('/api/live?') ? jsonResponse(fleetView(1, 'x', 1)) : fleetRespond(url);
+  const app = dashboard(new Map(), respond, {target: null, local});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  await app.run('refreshFleet()');
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  targets = Array.from({length: 64}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live'}));
+  await app.run('refreshFleet()');
+  targets = fleetTargets.slice(0, 1);
+  await app.run('refreshFleet()');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['compact', 'compact']);
+  chooseDensity(app, 'comfortable');
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['comfortable', 'comfortable']);
+});
+
+test('blocked storage keeps the density choice only until reload', () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, local: blockedStore});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), fleetRespond, {target: null, local: blockedStore})), ['comfortable', 'comfortable']);
 });
