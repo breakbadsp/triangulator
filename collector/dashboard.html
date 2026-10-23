@@ -2467,7 +2467,11 @@ function renderFleet(targets,views){
   ranked.sort((a,b)=>a.rank-b.rank||(a.key<b.key?-1:a.key>b.key?1:0));
   // The Add target tile stays last.
   const order=[...ranked.map(entry=>entry.tile),element('fleet-add')];
-  if(order.length!==grid.children.length||order.some((tile,index)=>grid.children[index]!==tile))grid.replaceChildren(...order);
+  if(order.length!==grid.children.length||order.some((tile,index)=>grid.children[index]!==tile)){
+    // Detaching a tile drops keyboard focus, so put it back on the same control.
+    const focused=document.activeElement;
+    grid.replaceChildren(...order);
+    if(focused&&focused!==document.activeElement&&grid.contains(focused))focused.focus({preventScroll:true})}
   element('fleet-empty').hidden=targets.length>0;
   const groups=[['critical','Critical','var(--critical)'],['serious','Serious','var(--serious)'],['warning','Warning','var(--warning)'],['good','Healthy','var(--good)'],['unknown','No data','var(--s-other)']];
   const pills=[];

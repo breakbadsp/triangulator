@@ -66,22 +66,24 @@ test('section navigation follows viewport position and layout changes', () => {
 // real; unrelated visual panels are suppressed below.
 function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local,search} = {}) {
   const elements = new Map();
+  // A browser drops focus from a control that leaves the document.
+  const blur = node => {if (node.contains(context.document.activeElement)) context.document.activeElement = null;};
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
       get firstChild() {return this.children[0];}, parentElement: {},
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
       append(...items) {for (const item of items) if (item && typeof item === 'object') item.parent = this; this.children.push(...items);},
-      remove() {if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null;},
+      remove() {blur(this); if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null;},
       replaceChildren(...items) {
-        for (const old of this.children) if (old && typeof old === 'object') old.parent = null;
+        for (const old of this.children) if (old && typeof old === 'object') {blur(old); old.parent = null;}
         this.children = []; this.append(...items);
       },
       // Connected means reachable from a document.getElementById element.
       get isConnected() {return this.attached || !!this.parent?.isConnected;},
       contains(other) {return other === this || this.children.some(child => child?.contains?.(other));},
       getBoundingClientRect() {return {top: 10, bottom: 30, left: 10, right: 100, width: 90, height: 20};},
-      matches() {return false;}, focus() {}, addEventListener() {},
+      matches() {return false;}, focus() {if (this.isConnected) context.document.activeElement = this;}, addEventListener() {},
       showModal() {this.open = true;}, close() {this.open = false;}};
   }
   const ranges = [900, 3600, 21600, 86400].map(seconds => {
@@ -3289,6 +3291,20 @@ test('a tile that holds keyboard focus is not refilled until focus leaves it', a
   app.run('document.activeElement = null');
   await app.run('refreshFleet()');
   assert.ok(!tile.children.includes(key), 'the tile refills after focus leaves');
+});
+
+test('keyboard focus stays on a tile link when another target changes the tile order', async () => {
+  let cpu = 5;
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const grid = app.elements.get('fleet-grid');
+  const apiLink = grid.children.find(tile => tile.dataset.level === 'good').children[0].children[1];
+  apiLink.focus();
+  assert.equal(app.run('document.activeElement'), apiLink);
+  cpu = 99;
+  await app.run('refreshFleet()');
+  assert.equal(grid.children[0].children[0].children[1].href, '?target=h%2Fbusy', 'the order changed');
+  assert.equal(app.run('document.activeElement'), apiLink, 'focus stays on the healthy tile link');
 });
 
 test('a tile with only informational findings has no card', async () => {
