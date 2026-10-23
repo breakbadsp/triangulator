@@ -1,0 +1,830 @@
+{
+  "artifact": {
+    "binarySha256": "83dcb99dc2ad841d6cc8e15fd438946174a9982ab5b801f6a26d7f76e04ed04a",
+    "dashboardSha256": "44b8bd5409f72352e564e104ad10807f40c6208f2d9b59a9cdbf8b7ed0ee74fe",
+    "dashboardDiffSha256": "8c3c8a350ae6f4e5c2ca4f64ea8fc1e7f4e27f8c48c76370b6da6f5630f6787c",
+    "base": "117f17ae80f2174baa0ba04495152f0c27c54ec3",
+    "branch": "fleet/minimal-tiles"
+  },
+  "browser": "T3 Chrome154 Linux x86_64; http://127.0.0.1:19782",
+  "observations": {
+    "squareMatrix": [
+      {
+        "theme": "Dark",
+        "width": 1280,
+        "scroll": 1280,
+        "gap": "24px",
+        "canvas": "rgb(9, 9, 10)",
+        "tileColor": "rgb(18, 18, 20)",
+        "tiles": [
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          }
+        ],
+        "longKey": {
+          "x": 363,
+          "y": 236.9921875,
+          "width": 244,
+          "height": 55.78125,
+          "top": 236.9921875,
+          "right": 607,
+          "bottom": 292.7734375,
+          "left": 363
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "Light",
+        "width": 1280,
+        "scroll": 1280,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          }
+        ],
+        "longKey": {
+          "x": 363,
+          "y": 236.9921875,
+          "width": 244,
+          "height": 55.78125,
+          "top": 236.9921875,
+          "right": 607,
+          "bottom": 292.7734375,
+          "left": 363
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "System",
+        "width": 1280,
+        "scroll": 1280,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          },
+          {
+            "width": 286,
+            "height": 286
+          }
+        ],
+        "longKey": {
+          "x": 363,
+          "y": 236.9921875,
+          "width": 244,
+          "height": 55.78125,
+          "top": 236.9921875,
+          "right": 607,
+          "bottom": 292.7734375,
+          "left": 363
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "Dark",
+        "width": 390,
+        "scroll": 390,
+        "gap": "24px",
+        "canvas": "rgb(9, 9, 10)",
+        "tileColor": "rgb(18, 18, 20)",
+        "tiles": [
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 731.4375,
+          "width": 324,
+          "height": 37.1875,
+          "top": 731.4375,
+          "right": 357,
+          "bottom": 768.625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "Light",
+        "width": 390,
+        "scroll": 390,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 366,
+            "height": 366.0000305175781
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 731.4375,
+          "width": 324,
+          "height": 37.1875,
+          "top": 731.4375,
+          "right": 357,
+          "bottom": 768.625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "System",
+        "width": 390,
+        "scroll": 390,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 366,
+            "height": 366.0000305175781
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          },
+          {
+            "width": 366,
+            "height": 366
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 731.4375,
+          "width": 324,
+          "height": 37.1875,
+          "top": 731.4375,
+          "right": 357,
+          "bottom": 768.625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "Dark",
+        "width": 320,
+        "scroll": 320,
+        "gap": "24px",
+        "canvas": "rgb(9, 9, 10)",
+        "tileColor": "rgb(18, 18, 20)",
+        "tiles": [
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 683.1328125,
+          "width": 254,
+          "height": 55.78125,
+          "top": 683.1328125,
+          "right": 287,
+          "bottom": 738.9140625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "Light",
+        "width": 320,
+        "scroll": 320,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 296,
+            "height": 295.9999694824219
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 683.1328125,
+          "width": 254,
+          "height": 55.78125,
+          "top": 683.1328125,
+          "right": 287,
+          "bottom": 738.9140625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      },
+      {
+        "theme": "System",
+        "width": 320,
+        "scroll": 320,
+        "gap": "24px",
+        "canvas": "rgb(243, 245, 249)",
+        "tileColor": "rgb(255, 255, 255)",
+        "tiles": [
+          {
+            "width": 296,
+            "height": 295.9999694824219
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          },
+          {
+            "width": 296,
+            "height": 296
+          }
+        ],
+        "longKey": {
+          "x": 33,
+          "y": 683.1328125,
+          "width": 254,
+          "height": 55.78125,
+          "top": 683.1328125,
+          "right": 287,
+          "bottom": 738.9140625,
+          "left": 33
+        },
+        "remove": [
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          },
+          {
+            "bottom": 21,
+            "right": 21
+          }
+        ]
+      }
+    ],
+    "squareAllLevels": {
+      "title": "(5) Targets · Thread monitor",
+      "counts": "1\nCritical\n3\nSerious\n1\nWarning\n1\nNo data",
+      "tiles": [
+        {
+          "key": "qa-host · absent",
+          "level": "critical",
+          "face": "absent|qa-host · absent|",
+          "dot": {
+            "color": "rgb(208, 59, 59)",
+            "animation": "none",
+            "label": "Assessment: Needs attention now",
+            "title": "Needs attention now",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(208, 59, 59)"
+        },
+        {
+          "key": "qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity",
+          "level": "serious",
+          "face": "long-proc-name|qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity|",
+          "dot": {
+            "color": "rgb(236, 131, 90)",
+            "animation": "none",
+            "label": "Assessment: Something is struggling",
+            "title": "Something is struggling",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(236, 131, 90)"
+        },
+        {
+          "key": "qa-host · spin",
+          "level": "serious",
+          "face": "same-name|qa-host · spin|Remove",
+          "dot": {
+            "color": "rgb(236, 131, 90)",
+            "animation": "none",
+            "label": "Assessment: Something is struggling",
+            "title": "Something is struggling",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(236, 131, 90)"
+        },
+        {
+          "key": "qa-host · wait",
+          "level": "serious",
+          "face": "same-name|qa-host · wait|Remove",
+          "dot": {
+            "color": "rgb(236, 131, 90)",
+            "animation": "none",
+            "label": "Assessment: Something is struggling",
+            "title": "Something is struggling",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(236, 131, 90)"
+        },
+        {
+          "key": "qa-host · healthy",
+          "level": "warning",
+          "face": "idle|qa-host · healthy|Remove",
+          "dot": {
+            "color": "rgb(250, 178, 25)",
+            "animation": "none",
+            "label": "Assessment: Worth a look",
+            "title": "Worth a look",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(250, 178, 25)"
+        },
+        {
+          "key": "qa-host · nodata",
+          "level": "unknown",
+          "face": "nodata|qa-host · nodata|",
+          "dot": {
+            "color": "rgb(154, 160, 168)",
+            "animation": "none",
+            "label": "Assessment: No data",
+            "title": "No data",
+            "role": "img",
+            "count": 1
+          },
+          "edge": "rgb(154, 160, 168)"
+        }
+      ]
+    },
+    "squareFocusLink": {
+      "active": "<a class=\"ft-name\" href=\"?target=qa-host%2Fwait\" aria-label=\"same-name, qa-host · wait: Something is struggling. Open its dashboard.\">same-name</a>",
+      "visible": true,
+      "outline": "rgb(42, 120, 214) solid 2px",
+      "card": "PID 8801 · Started 60 min ago · /opt/qa/same-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz\n▲\n1 thread in uninterruptible kernel wait\n1 stayed there for the whole last 10 s. Usually disk, NFS or driver I/O: same-name (8801)",
+      "cardVisible": "visible"
+    },
+    "squareFocusRemove": {
+      "active": "<button class=\"ft-remove\" type=\"button\" data-help=\"manage-targets\" aria-label=\"Remove target wait\">Remove</button>",
+      "visible": true,
+      "outline": "rgb(42, 120, 214) solid 2px",
+      "healthy": "<span class=\"status-dot ft-assessment\" role=\"img\" aria-label=\"Assessment: Healthy\" title=\"Healthy\"></span>",
+      "healthyColor": "rgb(22, 131, 75)"
+    },
+    "squareFleetHelp": "METRIC GUIDE\nClose ×\nTargets overview\n\nEvery target of this collector · latest live view\n\nThe first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.\n\nExample\n\nCritical 1 · Healthy 3 means one process needs attention now and three show no problem.\n\nHow to read it\n\nTiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.\n\nMeasurement limits\n\nTiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.\n\nSource\n\nThe page reads the target list, then the latest live view of each target, at most 4 at a time, every 5 seconds.\n\nTarget tile\nMonitoring target\nAssessment\nAll topics\nShow help on hover or focus",
+    "squareTileHelp": "METRIC GUIDE\nClose ×\nTarget tile\n\nOne target · latest live view\n\nThe process name, host and target ID identify the target. One dot shows the assessment of its latest live view: red critical, orange serious, amber warning, green healthy, gray no data. The dot and colored edge use the same assessment. The dot does not show sampler activity.\n\nExample\n\nAn orange dot means a serious finding, even when the sampler is sending data.\n\nHow to read it\n\nPoint at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.\n\nMeasurement limits\n\nTiles do not run trend rules for thread growth, thread churn, or long futex waits, or memory-map layout rules. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.\n\nSource\n\nThe name and status come from the target list and latest live view. Findings use the same rules as the Assessment card. The process dashboard shows the measurements and monitoring details.\n\nTargets overview\nAssessment\nPast assessments\nLimited access\nSampler throttled\nAll topics\nShow help on hover or focus",
+    "squareDetail": {
+      "url": "http://127.0.0.1:19782/?target=qa-host%2Fwait",
+      "header": "← All targets\n● qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity · /opt/qa/long-proc-name PID 8804 · live · Limited access · Sampler throttled\n○ qa-host · absent · /opt/qa/absent · absent · Sampler throttled\n● qa-host · healthy · /opt/qa/idle PID 8802 · live · Sampler throttled\n○ qa-host · nodata · · silent · Sampler throttled\n● qa-host · spin · /opt/qa/same-name PID 8800 · live · Sampler throttled\n● qa-host · wait · /opt/qa/same-name PID 8801 · live · Sampler throttled\n5 other targets need attention\nSampler throttled 1.00 Hz\nsame-name PID 8801 · Live · just now\nTheme\nSystem\nLight\nDark\nSummary\nThreads\nResources\nSockets\nMemory\nMonitor\nSettings",
+      "threads": "same-name\nTID 8801\n\tungrouped\t\nKernel wait (D)\nio_schedule\n\t\n\t\n0.0%\n\t10.0%\t1.0\t·\t·\t·\t0"
+    },
+    "squareRapid": {
+      "cards": [
+        {
+          "visibility": "hidden",
+          "opacity": "0"
+        },
+        {
+          "visibility": "hidden",
+          "opacity": "0"
+        },
+        {
+          "visibility": "hidden",
+          "opacity": "0"
+        },
+        {
+          "visibility": "hidden",
+          "opacity": "0"
+        }
+      ]
+    },
+    "squareHealthyCard": {
+      "hasCard": false
+    },
+    "squareEmptyInput": {
+      "missing": true,
+      "open": true
+    },
+    "squareInvalid": {
+      "status": "no running process with PID 2147483646",
+      "candidatesHidden": true
+    },
+    "squareCandidates": {
+      "status": "22 processes are named qa-twin; the first 20 are listed. Select one to monitor it by PID.",
+      "options": [
+        {
+          "value": "",
+          "label": "Select one of 20 listed"
+        },
+        {
+          "value": "3843412",
+          "label": "PID 3843412 · daksh · started 14 min ago · python3 /tmp/tri-minimal-qa/proxy.py"
+        },
+        {
+          "value": "3843413",
+          "label": "PID 3843413 · daksh · started 14 min ago · python3 /tmp/tri-minimal-qa/proxy.py"
+        },
+        {
+          "value": "3843414",
+          "label": "PID 3843414 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843415",
+          "label": "PID 3843415 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843416",
+          "label": "PID 3843416 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843417",
+          "label": "PID 3843417 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843418",
+          "label": "PID 3843418 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843419",
+          "label": "PID 3843419 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843420",
+          "label": "PID 3843420 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843421",
+          "label": "PID 3843421 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843422",
+          "label": "PID 3843422 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843423",
+          "label": "PID 3843423 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843424",
+          "label": "PID 3843424 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843425",
+          "label": "PID 3843425 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843426",
+          "label": "PID 3843426 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843427",
+          "label": "PID 3843427 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843428",
+          "label": "PID 3843428 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843429",
+          "label": "PID 3843429 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843430",
+          "label": "PID 3843430 · daksh · started 14 min ago"
+        },
+        {
+          "value": "3843431",
+          "label": "PID 3843431 · daksh · started 14 min ago"
+        }
+      ]
+    },
+    "squareEmpty": {
+      "empty": "No targets yet. A target appears here when its sampler sends its first data to this collector.",
+      "hidden": false,
+      "tiles": 0
+    },
+    "squareOutage": {
+      "banner": "⚠ Collector unavailable. Displayed data is stale.",
+      "tiles": 6
+    },
+    "squareRecovery": {
+      "banner": "",
+      "tiles": 6
+    },
+    "squareRemoveAccepted": {
+      "url": "http://127.0.0.1:19782/",
+      "removeButtons": [
+        "Remove target wait",
+        "Remove target healthy"
+      ],
+      "spinFace": "same-name|qa-host · spin|"
+    }
+  },
+  "limits": {
+    "QA084": "T3 middle-click did not expose a new tab, and Alt+Left did not traverse browser history in earlier capability checks. Final click/Enter/All targets passed. Those two steps remain blocked.",
+    "QA086": "T3 second tab did not make document.hidden true. True hidden30s/resume test blocked.",
+    "QA089": "Source-backed control fixture only. No sampler started, signalled, or changed.22 matching qa-twin entries include20 terminated fixture children; two live candidates remain. Actual sampler reload/persistence untested.",
+    "diagnostics": "No observed script exception. Expected404 for no-data,400 for invalid/ambiguous PID,503 during owned collector outage."
+  }
+}

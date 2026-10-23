@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- |
 | QA-001 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
 | QA-002 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
-| QA-003 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
+| QA-003 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
 | QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
@@ -84,6 +84,19 @@
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
 | QA-081 | NOT_RUN | - | - | - |
+| QA-082 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-083 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-084 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-087 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
+| QA-088 | PASSED | source d1fe4c0 | [Run](runs/20261023T054616Z-source-d1fe4c0-retest/index.md) | [Browser observations](runs/20261023T054616Z-source-d1fe4c0-retest/evidence/observations.json) |
+| QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-090 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-091 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-092 | PASSED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-094 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -112,12 +125,12 @@
 
 ## QA-002: Add a target by PID
 
-- Test: With QA-001 running, add a second owned PID in Manage targets. Confirm, select it, and reload.
+- Test: With QA-001 running, add a second owned PID with Add target on the Targets overview. Confirm, open its tile, and reload.
 - Expected: Both targets remain live. The second process and its threads appear, and selection survives reload.
 
 ## QA-003: Invalid target input
 
-- Test: From QA-002, try an empty process field and a nonexistent PID in Manage targets. Reload.
+- Test: From QA-002, try an empty process field and a nonexistent PID in the Add target dialog. Reload.
 - Expected: Validation rejects both before confirmation. No target or saved configuration changes.
 
 ## QA-004: Wait for a named process
@@ -377,13 +390,13 @@
 
 ## QA-061: Per-tab target selection
 
-- Test: Open different targets in two tabs. Switch, reload, follow an explicit target URL, and inspect the picker.
-- Expected: Each tab retains its own target. Links open that target; switching does not alter monitoring or another tab.
+- Test: Open different targets in two tabs. Switch, reload, follow an explicit target URL, and inspect the picker. Open a new tab at the dashboard URL without `?target=`.
+- Expected: Each tab retains its own target. Links open that target; switching does not alter monitoring or another tab. A tab without `?target=` opens the Targets overview, not the last target.
 
 ## QA-062: Manage local targets
 
-- Test: Use local Manage targets to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target.
-- Expected: Confirmed valid changes affect the shared set. Cancellation and invalid input preserve configuration and active targets. The last target cannot be removed.
+- Test: On the Targets overview, use Add target and Remove on tiles to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target. Open help from the dialog at a width below 1,200 px. Check a remote dashboard and a stopped sampler.
+- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove is disabled on the last target and absent on remote hosts. Help works inside the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
 
 ## QA-063: Target access and sampler budget badges
 
@@ -479,3 +492,74 @@
 
 - Test: Record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
 - Expected: The leak has a Memory row and timeline mark. Recorded assessment and RSS growth agree. The row persists in earlier periods, allowing less exact times.
+
+## QA-082: Targets overview lists every target
+
+- Case revision: 3.
+- Test: Run two bug-lab workloads as targets and one absent named target. Open the dashboard URL without `?target=`. Read each tile.
+- Expected: The Targets overview opens. Each tile face shows only one assessment dot, the process name, `host · id`, and an optional Remove button. No verdict, finding title, no-live-view message, PID, metrics, access badge, or throttle badge appears on the face. The assessment remains available to assistive technology. The issue card and target dashboard show process details. Targets with the same process name remain distinguishable by host and ID.
+
+## QA-083: Tile order, colors, and counts
+
+- Case revision: 2.
+- Test: Use targets at critical, serious, warning, healthy, and no-data levels. Include live targets with findings. Compare each assessment dot with its tile edge, count pills, and the tab title.
+- Expected: Tiles are worst first, then by key. Dot and edge both use red for critical, orange for serious, amber for warning, green for healthy, and gray for no data. A live target with findings does not get a green activity dot. Each dot has the corresponding accessible assessment label and native title. Counts match the tiles. The title starts with the number of targets at warning or worse.
+
+## QA-084: Navigate between the overview and a target
+
+- Test: Select a tile, use All targets, use browser Back, and middle-click a tile.
+- Expected: Each route opens the expected page. Middle-click opens the target in a new tab. `?target=` with no value opens the default target.
+
+## QA-085: Empty overview and lost collector
+
+- Case revision: 2.
+- Test: Open the overview with no targets. Add live targets and a target without a live view. Stop the collector while the page is open, then start it again.
+- Expected: With no targets, the page says so. A target without a live view has a gray assessment dot and its identity, with no message on its face. While the collector is down, a banner says the data is stale. The tiles return after the collector does.
+
+## QA-086: Hidden tab polls nothing
+
+- Test: Open the overview with several targets and watch network requests. Switch to another tab during a poll, wait 30 s, and return.
+- Expected: No `/api/live` request starts while the tab is hidden. Polling resumes within 5 s after return.
+
+## QA-087: Overview themes and tile spacing
+
+- Case revision: 5.
+- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths, in both Tiles densities. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Point at a long name and read the link's accessible name. Check Remove placement.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. In Comfortable, target tiles and Add target have a 140 px minimum height and grid gaps are 24 px. In Compact, the minimum height is 104 px and gaps are 16 px. Tiles grow when long identity text needs more room. No fixed aspect ratio forces empty height. Host and target identities wrap within the tile. A long process name may stay on one line with an ellipsis; the link's title and accessible name give the full name. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
+
+## QA-088: Keyboard focus and help on the overview
+
+- Case revision: 2.
+- Test: Tab through tiles and their Remove and help buttons. Wait for two polls with focus on each. Press Enter on a tile link. Open the `fleet` and `fleet-tile` help.
+- Expected: Focus is visible and survives polls. Enter opens the target. The dot and target link expose the assessment to assistive technology. Both help topics open and say that tiles do not run trend rules. Tile help describes the minimal face and says that the dot shows assessment, not sampler activity. It directs users to the card or dashboard for process details.
+
+## QA-089: Select one of several processes with the same name
+
+- Test: Start two owned processes with the same name. In Add target, enter a new ID and that name. Select the second process, add it, then open Add target again. Repeat with more than 20 matching processes.
+- Expected: The configuration does not change on the ambiguous name. Matching processes lists PID, user, start time, and command line, at most 20, and the status gives the full count. A choice fills in its PID and warns that a PID does not follow a restart. The chosen PID is added. A new dialog or a later local error hides the list.
+
+## QA-090: Findings card on a tile
+
+- Test: Use one target with findings and one healthy target. Point at each tile, move quickly across the grid, and Tab to a tile link. Select a tile while its card is open.
+- Expected: Only a tile with warning or worse findings shows a card, after a short delay, with the process start time, command line, and up to four findings with details. No card flashes during quick movement. Keyboard focus shows the card, and the tile keeps its values until focus leaves. A click still opens the dashboard.
+
+## QA-091: Overview tile density
+
+- Setup: `python3 tests/fleet_fixture.py --targets 64` starts an isolated collector with deterministic targets and prints its URL and the expected levels. Use `--targets 20` and `--targets 50` for the other counts. It cannot produce No data; make one `/api/live` request fail for that level.
+- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Select Compact in Tiles, then Comfortable. Reload after each choice, and change the number of targets between polls. Repeat with browser storage blocked. Open the `fleet-density` help.
+- Expected: Comfortable is the default. Comfortable tiles have a 140 px minimum height and 24 px gaps; Compact tiles have a 104 px minimum height, 16 px gaps, and 12 to 14 px padding, with the same text sizes and controls. Compact shows more full tiles on one screen at 1280 and 1920 px. The choice survives reload. Polls and target count changes never change it. With storage blocked, the choice lasts until reload. Nothing scrolls sideways; the page scrolls vertically.
+
+## QA-092: Overview search and status
+
+- Test: Use the QA-091 fixture with 64 targets at critical, serious, warning, healthy, and no-data levels, with long identities and the same process name on different hosts. Search by name, host, and target ID. Select each Status choice. Combine a search and a status that match nothing. Watch network requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters. Open the `fleet-filter` help.
+- Expected: Only matching tiles show, worst first. Needs attention shows critical, serious, and warning tiles. "Showing N of M targets" gives the matching count and the count of all targets. The count pills, labeled "Totals for all targets", do not change with filters. Typing starts no request. Polls keep the filter, the tile elements, and keyboard focus. With no match, the page says so, and Clear filters and Add target remain usable. Clear filters shows every tile. Nothing scrolls sideways at 320 px.
+
+## QA-093: A filtered overview survives navigation
+
+- Test: Filter the overview by search and status. Open the URL in a new tab. Open a tile, then use browser Back. Open a tile again and use All targets. Middle-click a tile and use All targets in the new tab. Repeat with browser storage blocked.
+- Expected: The URL carries `q` and `status`. Each path returns to the overview with the same search, status, and matching tiles. Blocked storage affects only the saved tile density.
+
+## QA-094: One matte black theme on every page
+
+- Test: Open the overview and the dashboard of one target in Dark, Light, and System themes (system set to dark). On the target dashboard, open help, a chart tooltip, and an expanded section. Repeat at 390 px.
+- Expected: In dark, both pages use the same matte black canvas and cards, with no blue-tinted panels. Charts, state colors, status colors, and text stay readable. Light is unchanged.

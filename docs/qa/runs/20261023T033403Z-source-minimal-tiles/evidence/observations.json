@@ -1,0 +1,440 @@
+{
+  "finalMatrix": [
+    {
+      "theme": "Dark",
+      "width": 1280,
+      "scroll": 1280,
+      "gap": "24px",
+      "tileColor": "rgb(18, 18, 20)",
+      "canvas": "rgb(9, 9, 10)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 470.328125,
+        "y": 266.6875,
+        "width": 341.3359375,
+        "height": 37.1875,
+        "top": 266.6875,
+        "right": 811.6640625,
+        "bottom": 303.875,
+        "left": 470.328125
+      }
+    },
+    {
+      "theme": "Light",
+      "width": 1280,
+      "scroll": 1280,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 470.328125,
+        "y": 266.6875,
+        "width": 341.3359375,
+        "height": 37.1875,
+        "top": 266.6875,
+        "right": 811.6640625,
+        "bottom": 303.875,
+        "left": 470.328125
+      }
+    },
+    {
+      "theme": "System",
+      "width": 1280,
+      "scroll": 1280,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 470.328125,
+        "y": 266.6875,
+        "width": 341.3359375,
+        "height": 37.1875,
+        "top": 266.6875,
+        "right": 811.6640625,
+        "bottom": 303.875,
+        "left": 470.328125
+      }
+    },
+    {
+      "theme": "Dark",
+      "width": 390,
+      "scroll": 390,
+      "gap": "24px",
+      "tileColor": "rgb(18, 18, 20)",
+      "canvas": "rgb(9, 9, 10)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 37,
+        "y": 517.2906494140625,
+        "width": 318,
+        "height": 37.1875,
+        "top": 517.2906494140625,
+        "right": 355,
+        "bottom": 554.4781494140625,
+        "left": 37
+      }
+    },
+    {
+      "theme": "Light",
+      "width": 390,
+      "scroll": 390,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 37,
+        "y": 516.2761840820312,
+        "width": 318,
+        "height": 37.1875,
+        "top": 516.2761840820312,
+        "right": 355,
+        "bottom": 553.4636840820312,
+        "left": 37
+      }
+    },
+    {
+      "theme": "System",
+      "width": 390,
+      "scroll": 390,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 0.9998460591133005,
+      "longKey": {
+        "x": 37,
+        "y": 516.0157470703125,
+        "width": 318,
+        "height": 37.1875,
+        "top": 516.0157470703125,
+        "right": 355,
+        "bottom": 553.2032470703125,
+        "left": 37
+      }
+    },
+    {
+      "theme": "Dark",
+      "width": 320,
+      "scroll": 320,
+      "gap": "24px",
+      "tileColor": "rgb(18, 18, 20)",
+      "canvas": "rgb(9, 9, 10)",
+      "addHeight": 140,
+      "maxFindingLines": 1.999692118226601,
+      "longKey": {
+        "x": 37,
+        "y": 538.2506713867188,
+        "width": 248,
+        "height": 55.78125,
+        "top": 538.2506713867188,
+        "right": 285,
+        "bottom": 594.0319213867188,
+        "left": 37
+      }
+    },
+    {
+      "theme": "Light",
+      "width": 320,
+      "scroll": 320,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 1.999692118226601,
+      "longKey": {
+        "x": 37,
+        "y": 539.2645874023438,
+        "width": 248,
+        "height": 55.78125,
+        "top": 539.2645874023438,
+        "right": 285,
+        "bottom": 595.0458374023438,
+        "left": 37
+      }
+    },
+    {
+      "theme": "System",
+      "width": 320,
+      "scroll": 320,
+      "gap": "24px",
+      "tileColor": "rgb(255, 255, 255)",
+      "canvas": "rgb(243, 245, 249)",
+      "addHeight": 140,
+      "maxFindingLines": 1.999692118226601,
+      "longKey": {
+        "x": 37,
+        "y": 539.5242309570312,
+        "width": 248,
+        "height": 55.78125,
+        "top": 539.5242309570312,
+        "right": 285,
+        "bottom": 595.3054809570312,
+        "left": 37
+      }
+    }
+  ],
+  "finalFaces": {
+    "title": "(4) Targets · Thread monitor",
+    "counts": "1\nCritical\n3\nSerious\n1\nHealthy\n1\nNo data",
+    "tiles": [
+      {
+        "key": "qa-host · absent",
+        "level": "critical",
+        "face": "absent\nNeeds attention now|qa-host · absent|Target process is absent|",
+        "card": "Started 60 min ago · /opt/qa/absent --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz✕Target process is absentThe sampler cannot find the configured process. Check it is running, or select another target.",
+        "clamp": "2"
+      },
+      {
+        "key": "qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity",
+        "level": "serious",
+        "face": "long-proc-name\nSomething is struggling|qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity|long-proc-name is saturating a core|",
+        "card": "PID 8804 · Started 60 min ago · /opt/qa/long-proc-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz▲long-proc-name is saturating a coreTID 8804 uses 100.0% of one core. Work that needs this thread will queue behind it.",
+        "clamp": "2"
+      },
+      {
+        "key": "qa-host · spin",
+        "level": "serious",
+        "face": "same-name\nSomething is struggling|qa-host · spin|same-name is saturating a core|",
+        "card": "PID 8800 · Started 60 min ago · /opt/qa/same-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz▲same-name is saturating a coreTID 8800 uses 100.0% of one core. Work that needs this thread will queue behind it.",
+        "clamp": "2"
+      },
+      {
+        "key": "qa-host · wait",
+        "level": "serious",
+        "face": "same-name\nSomething is struggling|qa-host · wait|1 thread in uninterruptible kernel wait|Remove",
+        "card": "PID 8801 · Started 60 min ago · /opt/qa/same-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz▲1 thread in uninterruptible kernel wait1 stayed there for the whole last 10 s. Usually disk, NFS or driver I/O: same-name (8801)",
+        "clamp": "2"
+      },
+      {
+        "key": "qa-host · healthy",
+        "level": "good",
+        "face": "idle\nHealthy|qa-host · healthy||Remove",
+        "clamp": "2"
+      },
+      {
+        "key": "qa-host · nodata",
+        "level": "unknown",
+        "face": "nodata\nNo data|qa-host · nodata|The collector has no live view of this target yet.|",
+        "clamp": "2"
+      }
+    ]
+  },
+  "allLevels": {
+    "title": "(5) Targets · Thread monitor",
+    "counts": "1\nCritical\n3\nSerious\n1\nWarning\n1\nNo data",
+    "tiles": [
+      {
+        "key": "qa-host · absent",
+        "level": "critical",
+        "color": "#d03b3b",
+        "text": "absent\nNeeds attention now|qa-host · absent|Target process is absent|"
+      },
+      {
+        "key": "qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity",
+        "level": "serious",
+        "color": "#ec835a",
+        "text": "long-proc-name\nSomething is struggling|qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity|long-proc-name is saturating a core|"
+      },
+      {
+        "key": "qa-host · spin",
+        "level": "serious",
+        "color": "#ec835a",
+        "text": "same-name\nSomething is struggling|qa-host · spin|same-name is saturating a core|Remove"
+      },
+      {
+        "key": "qa-host · wait",
+        "level": "serious",
+        "color": "#ec835a",
+        "text": "same-name\nSomething is struggling|qa-host · wait|1 thread in uninterruptible kernel wait|Remove"
+      },
+      {
+        "key": "qa-host · healthy",
+        "level": "warning",
+        "color": "#fab219",
+        "text": "idle\nWorth a look|qa-host · healthy|Packet loss 10.0%|Remove"
+      },
+      {
+        "key": "qa-host · nodata",
+        "level": "unknown",
+        "color": "#9aa0a8",
+        "text": "nodata\nNo data|qa-host · nodata|The collector has no live view of this target yet.|"
+      }
+    ]
+  },
+  "finalFleetHelp": {
+    "text": "METRIC GUIDE\nClose ×\nTargets overview\n\nEvery target of this collector · latest live view\n\nThe first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.\n\nExample\n\nCritical 1 · Healthy 3 means one process needs attention now and three show no problem.\n\nHow to read it\n\nTiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.\n\nMeasurement limits\n\nTiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.\n\nSource\n\nThe page reads the target list, then the latest live view of each target, at most 4 at a time, every 5 seconds.\n\nTarget tile\nMonitoring target\nAssessment\nAll topics\nShow help on hover or focus"
+  },
+  "finalTileHelp": {
+    "text": "METRIC GUIDE\nClose ×\nTarget tile\n\nOne target · latest live view\n\nThe process name, host and target ID, and the assessment of its latest live view. The colored edge and verdict show the worst finding: red critical, orange serious, amber warning, green healthy, gray no data. A problem tile names its worst finding.\n\nExample\n\nA worker tile shows Something is struggling and worker-3 is saturating a core.\n\nHow to read it\n\nPoint at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.\n\nMeasurement limits\n\nTiles do not run trend rules for thread growth, thread churn, or long futex waits, or memory-map layout rules. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.\n\nSource\n\nThe name and status come from the target list and latest live view. Findings use the same rules as the Assessment card. The process dashboard shows the measurements and monitoring details.\n\nTargets overview\nAssessment\nPast assessments\nLimited access\nSampler throttled\nAll topics\nShow help on hover or focus"
+  },
+  "finalFocusLink": {
+    "active": "<a class=\"ft-name\" href=\"?target=qa-host%2Fwait\" aria-label=\"same-name, qa-host · wait: Something is struggling. Open its dashboard.\">same-name</a>",
+    "visible": true,
+    "outline": "rgb(42, 120, 214) solid 2px",
+    "card": "PID 8801 · Started 60 min ago · /opt/qa/same-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz\n▲\n1 thread in uninterruptible kernel wait\n1 stayed there for the whole last 10 s. Usually disk, NFS or driver I/O: same-name (8801)"
+  },
+  "finalFocusRemove": {
+    "active": "<button class=\"ft-remove\" type=\"button\" data-help=\"manage-targets\" aria-label=\"Remove target wait\">Remove</button>",
+    "visible": true,
+    "outline": "rgb(42, 120, 214) solid 2px"
+  },
+  "invalid": {
+    "status": "no running process with PID 2147483646",
+    "candidatesHidden": true,
+    "dialogOpen": true
+  },
+  "candidates22": {
+    "dialog": "Add target\n\nMonitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.\n\nTarget ID\nProcess name or PID\nMatching processes\nSelect one of 20 listed\nPID 3843412 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843413 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843414 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843415 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843416 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843417 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843418 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843419 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843420 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843421 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843422 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843423 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843424 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843425 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843426 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843427 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843428 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843429 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843430 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nPID 3843431 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py\nCancel\nAdd target\n\n22 processes are named qa-twin; the first 20 are listed. Select one to monitor it by PID.\n\nMatching processes\nAdd target · processes with the entered name\n\nWhen the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.\n\nAt 10/23/2026, 8:58:57 AM\n\nA PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.\n\nSource: Local control helper: /proc/PID/comm, cmdline, stat, and the owner of /proc/PID\nSelect the information button for the guide.",
+    "options": [
+      {
+        "v": "",
+        "t": "Select one of 20 listed"
+      },
+      {
+        "v": "3843412",
+        "t": "PID 3843412 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843413",
+        "t": "PID 3843413 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843414",
+        "t": "PID 3843414 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843415",
+        "t": "PID 3843415 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843416",
+        "t": "PID 3843416 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843417",
+        "t": "PID 3843417 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843418",
+        "t": "PID 3843418 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843419",
+        "t": "PID 3843419 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843420",
+        "t": "PID 3843420 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843421",
+        "t": "PID 3843421 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843422",
+        "t": "PID 3843422 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843423",
+        "t": "PID 3843423 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843424",
+        "t": "PID 3843424 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843425",
+        "t": "PID 3843425 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843426",
+        "t": "PID 3843426 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843427",
+        "t": "PID 3843427 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843428",
+        "t": "PID 3843428 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843429",
+        "t": "PID 3843429 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843430",
+        "t": "PID 3843430 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      },
+      {
+        "v": "3843431",
+        "t": "PID 3843431 · daksh · started 70 s ago · python3 /tmp/tri-minimal-qa/proxy.py"
+      }
+    ]
+  },
+  "removeAfterBlur": {
+    "removeButtons": [
+      "Remove target wait",
+      "Remove target healthy"
+    ],
+    "shownCards": [
+      "PID 8801 · Started 60 min ago · /opt/qa/same-name --long-argument-for-wrapping abcdefghijklmnopqrstuvwxyz\n▲\n1 thread in uninterruptible kernel wait\n1 stayed there for the whole last 10 s. Usually disk, NFS or driver I/O: same-name (8801)"
+    ]
+  },
+  "rapidHover": {
+    "cards": [
+      {
+        "visibility": "hidden",
+        "opacity": "0"
+      },
+      {
+        "visibility": "hidden",
+        "opacity": "0"
+      },
+      {
+        "visibility": "hidden",
+        "opacity": "0"
+      },
+      {
+        "visibility": "hidden",
+        "opacity": "0"
+      }
+    ],
+    "active": "BODY"
+  },
+  "empty": {
+    "empty": "No targets yet. A target appears here when its sampler sends its first data to this collector.",
+    "hidden": false,
+    "tiles": 0,
+    "title": "Targets · Thread monitor"
+  },
+  "outage": {
+    "banner": "⚠ Collector unavailable. Displayed data is stale.",
+    "tiles": 6
+  },
+  "recovery": {
+    "banner": "",
+    "tiles": 6,
+    "title": "Targets · Thread monitor"
+  },
+  "detail": {
+    "url": "http://127.0.0.1:19782/?target=qa-host%2Fwait",
+    "threads": "same-name\nTID 8801\n\tungrouped\t\nKernel wait (D)\nio_schedule\n\t\n\t\n0.0%\n\t10.0%\t1.0\t·\t·\t·\t0",
+    "header": "← All targets\n● qa-host-with-a-long-name-abcdefghijklmnopqrstuvwxyz · this-is-a-long-target-identity · /opt/qa/long-proc-name PID 8804 · live · Limited access · Sampler throttled\n○ qa-host · absent · /opt/qa/absent · absent · Sampler throttled\n● qa-host · healthy · /opt/qa/idle PID 8802 · live · Sampler throttled\n○ qa-host · nodata · · silent · Sampler throttled\n● qa-host · spin · /opt/qa/same-name PID 8800 · live · Sampler throttled\n● qa-host · wait · /opt/qa/same-name PID 8801 · live · Sampler throttled\n5 other targets need attention\nSampler throttled 1.00 Hz\nsame-name PID 8801 · Live · just now\nTheme\nSystem\nLight\nDark\nSummary\nThreads\nResources\nSockets\nMemory\nMonitor\nSettings"
+  },
+  "boundaries": {
+    "source": "Authorized local source build; actual collector with TTGT/TMON/TPIN fixture datagrams",
+    "proxy": "Source-backed sampler_control.change_target_set, persistent test TOML; no sampler signal. Proxy returns404 only for nodata; packet_loss_pct10 for warning mode; empty target list for empty mode.",
+    "browser": "T3 Chrome154 Linux x86_64. T3 second tab does not change document.hidden; Alt+Left and middle-click did not expose history/new tab results.",
+    "diagnostics": "Expected404 for nodata; expected400 for invalid PID and ambiguous names; expected503 while owned collector stopped. No observed script exception.",
+    "excluded": "No production sampler action. No full sampler/live persistence, history replay, or unrelated release suite."
+  }
+}

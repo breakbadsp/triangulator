@@ -65,7 +65,16 @@ Cancel or a failed read keeps the draft. Copy any edits you need before reloadin
 
 ## Dashboard layout
 
-**Summary** starts with Assessment, then key measurements, process load, and
+The dashboard opens on **Targets**: one tile per monitored process, worst
+first. A tile shows the process name, host and target ID, and an
+assessment dot. Open its dashboard for measurements. Point at a tile with
+findings, or focus it, to see up to four findings. Select a tile to open that
+process; **All targets** in its header returns. A link with
+`?target=host/id` opens one process directly. With a local sampler,
+**Add target** and **Remove** on a tile change the monitored set; a process
+name that matches several processes lists them so you can pick a PID.
+
+On a process page, **Summary** starts with Assessment, then key measurements, process load, and
 memory use. Assessment shows up to eight findings, most severe first. Select
 **Show … more findings** to read the rest.
 

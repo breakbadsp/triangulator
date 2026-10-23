@@ -57,6 +57,28 @@ QA-060. Evidence: QA run in PR #121 (ISS-15 and the sampler overhead notes).
 - [ ] Define the oldest supported kernel and test release binaries there.
   Document required kernel features and behavior when they are unavailable.
 
+## Targets overview page
+
+The dashboard opens on the Targets overview: one tile per target. Work for
+this page goes to the `feature/fleet-overview` branch first.
+
+- [ ] Add a filter box and severity filters when there are more than about
+  12 tiles, and keep the filter in the URL so a support link shows the same
+  view.
+- [ ] Add previous and next target shortcuts on the target dashboard, in
+  the order of the overview, so support can step through problem targets.
+- [ ] Run the trend rules (thread growth, thread churn, long futex waits)
+  for tiles. They need history: store thread-count history in the collector
+  (see Diagnostic accuracy), or let the collector send a short summary per
+  target. A deadlocked process shows "Healthy" on its tile today.
+- [ ] Measure the overview cost with many targets. Each poll reads the
+  full live view of every target (about 330 KB with 1,000 threads). If it
+  is too much, add a collector summary endpoint with a few numbers per
+  target and run only the rules that need threads in the browser.
+- [ ] Poll the target control state less often. Each overview poll (5 s)
+  reads `/api/targets/control`, which starts the Python control helper on
+  the collector host.
+
 ## Release QA
 
 - [ ] Test package upgrades (QA-006) when a second release is available.

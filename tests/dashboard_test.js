@@ -64,23 +64,27 @@ test('section navigation follows viewport position and layout changes', () => {
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target=''} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local,search} = {}) {
   const elements = new Map();
+  // A browser drops focus from a control that leaves the document.
+  const blur = node => {if (node.contains(context.document.activeElement)) context.document.activeElement = null;};
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
       get firstChild() {return this.children[0];}, parentElement: {},
       style: {setProperty() {}}, classList: {add() {}, remove() {}},
       setAttribute(key, value) {this.attrs[key] = value;},
       append(...items) {for (const item of items) if (item && typeof item === 'object') item.parent = this; this.children.push(...items);},
+      remove() {blur(this); if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null;},
       replaceChildren(...items) {
-        for (const old of this.children) if (old && typeof old === 'object') old.parent = null;
+        for (const old of this.children) if (old && typeof old === 'object') {blur(old); old.parent = null;}
         this.children = []; this.append(...items);
       },
       // Connected means reachable from a document.getElementById element.
       get isConnected() {return this.attached || !!this.parent?.isConnected;},
       contains(other) {return other === this || this.children.some(child => child?.contains?.(other));},
       getBoundingClientRect() {return {top: 10, bottom: 30, left: 10, right: 100, width: 90, height: 20};},
-      matches() {return false;}, focus() {}, addEventListener() {}};
+      matches() {return false;}, focus() {if (this.isConnected) context.document.activeElement = this;}, addEventListener() {},
+      showModal() {this.open = true;}, close() {this.open = false;}};
   }
   const ranges = [900, 3600, 21600, 86400].map(seconds => {
     const button = element(); button.dataset.range = String(seconds); return button;
@@ -100,12 +104,12 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
     addEventListener() {}},
     sessionStorage: {getItem: key => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key)},
-    localStorage: {getItem() {return null;}, setItem() {}},
+    localStorage: local || {getItem() {return null;}, setItem() {}},
     history: {replaceState(state, title, url) {
       const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
       Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
     }},
-    location: {hash: '', pathname: '/',search:target?'?target='+encodeURIComponent(target):'',assign(url){navigation.push(url);}},
+    location: {hash: '', pathname: '/',search:search??(target===null?'':'?target='+encodeURIComponent(target)),assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -139,12 +143,12 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
 }
 
 test('target editor loads the selector and sends one validated dashboard write', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   app.setFetch(async () => ({ok: true, json: async () => ({enabled: true, target: 'worker'})}));
-  app.run("element('target-settings').hidden=true");
-  await app.run('toggleTarget()');
-  assert.equal(app.elements.get('target-toggle').hidden, false);
-  assert.equal(app.elements.get('target-toggle').attrs['aria-expanded'], 'true');
+  await app.run('openTargetDialog()');
+  assert.equal(app.elements.get('fleet-add').hidden, false);
+  assert.equal(app.elements.get('target-settings').open, true);
+  app.run('refreshFleet=async()=>{}');
   assert.equal(app.elements.get('target-input').value, 'worker');
   app.elements.get('target-input').value = ' 1234 ';
   const writes = [];
@@ -169,10 +173,10 @@ test('target editor loads the selector and sends one validated dashboard write',
 });
 
 test('target editor reports rejection and can retry; unavailable control stays hidden', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   app.setFetch(async () => ({ok: true, json: async () => ({enabled: false})}));
   await app.run('loadTarget()');
-  assert.equal(app.elements.get('target-toggle').hidden, true);
+  assert.equal(app.elements.get('fleet-add').hidden, true);
   app.run("element('target-input').value='worker'");
   app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker'})}));
   await app.run('saveTarget({preventDefault(){}})');
@@ -1487,16 +1491,6 @@ test('a reloaded tab restores the final view and its saved trends', async () => 
   assert.equal(restored.run('buffer.length'), 101);
 });
 
-test('changing the target from this tab is not reported as an exit', async () => {
-  const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'session-1'})));
-  tick(app, 1000, 50);
-  app.run('leftByChoice.add(bufferSession)');
-  await app.run('refresh()');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-2');
-  assert.ok(!app.requests.includes('/api/last-target'));
-});
-
 test('a tab opened after the exit uses the collector view once, and Show live keeps it closed', async () => {
   const app = dashboard(new Map(), polls(() => absent('session-2', {session: 'old-session'}), frame(1000)));
   // The dashboard's own first poll fetches the view; let it finish.
@@ -1532,29 +1526,6 @@ test('returning from a recording goes back to the final view', async () => {
   assert.equal(app.run('live.health.session'), 'session-1');
   assert.equal(app.run('buffer.length'), 101);
   assert.ok(app.run('frozen') !== null);
-});
-
-test('changing the target from a final view does not freeze the session that was monitored', async () => {
-  let view = absent();
-  const app = dashboard(new Map(), url => url === '/api/target'
-    ? jsonResponse({target: 'other', message: 'Target changed'}) : polls(() => view)(url));
-  for (let time = 1000; time <= 1100; time++) tick(app, time, 50);
-  await app.run('refresh()');
-  assert.equal(app.run('live.health.session'), 'session-1');
-  // The sampler now monitors session-3; this tab still shows session-1.
-  view = {health: {session: 'session-3', target_absent: false, pid: 77},
-    threads: [{tid: 77, generation: 1, name: 'next', last_sample: 1200, cpu_pct: 5, state: 'sleep'}]};
-  await app.run('refresh()');
-  app.run("element('target-input').value='other'");
-  await app.run('saveTarget({preventDefault(){}})');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-3');
-  for (let time = 1201; time <= 1210; time++) tick(app, time, 5, 'session-3');
-  view = absent('session-4', {session: 'session-3'});
-  await app.run('refresh()');
-  assert.equal(app.run('frozen'), null);
-  assert.equal(app.run('live.health.session'), 'session-4');
-  assert.ok(!app.requests.includes('/api/last-target'));
 });
 
 test('an exit during a recording returns to the final view, not the next process', async () => {
@@ -1926,7 +1897,7 @@ test('help topics keep metric denominators separate and all related links resolv
 // may lack a source.
 test('every data help topic names its source', () => {
   const app = dashboard();
-  const controls = ['appearance', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
+  const controls = ['appearance', 'fleet-density', 'fleet-filter', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
     'watchremove', 'watchadd', 'watchsave', 'watchreload', 'watchreset'];
   const missing = app.run(`Object.values(HELP).filter(t=>!t.source||!t.sourceDetail).map(t=>t.id)`);
   assert.deepEqual([...missing].sort(), [...controls].sort());
@@ -3014,18 +2985,20 @@ test('the selector stays visible while the selected target is unavailable', () =
 });
 
 test('target management checks an add, then requires confirmation before one global write', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   const bodies = [];
   app.setFetch(async (url, options) => {bodies.push(JSON.parse(options.body));return {ok: true,json:async()=>({targets:[],message:'Reload requested.'})};});
   app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return false};`);
   await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
   assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true}]);
   assert.equal(app.run('questions'), 1);
-  app.run("confirm=()=>true;refreshTargets=async()=>{}");
+  app.run("confirm=()=>true;refreshFleet=async()=>{};element('target-settings').showModal()");
   bodies.length = 0;
   await app.run("changeManagedTarget({action:'add',id:'orders',target:'456'})");
   assert.deepEqual(bodies, [{action: 'add', id: 'orders', target: '456', check: true},
                             {action: 'add', id: 'orders', target: '456'}]);
+  assert.equal(app.elements.get('target-settings').open, false, 'a completed add closes the dialog');
+  assert.equal(app.elements.get('fleet-status').textContent, 'Reload requested.');
   // A removal is not checked first.
   bodies.length = 0;
   await app.run("changeManagedTarget({action:'remove',id:'orders',target:'456'})");
@@ -3033,7 +3006,7 @@ test('target management checks an add, then requires confirmation before one glo
 });
 
 test('an add that fails its check is rejected before the confirmation', async () => {
-  const app = dashboard();
+  const app = dashboard(new Map(), () => undefined, {target: null});
   let writes = 0;
   app.setFetch(async () => {writes++;return {ok: false,json:async()=>({error:'no running process with PID 999999'})};});
   app.run(`managedTargets=[{id:'default',target:'123'}];var questions=0;confirm=()=>{questions++;return true};`);
@@ -3060,4 +3033,391 @@ test('switching targets clears destination view caches and keeps other tabs inde
   assert.equal(storage.has('triangulator:frozen:host-b/billing'),false);
   assert.equal(storage.get('triangulator:buffer:host-c/gateway'),'keep');
   assert.equal(second.run('selectedTarget'),'host-c/gateway');
+});
+
+// The page without ?target= is the overview: one tile per target, worst first,
+// each judged by the Assessment rules on that target's latest live view.
+function fleetView(pid, name, cpu) {
+  const now = Date.now() / 1000;
+  return {health: {session: String(pid), pid, last_seen: now, sampler_silent: false, target_absent: false},
+    threads: [{tid: pid, generation: 1, name, last_sample: now, cpu_pct: cpu, run_delay_pct: 0, state: cpu >= 90 ? 'running' : 'sleep'}]};
+}
+const fleetTargets = [
+  {key: 'h/api', host: 'h', id: 'api', pid: 10, status: 'live', access: 'full', throttled: false},
+  {key: 'h/busy', host: 'h', id: 'busy', pid: 20, status: 'live', access: 'limited', throttled: true},
+  {key: 'h/gone', host: 'h', id: 'gone', pid: 30, status: 'silent', access: 'full', throttled: false}];
+const noControl = Promise.resolve({ok: false});
+function fleetRespond(url) {
+  if (url === '/api/targets/control') return noControl;
+  if (url === '/api/targets') return jsonResponse({targets: fleetTargets});
+  if (url === '/api/live?target=h%2Fapi') return jsonResponse(fleetView(10, 'api', 5));
+  if (url === '/api/live?target=h%2Fbusy') return jsonResponse(fleetView(20, 'busy', 99));
+  if (url === '/api/live?target=h%2Fgone') return Promise.resolve({ok: false, json: async () => ({})});
+  return undefined;
+}
+const tileText = tile => JSON.stringify(tile, (key, value) => key === 'parent' ? undefined : value);
+
+test('overview page shows one tile per target, worst first, and links to each dashboard', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  assert.equal(app.run('document.documentElement.dataset.page'), 'fleet');
+  await app.run('refreshFleet()');
+  assert.ok(!app.requests.some(url => /^\/api\/(live|replay|resources|socket-io|watches)$|^\/api\/(replay|resources)\?/.test(url)), 'the overview starts no dashboard loop');
+  const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
+  assert.equal(app.elements.get('fleet-grid').children.at(-1), app.elements.get('fleet-add'));
+  const link = tile => tile.children[0].children[1];
+  assert.deepEqual(tiles.map(tile => link(tile).href), ['?target=h%2Fbusy', '?target=h%2Fapi', '?target=h%2Fgone']);
+  assert.deepEqual(tiles.map(tile => tile.dataset.level), ['serious', 'good', 'unknown']);
+  assert.match(tileText(tiles[0]), /busy is saturating a core/);
+  assert.match(tileText(tiles[1]), /Healthy/);
+  assert.doesNotMatch(tileText(tiles[1]), /No problems detected/);
+  assert.equal(tiles[2].children[0].children[0].attrs['aria-label'], 'Assessment: No data');
+  assert.equal(app.run('document.title'), '(1) Targets · Thread monitor');
+  assert.equal(app.elements.get('fleet-empty').hidden, true);
+  // A later poll keeps the same tile elements, so focus and hover survive.
+  const first = tiles[0];
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('fleet-grid').children[0], first);
+});
+
+test('overview page polls nothing while the tab is hidden and reports a lost collector', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  app.run('document.hidden=true');
+  const before = app.requests.length;
+  await app.run('refreshFleet()');
+  assert.equal(app.requests.length, before);
+  app.run('document.hidden=false');
+  app.setFetch(async () => {throw Error('down');});
+  await app.run('refreshFleet()');
+  assert.match(app.elements.get('error').textContent, /Collector unavailable/);
+});
+
+test('overview page starts no new live request once the tab is hidden mid-batch', async () => {
+  const many = Array.from({length: 8}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live', access: 'full', throttled: false}));
+  let app, started = 0;
+  app = dashboard(new Map(), url => {
+    if (url === '/api/targets/control') return noControl;
+    if (url === '/api/targets') return jsonResponse({targets: many});
+    if (url.startsWith('/api/live?')) {if (++started === 4) app.run('document.hidden=true'); return jsonResponse(fleetView(1, 'x', 1));}
+    return undefined;
+  }, {target: null});
+  const before = app.requests.length;
+  await app.run('refreshFleet()');
+  const live = app.requests.slice(before).filter(url => url.startsWith('/api/live?'));
+  assert.equal(live.length, 4, 'only the first batch is in flight');
+});
+
+test('overview tile faces show only identity and an accessible assessment dot', async () => {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/live?target=h%2Fapi') return jsonResponse({...fleetView(10, 'api', 5),
+      resources: {available: true, stale: false, session: '10', pid: 10, memory: {rss: 5 * 1048576}}});
+    return fleetRespond(url);
+  }, {target: null});
+  await app.run('refreshFleet()');
+  const visibleText = item => typeof item === 'string' ? [item] : item.className === 'ft-card' ? []
+    : [item.textContent, ...item.children.flatMap(visibleText)].filter(Boolean);
+  const [busy, healthy, missing] = app.elements.get('fleet-grid').children;
+  assert.deepEqual(visibleText(healthy), ['api', 'h · api']);
+  assert.deepEqual(visibleText(busy), ['busy', 'h · busy']);
+  assert.deepEqual(visibleText(missing), ['gone', 'h · gone']);
+  for (const [tile, level, label] of [[busy, 'serious', 'Something is struggling'],
+    [healthy, 'good', 'Healthy'], [missing, 'unknown', 'No data']]) {
+    const [dot, link] = tile.children[0].children;
+    assert.equal(tile.dataset.level, level);
+    assert.equal(dot.attrs.role, 'img');
+    assert.equal(dot.attrs['aria-label'], 'Assessment: ' + label);
+    assert.equal(dot.title, label);
+    assert.match(link.attrs['aria-label'], new RegExp(label, 'i'));
+    assert.equal(dot.className, 'status-dot ft-assessment', 'the dot uses assessment color, without a live-status color');
+  }
+});
+
+test('a target dashboard does not start the overview', () => {
+  const app = dashboard(new Map(), () => undefined, {target: 'h/api'});
+  assert.equal(app.run('document.documentElement.dataset.page'), 'target');
+  assert.ok(app.requests.includes('/api/live?target=h%2Fapi'));
+  assert.equal(app.run('fleetTiles.size'), 0);
+});
+
+test('overview tiles offer Remove only for targets of the local sampler', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  app.run("managedTargets=[{id:'api',target:'api'},{id:'busy',target:'busy'}];controlHost='h'");
+  await app.run('refreshFleet()');
+  const tiles = app.elements.get('fleet-grid').children.slice(0, -1);
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
+  assert.deepEqual(tiles.map(tile => !!remove(tile)), [true, true, false]);
+  const bodies = [];
+  app.run('confirm=()=>true;refreshFleet=async()=>{}');
+  app.setFetch(async (url, options) => {bodies.push(JSON.parse(options.body)); return {ok: true, json: async () => ({targets: [], message: 'Reload requested.'})};});
+  await remove(tiles[1]).onclick();
+  assert.deepEqual(bodies, [{action: 'remove', id: 'api', target: 'api'}]);
+  assert.equal(app.elements.get('fleet-status').textContent, 'Reload requested.');
+  // A tile of another host has no Remove, even with the same target ID.
+  app.run("controlHost='other'");
+  app.run(`renderFleet(${JSON.stringify(fleetTargets)}, new Map())`);
+  assert.ok(app.elements.get('fleet-grid').children.slice(0, -1).every(tile => !remove(tile)));
+});
+
+test('overview polls refresh Remove controls and stay quiet about control errors', async () => {
+  const control = {enabled: true, host: 'h', targets: [{id: 'api', target: 'api'}, {id: 'busy', target: 'busy'}]};
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse(control) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const remove = tile => tile.children.find(child => child.className === 'ft-foot').children.find(child => child.className === 'ft-remove');
+  const tiles = () => app.elements.get('fleet-grid').children.slice(0, -1);
+  assert.deepEqual(tiles().map(tile => !!remove(tile)), [true, true, false]);
+  // A target added from another tab becomes removable on the next poll.
+  control.targets.push({id: 'extra', target: 'extra'});
+  app.run("targetStatus('half-typed form message')");
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('target-status').textContent, 'half-typed form message');
+  // A remote dashboard or a stopped sampler shows no error until the user acts.
+  Object.assign(control, {enabled: false, error: 'target control is available for a local sampler on a loopback dashboard'});
+  app.run("targetStatus('')");
+  await app.run('refreshFleet()');
+  assert.equal(app.elements.get('fleet-status').textContent, '');
+  assert.equal(app.elements.get('fleet-add').hidden, true);
+});
+
+test('Add target dialog holds the help surfaces so they stay usable', async () => {
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse({enabled: true}) : fleetRespond(url), {target: null});
+  await app.run('openTargetDialog()');
+  const dialog = app.elements.get('target-settings');
+  for (const id of ['help-guide', 'tip', 'help-scrim']) assert.equal(app.elements.get(id).parent, dialog, id);
+});
+
+test('narrow-viewport help guide inside the Add target dialog is not made inert', async () => {
+  const app = dashboard(new Map(), url => url === '/api/targets/control' ? jsonResponse({enabled: true}) : fleetRespond(url), {target: null});
+  await app.run('openTargetDialog()');
+  app.run(`innerWidth=1000;innerHeight=800;helpContext={};
+    var fleetMain=element('fleet'),otherMain={contains:()=>false,inert:false};fleetMain.inert=false;fleetMain.children=[element('target-settings')];
+    document.querySelectorAll=()=>[fleetMain,otherMain];syncHelpLayout()`);
+  assert.equal(app.run('fleetMain.inert'), false);
+  assert.equal(app.run('otherMain.inert'), true);
+});
+
+test('an ambiguous process name lists the matching processes and a choice fills in the PID', async () => {
+  const app = dashboard(new Map(), () => undefined, {target: null});
+  const candidates = [{pid: 4100, user: 'app', started_at: Date.now() / 1000 - 7200, command: 'worker --queue orders'},
+    {pid: 4377, user: 'app', started_at: null, command: 'worker --queue billing'}];
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker; pass a PID from: [4100, 4377]', candidates})}));
+  app.run("managedTargets=[{id:'default',target:'1'}];confirm=()=>true");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'worker'})");
+  assert.equal(app.elements.get('target-candidates').hidden, false);
+  const options = app.elements.get('target-pid').children;
+  assert.deepEqual(options.map(option => option.value), ['', '4100', '4377']);
+  assert.equal(options[1].textContent, 'PID 4100 · app · started 2 h ago · worker --queue orders');
+  assert.equal(options[2].textContent, 'PID 4377 · app · worker --queue billing');
+  assert.match(app.elements.get('target-status').textContent, /2 processes are named worker/);
+  app.elements.get('target-pid').value = '4377';
+  app.run("element('target-pid').onchange()");
+  assert.equal(app.elements.get('target-input').value, '4377');
+  assert.match(app.elements.get('target-status').textContent, /does not follow a restart/);
+  // Another error, or a new dialog, hides the list.
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'no running process with PID 4377'})}));
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'4377'})");
+  assert.equal(app.elements.get('target-candidates').hidden, true);
+});
+
+test('the ambiguous-name status counts every match and a local validation error hides the list', async () => {
+  const app = dashboard(new Map(), () => undefined, {target: null});
+  const candidates = Array.from({length: 20}, (_, i) => ({pid: 5000 + i, user: 'app', started_at: null, command: 'worker'}));
+  app.setFetch(async () => ({ok: false, json: async () => ({error: 'multiple processes named worker', candidates, total: 25})}));
+  app.run("managedTargets=[{id:'default',target:'1'}];confirm=()=>true");
+  await app.run("changeManagedTarget({action:'add',id:'orders',target:'worker'})");
+  assert.equal(app.elements.get('target-pid').children.length, 21);
+  assert.match(app.elements.get('target-status').textContent, /25 processes are named worker; the first 20 are listed/);
+  app.run("element('target-id').value='.';element('target-input').value='other'");
+  await app.run('addManagedTarget()');
+  assert.equal(app.elements.get('target-candidates').hidden, true);
+});
+
+test('a tile with findings carries a card with the worst findings and the process start', async () => {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/live?target=h%2Fbusy') {
+      const view = fleetView(20, 'busy', 99);
+      view.process = {session: '20', started_at: Date.now() / 1000 - 7200, command: '/usr/bin/busy --spin'};
+      return jsonResponse(view);
+    }
+    return fleetRespond(url);
+  }, {target: null});
+  await app.run('refreshFleet()');
+  const [busy, api] = app.elements.get('fleet-grid').children;
+  const card = tile => tile.children.find(child => child.className === 'ft-card');
+  assert.equal(card(api), undefined, 'a healthy tile has no card');
+  assert.match(tileText(card(busy)), /PID 20 · Started 2 h ago · \/usr\/bin\/busy --spin/);
+  assert.match(tileText(card(busy)), /busy is saturating a core/);
+  assert.match(tileText(card(busy)), /uses 99/);
+  assert.equal(card(busy).children[1].children[0].className, 'lvl-serious');
+});
+
+test('a poll keeps the tile link element, so keyboard focus survives', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children[0];
+  const link = tile.children[0].children[1];
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.href, '?target=h%2Fbusy');
+  assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
+});
+
+test('a tile link has the full process name as its title and keeps it current across polls', async () => {
+  let name = 'postgres-00-primary-replica-sha';
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, name, 99)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.children[0].children[1].href === '?target=h%2Fbusy');
+  const link = tile.children[0].children[1];
+  assert.equal(link.title, 'postgres-00-primary-replica-sha');
+  assert.match(link.attrs['aria-label'], /^postgres-00-primary-replica-sha, h · busy: /);
+  name = 'postgres-01-standby';
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.title, 'postgres-01-standby');
+  assert.match(link.attrs['aria-label'], /^postgres-01-standby, h · busy: /);
+});
+
+test('a tile that holds keyboard focus is not refilled until focus leaves it', async () => {
+  let cpu = 99;
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.dataset.level === 'critical' || item.dataset.level === 'serious' || item.dataset.level === 'warning');
+  const key = tile.children.find(child => child.className === 'ft-key');
+  const link = tile.children[0].children[1];
+  app.run('document.activeElement = null');
+  cpu = 5;
+  app.run('document.activeElement = fleetTiles.get("h/busy").children[0].children[1]');
+  await app.run('refreshFleet()');
+  assert.ok(tile.children.includes(key), 'the focused tile keeps its elements');
+  assert.equal(tile.children[0].children[1], link);
+  app.run('document.activeElement = null');
+  await app.run('refreshFleet()');
+  assert.ok(!tile.children.includes(key), 'the tile refills after focus leaves');
+});
+
+test('keyboard focus stays on a tile link when another target changes the tile order', async () => {
+  let cpu = 5;
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const grid = app.elements.get('fleet-grid');
+  const apiLink = grid.children.find(tile => tile.dataset.level === 'good').children[0].children[1];
+  apiLink.focus();
+  assert.equal(app.run('document.activeElement'), apiLink);
+  cpu = 99;
+  await app.run('refreshFleet()');
+  assert.equal(grid.children[0].children[0].children[1].href, '?target=h%2Fbusy', 'the order changed');
+  assert.equal(app.run('document.activeElement'), apiLink, 'focus stays on the healthy tile link');
+});
+
+test('a tile with only informational findings has no card', async () => {
+  const info = fleetView(10, 'api', 5);
+  info.threads.push({tid: 11, generation: 1, name: 'side', last_sample: info.threads[0].last_sample, cpu_pct: 1, run_delay_pct: 0, state: 'sleep'});
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fapi' ? jsonResponse(info) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const api = app.elements.get('fleet-grid').children.find(tile => tile.dataset.level === 'good');
+  assert.match(tileText(api), /Healthy/);
+  assert.doesNotMatch(tileText(api), /No problems detected/);
+  assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
+});
+
+// Browser storage that survives a reload, or that throws as blocked storage does.
+function localStore() {
+  const saved = new Map();
+  return {getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, String(value))};
+}
+const blockedStore = {getItem() {throw Error('blocked');}, setItem() {throw Error('blocked');}};
+function chooseDensity(app, density) {
+  app.elements.get('fleet-density').value = density;
+  app.elements.get('fleet-density').onchange();
+}
+const density = app => [app.elements.get('fleet-density').value, app.elements.get('fleet-grid').dataset.density];
+
+test('tile density starts Comfortable, survives reload, and ignores target count and polls', async () => {
+  const local = localStore();
+  let targets = fleetTargets;
+  const respond = url => url === '/api/targets' ? jsonResponse({targets}) : url.startsWith('/api/live?') ? jsonResponse(fleetView(1, 'x', 1)) : fleetRespond(url);
+  const app = dashboard(new Map(), respond, {target: null, local});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  await app.run('refreshFleet()');
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  targets = Array.from({length: 64}, (_, i) => ({key: 'h/t' + i, host: 'h', id: 't' + i, pid: 100 + i, status: 'live'}));
+  await app.run('refreshFleet()');
+  targets = fleetTargets.slice(0, 1);
+  await app.run('refreshFleet()');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['compact', 'compact']);
+  chooseDensity(app, 'comfortable');
+  assert.deepEqual(density(dashboard(new Map(), respond, {target: null, local})), ['comfortable', 'comfortable']);
+});
+
+test('blocked storage keeps the density choice only until reload', () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, local: blockedStore});
+  assert.deepEqual(density(app), ['comfortable', 'comfortable']);
+  chooseDensity(app, 'compact');
+  assert.deepEqual(density(app), ['compact', 'compact']);
+  assert.deepEqual(density(dashboard(new Map(), fleetRespond, {target: null, local: blockedStore})), ['comfortable', 'comfortable']);
+});
+
+const shownTiles = app => app.elements.get('fleet-grid').children.slice(0, -1)
+  .filter(tile => !tile.hidden).map(tile => tile.children.find(child => child.className === 'ft-key').textContent);
+function filterFleet(app, text, status = '') {
+  app.elements.get('fleet-search').value = text;
+  app.elements.get('fleet-search').oninput();
+  app.elements.get('fleet-level').value = status;
+  app.elements.get('fleet-level').onchange();
+}
+
+test('search and status show matching tiles with no request while the counts keep every target', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const requests = app.requests.length, grid = app.elements.get('fleet-grid');
+  const tiles = grid.children.slice(0, -1);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 3 of 3 targets');
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+  filterFleet(app, 'API');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 1 of 3 targets');
+  filterFleet(app, 'h/', 'attention');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  filterFleet(app, '', 'good');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  filterFleet(app, '', 'unknown');
+  assert.deepEqual(shownTiles(app), ['h · gone']);
+  assert.equal(app.requests.length, requests, 'filtering starts no request');
+  filterFleet(app, '', 'critical');
+  assert.deepEqual(shownTiles(app), []);
+  assert.equal(app.elements.get('fleet-none').hidden, false);
+  assert.equal(app.elements.get('fleet-add').hidden, undefined, 'Add target is never filtered');
+  assert.equal(grid.children.at(-1), app.elements.get('fleet-add'));
+  assert.equal(app.elements.get('fleet-clear').hidden, false);
+  assert.match(tileText(app.elements.get('fleet-counts')), /Totals for all targets.*"1".*Serious.*"1".*Healthy.*"1".*No data/);
+  // A poll keeps the filter and the tile elements.
+  filterFleet(app, 'busy');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  assert.ok(grid.children.slice(0, -1).every(tile => tiles.includes(tile)));
+  app.elements.get('fleet-clear').onclick();
+  assert.deepEqual(shownTiles(app), ['h · busy', 'h · api', 'h · gone']);
+  assert.equal(app.elements.get('fleet-none').hidden, true);
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+});
+
+test('the URL keeps search and status, and target links carry them back to All targets', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, search: '?q=bus&status=attention'});
+  assert.equal(app.elements.get('fleet-search').value, 'bus');
+  assert.equal(app.elements.get('fleet-level').value, 'attention');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  const link = tile => tile.children[0].children[1].href;
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy&q=bus&status=attention');
+  filterFleet(app, 'a b', 'serious');
+  assert.equal(app.run('location.search'), '?q=a+b&status=serious');
+  assert.equal(link(app.elements.get('fleet-grid').children[1]), '?target=h%2Fapi&q=a+b&status=serious');
+  filterFleet(app, '');
+  assert.equal(app.run('location.search'), '');
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy');
+  assert.equal(dashboard(new Map(), fleetRespond, {target: null, search: '?status=bogus'}).elements.get('fleet-level').value, '');
+  // All targets on the target page comes from its own URL, with browser storage blocked.
+  const target = dashboard(new Map(), () => undefined, {search: '?target=h%2Fbusy&q=a+b&status=serious', local: blockedStore});
+  assert.equal(target.elements.get('fleet-back').href, './?q=a+b&status=serious');
+  assert.equal(dashboard(new Map(), () => undefined, {target: 'h/api'}).elements.get('fleet-back').href, './');
 });

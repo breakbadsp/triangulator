@@ -1,0 +1,1869 @@
+{
+  "revision": "d1fe4c0b727b8f9b23febc9a26980add60e49a10",
+  "sha256": "5de0e1f578b575c40e4815306b9a3131703a194bc8d3fb733ffb85c4aa13eb73",
+  "matrix": [
+    {
+      "theme": "dark",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 1,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 4,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 12,
+      "columns": 4,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 20,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 25,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 36,
+      "columns": 6,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(18, 18, 20)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 1,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 4,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 12,
+      "columns": 4,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 20,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 25,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 36,
+      "columns": 6,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 1,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 465.1953125,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 303.8046875,
+            "width": 296,
+            "height": 37.6953125,
+            "top": 303.8046875,
+            "right": 308,
+            "bottom": 341.5,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 349.5,
+            "width": 137.5,
+            "height": 33,
+            "top": 349.5,
+            "right": 214.359375,
+            "bottom": 382.5,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 390.5,
+            "width": 117,
+            "height": 33,
+            "top": 390.5,
+            "right": 183.96875,
+            "bottom": 423.5,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 2,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 4,
+      "columns": 1,
+      "gridTop": 376.4296875,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 37,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 12,
+            "y": 244.734375,
+            "width": 366,
+            "height": 37.6953125,
+            "top": 244.734375,
+            "right": 378,
+            "bottom": 282.4296875,
+            "left": 12
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 76.859375,
+            "y": 290.4296875,
+            "width": 137.5,
+            "height": 33,
+            "top": 290.4296875,
+            "right": 214.359375,
+            "bottom": 323.4296875,
+            "left": 76.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 66.96875,
+            "y": 331.4296875,
+            "width": 117,
+            "height": 33,
+            "top": 331.4296875,
+            "right": 183.96875,
+            "bottom": 364.4296875,
+            "left": 66.96875
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 12,
+      "columns": 4,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 20,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 32,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 272,
+            "bottom": 213.7890625,
+            "left": 32
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 346.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 484.359375,
+            "bottom": 211.4375,
+            "left": 346.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 549.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 666.328125,
+            "bottom": 211.4375,
+            "left": 549.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "count": 64,
+      "full": 25,
+      "columns": 5,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "24px",
+      "minHeight": "140px",
+      "padding": "20px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    },
+    {
+      "theme": "auto",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "count": 64,
+      "full": 36,
+      "columns": 6,
+      "gridTop": 231.7890625,
+      "overflow": 0,
+      "gap": "16px",
+      "minHeight": "104px",
+      "padding": "12px 14px",
+      "font": "18px",
+      "title": "postgres-00-primary-replica-sha",
+      "aria": "postgres-00-primary-replica-sha, rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha: Needs attention now. Open its dashboard.",
+      "background": "rgb(255, 255, 255)",
+      "identity": {
+        "text": "rack00.storage-cluster-eu-west.example.internal · postgres-00-primary-replica-sha",
+        "height": 56,
+        "overflow": 0,
+        "font": "12px"
+      },
+      "controls": [
+        {
+          "name": "Find target",
+          "box": {
+            "x": 252,
+            "y": 176.09375,
+            "width": 240,
+            "height": 37.6953125,
+            "top": 176.09375,
+            "right": 492,
+            "bottom": 213.7890625,
+            "left": 252
+          },
+          "font": "14px"
+        },
+        {
+          "name": "Assessment status",
+          "box": {
+            "x": 566.859375,
+            "y": 178.4375,
+            "width": 137.5,
+            "height": 33,
+            "top": 178.4375,
+            "right": 704.359375,
+            "bottom": 211.4375,
+            "left": 566.859375
+          },
+          "font": "13px"
+        },
+        {
+          "name": "Tile density",
+          "box": {
+            "x": 769.328125,
+            "y": 178.4375,
+            "width": 117,
+            "height": 33,
+            "top": 178.4375,
+            "right": 886.328125,
+            "bottom": 211.4375,
+            "left": 769.328125
+          },
+          "font": "13px"
+        }
+      ]
+    }
+  ],
+  "control": [
+    {
+      "width": 320,
+      "density": "comfortable",
+      "addMin": "140px",
+      "addHeight": 140,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 21,
+        "bottomInset": 21,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 140
+      }
+    },
+    {
+      "width": 320,
+      "density": "compact",
+      "addMin": "104px",
+      "addHeight": 104,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 15,
+        "bottomInset": 13,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 115.0859375
+      }
+    },
+    {
+      "width": 390,
+      "density": "comfortable",
+      "addMin": "140px",
+      "addHeight": 140,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 21,
+        "bottomInset": 21,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 140
+      }
+    },
+    {
+      "width": 390,
+      "density": "compact",
+      "addMin": "104px",
+      "addHeight": 104,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 15,
+        "bottomInset": 13,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 115.0859375
+      }
+    },
+    {
+      "width": 1280,
+      "density": "comfortable",
+      "addMin": "140px",
+      "addHeight": 140,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 21,
+        "bottomInset": 21,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 140
+      }
+    },
+    {
+      "width": 1280,
+      "density": "compact",
+      "addMin": "104px",
+      "addHeight": 104,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 15,
+        "bottomInset": 13,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 115.0859375
+      }
+    },
+    {
+      "width": 1920,
+      "density": "comfortable",
+      "addMin": "140px",
+      "addHeight": 140,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 21,
+        "bottomInset": 21,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 140
+      }
+    },
+    {
+      "width": 1920,
+      "density": "compact",
+      "addMin": "104px",
+      "addHeight": 104,
+      "overflow": 0,
+      "remove": {
+        "text": "Remove",
+        "cssPosition": "relative",
+        "rightInset": 15,
+        "bottomInset": 13,
+        "width": 66.6875,
+        "height": 26.59375,
+        "tileHeight": 115.0859375
+      }
+    }
+  ],
+  "name": {
+    "actualPointerHover": true,
+    "text": "postgres-00-primary-replica-sha",
+    "title": "postgres-00-primary-replica-sha",
+    "ariaContainsFullName": true,
+    "identityHeightPx": 37,
+    "identityOverflowPx": 0,
+    "nativeBubbleCaptured": false
+  },
+  "focus": {
+    "help": {
+      "sameFocus": true,
+      "sameNodes": true,
+      "polls": 2,
+      "resources": 132,
+      "outlinePx": 2
+    },
+    "tile": {
+      "sameFocus": true,
+      "sameNodes": true,
+      "polls": 2,
+      "resources": 132,
+      "outlinePx": 2
+    },
+    "remove": {
+      "sameFocus": true,
+      "sameNodes": true,
+      "polls": 2,
+      "resources": 132,
+      "outlinePx": 2,
+      "activated": false
+    },
+    "instrumentation": "Resource timing buffer held 250 entries. Initial before/after counts were unusable. A PerformanceObserver counted subsequent actual requests. Initial proxy had one configured target and disabled Remove. A two-entry control response enabled the documented Remove precondition."
+  },
+  "smoke": {
+    "q": "api-gateway-01",
+    "status": "serious",
+    "shown": 1,
+    "total": 64,
+    "roundTrip": "tile link -> All targets",
+    "clearRestores": 64,
+    "noMatchAddOpens": true,
+    "cancelled": true
+  },
+  "notRerun": [
+    "20/50 matrix",
+    "QA090 metadata",
+    "blocked storage",
+    "actual browser Back",
+    "middle-click",
+    "truly hidden tab",
+    "dynamic process-name replacement in browser"
+  ]
+}
