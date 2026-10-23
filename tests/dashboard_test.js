@@ -3066,10 +3066,9 @@ test('overview page shows one tile per target, worst first, and links to each da
   assert.deepEqual(tiles.map(tile => link(tile).href), ['?target=h%2Fbusy', '?target=h%2Fapi', '?target=h%2Fgone']);
   assert.deepEqual(tiles.map(tile => tile.dataset.level), ['serious', 'good', 'unknown']);
   assert.match(tileText(tiles[0]), /busy is saturating a core/);
-  assert.match(tileText(tiles[0]), /Limited access/);
-  assert.match(tileText(tiles[0]), /Sampler throttled/);
-  assert.match(tileText(tiles[1]), /No problems detected/);
-  assert.match(tileText(tiles[2]), /no live view/);
+  assert.match(tileText(tiles[1]), /Healthy/);
+  assert.doesNotMatch(tileText(tiles[1]), /No problems detected/);
+  assert.equal(tiles[2].children[0].children[0].attrs['aria-label'], 'Assessment: No data');
   assert.equal(app.run('document.title'), '(1) Targets · Thread monitor');
   assert.equal(app.elements.get('fleet-empty').hidden, true);
   // A later poll keeps the same tile elements, so focus and hover survive.
@@ -3105,18 +3104,29 @@ test('overview page starts no new live request once the tab is hidden mid-batch'
   assert.equal(live.length, 4, 'only the first batch is in flight');
 });
 
-test('overview tile shows memory only from a current resource sample of this process', async () => {
-  const withResources = resources => ({...fleetView(10, 'api', 5), resources});
-  const sample = {available: true, stale: false, session: '10', pid: 10, memory: {rss: 5 * 1048576}};
-  const shown = async resources => {
-    const app = dashboard(new Map(), url => url === '/api/targets/control' ? noControl : url === '/api/targets' ? jsonResponse({targets: [fleetTargets[0]]})
-      : url.startsWith('/api/live?') ? jsonResponse(withResources(resources)) : undefined, {target: null});
-    await app.run('refreshFleet()');
-    return tileText(app.elements.get('fleet-grid').children[0]);
-  };
-  assert.match(await shown(sample), /5(\.0)? MiB/);
-  for (const bad of [{...sample, stale: true}, {...sample, available: false}, {...sample, pid: 11}, {...sample, session: '9'}])
-    assert.doesNotMatch(await shown(bad), /MiB/);
+test('overview tile faces show only identity and an accessible assessment dot', async () => {
+  const app = dashboard(new Map(), url => {
+    if (url === '/api/live?target=h%2Fapi') return jsonResponse({...fleetView(10, 'api', 5),
+      resources: {available: true, stale: false, session: '10', pid: 10, memory: {rss: 5 * 1048576}}});
+    return fleetRespond(url);
+  }, {target: null});
+  await app.run('refreshFleet()');
+  const visibleText = item => typeof item === 'string' ? [item] : item.className === 'ft-card' ? []
+    : [item.textContent, ...item.children.flatMap(visibleText)].filter(Boolean);
+  const [busy, healthy, missing] = app.elements.get('fleet-grid').children;
+  assert.deepEqual(visibleText(healthy), ['api', 'h · api']);
+  assert.deepEqual(visibleText(busy), ['busy', 'h · busy']);
+  assert.deepEqual(visibleText(missing), ['gone', 'h · gone']);
+  for (const [tile, level, label] of [[busy, 'serious', 'Something is struggling'],
+    [healthy, 'good', 'Healthy'], [missing, 'unknown', 'No data']]) {
+    const [dot, link] = tile.children[0].children;
+    assert.equal(tile.dataset.level, level);
+    assert.equal(dot.attrs.role, 'img');
+    assert.equal(dot.attrs['aria-label'], 'Assessment: ' + label);
+    assert.equal(dot.title, label);
+    assert.match(link.attrs['aria-label'], new RegExp(label, 'i'));
+    assert.equal(dot.className, 'status-dot ft-assessment', 'the dot uses assessment color, without a live-status color');
+  }
 });
 
 test('a target dashboard does not start the overview', () => {
@@ -3231,7 +3241,7 @@ test('a tile with findings carries a card with the worst findings and the proces
   const [busy, api] = app.elements.get('fleet-grid').children;
   const card = tile => tile.children.find(child => child.className === 'ft-card');
   assert.equal(card(api), undefined, 'a healthy tile has no card');
-  assert.match(tileText(card(busy)), /Started 2 h ago · \/usr\/bin\/busy --spin/);
+  assert.match(tileText(card(busy)), /PID 20 · Started 2 h ago · \/usr\/bin\/busy --spin/);
   assert.match(tileText(card(busy)), /busy is saturating a core/);
   assert.match(tileText(card(busy)), /uses 99/);
   assert.equal(card(busy).children[1].children[0].className, 'lvl-serious');
@@ -3272,6 +3282,7 @@ test('a tile with only informational findings has no card', async () => {
   const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fapi' ? jsonResponse(info) : fleetRespond(url), {target: null});
   await app.run('refreshFleet()');
   const api = app.elements.get('fleet-grid').children.find(tile => tile.dataset.level === 'good');
-  assert.match(tileText(api), /No problems detected/);
+  assert.match(tileText(api), /Healthy/);
+  assert.doesNotMatch(tileText(api), /No problems detected/);
   assert.equal(api.children.find(child => child.className === 'ft-card'), undefined);
 });

@@ -11,7 +11,7 @@
 | --- | --- | --- | --- | --- |
 | QA-001 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
 | QA-002 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
-| QA-003 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
+| QA-003 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
 | QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
@@ -84,15 +84,15 @@
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
 | QA-081 | NOT_RUN | - | - | - |
-| QA-082 | NOT_RUN | - | - | - |
-| QA-083 | NOT_RUN | - | - | - |
-| QA-084 | NOT_RUN | - | - | - |
-| QA-085 | NOT_RUN | - | - | - |
-| QA-086 | NOT_RUN | - | - | - |
-| QA-087 | NOT_RUN | - | - | - |
-| QA-088 | NOT_RUN | - | - | - |
-| QA-089 | NOT_RUN | - | - | - |
-| QA-090 | NOT_RUN | - | - | - |
+| QA-082 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-083 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-084 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-087 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-088 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-090 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -491,13 +491,15 @@
 
 ## QA-082: Targets overview lists every target
 
+- Case revision: 3.
 - Test: Run two bug-lab workloads as targets and one absent named target. Open the dashboard URL without `?target=`. Read each tile.
-- Expected: The Targets overview opens. Each target has one tile with its status dot, process name, verdict, `host · id · PID`, worst finding, and Threads, CPU, Memory, and Updated. Badges appear only when they apply.
+- Expected: The Targets overview opens. Each tile face shows only one assessment dot, the process name, `host · id`, and an optional Remove button. No verdict, finding title, no-live-view message, PID, metrics, access badge, or throttle badge appears on the face. The assessment remains available to assistive technology. The issue card and target dashboard show process details. Targets with the same process name remain distinguishable by host and ID.
 
 ## QA-083: Tile order, colors, and counts
 
-- Test: Use targets at critical, serious, and healthy levels. Compare tile order, edge colors, count pills, and the tab title.
-- Expected: Tiles are worst first, then by key. Red, orange, amber, green, and gray match the levels. Counts match the tiles. The title starts with the number of targets at warning or worse.
+- Case revision: 2.
+- Test: Use targets at critical, serious, warning, healthy, and no-data levels. Include live targets with findings. Compare each assessment dot with its tile edge, count pills, and the tab title.
+- Expected: Tiles are worst first, then by key. Dot and edge both use red for critical, orange for serious, amber for warning, green for healthy, and gray for no data. A live target with findings does not get a green activity dot. Each dot has the corresponding accessible assessment label and native title. Counts match the tiles. The title starts with the number of targets at warning or worse.
 
 ## QA-084: Navigate between the overview and a target
 
@@ -506,23 +508,26 @@
 
 ## QA-085: Empty overview and lost collector
 
-- Test: Open the overview with no targets, then stop the collector while the page is open, then start it again.
-- Expected: With no targets, the page says so. While the collector is down, a banner says the data is stale. The tiles return after the collector does.
+- Case revision: 2.
+- Test: Open the overview with no targets. Add live targets and a target without a live view. Stop the collector while the page is open, then start it again.
+- Expected: With no targets, the page says so. A target without a live view has a gray assessment dot and its identity, with no message on its face. While the collector is down, a banner says the data is stale. The tiles return after the collector does.
 
 ## QA-086: Hidden tab polls nothing
 
 - Test: Open the overview with several targets and watch network requests. Switch to another tab during a poll, wait 30 s, and return.
 - Expected: No `/api/live` request starts while the tab is hidden. Polling resumes within 5 s after return.
 
-## QA-087: Overview themes
+## QA-087: Overview themes and tile spacing
 
-- Test: View the overview in Dark, Light, and System themes, and at 390 px width.
-- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Nothing scrolls sideways at 390 px.
+- Case revision: 3.
+- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Check Remove placement.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target are square. Grid gaps are 24 px. Names and identities wrap within the tile. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
 
 ## QA-088: Keyboard focus and help on the overview
 
+- Case revision: 2.
 - Test: Tab through tiles and their Remove and help buttons. Wait for two polls with focus on each. Press Enter on a tile link. Open the `fleet` and `fleet-tile` help.
-- Expected: Focus is visible and survives polls. Enter opens the target. Both help topics open and say that tiles do not run trend rules.
+- Expected: Focus is visible and survives polls. Enter opens the target. The dot and target link expose the assessment to assistive technology. Both help topics open and say that tiles do not run trend rules. Tile help describes the minimal face and says that the dot shows assessment, not sampler activity. It directs users to the card or dashboard for process details.
 
 ## QA-089: Select one of several processes with the same name
 
