@@ -64,7 +64,7 @@ test('section navigation follows viewport position and layout changes', () => {
 // Execute the shipped dashboard script, with network polling paused and a
 // small DOM substitute. Keep ingestion, storage, overview and drawer controls
 // real; unrelated visual panels are suppressed below.
-function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local} = {}) {
+function dashboard(storage = new Map(), respond = () => undefined, {resourceFetch,target='',local,search} = {}) {
   const elements = new Map();
   function element() {
     return {value: '', dataset: {}, textContent: '', attrs: {}, children: [],
@@ -107,7 +107,7 @@ function dashboard(storage = new Map(), respond = () => undefined, {resourceFetc
       const next = new URL(url, 'http://dashboard.test' + context.location.pathname + context.location.search);
       Object.assign(context.location, {pathname: next.pathname, search: next.search, hash: next.hash});
     }},
-    location: {hash: '', pathname: '/',search:target===null?'':'?target='+encodeURIComponent(target),assign(url){navigation.push(url);}},
+    location: {hash: '', pathname: '/',search:search??(target===null?'':'?target='+encodeURIComponent(target)),assign(url){navigation.push(url);}},
     addEventListener() {},
     setTimeout(callback, delay) {const id = ++timerId; timers.set(id, {callback, delay, due: timerNow + delay}); return id;},
     clearTimeout(id) {timers.delete(id);}, URLSearchParams,
@@ -1895,7 +1895,7 @@ test('help topics keep metric denominators separate and all related links resolv
 // may lack a source.
 test('every data help topic names its source', () => {
   const app = dashboard();
-  const controls = ['appearance', 'fleet-density', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
+  const controls = ['appearance', 'fleet-density', 'fleet-filter', 'section-navigation', 'historyfilters', 'alerts', 'watchprefix', 'watchwake',
     'watchremove', 'watchadd', 'watchsave', 'watchreload', 'watchreset'];
   const missing = app.run(`Object.values(HELP).filter(t=>!t.source||!t.sourceDetail).map(t=>t.id)`);
   assert.deepEqual([...missing].sort(), [...controls].sort());
@@ -3324,4 +3324,69 @@ test('blocked storage keeps the density choice only until reload', () => {
   chooseDensity(app, 'compact');
   assert.deepEqual(density(app), ['compact', 'compact']);
   assert.deepEqual(density(dashboard(new Map(), fleetRespond, {target: null, local: blockedStore})), ['comfortable', 'comfortable']);
+});
+
+const shownTiles = app => app.elements.get('fleet-grid').children.slice(0, -1)
+  .filter(tile => !tile.hidden).map(tile => tile.children.find(child => child.className === 'ft-key').textContent);
+function filterFleet(app, text, status = '') {
+  app.elements.get('fleet-search').value = text;
+  app.elements.get('fleet-search').oninput();
+  app.elements.get('fleet-level').value = status;
+  app.elements.get('fleet-level').onchange();
+}
+
+test('search and status show matching tiles with no request while the counts keep every target', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null});
+  await app.run('refreshFleet()');
+  const requests = app.requests.length, grid = app.elements.get('fleet-grid');
+  const tiles = grid.children.slice(0, -1);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 3 of 3 targets');
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+  filterFleet(app, 'API');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  assert.equal(app.elements.get('fleet-shown').textContent, 'Showing 1 of 3 targets');
+  filterFleet(app, 'h/', 'attention');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  filterFleet(app, '', 'good');
+  assert.deepEqual(shownTiles(app), ['h · api']);
+  filterFleet(app, '', 'unknown');
+  assert.deepEqual(shownTiles(app), ['h · gone']);
+  assert.equal(app.requests.length, requests, 'filtering starts no request');
+  filterFleet(app, '', 'critical');
+  assert.deepEqual(shownTiles(app), []);
+  assert.equal(app.elements.get('fleet-none').hidden, false);
+  assert.equal(app.elements.get('fleet-add').hidden, undefined, 'Add target is never filtered');
+  assert.equal(grid.children.at(-1), app.elements.get('fleet-add'));
+  assert.equal(app.elements.get('fleet-clear').hidden, false);
+  assert.match(tileText(app.elements.get('fleet-counts')), /Totals for all targets.*"1".*Serious.*"1".*Healthy.*"1".*No data/);
+  // A poll keeps the filter and the tile elements.
+  filterFleet(app, 'busy');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  assert.ok(grid.children.slice(0, -1).every(tile => tiles.includes(tile)));
+  app.elements.get('fleet-clear').onclick();
+  assert.deepEqual(shownTiles(app), ['h · busy', 'h · api', 'h · gone']);
+  assert.equal(app.elements.get('fleet-none').hidden, true);
+  assert.equal(app.elements.get('fleet-clear').hidden, true);
+});
+
+test('the URL keeps search and status, and target links carry them back to All targets', async () => {
+  const app = dashboard(new Map(), fleetRespond, {target: null, search: '?q=bus&status=attention'});
+  assert.equal(app.elements.get('fleet-search').value, 'bus');
+  assert.equal(app.elements.get('fleet-level').value, 'attention');
+  await app.run('refreshFleet()');
+  assert.deepEqual(shownTiles(app), ['h · busy']);
+  const link = tile => tile.children[0].children[1].href;
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy&q=bus&status=attention');
+  filterFleet(app, 'a b', 'serious');
+  assert.equal(app.run('location.search'), '?q=a+b&status=serious');
+  assert.equal(link(app.elements.get('fleet-grid').children[1]), '?target=h%2Fapi&q=a+b&status=serious');
+  filterFleet(app, '');
+  assert.equal(app.run('location.search'), '');
+  assert.equal(link(app.elements.get('fleet-grid').children[0]), '?target=h%2Fbusy');
+  assert.equal(dashboard(new Map(), fleetRespond, {target: null, search: '?status=bogus'}).elements.get('fleet-level').value, '');
+  // All targets on the target page comes from its own URL, with browser storage blocked.
+  const target = dashboard(new Map(), () => undefined, {search: '?target=h%2Fbusy&q=a+b&status=serious', local: blockedStore});
+  assert.equal(target.elements.get('fleet-back').href, './?q=a+b&status=serious');
+  assert.equal(dashboard(new Map(), () => undefined, {target: 'h/api'}).elements.get('fleet-back').href, './');
 });
