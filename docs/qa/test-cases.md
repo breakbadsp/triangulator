@@ -96,6 +96,7 @@
 | QA-091 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-092 | PASSED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-094 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -557,3 +558,8 @@
 
 - Test: Filter the overview by search and status. Open the URL in a new tab. Open a tile, then use browser Back. Open a tile again and use All targets. Middle-click a tile and use All targets in the new tab. Repeat with browser storage blocked.
 - Expected: The URL carries `q` and `status`. Each path returns to the overview with the same search, status, and matching tiles. Blocked storage affects only the saved tile density.
+
+## QA-094: One matte black theme on every page
+
+- Test: Open the overview and the dashboard of one target in Dark, Light, and System themes (system set to dark). On the target dashboard, open help, a chart tooltip, and an expanded section. Repeat at 390 px.
+- Expected: In dark, both pages use the same matte black canvas and cards, with no blue-tinted panels. Charts, state colors, status colors, and text stay readable. Light is unchanged.
