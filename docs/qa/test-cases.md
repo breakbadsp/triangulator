@@ -89,7 +89,7 @@
 | QA-084 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-087 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-087 | NOT_RUN | - | - | - |
 | QA-088 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-090 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
@@ -519,9 +519,9 @@
 
 ## QA-087: Overview themes and tile spacing
 
-- Case revision: 3.
+- Case revision: 4.
 - Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Check Remove placement.
-- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target are square. Grid gaps are 24 px. Names and identities wrap within the tile. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target have a 140 px minimum height and grow when long identity text needs more room. No fixed aspect ratio forces empty height. Grid gaps are 24 px. Names and identities wrap within the tile. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
 
 ## QA-088: Keyboard focus and help on the overview
 
