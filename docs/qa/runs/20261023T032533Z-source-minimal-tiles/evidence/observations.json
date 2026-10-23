@@ -1,0 +1,24 @@
+{
+  "artifact": {
+    "binarySha256": "40ab244d9db7d8a4596d3a1354ada4afce69f45a9808b1e3d59d44cee7bc3b68",
+    "sourceBase": "117f17ae80f2174baa0ba04495152f0c27c54ec3",
+    "branch": "fleet/minimal-tiles"
+  },
+  "qa087": {
+    "width": 320,
+    "scrollWidth": 322,
+    "gridWidth": 296,
+    "gridColumnWidth": 310,
+    "tileRight": 322,
+    "evidence": "320px-first-failure.png"
+  },
+  "qa088": {
+    "toolIcon": {
+      "_tag": "website",
+      "pageUrl": "http://127.0.0.1:19782/"
+    },
+    "value": {
+      "help": "METRIC GUIDE\nClose ×\nTargets overview\n\nEvery target of this collector · latest live view\n\nThe first page: one tile per monitored process, with its current assessment. The counts above the tiles add up the tiles by level.\n\nExample\n\nCritical 1 · Healthy 3 means one process needs attention now and three show no problem.\n\nHow to read it\n\nTiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.\n\nMeasurement limits\n\nEach refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.\n\nSource\n\nThe page reads the target list, then the latest live view of each target, at most 4 at a time, every 5 seconds.\n\nTarget tile\nMonitoring target\nAssessment\nAll topics\nShow help on hover or focus"
+    }
+  }
+}
