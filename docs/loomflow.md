@@ -15,8 +15,8 @@
 ## Build mode
 
 - Decide the size first, before any work, from the planned change and the "When" column below. Review mode uses this size when it is larger than its own triage.
-- Small: the orchestrator builds and opens a PR to `master`. Normal: the same, plus a plan of 3 to 5 lines in the PR body.
-- Major: the orchestrator stays thin. It sizes, decides, delegates, and checks results. A fresh builder does all exploration, file reads, edits, and proof.
+- Small: the orchestrator builds and opens a PR to `master`. Normal: the same, plus a plan of 3 to 5 lines in the PR body. A Major change that is Major only for its path or area is built as Normal, and keeps the Major review.
+- Major build (a new feature or redesign, or more than 300 changed code lines): the orchestrator stays thin. It sizes, decides, delegates, and checks results. A fresh builder does all exploration, file reads, edits, and proof.
   1. The builder opens a draft PR. Its body is the minimal design note: the requirement; x over y and why; what is deleted; the one fact that makes the change safe. Decide only what blocks the first verifiable unit.
   2. One reviewer of another model family reviews the design at `high`. Over-design is a finding. The builder revises once. Run design round 2 only when a design `blocker` is not `FIXED`. Never run a third. An open design `blocker` after round 2 stops the run.
   3. The builder builds, proves, writes the safety fact and its proof in the PR body, and marks the PR ready.
@@ -51,7 +51,7 @@ Pick the models from the size of the change. Pass the model and effort to every 
 | --- | --- | --- | --- | --- | --- | --- |
 | Small | `scan` | orchestrator | Haiku 5.5, medium | none | Sonnet 5.5, medium | Haiku 5.5, low |
 | Normal | other `full` changes | orchestrator | GPT 6.1 Sol or Sonnet 5.5, medium | Haiku 5.5, medium | Sonnet 5.5, medium | Haiku 5.5, low |
-| Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | Opus 5.5, high | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
+| Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | Opus 5.5, high; orchestrator when Major only for path or area | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
 
 - Use two model families for A and B when possible. In any doubt between two sizes, use the larger one.
 - Never use Astra 6, also not as a fallback. Never use effort above `high`.
