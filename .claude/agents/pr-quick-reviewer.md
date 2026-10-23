@@ -16,7 +16,7 @@ PR number, worktree path, round number, head SHA, mode (`scan` or `full`). In ro
 
 - Read the diff (`gh pr diff`) and only the surrounding code you need. Read the repository's `AGENTS.md` (or README) for its rules.
 - Mode `scan`: the PR looks small or documentation-only. Read the whole diff once. Report only `blocker`s, plus wrong facts, broken links, or instructions that fail when followed in documentation. Also report it if the PR is not as small as it looks (for example a one-line change that alters behavior elsewhere).
-- Mode `full`: you run beside the main reviewer. Do not read its review before posting yours. Check correctness, failure paths, callers of changed code, and missing tests for changed behavior.
+- Mode `full`: you run beside the main reviewer. Do not read its review before posting yours. Check correctness, failure paths, callers of changed code, and missing tests for changed behavior. If the PR body states a safety fact and its proof, check that the proof ran the changed code.
 - Round 2: check only the round-1 fixes in the `## Analyzer` comment and `git diff <round-1 head>..<head>`.
 - Skip style, naming, formatting, and speculative edge cases. Do not report minors.
 
