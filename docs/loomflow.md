@@ -18,7 +18,7 @@
 - Small: the orchestrator builds and opens a PR to `master`. Normal: the same, plus a plan of 3 to 5 lines in the PR body. A Major change that is Major only for its path or area is built as Normal, and keeps the Major review.
 - Major build (a new feature or redesign, or more than 300 changed code lines): the orchestrator stays thin. It sizes, decides, delegates, and checks results. A fresh builder does all exploration, file reads, edits, and proof.
   1. The builder opens a draft PR. Its body is the minimal design note: the requirement; x over y and why; what is deleted; the one fact that makes the change safe. Decide only what blocks the first verifiable unit.
-  2. One reviewer of another model family reviews the design at `high`. Over-design is a finding. The builder revises once. Run design round 2 only when a design `blocker` is not `FIXED`. Never run a third. An open design `blocker` after round 2 stops the run.
+  2. One reviewer uses the design reviewer model and effort below. Over-design is a finding. The builder revises once. Run design round 2 only when a design `blocker` is not `FIXED`. Never run a third. An open design `blocker` after round 2 stops the run.
   3. The builder builds, proves, writes the safety fact and its proof in the PR body, and marks the PR ready.
 - Major series (more than one PR): PRs target a feature branch and gate on the local check. The orchestrator cancels their automatic CI runs. After each merge, it writes the decisions and open items to the trail file, `<state>/<owner>-<repo>-<feature branch, "/" as "-">.md`, and continues from that file. One final sync PR to `master` runs full CI.
 - Proof: tests and short DOM facts (`evaluate`). Take screenshots only for a major UI redesign, as few as needed, saved to a file.
@@ -54,11 +54,13 @@ Pick the models from the size of the change. Pass the model and effort to every 
 | Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | Opus 5.5, high; orchestrator when Major only for path or area | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
 
 - Use two model families for A and B when possible. In any doubt between two sizes, use the larger one.
-- Never use Astra 6, also not as a fallback. Never use effort above `high`.
+- By default, do not use Astra 6 or effort above `high`. Only the following exceptions apply.
+- When the Claude usage limit is reached, continue on Codex. Opus 5.5 `high` becomes GPT 6.1 Sol `xhigh`; Sonnet 5.5 becomes GPT 6.1 Sol at the same effort; Haiku becomes GPT 6.1 Sol `low`. Use Astra 6 `medium` only when required for this fallback.
+- UI/UX design review uses Astra 6 `medium`. This role does not require a different model family or an increase to `high`. It gives no Astra exception for code review or build.
 - Haiku does the gate and other mechanical work: its runs stay far below its context limit, and they need no deep reasoning. It is not a reviewer for major changes.
 - Lower the effort, never the size, when the token budget is low.
 - Major builder: a stronger model when unused budget expires soon, a cheaper one when the budget is low. Use other families where they fit.
-- Design reviewer: the Major Reviewer A model, of a family other than the builder's.
+- Non-UI Major design review: use the Major Reviewer A model, of a family other than the builder's at `high` when available. Apply the usage-limit fallback above when needed.
 
 ## Review method
 

@@ -10,7 +10,7 @@ Run LoomFlow for $ARGUMENTS. You are the orchestrator. If the first argument is 
 Follow "Build mode" in `docs/loomflow.md`. State the size and the reason in one line before any work. Create the worktree and branch as `AGENTS.md` "Git workflow" says (from the feature branch in a Major series).
 
 - Small, Normal, and Major only for path or area: build, run the repository check, push, and open the PR. Then run review mode on it.
-- Major build: do no file reads or edits yourself. Start `pr-builder` with the builder model and effort. Pass the task, worktree path, branch, base branch, and phase `design`. Continue the same builder (SendMessage) for phases `revise` and `build`.
+- Major build (a new feature or redesign, or more than 300 changed code lines): do no file reads or edits yourself. Start `pr-builder` with the builder model and effort. Pass the task, worktree path, branch, base branch, and phase `design`. Continue the same builder (SendMessage) for phases `revise` and `build`.
   1. Start `pr-adversarial-reviewer` in mode `design` with the design reviewer model, the PR number, worktree path, and round number. Confirm a PR review that starts with `## Design review, round <n>`. If it is missing, stop and report.
   2. If it lists a `blocker` or `major`, continue the builder with phase `revise`. Apply the design round 2 rule in the spec.
   3. Continue the builder with phase `build`. Confirm that the PR is ready and that its head equals the builder's pushed SHA. Then run review mode on it with the Major size.
@@ -24,7 +24,12 @@ Follow "Build mode" in `docs/loomflow.md`. State the size and the reason in one 
 
 ## Model and reasoning selection
 
-Follow "Model and reasoning selection" in `docs/loomflow.md`: it sets the model and effort of each role from the size of the change. If that file is absent: one reviewer for `scan`, two reviewers from different families for `full`, a stronger pair, with one reviewer at `high`, for major changes and every sensitive-path change, Haiku for the gate. Never use Astra 6, and never use effort above `high`.
+Follow "Model and reasoning selection" in `docs/loomflow.md`: it sets the model and effort of each role from the size of the change. If that file is absent: one reviewer for `scan`, two reviewers from different families for `full`, a stronger pair, with one reviewer at `high`, for major changes and every sensitive-path change, Haiku for the gate.
+
+- By default, do not use Astra 6 or effort above `high`. Only the following exceptions apply.
+- When the Claude usage limit is reached, continue on Codex. Opus 5.5 `high` becomes GPT 6.1 Sol `xhigh`; Sonnet 5.5 becomes GPT 6.1 Sol at the same effort; Haiku becomes GPT 6.1 Sol `low`. Use Astra 6 `medium` only when required for this fallback.
+- UI/UX design review uses Astra 6 `medium`. This role does not require a different model family or an increase to `high`. It gives no Astra exception for code review or build.
+- Non-UI Major design review: use the Major Reviewer A model, of a family other than the builder's at `high` when available. Apply the usage-limit fallback above when needed.
 
 ## Triage
 
@@ -60,7 +65,7 @@ Start `pr-test-merger` with the gate model and effort, with the PR number, workt
 ## Limits
 
 - Never start a third round or a second gate run.
-- Pass each agent the effort selected above. Never exceed `high`.
+- Pass each agent the model and effort selected above, including its usage-limit and UI/UX design-review exceptions.
 - Never merge with an open `blocker` or `major` finding, or a failing check.
 - Neither this command nor its agents ever start `/loomflow` again. Only the user does.
 - If a result is ambiguous, stop and report.
