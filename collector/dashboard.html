@@ -430,7 +430,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 .fleet-counts span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--lvl)}
 .fleet-counts b{color:var(--ink);font-variant-numeric:tabular-nums}
 .fleet-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:24px}
-.fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;aspect-ratio:1;min-width:0;padding:20px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;
+.fleet-tile{--lvl:var(--s-other);position:relative;display:flex;flex-direction:column;gap:12px;min-height:140px;min-width:0;padding:20px;border-radius:16px;border:1px solid var(--line);color:inherit;text-decoration:none;
   background:var(--surface);box-shadow:var(--shadow);transition:transform .16s,border-color .16s,box-shadow .16s}
 .fleet-tile::before{content:"";position:absolute;inset:-1px auto -1px -1px;width:5px;border-radius:16px 0 0 16px;background:var(--lvl)}
 /* Findings card: below the tile on hover or keyboard focus, after a short delay so a pointer that crosses the grid does not flash it. */
@@ -453,7 +453,7 @@ kbd{font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--lin
 .ft-foot:empty{display:none}
 .ft-remove{position:relative;z-index:1;margin-left:auto;font-size:12px;padding:3px 10px;border-radius:999px;background:transparent;color:var(--muted)}
 .ft-remove:hover{color:var(--bad-ink);border-color:color-mix(in srgb,var(--critical) 50%,var(--line))}
-.fleet-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;aspect-ratio:1;border:1.5px dashed var(--line);border-radius:16px;background:transparent;color:var(--muted);font-weight:600}
+.fleet-add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:140px;border:1.5px dashed var(--line);border-radius:16px;background:transparent;color:var(--muted);font-weight:600}
 .fleet-add span{font-size:30px;line-height:1;font-weight:300}
 .fleet-add:hover{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-wash)}
 .fleet-status:empty{display:none}.fleet-status{margin:-8px 0 16px}

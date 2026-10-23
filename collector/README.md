@@ -66,7 +66,7 @@ Cancel or a failed read keeps the draft. Copy any edits you need before reloadin
 ## Dashboard layout
 
 The dashboard opens on **Targets**: one tile per monitored process, worst
-first. A square tile shows the process name, host and target ID, and an
+first. A tile shows the process name, host and target ID, and an
 assessment dot. Open its dashboard for measurements. Point at a tile with
 findings, or focus it, to see up to four findings. Select a tile to open that
 process; **All targets** in its header returns. A link with
