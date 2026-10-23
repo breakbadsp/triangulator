@@ -1,0 +1,472 @@
+{
+  "source_revision": "59344f52acbd66d90f621a7ac5955a834a1102f9",
+  "collector_sha256": "f516ca2819ed4394f72ab417026df7c97cbf851064594f81af17a56664b05b4b",
+  "browser": "Chrome/154.0.0.0 Linux x86_64",
+  "matrix": [
+    {
+      "targets": 20,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "full_tiles": 2,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "full_tiles": 3,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "full_tiles": 12,
+      "columns": 4,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "full_tiles": 20,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "full_tiles": 20,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 20,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "full_tiles": 20,
+      "columns": 6,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "full_tiles": 2,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "full_tiles": 3,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "full_tiles": 12,
+      "columns": 4,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "full_tiles": 20,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "full_tiles": 25,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 50,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "full_tiles": 42,
+      "columns": 6,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "comfortable",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        320,
+        700
+      ],
+      "density": "compact",
+      "full_tiles": 1,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 515,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "comfortable",
+      "full_tiles": 2,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        390,
+        844
+      ],
+      "density": "compact",
+      "full_tiles": 3,
+      "columns": 1,
+      "overflow_px": 0,
+      "grid_top_px": 422.234375,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "comfortable",
+      "full_tiles": 12,
+      "columns": 4,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        1280,
+        800
+      ],
+      "density": "compact",
+      "full_tiles": 20,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "comfortable",
+      "full_tiles": 25,
+      "columns": 5,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 140,
+      "gap_px": 24,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    },
+    {
+      "targets": 64,
+      "viewport": [
+        1920,
+        1080
+      ],
+      "density": "compact",
+      "full_tiles": 36,
+      "columns": 6,
+      "overflow_px": 0,
+      "grid_top_px": 231.7890625,
+      "minimum_height_px": 104,
+      "gap_px": 16,
+      "name_font_px": 18,
+      "identity_font_px": 12
+    }
+  ],
+  "filters": {
+    "64_total": {
+      "critical": 21,
+      "serious": 11,
+      "warning": 11,
+      "healthy": 21,
+      "attention": 43
+    },
+    "search": {
+      "postgres": 16,
+      "rack04": 8,
+      "nginx-63": 1
+    },
+    "proxy_nodata": {
+      "healthy": 20,
+      "nodata": 1
+    },
+    "combined_postgres_attention": 11,
+    "no_match": 0,
+    "totals_unchanged": true
+  },
+  "polls": {
+    "count": 2,
+    "resources": 132,
+    "tile_nodes_same": true,
+    "tile_links_same": true,
+    "focus_same": true,
+    "filter_same": true
+  },
+  "typing": {
+    "fixture_targets": 20,
+    "before": {
+      "resources": 22,
+      "last_start_ms": 83.8,
+      "now_ms": 248.1
+    },
+    "after": {
+      "resources": 22,
+      "last_start_ms": 83.8,
+      "now_ms": 323.9
+    }
+  },
+  "density_reload": [
+    "compact",
+    "comfortable"
+  ],
+  "count_change": {
+    "from": 64,
+    "to": 20,
+    "density": "compact",
+    "shown": "Showing 3 of 20 targets"
+  },
+  "failure": {
+    "case": "QA-087",
+    "revision": 4,
+    "name": "postgres-00-primary-replica-sha",
+    "name_css": {
+      "white_space": "nowrap",
+      "overflow": "hidden",
+      "text_overflow": "ellipsis"
+    },
+    "320_compact": {
+      "available_px": 246,
+      "required_px": 264
+    },
+    "1920_compact": {
+      "available_px": 173,
+      "required_px": 264
+    },
+    "identity_wraps": true,
+    "full_aria_label": true,
+    "title": ""
+  },
+  "limits": [
+    "blocked localStorage not exercised",
+    "actual browser Back unavailable: Alt+Left did not navigate",
+    "middle-click returned without a new T3 tab",
+    "fixture lacks start time and command line metadata",
+    "Remove/help focus through two polls not fully executed",
+    "no live sampler or control persistence tested"
+  ]
+}

@@ -90,12 +90,12 @@
 | QA-085 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-086 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-087 | NOT_RUN | - | - | - |
-| QA-088 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
+| QA-088 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-089 | BLOCKED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-090 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-091 | NOT_RUN | - | - | - |
-| QA-092 | NOT_RUN | - | - | - |
-| QA-093 | NOT_RUN | - | - | - |
+| QA-090 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-091 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-092 | PASSED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
+| QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -522,9 +522,9 @@
 
 ## QA-087: Overview themes and tile spacing
 
-- Case revision: 4.
-- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Check Remove placement.
-- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target have a 140 px minimum height and grow when long identity text needs more room. No fixed aspect ratio forces empty height. Grid gaps are 24 px. Names and identities wrap within the tile. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
+- Case revision: 5.
+- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths, in both Tiles densities. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Point at a long name and read the link's accessible name. Check Remove placement.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. In Comfortable, target tiles and Add target have a 140 px minimum height and grid gaps are 24 px. In Compact, the minimum height is 104 px and gaps are 16 px. Tiles grow when long identity text needs more room. No fixed aspect ratio forces empty height. Host and target identities wrap within the tile. A long process name may stay on one line with an ellipsis; the link's title and accessible name give the full name. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
 
 ## QA-088: Keyboard focus and help on the overview
 

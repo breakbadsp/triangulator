@@ -3258,6 +3258,21 @@ test('a poll keeps the tile link element, so keyboard focus survives', async () 
   assert.equal(tile.children.filter(child => child.className === 'ft-key').length, 1);
 });
 
+test('a tile link has the full process name as its title and keeps it current across polls', async () => {
+  let name = 'postgres-00-primary-replica-sha';
+  const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, name, 99)) : fleetRespond(url), {target: null});
+  await app.run('refreshFleet()');
+  const tile = app.elements.get('fleet-grid').children.find(item => item.children[0].children[1].href === '?target=h%2Fbusy');
+  const link = tile.children[0].children[1];
+  assert.equal(link.title, 'postgres-00-primary-replica-sha');
+  assert.match(link.attrs['aria-label'], /^postgres-00-primary-replica-sha, h · busy: /);
+  name = 'postgres-01-standby';
+  await app.run('refreshFleet()');
+  assert.equal(tile.children[0].children[1], link);
+  assert.equal(link.title, 'postgres-01-standby');
+  assert.match(link.attrs['aria-label'], /^postgres-01-standby, h · busy: /);
+});
+
 test('a tile that holds keyboard focus is not refilled until focus leaves it', async () => {
   let cpu = 99;
   const app = dashboard(new Map(), url => url === '/api/live?target=h%2Fbusy' ? jsonResponse(fleetView(20, 'busy', cpu)) : fleetRespond(url), {target: null});
