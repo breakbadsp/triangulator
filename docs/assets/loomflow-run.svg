@@ -1,0 +1,417 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 746" width="1000" height="746" role="img" aria-labelledby="title description">
+<title id="title">LoomFlow: the Fleet overview release</title>
+<desc id="description">A 32-second loop of PR 157. Sync the feature with master. GPT 6.1 Sol and Sonnet 5.5 review in parallel. One major keyboard-focus defect is fixed and tested. Both second reviews have no findings. All four CI checks pass. One merge gate merges commit 8ce2e8e to master. Timing is compressed.</desc>
+<metadata>Run: https://github.com/breakbadsp/triangulator/pull/157. Visual reference: https://bun.sh/blog/bun-in-rust#compiler-errors-as-a-work-queue. Original diagram; timing is illustrative, not a recording.</metadata>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.mono{font-family:ui-monospace,"SFMono-Regular",Consolas,monospace}
+.reduced{display:none}
+@media(prefers-reduced-motion:reduce){.motion{display:none}.reduced{display:inline}}
+</style>
+<rect x="0.5" y="0.5" width="999" height="745" rx="18" fill="#0b0d11" stroke="#252b34"/>
+<text x="24" y="34" font-size="12" fill="#949ba8" letter-spacing="2" class="mono">TRIANGULATOR / LOOMFLOW</text>
+<text x="24" y="70" font-size="30" fill="#ece9e2" >Fleet overview → master</text>
+<text x="976" y="36" font-size="14" fill="#949ba8" text-anchor="end" class="mono">PR #157</text>
+<text x="976" y="66" font-size="10" fill="#949ba8" text-anchor="end" class="mono">ACTUAL RUN · COMPRESSED TIME</text>
+<rect x="24" y="88" width="220" height="60" rx="8" fill="#101319" stroke="#252b34"/>
+<text x="40" y="105" font-size="10" fill="#949ba8" letter-spacing="1.2" class="mono">OPEN FINDINGS</text>
+<rect x="268" y="88" width="220" height="60" rx="8" fill="#101319" stroke="#252b34"/>
+<text x="284" y="105" font-size="10" fill="#949ba8" letter-spacing="1.2" class="mono">REVIEW ROUND</text>
+<rect x="512" y="88" width="220" height="60" rx="8" fill="#101319" stroke="#252b34"/>
+<text x="528" y="105" font-size="10" fill="#949ba8" letter-spacing="1.2" class="mono">CI CHECKS</text>
+<rect x="756" y="88" width="220" height="60" rx="8" fill="#101319" stroke="#252b34"/>
+<text x="772" y="105" font-size="10" fill="#949ba8" letter-spacing="1.2" class="mono">COMMIT</text>
+<rect x="24" y="180" width="210" height="326" rx="12" fill="#11151b" stroke="#303641"/>
+<text x="42" y="207" font-size="11" fill="#949ba8" class="mono" letter-spacing="1.4">CHANGE SET</text>
+<text x="42" y="230" font-size="16" fill="#ece9e2" >32 files · full review</text>
+<text x="58" y="255" font-size="14" fill="#ece9e2" class="mono">dashboard.html</text>
+<path d="M42 269 H216" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="58" y="299" font-size="14" fill="#ece9e2" class="mono">sampler_control.py</text>
+<path d="M42 313 H216" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="58" y="343" font-size="14" fill="#ece9e2" class="mono">dashboard_test.js</text>
+<path d="M42 357 H216" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="58" y="387" font-size="14" fill="#ece9e2" >Help + QA cases</text>
+<path d="M42 401 H216" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="58" y="431" font-size="14" fill="#ece9e2" >Docs + evidence</text>
+<path d="M42 445 H216" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="42" y="493" font-size="12" fill="#949ba8" class="mono">feature/fleet-overview</text>
+<rect x="280" y="202" width="182" height="90" rx="12" fill="#11151b" stroke="#303641"/>
+<text x="298" y="226" font-size="12" fill="#79b8ff" class="mono" letter-spacing="1">REVIEWER A</text>
+<text x="298" y="248" font-size="13" fill="#ece9e2" >GPT 6.1 Sol · high</text>
+<rect x="280" y="344" width="182" height="90" rx="12" fill="#11151b" stroke="#303641"/>
+<text x="298" y="368" font-size="12" fill="#bc9cff" class="mono" letter-spacing="1">REVIEWER B</text>
+<text x="298" y="390" font-size="13" fill="#ece9e2" >Sonnet 5.5 · high</text>
+<rect x="528" y="273" width="164" height="90" rx="12" fill="#11151b" stroke="#303641"/>
+<text x="546" y="297" font-size="12" fill="#ffb86b" class="mono" letter-spacing="1">ANALYZER</text>
+<text x="546" y="319" font-size="13" fill="#ece9e2" >Sonnet 5.5 · high</text>
+<text x="610" y="403" font-size="14" fill="#949ba8" text-anchor="middle">One fix, then</text>
+<text x="610" y="424" font-size="14" fill="#949ba8" text-anchor="middle">review the change.</text>
+<rect x="748" y="180" width="228" height="326" rx="12" fill="#11151b" stroke="#303641"/>
+<text x="766" y="207" font-size="11" fill="#949ba8" class="mono" letter-spacing="1.4">RELEASE CHECKS</text>
+<text x="766" y="230" font-size="12" fill="#949ba8" class="mono">Reviewed head: adce073</text>
+<text x="784" y="263" font-size="15" fill="#ece9e2" >CI inputs</text>
+<path d="M766 280 H958" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="784" y="319" font-size="15" fill="#ece9e2" >QA results</text>
+<path d="M766 336 H958" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="784" y="375" font-size="15" fill="#ece9e2" >C++ format</text>
+<path d="M766 392 H958" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="784" y="431" font-size="15" fill="#ece9e2" >AlmaLinux 8</text>
+<path d="M766 448 H958" fill="none" stroke="#303641" stroke-width="1.5" />
+<text x="766" y="493" font-size="12" fill="#949ba8" class="mono">Gate: Haiku 5.5 · low</text>
+<path d="M234 343 H251 Q264 343 264 330 V259 Q264 247 276 247 H280" fill="none" stroke="#303641" stroke-width="1.5" />
+<path d="M264 330 V377 Q264 389 276 389 H280" fill="none" stroke="#303641" stroke-width="1.5" />
+<path d="M462 247 H486 Q498 247 498 259 V306 Q498 318 510 318 H528" fill="none" stroke="#303641" stroke-width="1.5" />
+<path d="M462 389 H486 Q498 389 498 377 V330 Q498 318 510 318" fill="none" stroke="#303641" stroke-width="1.5" />
+<path d="M692 318 H748" fill="none" stroke="#303641" stroke-width="1.5" />
+<path d="M610 273 V178 Q610 166 598 166 H383 Q371 166 371 178 V202" fill="none" stroke="#303641" stroke-width="1.5" stroke-dasharray="3 5"/>
+<text x="490" y="159" font-size="10" fill="#949ba8" text-anchor="middle" class="mono">FIX → REVIEW AGAIN</text>
+<rect x="24" y="534" width="952" height="126" rx="12" fill="#101319" stroke="#303641"/>
+<g class="motion" data-phase="0" opacity="0">
+<animate attributeName="opacity" values="1;0;0;0;0;0;0;1" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">0</text>
+<text x="528" y="130" font-size="25" fill="#949ba8" class="mono">pending</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">3fe566e</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="24" y="180" width="210" height="326" rx="12" fill="none" stroke="#79b8ff" stroke-width="1.8"/>
+<circle cx="298" cy="268" r="3.5" fill="#949ba8"/>
+<text x="310" y="273" font-size="15" fill="#949ba8" >waiting</text>
+<circle cx="298" cy="410" r="3.5" fill="#949ba8"/>
+<text x="310" y="415" font-size="15" fill="#949ba8" >waiting</text>
+<text x="371" y="321" font-size="12" fill="#949ba8" text-anchor="middle" class="mono">ROUND 1</text>
+<circle cx="546" cy="340" r="3.5" fill="#949ba8"/>
+<text x="558" y="345" font-size="15" fill="#949ba8" >waiting</text>
+<text x="954" y="263" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="319" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="375" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="431" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="44" y="560" font-size="12" fill="#79b8ff" class="mono" letter-spacing="1.4">01 / PREPARE</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Sync the complete feature with master.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >PR #157 opens. The merge has no conflicts.</text>
+<text x="44" y="645" font-size="14" fill="#79b8ff" class="mono">3fe566e · full review · Major</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#79b8ff"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="1" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0;0;0;0;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#ffb86b" class="mono">1</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">1</text>
+<text x="528" y="130" font-size="25" fill="#949ba8" class="mono">pending</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">3fe566e</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#626b7a"/>
+<circle cx="298" cy="268" r="3.5" fill="#ffb86b"/>
+<text x="310" y="273" font-size="15" fill="#ffb86b" >1 major</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >no findings</text>
+<rect x="280" y="202" width="182" height="90" rx="12" fill="none" stroke="#79b8ff" stroke-width="1.8"/>
+<rect x="280" y="344" width="182" height="90" rx="12" fill="none" stroke="#bc9cff" stroke-width="1.8"/>
+<text x="371" y="321" font-size="12" fill="#949ba8" text-anchor="middle" class="mono">ROUND 1</text>
+<circle cx="546" cy="340" r="3.5" fill="#949ba8"/>
+<text x="558" y="345" font-size="15" fill="#949ba8" >queued</text>
+<text x="954" y="263" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="319" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="375" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="431" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="44" y="560" font-size="12" fill="#ffb86b" class="mono" letter-spacing="1.4">02 / REVIEW 1</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Two independent reviews. One major finding.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >Reviewer A finds keyboard focus loss when tiles reorder.</text>
+<text x="44" y="645" font-size="14" fill="#ffb86b" class="mono">Reviewer B: no findings · merge stays blocked</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#ffb86b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#ffb86b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="2" opacity="0">
+<animate attributeName="opacity" values="0;0;1;0;0;0;0;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#ffb86b" class="mono">1 → 0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">1</text>
+<text x="528" y="130" font-size="25" fill="#949ba8" class="mono">pending</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">adce073</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#ffb86b"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#ffb86b"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#626b7a"/>
+<circle cx="298" cy="268" r="3.5" fill="#949ba8"/>
+<text x="310" y="273" font-size="15" fill="#949ba8" >finding sent</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >review complete</text>
+<text x="371" y="321" font-size="12" fill="#949ba8" text-anchor="middle" class="mono">ROUND 1</text>
+<circle cx="546" cy="340" r="3.5" fill="#ffb86b"/>
+<text x="558" y="345" font-size="15" fill="#ffb86b" >fix + test</text>
+<rect x="528" y="273" width="164" height="90" rx="12" fill="none" stroke="#ffb86b" stroke-width="1.8"/>
+<text x="954" y="263" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="319" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="375" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="431" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="44" y="560" font-size="12" fill="#ffb86b" class="mono" letter-spacing="1.4">03 / FIX</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Reproduce. Add a regression test. Restore focus.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >The test fails before the fix and passes after it.</text>
+<text x="44" y="645" font-size="14" fill="#ffb86b" class="mono">adce073 · Chromium proof · make check passes</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#ffb86b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#ffb86b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#ffb86b"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="3" opacity="0">
+<animate attributeName="opacity" values="0;0;0;1;0;0;0;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">2</text>
+<text x="528" y="130" font-size="25" fill="#949ba8" class="mono">pending</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">adce073</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#626b7a"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#626b7a"/>
+<circle cx="298" cy="268" r="3.5" fill="#a5df9b"/>
+<text x="310" y="273" font-size="15" fill="#a5df9b" >no findings</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >no findings</text>
+<rect x="280" y="202" width="182" height="90" rx="12" fill="none" stroke="#79b8ff" stroke-width="1.8"/>
+<rect x="280" y="344" width="182" height="90" rx="12" fill="none" stroke="#bc9cff" stroke-width="1.8"/>
+<text x="371" y="321" font-size="12" fill="#bc9cff" text-anchor="middle" class="mono">ROUND 2</text>
+<circle cx="546" cy="340" r="3.5" fill="#a5df9b"/>
+<text x="558" y="345" font-size="15" fill="#a5df9b" >fixed</text>
+<path d="M610 273 V178 Q610 166 598 166 H383 Q371 166 371 178 V202" fill="none" stroke="#bc9cff" stroke-width="1.5" />
+<text x="954" y="263" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="319" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="375" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="954" y="431" font-size="13" fill="#626b7a" text-anchor="end" class="mono">WAIT</text>
+<text x="44" y="560" font-size="12" fill="#bc9cff" class="mono" letter-spacing="1.4">04 / REVIEW 2</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Both reviewers check the fix and its callers.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >Reviewer A: no findings. Reviewer B: no findings.</text>
+<text x="44" y="645" font-size="14" fill="#bc9cff" class="mono">0 open findings · no third review round</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#bc9cff"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#bc9cff"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#bc9cff"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#bc9cff"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="4" opacity="0">
+<animate attributeName="opacity" values="0;0;0;0;1;0;0;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">2</text>
+<text x="528" y="130" font-size="25" fill="#a5df9b" class="mono">4 / 4</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">adce073</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#a5df9b"/>
+<circle cx="298" cy="268" r="3.5" fill="#a5df9b"/>
+<text x="310" y="273" font-size="15" fill="#a5df9b" >clear</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >clear</text>
+<text x="371" y="321" font-size="12" fill="#bc9cff" text-anchor="middle" class="mono">ROUND 2</text>
+<circle cx="546" cy="340" r="3.5" fill="#a5df9b"/>
+<text x="558" y="345" font-size="15" fill="#a5df9b" >fixed</text>
+<text x="954" y="263" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 256 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="319" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 312 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="375" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 368 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="431" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 424 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<rect x="748" y="180" width="228" height="326" rx="12" fill="none" stroke="#a5df9b" stroke-width="1.8"/>
+<text x="44" y="560" font-size="12" fill="#a5df9b" class="mono" letter-spacing="1.4">05 / CI</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >All four checks pass on the reviewed commit.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >CI validates adce073 combined with the master base.</text>
+<text x="44" y="645" font-size="14" fill="#a5df9b" class="mono">Reuse passing coverage · no duplicate full test run</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="5" opacity="0">
+<animate attributeName="opacity" values="0;0;0;0;0;1;0;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">2</text>
+<text x="528" y="130" font-size="25" fill="#a5df9b" class="mono">4 / 4</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">adce073</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#a5df9b"/>
+<circle cx="298" cy="268" r="3.5" fill="#a5df9b"/>
+<text x="310" y="273" font-size="15" fill="#a5df9b" >clear</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >clear</text>
+<text x="371" y="321" font-size="12" fill="#bc9cff" text-anchor="middle" class="mono">ROUND 2</text>
+<circle cx="546" cy="340" r="3.5" fill="#a5df9b"/>
+<text x="558" y="345" font-size="15" fill="#a5df9b" >fixed</text>
+<text x="954" y="263" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 256 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="319" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 312 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="375" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 368 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="431" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 424 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="44" y="560" font-size="12" fill="#a5df9b" class="mono" letter-spacing="1.4">06 / GATE</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >One merge gate checks the release conditions.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >Expected head. Clean worktree. Passing checks. Mergeable.</text>
+<text x="44" y="645" font-size="14" fill="#a5df9b" class="mono">gh pr merge 157 --merge --match-head-commit adce073…</text>
+<rect x="24" y="534" width="952" height="126" rx="12" fill="none" stroke="#a5df9b" stroke-width="1.8"/>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#303641"/>
+</g>
+<g class="motion" data-phase="6" opacity="0">
+<animate attributeName="opacity" values="0;0;0;0;0;0;1;0" keyTimes="0;0.09375;0.25;0.375;0.53125;0.71875;0.8125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">2</text>
+<text x="528" y="130" font-size="25" fill="#a5df9b" class="mono">4 / 4</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">8ce2e8e</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#a5df9b"/>
+<circle cx="298" cy="268" r="3.5" fill="#a5df9b"/>
+<text x="310" y="273" font-size="15" fill="#a5df9b" >clear</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >clear</text>
+<text x="371" y="321" font-size="12" fill="#bc9cff" text-anchor="middle" class="mono">ROUND 2</text>
+<circle cx="546" cy="340" r="3.5" fill="#a5df9b"/>
+<text x="558" y="345" font-size="15" fill="#a5df9b" >fixed</text>
+<text x="954" y="263" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 256 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="319" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 312 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="375" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 368 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="431" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 424 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="44" y="560" font-size="12" fill="#a5df9b" class="mono" letter-spacing="1.4">07 / MERGED</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Fleet overview is on master.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >One major defect fixed. Both final reviews are clear.</text>
+<text x="44" y="645" font-size="14" fill="#a5df9b" class="mono">8ce2e8e · 23 Oct 2026 · release worktree removed</text>
+<rect x="844" y="546" width="112" height="24" rx="12" fill="#17241b" stroke="#a5df9b"/>
+<text x="900" y="563" font-size="12" fill="#a5df9b" text-anchor="middle" class="mono">MERGED</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+</g>
+<g class="reduced">
+<text x="40" y="130" font-size="25" fill="#a5df9b" class="mono">0</text>
+<text x="284" y="130" font-size="25" fill="#ece9e2" class="mono">2</text>
+<text x="528" y="130" font-size="25" fill="#a5df9b" class="mono">4 / 4</text>
+<text x="772" y="130" font-size="25" fill="#ece9e2" class="mono">8ce2e8e</text>
+<rect x="42" y="246" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="290" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="334" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="378" width="6" height="6" rx="1" fill="#a5df9b"/>
+<rect x="42" y="422" width="6" height="6" rx="1" fill="#a5df9b"/>
+<circle cx="298" cy="268" r="3.5" fill="#a5df9b"/>
+<text x="310" y="273" font-size="15" fill="#a5df9b" >clear</text>
+<circle cx="298" cy="410" r="3.5" fill="#a5df9b"/>
+<text x="310" y="415" font-size="15" fill="#a5df9b" >clear</text>
+<text x="371" y="321" font-size="12" fill="#bc9cff" text-anchor="middle" class="mono">ROUND 2</text>
+<circle cx="546" cy="340" r="3.5" fill="#a5df9b"/>
+<text x="558" y="345" font-size="15" fill="#a5df9b" >fixed</text>
+<text x="954" y="263" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 256 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="319" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 312 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="375" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 368 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="954" y="431" font-size="13" fill="#a5df9b" text-anchor="end" class="mono">PASS</text>
+<path d="M764 424 l4 4 8 -9" stroke="#a5df9b" stroke-width="1.7" fill="none"/>
+<text x="44" y="560" font-size="12" fill="#a5df9b" class="mono" letter-spacing="1.4">07 / MERGED</text>
+<text x="44" y="591" font-size="23" fill="#ece9e2" >Fleet overview is on master.</text>
+<text x="44" y="619" font-size="17" fill="#949ba8" >One major defect fixed. Both final reviews are clear.</text>
+<text x="44" y="645" font-size="14" fill="#a5df9b" class="mono">8ce2e8e · 23 Oct 2026 · release worktree removed</text>
+<rect x="844" y="546" width="112" height="24" rx="12" fill="#17241b" stroke="#a5df9b"/>
+<text x="900" y="563" font-size="12" fill="#a5df9b" text-anchor="middle" class="mono">MERGED</text>
+<rect x="24" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="161" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="298" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="435" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="572" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="709" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+<rect x="846" y="682" width="130" height="3" rx="1.5" fill="#a5df9b"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.09375;0.1375;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#79b8ff"/>
+<animateMotion path="M234 343 H251 Q264 343 264 330 V259 Q264 247 276 247 H280" keyPoints="0;0;1;1" keyTimes="0;0.09375;0.1375;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.1;0.14375;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#bc9cff"/>
+<animateMotion path="M234 343 H251 Q264 343 264 355 V377 Q264 389 276 389 H280" keyPoints="0;0;1;1" keyTimes="0;0.1;0.14375;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.1875;0.240625;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#ffb86b"/>
+<animateMotion path="M462 247 H486 Q498 247 498 259 V306 Q498 318 510 318 H528" keyPoints="0;0;1;1" keyTimes="0;0.1875;0.240625;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.19375;0.246875;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#a5df9b"/>
+<animateMotion path="M462 389 H486 Q498 389 498 377 V330 Q498 318 510 318 H528" keyPoints="0;0;1;1" keyTimes="0;0.19375;0.246875;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.375;0.43125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#bc9cff"/>
+<animateMotion path="M610 273 V178 Q610 166 598 166 H383 Q371 166 371 178 V202" keyPoints="0;0;1;1" keyTimes="0;0.375;0.43125;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.43125;0.46875;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#79b8ff"/>
+<animateMotion path="M234 343 H251 Q264 343 264 330 V259 Q264 247 276 247 H280" keyPoints="0;0;1;1" keyTimes="0;0.43125;0.46875;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.5;0.5625;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#a5df9b"/>
+<animateMotion path="M462 247 H486 Q498 247 498 259 V306 Q498 318 510 318 H528 H692 H748" keyPoints="0;0;1;1" keyTimes="0;0.5;0.5625;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<g class="motion" opacity="0">
+<animate attributeName="opacity" values="0;1;0;0" keyTimes="0;0.65625;0.703125;1" dur="32s" calcMode="discrete" repeatCount="indefinite"/>
+<rect x="-4" y="-4" width="8" height="8" rx="2" fill="#a5df9b"/>
+<animateMotion path="M692 318 H748" keyPoints="0;0;1;1" keyTimes="0;0.65625;0.703125;1" dur="32s" calcMode="linear" repeatCount="indefinite"/>
+</g>
+<text x="24" y="705" font-size="12" fill="#949ba8" class="mono">Prepare</text>
+<text x="161" y="705" font-size="12" fill="#949ba8" class="mono">Review 1</text>
+<text x="298" y="705" font-size="12" fill="#949ba8" class="mono">Fix</text>
+<text x="435" y="705" font-size="12" fill="#949ba8" class="mono">Review 2</text>
+<text x="572" y="705" font-size="12" fill="#949ba8" class="mono">CI</text>
+<text x="709" y="705" font-size="12" fill="#949ba8" class="mono">Gate</text>
+<text x="846" y="705" font-size="12" fill="#949ba8" class="mono">Merged</text>
+<text x="24" y="731" font-size="12" fill="#949ba8" >2 review rounds maximum · 1 merge gate · no open blocker or major at merge</text>
+</svg>

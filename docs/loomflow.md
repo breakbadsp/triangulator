@@ -1,5 +1,7 @@
 # LoomFlow
 
+[Animated example: the Fleet overview release](assets/loomflow-run.svg).
+
 - This is the tool-neutral build and review workflow. Use `git` and `gh`; take checks, standards, and sensitive paths from the repository's `AGENTS.md`.
 - Claude Code adapter: [command](../.claude/commands/loomflow.md) and [role prompts](../.claude/agents/).
 - Roles: orchestrator sizes, decides, and coordinates; builder (Major only) designs and builds; reviewers stay read-only; analyzer fixes or rebuts; test-and-merge runs the gate once.
