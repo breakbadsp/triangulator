@@ -4,3 +4,6 @@ __pycache__/
 /data/
 /.run/
 /config/local/
+
+/dashboard/node_modules/
+/dashboard/dist/

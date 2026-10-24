@@ -11,11 +11,13 @@ el="${ALMA_VERSION:?set ALMA_VERSION to 8 or 9}"
 dnf install -y dnf-plugins-core
 dnf config-manager --set-enabled "$([[ "$el" == 8 ]] && echo powertools || echo crb)"
 dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel \
-    glibc-static libstdc++-static make python3.11 tar gzip
+    glibc-static libstdc++-static make python3.11 tar gzip curl
 mkdir -p /opt/tools/bin
 ln -s /usr/bin/python3.11 /opt/tools/bin/python3
 export PATH="/opt/tools/bin:$PATH"
 export CXX=/opt/rh/gcc-toolset-14/root/usr/bin/g++
+
+bash "$(dirname "${BASH_SOURCE[0]}")/install-node.sh"
 
 cp -a /source /work
 cd /work

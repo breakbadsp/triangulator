@@ -16,4 +16,4 @@
 - Keep generic labels tied to an explicit topic. An alias must identify one topic.
 - Check each new label in a real browser. Static tests cannot prove hover, focus, touch, or live-update behavior.
 - Add or update the [manual case](qa/test-cases.md). Keep unexecuted cases `NOT_RUN`.
-- Implementation and content: [dashboard.html](../collector/dashboard.html). Automated coverage: [dashboard_test.js](../tests/dashboard_test.js).
+- Implementation and content: [dashboard/src/help/](../dashboard/src/help/). Automated coverage is in `dashboard/src/` beside each component.

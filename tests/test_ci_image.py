@@ -15,7 +15,7 @@ class CIImageTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="triangulator-ci-image-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
-        for name in ("almalinux-image.sh", "almalinux-ci.Dockerfile", "almalinux-toolchain.sh"):
+        for name in ("almalinux-image.sh", "almalinux-ci.Dockerfile", "almalinux-toolchain.sh", "install-node.sh"):
             shutil.copyfile(ROOT / ".github/scripts" / name, self.directory / name)
         docker = self.directory / "docker"
         docker.write_text('''#!/usr/bin/env python3
@@ -48,7 +48,7 @@ if args[0] == "build":
         first = self.run_image()
         self.assertEqual(self.run_image(), first)
         self.assertEqual(len((self.directory / "calls").read_text().splitlines()), 1)
-        for name in ("almalinux-toolchain.sh", "almalinux-ci.Dockerfile"):
+        for name in ("almalinux-toolchain.sh", "almalinux-ci.Dockerfile", "install-node.sh"):
             with self.subTest(name=name):
                 with (self.directory / name).open("a") as output:
                     output.write("\n# Changed toolchain\n")
@@ -58,7 +58,7 @@ if args[0] == "build":
         self.environment["ALMA_VERSION"] = "9"
         self.assertNotEqual(self.run_image(), first)
         calls = (self.directory / "calls").read_text()
-        self.assertEqual(calls.count("build --build-arg"), 4)
+        self.assertEqual(calls.count("build --build-arg"), 5)
         self.assertNotIn("pull", calls)
 
     def test_full_installation_uses_a_fresh_base_image(self):

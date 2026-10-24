@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: scripts/restart.sh (rebuild and restart the collector)
 # Optional: scripts/restart.sh <collector|sampler|all> [config.toml]
-# Rebuilds first, so code and dashboard.html changes are picked up. Reuses the
+# Rebuilds first, so code and dashboard source changes are picked up. Reuses the
 # config the running program was started with unless one is given. The old
 # program keeps running if the build or the collector config check fails.
 set -euo pipefail

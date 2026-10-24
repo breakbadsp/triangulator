@@ -7,7 +7,7 @@ if [[ ${LEAN_PR:-0} != 1 ]]; then
     image="almalinux:$version"
     docker pull "$image" >&2
 else
-    digest="$(cat almalinux-ci.Dockerfile almalinux-toolchain.sh | sha256sum)"
+    digest="$(cat almalinux-ci.Dockerfile almalinux-toolchain.sh install-node.sh | sha256sum)"
     image="localhost/triangulator-ci:alma$version-${digest:0:20}"
     # Runner slots share the rootless image store. Build a missing image once.
     lock_dir="${XDG_CACHE_HOME:-$HOME/.cache}/triangulator"
