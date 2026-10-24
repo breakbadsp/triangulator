@@ -13,7 +13,7 @@ export function niceMax(
 // Byte axes round in binary units, so the top reads 500 MiB, not 476.8 MiB,
 // and drop a trailing .0 so labels fit the axis. Byte axes skip the 2.5
 // step: labels have one decimal, so half of 2.5 GiB would read 1.3 GiB.
-export const axisBytes = (value: number) =>
+export const axisBytes = (value: unknown) =>
   memoryBytes(value).replace(".0 ", " ");
 export function niceBytes(value: number) {
   let unit = 1;
