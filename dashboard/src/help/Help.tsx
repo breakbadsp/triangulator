@@ -43,6 +43,8 @@ function hoverHelpEnabled() {
 // Hidden drawers keep their range state, but must dismiss their portalled help.
 export const HelpEnabled = createContext(true);
 
+const helpTimers = new Set<{ cancel: (block?: boolean) => void }>();
+
 export function Help({
   topic,
   children,
@@ -88,15 +90,18 @@ export function Help({
   );
 
   useEffect(() => {
+    helpTimers.add(timer);
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape" && timer.active) {
+        // A pending hover can receive Escape before another card's listener.
+        for (const helpTimer of helpTimers) helpTimer.cancel(true);
         event.preventDefault();
         event.stopImmediatePropagation();
-        timer.cancel(true);
       }
     }
     document.addEventListener("keydown", escape, true);
     return () => {
+      helpTimers.delete(timer);
       document.removeEventListener("keydown", escape, true);
       timer.cancel();
     };
