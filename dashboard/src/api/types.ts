@@ -13,6 +13,11 @@ export interface Target {
 }
 
 export interface LiveResponse {
+  process?: {
+    session: string;
+    started_at: number | null;
+    command: string;
+  } | null;
   health: {
     session?: string | null;
     packet_loss_pct?: number | null;

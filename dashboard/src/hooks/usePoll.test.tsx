@@ -7,16 +7,21 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 function deferred<T>() {
   let complete: (value: T) => void = () => {
     throw new Error("Promise is not initialized");
   };
-  const promise = new Promise<T>((resolve) => {
+  let fail: (cause: Error) => void = () => {
+    throw new Error("Promise is not initialized");
+  };
+  const promise = new Promise<T>((resolve, reject) => {
     complete = resolve;
+    fail = reject;
   });
-  return { promise, complete };
+  return { promise, complete, fail };
 }
 
 test("waits for completion before starting the next interval", async () => {
@@ -104,4 +109,45 @@ test("aborts a replaced loader and does not publish its late response", async ()
     await old.promise;
   });
   expect(result.current).toEqual({ data: 2 });
+});
+
+test("hidden polling skips ticks, drops results and errors, and resumes within one interval", async () => {
+  let hidden = true;
+  vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+  const late = deferred<number>();
+  const failed = deferred<number>();
+  const load = vi
+    .fn<(signal: AbortSignal) => Promise<number>>()
+    .mockReturnValueOnce(late.promise)
+    .mockResolvedValueOnce(9)
+    .mockReturnValueOnce(failed.promise)
+    .mockResolvedValue(11);
+  const { result } = renderHook(() =>
+    usePoll(load, 1000, { pauseWhenHidden: true }),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(load).not.toHaveBeenCalled();
+  hidden = false;
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  hidden = true;
+  await act(async () => {
+    late.complete(7);
+    await late.promise;
+  });
+  expect(result.current).toEqual({});
+  hidden = false;
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(result.current).toEqual({ data: 9 });
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  hidden = true;
+  // A hidden failure must not publish an error or replace good data.
+  await act(async () => {
+    failed.fail(new Error("hidden failure"));
+    await Promise.resolve();
+  });
+  expect(result.current).toEqual({ data: 9 });
+  hidden = false;
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(result.current).toEqual({ data: 11 });
+  vi.restoreAllMocks();
 });
