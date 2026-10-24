@@ -5,6 +5,7 @@ import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
+import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Summary, type ChartWindow } from "./components/Summary";
 import { usePoll } from "./hooks/usePoll";
 import { useSeries } from "./hooks/useSeries";
@@ -39,7 +40,14 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           now={live.data?.now ?? 0}
           windowSecs={windowSecs}
           onWindow={setWindowSecs}
-        />
+        >
+          {view && (
+            <>
+              <ProcessInfo view={view} now={live.data?.now ?? 0} />
+              <ProcessExit view={view} now={live.data?.now ?? 0} />
+            </>
+          )}
+        </Summary>
       </main>
     </>
   );
