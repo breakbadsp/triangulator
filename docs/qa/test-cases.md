@@ -100,6 +100,7 @@
 | QA-095 | NOT_RUN | - | - | - |
 | QA-096 | NOT_RUN | - | - | - |
 | QA-097 | NOT_RUN | - | - | - |
+| QA-098 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -582,3 +583,8 @@
 
 - Test: Monitor a target with the optional socket observer and a completion marker. Check Received, Sent, and Messages processed, a socket kind, and a thread search. Hold the pointer on a breakdown cell for 10 s, then press Escape twice. Scroll the breakdown, then type in the search. Open What is measured · setup. Stop the observer, restart it, and restart the target process. Repeat without the observer and with a collector build that has no socket endpoint.
 - Expected: Cards and chart show the whole process; filters change only the breakdown, keep focus, and start it at the top. Messages processed disables Socket kind, and Received restores the kind if it still exists. A held row and its card do not change during polls; the first Escape closes the card and the second does nothing else. Retired thread generations are separate rows, and no row opens a thread drawer. Observer silent, Observation ended, lower-bound, and cached states are named. After an observer or process restart, no row or card of the old one remains. The setup details stay open. Without the observer, the panel names the reason.
+
+## QA-098: Memory map stays still under the pointer and resets for a new process
+
+- Test: Monitor a target with memory sampling on (`memory_interval_s` set). Open Address space & zoom and Member regions. Hold the pointer on an address-space bar and on a zoom grid square for 10 s each, then move into each card. Click the stack bar, then the heap bar, while the target grows its heap past the display margin. Focus a bar, press Escape twice, and scroll the Member regions table. Restart the target process while the pointer holds the address map and the bar keeps focus. Repeat after a sampler restart.
+- Expected: Under the pointer, the bars, zoom facts, grid, and charts do not change; after the pointer leaves, each part shows the latest sample at once. A click selects the bar during polls, and the heap grid keeps its span until the heap leaves the margin. The first Escape closes the card and the second does nothing else. After a target or sampler restart, no bar, address, readout, card, or chart point of the old process remains, the fold and Member regions stay open, and the section waits for the new layout. Tiles, findings, limits, and Summary memory findings use the same samples.

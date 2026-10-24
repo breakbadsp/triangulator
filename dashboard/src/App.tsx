@@ -11,6 +11,7 @@ import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
+import { MemoryMap } from "./components/MemoryMap";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Resources, type ResourceRange } from "./components/Resources";
 import { SocketIO } from "./components/SocketIO";
@@ -22,6 +23,7 @@ import type { Finding } from "./lib/findings";
 import { initialThreadView, threadView } from "./lib/threadView";
 import type { Series } from "./lib/series";
 import { usePoll } from "./hooks/usePoll";
+import { useMemoryMap } from "./hooks/useMemoryMap";
 import { useScopedPoll } from "./hooks/useScopedPoll";
 import { useSeries } from "./hooks/useSeries";
 import { readPage, type Page } from "./page";
@@ -39,6 +41,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const live = usePoll(loadLive, 1000);
   const view = live.data?.view;
   const series = useSeries(page.key, view);
+  const memory = useMemoryMap(page.key, view);
   // The Summary charts and the Threads state chart share this window.
   const [windowSecs, setWindowSecs] = useState<ChartWindow>(300);
   const [threads, dispatch] = useReducer(threadView, initialThreadView);
@@ -129,6 +132,8 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           onFindingAction={findingAction}
           resourcePoints={resourcePoints}
           pressureScope={pressureScope}
+          memoryLayout={memory.state.layout}
+          memoryHistory={memory.state.history}
         >
           {view && (
             <>
@@ -155,6 +160,15 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           onScope={setPressureScope}
         />
         <SocketIO view={view} context={context} />
+        <MemoryMap
+          view={view}
+          now={live.data?.now ?? 0}
+          memory={memory.state}
+          dispatch={memory.dispatch}
+          series={series}
+          resourcePoints={resourcePoints}
+          scope={pressureScope}
+        />
       </main>
       <ThreadDrawer
         view={view}
