@@ -22,10 +22,8 @@ export function view(extra: Partial<LiveResponse> = {}): LiveResponse {
     ...extra,
   };
 }
-function emptyCgroupLimits(): NonNullable<Resources["cgroup_limits"]> {
-  return {};
-}
 function healthyResources() {
+  const cgroup_limits: NonNullable<Resources["cgroup_limits"]> = {};
   const stall = (
     some: number,
     full = 0,
@@ -52,7 +50,7 @@ function healthyResources() {
     io: { read_bps: 0, write_bps: 0 },
     sockets: { top, tcp_states: { close_wait: 0 } },
     network,
-    cgroup_limits: emptyCgroupLimits(),
+    cgroup_limits,
     sockstat: { tcp_mem: 10 },
     limits: { tcp_mem: [100, 200, 300] },
     flags: {},
@@ -112,5 +110,65 @@ export function rssHistory(
         memory: { rss: latest?.rss_bytes ?? null, anon: 1 },
       },
     }),
+  };
+}
+
+export function lockThread(
+  tid: number,
+  name: string,
+  state: string,
+  { cpu = 0, sw = 0 } = {},
+) {
+  return {
+    tid,
+    name,
+    state,
+    wchan: state === "futex" ? "futex_do_wait" : "",
+    cpu_pct: cpu,
+    switches_per_s: sw,
+    state_mix: { [state]: 20 },
+    run_delay_pct: 0,
+    read_bps: 0,
+    write_bps: 0,
+    major_faults_per_s: 0,
+    last_sample: 1000,
+    stale: false,
+    generation: 0,
+  };
+}
+export function watchedThread(
+  tid: number,
+  name: string,
+  {
+    wake = 500,
+    quiet = 0,
+    cpu = 0.2,
+    state = "futex",
+    wchan = "futex_do_wait",
+    ...rest
+  }: Partial<import("../api/types").Thread> & {
+    wake?: number | null;
+    quiet?: number;
+    cpu?: number;
+  } = {},
+) {
+  return {
+    tid,
+    name,
+    state,
+    wchan,
+    cpu_pct: cpu,
+    switches_per_s: 1,
+    state_mix: { [state]: 20 },
+    run_delay_pct: 0,
+    read_bps: 0,
+    write_bps: 0,
+    major_faults_per_s: 0,
+    last_sample: 1000,
+    last_ran: 1000 - quiet,
+    wake_ms: wake,
+    stale: false,
+    generation: 0,
+    ...rest,
   };
 }
