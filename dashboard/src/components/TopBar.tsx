@@ -3,6 +3,7 @@ import type { LiveResponse, Target } from "../api/types";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
+import { backHref } from "../lib/fleet";
 import { viewTargetName } from "../lib/target";
 
 type Theme = "auto" | "light" | "dark";
@@ -59,10 +60,8 @@ export function TopBar({
       ? "No target yet"
       : viewTargetName(live);
   useEffect(() => {
-    document.title =
-      page.kind === "fleet"
-        ? "Targets · Thread monitor"
-        : `${health?.pid ? `${targetName} · ` : ""}Thread monitor`;
+    if (page.kind === "target")
+      document.title = `${health?.pid ? `${targetName} · ` : ""}Thread monitor`;
     document.documentElement.dataset.page = page.kind;
   }, [page.kind, health?.pid, targetName]);
 
@@ -79,7 +78,11 @@ export function TopBar({
     <div className="topbar-inner">
       {page.kind === "target" && (
         <Help topic="fleet">
-          <a className="fleet-back" href="./">
+          <a
+            id="fleet-back"
+            className="fleet-back"
+            href={backHref(location.search)}
+          >
             ← All targets
           </a>
         </Help>
