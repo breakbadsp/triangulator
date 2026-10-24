@@ -97,6 +97,7 @@
 | QA-092 | PASSED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-094 | NOT_RUN | - | - | - |
+| QA-095 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -563,3 +564,9 @@
 
 - Test: Open the overview and the dashboard of one target in Dark, Light, and System themes (system set to dark). On the target dashboard, open help, a chart tooltip, and an expanded section. Repeat at 390 px.
 - Expected: In dark, both pages use the same matte black canvas and cards, with no blue-tinted panels. Charts, state colors, status colors, and text stay readable. Light is unchanged.
+
+
+## QA-095: Thread panels stay still under the pointer during live polling
+
+- Test: Monitor a target with at least 20 busy threads. In the thread map, select 5 min. Hold the pointer on one tile for 10 s, then move into its card. Do the same on a wait-channel bar and on a table cell. Move from Read/s to Write/s on one row. Hold the pointer on the CPU cell of a thread that has no rate after a sampler pause. Focus a table row, scroll the table, and change the sort. Open a thread, select a custom History range, close the drawer, and open another thread.
+- Expected: Under the pointer and in its card, the tiles, bars, and rows do not move, and the card values do not change. When the pointer leaves, the panel shows the latest data. The Write/s card shows the Write/s value. A missing rate shows "Not available". The focused row keeps the focus and the table keeps its scroll position across polls and the sort change. The second thread uses the same custom range.

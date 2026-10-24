@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -68,7 +69,16 @@ function load(filename) {
   if (modules.has(filename)) return modules.get(filename).exports;
   const module = { exports: {} };
   modules.set(filename, module);
-  const { outputText } = ts.transpileModule(readFileSync(filename, "utf8"), {
+  let text = readFileSync(filename, "utf8");
+  // Deliberately break the average cadence to prove that the oracle detects it.
+  if (
+    process.argv.includes("--negative-average-step") &&
+    filename.endsWith("/series.ts")
+  ) {
+    assert.ok(text.includes("AVG_STEP = 10"));
+    text = text.replace("AVG_STEP = 10", "AVG_STEP = 9");
+  }
+  const { outputText } = ts.transpileModule(text, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2023,
       module: ts.ModuleKind.CommonJS,

@@ -11,7 +11,7 @@ import {
   VERDICTS,
   type Finding,
 } from "../lib/findings";
-import type { Point, Series } from "../lib/series";
+import { windowPoints, type Point, type Series } from "../lib/series";
 import { loadFacts, profile, summaryTiles } from "../lib/summary";
 import { viewTargetName } from "../lib/target";
 import { Sparkline } from "./Sparkline";
@@ -57,6 +57,7 @@ export function Summary({
   now,
   windowSecs,
   onWindow,
+  onFindingAction,
   children,
 }: {
   view: LiveResponse | undefined;
@@ -64,16 +65,14 @@ export function Summary({
   now: number;
   windowSecs: ChartWindow;
   onWindow: (seconds: ChartWindow) => void;
+  /** A finding row opens its thread or filters the thread table. */
+  onFindingAction?: (action: NonNullable<Finding["action"]>) => void;
   children?: ReactNode;
 }) {
   const threads = view?.threads ?? [];
   const all = series.points,
-    end = all.at(-1)?.t || 0,
-    points = all.filter((point) => point.t >= end - windowSecs);
-  const first = points[0],
+    { points, from } = windowPoints(series, windowSecs),
     last = points.at(-1);
-  const from =
-    first && last ? Math.max(first.t, last.t - windowSecs) : undefined;
   const findings = view
     ? assess({
         view,
@@ -156,6 +155,7 @@ export function Summary({
         findings={findings}
         profile={profile(threads)}
         lastTick={series.lastTick}
+        onAction={onFindingAction}
       />
 
       <div id="tiles" className="tiles">
@@ -340,10 +340,12 @@ function Assessment({
   findings,
   profile,
   lastTick,
+  onAction,
 }: {
   findings: readonly Finding[] | null;
   profile: string;
   lastTick: number;
+  onAction: ((action: NonNullable<Finding["action"]>) => void) | undefined;
 }) {
   const [all, setAll] = useState(false);
   const ranked = (findings ?? [])
@@ -395,6 +397,19 @@ function Assessment({
               <li
                 key={`${String(index)}:${item.title}`}
                 className={`finding lvl-${item.level}`}
+                {...(item.action && onAction
+                  ? {
+                      "data-action": "1",
+                      tabIndex: 0,
+                      onClick: () => {
+                        if (item.action) onAction(item.action);
+                      },
+                      onKeyDown: (event: { key: string }) => {
+                        if (event.key === "Enter" && item.action)
+                          onAction(item.action);
+                      },
+                    }
+                  : {})}
               >
                 <span className="ic" aria-label={item.level}>
                   {LEVEL_ICONS[item.level]}

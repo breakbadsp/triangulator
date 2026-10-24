@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { Help } from "./Help";
+import { Help, HelpEnabled } from "./Help";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -72,4 +72,27 @@ test("does not open a pending card after unmount", () => {
     vi.advanceTimersByTime(2000);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("a hidden drawer dismisses help without remounting its content", () => {
+  const show = (active: boolean) => (
+    <HelpEnabled value={active}>
+      <Help topic="thread">
+        <input aria-label="Kept input" defaultValue="custom range" />
+      </Help>
+    </HelpEnabled>
+  );
+  const { rerender } = render(show(true));
+  const input = screen.getByLabelText<HTMLInputElement>("Kept input");
+  fireEvent.focus(input);
+  expect(screen.getByRole("dialog")).toBeDefined();
+  rerender(show(false));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  rerender(show(true));
+  act(() => {
+    vi.advanceTimersByTime(1200);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByLabelText("Kept input")).toBe(input);
+  expect(input.value).toBe("custom range");
 });

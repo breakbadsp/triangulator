@@ -303,3 +303,14 @@ export function ingest(series: Series, view: LiveResponse): Series {
     since: series.since || tick,
   };
 }
+/** The points in the chart window, and where the window starts. */
+export function windowPoints(series: Series, windowSecs: number) {
+  const end = series.points.at(-1)?.t || 0,
+    points = series.points.filter((point) => point.t >= end - windowSecs);
+  const first = points[0],
+    last = points.at(-1);
+  return {
+    points,
+    from: first && last ? Math.max(first.t, last.t - windowSecs) : undefined,
+  };
+}

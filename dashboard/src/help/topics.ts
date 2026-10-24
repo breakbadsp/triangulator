@@ -606,6 +606,304 @@ export const helpTopics = {
     sourceDetail:
       "Kernel log records from `/dev/kmsg` that name the process or one of its thread IDs, logged after the sampler found the process. Check it yourself: `dmesg | grep PID`.",
   },
+  cpu: {
+    title: "CPU",
+    scope: "One core · percentage",
+    meaning: "CPU time used, as a percentage of one CPU core.",
+    example: "50% means 0.5 seconds of CPU time per elapsed second.",
+    reading:
+      "Compare CPU use with run delay. Process CPU sums all reported threads and can exceed 100%.",
+    limits:
+      "A high value can be normal for a busy worker. CPU use alone does not establish a problem.",
+    related: ["delay", "pressure", "cores"],
+    aliases: ["Recent live CPU"],
+    source: "`/proc/PID/task/TID/stat`: utime + stime",
+    sourceDetail:
+      "Each sample, the sampler reads `/proc/PID/task/TID/stat` for every thread. Fields 14 (utime) and 15 (stime) are the CPU time the thread used in user and kernel mode, in clock ticks (usually 100 per second). The collector divides the change between two samples by the time between them. Process CPU sums the threads. `top -H -p PID` reads the same counters.",
+  },
+  delay: {
+    title: "Run delay",
+    scope: "Elapsed time · percentage",
+    meaning: "Time a thread was ready to run but waited for a CPU.",
+    example: "12% means 120 ms waiting per elapsed second.",
+    reading:
+      "Persistent delay can indicate competition for CPU time. Compare CPU use, cgroup CPU pressure, and quota throttling.",
+    limits:
+      "Sleep and futex wait are separate measurements. Run delay alone does not identify a cause.",
+    related: ["cpu", "pressure", "throttle"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/schedstat`: second number",
+    sourceDetail:
+      "Each sample, the sampler reads `/proc/PID/task/TID/schedstat`. Its second number is the total time, in nanoseconds, that the thread was ready to run but waited for a CPU. The collector divides the change between two samples by the time between them. With `status_fallback = true` in sampler.toml, the sampler reads `status` instead, and run delay is not available. Check it yourself: `cat /proc/PID/task/TID/schedstat`.",
+  },
+  states: {
+    title: "Thread states",
+    scope: "Sampled scheduler state and wait channel",
+    meaning:
+      "A sampled classification of what a thread is doing or waiting for.",
+    example:
+      "Futex wait can indicate a lock, condition variable, or timed idle wait.",
+    reading:
+      "Running is blue and Sleep is green. State colors match across the map, state mix, charts, and wait-channel bars. Other and No access have separate gray colors. Read the state together with CPU use, run delay, and the kernel wait channel. Select a state to filter the table.",
+    limits:
+      "Samples can miss brief transitions. A wait state does not establish that the application is unhealthy.",
+    related: ["futex", "kernel", "mix"],
+    aliases: [
+      "What the threads are doing",
+      "State / wait channel",
+      "State / block type",
+    ],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "Field 3 of `/proc/PID/task/TID/stat` is the scheduler state letter. For a sleeping thread, `/proc/PID/task/TID/wchan` names the kernel function it waits in. The collector maps R to Running, D to Kernel wait, and T or t to Stopped. Otherwise it matches the wait channel: futex; epoll, poll, or select; socket functions; pipe or eventfd; and nanosleep. An empty wait channel is No access. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  mix: {
+    title: "State mix",
+    scope: "Share of observed samples",
+    meaning: "The proportion of samples classified into each thread state.",
+    example: "Six running samples out of ten gives a 60% running sample share.",
+    reading:
+      "Use the displayed interval and sample count when comparing the colored bands.",
+    limits:
+      "Sample share is not an exact trace of time spent in each state. Missing samples reduce coverage.",
+    related: ["states", "history"],
+    aliases: ["Last ~10 s"],
+    source: "Collector: counts of classified thread samples",
+    sourceDetail:
+      "The collector classifies every thread sample as Thread states describes (from `stat` field 3 and `wchan`) and counts the samples in each state over the window.",
+  },
+  wchan: {
+    title: "Wait channel",
+    scope: "Thread · kernel function",
+    meaning: "The kernel function in which a sampled thread is waiting.",
+    example: "",
+    reading:
+      "Bars use the same state colors as the thread map and state mix. A channel with multiple states and the combined remaining channels use neutral gray. Select a wait-channel bar or filter to inspect the matching threads.",
+    limits:
+      "Kernel function names depend on the kernel. A name alone does not identify an application call site.",
+    related: ["states", "futex"],
+    aliases: ["Where threads wait"],
+    source: "`/proc/PID/task/TID/wchan`",
+    sourceDetail:
+      "Each sample, the sampler reads `/proc/PID/task/TID/wchan`: the kernel function a sleeping thread waits in. Compiler suffixes such as .constprop.0 are removed. The kernel shows 0 for a running thread and to a reader without access to the target. Check it yourself: `cat /proc/PID/task/TID/wchan`.",
+  },
+  map: {
+    title: "Thread map",
+    scope: "One tile per reported thread",
+    meaning:
+      "Tiles group threads by current state. Each visible number is CPU use relative to one core.",
+    example:
+      "A faded tile is idle; its color still represents its sampled state.",
+    reading:
+      "Now uses the preceding ~10 seconds. Other windows average CPU observations retained in this tab. Select a tile for thread details.",
+    limits:
+      "Color represents the current sampled state even when the CPU number is an average. Short observation history limits the average.",
+    related: ["cpu", "states", "active"],
+    aliases: ["Thread map time window"],
+    source: "Thread CPU and state from `/proc/PID/task/TID/stat` and `wchan`",
+    sourceDetail:
+      "Each tile uses the CPU of the thread from `/proc/PID/task/TID/stat` (utime + stime) and its classified state (see Thread states). Windows longer than Now average the CPU values this tab received.",
+  },
+  families: {
+    title: "Where the CPU goes",
+    scope: "Process · CPU grouped by thread",
+    meaning:
+      "CPU use grouped by name family, configured group, or individual thread.",
+    example: "",
+    reading:
+      "Name family removes the numeric suffix. Config group uses the collector configuration. Select a bar to filter where available.",
+    limits:
+      "Similar names do not prove that threads do the same work. Percentages of process CPU differ from percentages of one core.",
+    related: ["cpu", "group"],
+    aliases: ["Group CPU by", "Name family"],
+    source:
+      "Thread names from `/proc/PID/task/TID/stat`; groups from collector.toml",
+    sourceDetail:
+      "Name family removes the trailing number from the thread name (field 2 of `/proc/PID/task/TID/stat`, the same as `comm`). Config group uses the [[group]] prefixes in collector.toml. The CPU of each thread comes from utime + stime in `stat`.",
+  },
+  cores: {
+    title: "Core placement",
+    scope: "Last observed CPU core",
+    meaning:
+      "Thread CPU use grouped by the core on which each thread last ran.",
+    example: "",
+    reading:
+      "Uneven bars can indicate affinity or pinning. Compare thread counts with CPU use.",
+    limits:
+      "A thread can migrate between samples. These bars are not exact per-core utilization measurements.",
+    related: ["cpu", "thread"],
+    aliases: ["Core", "Last core"],
+    source: "`/proc/PID/task/TID/stat`: field 39 (processor)",
+    sourceDetail:
+      "Each sample, the sampler reads field 39 of `/proc/PID/task/TID/stat`, the CPU on which the thread last ran. CPU use comes from utime + stime in the same file. Check it yourself: `ps -L -o tid,psr,comm -p PID`.",
+  },
+  group: {
+    title: "Group",
+    scope: "Collector configuration",
+    meaning: "The configured group assigned to a thread.",
+    example: "",
+    reading: "Use the group filter to compare a known set of worker threads.",
+    limits:
+      "A configured group is different from a name family or a Linux cgroup.",
+    related: ["families", "pressure"],
+    aliases: [],
+    source: "[[group]] prefixes in collector.toml",
+    sourceDetail:
+      "The collector assigns each thread to the first [[group]] in collector.toml whose prefix starts the thread name, or to ungrouped. The thread name is field 2 of `/proc/PID/task/TID/stat`.",
+  },
+  history: {
+    title: "History",
+    scope: "Thread · stored five-second summaries",
+    meaning:
+      "Stored summaries show CPU, run delay, state samples, and I/O for the selected thread generation.",
+    example: "",
+    reading:
+      "Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.",
+    limits:
+      "Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.",
+    related: ["replay", "mix", "samples"],
+    aliases: ["From", "To", "History range", "Chart time window", "Load"],
+    source: "Collector five-second summaries, through `/api/history`",
+    sourceDetail:
+      "The collector combines the samples of each thread into five-second rows and stores them in SQLite day files under `data_dir`. The drawer loads them with `/api/history`. Recent live CPU comes from the updates this tab received.",
+  },
+  samples: {
+    title: "Samples",
+    scope: "Count per stored bucket",
+    meaning: "The number of observations included in a stored summary bucket.",
+    example: "",
+    reading:
+      "Use the count to assess how much data supports the state mix and rates.",
+    limits: "A partial bucket or packet loss can reduce the count.",
+    related: ["history", "loss"],
+    aliases: [],
+    source: "Collector: thread samples in each stored row",
+    sourceDetail:
+      "The number of thread samples the collector combined into the five-second row.",
+  },
+  running: {
+    title: "Running",
+    scope: "Thread · sampled state",
+    meaning: "The scheduler reports the thread running or ready to run.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits:
+      "This state does not prove that it occupied a CPU for the full interval.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Running when field 3 of `stat` is R. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  futex: {
+    title: "Futex wait",
+    scope: "Thread · sampled state",
+    meaning:
+      "The kernel wait channel indicates a futex wait, often used for synchronization.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits:
+      "A lock, condition variable, or timed idle wait can use futex. This sample cannot distinguish them.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Futex wait when the wait channel contains futex. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  poll: {
+    title: "Poll / epoll",
+    scope: "Thread · sampled state",
+    meaning: "The thread is waiting in a poll-style event loop.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits: "Waiting for events can be normal. Check whether work is expected.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Poll / epoll when the wait channel contains epoll, poll, or select. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  socket: {
+    title: "Socket wait",
+    scope: "Thread · sampled state",
+    meaning: "The sampled wait channel indicates a socket-related wait.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits: "The state does not identify which peer or socket caused the wait.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Socket wait when the wait channel contains skb, sk_wait, sock, unix_stream, inet_csk, tcp_, or udp_. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  pipe: {
+    title: "Pipe / eventfd",
+    scope: "Thread · sampled state",
+    meaning: "The thread is waiting on a pipe or event notification.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits: "This state can be normal coordination between threads.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Pipe / eventfd when the wait channel contains pipe or eventfd. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  sleep: {
+    title: "Sleep",
+    scope: "Thread · sampled state",
+    meaning: "The sampled wait channel indicates a sleep or timer wait.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits:
+      "A sleeping thread is not necessarily blocked by a resource problem.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Sleep when the wait channel contains nanosleep. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  stopped: {
+    title: "Stopped",
+    scope: "Thread · sampled state",
+    meaning: "The thread is stopped, for example by a signal or debugger.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits: "Check the expected process state before treating this as a fault.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Stopped when field 3 of `stat` is T or t. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  other: {
+    title: "Other",
+    scope: "Thread · sampled state",
+    meaning: "The sample does not match a more specific state category.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits: "Do not interpret this category as running or as an error.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows Other when the wait channel matches no other state. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
+  no_access: {
+    title: "No access",
+    scope: "Thread · sampled state",
+    meaning:
+      "The sampler could not read enough information to classify this thread.",
+    example: "",
+    reading: "Compare the wait channel and recent thread history.",
+    limits:
+      "Unavailable observations are not zero activity. Check access and monitor health.",
+    related: ["states", "wchan"],
+    aliases: [],
+    source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
+    sourceDetail:
+      "The collector shows No access when the state letter is not R, D, T, or t and the wait channel is empty: it read 0 or could not be read. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+  },
 } as const satisfies Record<string, HelpTopic>;
 
 export type HelpTopicId = keyof typeof helpTopics;
