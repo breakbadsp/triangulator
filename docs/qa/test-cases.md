@@ -98,6 +98,7 @@
 | QA-093 | BLOCKED | source 59344f5 | [Run](runs/20261023T105500Z-source-scalable-overview/index.md) | [Browser observations](runs/20261023T105500Z-source-scalable-overview/evidence/observations.json) |
 | QA-094 | NOT_RUN | - | - | - |
 | QA-095 | NOT_RUN | - | - | - |
+| QA-096 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -570,3 +571,8 @@
 
 - Test: Monitor a target with at least 20 busy threads. In the thread map, select 5 min. Hold the pointer on one tile for 10 s, then move into its card. Do the same on a wait-channel bar and on a table cell. Move from Read/s to Write/s on one row. Hold the pointer on the CPU cell of a thread that has no rate after a sampler pause. Focus a table row, scroll the table, and change the sort. Open a thread, select a custom History range, close the drawer, and open another thread.
 - Expected: Under the pointer and in its card, the tiles, bars, and rows do not move, and the card values do not change. When the pointer leaves, the panel shows the latest data. The Write/s card shows the Write/s value. A missing rate shows "Not available". The focused row keeps the focus and the table keeps its scroll position across polls and the sort change. The second thread uses the same custom range.
+
+## QA-096: Resource panels stay still under the pointer and follow the controls
+
+- Test: Monitor a target with resource sampling on, open sockets, and network activity. Hold the pointer on a Pressure stalls table cell, a Network stack drops & errors row, and a Fullest sockets cell for 10 s each, then move into each card. Focus the Fullest sockets checkbox, scroll the table, and clear the checkbox. Select 1 h, then 6 h; change the pressure scope to Whole host. Restart the target process while the pointer holds the sockets table.
+- Expected: Under the pointer and in its card, rows, values, and readouts do not change; after the pointer leaves, each panel shows the latest sample, and active network counters move first. The checkbox keeps focus, the table returns to the top, and the filter applies at once. Range and scope changes clear chart readouts, refresh the charts and In range at once, and change the Summary findings that use pressure and RSS history. After the restart, no row of the old process remains, and the panel waits for a sample of the new process.

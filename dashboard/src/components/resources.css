@@ -1,0 +1,116 @@
+/* Ported from the pinned page (777cf3a), "Resources". */
+.resource-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.socket-empty {
+  padding: 6px 0;
+  line-height: 1.7;
+  max-width: 900px;
+  color: var(--ink-2);
+}
+.socket-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 1000px;
+}
+.meter {
+  display: grid;
+  grid-template-columns: minmax(110px, 34%) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.meter:last-child {
+  border-bottom: 0;
+}
+.meter .track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--raised);
+  position: relative;
+  overflow: hidden;
+}
+.meter .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  min-width: 2px;
+}
+.meter .fill.warning,
+.fillcell .fill.warning {
+  background: var(--warning);
+}
+.meter .fill.critical,
+.fillcell .fill.critical {
+  background: var(--critical);
+}
+.meter .val {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  text-align: right;
+  white-space: nowrap;
+}
+.meter small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+.fillcell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.fillcell .track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--raised);
+  position: relative;
+  overflow: hidden;
+  min-width: 60px;
+}
+.fillcell .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.fillcell span {
+  font-variant-numeric: tabular-nums;
+  min-width: 44px;
+  text-align: right;
+}
+.note {
+  display: inline-block;
+  font-size: 11.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  margin: 1px 4px 1px 0;
+  white-space: nowrap;
+}
+.note.bad {
+  border-color: color-mix(in srgb, var(--critical) 45%, transparent);
+  color: var(--bad-ink);
+}
+tr.zero td {
+  color: var(--muted);
+}
+#netstack td:first-child {
+  white-space: normal;
+  min-width: 220px;
+}
+#resource-sockets td:last-child {
+  white-space: normal;
+  min-width: 280px;
+}

@@ -423,7 +423,7 @@ const fill = (value: number | null | undefined, hint: string) =>
 /** The displayed cells of one Fullest sockets row. A null fill shows —. */
 export function socketCells(item: ResourceSocket) {
   const tcp = item.tcp,
-    peer = socketName(item);
+    peer = socketName(item) ?? "";
   return {
     label: socketLabel(item),
     peer,
