@@ -110,6 +110,8 @@ export interface Resources {
     };
     pids?: { current?: number | null; max?: number | null };
   };
+  sockstat?: { tcp_mem?: number | null };
+  limits?: { tcp_mem?: readonly (number | null)[] };
   network?: Partial<Record<NetworkCounter, { delta?: number | null }>>;
   sockets?: {
     top?: readonly ResourceSocket[];
@@ -122,6 +124,9 @@ export interface Resources {
   };
 }
 export type NetworkCounter =
+  | "tcp_rcvq_drop"
+  | "tcp_backlog_drop"
+  | "tcp_zero_window_drop"
   | "listen_overflows"
   | "listen_drops"
   | "udp_rcvbuf_errors"
