@@ -12,6 +12,62 @@ export interface HelpTopic {
 }
 
 export const helpTopics = {
+  "fleet-filter": {
+    title: "Find targets",
+    scope: "This browser tab · Targets overview",
+    meaning:
+      "Search shows the tiles whose process name, host, or target ID contains the text. Status shows the tiles at one assessment level, or Needs attention for critical, serious, and warning.",
+    example:
+      "Search db with Status Critical shows only critical targets whose name, host, or ID contains db.",
+    reading:
+      "Showing N of M targets counts the tiles that match out of every monitored target. The count pills always total all targets. Clear filters shows every tile again. The page address keeps the search and status, and target links carry them, so a copied link, browser Back, and All targets on a target dashboard return to the same view. Add target stays available when no tile matches.",
+    limits:
+      "Search and status only show or hide tiles: they start no request and do not change monitoring. A tile with keyboard focus keeps its last level until focus leaves it, so it can stay shown or hidden until the next refresh.",
+    related: ["fleet", "fleet-tile", "fleet-density"],
+    aliases: ["Find target", "Needs attention"],
+    source: "",
+    sourceDetail: "",
+  },
+  "fleet-density": {
+    title: "Tile density",
+    scope: "This browser · Targets overview",
+    meaning: "Select Comfortable or Compact target tiles.",
+    example:
+      "Compact tiles start at 200 px wide and 104 px tall, instead of 240 px and 140 px, so more targets fit on one screen.",
+    reading:
+      "Comfortable uses larger tiles and gaps. Compact uses smaller tiles, gaps, and padding with the same text and controls. Your selection is saved in this browser. The number of targets and the 5-second refresh never change it.",
+    limits:
+      "If browser storage is blocked, the selection lasts only until the page reloads. Density does not change assessments or which targets show.",
+    related: ["fleet", "fleet-tile", "appearance"],
+    aliases: ["Tile density"],
+    source: "",
+    sourceDetail: "",
+  },
+  "fleet-tile": {
+    title: "Target tile",
+    scope: "One target · latest live view",
+    meaning:
+      "The process name, host and target ID identify the target. A long name ends with an ellipsis; point at it to see the full name. One dot shows the assessment of its latest live view: red critical, orange serious, amber warning, green healthy, gray no data. The dot and colored edge use the same assessment. The dot does not show sampler activity.",
+    example:
+      "An orange dot means a serious finding, even when the sampler is sending data.",
+    reading:
+      "Point at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.",
+    limits:
+      "Tiles do not run trend rules for thread growth, thread churn, or long futex waits, or memory-map layout rules. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.",
+    related: [
+      "fleet",
+      "assessment",
+      "assesshistory",
+      "target-access",
+      "sampler-budget",
+    ],
+    aliases: ["Target tiles"],
+    source:
+      "Collector: `/api/targets` and `/api/live?target=host/id`; assessment computed in this page",
+    sourceDetail:
+      "The name and status come from the target list and latest live view. Findings use the same rules as the Assessment card. The process dashboard shows the measurements and monitoring details.",
+  },
+
   target: {
     title: "Process name or PID",
     scope: "Target selection",

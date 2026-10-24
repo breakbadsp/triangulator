@@ -64,7 +64,11 @@ test.each(["/", "/?target=host%2Fworker"])(
     } else {
       expect(screen.getByRole("heading", { name: "Targets" })).toBeDefined();
       expect(
-        fetchMock.mock.calls.every((call) => call[0] === "/api/targets"),
+        fetchMock.mock.calls.every(
+          (call) =>
+            call[0] === "/api/targets" ||
+            call[0] === "/api/live?target=host%2Fworker",
+        ),
       ).toBe(true);
     }
     expect(screen.queryByRole("navigation", { name: "Sections" })).toBeNull();
@@ -117,7 +121,7 @@ test("reports poll failures and keeps the last target name", async () => {
   await waitFor(
     () => {
       expect(screen.getByRole("status").textContent).toBe(
-        "Collector unavailable",
+        "⚠ Collector unavailable. Displayed data is stale.",
       );
     },
     { timeout: 2500 },
