@@ -3,6 +3,7 @@ import type { LiveResponse, Target } from "../api/types";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
+import { clearViewCaches } from "../hooks/useSeries";
 import { backHref } from "../lib/fleet";
 import { viewTargetName } from "../lib/target";
 
@@ -66,6 +67,9 @@ export function TopBar({
   }, [page.kind, health?.pid, targetName]);
 
   function navigate(key: string) {
+    // The destination starts fresh: its saved view may be from another visit.
+    if (key && page.kind === "target" && key !== page.key)
+      for (const target of [page.key, key]) clearViewCaches(target);
     const query = new URLSearchParams(location.search);
     if (key) query.set("target", key);
     else query.delete("target");

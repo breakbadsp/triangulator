@@ -5,7 +5,9 @@ export interface Section {
   id: string;
   label: string;
 }
-export const sections: readonly Section[] = [];
+export const sections: readonly Section[] = [
+  { id: "overview", label: "Summary" },
+];
 
 export function SectionTabs({
   entries = sections,
