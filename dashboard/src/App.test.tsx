@@ -239,3 +239,41 @@ test("switching targets clears the view caches of both targets and keeps others"
   );
   sessionStorage.clear();
 });
+
+test("the target page shows the last process exit that /api/live reports", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) =>
+      Promise.resolve(
+        Response.json(
+          typeof input === "string" && input.startsWith("/api/targets")
+            ? targets
+            : {
+                ...live,
+                health: { ...live.health, session: "n", target_absent: true },
+                threads: [],
+                exit: {
+                  pid: 42,
+                  name: "worker",
+                  ended_at: 100,
+                  reason: "killed",
+                  signal: 9,
+                  signal_name: "SIGKILL",
+                  next_session: "n",
+                  kernel_log: "read",
+                  messages: [],
+                },
+              },
+        ),
+      ),
+    ),
+  );
+  render(<App />);
+  expect(
+    await screen.findByText("Killed by SIGKILL", {}, { timeout: 2000 }),
+  ).toBeDefined();
+  expect(
+    document.querySelector("section#overview section#process-exit"),
+  ).not.toBeNull();
+});
