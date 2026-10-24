@@ -34,6 +34,10 @@ export interface LiveResponse {
 export interface Thread {
   tid: number;
   name: string;
+  /** The thread group from the collector config. */
+  group?: string;
+  /** The CPU core the thread last ran on. */
+  cpu?: number;
   generation?: number;
   state?: string;
   state_mix?: Readonly<Record<string, number>>;
