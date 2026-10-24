@@ -22,6 +22,12 @@ test("gives sampler silence priority over a poll error", () => {
     "⚠ Sampler is silent. Displayed thread data may be stale.",
   );
 });
+test("reports stale data for any collector error", () => {
+  render(<ErrorBanner error={new Error("HTTP 503")} />);
+  expect(screen.getByRole("status").textContent).toBe(
+    "⚠ Collector unavailable. Displayed data is stale.",
+  );
+});
 test("hides an empty error banner", () => {
   render(<ErrorBanner />);
   expect(screen.queryByRole("status")).toBeNull();
