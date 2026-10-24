@@ -49,8 +49,10 @@ export function TimeChart<P extends { t: number }>({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
+  // The hovered sample's time, not the pointer's x: a live update moves the
+  // axis, and the readout must stay on the sample the reader chose.
   const [hover, setHover] = useState<{
-    x: number;
+    at: number;
     point: { x: number; y: number } | null;
   } | null>(null);
   useLayoutEffect(() => {
@@ -95,6 +97,14 @@ export function TimeChart<P extends { t: number }>({
       const value = overlay?.get(point);
       if (isNum(value)) max = Math.max(max, value);
     }
+    const nearest = (t: number) => {
+      let best = 0;
+      points.forEach((point, index) => {
+        if (Math.abs(point.t - t) < Math.abs((points[best]?.t ?? 0) - t))
+          best = index;
+      });
+      return points[best] as P;
+    };
     const top = nice(max),
       y = (value: number) => PAD.t + (1 - value / top) * plotH;
     const marks: ReactNode[] = [];
@@ -250,13 +260,7 @@ export function TimeChart<P extends { t: number }>({
     // Hover layer: a crosshair at the nearest sample, a dot for each series.
     let hoverMarks: ReactNode = null;
     if (hover) {
-      const t = t0 + ((hover.x - PAD.l) / plotW) * (t1 - t0);
-      let best = 0;
-      points.forEach((point, index) => {
-        if (Math.abs(point.t - t) < Math.abs((points[best]?.t ?? 0) - t))
-          best = index;
-      });
-      const point = points[best] as P,
+      const point = nearest(hover.at),
         cx = x(point.t);
       const dots: ReactNode[] = [];
       let sum = 0;
@@ -350,8 +354,9 @@ export function TimeChart<P extends { t: number }>({
             const box =
               event.currentTarget.ownerSVGElement?.getBoundingClientRect();
             // Touch and drags move the crosshair but open no card.
+            const px = event.clientX - (box?.left ?? 0);
             setHover({
-              x: event.clientX - (box?.left ?? 0),
+              at: nearest(t0 + ((px - PAD.l) / plotW) * (t1 - t0)).t,
               point:
                 event.buttons || event.pointerType === "touch"
                   ? null

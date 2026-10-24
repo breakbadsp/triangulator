@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -55,15 +56,24 @@ export function Help({
   const id = useId();
   const [shown, setShown] = useState<HelpTopicId | null>(null);
   const [position, setPosition] = useState({ left: 8, top: 8 });
+  // The readout as it was when the card opened, so the rows stay while the
+  // pointer leaves the chart for the card.
+  const [shownReadout, setShownReadout] = useState<Readout | null>(null);
   const timer = useMemo(
     () =>
-      createHelpTimer<{ topic: HelpTopicId; at?: Position }>(
+      createHelpTimer<{
+        topic: HelpTopicId;
+        at?: Position;
+        readout?: Readout;
+      }>(
         (value) => {
           setShown(value.topic);
+          setShownReadout(value.readout ?? null);
           if (value.at) setPosition(value.at);
         },
         () => {
           setShown(null);
+          setShownReadout(null);
         },
       ),
     [],
@@ -105,12 +115,21 @@ export function Help({
     if (left + width > innerWidth - 12) left = readoutPoint.x - width - 8;
     const at = {
       left: Math.max(12, Math.min(left, innerWidth - width - 12)),
-      top: Math.max(12, Math.min(readoutPoint.y, innerHeight - 240)),
+      // The layout effect below fits the top to the card's height.
+      top: Math.max(12, readoutPoint.y),
     };
-    timer.request(readoutKey, { topic, at }, readoutPoint);
+    timer.request(readoutKey, { topic, at, readout }, readoutPoint);
     // The point only places the card; a new request needs a new sample.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readoutKey, topic, timer]);
+
+  // Fit the card to the viewport by its measured size, as the old page did.
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (!element) return;
+    const { height } = element.getBoundingClientRect();
+    element.style.top = `${String(Math.max(12, Math.min(position.top, innerHeight - height - 12)))}px`;
+  }, [shown, shownReadout, position]);
 
   function showHelp(immediate: boolean) {
     const bounds = anchor.current?.getBoundingClientRect();
@@ -169,7 +188,10 @@ export function Help({
             aria-label={content.title}
             style={position}
             onMouseEnter={() => {
-              timer.request(topic, { topic });
+              // Keep the open request, whatever its key, so the card stays.
+              const open = timer.visible;
+              if (open) timer.request(open.key, open.payload);
+              else timer.request(topic, { topic });
             }}
             onMouseLeave={() => {
               timer.leave(keepFocus);
@@ -194,10 +216,10 @@ export function Help({
             <h2>{content.title}</h2>
             <p className="muted">{content.scope}</p>
             <p>{content.meaning}</p>
-            {readout && (
+            {shownReadout && (
               <div className="help-readout">
-                <p className="muted">{readout.title}</p>
-                {readout.rows.map((row) => (
+                <p className="muted">{shownReadout.title}</p>
+                {shownReadout.rows.map((row) => (
                   <div key={row.label} className="help-reading">
                     <strong>
                       {row.value === "—" ? "Not available" : row.value}
@@ -205,7 +227,7 @@ export function Help({
                     <span>{row.label}</span>
                   </div>
                 ))}
-                <p className="muted">At {date(readout.stamp)}</p>
+                <p className="muted">At {date(shownReadout.stamp)}</p>
               </div>
             )}
             {content.example && (
