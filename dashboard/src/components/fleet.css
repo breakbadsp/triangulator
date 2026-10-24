@@ -1,0 +1,320 @@
+.fleet-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.fleet-head h2 {
+  font-size: 28px;
+  letter-spacing: -0.035em;
+}
+.fleet-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.fleet-counts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fleet-counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.fleet-counts span::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--lvl);
+}
+.fleet-counts b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.fleet-counts small {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 24px;
+}
+.fleet-tile {
+  --lvl: var(--s-other);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 140px;
+  min-width: 0;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition:
+    transform 0.16s,
+    border-color 0.16s,
+    box-shadow 0.16s;
+}
+.fleet-tile::before {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px -1px;
+  width: 5px;
+  border-radius: 16px 0 0 16px;
+  background: var(--lvl);
+}
+/* Findings card: below the tile on hover or keyboard focus, after a short delay so a pointer that crosses the grid does not flash it. */
+.ft-card {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% - 10px);
+  left: 14px;
+  right: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--lvl) 45%, var(--line));
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s,
+    visibility 0s 0.15s;
+  pointer-events: none;
+}
+.fleet-tile:hover .ft-card,
+.fleet-tile:focus-within .ft-card {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0.3s;
+}
+.fleet-tile:hover,
+.fleet-tile:focus-within {
+  z-index: 4;
+}
+.ft-proc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+.ft-card li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.ft-card .ic {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex: none;
+}
+.ft-card li small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ft-more {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ft-card {
+    transition: none;
+    transform: none;
+  }
+}
+.fleet-tile:hover,
+.fleet-tile:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--lvl) 55%, var(--line));
+  box-shadow:
+    var(--shadow),
+    0 14px 32px -18px color-mix(in srgb, var(--lvl) 75%, transparent);
+}
+.fleet-tile:has(.ft-name:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The name link covers the tile. The identity line above it opens help. */
+.ft-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+}
+.fleet-toolbar {
+  margin: -8px 0 18px;
+}
+/* Compact: smaller tiles, gaps, and padding; the same text and controls. */
+.fleet-grid[data-density="compact"] {
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 16px;
+}
+.fleet-grid[data-density="compact"] .fleet-tile {
+  min-height: 104px;
+  padding: 12px 14px;
+}
+.fleet-tile[data-level="good"],
+.fleet-tile[data-level="info"] {
+  --lvl: var(--good);
+}
+.fleet-tile[data-level="warning"] {
+  --lvl: var(--warning);
+}
+.fleet-tile[data-level="serious"] {
+  --lvl: var(--serious);
+}
+.fleet-tile[data-level="critical"] {
+  --lvl: var(--critical);
+}
+.ft-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ft-name {
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-assessment {
+  width: 10px;
+  height: 10px;
+  background: var(--lvl);
+}
+.ft-key {
+  margin-top: -8px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.fleet-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fleet-tile {
+    transition: none;
+  }
+  .fleet-tile:hover,
+  .fleet-tile:focus-within {
+    transform: none;
+  }
+}
+.ft-key {
+  position: relative;
+  z-index: 1;
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.toolbar label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.toolbar input[type="search"] {
+  min-width: 240px;
+}
+.lvl-good .ic {
+  background: var(--good);
+}
+.lvl-info .ic {
+  background: var(--muted);
+}
+.lvl-warning .ic {
+  background: var(--warning);
+  color: #2a1d00;
+}
+.lvl-serious .ic {
+  background: var(--serious);
+  color: #2a1100;
+}
+.lvl-critical .ic {
+  background: var(--critical);
+}
+@media (max-width: 640px) {
+  .toolbar input[type="search"] {
+    min-width: 0;
+    width: 100%;
+  }
+  .fleet-toolbar > [data-help]:first-child {
+    width: 100%;
+  }
+  main#fleet {
+    padding-top: 16px;
+  }
+  .fleet-head {
+    gap: 8px 20px;
+    margin-bottom: 14px;
+  }
+  .fleet-head h2 {
+    line-height: 1.2;
+  }
+  .fleet-counts {
+    gap: 6px 8px;
+  }
+  .fleet-toolbar {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+}
