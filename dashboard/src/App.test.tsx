@@ -71,7 +71,13 @@ test.each(["/", "/?target=host%2Fworker"])(
         ),
       ).toBe(true);
     }
-    expect(screen.queryByRole("navigation", { name: "Sections" })).toBeNull();
+    // Only the target page has sections to navigate.
+    const sections = screen.queryByRole("navigation", { name: "Sections" });
+    if (url.includes("target"))
+      expect(
+        screen.getByRole("link", { name: "Summary" }).getAttribute("href"),
+      ).toBe("#overview");
+    else expect(sections).toBeNull();
     const help = container.querySelectorAll<HTMLElement>("[data-help]");
     expect(help.length).toBeGreaterThan(0);
     for (const element of help)
@@ -144,4 +150,130 @@ test("uses a safe default when stored theme data is invalid", async () => {
       .value,
   ).toBe("auto");
   await screen.findByRole("option", { name: /host · worker/ });
+});
+
+// The served page computes the Summary in the browser from /api/live.
+test("the target page shows the Summary with a load average after two ticks", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  let tick = 100;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) => {
+      if (typeof input === "string" && input.startsWith("/api/targets"))
+        return Promise.resolve(Response.json(targets));
+      tick++;
+      return Promise.resolve(
+        Response.json({
+          ...live,
+          health: { ...live.health, session: "s", last_seen: tick },
+          threads: [
+            {
+              tid: 42,
+              generation: 1,
+              name: "worker",
+              last_sample: tick,
+              cpu_pct: 100,
+              run_delay_pct: 0,
+              state: "running",
+            },
+          ],
+        }),
+      );
+    }),
+  );
+  const { container } = render(<App />);
+  expect(container.querySelector("section#overview")).not.toBeNull();
+  await waitFor(
+    () => {
+      expect(document.getElementById("hero-load")?.textContent).toBe("1.00");
+      expect(
+        container.querySelectorAll("#chart-load svg polygon").length,
+      ).toBeGreaterThan(0);
+    },
+    { timeout: 4000 },
+  );
+});
+
+test("switching targets clears the view caches of both targets and keeps others", () => {
+  history.replaceState(null, "", "/?target=host-a%2Forders");
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation(() => new Promise(() => undefined)),
+  );
+  for (const [key, value] of [
+    ["triangulator:buffer:host-a/orders", "old"],
+    ["triangulator:threads:host-b/billing", "old"],
+    ["triangulator:frozen:host-b/billing", "old"],
+    ["triangulator:buffer:host-c/gateway", "keep"],
+  ] as const)
+    sessionStorage.setItem(key, value);
+  const assign = vi.fn();
+  vi.stubGlobal("location", {
+    assign,
+    hash: "",
+    pathname: location.pathname,
+    search: location.search,
+  });
+  render(<App />);
+  const select = screen.getByRole("combobox", {
+    name: "Selected monitoring target",
+  });
+  const option = document.createElement("option");
+  option.value = "host-b/billing";
+  select.append(option);
+  fireEvent.change(select, { target: { value: "host-b/billing" } });
+  expect(assign).toHaveBeenCalledWith("/?target=host-b%2Fbilling");
+  expect(
+    sessionStorage.getItem("triangulator:buffer:host-a/orders"),
+  ).toBeNull();
+  expect(
+    sessionStorage.getItem("triangulator:threads:host-b/billing"),
+  ).toBeNull();
+  expect(
+    sessionStorage.getItem("triangulator:frozen:host-b/billing"),
+  ).toBeNull();
+  expect(sessionStorage.getItem("triangulator:buffer:host-c/gateway")).toBe(
+    "keep",
+  );
+  sessionStorage.clear();
+});
+
+test("the target page shows the last process exit that /api/live reports", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) =>
+      Promise.resolve(
+        Response.json(
+          typeof input === "string" && input.startsWith("/api/targets")
+            ? targets
+            : {
+                ...live,
+                health: { ...live.health, session: "n", target_absent: true },
+                threads: [],
+                exit: {
+                  pid: 42,
+                  name: "worker",
+                  ended_at: 100,
+                  reason: "killed",
+                  signal: 9,
+                  signal_name: "SIGKILL",
+                  next_session: "n",
+                  kernel_log: "read",
+                  messages: [],
+                },
+              },
+        ),
+      ),
+    ),
+  );
+  render(<App />);
+  expect(
+    await screen.findByText("Killed by SIGKILL", {}, { timeout: 2000 }),
+  ).toBeDefined();
+  expect(
+    document.querySelector("section#overview section#process-exit"),
+  ).not.toBeNull();
 });

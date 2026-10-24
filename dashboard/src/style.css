@@ -432,3 +432,321 @@ section.block {
     flex-wrap: wrap;
   }
 }
+
+/* Shared panel parts, ported from 777cf3a:collector/dashboard.html. */
+.section-head h2 {
+  font-size: 24px;
+  letter-spacing: -0.035em;
+}
+.section-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  max-width: 85ch;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.card-head > div:first-child {
+  flex: 1 1 240px;
+}
+.card-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.grid {
+  display: grid;
+  gap: 16px;
+}
+.seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 2px;
+  background: var(--surface-2);
+}
+.seg button {
+  border: 0;
+  background: none;
+  padding: 4px 10px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.kv .k {
+  font-size: 12px;
+  color: var(--muted);
+}
+.kv .v {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.chart {
+  position: relative;
+  width: 100%;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+}
+.chart-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+.axis-label {
+  fill: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 10px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  flex: none;
+}
+.sw.line {
+  height: 2px;
+  width: 14px;
+  border-radius: 1px;
+}
+.sw.running,
+.running {
+  background: var(--s-running);
+}
+.sw.futex,
+.futex {
+  background: var(--s-futex);
+}
+.sw.poll,
+.poll {
+  background: var(--s-poll);
+}
+.sw.socket,
+.socket {
+  background: var(--s-socket);
+}
+.sw.pipe,
+.pipe {
+  background: var(--s-pipe);
+}
+.sw.sleep,
+.sleep {
+  background: var(--s-sleep);
+}
+.sw.stopped,
+.stopped {
+  background: var(--s-stopped);
+}
+.sw.kernel,
+.kernel {
+  background: var(--s-kernel);
+}
+.sw.other,
+.other {
+  background: var(--s-other);
+}
+.sw.no_access,
+.no_access {
+  background: var(--s-no_access);
+}
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.finding {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.finding[data-action] {
+  cursor: pointer;
+}
+.finding[data-action]:hover {
+  background: var(--raised);
+}
+.finding .ic {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+.finding .t {
+  font-weight: 600;
+}
+.finding .d {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 3px;
+}
+.verdict .badge,
+.exit-summary .badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.verdict .badge::before,
+.exit-summary .badge::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--lvl, var(--muted));
+}
+.exit-summary,
+.fold-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  list-style: none;
+}
+.exit-summary::-webkit-details-marker,
+.fold-summary::-webkit-details-marker {
+  display: none;
+}
+.exit-summary::before,
+.fold-summary::before {
+  content: "\25B8";
+  color: var(--muted);
+  width: 10px;
+}
+details[open] > .exit-summary::before,
+details[open] > .fold-summary::before {
+  content: "\25BE";
+}
+.exit-summary h3,
+.fold-summary h3 {
+  margin: 0;
+}
+/* Folded panels. A panel outside a card gets the card's frame on its summary. */
+details.fold[open] > .fold-summary {
+  margin-bottom: 10px;
+}
+.fold-note {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.fold-bar {
+  padding: 12px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+/* Browsers that can animate to height:auto slide a panel open; others open it at once. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (interpolate-size: allow-keywords) {
+    details.fold {
+      interpolate-size: allow-keywords;
+    }
+    details.fold::details-content {
+      height: 0;
+      overflow: clip;
+      transition:
+        height 0.2s,
+        content-visibility 0.2s allow-discrete;
+    }
+    details.fold[open]::details-content {
+      height: auto;
+    }
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 12px 0 0;
+}
+.facts div {
+  display: flex;
+  flex-direction: column;
+}
+.facts dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.facts .wide {
+  grid-column: 1/-1;
+}
+.facts dd.wrap {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .card {
+    padding: 18px 16px;
+  }
+  .section-head {
+    align-items: flex-start;
+  }
+  .section-head h2 {
+    font-size: 22px;
+  }
+}

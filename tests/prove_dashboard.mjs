@@ -313,6 +313,82 @@ try {
   assert.ok(selected.meta.includes(`PID ${live.health.pid}`));
   assert.equal(selected.theme, "dark");
   assert.deepEqual(selected.cspViolations, []);
+  // Summary: the load average and trends come from this tab's live series.
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#hero-load')?.textContent !== '—' && !!document.querySelector('#chart-load svg polygon')",
+      ),
+    "summary load chart",
+  );
+  const summary = await evaluate(`({
+    tabs: [...document.querySelectorAll('nav.tabs a')].map((link) => link.textContent),
+    verdict: document.querySelector('#verdict').textContent,
+    heroLoad: document.querySelector('#hero-load').textContent,
+    tiles: [...document.querySelectorAll('#tiles .tile .label')].map((label) => label.textContent),
+    chartWidth: Number(document.querySelector('#chart-load svg').getAttribute('width')),
+    hostWidth: document.querySelector('#chart-load').clientWidth,
+    sub: document.querySelector('#overview-sub').textContent,
+  })`);
+  assert.deepEqual(summary.tabs, ["Summary"]);
+  assert.match(summary.heroLoad, /^\d+\.\d\d$/);
+  assert.ok(summary.tiles.includes("Active threads"));
+  // The chart is drawn at its host's measured width, not the 600 px default.
+  assert.equal(summary.chartWidth, Math.max(240, summary.hostWidth));
+  assert.notEqual(summary.hostWidth, 600);
+  // Hover near the first sample: its time stays fixed while new samples arrive.
+  const box = await evaluate(`(() => {
+    const hit = document.querySelector('#chart-load rect');
+    hit.scrollIntoView({ block: 'center' });
+    const bounds = hit.getBoundingClientRect();
+    return { x: bounds.left + 2, y: bounds.top + bounds.height / 2, width: innerWidth, height: innerHeight };
+  })()`);
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: box.x,
+    y: box.y,
+  });
+  await until(
+    () => evaluate("!!document.querySelector('[role=dialog] .help-reading')"),
+    "chart readout",
+  );
+  const readout = await evaluate(`(() => {
+    const card = document.querySelector('[role=dialog]');
+    return {
+      title: card.getAttribute('aria-label'),
+      rows: [...card.querySelectorAll('.help-reading')].map((row) => row.textContent),
+      left: parseFloat(card.style.left),
+      top: parseFloat(card.style.top),
+    };
+  })()`);
+  assert.equal(readout.title, "Process load");
+  // Stacked bands at 0 are left out, as before; the average line always has a value.
+  assert.ok(
+    readout.rows.some((row) => row.endsWith("1-min load average")),
+    JSON.stringify(readout),
+  );
+  // The card opens beside the pointer, not under the chart's corner.
+  assert.ok(Math.abs(readout.left - (box.x + 8)) <= 1, JSON.stringify(readout));
+  assert.ok(
+    Math.abs(readout.top - Math.max(12, Math.min(box.y, box.height - 240))) <= 1,
+    JSON.stringify(readout),
+  );
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+  // A reload restores the series that the tab saved when the page hid.
+  const since = summary.sub.match(/since (.+)\.$/)?.[1];
+  assert.ok(since, summary.sub);
+  await send("Page.reload");
+  await until(
+    () =>
+      evaluate(
+        `document.querySelector('#overview-sub')?.textContent.endsWith(${JSON.stringify(`since ${since}.`)}) && !!document.querySelector('#chart-load svg polygon')`,
+      ),
+    "series restored after reload",
+  );
+  const restored = await evaluate(
+    "({sub: document.querySelector('#overview-sub').textContent, saved: JSON.parse(sessionStorage.getItem('triangulator:buffer:' + new URLSearchParams(location.search).get('target'))).points.length})",
+  );
+  assert.ok(restored.saved > 1);
   assert.ok(
     requests.some(
       (url) =>
@@ -336,6 +412,9 @@ try {
         theme: { saved: "dark", background: "rgb(9, 9, 10)" },
         help,
         selected,
+        summary,
+        readout,
+        restored,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },

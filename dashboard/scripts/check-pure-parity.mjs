@@ -23,7 +23,7 @@ const source = ts.createSourceFile(
 );
 const names = new Set(
   `
-  BUFFER_SECS AVG_STEP loadBuffer saveBuffer ingest
+  BUFFER_SECS AVG_STEP loadBuffer saveBuffer ingest loadOf updateLoadAverage
   STATES labels isNum pct compact number bytes perSec clock date duration ago family
   isIdle idleSecs futexShare STUCK_FUTEX_S lockHints SATURATED_PCT watchOverdueS
   sampleIntervalMs isWatched quietFor quietText isOverdue isBusyWatched watchedThreads
@@ -84,7 +84,9 @@ function load(filename) {
 const { assess, assessRecorded, fleetAssessment } = load(
   resolve(dashboard, "src/lib/assess/index.ts"),
 );
-const { emptySeries, ingest } = load(resolve(dashboard, "src/lib/series.ts"));
+const { emptySeries, ingest, restoreSeries } = load(
+  resolve(dashboard, "src/lib/series.ts"),
+);
 const { asResourcePoints } = load(
   resolve(dashboard, "src/lib/assess/memory.ts"),
 );
@@ -306,34 +308,47 @@ for (const pressureScope of ["host", "cgroup"]) {
 }
 // Replay mode disables old storage and load averages. Compare only the
 // reducer state retained by this phase, including generation and pause rules.
-const oldSeries = createContext({
-  live: view(),
-  replayAt: 1000,
-  bufferSession: null,
-  buffer: [],
-  lastTick: 0,
-  previousThreads: null,
-  loadState: null,
-  threadCpu: new Map(),
-  threadSeen: new Map(),
-  threadAvg: new Map(),
-  avgSince: 0,
-});
-runInContext(oracle, oldSeries);
-const seriesValue = (series) =>
+const oldState = (extra) => {
+  const context = createContext({
+    live: view(),
+    bufferSession: null,
+    buffer: [],
+    lastTick: 0,
+    previousThreads: null,
+    loadState: null,
+    threadCpu: new Map(),
+    threadSeen: new Map(),
+    threadAvg: new Map(),
+    avgSince: 0,
+    ...extra,
+  });
+  runInContext(oracle, context);
+  return context;
+};
+const oldSeries = oldState({ replayAt: 1000 });
+const seriesValue = (series, withLoad = false) =>
   canonical({
     session: series.session,
-    points: series.points,
+    points: withLoad
+      ? series.points
+      : series.points.map((point) => {
+          const copy = { ...point };
+          delete copy.l1;
+          return copy;
+        }),
     lastTick: series.lastTick,
     ids: series.ids ? [...series.ids].sort() : null,
     seen: [...series.seen],
+    ...(withLoad ? { load: series.load } : {}),
   });
-let series = emptySeries;
-for (let i = 0; i < 400; i++) {
+const oldValue =
+  "({session:bufferSession,points:buffer,lastTick,ids:previousThreads,seen:threadSeen,load:loadState})";
+function seriesView(i) {
   const live = view(
     Array.from({ length: 1 + (i % 7) }, (_, index) =>
       thread(index + 1, {
-        last_sample: 1000 + i * 5,
+        // Every 50 steps a 45 s pause tests the 30 s cap of the load step.
+        last_sample: 1000 + i * 5 + Math.floor(i / 50) * 40,
         generation: Math.floor(i / 13),
         state: i % 3 ? "futex" : "sleep",
         cpu_pct: i % 11 ? (index % 2 ? 5 : 0) : null,
@@ -354,6 +369,11 @@ for (let i = 0; i < 400; i++) {
     },
   );
   live.health.session = i < 220 ? "s" : "next";
+  return live;
+}
+let series = emptySeries;
+for (let i = 0; i < 400; i++) {
+  const live = seriesView(i);
   const before = seriesValue(series);
   const next = ingest(series, live);
   assert.deepEqual(
@@ -362,16 +382,52 @@ for (let i = 0; i < 400; i++) {
     `Reducer mutated its input at step ${i}`,
   );
   oldSeries.live = live;
-  const previous = runInContext(
-    "ingest(); ({session:bufferSession,points:buffer,lastTick,ids:previousThreads,seen:threadSeen})",
-    oldSeries,
-  );
+  const previous = runInContext(`ingest(); ${oldValue}`, oldSeries);
   assert.deepEqual(
     seriesValue(next),
     seriesValue(previous),
     `Series parity step ${i}`,
   );
   series = next;
+}
+// Live mode also runs the load average and the tab storage. Every 40 steps the
+// old page reloads from what it saved, and the port restores the same entries.
+const stored = new Map();
+const oldLive = oldState({
+  replayAt: null,
+  sessionStorage: {
+    getItem: (key) => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, String(value)),
+    removeItem: (key) => stored.delete(key),
+  },
+  targetStorageKey: (key) => `${key}:h/t`,
+});
+let restores = 0;
+series = emptySeries;
+for (let i = 0; i < 400; i++) {
+  const live = seriesView(i);
+  if (i % 40 === 39) {
+    runInContext("saveBuffer(); loadBuffer(bufferSession)", oldLive);
+    const parse = (key) => JSON.parse(stored.get(`${key}:h/t`) ?? "null");
+    series = restoreSeries(
+      parse("triangulator:buffer"),
+      parse("triangulator:threads"),
+      series.session,
+    );
+    assert.deepEqual(
+      seriesValue(series, true),
+      seriesValue(runInContext(oldValue, oldLive), true),
+      `Restore parity step ${i}`,
+    );
+    restores++;
+  }
+  oldLive.live = live;
+  series = ingest(series, live);
+  assert.deepEqual(
+    seriesValue(series, true),
+    seriesValue(runInContext(`ingest(); ${oldValue}`, oldLive), true),
+    `Live series parity step ${i}`,
+  );
 }
 // Repeated calls must not retain the prior target, mode, rules, or series.
 const busy = view([thread(7, { cpu_pct: 99 })]);
@@ -380,5 +436,5 @@ assess(input(view([], { memory }), { memoryLayout: layout }));
 assert.deepEqual(canonical(assessRecorded(busy, 1000, [])), before);
 assert.equal(fleetAssessment(busy, 1000).level, "serious");
 log(
-  `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps; repeated calls are isolated.`,
+  `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average and ${restores} restores; repeated calls are isolated.`,
 );

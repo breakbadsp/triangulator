@@ -27,3 +27,13 @@
   flex-wrap: wrap;
   gap: 12px;
 }
+.help-reading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+.help-reading span {
+  color: var(--ink-2);
+}
