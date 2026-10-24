@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import process from "node:process";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -24,6 +25,7 @@ const source = ts.createSourceFile(
 const names = new Set(
   `
   BUFFER_SECS AVG_STEP loadBuffer saveBuffer ingest loadOf updateLoadAverage
+  averageCpu mapView idleFor
   STATES labels isNum pct compact number bytes perSec clock date duration ago family
   isIdle idleSecs futexShare STUCK_FUTEX_S lockHints SATURATED_PCT watchOverdueS
   sampleIntervalMs isWatched quietFor quietText isOverdue isBusyWatched watchedThreads
@@ -67,7 +69,16 @@ function load(filename) {
   if (modules.has(filename)) return modules.get(filename).exports;
   const module = { exports: {} };
   modules.set(filename, module);
-  const { outputText } = ts.transpileModule(readFileSync(filename, "utf8"), {
+  let text = readFileSync(filename, "utf8");
+  // Deliberately break the average cadence to prove that the oracle detects it.
+  if (
+    process.argv.includes("--negative-average-step") &&
+    filename.endsWith("/series.ts")
+  ) {
+    assert.ok(text.includes("AVG_STEP = 10"));
+    text = text.replace("AVG_STEP = 10", "AVG_STEP = 9");
+  }
+  const { outputText } = ts.transpileModule(text, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2023,
       module: ts.ModuleKind.CommonJS,
@@ -84,8 +95,11 @@ function load(filename) {
 const { assess, assessRecorded, fleetAssessment } = load(
   resolve(dashboard, "src/lib/assess/index.ts"),
 );
-const { emptySeries, ingest, restoreSeries } = load(
+const { emptySeries, ingest, restoreSeries, threadsEntry } = load(
   resolve(dashboard, "src/lib/series.ts"),
+);
+const { averageCpu, mapView, idleFor } = load(
+  resolve(dashboard, "src/lib/threads.ts"),
 );
 const { asResourcePoints } = load(
   resolve(dashboard, "src/lib/assess/memory.ts"),
@@ -340,15 +354,49 @@ const seriesValue = (series, withLoad = false) =>
     ids: series.ids ? [...series.ids].sort() : null,
     seen: [...series.seen],
     ...(withLoad ? { load: series.load } : {}),
+    cpu: [...series.cpu].map(([tid, samples]) => [
+      tid,
+      samples.map(({ t, v }) => [t, v ?? null]),
+    ]),
+    // The old page keeps [generation, t, v, t, v, ...] for each thread.
+    avg: [...series.avg].map(([tid, average]) =>
+      Array.isArray(average)
+        ? [tid, average]
+        : [tid, [average.generation, ...average.samples.flat()]],
+    ),
+    since: series.since,
   });
 const oldValue =
-  "({session:bufferSession,points:buffer,lastTick,ids:previousThreads,seen:threadSeen,load:loadState})";
+  "({session:bufferSession,points:buffer,lastTick,ids:previousThreads,seen:threadSeen,load:loadState,cpu:threadCpu,avg:threadAvg,since:avgSince})";
+// The map's averages and idle text read the per-thread history.
+const WINDOWS = [0, 60, 300, 900];
+function threadReadings(series, live) {
+  return canonical(
+    live.threads.map((thread) => [
+      WINDOWS.map((window) => averageCpu(series, thread.tid, window)),
+      WINDOWS.map((window) => mapView(thread, series, window)),
+      idleFor(thread, series),
+    ]),
+  );
+}
+const oldReadings = (context, live) => {
+  context.readingThreads = live.threads;
+  context.readingWindows = WINDOWS;
+  return canonical(
+    runInContext(
+      `readingThreads.map(thread=>[readingWindows.map(window=>averageCpu(thread.tid,window)),readingWindows.map(window=>{mapWindow=window;return mapView(thread)}),idleFor(thread)])`,
+      context,
+    ),
+  );
+};
+let readings = 0;
 function seriesView(i) {
   const live = view(
     Array.from({ length: 1 + (i % 7) }, (_, index) =>
       thread(index + 1, {
         // Every 50 steps a 45 s pause tests the 30 s cap of the load step.
-        last_sample: 1000 + i * 5 + Math.floor(i / 50) * 40,
+        // Odd steps add 4 s, so some samples are exactly 9 s apart.
+        last_sample: 1000 + i * 5 + (i % 2) * 4 + Math.floor(i / 50) * 40,
         generation: Math.floor(i / 13),
         state: i % 3 ? "futex" : "sleep",
         cpu_pct: i % 11 ? (index % 2 ? 5 : 0) : null,
@@ -407,7 +455,13 @@ series = emptySeries;
 for (let i = 0; i < 400; i++) {
   const live = seriesView(i);
   if (i % 40 === 39) {
-    runInContext("saveBuffer(); loadBuffer(bufferSession)", oldLive);
+    runInContext("saveBuffer()", oldLive);
+    assert.equal(
+      JSON.stringify(threadsEntry(series)),
+      stored.get("triangulator:threads:h/t"),
+      `Saved threads entry parity step ${i}`,
+    );
+    runInContext("loadBuffer(bufferSession)", oldLive);
     const parse = (key) => JSON.parse(stored.get(`${key}:h/t`) ?? "null");
     series = restoreSeries(
       parse("triangulator:buffer"),
@@ -428,6 +482,12 @@ for (let i = 0; i < 400; i++) {
     seriesValue(runInContext(`ingest(); ${oldValue}`, oldLive), true),
     `Live series parity step ${i}`,
   );
+  assert.deepEqual(
+    threadReadings(series, live),
+    oldReadings(oldLive, live),
+    `Thread readings parity step ${i}`,
+  );
+  readings++;
 }
 // Repeated calls must not retain the prior target, mode, rules, or series.
 const busy = view([thread(7, { cpu_pct: 99 })]);
@@ -436,5 +496,5 @@ assess(input(view([], { memory }), { memoryLayout: layout }));
 assert.deepEqual(canonical(assessRecorded(busy, 1000, [])), before);
 assert.equal(fleetAssessment(busy, 1000).level, "serious");
 log(
-  `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average and ${restores} restores; repeated calls are isolated.`,
+  `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, ${readings} thread map readings, and ${restores} restores; repeated calls are isolated.`,
 );

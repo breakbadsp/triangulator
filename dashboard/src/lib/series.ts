@@ -31,6 +31,16 @@ export interface ThreadSeen {
   generation?: number;
   futexSince?: number | null;
 }
+/** One live CPU sample of a thread, for its sparkline and drawer chart. */
+export interface CpuSample {
+  t: number;
+  v: number | null;
+}
+/** CPU samples of one thread generation, one each 10 s, for the map averages. */
+export interface ThreadAverage {
+  generation: number | null | undefined;
+  samples: readonly (readonly [t: number, cpu: number])[];
+}
 export interface Series {
   session: string | null | undefined;
   points: readonly Point[];
@@ -38,6 +48,12 @@ export interface Series {
   ids: ReadonlySet<string> | null;
   seen: ReadonlyMap<number, ThreadSeen>;
   load: LoadState | null;
+  /** The last 120 s of each thread's CPU, by TID. */
+  cpu: ReadonlyMap<number, readonly CpuSample[]>;
+  /** The last 900 s of each thread's CPU, one sample each 10 s, by TID. */
+  avg: ReadonlyMap<number, ThreadAverage>;
+  /** The first tick with averages in this tab, or 0. */
+  since: number;
 }
 export const emptySeries: Series = {
   session: null,
@@ -46,7 +62,13 @@ export const emptySeries: Series = {
   ids: null,
   seen: new Map(),
   load: null,
+  cpu: new Map(),
+  avg: new Map(),
+  since: 0,
 };
+const BUFFER_SECS = 900,
+  CPU_SECS = 120,
+  AVG_STEP = 10;
 // Load as the kernel defines it, for this process: cores of CPU used, plus
 // cores of demand that waited for a CPU, plus threads in uninterruptible wait.
 const loadOf = (point: Point) =>
@@ -108,13 +130,45 @@ export function restoreSeries(
     ? (savedBuffer.points as Point[]).map((point) => ({ ...point }))
     : [];
   const lastTick = points.at(-1)?.t || 0;
+  const avg = new Map<number, ThreadAverage>();
+  if (Array.isArray(savedThreads?.avg))
+    for (const [tid, saved] of savedThreads.avg as [number, unknown[]][]) {
+      const samples: (readonly [number, number])[] = [];
+      for (let index = 1; index + 1 < saved.length; index += 2)
+        samples.push([Number(saved[index]), Number(saved[index + 1])]);
+      avg.set(tid, {
+        generation: saved[0] as ThreadAverage["generation"],
+        samples,
+      });
+    }
+  const since = isNum(savedThreads?.since) ? savedThreads.since : 0;
   let load: LoadState | null = null;
   if (isLoadState(savedBuffer?.loadState, lastTick))
     load = savedBuffer.loadState;
   // Older tabs saved only chart points; seed their averages once on restore.
   else for (const point of points) load = advanceLoad(load, point);
-  return { session, points, lastTick, ids: null, seen, load };
+  return {
+    session,
+    points,
+    lastTick,
+    ids: null,
+    seen,
+    load,
+    cpu: new Map(),
+    avg,
+    since,
+  };
 }
+/** The `triangulator:threads` entry of the old page: averages are flat arrays. */
+export const threadsEntry = (series: Series) => ({
+  session: series.session,
+  since: series.since,
+  avg: [...series.avg].map(([tid, average]) => [
+    tid,
+    [average.generation, ...average.samples.flat()],
+  ]),
+  seen: [...series.seen],
+});
 export function ingest(series: Series, view: LiveResponse): Series {
   const { health, threads } = view;
   if (health.session !== series.session)
@@ -140,7 +194,9 @@ export function ingest(series: Series, view: LiveResponse): Series {
     vm: null,
   };
   const ids = new Set<string>(),
-    seen = new Map(series.seen);
+    seen = new Map(series.seen),
+    cpu = new Map(series.cpu),
+    avg = new Map(series.avg);
   for (const thread of threads) {
     if (isNum(thread.cpu_pct)) {
       point.cpu = (point.cpu ?? 0) + thread.cpu_pct;
@@ -173,6 +229,28 @@ export function ingest(series: Series, view: LiveResponse): Series {
       observation.active = tick;
     }
     seen.set(thread.tid, observation);
+    const average = avg.get(thread.tid);
+    let samples =
+      average && average.generation === thread.generation
+        ? average.samples
+        : [];
+    const last = samples.at(-1);
+    if (isNum(thread.cpu_pct) && (!last || tick - last[0] >= AVG_STEP - 0.5)) {
+      samples = [...samples, [tick, +thread.cpu_pct.toFixed(2)] as const];
+      while (
+        samples.length > 1 &&
+        (samples[0]?.[0] ?? tick) < tick - BUFFER_SECS
+      )
+        samples = samples.slice(1);
+    }
+    avg.set(thread.tid, { generation: thread.generation, samples });
+    cpu.set(
+      thread.tid,
+      [
+        ...(cpu.get(thread.tid) ?? []),
+        { t: tick, v: thread.cpu_pct ?? null },
+      ].filter((sample) => sample.t >= tick - CPU_SECS),
+    );
   }
   // Memory samples must belong to the process in this view after a restart.
   const { resources, memory } = view;
@@ -205,13 +283,34 @@ export function ingest(series: Series, view: LiveResponse): Series {
   }
   const present = new Set(threads.map((thread) => thread.tid));
   for (const tid of seen.keys()) if (!present.has(tid)) seen.delete(tid);
+  for (const tid of avg.keys()) if (!present.has(tid)) avg.delete(tid);
+  // An exited thread keeps its live CPU for 120 s, for its drawer chart.
+  for (const [tid, samples] of cpu)
+    if (!present.has(tid) && (samples.at(-1)?.t ?? 0) < tick - CPU_SECS)
+      cpu.delete(tid);
   const load = advanceLoad(series.load, point);
   return {
     session: health.session,
-    points: [...series.points, point].filter((point) => point.t >= tick - 900),
+    points: [...series.points, point].filter(
+      (point) => point.t >= tick - BUFFER_SECS,
+    ),
     lastTick: tick,
     ids,
     seen,
     load,
+    cpu,
+    avg,
+    since: series.since || tick,
+  };
+}
+/** The points in the chart window, and where the window starts. */
+export function windowPoints(series: Series, windowSecs: number) {
+  const end = series.points.at(-1)?.t || 0,
+    points = series.points.filter((point) => point.t >= end - windowSecs);
+  const first = points[0],
+    last = points.at(-1);
+  return {
+    points,
+    from: first && last ? Math.max(first.t, last.t - windowSecs) : undefined,
   };
 }

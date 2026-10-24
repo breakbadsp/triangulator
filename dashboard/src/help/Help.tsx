@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -38,19 +40,27 @@ function hoverHelpEnabled() {
   }
 }
 
+// Hidden drawers keep their range state, but must dismiss their portalled help.
+export const HelpEnabled = createContext(true);
+
+const helpTimers = new Set<{ cancel: (block?: boolean) => void }>();
+
 export function Help({
   topic,
   children,
   className,
   as: Tag = "span",
+  id: anchorId,
   readout,
 }: {
   topic: HelpTopicId;
   children: ReactNode;
   className?: string;
-  as?: "span" | "div";
+  as?: "span" | "div" | "tbody";
+  id?: string;
   readout?: Readout;
 }) {
+  const active = useContext(HelpEnabled);
   const anchor = useRef<HTMLElement>(null);
   const card = useRef<HTMLElement>(null);
   const id = useId();
@@ -80,12 +90,19 @@ export function Help({
   );
 
   useEffect(() => {
+    helpTimers.add(timer);
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") timer.cancel(true);
+      if (event.key === "Escape" && timer.active) {
+        // A pending hover can receive Escape before another card's listener.
+        for (const helpTimer of helpTimers) helpTimer.cancel(true);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     }
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", escape, true);
     return () => {
-      document.removeEventListener("keydown", escape);
+      helpTimers.delete(timer);
+      document.removeEventListener("keydown", escape, true);
       timer.cancel();
     };
   }, [timer]);
@@ -105,10 +122,14 @@ export function Help({
     };
   }, [shown, timer]);
 
+  useEffect(() => {
+    if (!active) timer.cancel(true);
+  }, [active, timer]);
+
   const readoutKey = readout?.key,
     readoutPoint = readout?.point;
   useEffect(() => {
-    if (!readoutKey || !readoutPoint || !hoverHelpEnabled()) return;
+    if (!active || !readoutKey || !readoutPoint || !hoverHelpEnabled()) return;
     // Beside the pointer, or on its left when the card would overflow.
     const width = Math.min(380, innerWidth - 24);
     let left = readoutPoint.x + 8;
@@ -121,7 +142,7 @@ export function Help({
     timer.request(readoutKey, { topic, at, readout }, readoutPoint);
     // The point only places the card; a new request needs a new sample.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readoutKey, topic, timer]);
+  }, [active, readoutKey, topic, timer]);
 
   // Fit the card to the viewport by its measured size, as the old page did.
   useLayoutEffect(() => {
@@ -132,6 +153,7 @@ export function Help({
   }, [shown, shownReadout, position]);
 
   function showHelp(immediate: boolean) {
+    if (!active) return;
     const bounds = anchor.current?.getBoundingClientRect();
     if (!bounds) return;
     setPosition({
@@ -147,16 +169,17 @@ export function Help({
       card.current?.contains(document.activeElement)
     );
   }
-  const content: HelpTopic | null = shown ? helpTopics[shown] : null;
+  const content: HelpTopic | null = active && shown ? helpTopics[shown] : null;
   return (
     <Tag
       ref={(element) => {
         anchor.current = element;
       }}
+      id={anchorId}
       className={className}
       data-help={topic}
       tabIndex={0}
-      aria-describedby={shown ? id : undefined}
+      aria-describedby={content ? id : undefined}
       onMouseEnter={() => {
         if (hoverHelpEnabled()) showHelp(false);
       }}

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { Help } from "./Help";
+import { Help, HelpEnabled } from "./Help";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -50,6 +50,32 @@ test("disables hover through the existing storage key but permits focus and tap"
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
+test("Escape dismisses all visible cards and a later pending hover", () => {
+  render(
+    <>
+      <Help topic="appearance">Theme</Help>
+      <Help topic="fleet">Targets</Help>
+      <Help topic="assessment">Assessment</Help>
+    </>,
+  );
+  act(() => {
+    screen.getByText("Theme").focus();
+  });
+  act(() => {
+    screen.getByText("Targets").focus();
+  });
+  expect(screen.getAllByRole("dialog")).toHaveLength(2);
+  const pendingHelp = document.querySelector("[data-help='assessment']");
+  if (!pendingHelp) throw new Error("Missing assessment help");
+  fireEvent.mouseEnter(pendingHelp);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  act(() => {
+    vi.advanceTimersByTime(2000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
 test("shows links only for ported topics and opens a related topic", () => {
   render(<Help topic="fleet">Targets</Help>);
   fireEvent.focus(screen.getByText("Targets"));
@@ -72,4 +98,27 @@ test("does not open a pending card after unmount", () => {
     vi.advanceTimersByTime(2000);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("a hidden drawer dismisses help without remounting its content", () => {
+  const show = (active: boolean) => (
+    <HelpEnabled value={active}>
+      <Help topic="thread">
+        <input aria-label="Kept input" defaultValue="custom range" />
+      </Help>
+    </HelpEnabled>
+  );
+  const { rerender } = render(show(true));
+  const input = screen.getByLabelText<HTMLInputElement>("Kept input");
+  fireEvent.focus(input);
+  expect(screen.getByRole("dialog")).toBeDefined();
+  rerender(show(false));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  rerender(show(true));
+  act(() => {
+    vi.advanceTimersByTime(1200);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByLabelText("Kept input")).toBe(input);
+  expect(input.value).toBe("custom range");
 });

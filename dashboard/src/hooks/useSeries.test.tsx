@@ -65,6 +65,10 @@ test("a reload restores points and thread observations of the same session", () 
   expect(result.current.points.map((point) => point.t)).toEqual([1, 2, 3]);
   // The futex wait started at the first tick, before the reload.
   expect(result.current.seen.get(1)?.futexSince).toBe(1);
+  // The map's averages survive the reload; the live CPU chart starts again.
+  expect(result.current.avg.get(1)?.samples).toEqual([[1, 0]]);
+  expect(result.current.since).toBe(1);
+  expect(result.current.cpu.get(1)).toEqual([{ t: 3, v: 0 }]);
   // Another target's tab entries are not read.
   const other = renderHook(() => useSeries("h/other", third));
   expect(other.result.current.points).toHaveLength(1);

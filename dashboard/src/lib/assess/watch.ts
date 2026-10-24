@@ -214,3 +214,16 @@ export function watchFindings(
   }
   return found;
 }
+/** The drawer line for a watched thread, or null. */
+export function watchLine(thread: Thread, health: LiveResponse["health"]) {
+  if (!isWatched(thread)) return null;
+  const quiet = quietFor(thread),
+    last =
+      quiet === 0
+        ? "ran in the latest sample"
+        : `last ran ${quietText(quiet)} before the latest sample`;
+  return (
+    `Watched: wakes at least every ${num(thread.wake_ms, 0)} ms · ${last}` +
+    (!thread.stale && isOverdue(thread, health) ? " · overdue" : "")
+  );
+}

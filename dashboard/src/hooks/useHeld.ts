@@ -1,0 +1,76 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+} from "react";
+
+/**
+ * Whether the pointer is over a surface or the focus is in it. React sends
+ * enter and leave through portals, so the surface's help card counts as part
+ * of it.
+ */
+export function useHolding() {
+  const surface = useRef<HTMLElement>(null);
+  const [pointer, setPointer] = useState(false);
+  // Removing a portal under the pointer (Escape or Close help) can omit
+  // mouseleave. The next move must release the snapshot outside its owner.
+  useEffect(() => {
+    if (!pointer) return;
+    function move(event: globalThis.MouseEvent) {
+      const panel = surface.current;
+      const target = event.target;
+      if (!panel || !(target instanceof Element) || panel.contains(target))
+        return;
+      const card = target.closest(".help-card[id]");
+      if (
+        card &&
+        [...panel.querySelectorAll("[aria-describedby]")].some(
+          (anchor) => anchor.getAttribute("aria-describedby") === card.id,
+        )
+      )
+        return;
+      setPointer(false);
+    }
+    document.addEventListener("mousemove", move);
+    return () => {
+      document.removeEventListener("mousemove", move);
+    };
+  }, [pointer]);
+  const [focus, setFocus] = useState(false);
+  return {
+    holding: pointer || focus,
+    handlers: {
+      onMouseEnter: (event: MouseEvent<HTMLElement>) => {
+        surface.current = event.currentTarget;
+        setPointer(true);
+      },
+      onMouseLeave: () => {
+        setPointer(false);
+      },
+      onFocus: () => {
+        setFocus(true);
+      },
+      onBlur: (event: FocusEvent) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setFocus(false);
+      },
+    },
+  };
+}
+
+/**
+ * The value as it was when `holding` became true, until it becomes false.
+ * A live panel renders from this, so a poll cannot move what is under the
+ * pointer (the old page skipped those redraws).
+ */
+export function useHeld<T>(value: T, holding: boolean): T {
+  const [held, setHeld] = useState<{ value: T } | null>(null);
+  if (holding && !held) setHeld({ value });
+  if (!holding && held) setHeld(null);
+  return holding && held ? held.value : value;
+}
