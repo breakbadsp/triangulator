@@ -1,18 +1,27 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { getJson } from "./api/client";
-import type { LiveResponse, TargetsResponse, Thread } from "./api/types";
+import type {
+  LiveResponse,
+  PressureScope,
+  ResourceHistory,
+  TargetsResponse,
+  Thread,
+} from "./api/types";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
+import { Resources, type ResourceRange } from "./components/Resources";
 import { Summary, type ChartWindow } from "./components/Summary";
 import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
+import { asResourcePoints } from "./lib/assess/memory";
 import type { Finding } from "./lib/findings";
 import { initialThreadView, threadView } from "./lib/threadView";
 import type { Series } from "./lib/series";
 import { usePoll } from "./hooks/usePoll";
+import { useScopedPoll } from "./hooks/useScopedPoll";
 import { useSeries } from "./hooks/useSeries";
 import { readPage, type Page } from "./page";
 
@@ -33,6 +42,32 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const [windowSecs, setWindowSecs] = useState<ChartWindow>(300);
   const [threads, dispatch] = useReducer(threadView, initialThreadView);
   const session = view?.health.session;
+  // Requests of one process session; a new session or PID starts new ones.
+  const context = view
+    ? `${page.key}|${String(session)}|${String(view.health.pid)}`
+    : null;
+  // The resource range and pressure scope also feed the Summary findings.
+  const [resourceRange, setResourceRange] = useState<ResourceRange>(900);
+  const [pressureScope, setPressureScope] = useState<PressureScope>("cgroup");
+  const loadResources = useCallback(
+    (signal: AbortSignal) => {
+      const end = Date.now() / 1000;
+      return getJson<ResourceHistory>(
+        `/api/resources?${new URLSearchParams({ start: String(end - resourceRange), end: String(end) })}`,
+        signal,
+      );
+    },
+    [resourceRange],
+  );
+  const resourceHistory = useScopedPoll(
+    context && `${context}|${String(resourceRange)}`,
+    loadResources,
+    5000,
+  )?.data;
+  const resourcePoints = useMemo(
+    () => asResourcePoints(resourceHistory?.rows ?? []),
+    [resourceHistory],
+  );
   const openThread = useCallback(
     (thread: Thread, threadSession: Series["session"]) => {
       history.replaceState(null, "", `#thread=${String(thread.tid)}`);
@@ -91,6 +126,8 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           windowSecs={windowSecs}
           onWindow={setWindowSecs}
           onFindingAction={findingAction}
+          resourcePoints={resourcePoints}
+          pressureScope={pressureScope}
         >
           {view && (
             <>
@@ -106,6 +143,15 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           threadView={threads}
           dispatch={dispatch}
           onOpen={openThread}
+        />
+        <Resources
+          view={view}
+          now={live.data?.now ?? 0}
+          points={resourcePoints}
+          range={resourceRange}
+          onRange={setResourceRange}
+          scope={pressureScope}
+          onScope={setPressureScope}
         />
       </main>
       <ThreadDrawer

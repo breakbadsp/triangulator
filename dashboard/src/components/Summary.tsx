@@ -1,8 +1,9 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { LiveResponse } from "../api/types";
+import type { LiveResponse, PressureScope } from "../api/types";
 import { Help } from "../help/Help";
 import { isHelpTopicId } from "../help/topics";
 import { assess } from "../lib/assess";
+import type { ResourcePoint } from "../lib/assess/memory";
 import { axisBytes, niceBytes } from "../lib/chart";
 import { clock, isNum, memoryBytes } from "../lib/format";
 import {
@@ -58,11 +59,16 @@ export function Summary({
   windowSecs,
   onWindow,
   onFindingAction,
+  resourcePoints,
+  pressureScope,
   children,
 }: {
   view: LiveResponse | undefined;
   series: Series;
   now: number;
+  /** Stored resource samples of the Resources range, as the old page used. */
+  resourcePoints: readonly ResourcePoint[];
+  pressureScope: PressureScope;
   windowSecs: ChartWindow;
   onWindow: (seconds: ChartWindow) => void;
   /** A finding row opens its thread or filters the thread table. */
@@ -80,10 +86,10 @@ export function Summary({
         now,
         series,
         watchRules: null,
-        resourcePoints: [],
+        resourcePoints,
         memoryLayout: null,
         memoryHistory: [],
-        pressureScope: "cgroup",
+        pressureScope,
       })
     : null;
   const bands = LOAD_BANDS.filter(

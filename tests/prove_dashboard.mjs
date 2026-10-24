@@ -331,7 +331,7 @@ try {
     hostWidth: document.querySelector('#chart-load').clientWidth,
     sub: document.querySelector('#overview-sub').textContent,
   })`);
-  assert.deepEqual(summary.tabs, ["Summary", "Threads"]);
+  assert.deepEqual(summary.tabs, ["Summary", "Threads", "Resources"]);
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
   // The chart is drawn at its host's measured width, not the 600 px default.

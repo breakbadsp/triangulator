@@ -57,6 +57,8 @@ function show(live: LiveResponse | undefined, data: Series = emptySeries) {
       now={10}
       windowSecs={300}
       onWindow={() => undefined}
+      resourcePoints={[]}
+      pressureScope="cgroup"
     />,
   );
 }
@@ -165,6 +167,8 @@ test("the assessment lists 8 findings and shows the rest on request", () => {
         now={11}
         windowSecs={300}
         onWindow={() => undefined}
+        resourcePoints={[]}
+        pressureScope="cgroup"
       />,
     );
   };
