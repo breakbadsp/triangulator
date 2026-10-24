@@ -17,8 +17,8 @@ fixed assessment:
 
 The real collector cannot produce the No data level for an announced
 target: every announced target has a live view. No data shows only when the
-page cannot read a live view. Node tests in tests/dashboard_test.js cover it,
-and a browser check can make one /api/live request fail.
+page cannot read a live view. A browser check can make one /api/live request fail.
+The React fleet tests will cover this case when the fleet view is ported.
 
 Identities include long hosts and IDs, and the same process name on several
 hosts. The script prints the overview URL and the kind and expected level of
