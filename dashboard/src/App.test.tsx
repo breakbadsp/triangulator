@@ -4,6 +4,8 @@ import { App } from "./App";
 import { helpTopics } from "./help/topics";
 import type { LiveResponse, TargetsResponse } from "./api/types";
 
+// The target name in the top bar, not the thread of the same name.
+const topBar = { ignore: "script, style, #threads-section *" };
 const targets: TargetsResponse = {
   targets: [
     {
@@ -54,7 +56,7 @@ test.each(["/", "/?target=host%2Fworker"])(
     const { container } = render(<App />);
     await screen.findByRole("option", { name: /host · worker/ });
     if (url.includes("target")) {
-      await screen.findByText("worker");
+      await screen.findByText("worker", topBar);
       expect(screen.getByText("PID 42 · Live")).toBeDefined();
       expect(
         fetchMock.mock.calls.some(
@@ -73,11 +75,12 @@ test.each(["/", "/?target=host%2Fworker"])(
     }
     // Only the target page has sections to navigate.
     const sections = screen.queryByRole("navigation", { name: "Sections" });
-    if (url.includes("target"))
+    if (url.includes("target")) {
+      expect(container.querySelector('[data-activity="idle"]')).not.toBeNull();
       expect(
         screen.getByRole("link", { name: "Summary" }).getAttribute("href"),
       ).toBe("#overview");
-    else expect(sections).toBeNull();
+    } else expect(sections).toBeNull();
     const help = container.querySelectorAll<HTMLElement>("[data-help]");
     expect(help.length).toBeGreaterThan(0);
     for (const element of help)
@@ -122,7 +125,7 @@ test("reports poll failures and keeps the last target name", async () => {
     }),
   );
   render(<App />);
-  await screen.findByText("worker");
+  await screen.findByText("worker", topBar);
   failed = true;
   await waitFor(
     () => {
@@ -132,7 +135,7 @@ test("reports poll failures and keeps the last target name", async () => {
     },
     { timeout: 2500 },
   );
-  expect(screen.getByText("worker")).toBeDefined();
+  expect(screen.getByText("worker", topBar)).toBeDefined();
 });
 
 test("uses a safe default when stored theme data is invalid", async () => {
@@ -276,4 +279,83 @@ test("the target page shows the last process exit that /api/live reports", async
   expect(
     document.querySelector("section#overview section#process-exit"),
   ).not.toBeNull();
+});
+
+// Old test 2950: the thread fragment must not discard the selected target.
+test("a thread URL opens the drawer and closing it keeps the target query", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker#thread=42");
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation((input) =>
+        Promise.resolve(
+          Response.json(
+            (typeof input === "string" ? input : "").startsWith("/api/targets")
+              ? targets
+              : (typeof input === "string" ? input : "").startsWith(
+                    "/api/history",
+                  )
+                ? { rows: [], truncated: false }
+                : live,
+          ),
+        ),
+      ),
+  );
+  render(<App />);
+  await waitFor(() => {
+    expect(document.querySelector("#drawer.open")).not.toBeNull();
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Close thread details" }));
+  expect(location.search).toBe("?target=host%2Fworker");
+  expect(location.hash).toBe("");
+  expect(document.querySelector("#drawer.open")).toBeNull();
+});
+
+test("a finding action filters the thread table", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  const blocked: LiveResponse = {
+    ...live,
+    health: { ...live.health, session: "s" },
+    threads: [
+      {
+        tid: 42,
+        name: "blocked",
+        state: "kernel",
+        last_sample: 100,
+        cpu_pct: 0,
+      },
+      {
+        tid: 43,
+        name: "running",
+        state: "running",
+        last_sample: 100,
+        cpu_pct: 10,
+      },
+    ],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation((input) =>
+        Promise.resolve(
+          Response.json(
+            (typeof input === "string" ? input : "").startsWith("/api/targets")
+              ? targets
+              : blocked,
+          ),
+        ),
+      ),
+  );
+  render(<App />);
+  const finding = await screen.findByText(/in uninterruptible/);
+  const action = finding.closest<HTMLElement>("[data-action]");
+  if (!action) throw new Error("Missing finding action");
+  fireEvent.click(action);
+  expect(
+    [...document.querySelectorAll("#threads tr[data-tid]")].map((row) =>
+      row.getAttribute("data-tid"),
+    ),
+  ).toEqual(["42"]);
 });

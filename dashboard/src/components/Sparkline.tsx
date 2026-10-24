@@ -7,12 +7,14 @@ export function Sparkline({
   min = 0,
   width = 100,
   height = 30,
+  className,
 }: {
   values: readonly (number | null)[];
   color: string;
   min?: number;
   width?: number;
   height?: number;
+  className?: string;
 }) {
   const numbers = values.filter(isNum);
   let marks = null;
@@ -49,6 +51,7 @@ export function Sparkline({
     <svg
       viewBox={`0 0 ${String(width)} ${String(height)}`}
       preserveAspectRatio="none"
+      className={className}
     >
       {marks}
     </svg>

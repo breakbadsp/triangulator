@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { getJson } from "./api/client";
-import type { LiveResponse, TargetsResponse } from "./api/types";
+import type { LiveResponse, TargetsResponse, Thread } from "./api/types";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Summary, type ChartWindow } from "./components/Summary";
+import { ThreadDrawer } from "./components/ThreadDrawer";
+import { Threads } from "./components/Threads";
+import type { Finding } from "./lib/findings";
+import { initialThreadView, threadView } from "./lib/threadView";
 import { usePoll } from "./hooks/usePoll";
 import { useSeries } from "./hooks/useSeries";
 import { readPage, type Page } from "./page";
@@ -24,8 +28,53 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const live = usePoll(loadLive, 1000);
   const view = live.data?.view;
   const series = useSeries(page.key, view);
-  // The Threads state chart (phase 5) shares this window.
+  // The Summary charts and the Threads state chart share this window.
   const [windowSecs, setWindowSecs] = useState<ChartWindow>(300);
+  const [threads, dispatch] = useReducer(threadView, initialThreadView);
+  const session = view?.health.session;
+  const openThread = useCallback(
+    (thread: Thread) => {
+      history.replaceState(null, "", `#thread=${String(thread.tid)}`);
+      dispatch({
+        type: "open",
+        selected: {
+          session,
+          tid: thread.tid,
+          generation: thread.generation,
+          name: thread.name,
+        },
+      });
+    },
+    [session],
+  );
+  const closeThread = useCallback(() => {
+    // Only the thread fragment goes; the target query stays.
+    history.replaceState(null, "", location.pathname + location.search);
+    dispatch({ type: "close" });
+  }, []);
+  // A #thread=<tid> URL opens that thread once it is reported.
+  const selected = threads.selected;
+  useEffect(() => {
+    if (selected || !location.hash.startsWith("#thread=")) return;
+    const tid = Number(location.hash.slice(8));
+    const thread = view?.threads.find((item) => item.tid === tid);
+    if (thread) openThread(thread);
+  }, [view, selected, openThread]);
+  function findingAction(action: NonNullable<Finding["action"]>) {
+    if (action.tid) {
+      const thread = view?.threads.find((item) => item.tid === action.tid);
+      if (thread) openThread(thread);
+      return;
+    }
+    dispatch({
+      type: "finding",
+      state: action.state,
+      activity: action.activity,
+    });
+    document
+      .getElementById("thread-details")
+      ?.scrollIntoView({ behavior: "smooth" });
+  }
   return (
     <>
       <header className="topbar">
@@ -40,6 +89,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           now={live.data?.now ?? 0}
           windowSecs={windowSecs}
           onWindow={setWindowSecs}
+          onFindingAction={findingAction}
         >
           {view && (
             <>
@@ -48,7 +98,22 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
             </>
           )}
         </Summary>
+        <Threads
+          view={view}
+          series={series}
+          windowSecs={windowSecs}
+          threadView={threads}
+          dispatch={dispatch}
+          onOpen={openThread}
+        />
       </main>
+      <ThreadDrawer
+        view={view}
+        series={series}
+        selected={selected}
+        now={live.data?.now ?? 0}
+        onClose={closeThread}
+      />
     </>
   );
 }

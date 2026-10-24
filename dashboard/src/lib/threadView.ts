@@ -24,6 +24,16 @@ export interface SelectedThread {
   generation: number | undefined;
   name: string;
 }
+export const isSelected = (
+  selected: SelectedThread | null,
+  session: Series["session"],
+  thread: Thread,
+) =>
+  !!selected &&
+  selected.session === session &&
+  selected.tid === thread.tid &&
+  selected.generation === thread.generation;
+
 export interface ThreadView {
   activity: Activity;
   search: string;
