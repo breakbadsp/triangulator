@@ -44,7 +44,14 @@ function idleSecs(thread: Thread, series: Series, mode: ViewMode) {
     ? (series.lastTick || thread.last_sample || 0) - seen.futexSince
     : null;
 }
-function memoryFaultRate({ series, mode, memoryHistory }: AssessInput) {
+// Major faults per second: the thread samples when they have it (in a
+// recording, the recorded ones), else the difference of the last two live
+// memory summaries. Live history says nothing about a recording.
+export function memoryFaultRate({
+  series,
+  mode,
+  memoryHistory,
+}: Pick<AssessInput, "series" | "mode" | "memoryHistory">) {
   const last = series.points.at(-1);
   if (isNum(last?.mf)) return last.mf;
   if (mode.kind === "recorded") return null;

@@ -33,7 +33,7 @@ export const asResourcePoints = (
   }));
 const isLibrary = (name: string) =>
   /\.so(\.\d[\w.]*)?( \(deleted\))?$/.test(name || "");
-const baseName = (name: string) => (name || "").split("/").pop();
+export const baseName = (name: string) => (name || "").split("/").pop();
 export function memoryRegions(layout: MemoryLayout | null, comm?: string) {
   const regions: ClassifiedRegion[] = (layout?.regions || []).map((region) => ({
     ...region,

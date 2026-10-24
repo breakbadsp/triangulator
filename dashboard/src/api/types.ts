@@ -160,6 +160,8 @@ export interface Resources {
   memory?: {
     rss?: number | null;
     anon?: number | null;
+    file?: number | null;
+    shmem?: number | null;
     swap?: number | null;
     peak?: number | null;
     rss_growth_per_s?: number | null;
@@ -259,6 +261,8 @@ export interface MemorySummary {
   reason?: string;
   stale?: boolean;
   pid?: number;
+  updated?: number;
+  interval_s?: number;
   layout_id?: string | null;
   flags?: {
     maps_hidden?: boolean;
@@ -271,6 +275,15 @@ export interface MemorySummary {
     max_map_count?: number | null;
     address_space_limit_bytes?: number | null;
     stack_limit_bytes?: number | null;
+    vm_peak_bytes?: number | null;
+    vm_data_bytes?: number | null;
+    vm_pte_bytes?: number | null;
+    vm_locked_bytes?: number | null;
+    minor_faults?: number | null;
+    major_faults?: number | null;
+    maps_reads?: number | null;
+    maps_read_us?: number | null;
+    maps_read_max_us?: number | null;
   };
 }
 export interface MemoryRegion {
@@ -286,6 +299,7 @@ export interface MemoryLayout {
   available: boolean;
   id?: string;
   pid?: number;
+  updated?: number;
   flags?: {
     maps_hidden?: boolean;
     maps_partial?: boolean;
