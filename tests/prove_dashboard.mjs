@@ -331,7 +331,12 @@ try {
     hostWidth: document.querySelector('#chart-load').clientWidth,
     sub: document.querySelector('#overview-sub').textContent,
   })`);
-  assert.deepEqual(summary.tabs, ["Summary", "Threads", "Resources"]);
+  assert.deepEqual(summary.tabs, [
+    "Summary",
+    "Threads",
+    "Resources",
+    "Sockets",
+  ]);
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
   // The chart is drawn at its host's measured width, not the 600 px default.
@@ -763,7 +768,10 @@ try {
     0,
     "Escape dismisses focused History help despite an earlier pending hover",
   );
-  assert.equal(await evaluate("!!document.querySelector('#drawer.open')"), true);
+  assert.equal(
+    await evaluate("!!document.querySelector('#drawer.open')"),
+    true,
+  );
   await delay(1300);
   assert.deepEqual(
     await evaluate(
@@ -777,7 +785,10 @@ try {
     key: "Escape",
     code: "Escape",
   });
-  assert.equal(await evaluate("!!document.querySelector('#drawer.open')"), false);
+  assert.equal(
+    await evaluate("!!document.querySelector('#drawer.open')"),
+    false,
+  );
   await evaluate(
     "document.querySelector('#threads [data-tid=\"7001\"]').click()",
   );
@@ -838,6 +849,471 @@ try {
     code: "Slash",
   });
   assert.equal(await evaluate("document.activeElement.id"), "search");
+  await send("Fetch.disable");
+  onPaused = () => undefined;
+  // Phase 6: Resources and Socket I/O on the real collector and page. The
+  // first socket request reaches the collector; the fixture has no observer.
+  await until(
+    () =>
+      requests.some(
+        (url) =>
+          new URL(url).pathname === "/api/socket-io" &&
+          new URL(url).searchParams.get("pid") === String(live.health.pid) &&
+          new URL(url).searchParams.get("target") === target.key,
+      ),
+    "socket report request for the selected target",
+  );
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#socket-panel #socket-status')?.textContent === 'Not available'",
+      ),
+    "real collector socket answer",
+  );
+  const socketEntry = await evaluate(`({
+    panel: !!document.querySelector('section#socket-panel'),
+    empty: document.querySelector('#socket-empty').textContent,
+    tabs: [...document.querySelectorAll('nav.tabs a')].map((link) => link.textContent),
+    resourcesEmpty: document.querySelector('#resources-empty')?.textContent,
+  })`);
+  assert.equal(socketEntry.panel, true);
+  assert.ok(socketEntry.empty.length > 0, JSON.stringify(socketEntry));
+  assert.deepEqual(socketEntry.tabs, [
+    "Summary",
+    "Threads",
+    "Resources",
+    "Sockets",
+  ]);
+  // From here the test answers live and socket requests, so every state is
+  // deterministic. Resource history still comes from the collector.
+  let liveSession = "600001",
+    resourceTick = 0,
+    netActive = false,
+    socketPolls = 0,
+    socketBody = null,
+    holdSocket = false;
+  const heldSockets = [];
+  const socketValues = (total, current = 5) => ({
+    total,
+    current,
+    average: 2,
+    minimum: 0,
+    maximum: 9,
+  });
+  const socketRow = (tid, name, kindId, total, start = "1") => ({
+    tid,
+    name,
+    thread_start: start,
+    kind: kindId === 6 ? "Application marker" : "TCP IPv4",
+    kind_id: kindId,
+    metrics: {
+      input: socketValues(total),
+      output: socketValues("0", 0),
+      messages: socketValues(kindId === 6 ? total : "0"),
+    },
+  });
+  const socketReport = (extra = {}) => ({
+    available: true,
+    observer: "900",
+    pid: live.health.pid,
+    process_start: "800",
+    messages_enabled: true,
+    stale: false,
+    stopped: false,
+    losses: "0",
+    lower_bound: false,
+    duration: 60,
+    updated: Date.now() / 1000,
+    gaps: 0,
+    truncated: false,
+    rate_windows: 10,
+    coverage: "Observed socket paths only.",
+    totals: {
+      input: socketValues("4096", null),
+      output: socketValues("0", 0),
+      messages: socketValues("3"),
+    },
+    rows: [
+      socketRow(43, "reader", 1, "1024"),
+      socketRow(43, "reader", 1, "3072", "2"),
+      socketRow(45, "worker", 6, "3"),
+      ...Array.from({ length: 40 }, (_, index) =>
+        socketRow(100 + index, `pool-${String(index)}`, 1, String(index)),
+      ),
+    ],
+    history: [
+      { ts: Date.now() / 1000 - 2, input: 10, output: 0, messages: null },
+      { ts: Date.now() / 1000 - 1, input: null, output: 0, messages: null },
+    ],
+    ...extra,
+  });
+  socketBody = socketReport();
+  const resourceSample = () => ({
+    available: true,
+    session: liveSession,
+    pid: live.health.pid,
+    sequence: ++resourceTick,
+    interval_s: 2,
+    updated: Date.now() / 1000,
+    pressure: {
+      cgroup: { cpu: { some: { pct: 1 } } },
+      host: { cpu: { some: { pct: 30 } } },
+    },
+    sockets: {
+      tcp: { sockets: 40, rx_queue: 10, tx_queue: 0 },
+      udp: { sockets: 0, rx_queue: 0, tx_queue: 0 },
+      unix: { sockets: 0, rx_queue: 0, tx_queue: 0 },
+      top: Array.from({ length: 40 }, (_, index) => ({
+        fd: 10 + index,
+        inode: 5000 + index,
+        kind: "tcp4",
+        state: "ESTAB",
+        listener: false,
+        local: `127.0.0.1:${String(4000 + index)}`,
+        remote: "127.0.0.1:9",
+        rx_queue: 100 + index,
+        tx_queue: 0,
+        rx_fill_pct: 20,
+      })),
+      matched: 40,
+      complete: true,
+    },
+    network: {
+      listen_drops: { delta: 0, per_s: 0, total: 9 },
+      tcp_timeouts: netActive
+        ? { delta: 3, per_s: 1.5, total: 7 + resourceTick }
+        : { delta: 0, per_s: 0, total: 4 },
+    },
+  });
+  onPaused = async ({ requestId, request }) => {
+    const path = new URL(request.url).pathname;
+    if (path === "/api/socket-io") {
+      socketPolls++;
+      if (holdSocket) {
+        holdSocket = false;
+        heldSockets.push(requestId);
+        return;
+      }
+      const reply =
+        typeof socketBody === "number"
+          ? { status: socketBody, body: { error: "not found" } }
+          : { status: 200, body: socketBody };
+      await send("Fetch.fulfillRequest", {
+        requestId,
+        responseCode: reply.status,
+        responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+        body: Buffer.from(JSON.stringify(reply.body)).toString("base64"),
+      });
+      return;
+    }
+    const reply = await send("Fetch.getResponseBody", { requestId });
+    const view = JSON.parse(
+      reply.base64Encoded
+        ? Buffer.from(reply.body, "base64").toString()
+        : reply.body,
+    );
+    view.health.session = liveSession;
+    view.resources = resourceSample();
+    await send("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(view)).toString("base64"),
+    });
+  };
+  await send("Fetch.enable", {
+    patterns: [
+      { urlPattern: "*/api/live?*", requestStage: "Response" },
+      { urlPattern: "*/api/socket-io?*", requestStage: "Request" },
+    ],
+  });
+  const socketPoll = async (description) => {
+    const before = socketPolls;
+    await until(() => socketPolls > before + 1, description);
+    await delay(100);
+  };
+  await until(
+    () =>
+      evaluate(
+        "!!document.querySelector('[data-socket-metric=\"messages\"]') && !!document.querySelector('#resource-tiles .tile')",
+      ),
+    "available socket report and resource sample",
+  );
+  const rowIds =
+    "[...document.querySelectorAll('#socket-rows tr[data-row]')].map((row) => row.dataset.row)";
+  const card = (title) =>
+    `[...document.querySelectorAll('#socket-cards .tile')].find((tile) => tile.querySelector('.label').textContent === ${JSON.stringify(title)}).querySelector('.value').textContent`;
+  const sockets = {
+    messagesOffered: true,
+    unknownCurrent: await evaluate(card("Current rate")),
+    generations: (await evaluate(rowIds)).filter((id) =>
+      id.startsWith("900|800|43|"),
+    ),
+  };
+  assert.equal(sockets.unknownCurrent, "—");
+  assert.deepEqual(sockets.generations, ["900|800|43|2|1", "900|800|43|1|1"]);
+  await evaluate(
+    "document.querySelector('[data-socket-metric=\"output\"]').click()",
+  );
+  sockets.measuredZero = await evaluate(card("Current rate"));
+  assert.equal(sockets.measuredZero, "0 B /s");
+  await evaluate(
+    "document.querySelector('[data-socket-metric=\"messages\"]').click()",
+  );
+  sockets.messages = await evaluate(
+    `({kindDisabled: document.querySelector('#socket-kind').disabled, rows: ${rowIds}})`,
+  );
+  assert.deepEqual(sockets.messages, {
+    kindDisabled: true,
+    rows: ["900|800|45|1|6"],
+  });
+  await evaluate(
+    "document.querySelector('[data-socket-metric=\"input\"]').click()",
+  );
+  // Focus and scroll survive polls; a filter starts the table at its top.
+  await evaluate(
+    "document.querySelector('#socket-rows').closest('.table-wrap').scrollTop = 120; document.querySelector('#socket-search').focus()",
+  );
+  await socketPoll("socket polls with focus and scroll");
+  sockets.focusAndScroll = await evaluate(
+    "({focus: document.activeElement.id, scroll: document.querySelector('#socket-rows').closest('.table-wrap').scrollTop})",
+  );
+  assert.deepEqual(sockets.focusAndScroll, {
+    focus: "socket-search",
+    scroll: 120,
+  });
+  await send("Input.insertText", { text: "pool-3" });
+  sockets.filtered = await evaluate(
+    `({focus: document.activeElement.id, scroll: document.querySelector('#socket-rows').closest('.table-wrap').scrollTop, rows: ${rowIds}.length})`,
+  );
+  assert.deepEqual(sockets.filtered, {
+    focus: "socket-search",
+    scroll: 0,
+    rows: 11,
+  });
+  await evaluate(`(() => {
+    const node = document.querySelector('#socket-search');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(node, '');
+    node.dispatchEvent(new Event('input', { bubbles: true }));
+    node.blur();
+  })()`);
+  // Observer states, each from a fresh report.
+  sockets.states = {};
+  for (const [name, body] of [
+    ["silent", socketReport({ stale: true })],
+    ["ended", socketReport({ stopped: true })],
+    ["lowerBound", socketReport({ lower_bound: true, losses: "12" })],
+    ["cached", socketReport({ refresh_error: true })],
+    ["unavailable", { available: false, reason: "No socket observations." }],
+    ["noEndpoint", 404],
+  ]) {
+    socketBody = body;
+    await socketPoll(`socket state ${name}`);
+    sockets.states[name] = await evaluate(
+      "[document.querySelector('#socket-status').textContent, document.querySelector('#socket-empty')?.textContent ?? '']",
+    );
+  }
+  assert.deepEqual(sockets.states, {
+    silent: ["Observer silent", ""],
+    ended: ["Observation ended", ""],
+    lowerBound: ["Incomplete · lower-bound totals", ""],
+    cached: ["Report refresh failed · cached", ""],
+    unavailable: ["Not available", "No socket observations."],
+    noEndpoint: [
+      "Not available",
+      "This collector does not support socket observations. Use the C++ collector.",
+    ],
+  });
+  socketBody = socketReport();
+  await until(
+    () => evaluate("!!document.querySelector('#socket-rows tr[data-row]')"),
+    "socket rows again",
+  );
+  // A held row keeps its readout across polls; Escape dismisses it.
+  await escapeHelp();
+  await hover('#socket-rows tr[data-row="900|800|43|2|1"] td:nth-child(3)');
+  await until(
+    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
+    "socket total readout",
+  );
+  const heldCard = await evaluate(
+    "document.querySelector('[role=dialog]').textContent",
+  );
+  socketBody = socketReport({ rows: [socketRow(46, "fresh", 1, "1")] });
+  await socketPoll("polls under a held socket row");
+  sockets.held = await evaluate(
+    `({rows: ${rowIds}.length, card: document.querySelector('[role=dialog]')?.textContent})`,
+  );
+  assert.equal(sockets.held.rows, 42);
+  assert.equal(sockets.held.card, heldCard);
+  assert.ok(heldCard.includes("3072"), heldCard);
+  // A process restart while the row is held drops the old rows at once,
+  // and a late answer for the old session never shows.
+  holdSocket = true;
+  await until(() => heldSockets.length === 1, "pending old-session report");
+  socketBody = socketReport({
+    observer: "901",
+    process_start: "801",
+    rows: [socketRow(47, "restarted", 1, "1")],
+  });
+  liveSession = "600002";
+  await until(
+    () => evaluate(`JSON.stringify(${rowIds}) === '["901|801|47|1|1"]'`),
+    "new session report",
+  );
+  try {
+    await send("Fetch.fulfillRequest", {
+      requestId: heldSockets[0],
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(socketReport())).toString("base64"),
+    });
+  } catch {
+    // The page already aborted the old request.
+  }
+  await delay(300);
+  sockets.restart = await evaluate(
+    `({rows: ${rowIds}, scope: document.querySelector('#socket-scope').textContent, oldCards: [...document.querySelectorAll('.help-card')].filter((node) => node.textContent.includes('3072')).length})`,
+  );
+  assert.deepEqual(sockets.restart.rows, ["901|801|47|1|1"]);
+  assert.ok(
+    sockets.restart.scope.endsWith("observer 901"),
+    sockets.restart.scope,
+  );
+  assert.equal(sockets.restart.oldCards, 0);
+  await hover('#socket-rows tr[data-row="901|801|47|1|1"] td:nth-child(3)');
+  await until(
+    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
+    "readout after restart",
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+  });
+  sockets.escape = await evaluate(
+    "document.querySelectorAll('.help-card').length",
+  );
+  assert.equal(sockets.escape, 0);
+  await escapeHelp();
+
+  // Resources: the range refreshes at once, scoped to the selected target.
+  await evaluate("document.querySelector('[data-res-range=\"3600\"]').click()");
+  await until(
+    () =>
+      requests.some((url) => {
+        const query = new URL(url).searchParams;
+        return (
+          new URL(url).pathname === "/api/resources" &&
+          query.get("target") === target.key &&
+          Number(query.get("end")) - Number(query.get("start")) === 3600
+        );
+      }),
+    "1 h resource history request",
+  );
+  const resources = {
+    range: await evaluate(
+      "document.querySelector('[data-res-range=\"3600\"]').getAttribute('aria-pressed')",
+    ),
+  };
+  assert.equal(resources.range, "true");
+  // The click focused the range control and opened its help.
+  await escapeHelp();
+  // A held counter table keeps its order; release shows the active first.
+  await evaluate(
+    "document.querySelector('details[data-fold=\"netstack\"]').open || document.querySelector('details[data-fold=\"netstack\"] summary').click()",
+  );
+  const counterOrder =
+    "[...document.querySelectorAll('#netstack tr[data-counter]')].map((row) => row.dataset.counter)";
+  // Opening the fold slides it open for 0.2 s; hover after it settles.
+  await delay(500);
+  await hover('#netstack tr[data-counter="tcp_timeouts"] td:nth-child(4)');
+  await until(
+    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
+    "network counter readout",
+  );
+  resources.counterCard = await evaluate(
+    "document.querySelector('[role=dialog] h2').textContent",
+  );
+  assert.equal(resources.counterCard, "Retransmission timeouts");
+  const heldTotal = await evaluate(
+    "document.querySelector('[role=dialog] .help-readout').textContent",
+  );
+  netActive = true;
+  const tick = resourceTick;
+  await until(() => resourceTick > tick + 2, "live polls under the counters");
+  resources.held = await evaluate(
+    `({order: ${counterOrder}, readout: document.querySelector('[role=dialog] .help-readout')?.textContent})`,
+  );
+  assert.deepEqual(resources.held.order, ["listen_drops", "tcp_timeouts"]);
+  assert.equal(resources.held.readout, heldTotal);
+  await escapeHelp();
+  await until(
+    () => evaluate(`${counterOrder}[0] === 'tcp_timeouts'`),
+    "active counter first after release",
+  );
+  // The busy filter keeps focus and starts its table at the top.
+  await evaluate(
+    "document.querySelector('#resource-sockets').closest('.table-wrap').scrollTop = 150; document.querySelector('#sockets-busy-only').focus()",
+  );
+  await delay(1200);
+  resources.busyBefore = await evaluate(
+    "({focus: document.activeElement.id, scroll: document.querySelector('#resource-sockets').closest('.table-wrap').scrollTop})",
+  );
+  assert.deepEqual(resources.busyBefore, {
+    focus: "sockets-busy-only",
+    scroll: 150,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: " ",
+    code: "Space",
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: " ",
+    code: "Space",
+  });
+  resources.busyAfter = await evaluate(
+    "({focus: document.activeElement.id, checked: document.querySelector('#sockets-busy-only').checked, scroll: document.querySelector('#resource-sockets').closest('.table-wrap').scrollTop, count: document.querySelector('#resource-socket-count').textContent})",
+  );
+  assert.deepEqual(resources.busyAfter, {
+    focus: "sockets-busy-only",
+    checked: false,
+    scroll: 0,
+    count: "(40 of 40 reported)",
+  });
+  // Help: every label of both sections opens a registered topic.
+  resources.help = [];
+  for (const topic of [
+    "pressure",
+    "limits",
+    "queues",
+    "netdrops",
+    "recvq",
+    "coverage",
+    "socketio",
+    "rates",
+    "sockettotal",
+    "messages",
+  ]) {
+    await escapeHelp();
+    await evaluate(
+      `(() => { const node = document.querySelector('#resources [data-help="${topic}"], #socket-panel [data-help="${topic}"]'); node.scrollIntoView({block:'center'}); node.focus(); })()`,
+    );
+    await until(
+      () => evaluate("!!document.querySelector('[role=dialog] h2')"),
+      `help for ${topic}`,
+    );
+    assert.ok(
+      (
+        await evaluate("document.querySelector('[role=dialog]').textContent")
+      ).includes("Limits."),
+      topic,
+    );
+    resources.help.push(topic);
+  }
+  await escapeHelp();
   await send("Fetch.disable");
   onPaused = () => undefined;
   await escapeHelp();
@@ -917,6 +1393,9 @@ try {
         readout,
         restored,
         threads,
+        socketEntry,
+        sockets,
+        resources,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },

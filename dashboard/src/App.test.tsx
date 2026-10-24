@@ -135,9 +135,10 @@ test("reports poll failures and keeps the last target name", async () => {
   failed = true;
   await waitFor(
     () => {
-      expect(screen.getByRole("status").textContent).toBe(
-        "⚠ Collector unavailable. Displayed data is stale.",
-      );
+      // The socket panel has its own status badge.
+      expect(
+        screen.getAllByRole("status").map((status) => status.textContent),
+      ).toContain("⚠ Collector unavailable. Displayed data is stale.");
     },
     { timeout: 2500 },
   );
