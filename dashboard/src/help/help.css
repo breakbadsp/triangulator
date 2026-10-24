@@ -1,0 +1,29 @@
+.help-card {
+  position: fixed;
+  z-index: 100;
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 18px 20px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px #0003;
+}
+.help-card h2 {
+  padding-right: 28px;
+  font-size: 16px;
+}
+.help-card p {
+  margin: 10px 0;
+}
+.help-close {
+  float: right;
+  padding: 0 6px;
+}
+.help-card nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
