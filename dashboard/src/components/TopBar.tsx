@@ -3,6 +3,8 @@ import type { LiveResponse, Target } from "../api/types";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
+import { viewTargetName } from "../lib/target";
+
 type Theme = "auto" | "light" | "dark";
 function readTheme(): Theme {
   try {
@@ -55,8 +57,7 @@ export function TopBar({
     ? "Connecting…"
     : health.target_absent === null
       ? "No target yet"
-      : (live.threads.find((thread) => thread.tid === health.pid)?.name ??
-        (health.pid ? `PID ${String(health.pid)}` : "the target"));
+      : viewTargetName(live);
   useEffect(() => {
     document.title =
       page.kind === "fleet"
