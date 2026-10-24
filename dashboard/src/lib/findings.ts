@@ -45,3 +45,10 @@ export function worstLevel(findings: readonly Finding[]): Level {
     ) ?? "good"
   );
 }
+/** A folded panel of this type opens for a warning or worse of its type. */
+export const wantsFold = (findings: readonly Finding[], type: FindingType) =>
+  findings.some(
+    (item) =>
+      item.type === type &&
+      LEVEL_ORDER.indexOf(item.level) <= LEVEL_ORDER.indexOf("warning"),
+  );
