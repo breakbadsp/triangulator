@@ -74,5 +74,5 @@ if [[ -d /cache ]]; then
 fi
 chown -R tester:tester /work /reports
 # Keep the toolchain environment, but use the unprivileged account's runtime.
-runuser -u tester --preserve-environment -- env TRIANGULATOR_HOME=/home/tester/triangulator \
+runuser -u tester --preserve-environment -- env HOME=/home/tester TRIANGULATOR_HOME=/home/tester/triangulator \
     bash .github/scripts/almalinux-user.sh
