@@ -16,7 +16,7 @@ export interface LiveResponse {
   health: {
     session?: string | null;
     packet_loss_pct?: number | null;
-    sample_interval_ms?: number;
+    sample_interval_ms?: number | null;
     pid: number;
     last_seen: number | null;
     sampler_silent: boolean;
