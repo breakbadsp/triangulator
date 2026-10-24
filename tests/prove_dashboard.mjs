@@ -94,6 +94,7 @@ try {
   const pending = new Map();
   const requests = [];
   const exceptions = [];
+  let onPaused = () => undefined;
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
     if (message.id) {
@@ -108,6 +109,7 @@ try {
     }
     if (message.method === "Network.requestWillBeSent")
       requests.push(message.params.request.url);
+    if (message.method === "Fetch.requestPaused") void onPaused(message.params);
     if (message.method === "Runtime.exceptionThrown")
       exceptions.push(message.params.exceptionDetails.text);
   });
@@ -164,18 +166,23 @@ try {
   await until(
     () =>
       evaluate(
-        "document.querySelector('#target-select')?.options.length === 21",
+        "document.querySelector('#target-select')?.options.length === 21 && document.querySelectorAll('#fleet-grid > article').length === 20",
       ),
-    "fleet target list",
+    "fleet target list and tiles",
   );
   const fleet = await evaluate(`({
     title: document.title,
+    attention: [...document.querySelectorAll('#fleet-grid > article')].filter((tile) => ['critical', 'serious', 'warning'].includes(tile.dataset.level)).length,
     externalAssets: document.querySelectorAll('script[src],link[rel="stylesheet"],link[rel="modulepreload"],img').length,
     headerPosition: getComputedStyle(document.querySelector('.topbar')).position,
     tabs: document.querySelectorAll('nav.tabs').length,
     cspViolations: window.cspViolations,
   })`);
-  assert.equal(fleet.title, "Targets · Thread monitor");
+  assert.equal(
+    fleet.title,
+    (fleet.attention ? `(${fleet.attention}) ` : "") +
+      "Targets · Thread monitor",
+  );
   assert.equal(fleet.externalAssets, 0);
   assert.equal(fleet.headerPosition, "sticky");
   assert.equal(fleet.tabs, 0);
@@ -215,6 +222,65 @@ try {
     await evaluate("document.querySelector('[role=dialog]') === null"),
     true,
   );
+  // Chromium drops focus without a blur event when a focused node moves.
+  // Make the last tile serious, so React moves the tiles after it, and check
+  // that the moved, focused healthy tile link keeps focus.
+  const tileKeys = `[...document.querySelectorAll('#fleet-grid > article')].map((tile) => ({key: new URLSearchParams(tile.querySelector('.ft-name').getAttribute('href')).get('target'), level: tile.dataset.level}))`;
+  const before = await evaluate(tileKeys);
+  const focusIndex = before.findIndex((tile) => tile.level === "good");
+  assert.ok(
+    focusIndex >= 0 && focusIndex < before.length - 1,
+    "two healthy tiles",
+  );
+  const focusKey = before[focusIndex].key;
+  const mover = before.at(-1).key;
+  await evaluate(
+    `window.focusedLink = document.querySelector(${JSON.stringify(`.ft-name[href="?target=${encodeURIComponent(focusKey)}"]`)}); window.focusedLink.focus(); window.focusedTileMoved = false; new MutationObserver((records) => { for (const record of records) for (const node of record.removedNodes) if (node.contains(window.focusedLink)) window.focusedTileMoved = true; }).observe(document.querySelector('#fleet-grid'), {childList: true}); document.activeElement === window.focusedLink`,
+  );
+  onPaused = async ({ requestId }) => {
+    const reply = await send("Fetch.getResponseBody", { requestId });
+    const view = JSON.parse(
+      reply.base64Encoded
+        ? Buffer.from(reply.body, "base64").toString()
+        : reply.body,
+    );
+    const main = view.threads.find((thread) => thread.tid === view.health.pid);
+    view.threads = [
+      { ...main, cpu_pct: 99, run_delay_pct: 0, state: "running" },
+    ];
+    await send("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(view)).toString("base64"),
+    });
+  };
+  await send("Fetch.enable", {
+    patterns: [
+      {
+        urlPattern: `*/api/live?target=${encodeURIComponent(mover)}`,
+        requestStage: "Response",
+      },
+    ],
+  });
+  await until(async () => {
+    const after = await evaluate(tileKeys);
+    return (
+      after.findIndex((tile) => tile.key === mover) <
+      after.findIndex((tile) => tile.key === focusKey)
+    );
+  }, "tile reorder");
+  const reorder = await evaluate(
+    `({moverLevel: document.querySelector(${JSON.stringify(`.ft-name[href="?target=${encodeURIComponent(mover)}"]`)}).closest('article').dataset.level, moved: window.focusedTileMoved, focusKept: document.activeElement === window.focusedLink, connected: window.focusedLink.isConnected})`,
+  );
+  assert.deepEqual(reorder, {
+    moverLevel: "serious",
+    moved: true,
+    focusKept: true,
+    connected: true,
+  });
+  await send("Fetch.disable");
+  onPaused = () => undefined;
   let target;
   await until(async () => {
     const targets = (await (await fetch(`${base}/api/targets`)).json()).targets;
@@ -266,6 +332,7 @@ try {
         embeddedBytesEqual: true,
         csp,
         fleet,
+        reorder: { focusKey, mover, ...reorder },
         theme: { saved: "dark", background: "rgb(9, 9, 10)" },
         help,
         selected,
