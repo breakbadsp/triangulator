@@ -50,6 +50,32 @@ test("disables hover through the existing storage key but permits focus and tap"
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
+test("Escape dismisses all visible cards and a later pending hover", () => {
+  render(
+    <>
+      <Help topic="appearance">Theme</Help>
+      <Help topic="fleet">Targets</Help>
+      <Help topic="assessment">Assessment</Help>
+    </>,
+  );
+  act(() => {
+    screen.getByText("Theme").focus();
+  });
+  act(() => {
+    screen.getByText("Targets").focus();
+  });
+  expect(screen.getAllByRole("dialog")).toHaveLength(2);
+  const pendingHelp = document.querySelector("[data-help='assessment']");
+  if (!pendingHelp) throw new Error("Missing assessment help");
+  fireEvent.mouseEnter(pendingHelp);
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  act(() => {
+    vi.advanceTimersByTime(2000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
 test("shows links only for ported topics and opens a related topic", () => {
   render(<Help topic="fleet">Targets</Help>);
   fireEvent.focus(screen.getByText("Targets"));
