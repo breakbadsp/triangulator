@@ -1734,6 +1734,315 @@ export const helpTopics = {
     sourceDetail:
       "The collector divides the change of the observer counters by the time between reports, and keeps the minimum and maximum over the most recent 60 intervals.",
   },
+  memmap: {
+    title: "Memory map",
+    scope: "Target process · virtual address space",
+    meaning:
+      "The address ranges the target has mapped, read from /proc/PID/maps, with their kind, size, and limits.",
+    example: "",
+    reading:
+      "Start with the findings and limits, then select a region in the address-space view to zoom in. Compare mapped sizes with RSS.",
+    limits:
+      "Mapped memory is not resident memory. A layout is sampled less often than threads, so short-lived mappings can be missed.",
+    related: ["amap", "vmsize", "rss"],
+    aliases: [],
+    source: "`/proc/PID/maps` and `/proc/PID/status`",
+    sourceDetail:
+      "With each memory sample (every 30 s by default), the sampler reads `/proc/PID/maps` in small parts within a time budget, and the Vm lines of `/proc/PID/status`. The collector serves the layout through `/api/memory-map`. Check it yourself: `cat /proc/PID/maps`.",
+  },
+  memkinds: {
+    title: "Anonymous / file / shared",
+    scope: "Process · resident bytes by kind",
+    meaning:
+      "Resident memory split into anonymous pages (heap, arenas, stacks), file-backed pages, and shared memory: RssAnon, RssFile, and RssShmem.",
+    example: "",
+    reading:
+      "Growth in anonymous memory usually comes from allocations. File pages can be reclaimed and re-read.",
+    limits:
+      "The split comes from resource samples and needs them to be available. Shared pages count in full for each process that maps them.",
+    related: ["rss", "anonres", "cgroupmem"],
+    aliases: [],
+    source: "`/proc/PID/status`: RssAnon, RssFile, RssShmem",
+    sourceDetail:
+      "With each resource sample, the sampler reads RssAnon, RssFile, and RssShmem from `/proc/PID/status`. Their sum is VmRSS.",
+  },
+  vmas: {
+    title: "Mappings (VMAs)",
+    scope: "Process · count and vm.max_map_count",
+    meaning:
+      "The number of virtual memory areas (VMAs) in the address space, compared with the host vm.max_map_count limit.",
+    example: "",
+    reading:
+      "At the limit, mmap() and thread creation can fail with ENOMEM. A steady rise can indicate mappings that are never released.",
+    limits:
+      "Adjacent regions can merge or split without a change in memory use.",
+    related: ["memregions", "vmsize", "memlimits"],
+    aliases: ["Mappings", "Regions / VMAs"],
+    source: "Lines of `/proc/PID/maps`; `/proc/sys/vm/max_map_count`",
+    sourceDetail:
+      "Each line of `/proc/PID/maps` is one VMA; the sampler counts them with each memory sample. The limit is `/proc/sys/vm/max_map_count`. Check it yourself: `wc -l < /proc/PID/maps`.",
+  },
+  memfindings: {
+    title: "Memory findings",
+    scope: "Fixed rules applied in the browser",
+    meaning:
+      "Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit.",
+    example: "",
+    reading:
+      "Read the severity and detail of each finding, then check the matching tile, limit, or region.",
+    limits:
+      "These are rules of thumb, not a diagnosis. They use only the latest samples.",
+    related: ["assessment", "memlimits", "amap"],
+    aliases: [],
+    source: "Computed in this page",
+    sourceDetail:
+      "This page applies fixed rules to the latest memory, resource, and thread samples. Each finding names the value it used.",
+  },
+  amap: {
+    title: "Address space map",
+    scope: "Process · mappings, high addresses at the top",
+    meaning:
+      "One bar per group of adjacent mappings of the same kind. Color shows the kind; the darker part is the size on a log scale from 4 KiB to the largest bar.",
+    example: "",
+    reading:
+      "Look for unexpectedly large anonymous or heap regions. Select a bar to zoom into its pages and regions.",
+    limits:
+      "Gaps between mappings are shortened. A large bar can use little RAM because mapped is not resident.",
+    related: ["memzoom", "memkinds", "vmsize"],
+    aliases: ["Address space map"],
+    source: "`/proc/PID/maps`",
+    sourceDetail:
+      "Each bar groups adjacent lines of `/proc/PID/maps` of the same kind. The kind comes from the path column ([heap], [stack], a file, or none for anonymous memory) and the permissions.",
+  },
+  memzoom: {
+    title: "Region zoom",
+    scope: "Selected address-space bar",
+    meaning:
+      "The selected bar in detail: mapped size, address span, member regions, and a page grid of what /proc/PID/maps shows at each address.",
+    example:
+      "A 64 KiB span with 48 KiB mapped has 16 KiB not mapped inside it.",
+    reading:
+      "Compare the span with the mapped size to see holes. Unknown coverage is distinct from unmapped space. Squares outlined as new were mapped since the previous layout.",
+    limits:
+      "The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.",
+    related: ["amap", "memregions", "heap", "memgap", "heapmargin"],
+    aliases: [
+      "Size (mapped)",
+      "Address span",
+      "Not mapped inside",
+      "Largest region",
+      "Page size",
+    ],
+    source: "`/proc/PID/maps`; page size of the sampler host",
+    sourceDetail:
+      "The grid shows the address ranges of `/proc/PID/maps`. The page size is sysconf(_SC_PAGESIZE) on the sampler host.",
+  },
+  memgap: {
+    title: "Largest unmapped gap",
+    scope: "Selected bar · complete current layout",
+    meaning: "The longest uncovered address interval inside the selected bar.",
+    example: "Two mappings separated by 64 KiB have a 64 KiB gap.",
+    reading:
+      "Compare with the total not mapped inside the bar. Unknown coverage is shown separately from unmapped space.",
+    limits:
+      "An unmapped gap is not an allocator free block. Incomplete, stale, or historical layouts cannot supply this value.",
+    related: ["memzoom", "memregions"],
+    aliases: ["Largest unmapped gap"],
+    source: "Computed from `/proc/PID/maps`",
+    sourceDetail:
+      "The longest range inside the bar that no line of `/proc/PID/maps` covers.",
+  },
+  heapmargin: {
+    title: "Heap display margin",
+    scope: "Heap zoom · extended display range",
+    meaning:
+      "The grid includes a small margin above the page-aligned heap mapping end. Neighboring mappings keep their own colors.",
+    example: "",
+    reading:
+      "Watch existing grid cells change as the heap grows. The display span stays fixed until the heap leaves it. Heap facts still describe only the selected heap.",
+    limits:
+      "The margin is capped at 1 MiB and requires a complete current layout. Selection or target changes reset it. The mapping end is not the exact program break.",
+    related: ["heapend", "memzoom"],
+    aliases: [],
+    source: "Display range around the [heap] line of `/proc/PID/maps`",
+    sourceDetail:
+      "A display choice of this page. The addresses come from `/proc/PID/maps`.",
+  },
+  heap: {
+    title: "Heap size",
+    scope: "Process · [heap] mapping over time",
+    meaning:
+      "The size of the brk heap. It grows up when the allocator calls brk.",
+    example: "",
+    reading:
+      "A sustained rise, together with RSS growth, can indicate allocation growth.",
+    limits:
+      "Many allocators also use mmap arenas. Size change uses samples collected while this page was open and shows their measured interval. It is not an exact program-break movement.",
+    related: ["anonres", "stack", "memkinds"],
+    aliases: ["Heap mapping size change"],
+    source: "The [heap] line of `/proc/PID/maps`",
+    sourceDetail:
+      "The size of the [heap] line of `/proc/PID/maps` (end address minus start address) in each memory sample. Check it yourself: `grep heap /proc/PID/maps`.",
+  },
+  heapend: {
+    title: "Heap mapping end",
+    scope: "Process · page-aligned heap boundary",
+    meaning:
+      "The upper address of the heap mapping, plotted as a byte offset from the first available sample in this chart.",
+    example: "An offset of +64 KiB means the mapping end moved up by 64 KiB.",
+    reading:
+      "Read steps as sampled changes. The rate uses the measured sample times.",
+    limits:
+      "This is not the exact program break. Missing samples leave gaps. History resets when the target or sampler session changes.",
+    related: ["heap", "stackstart"],
+    aliases: ["Heap mapping end ↑"],
+    source: "End address of the [heap] line of `/proc/PID/maps`",
+    sourceDetail:
+      "The end address of the [heap] line of `/proc/PID/maps` in each memory sample.",
+  },
+  stackstart: {
+    title: "Main stack start",
+    scope: "Main thread · lower mapping boundary",
+    meaning:
+      "The lower address of the main stack mapping, plotted as an offset from the first available sample in this chart.",
+    example: "An offset of −64 KiB means the mapping grew down by 64 KiB.",
+    reading:
+      "A downward step means a lower mapping start. Read mapped size in the selected stack facts.",
+    limits:
+      "The mapping boundary does not measure stack depth. Missing samples leave gaps.",
+    related: ["stack", "heapend"],
+    aliases: ["Main stack start ↓"],
+    source: "Start address of the [stack] line of `/proc/PID/maps`",
+    sourceDetail:
+      "The start address of the [stack] line of `/proc/PID/maps` in each memory sample.",
+  },
+  vmdata: {
+    title: "Data + heap (VmData)",
+    scope: "Process · VmData from /proc/PID/status",
+    meaning:
+      "The size of the process's private data segments: the brk heap, the data and BSS segments, and private writable mmap memory such as allocator arenas and thread stacks.",
+    example: "",
+    reading:
+      "VmData can grow while the [heap] mapping stays fixed, when the allocator uses mmap. Compare it with Heap size and Resident anonymous to see where the growth is.",
+    limits:
+      "It counts mapped address space, not resident memory. Memory that was never touched still counts.",
+    related: ["heap", "anonres", "memkinds"],
+    aliases: ["Data + heap (VmData)"],
+    source: "`/proc/PID/status`: VmData",
+    sourceDetail:
+      "With each memory sample, the sampler reads the VmData line of `/proc/PID/status`.",
+  },
+  stack: {
+    title: "Main stack",
+    scope: "Main thread · [stack] mapping and RLIMIT_STACK",
+    meaning:
+      "The size of the main thread stack mapping. It grows down when a page fault touches below it.",
+    example: "",
+    reading:
+      "Compare with RLIMIT_STACK. Near the limit, deep recursion can crash the process with SIGSEGV.",
+    limits:
+      "Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds. Size change shows the measured interval between samples while this page was open.",
+    related: ["heap", "memlimits"],
+    aliases: ["Main stack ↓", "Stack mapping size change"],
+    source: "[stack] in `/proc/PID/maps`; `/proc/PID/limits`: Max stack size",
+    sourceDetail:
+      "The size of the [stack] line of `/proc/PID/maps`, compared with the soft Max stack size of `/proc/PID/limits`. Check it yourself: `grep stack /proc/PID/maps`.",
+  },
+  aslimit: {
+    title: "Address space limit",
+    scope: "Process · RLIMIT_AS",
+    meaning: "Virtual size compared with the RLIMIT_AS resource limit.",
+    example: "",
+    reading: "At the limit, mmap() and malloc() fail even when RAM is free.",
+    limits: "RLIMIT_AS counts reserved address space, not RAM.",
+    related: ["vmsize", "memlimits"],
+    aliases: ["Address space"],
+    source: "`/proc/PID/limits`: Max address space",
+    sourceDetail:
+      "The soft value of the Max address space line of `/proc/PID/limits`. Check it yourself: `prlimit --as --pid PID`.",
+  },
+  anonres: {
+    title: "Resident anonymous",
+    scope: "Process · RssAnon over time",
+    meaning:
+      "Anonymous memory currently in RAM: heap, arenas, thread stacks, and private mmap memory.",
+    example: "",
+    reading:
+      "A sustained slope, shown per minute, is a better growth signal than virtual size.",
+    limits:
+      "Swapped anonymous pages leave this total. The chart covers only the time this page was open.",
+    related: ["memkinds", "heap", "rss"],
+    aliases: [],
+    source: "`/proc/PID/status`: RssAnon",
+    sourceDetail:
+      "With each resource sample (every 2 s by default), the sampler reads the RssAnon line of `/proc/PID/status`.",
+  },
+  threadstacks: {
+    title: "Thread stacks",
+    scope: "Other threads · reserved mappings and residency",
+    meaning:
+      "Common pthread stacks reserve a fixed address range. The number of resident pages can change inside that range.",
+    example: "",
+    reading:
+      "A fixed mapping size does not mean fixed memory use. The main stack boundary chart covers only the main thread.",
+    limits:
+      "Other runtimes can manage stacks differently. Residency does not measure current stack depth.",
+    related: ["stack", "anonres", "memregions"],
+    aliases: [],
+    source: "Anonymous lines of `/proc/PID/maps`",
+    sourceDetail:
+      "The dashboard does not measure the residency of each thread stack. Thread stacks appear as anonymous lines in `/proc/PID/maps`, usually with a guard page below them.",
+  },
+  memregions: {
+    title: "Memory regions",
+    scope: "Selected bar · mappings",
+    meaning:
+      "The regions in the selected bar, with their start address, size, permissions, and VMA count.",
+    example: "r-xp is readable, executable, and private.",
+    reading:
+      "Use the name and permissions to tell code, data, and guard regions apart.",
+    limits:
+      "Only the first 300 regions are listed. Permissions are the union over the region's mappings.",
+    related: ["memzoom", "vmas"],
+    aliases: ["Region", "Perms", "Member regions"],
+    source: "`/proc/PID/maps`",
+    sourceDetail:
+      "The start address, size, and permissions of the merged lines of `/proc/PID/maps`.",
+  },
+  memlimits: {
+    title: "Memory limits & headroom",
+    scope: "Process and host limits as labeled",
+    meaning:
+      "Limits that make mmap, malloc, or thread creation fail, or stop the main stack from growing, with related memory counters.",
+    example: "",
+    reading:
+      "Read each meter's denominator. Page tables and locked memory are also charged to the process.",
+    limits:
+      "No configured limit is different from an unknown limit. The longest maps read shows the sampler's own cost.",
+    related: ["vmas", "aslimit", "stack"],
+    aliases: ["Page tables", "Locked", "Longest maps read"],
+    source:
+      "`/proc/PID/limits`, `/proc/PID/status`, `/proc/sys/vm/max_map_count`",
+    sourceDetail:
+      "Max address space and Max stack size come from `/proc/PID/limits`. VmPTE (page tables) and VmLck (locked) come from `/proc/PID/status`. The mapping limit is `/proc/sys/vm/max_map_count`. The sampler measures the time of its own maps reads.",
+  },
+  faulttotals: {
+    title: "Page faults since start",
+    scope: "Process · cumulative count since the process started",
+    meaning:
+      "Total major and minor page faults since the process started. A major fault needed I/O to bring a page in; a minor fault was resolved without I/O, for example by mapping a zero page or a cached file page.",
+    example:
+      "0 major · 100,000 minor means no fault needed I/O and many were resolved in memory.",
+    reading:
+      "Minor faults are normal and grow as memory is first touched. Compare how fast the major count climbs, or see Major faults for the per-second rate.",
+    limits:
+      "These are counts, not rates, so they only grow and say nothing about what is happening now.",
+    related: ["faults", "rss"],
+    aliases: ["Page faults since start"],
+    source: "`/proc/PID/stat`: fields 10 (minflt) and 12 (majflt)",
+    sourceDetail:
+      "With each memory sample (every 30 s by default), the sampler reads fields 10 and 12 of `/proc/PID/stat`: the minor and major faults of the whole process since it started, including threads that have ended. Check it yourself: `ps -o min_flt,maj_flt -p PID`.",
+  },
 } as const satisfies Record<string, HelpTopic>;
 
 export type HelpTopicId = keyof typeof helpTopics;
