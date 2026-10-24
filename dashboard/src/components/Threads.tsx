@@ -120,14 +120,12 @@ function ThreadMap({
   threads,
   series,
   selected,
-  session,
   onOpen,
 }: {
   threads: readonly Thread[];
   series: Series;
   selected: SelectedThread | null;
-  session: Series["session"];
-  onOpen: (thread: Thread) => void;
+  onOpen: (thread: Thread, session: Series["session"]) => void;
 }) {
   const [window, setWindow] = useState<MapWindow>(0);
   const { holding, handlers } = useHolding();
@@ -182,7 +180,7 @@ function ThreadMap({
                 style={{
                   background: stateColor(cell.state),
                   color: `var(--t-${cell.state})`,
-                  ...(isSelected(selected, session, cell.thread)
+                  ...(isSelected(selected, held.series.session, cell.thread)
                     ? { outline: "2px solid var(--ink)" }
                     : {}),
                 }}
@@ -197,7 +195,7 @@ function ThreadMap({
                 }}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onOpen(cell.thread);
+                  onOpen(cell.thread, held.series.session);
                 }}
               >
                 {cell.text}
@@ -382,7 +380,7 @@ export function Threads({
   windowSecs: number;
   threadView: ThreadView;
   dispatch: Dispatch<ThreadAction>;
-  onOpen: (thread: Thread) => void;
+  onOpen: (thread: Thread, session: Series["session"]) => void;
 }) {
   const threads = view?.threads ?? [];
   const { points, from } = windowPoints(series, windowSecs);
@@ -496,7 +494,6 @@ export function Threads({
           threads={threads}
           series={series}
           selected={threadView.selected}
-          session={view?.health.session}
           onOpen={onOpen}
         />
         <Families
