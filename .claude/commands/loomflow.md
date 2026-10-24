@@ -14,7 +14,7 @@ Follow "Build mode" in `docs/loomflow.md`. State the size and the reason in one 
   1. Start `pr-adversarial-reviewer` in mode `design` with the design reviewer model, the PR number, worktree path, and round number. Confirm a PR review that starts with `## Design review, round <n>`. If it is missing, stop and report.
   2. If it lists a `blocker` or `major`, continue the builder with phase `revise`. Apply the design round 2 rule in the spec.
   3. Continue the builder with phase `build`. Confirm that the PR is ready and that its head equals the builder's pushed SHA. Then run review mode on it with the Major size.
-- Major series: cancel the automatic CI runs of each series PR (`gh run cancel`), and write the trail file after each merge.
+- Major series: cancel the automatic CI runs of each series PR (`gh run cancel`), and write the trail file after each merge. For a major redesign series, stop after the last series PR merges and wait for the user ("Build mode" in `docs/loomflow.md`).
 
 ## Setup
 
