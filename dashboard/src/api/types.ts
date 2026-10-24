@@ -98,6 +98,7 @@ export interface ProcessExit {
 export interface PressureEntry {
   pct?: number | null;
   avg10?: number | null;
+  total_us?: number | null;
 }
 export type Pressure = Partial<
   Record<
@@ -106,6 +107,14 @@ export type Pressure = Partial<
   >
 >;
 export interface ResourceSocket {
+  fd?: number;
+  inode?: number;
+  rmem_alloc?: number;
+  rcvbuf?: number;
+  wmem_alloc?: number;
+  wmem_queued?: number;
+  sndbuf?: number;
+  drops?: number;
   kind: string;
   state: string;
   listener: boolean;
@@ -118,9 +127,22 @@ export interface ResourceSocket {
   tx_fill_pct?: number | null;
   accept_fill_pct?: number | null;
   drops_delta?: number | null;
-  tcp?: { peer_window?: number | null };
+  tcp?: {
+    peer_window?: number | null;
+    rwnd_limited_pct?: number | null;
+    sndbuf_limited_pct?: number | null;
+    probes?: number;
+    retransmits?: number;
+    backoff?: number;
+    retrans?: number;
+    retrans_delta?: number | null;
+    rtt_ms?: number;
+  };
 }
 export interface Resources {
+  sequence?: number;
+  interval_s?: number;
+  cgroup?: string | null;
   available: boolean;
   reason?: string;
   stale?: boolean;
@@ -129,12 +151,24 @@ export interface Resources {
   session?: string | null;
   pressure?: { host?: Pressure; cgroup?: Pressure };
   io?: { read_bps?: number | null; write_bps?: number | null };
-  fds?: { open?: number | null; soft_limit?: number | null };
-  memory?: { rss?: number | null; anon?: number | null; swap?: number | null };
+  fds?: {
+    open?: number | null;
+    soft_limit?: number | null;
+    hard_limit?: number | null;
+    sockets?: number | null;
+  };
+  memory?: {
+    rss?: number | null;
+    anon?: number | null;
+    swap?: number | null;
+    peak?: number | null;
+    rss_growth_per_s?: number | null;
+  };
   cgroup_limits?: {
     memory?: {
       current?: number | null;
       max?: number | null;
+      high?: number | null;
       max_events_delta?: number | null;
       oom_kill_delta?: number | null;
     };
@@ -145,20 +179,67 @@ export interface Resources {
     };
     pids?: { current?: number | null; max?: number | null };
   };
-  sockstat?: { tcp_mem?: number | null };
-  limits?: { tcp_mem?: readonly (number | null)[] };
-  network?: Partial<Record<NetworkCounter, { delta?: number | null }>>;
+  sockstat?: Partial<
+    Record<
+      "tcp_mem" | "udp_mem" | "tcp_inuse" | "tcp_orphan" | "tcp_tw",
+      number | null
+    >
+  >;
+  limits?: {
+    tcp_mem?: readonly (number | null)[];
+    udp_mem?: readonly (number | null)[];
+    page_size?: number | null;
+    rmem_max?: number | null;
+    wmem_max?: number | null;
+    somaxconn?: number | null;
+  };
+  network?: Partial<
+    Record<
+      NetworkCounter,
+      { delta?: number | null; per_s?: number | null; total?: number | null }
+    >
+  >;
   sockets?: {
     top?: readonly ResourceSocket[];
-    tcp_states?: { close_wait?: number | null };
+    tcp_states?: {
+      close_wait?: number | null;
+      established?: number | null;
+      listen?: number | null;
+    };
+    tcp?: SocketQueues;
+    udp?: SocketQueues;
+    unix?: SocketQueues;
+    matched?: number | null;
+    unmatched?: number | null;
+    complete?: boolean;
   };
   flags?: {
     other_network_namespace?: boolean;
     descriptors_hidden?: boolean;
     socket_diag_failed?: boolean;
+    descriptor_scan_truncated?: boolean;
+    sockets_truncated?: boolean;
   };
 }
+export interface SocketQueues {
+  sockets?: number | null;
+  rx_queue?: number | null;
+  tx_queue?: number | null;
+}
 export type NetworkCounter =
+  | "tcp_req_q_full_drop"
+  | "syncookies_sent"
+  | "prune_called"
+  | "rcv_pruned"
+  | "ofo_pruned"
+  | "tcp_timeouts"
+  | "tcp_abort_on_timeout"
+  | "tcp_estab_resets"
+  | "tcp_attempt_fails"
+  | "tcp_abort_on_memory"
+  | "udp_in_errors"
+  | "udp_mem_errors"
+  | "udp_no_ports"
   | "tcp_rcvq_drop"
   | "tcp_backlog_drop"
   | "tcp_zero_window_drop"
@@ -217,6 +298,38 @@ export interface WatchRule {
   wake_ms: number;
 }
 export interface ResourceRow {
+  fd_open?: number | null;
+  read_bps?: number | null;
+  write_bps?: number | null;
+  rx_queue_bytes?: number | null;
+  tx_queue_bytes?: number | null;
+  tcp_close_wait?: number | null;
+  tcp_retrans_segs_delta?: number | null;
+  tcp_timeouts_delta?: number | null;
+  tcp_estab_resets_delta?: number | null;
+  listen_overflows_delta?: number | null;
+  listen_drops_delta?: number | null;
+  tcp_backlog_drop_delta?: number | null;
+  tcp_rcvq_drop_delta?: number | null;
+  tcp_zero_window_drop_delta?: number | null;
+  tcp_abort_on_memory_delta?: number | null;
+  tcp_memory_pressures_delta?: number | null;
+  udp_rcvbuf_errors_delta?: number | null;
+  udp_sndbuf_errors_delta?: number | null;
+  udp_in_errors_delta?: number | null;
+  cgroup_cpu_some_pct?: number | null;
+  cgroup_cpu_full_pct?: number | null;
+  cgroup_memory_some_pct?: number | null;
+  cgroup_memory_full_pct?: number | null;
+  cgroup_io_some_pct?: number | null;
+  cgroup_io_full_pct?: number | null;
+  host_cpu_some_pct?: number | null;
+  host_cpu_full_pct?: number | null;
+  host_memory_some_pct?: number | null;
+  host_memory_full_pct?: number | null;
+  host_io_some_pct?: number | null;
+  host_io_full_pct?: number | null;
+
   ts: number;
   pid: number;
   elapsed_s: number | null;
@@ -240,3 +353,53 @@ export interface HistoryResponse {
   limit: number;
   truncated: boolean;
 }
+
+export interface ResourceHistory {
+  rows: readonly ResourceRow[];
+  bucket_s: number;
+  truncated: boolean;
+  read_error: boolean;
+}
+export type PressureScope = "cgroup" | "host";
+export type SocketMetric = "input" | "output" | "messages";
+export interface SocketValues {
+  total: string | null;
+  current: number | null;
+  average: number | null;
+  minimum: number | null;
+  maximum: number | null;
+}
+export interface SocketRow {
+  tid: number;
+  name: string;
+  thread_start: string;
+  kind: string;
+  kind_id: number;
+  metrics: Record<SocketMetric, SocketValues>;
+}
+// Sources: metrics/socket_report.hpp and metrics/socket_report_cache.hpp.
+// Decimal identities and cumulative counters must not pass through Number.
+export interface AvailableSocketReport {
+  available: true;
+  observer: string;
+  pid: number;
+  process_start: string;
+  messages_enabled: boolean;
+  stale: boolean;
+  stopped: boolean;
+  losses: string;
+  lower_bound: boolean;
+  duration: number;
+  updated: number;
+  gaps: number;
+  truncated: boolean;
+  read_error?: boolean;
+  refresh_error?: boolean;
+  rate_windows: number;
+  coverage: string;
+  totals: Record<SocketMetric, SocketValues>;
+  rows: readonly SocketRow[];
+  history: readonly ({ ts: number } & Record<SocketMetric, number | null>)[];
+}
+export type SocketReport =
+  AvailableSocketReport | { available: false; reason?: string };

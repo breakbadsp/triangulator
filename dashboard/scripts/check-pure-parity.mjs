@@ -38,6 +38,8 @@ const names = new Set(
   RSS_TREND_MIN_POINTS rssTrend signed assessMemory memoryOverviewFindings memoryFaultRate
   memoryPressure endedTarget EXIT_REASONS CRASH_SIGNALS KILL_SIGNALS signalLabel
   exitReason exitStatusText viewTargetName fleetName
+  KIND_LABELS NET_COUNTERS DROP_COLUMNS socketLabel socketNotes renderResourceTiles socketValue socketTitles renderSocket renderSocketChart
+  fillLevel fillCell renderResourceSockets renderNetstack
 `
     .trim()
     .split(/\s+/),
@@ -495,6 +497,379 @@ const before = canonical(assessRecorded(busy, 1000, []));
 assess(input(view([], { memory }), { memoryLayout: layout }));
 assert.deepEqual(canonical(assessRecorded(busy, 1000, [])), before);
 assert.equal(fleetAssessment(busy, 1000).level, "serious");
+// Exercise the pinned renderers through a small DOM sink. Read their displayed
+// values, rather than copying their calculation into a second oracle.
+const {
+  resourceTiles,
+  socketNotes,
+  fullestSockets,
+  socketCells,
+  networkRows,
+  resourceCoverage,
+} = load(resolve(dashboard, "src/lib/resourceView.ts"));
+const { socketValue, socketRows, socketStatus, socketCoverage, socketChart } =
+  load(resolve(dashboard, "src/lib/socketView.ts"));
+function sink(text = "") {
+  return {
+    textContent: text,
+    children: [],
+    value: "",
+    dataset: {},
+    style: {},
+    hidden: false,
+    classList: { add() {}, toggle() {} },
+    append(...nodes) {
+      this.children.push(...nodes);
+    },
+    replaceChildren(...nodes) {
+      this.children = nodes;
+    },
+    setAttribute() {},
+    get firstChild() {
+      return this.children[0];
+    },
+  };
+}
+let viewComparisons = 0;
+for (let index = 0; index < 80; index++) {
+  const resource = {
+    available: true,
+    pressure: { host: { cpu: { some: { pct: index } } } },
+    sockets: {
+      tcp: { rx_queue: index, tx_queue: 0 },
+      udp: { rx_queue: 0, tx_queue: index % 3 ? 0 : null },
+      unix: { rx_queue: 0, tx_queue: 0 },
+    },
+    network: { listen_drops: { per_s: index / 3 } },
+    memory: { rss: index * 1024 },
+  };
+  const sockets = [
+    {
+      kind: "tcp4",
+      state: index % 2 ? "ESTAB" : "SYN-SENT",
+      listener: false,
+      rx_queue: index,
+      tx_queue: index,
+      tcp: { peer_window: 0, rwnd_limited_pct: 30, probes: index % 3 },
+    },
+  ];
+  const points = asResourcePoints([
+    {
+      ts: 1,
+      pid: 2,
+      elapsed_s: 2,
+      rss_bytes: 3,
+      rx_queue_bytes: index,
+      tx_queue_bytes: null,
+      listen_drops_delta: index,
+    },
+  ]);
+  const elements = new Map();
+  const context = {
+    pressureScope: "cgroup",
+    socketMetric: "input",
+    element: (id) => {
+      if (!elements.has(id)) elements.set(id, sink());
+      return elements.get(id);
+    },
+    node: (tag, text) => sink(text),
+    helpButtonLabel: (text) => sink(text),
+    sparkline: (values) => ({ values }),
+    topicForText: () => "pressure",
+    helpOwns: () => false,
+    observeHelp() {},
+  };
+  runInNewContext(oracle + "\nrenderResourceTiles(r,points)", {
+    ...context,
+    r: resource,
+    points,
+  });
+  const expected = elements
+    .get("resource-tiles")
+    .children.map((tile) => [
+      ...tile.children.slice(0, 3).map((c) => c.textContent),
+      tile.children[3].values,
+    ]);
+  assert.deepEqual(
+    canonical(resourceTiles(resource, points, "cgroup")),
+    canonical(expected),
+  );
+  for (const item of sockets)
+    assert.deepEqual(
+      canonical(socketNotes(item)),
+      canonical(runInNewContext(oracle + "\nsocketNotes(item)", { item })),
+    );
+  viewComparisons += 2;
+}
+// The text a sink shows, including its children, as a browser would.
+const text = (item) =>
+  (item.textContent ?? "") + (item.children ?? []).map(text).join("");
+const socketSamples = [
+  { fd: 3, kind: "tcp4", state: "LISTEN", listener: true, local: "0.0.0.0:80" },
+  { fd: 4, kind: "unix_stream", state: "ESTAB", listener: false, path: "" },
+  {
+    fd: 5,
+    kind: "tcp6",
+    state: "CLOSE-WAIT",
+    listener: false,
+    remote: "[::1]:9",
+  },
+  {
+    fd: 6,
+    kind: "udp4",
+    state: "UNCONN",
+    listener: false,
+    local: "0.0.0.0:53",
+  },
+];
+for (let index = 0; index < 60; index++) {
+  const top = socketSamples.map((base, at) => ({
+    ...base,
+    inode: 100 + at,
+    local: base.local ?? "127.0.0.1:" + String(at),
+    rx_queue: (index + at) % 3 ? 0 : index * 10,
+    tx_queue: (index + at) % 4 ? 0 : index,
+    rx_fill_pct: index % 5 ? null : index,
+    tx_fill_pct: index % 7 ? 0 : 95,
+    accept_fill_pct: index % 2 ? 125 : null,
+    rcvbuf: index % 3 ? 65536 : undefined,
+    rmem_alloc: 4096,
+    sndbuf: 32768,
+    wmem_queued: index,
+    wmem_alloc: 7,
+    drops: index % 6 ? undefined : index,
+    drops_delta: index % 4 ? 0 : 2,
+    tcp: base.kind.startsWith("tcp")
+      ? { retrans: index, retrans_delta: index % 3, rtt_ms: index / 7 }
+      : undefined,
+  }));
+  const resource = {
+    available: true,
+    sequence: index,
+    interval_s: 1 + index * 97,
+    cgroup: index % 2 ? "/system.slice/app.service" : null,
+    sockets: {
+      top,
+      matched: index % 5 ? index : null,
+      unmatched: index % 3,
+      complete: index % 4 !== 0,
+    },
+    flags: {
+      other_network_namespace: index % 5 === 1,
+      descriptors_hidden: index % 7 === 2,
+      socket_diag_failed: index % 3 === 0,
+      descriptor_scan_truncated: index % 4 === 3,
+      sockets_truncated: index % 2 === 0,
+    },
+    network: {
+      listen_drops: { delta: index % 3, per_s: index / 9, total: index * 3 },
+      listen_overflows: { delta: 0, per_s: 0, total: 0 },
+      tcp_req_q_full_drop: { delta: 0, per_s: null, total: index % 2 },
+      if_rx_dropped: { delta: index % 2, per_s: 12.5, total: 99 },
+      tcp_timeouts: { delta: 0, per_s: 0, total: 0 },
+    },
+  };
+  const points = asResourcePoints(
+    index % 3
+      ? [
+          { ts: 1, pid: 2, elapsed_s: 1, tcp_timeouts_delta: index % 2 },
+          { ts: 2, pid: 2, elapsed_s: 1, listen_drops_delta: null },
+        ]
+      : [],
+  );
+  for (const busyOnly of [true, false]) {
+    const elements = new Map();
+    const element = (id) => {
+      if (!elements.has(id)) elements.set(id, sink());
+      return elements.get(id);
+    };
+    element("sockets-busy-only").checked = busyOnly;
+    const context = {
+      element,
+      node: (tag, value) => sink(value),
+      addHelp() {},
+      topicForText: () => "netdrops",
+      helpOwns: () => false,
+      observeHelp() {},
+    };
+    runInNewContext(oracle + "\nrenderResourceSockets(r)", {
+      ...context,
+      r: resource,
+    });
+    const view = fullestSockets(resource, busyOnly);
+    assert.equal(view.count, element("resource-socket-count").textContent);
+    // The label and notes cells hold one element per part; others are text.
+    const rendered = element("resource-sockets").children.map((row) =>
+      view.rows.length
+        ? row.children.map((cell, column) =>
+            column === 0 || column === 9 ? cell.children.map(text) : text(cell),
+          )
+        : row.children.map(text),
+    );
+    const shown = (cell) =>
+      cell === null ? "—" : typeof cell === "string" ? cell : cell.text;
+    assert.deepEqual(
+      canonical(
+        view.rows.length
+          ? view.rows.map((item) => {
+              const c = socketCells(item);
+              return [
+                [c.label, ...(item.listener ? ["listener"] : [])],
+                c.peer,
+                c.recvQ,
+                shown(c.receiveBuffer),
+                c.sendQ,
+                shown(c.sendBuffer),
+                c.drops,
+                c.rtt,
+                c.retrans,
+                c.notes.map((note) => note[0]),
+              ];
+            })
+          : [[view.empty]],
+      ),
+      canonical(rendered),
+    );
+    assert.equal(
+      resourceCoverage(resource),
+      element("resource-coverage").textContent,
+    );
+    viewComparisons += 3;
+  }
+  const elements = new Map();
+  const element = (id) => {
+    if (!elements.has(id)) elements.set(id, sink());
+    return elements.get(id);
+  };
+  runInNewContext(oracle + "\nrenderNetstack(r,points)", {
+    element,
+    node: (tag, value) => sink(value),
+    addHelp() {},
+    topicForText: () => "netdrops",
+    helpOwns: () => false,
+    observeHelp() {},
+    r: resource,
+    points,
+  });
+  const network = networkRows(resource, points);
+  assert.deepEqual(
+    canonical([
+      ...network.rows.map((row) => [
+        row.label + row.meaning,
+        row.now,
+        row.inRange,
+        row.total,
+      ]),
+      ...(network.zero ? [[network.zero]] : []),
+    ]),
+    canonical(
+      element("netstack").children.map((row) => row.children.map(text)),
+    ),
+  );
+  viewComparisons++;
+}
+const metricValues = {
+  total: "12345",
+  current: null,
+  average: 0,
+  minimum: 0,
+  maximum: 90,
+};
+for (const metric of ["input", "output", "messages"]) {
+  for (const value of [null, 0, 10, 10000, "12345"])
+    for (const rate of [false, true]) {
+      assert.equal(
+        socketValue(value, metric, rate),
+        runInNewContext(oracle + "\nsocketValue(value,rate)", {
+          socketMetric: metric,
+          value,
+          rate,
+          Intl,
+        }),
+      );
+      viewComparisons++;
+    }
+  for (const flags of [
+    {},
+    { stopped: true },
+    { stale: true },
+    { refresh_error: true },
+    { lower_bound: true, losses: "9", truncated: true, read_error: true },
+  ]) {
+    const data = {
+      available: true,
+      pid: 42,
+      observer: "99",
+      process_start: "98",
+      duration: 60,
+      updated: 1000,
+      messages_enabled: true,
+      coverage: "Observed paths.",
+      rate_windows: 10,
+      gaps: 2,
+      totals: { [metric]: metricValues },
+      rows: [
+        {
+          tid: 3,
+          thread_start: "8",
+          name: "worker",
+          kind: "TCP",
+          kind_id: metric === "messages" ? 6 : 1,
+          metrics: { [metric]: metricValues },
+        },
+      ],
+      history: [
+        { ts: 1, [metric]: null },
+        { ts: 2, [metric]: 0 },
+      ],
+      ...flags,
+    };
+    const elements = new Map();
+    const context = {
+      socketData: data,
+      socketMetric: metric,
+      element: (id) => {
+        if (!elements.has(id)) elements.set(id, sink());
+        return elements.get(id);
+      },
+      node: (tag, text) => sink(text),
+      helpButtonLabel: (text) => sink(text),
+      helpOwns: () => false,
+      topicForText: () => "socketio",
+      timeChart() {},
+      document: { querySelectorAll: () => [] },
+      Intl,
+    };
+    runInNewContext(oracle + "\nrenderSocket()", context);
+    assert.equal(socketStatus(data), elements.get("socket-status").textContent);
+    assert.equal(
+      socketCoverage(data),
+      elements.get("socket-coverage").textContent,
+    );
+    assert.equal(
+      socketChart(data, metric).peak,
+      elements.get("socket-chart-scale").textContent,
+    );
+    const rendered = elements
+      .get("socket-rows")
+      .children[0].children.slice(2)
+      .map((c) => c.textContent);
+    const row = socketRows(data, metric, "", "")[0].metrics[metric];
+    assert.deepEqual(
+      [
+        socketValue(row.total, metric),
+        ...["current", "average", "minimum", "maximum"].map((k) =>
+          socketValue(row[k], metric, true),
+        ),
+      ],
+      rendered,
+    );
+    viewComparisons += 4;
+  }
+}
+log(
+  `PASS: ${viewComparisons} old/new resource/socket displayed-value and note comparisons.`,
+);
 log(
   `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, ${readings} thread map readings, and ${restores} restores; repeated calls are isolated.`,
 );
