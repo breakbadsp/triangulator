@@ -14,7 +14,20 @@ import {
   type HelpTopic,
   type HelpTopicId,
 } from "./topics";
+import { date } from "../lib/format";
 import "./help.css";
+
+/** Values at one chart sample, shown in the help card at the pointer. */
+type Position = { left: number; top: number };
+export interface Readout {
+  /** Changes for each sample, so each sample is a new request. */
+  key: string;
+  title: string;
+  rows: readonly { color: string; value: string; label: string }[];
+  stamp: number;
+  /** The pointer, in viewport coordinates. */
+  point: { x: number; y: number };
+}
 
 function hoverHelpEnabled() {
   try {
@@ -29,11 +42,13 @@ export function Help({
   children,
   className,
   as: Tag = "span",
+  readout,
 }: {
   topic: HelpTopicId;
   children: ReactNode;
   className?: string;
   as?: "span" | "div";
+  readout?: Readout;
 }) {
   const anchor = useRef<HTMLElement>(null);
   const card = useRef<HTMLElement>(null);
@@ -42,9 +57,10 @@ export function Help({
   const [position, setPosition] = useState({ left: 8, top: 8 });
   const timer = useMemo(
     () =>
-      createHelpTimer<HelpTopicId>(
+      createHelpTimer<{ topic: HelpTopicId; at?: Position }>(
         (value) => {
-          setShown(value);
+          setShown(value.topic);
+          if (value.at) setPosition(value.at);
         },
         () => {
           setShown(null);
@@ -79,6 +95,23 @@ export function Help({
     };
   }, [shown, timer]);
 
+  const readoutKey = readout?.key,
+    readoutPoint = readout?.point;
+  useEffect(() => {
+    if (!readoutKey || !readoutPoint || !hoverHelpEnabled()) return;
+    // Beside the pointer, or on its left when the card would overflow.
+    const width = Math.min(380, innerWidth - 24);
+    let left = readoutPoint.x + 8;
+    if (left + width > innerWidth - 12) left = readoutPoint.x - width - 8;
+    const at = {
+      left: Math.max(12, Math.min(left, innerWidth - width - 12)),
+      top: Math.max(12, Math.min(readoutPoint.y, innerHeight - 240)),
+    };
+    timer.request(readoutKey, { topic, at }, readoutPoint);
+    // The point only places the card; a new request needs a new sample.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readoutKey, topic, timer]);
+
   function showHelp(immediate: boolean) {
     const bounds = anchor.current?.getBoundingClientRect();
     if (!bounds) return;
@@ -86,8 +119,8 @@ export function Help({
       left: Math.max(8, Math.min(bounds.left, innerWidth - 392)),
       top: Math.max(8, Math.min(bounds.bottom + 8, innerHeight - 240)),
     });
-    if (immediate) timer.show(topic, topic);
-    else timer.request(topic, topic);
+    if (immediate) timer.show(topic, { topic });
+    else timer.request(topic, { topic });
   }
   function keepFocus() {
     return !!(
@@ -136,7 +169,7 @@ export function Help({
             aria-label={content.title}
             style={position}
             onMouseEnter={() => {
-              timer.request(topic, topic);
+              timer.request(topic, { topic });
             }}
             onMouseLeave={() => {
               timer.leave(keepFocus);
@@ -161,6 +194,20 @@ export function Help({
             <h2>{content.title}</h2>
             <p className="muted">{content.scope}</p>
             <p>{content.meaning}</p>
+            {readout && (
+              <div className="help-readout">
+                <p className="muted">{readout.title}</p>
+                {readout.rows.map((row) => (
+                  <div key={row.label} className="help-reading">
+                    <strong>
+                      {row.value === "—" ? "Not available" : row.value}
+                    </strong>
+                    <span>{row.label}</span>
+                  </div>
+                ))}
+                <p className="muted">At {date(readout.stamp)}</p>
+              </div>
+            )}
             {content.example && (
               <p>
                 <strong>Example. </strong>

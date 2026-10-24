@@ -116,6 +116,7 @@ export interface ResourceSocket {
 }
 export interface Resources {
   available: boolean;
+  reason?: string;
   stale?: boolean;
   updated?: number;
   pid?: number;
@@ -168,6 +169,7 @@ export type NetworkCounter =
   | "if_tx_errors";
 export interface MemorySummary {
   available: boolean;
+  reason?: string;
   stale?: boolean;
   pid?: number;
   layout_id?: string | null;

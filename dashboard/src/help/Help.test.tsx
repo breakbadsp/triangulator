@@ -56,6 +56,7 @@ test("shows links only for ported topics and opens a related topic", () => {
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Target tile",
     "Monitoring target",
+    "Assessment",
   ]);
   fireEvent.click(screen.getByRole("link", { name: "Monitoring target" }));
   expect(
