@@ -171,7 +171,7 @@ export function ThreadTable({
   holdHandlers: ReturnType<typeof useHolding>["handlers"];
   threadView: ThreadView;
   dispatch: Dispatch<ThreadAction>;
-  onOpen: (thread: Thread) => void;
+  onOpen: (thread: Thread, session: Series["session"]) => void;
 }) {
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -487,11 +487,7 @@ export function ThreadTable({
                     key={`${String(thread.tid)}:${String(thread.generation)}`}
                     className={
                       "clickable" +
-                      (isSelected(
-                        threadView.selected,
-                        view?.health.session,
-                        thread,
-                      )
+                      (isSelected(threadView.selected, series.session, thread)
                         ? " selected"
                         : "")
                     }
@@ -501,10 +497,10 @@ export function ThreadTable({
                     onMouseLeave={clear}
                     onClick={(event) => {
                       event.stopPropagation();
-                      onOpen(thread);
+                      onOpen(thread, series.session);
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") onOpen(thread);
+                      if (event.key === "Enter") onOpen(thread, series.session);
                     }}
                   >
                     <td

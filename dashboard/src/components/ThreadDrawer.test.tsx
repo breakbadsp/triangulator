@@ -99,6 +99,63 @@ test("the custom history interval and open table survive closing and changing th
   ).toBe(true);
 });
 
+test("a 15 min preset replaces a custom history range and survives another thread", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockImplementation(() => Promise.resolve(emptyHistory()));
+  vi.stubGlobal("fetch", fetcher);
+  const { rerender } = render(<Drawer thread={selected(one)} />);
+  await screen.findByText(/0 summaries/);
+  fireEvent.change(screen.getByLabelText("From"), {
+    target: { value: "2026-10-23T10:00" },
+  });
+  fireEvent.change(screen.getByLabelText("To"), {
+    target: { value: "2026-10-23T11:00" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Load" }));
+  await screen.findByText(/2026-10-23 10:00/);
+  fireEvent.click(screen.getByRole("button", { name: "15 min" }));
+  rerender(<Drawer thread={null} />);
+  rerender(<Drawer thread={selected(two)} />);
+  await waitFor(() => {
+    const urls = fetcher.mock.calls
+      .map(([input]) => (typeof input === "string" ? input : ""))
+      .filter((url) => url.startsWith("/api/history?"));
+    const query = new URL(urls.at(-1) ?? "", "http://test").searchParams;
+    expect(query.get("tid")).toBe("8");
+    expect(Number(query.get("end")) - Number(query.get("start"))).toBe(900);
+  });
+  expect(
+    document.querySelector('[data-range="900"]')?.getAttribute("aria-pressed"),
+  ).toBe("true");
+});
+
+test("Escape closes drawer help before it closes the drawer", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation(() => Promise.resolve(emptyHistory())),
+  );
+  render(<Drawer thread={selected(one)} />);
+  await screen.findByText(/0 summaries/);
+  const initialHelp = document.querySelector<HTMLButtonElement>(
+    ".help-card .help-close",
+  );
+  if (initialHelp) fireEvent.click(initialHelp);
+  const historyHelp = document.querySelector<HTMLElement>(
+    "#history [data-help='history']",
+  );
+  if (!historyHelp) throw new Error("Missing history help");
+  fireEvent.focus(historyHelp);
+  expect(document.querySelector(".help-card")).not.toBeNull();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(document.querySelector(".help-card")).toBeNull();
+  expect(close).not.toHaveBeenCalled();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
 test("a late response for another thread cannot replace the current history", async () => {
   const pending: {
     resolve: (value: Response) => void;
@@ -159,6 +216,10 @@ test("the drawer explains watched thread activity and rejects reused thread iden
   );
   expect(screen.getByText(/This thread is no longer reported/)).toBeDefined();
   expect(screen.queryByText(/Watched:/)).toBeNull();
+  const helpClose = document.querySelector<HTMLButtonElement>(
+    ".help-card .help-close",
+  );
+  if (helpClose) fireEvent.click(helpClose);
   fireEvent.keyDown(document, { key: "Escape" });
   expect(close).toHaveBeenCalledOnce();
   await screen.findByText(/0 summaries/);

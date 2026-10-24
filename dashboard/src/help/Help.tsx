@@ -89,11 +89,15 @@ export function Help({
 
   useEffect(() => {
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") timer.cancel(true);
+      if (event.key === "Escape" && timer.active) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        timer.cancel(true);
+      }
     }
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", escape, true);
     return () => {
-      document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", escape, true);
       timer.cancel();
     };
   }, [timer]);
