@@ -373,7 +373,7 @@ function Pressure({
   );
 }
 
-function Meter({
+export function Meter({
   label,
   topic,
   sub,

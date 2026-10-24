@@ -10,6 +10,7 @@ export const sections: readonly Section[] = [
   { id: "threads-section", label: "Threads" },
   { id: "resources", label: "Resources" },
   { id: "socket-panel", label: "Sockets" },
+  { id: "memory-map", label: "Memory" },
 ];
 
 export function SectionTabs({
