@@ -904,6 +904,836 @@ export const helpTopics = {
     sourceDetail:
       "The collector shows No access when the state letter is not R, D, T, or t and the wait channel is empty: it read 0 or could not be read. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
   },
+  pressure: {
+    title: "Pressure stalls (PSI)",
+    scope: "Displayed host or cgroup · time share",
+    meaning:
+      "Pressure stall information measures time tasks waited for CPU, memory, or I/O.",
+    example:
+      "Some: at least one task waited. Full: all non-idle tasks waited at once.",
+    reading:
+      "Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.",
+    limits:
+      "The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.",
+    related: ["throttle", "rss", "disk"],
+    aliases: [
+      "Pressure, limits & sockets",
+      "Pressure scope",
+      "CPU pressure",
+      "Memory pressure",
+      "I/O pressure",
+      "Cgroup some",
+      "Cgroup full",
+      "Host some",
+      "Host full",
+      "Resource",
+      "Memory pressure (PSI some)",
+    ],
+    source: "`/proc/pressure/*` and `/sys/fs/cgroup/CGROUP/*.pressure`",
+    sourceDetail:
+      "Host values come from `/proc/pressure/cpu`, `memory`, and `io`. Cgroup values come from `cpu.pressure`, `memory.pressure`, and `io.pressure` in the target cgroup directory under `/sys/fs/cgroup`, found from `/proc/PID/cgroup`. Interval values use the change of the cumulative total= stall time; the first sample uses avg10. Check it yourself: `cat /proc/pressure/cpu`.",
+  },
+  disk: {
+    title: "Disk I/O",
+    scope: "Process · block-layer bytes per second",
+    meaning:
+      "Storage traffic attributed to the process by the block-layer counters.",
+    example: "",
+    reading:
+      "Compare read/write rates with I/O pressure and major page faults.",
+    limits:
+      "Caching can make storage traffic differ from application read/write traffic.",
+    related: ["sysio", "pressure", "faults"],
+    aliases: [],
+    source: "`/proc/PID/io`: read_bytes, write_bytes",
+    sourceDetail:
+      "With each resource sample, the sampler reads read_bytes and write_bytes from `/proc/PID/io`: bytes the process caused the block layer to read or write, including threads that have ended. The collector divides the change by the interval. The file is readable only when the sampler runs as the target user. Check it yourself: `cat /proc/PID/io`.",
+  },
+  fds: {
+    title: "Open files",
+    scope: "Process · descriptors and soft limit",
+    meaning:
+      "The number of open file descriptors relative to the process soft descriptor limit.",
+    example: "Sockets also consume file descriptors.",
+    reading:
+      "At the soft limit, open(), accept(), and socket() can fail with EMFILE. Compare growth with expected workload.",
+    limits:
+      "The hard limit restricts changes to the soft limit. An unknown limit is not unlimited.",
+    related: ["limits", "socketio"],
+    aliases: [],
+    source: "`/proc/PID/fd` count; `/proc/PID/limits`: Max open files",
+    sourceDetail:
+      "With each resource sample, the sampler counts the entries of `/proc/PID/fd` and reads the Max open files line (soft and hard) of `/proc/PID/limits`. Check it yourself: `ls /proc/PID/fd | wc -l`.",
+  },
+  limits: {
+    title: "Limits & headroom",
+    scope: "Process, cgroup, or host as labeled",
+    meaning:
+      "Resource usage compared with the limit or pressure threshold shown on each row.",
+    example: "",
+    reading:
+      "Read the scope and denominator before comparing percentages. No configured limit differs from an unavailable limit. Meter colors change at 75% and 90%. Assessment findings can use different thresholds.",
+    limits:
+      "A high percentage suggests less remaining capacity; it does not by itself establish a leak.",
+    related: ["fds", "cgroupmem", "throttle"],
+    aliases: [],
+    source: "Each row names its file in its own topic",
+    sourceDetail:
+      "Open files: `/proc/PID/fd` and `/proc/PID/limits`. Cgroup memory, CPU quota, and tasks: `memory.*`, `cpu.max`, `cpu.stat`, and `pids.*` in the target cgroup directory under `/sys/fs/cgroup`. Socket memory and backlog: `/proc/PID/net/sockstat` and `/proc/sys/net/`. All are read with each resource sample.",
+  },
+  cgroupmem: {
+    title: "Cgroup memory",
+    scope: "Target cgroup · bytes",
+    meaning:
+      "Memory charged to the target cgroup, including page cache and other tasks in that cgroup.",
+    example: "",
+    reading:
+      "Compare memory.current with memory.max and memory.high. Limit events and OOM kills indicate that a boundary was reached.",
+    limits:
+      "This value is not the target process RSS. Reclaimable cache can form part of the total.",
+    related: ["rss", "pressure"],
+    aliases: [],
+    source:
+      "`/sys/fs/cgroup/CGROUP/memory.current`, `memory.max`, `memory.high`, `memory.events`",
+    sourceDetail:
+      "With each resource sample, the sampler reads memory.current, memory.max, memory.high, and the max and oom_kill lines of memory.events in the target cgroup directory. The cgroup path is the last field of `/proc/PID/cgroup` (cgroup v2). Check it yourself: `cat /sys/fs/cgroup$(cut -d: -f3 /proc/PID/cgroup)/memory.current`.",
+  },
+  throttle: {
+    title: "CPU throttling",
+    scope: "Cgroup · share of CPU periods",
+    meaning:
+      "The share of CPU periods in which the cgroup exhausted its CPU quota.",
+    example:
+      "25% means throttling occurred in one quarter of the observed periods.",
+    reading:
+      "Compare quota, CPU pressure, and run delay. Tasks can wait for quota even when host cores are idle.",
+    limits: "The denominator is CPU periods, not elapsed time.",
+    related: ["delay", "pressure", "cpu"],
+    aliases: ["CPU throttled"],
+    source: "`/sys/fs/cgroup/CGROUP/cpu.stat`: nr_throttled ÷ nr_periods",
+    sourceDetail:
+      "With each resource sample, the sampler reads nr_periods, nr_throttled, and throttled_usec from cpu.stat, and the quota from cpu.max, in the target cgroup directory. The share is the change in nr_throttled divided by the change in nr_periods.",
+  },
+  pids: {
+    title: "Processes & threads",
+    scope: "Target cgroup · task count",
+    meaning: "Task usage compared with the cgroup pids.max limit.",
+    example: "",
+    reading:
+      "Near the limit, process and thread creation can fail with EAGAIN.",
+    limits:
+      "The count includes processes and threads in the cgroup, not only the target process.",
+    related: ["limits", "churn"],
+    aliases: [],
+    source: "`/sys/fs/cgroup/CGROUP/pids.current`, `pids.max`",
+    sourceDetail:
+      "With each resource sample, the sampler reads pids.current and pids.max in the target cgroup directory.",
+  },
+  sockmem: {
+    title: "TCP memory",
+    scope: "Host · socket memory",
+    meaning:
+      "Socket memory use compared with the host pressure threshold shown on the meter.",
+    example: "",
+    reading:
+      "The kernel can restrict socket buffers under memory pressure. The displayed row also gives the hard memory boundary.",
+    limits:
+      "These values cover the host and cannot be attributed to one process.",
+    related: ["limits", "queues"],
+    aliases: [
+      "UDP memory",
+      "Max SO_RCVBUF (rmem_max)",
+      "Max SO_SNDBUF (wmem_max)",
+    ],
+    source: "`/proc/PID/net/sockstat`; `/proc/sys/net/ipv4/tcp_mem`",
+    sourceDetail:
+      "TCP and UDP memory in use are the mem values (in pages) of `/proc/PID/net/sockstat`. The thresholds are `/proc/sys/net/ipv4/tcp_mem` and `udp_mem`. The largest buffers are `/proc/sys/net/core/rmem_max` and `wmem_max`. All are read with each resource sample.",
+  },
+  backlog: {
+    title: "Accept backlog",
+    scope: "Listener · connections",
+    meaning:
+      "Connections waiting for the application to call accept(), compared with the listener backlog.",
+    example: "",
+    reading: "Compare backlog use with listen drops and overflows.",
+    limits:
+      "Listener queues use connection counts, not bytes. A full queue can have several causes.",
+    related: ["recvq", "netdrops"],
+    aliases: ["Max listen backlog (somaxconn)"],
+    source: "sock_diag listener queue; `/proc/sys/net/core/somaxconn`",
+    sourceDetail:
+      "The sampler lists sockets through sock_diag, the netlink interface that `ss` uses. For a listener, the receive queue is the connections waiting for accept() and the send queue is the backlog limit. somaxconn comes from `/proc/sys/net/core/somaxconn`. Check it yourself: `ss -ltn`.",
+  },
+  queues: {
+    title: "Bytes waiting in the target's sockets",
+    scope: "Target sockets · bytes",
+    meaning: "Data queued in the target sockets for receiving or sending.",
+    example: "",
+    reading:
+      "Compare unread receive data with send data awaiting transmission or acknowledgement. Charts use the selected resource history range.",
+    limits:
+      "A queue does not identify a cause by itself. Missing socket coverage is not an empty queue.",
+    related: ["recvq", "sendq", "coverage"],
+    aliases: [
+      "Queued in sockets",
+      "Fullest sockets",
+      "Receive queue (unread)",
+      "Send queue (unsent)",
+    ],
+    source: "sock_diag socket list, matched through `/proc/PID/fd`",
+    sourceDetail:
+      "With each resource sample, the sampler lists the TCP, UDP, and Unix sockets of its network namespace through sock_diag, the netlink interface that `ss` uses. It keeps the sockets whose inode appears as socket:[INODE] in `/proc/PID/fd` and sums their receive and send queues. A target in another network namespace has no socket queues. Check it yourself: `ss -tanp`.",
+  },
+  recvq: {
+    title: "Recv-Q",
+    scope: "Socket · bytes; listener · connections",
+    meaning:
+      "Received bytes waiting for the application to read them. For a listener, connections waiting for accept().",
+    example: "",
+    reading: "Compare sustained queue growth with receive buffer use.",
+    limits:
+      "Buffer fill uses queued memory and the buffer limit, which can differ from payload byte counts.",
+    related: ["backlog", "queues"],
+    aliases: ["Receive buffer"],
+    source: "sock_diag: receive queue and socket memory",
+    sourceDetail:
+      "Recv-Q is the receive queue that sock_diag reports for the socket, as `ss` shows it. Buffer fill uses the allocated receive memory and the receive buffer size (rmem_alloc and rcvbuf) from the same list, as `ss -m` shows them.",
+  },
+  sendq: {
+    title: "Send-Q",
+    scope: "Socket · queued bytes",
+    meaning:
+      "Bytes not yet sent or acknowledged, depending on the socket kind.",
+    example: "",
+    reading:
+      "Compare queue growth with send buffer use, RTT, and retransmissions.",
+    limits: "Queued data alone does not prove that the peer is slow.",
+    related: ["rtt", "retrans", "queues"],
+    aliases: ["Send buffer"],
+    source: "sock_diag: send queue and socket memory",
+    sourceDetail:
+      "Send-Q is the send queue that sock_diag reports for the socket, as `ss` shows it. Buffer fill uses the queued send memory and the send buffer size (wmem_queued and sndbuf) from the same list, as `ss -m` shows them.",
+  },
+  rtt: {
+    title: "RTT",
+    scope: "TCP socket · time",
+    meaning: "Smoothed round-trip time for the socket.",
+    example: "",
+    reading: "Compare sustained changes with retransmissions and queue growth.",
+    limits: "RTT is not the application request or message-processing time.",
+    related: ["retrans", "sendq"],
+    aliases: [],
+    source: "sock_diag `tcp_info`: tcpi_rtt",
+    sourceDetail:
+      "The sampler asks sock_diag for the kernel tcp_info of each TCP socket of the target, which `ss -ti` also shows. RTT is tcpi_rtt, the smoothed round-trip time in microseconds.",
+  },
+  retrans: {
+    title: "TCP retransmits",
+    scope: "TCP segments · displayed scope and interval",
+    meaning:
+      "TCP segments sent again after loss or other delivery uncertainty.",
+    example: "",
+    reading:
+      "Per-socket values cover one socket. Resource counters cover the target network namespace.",
+    limits:
+      "Retransmissions do not identify where on the path the problem occurred.",
+    related: ["rtt", "netdrops"],
+    aliases: ["Retrans"],
+    source:
+      "Per socket: `tcp_info`; namespace: `/proc/PID/net/snmp` RetransSegs",
+    sourceDetail:
+      "Per-socket values are tcpi_total_retrans from tcp_info through sock_diag, which `ss -ti` also shows. Namespace values are the Tcp RetransSegs counter of `/proc/PID/net/snmp`.",
+  },
+  netdrops: {
+    title: "Network drops",
+    scope: "Target network namespace",
+    meaning:
+      "Selected counters for dropped packets or connections in the target network namespace.",
+    example:
+      "Example: 0/s, 20, and 500 mean no events in the latest interval, 20 in the selected range, and a cumulative count of 500.",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["health", "retrans", "coverage"],
+    aliases: ["Network stack drops & errors"],
+    source: "`/proc/PID/net/netstat`, `snmp`, `snmp6`, and `dev`",
+    sourceDetail:
+      "With each resource sample, the sampler reads counters from `/proc/PID/net/netstat` (TcpExt), `/proc/PID/net/snmp` (Tcp and Udp), `/proc/PID/net/snmp6` (Udp6, added to Udp), and `/proc/PID/net/dev` (every interface except lo). These files describe the network namespace of the target. Each counter topic names its line. Check it yourself: `cat /proc/PID/net/netstat`.",
+  },
+  endpoint: {
+    title: "Socket",
+    scope: "Socket identity and state",
+    meaning:
+      "Socket kind, current state, and the local and peer endpoint identify an observed socket.",
+    example: "",
+    reading:
+      "Compare queue use and errors for the same endpoint. Unnamed Unix sockets need not have a path.",
+    limits:
+      "A socket can disappear between samples. State and endpoint alone do not identify the owning application operation.",
+    related: ["queues", "coverage"],
+    aliases: ["Local → peer", "Socket kind", "TCP sockets in namespace"],
+    source: "sock_diag socket list",
+    sourceDetail:
+      "Kind, state, and the local and peer addresses come from the sock_diag entry of the socket, as `ss -tuxan` lists them. Unix socket paths come from the same list. A socket belongs to the target when its inode appears in `/proc/PID/fd`.",
+  },
+  sockdrops: {
+    title: "Socket drops",
+    scope: "Socket · packets",
+    meaning:
+      "Packets this socket dropped, as reported by the kernel. + shows drops in the latest interval.",
+    example: "",
+    reading:
+      "Compare with receive buffer use: drops on a full buffer mean the application did not read fast enough.",
+    limits:
+      "Namespace-wide drop counters are in Network drops. A counter can reset when the socket is recreated.",
+    related: ["recvq", "netdrops", "endpoint"],
+    aliases: [],
+    source: "sock_diag socket memory: drops",
+    sourceDetail:
+      "The drop count in the socket memory information (SK_MEMINFO_DROPS) of the sock_diag list, which `ss -m` shows as d. The collector shows the change since the previous resource sample.",
+  },
+  closewait: {
+    title: "CLOSE-WAIT",
+    scope: "TCP sockets",
+    meaning:
+      "The peer closed its side, but the local application has not closed its socket.",
+    example: "",
+    reading:
+      "A sustained or growing count can indicate missing socket cleanup.",
+    limits: "A brief CLOSE-WAIT state can be normal during shutdown.",
+    related: ["endpoint", "fds"],
+    aliases: [],
+    source: "sock_diag socket states",
+    sourceDetail:
+      "The number of target TCP sockets that sock_diag reports in the CLOSE-WAIT state. Check it yourself: `ss -tan state close-wait`.",
+  },
+  coverage: {
+    title: "Data coverage",
+    scope: "Available observations",
+    meaning:
+      "Coverage notes identify missing, partial, stale, or unavailable observations.",
+    example: "",
+    reading:
+      "Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.",
+    limits: "Do not treat gaps or unreadable values as zero activity.",
+    related: ["health", "socketio"],
+    aliases: [],
+    source: "Flags sent with each sample",
+    sourceDetail:
+      "The sampler and the socket observer mark data they could not read completely, such as a cut socket list or an unreadable file. The collector marks samples as stale when they are old.",
+  },
+  "net-listen_overflows": {
+    title: "Accept queue overflows",
+    scope: "Target network namespace",
+    meaning:
+      "A listener’s accept queue was full and a new connection was dropped. The app is not calling accept() fast enough, or the backlog (listen(), somaxconn) is too small.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: ListenOverflows",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: ListenOverflows. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-listen_drops": {
+    title: "Listen drops",
+    scope: "Target network namespace",
+    meaning: "Every dropped incoming connection attempt, overflows included.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: ListenDrops",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: ListenDrops. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_req_q_full_drop": {
+    title: "SYN queue full",
+    scope: "Target network namespace",
+    meaning:
+      "Half-open connections were dropped because the SYN queue was full.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPReqQFullDrop",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPReqQFullDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-syncookies_sent": {
+    title: "SYN cookies sent",
+    scope: "Target network namespace",
+    meaning:
+      "The SYN queue overflowed and the kernel fell back to SYN cookies: a connection burst, a flood, or a slow accept loop.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: SyncookiesSent",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: SyncookiesSent. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_backlog_drop": {
+    title: "Socket backlog drops",
+    scope: "Target network namespace",
+    meaning:
+      "Packets dropped while the app held the socket lock and the socket backlog was full.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPBacklogDrop",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPBacklogDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_rcvq_drop": {
+    title: "Receive queue drops",
+    scope: "Target network namespace",
+    meaning:
+      "Packets dropped because a TCP receive buffer was full: a slow reader.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPRcvQDrop",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPRcvQDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_zero_window_drop": {
+    title: "Zero-window drops",
+    scope: "Target network namespace",
+    meaning:
+      "Packets dropped because the receiver had advertised a zero window.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPZeroWindowDrop",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPZeroWindowDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-prune_called": {
+    title: "Receive queue pruning",
+    scope: "Target network namespace",
+    meaning:
+      "The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: PruneCalled",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: PruneCalled. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-rcv_pruned": {
+    title: "Packets pruned",
+    scope: "Target network namespace",
+    meaning: "Packets thrown away from receive queues under memory limits.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: RcvPruned",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: RcvPruned. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-ofo_pruned": {
+    title: "Out-of-order pruned",
+    scope: "Target network namespace",
+    meaning: "Out-of-order packets thrown away under memory limits.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: OfoPruned",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: OfoPruned. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_retrans_segs": {
+    title: "Retransmitted segments",
+    scope: "Target network namespace",
+    meaning: "Segments sent again: packet loss or congestion on some path.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/snmp` Tcp: RetransSegs",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: RetransSegs. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_timeouts": {
+    title: "Retransmission timeouts",
+    scope: "Target network namespace",
+    meaning:
+      "A retransmission timer fired: a peer went quiet or the loss was severe.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPTimeouts",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPTimeouts. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_abort_on_timeout": {
+    title: "Aborted after timeouts",
+    scope: "Target network namespace",
+    meaning: "Connections given up after repeated timeouts.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPAbortOnTimeout",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPAbortOnTimeout. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_estab_resets": {
+    title: "Connections reset",
+    scope: "Target network namespace",
+    meaning: "Established connections reset, by the peer or locally.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/snmp` Tcp: EstabResets",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: EstabResets. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_attempt_fails": {
+    title: "Failed connection attempts",
+    scope: "Target network namespace",
+    meaning: "Outgoing connections that failed (refused or timed out).",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/snmp` Tcp: AttemptFails",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: AttemptFails. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_memory_pressures": {
+    title: "TCP memory pressure",
+    scope: "Target network namespace",
+    meaning:
+      "The kernel entered TCP memory pressure and started shrinking socket buffers (net.ipv4.tcp_mem).",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPMemoryPressures",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPMemoryPressures. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-tcp_abort_on_memory": {
+    title: "Aborted for memory",
+    scope: "Target network namespace",
+    meaning: "Connections aborted because TCP memory was exhausted.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/netstat` TcpExt: TCPAbortOnMemory",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPAbortOnMemory. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-udp_rcvbuf_errors": {
+    title: "UDP receive buffer full",
+    scope: "Target network namespace",
+    meaning:
+      "Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/snmp` Udp: RcvbufErrors, plus Udp6RcvbufErrors in `snmp6`",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: RcvbufErrors, plus Udp6RcvbufErrors in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-udp_sndbuf_errors": {
+    title: "UDP send buffer full",
+    scope: "Target network namespace",
+    meaning: "Sends that failed because the send buffer was full.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/snmp` Udp: SndbufErrors, plus Udp6SndbufErrors in `snmp6`",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: SndbufErrors, plus Udp6SndbufErrors in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-udp_in_errors": {
+    title: "UDP input errors",
+    scope: "Target network namespace",
+    meaning:
+      "Datagrams that could not be delivered, including receive-buffer drops.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/snmp` Udp: InErrors, plus Udp6InErrors in `snmp6`",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: InErrors, plus Udp6InErrors in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-udp_mem_errors": {
+    title: "UDP memory errors",
+    scope: "Target network namespace",
+    meaning:
+      "Datagrams dropped because UDP memory (net.ipv4.udp_mem) was exhausted.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/snmp` Udp: MemErrors, plus Udp6MemErrors in `snmp6`",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: MemErrors, plus Udp6MemErrors in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-udp_no_ports": {
+    title: "UDP to closed ports",
+    scope: "Target network namespace",
+    meaning: "Datagrams to ports nobody listens on.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source: "`/proc/PID/net/snmp` Udp: NoPorts, plus Udp6NoPorts in `snmp6`",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: NoPorts, plus Udp6NoPorts in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-if_rx_dropped": {
+    title: "Interface receive drops",
+    scope: "Target network namespace",
+    meaning:
+      "A network interface dropped incoming packets before any socket saw them (ring or queue full). Summed over the namespace’s interfaces except lo.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/dev` receive drop, summed over interfaces except lo",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/dev` receive drop, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-if_tx_dropped": {
+    title: "Interface transmit drops",
+    scope: "Target network namespace",
+    meaning:
+      "A network interface dropped outgoing packets (queue full or link trouble).",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/dev` transmit drop, summed over interfaces except lo",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/dev` transmit drop, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-if_rx_errors": {
+    title: "Interface receive errors",
+    scope: "Target network namespace",
+    meaning:
+      "Bad frames, CRC or length errors on a network interface: cabling, driver or hardware.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/dev` receive errs, summed over interfaces except lo",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/dev` receive errs, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  "net-if_tx_errors": {
+    title: "Interface transmit errors",
+    scope: "Target network namespace",
+    meaning: "Transmit errors on a network interface: driver or hardware.",
+    example: "",
+    reading:
+      "Rate (/s) is events per second over the latest sample interval. In range adds events from available samples in the selected time range. Total is the kernel counter and can include events before monitoring started. Read each counter definition.",
+    limits:
+      "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
+    related: ["netdrops", "coverage"],
+    aliases: [],
+    source:
+      "`/proc/PID/net/dev` transmit errs, summed over interfaces except lo",
+    sourceDetail:
+      "With each resource sample, the sampler reads `/proc/PID/net/dev` transmit errs, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
+  },
+  socketio: {
+    title: "Socket I/O & message processing",
+    scope: "Optional observer · target process",
+    meaning:
+      "Traffic measured by observed socket operations, with optional application completion counts.",
+    example: "",
+    reading:
+      "The cards and chart cover the whole process. Thread and socket-kind filters affect the breakdown only, which includes retired threads.",
+    limits:
+      "Received/sent bytes exclude peeks, failed operations, and UDP. A receive call can contain part of a message or many messages.",
+    related: ["received", "sent", "messages"],
+    aliases: ["What is measured · setup"],
+    source: "Optional eBPF observer: kernel tracepoints and a uprobe",
+    sourceDetail:
+      "The optional eBPF socket observer attaches to the kernel tracepoints sock_recv_length and sock_send_length. It counts, for each thread of the target, the bytes of successful socket receives and sends in kernel maps, and reports them to the collector once a second. Message counts come from a uprobe on the application marker function. Loading it needs privileges. The collector shows the observer that last reported the selected target's PID from the same sampler host. After a collector restart, it shows the stored observations of that PID until an observer reports, unless another target has the same PID.",
+  },
+  received: {
+    title: "Socket received",
+    scope: "Observed successful socket operations · bytes",
+    meaning: "Successful byte counts returned by observed receive operations.",
+    example: "",
+    reading:
+      "Compare the rate with message completions when application markers are enabled.",
+    limits:
+      "Coverage is specific to the observer. Receive calls and byte counts do not define application messages.",
+    related: ["socketio", "messages"],
+    aliases: ["↓ Received", "Received", "Received bytes"],
+    source: "eBPF: tracepoint sock_recv_length",
+    sourceDetail:
+      "The optional eBPF observer adds the byte count of each successful receive on a target socket, from the sock_recv_length kernel tracepoint. Peeks and failed calls are not counted.",
+  },
+  sent: {
+    title: "Socket sent",
+    scope: "Observed successful socket operations · bytes",
+    meaning: "Bytes accepted by observed socket send operations.",
+    example: "",
+    reading: "Compare sent and received rates with queue use.",
+    limits: "Acceptance by the socket does not prove delivery to the peer.",
+    related: ["socketio", "sendq"],
+    aliases: ["↑ Sent", "Sent", "Sent bytes"],
+    source: "eBPF: tracepoint sock_send_length",
+    sourceDetail:
+      "The optional eBPF observer adds the byte count of each successful send on a target socket, from the sock_send_length kernel tracepoint. Failed calls are not counted.",
+  },
+  messages: {
+    title: "Messages processed",
+    scope: "Application completion markers",
+    meaning:
+      "Calls to an explicit application marker, one per successfully processed message.",
+    example: "",
+    reading:
+      "A configured completion marker is required. Compare completions with byte rates to understand workload changes.",
+    limits: "Message counts are never inferred from read calls or byte counts.",
+    related: ["socketio", "received"],
+    aliases: ["Messages", "✓ Messages processed"],
+    source: "eBPF uprobe on the application marker function",
+    sourceDetail:
+      "The optional eBPF observer attaches a uprobe to the marker function named when it starts, and counts each call. The application calls the marker once for each message it has finished.",
+  },
+  sockettotal: {
+    title: "Socket total",
+    scope: "Process or breakdown · cumulative bytes",
+    meaning:
+      "The cumulative number of bytes moved by these sockets since monitoring began. It only grows; the rate columns show how fast.",
+    example: "1.5 GB means about 1.5 gigabytes moved in total, not per second.",
+    reading:
+      "Compare it with the rate columns to see whether past traffic or current traffic dominates.",
+    limits: "Lost counter updates can make the total a lower bound.",
+    related: ["rates", "coverage", "socketio"],
+    aliases: [],
+    source: "eBPF observer byte counters",
+    sourceDetail:
+      "The cumulative bytes counted by the optional eBPF observer (see Socket received and Socket sent) since it started observing.",
+  },
+  rates: {
+    title: "Socket rates",
+    scope: "Process or breakdown · per second",
+    meaning:
+      "Current, average, minimum, and maximum rates over their labeled observation windows.",
+    example: "",
+    reading:
+      "Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.",
+    limits:
+      "Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.",
+    related: ["coverage", "socketio"],
+    aliases: [
+      "Current rate",
+      "Now /s",
+      "Average since start",
+      "Average /s",
+      "Recent minimum",
+      "Recent min /s",
+      "Recent maximum",
+      "Recent max /s",
+    ],
+    source: "Collector: change of the eBPF observer counters",
+    sourceDetail:
+      "The collector divides the change of the observer counters by the time between reports, and keeps the minimum and maximum over the most recent 60 intervals.",
+  },
 } as const satisfies Record<string, HelpTopic>;
 
 export type HelpTopicId = keyof typeof helpTopics;

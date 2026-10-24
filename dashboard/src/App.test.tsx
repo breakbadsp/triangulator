@@ -135,9 +135,10 @@ test("reports poll failures and keeps the last target name", async () => {
   failed = true;
   await waitFor(
     () => {
-      expect(screen.getByRole("status").textContent).toBe(
-        "⚠ Collector unavailable. Displayed data is stale.",
-      );
+      // The socket panel has its own status badge.
+      expect(
+        screen.getAllByRole("status").map((status) => status.textContent),
+      ).toContain("⚠ Collector unavailable. Displayed data is stale.");
     },
     { timeout: 2500 },
   );
@@ -439,4 +440,156 @@ test("a finding action filters the thread table", async () => {
       row.getAttribute("data-tid"),
     ),
   ).toEqual(["42"]);
+});
+
+// The Resources section: its own history poll, and the Summary findings use
+// the same history and pressure scope.
+const resourceLive = (extra: Partial<LiveResponse> = {}): LiveResponse => ({
+  ...live,
+  health: { ...live.health, session: "s" },
+  threads: [{ tid: 42, name: "worker", last_sample: 100, cpu_pct: 1 }],
+  resources: {
+    available: true,
+    session: "s",
+    pid: 42,
+    updated: 100,
+    network: { tcp_timeouts: { delta: 0, per_s: 0, total: 4 } },
+  },
+  ...extra,
+});
+const span = (url: string) => {
+  const query = new URL(url, "http://test").searchParams;
+  return Number(query.get("end")) - Number(query.get("start"));
+};
+const timeouts = (delta: number) =>
+  Response.json({
+    rows: [{ ts: 1, pid: 42, elapsed_s: 1, tcp_timeouts_delta: delta }],
+    bucket_s: 1,
+    truncated: false,
+    read_error: false,
+  });
+
+// Old test 558: range clicks refresh at once, but only one loop polls.
+test("resource range changes keep one polling loop, with overlapping requests and failures", async () => {
+  vi.useFakeTimers();
+  try {
+    history.replaceState(null, "", "/?target=host%2Fworker");
+    const calls: {
+      url: string;
+      resolve: (response: Response) => void;
+      reject: (error: Error) => void;
+    }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation((input) => {
+        const url = typeof input === "string" ? input : "";
+        if (url.startsWith("/api/targets"))
+          return Promise.resolve(Response.json(targets));
+        if (url.startsWith("/api/resources"))
+          return new Promise((resolve, reject) => {
+            calls.push({ url, resolve, reject });
+          });
+        return Promise.resolve(Response.json(resourceLive()));
+      }),
+    );
+    render(<App />);
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(calls.map((call) => span(call.url))).toEqual([900]);
+    expect(calls[0]?.url).toContain("target=host%2Fworker");
+    fireEvent.click(screen.getByRole("button", { name: "1 h" }));
+    fireEvent.click(screen.getByRole("button", { name: "6 h" }));
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(calls.map((call) => span(call.url))).toEqual([900, 3600, 21600]);
+    // The answers arrive in reverse order; only the 6 h answer is shown.
+    await act(async () => {
+      calls[2]?.resolve(timeouts(7));
+      calls[1]?.resolve(timeouts(99));
+      calls[0]?.resolve(timeouts(55));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    const inRange = () =>
+      document.querySelector('#netstack tr[data-counter="tcp_timeouts"]')
+        ?.children[2]?.textContent;
+    expect(inRange()).toBe("7");
+    await act(() => vi.advanceTimersByTimeAsync(4900));
+    expect(calls).toHaveLength(3);
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(calls.map((call) => span(call.url))).toEqual([
+      900, 3600, 21600, 21600,
+    ]);
+    // A failed poll keeps the last good history and the single loop.
+    await act(async () => {
+      calls[3]?.reject(new Error("Collector unavailable"));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(inRange()).toBe("7");
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(calls).toHaveLength(5);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the Summary findings use the Resources history and pressure scope", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  const now = Date.now() / 1000;
+  const view = resourceLive({
+    threads: [
+      {
+        tid: 42,
+        name: "worker",
+        last_sample: 100,
+        cpu_pct: 1,
+        major_faults_per_s: 20,
+      },
+    ],
+    memory: { available: true, pid: 42 },
+    resources: {
+      available: true,
+      session: "s",
+      pid: 42,
+      updated: now,
+      pressure: {
+        cgroup: { memory: { some: { pct: 0 } } },
+        host: { memory: { some: { pct: 10 } } },
+      },
+    },
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = typeof input === "string" ? input : "";
+      if (url.startsWith("/api/targets"))
+        return Promise.resolve(Response.json(targets));
+      if (url.startsWith("/api/resources"))
+        return Promise.resolve(
+          Response.json({
+            rows: Array.from({ length: 7 }, (_, index) => ({
+              ts: now - 60 + index * 10,
+              pid: 42,
+              elapsed_s: 10,
+              rss_bytes: (100 + index * 4) * 2 ** 20,
+            })),
+            bucket_s: 10,
+            truncated: false,
+            read_error: false,
+          }),
+        );
+      return Promise.resolve(Response.json(view));
+    }),
+  );
+  render(<App />);
+  expect(
+    await screen.findByText("Resident memory grows without a plateau"),
+  ).toBeDefined();
+  // The cgroup has no memory pressure; the host has 10%.
+  expect(
+    screen.queryByText("Major page faults and memory pressure rise together"),
+  ).toBeNull();
+  fireEvent.change(screen.getByRole("combobox", { name: "Pressure scope" }), {
+    target: { value: "host" },
+  });
+  expect(
+    screen.getByText("Major page faults and memory pressure rise together"),
+  ).toBeDefined();
 });
