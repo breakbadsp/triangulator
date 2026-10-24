@@ -16,7 +16,7 @@ if [[ $# -eq 0 ]]; then
     # Check the build tools first, so a missing one leaves no half-made setup.
     missing=()
     tools=(sed getconf)
-    [[ ! -f "$root/Makefile" ]] || tools+=(make "${CXX:-c++}")
+    [[ ! -f "$root/Makefile" ]] || tools+=(make "${CXX:-c++}" node npm)
     for tool in "${tools[@]}"; do
         command -v "$tool" >/dev/null || missing+=("$tool")
     done

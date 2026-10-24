@@ -44,7 +44,8 @@
 namespace triangulator::collector
 {
 
-// dashboard.html, as bytes the Makefile writes to build/dashboard_html.inc.
+// dashboard/dist/index.html, as bytes the Makefile writes to
+// build/dashboard_html.inc.
 inline constexpr unsigned char kDashboardHtml[] = {
 #include "dashboard_html.inc"
 };

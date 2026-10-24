@@ -488,12 +488,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertNotIn("recent_alerts", live)
                 status, page = fetch("/")
                 self.assertEqual(status, 200)
-                self.assertIn(b"showAlerting", page)
-                # The process overview is computed in the page from /api/live;
-                # check the served binary carries it, not just the source file.
-                self.assertIn(b'id="overview"', page)
-                self.assertIn(b"function updateLoadAverage", page)
-                self.assertIn(b'data-activity="idle"', page)
+                self.assertIn(b'<div id="root">', page)
                 self.assertEqual(fetch("/api/alert-settings")[0], 404)
                 self.assertEqual(fetch("/api/alert-settings", "POST")[0], 501)
                 self.assertEqual(fetch("/api/history?session=1")[0], 400)
@@ -513,13 +508,11 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 for query in ("at=nan", "at=inf", "at=-1", "at=9999999999999", "at=1&direction=bad", "direction=next"):
                     self.assertEqual(fetch("/api/replay?" + query)[0], 400)
                 self.assertIsNone(json.loads(fetch("/api/replay?at=0")[1])["snapshot"])
-                self.assertIn(b'id="timeline-range"', page)
                 # After the target exits, live health names the session of the
                 # last view with the target, /api/last-target still serves it,
                 # and /api/live reports the exit.
                 self.assertNotIn("last_target", live["health"])
                 self.assertIsNone(live["exit"])
-                self.assertIn(b'id="process-exit"', page)
                 target.kill()
                 target.wait(timeout=8)
                 deadline = time.monotonic() + 10
@@ -553,7 +546,6 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(final["health"]["session"], session)
                 self.assertFalse(final["health"]["target_absent"])
                 self.assertEqual(final["threads"][0]["name"], "sleep")
-                self.assertIn(b'id="exited"', page)
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:
