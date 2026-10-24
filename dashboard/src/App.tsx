@@ -11,6 +11,7 @@ import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
 import type { Finding } from "./lib/findings";
 import { initialThreadView, threadView } from "./lib/threadView";
+import type { Series } from "./lib/series";
 import { usePoll } from "./hooks/usePoll";
 import { useSeries } from "./hooks/useSeries";
 import { readPage, type Page } from "./page";
@@ -33,19 +34,19 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const [threads, dispatch] = useReducer(threadView, initialThreadView);
   const session = view?.health.session;
   const openThread = useCallback(
-    (thread: Thread) => {
+    (thread: Thread, threadSession: Series["session"]) => {
       history.replaceState(null, "", `#thread=${String(thread.tid)}`);
       dispatch({
         type: "open",
         selected: {
-          session,
+          session: threadSession,
           tid: thread.tid,
           generation: thread.generation,
           name: thread.name,
         },
       });
     },
-    [session],
+    [],
   );
   const closeThread = useCallback(() => {
     // Only the thread fragment goes; the target query stays.
@@ -58,12 +59,12 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
     if (selected || !location.hash.startsWith("#thread=")) return;
     const tid = Number(location.hash.slice(8));
     const thread = view?.threads.find((item) => item.tid === tid);
-    if (thread) openThread(thread);
-  }, [view, selected, openThread]);
+    if (thread) openThread(thread, session);
+  }, [view, selected, openThread, session]);
   function findingAction(action: NonNullable<Finding["action"]>) {
     if (action.tid) {
       const thread = view?.threads.find((item) => item.tid === action.tid);
-      if (thread) openThread(thread);
+      if (thread) openThread(thread, session);
       return;
     }
     dispatch({

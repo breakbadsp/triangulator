@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
 import { helpTopics } from "./help/topics";
@@ -311,6 +317,81 @@ test("a thread URL opens the drawer and closing it keeps the target query", asyn
   expect(location.hash).toBe("");
   expect(document.querySelector("#drawer.open")).toBeNull();
 });
+
+test.each(["table", "map"])(
+  "a held %s thread opens history from its own session after a poll",
+  async (surface) => {
+    history.replaceState(null, "", "/?target=host%2Fworker");
+    const thread = {
+      tid: 42,
+      generation: 1,
+      name: "session A worker",
+      state: "running",
+      cpu_pct: 10,
+      last_sample: 100,
+    };
+    let liveCalls = 0;
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = typeof input === "string" ? input : "";
+      if (url.startsWith("/api/targets"))
+        return Promise.resolve(Response.json(targets));
+      if (url.startsWith("/api/history"))
+        return Promise.resolve(Response.json({ rows: [], truncated: false }));
+      liveCalls++;
+      return Promise.resolve(
+        Response.json({
+          ...live,
+          health: {
+            ...live.health,
+            session: liveCalls === 1 ? "session-A" : "session-B",
+          },
+          threads: [
+            liveCalls === 1 ? thread : { ...thread, name: "session B worker" },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    const row = await waitFor(() => {
+      const item = document.querySelector<HTMLElement>(
+        "#threads tr[data-tid='42']",
+      );
+      expect(item?.textContent).toContain("session A worker");
+      return item as HTMLElement;
+    });
+    const tile = document.querySelector<HTMLElement>("#mosaic [data-tid='42']");
+    if (!tile) throw new Error("Missing thread map tile");
+    if (surface === "table") fireEvent.focus(row);
+    else fireEvent.mouseEnter(tile);
+    await waitFor(
+      () => {
+        expect(liveCalls).toBeGreaterThanOrEqual(2);
+      },
+      { timeout: 2500 },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    if (surface === "table")
+      expect(row.textContent).toContain("session A worker");
+    else expect(tile.getAttribute("aria-label")).toContain("session A worker");
+    if (surface === "table") fireEvent.keyDown(row, { key: "Enter" });
+    else fireEvent.click(tile);
+    await waitFor(() => {
+      const request = fetchMock.mock.calls
+        .map(([input]) => (typeof input === "string" ? input : ""))
+        .find((url) => url.startsWith("/api/history?"));
+      expect(request).toBeDefined();
+      expect(
+        new URL(request ?? "", "http://test").searchParams.get("session"),
+      ).toBe("session-A");
+    });
+    expect(document.getElementById("history-title")?.textContent).toBe(
+      "session A worker",
+    );
+  },
+);
 
 test("a finding action filters the thread table", async () => {
   history.replaceState(null, "", "/?target=host%2Fworker");
