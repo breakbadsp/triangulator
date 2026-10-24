@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveResponse } from "../api/types";
-import { emptySeries, ingest, restoreSeries, type Series } from "../lib/series";
+import {
+  emptySeries,
+  ingest,
+  restoreSeries,
+  threadsEntry,
+  type Series,
+} from "../lib/series";
 
 const storageKey = (name: string, target: string) =>
   target ? `${name}:${target}` : name;
@@ -27,15 +33,9 @@ function save(series: Series, target: string) {
     /* The tab keeps its series in memory. */
   }
   try {
-    // Per-thread CPU history (`avg`, `since`) joins this entry in phase 5.
     sessionStorage.setItem(
       storageKey("triangulator:threads", target),
-      JSON.stringify({
-        session: series.session,
-        since: 0,
-        avg: [],
-        seen: [...series.seen],
-      }),
+      JSON.stringify(threadsEntry(series)),
     );
   } catch {
     try {
