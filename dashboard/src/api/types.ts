@@ -13,11 +13,7 @@ export interface Target {
 }
 
 export interface LiveResponse {
-  process?: {
-    session: string;
-    started_at: number | null;
-    command: string;
-  } | null;
+  process?: ProcessInfo | null;
   health: {
     session?: string | null;
     packet_loss_pct?: number | null;
@@ -54,8 +50,32 @@ export interface Thread {
   read_bps?: number | null;
   write_bps?: number | null;
 }
+// Source: ProcessStore::Snapshot (collector/process.hpp).
+export interface ProcessInfo {
+  session: string;
+  pid?: number;
+  started_at: number | null;
+  parent_pid?: number | null;
+  uid?: number | null;
+  euid?: number | null;
+  gid?: number | null;
+  egid?: number | null;
+  command: string;
+  executable?: string;
+  working_directory?: string;
+  cpus_allowed?: string;
+  exe_deleted?: boolean;
+  exe_hidden?: boolean;
+  cwd_hidden?: boolean;
+  command_truncated?: boolean;
+  executable_truncated?: boolean;
+  working_directory_truncated?: boolean;
+  cpus_truncated?: boolean;
+}
 export interface ProcessExit {
   pid: number;
+  process_start?: number;
+  session?: string;
   name: string;
   ended_at: number;
   reason: string;
@@ -65,6 +85,9 @@ export interface ProcessExit {
   core_dumped?: boolean | null;
   exit_code?: number | null;
   kernel_log?: string;
+  error?: string | null;
+  messages?: readonly string[];
+  count?: number;
 }
 export interface PressureEntry {
   pct?: number | null;

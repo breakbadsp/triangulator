@@ -17,6 +17,13 @@ export interface Point {
   died: number;
   rss: number | null;
   vm: number | null;
+  /** The 1-min load average after this point, or null when its rates are unknown. */
+  l1?: number | null;
+}
+/** Damped 1, 5, and 15 min load averages, like /proc/loadavg. */
+export interface LoadState {
+  t: number;
+  averages: [number, number, number];
 }
 export interface ThreadSeen {
   first: number;
@@ -30,6 +37,7 @@ export interface Series {
   lastTick: number;
   ids: ReadonlySet<string> | null;
   seen: ReadonlyMap<number, ThreadSeen>;
+  load: LoadState | null;
 }
 export const emptySeries: Series = {
   session: null,
@@ -37,7 +45,76 @@ export const emptySeries: Series = {
   lastTick: 0,
   ids: null,
   seen: new Map(),
+  load: null,
 };
+// Load as the kernel defines it, for this process: cores of CPU used, plus
+// cores of demand that waited for a CPU, plus threads in uninterruptible wait.
+const loadOf = (point: Point) =>
+  point.cpu === null
+    ? null
+    : (point.cpu + (point.rd || 0)) / 100 + (point.s.kernel || 0);
+const LOAD_WINDOWS = [60, 300, 900] as const;
+// Updated once per point, independently of chart retention and redraws.
+function advanceLoad(load: LoadState | null, point: Point): LoadState | null {
+  const value = loadOf(point);
+  if (value === null) {
+    point.l1 = null;
+    return load;
+  }
+  const averages = load
+    ? (LOAD_WINDOWS.map((seconds, index) => {
+        const decay = Math.exp(-Math.min(point.t - load.t, 30) / seconds);
+        return (load.averages[index] ?? 0) * decay + value * (1 - decay);
+      }) as LoadState["averages"])
+    : ([value, value, value] as LoadState["averages"]);
+  point.l1 = averages[0];
+  return { averages, t: point.t };
+}
+const isLoadState = (value: unknown, lastTick: number): value is LoadState =>
+  typeof value === "object" &&
+  value !== null &&
+  "t" in value &&
+  isNum(value.t) &&
+  value.t <= lastTick &&
+  "averages" in value &&
+  Array.isArray(value.averages) &&
+  value.averages.length === 3 &&
+  value.averages.every(isNum);
+const savedFor = (saved: unknown, session: Series["session"]) =>
+  typeof saved === "object" &&
+  saved !== null &&
+  "session" in saved &&
+  saved.session === session
+    ? (saved as Record<string, unknown>)
+    : null;
+/**
+ * The series that a tab saved for this session, from the parsed
+ * `triangulator:buffer` and `triangulator:threads` entries. Entries of another
+ * session are ignored; an old or invalid load state is seeded from the points.
+ */
+export function restoreSeries(
+  buffer: unknown,
+  threads: unknown,
+  session: Series["session"],
+): Series {
+  const savedThreads = savedFor(threads, session),
+    savedBuffer = savedFor(buffer, session);
+  const seen = new Map<number, ThreadSeen>(
+    Array.isArray(savedThreads?.seen)
+      ? (savedThreads.seen as [number, ThreadSeen][])
+      : [],
+  );
+  const points = Array.isArray(savedBuffer?.points)
+    ? (savedBuffer.points as Point[]).map((point) => ({ ...point }))
+    : [];
+  const lastTick = points.at(-1)?.t || 0;
+  let load: LoadState | null = null;
+  if (isLoadState(savedBuffer?.loadState, lastTick))
+    load = savedBuffer.loadState;
+  // Older tabs saved only chart points; seed their averages once on restore.
+  else for (const point of points) load = advanceLoad(load, point);
+  return { session, points, lastTick, ids: null, seen, load };
+}
 export function ingest(series: Series, view: LiveResponse): Series {
   const { health, threads } = view;
   if (health.session !== series.session)
@@ -128,11 +205,13 @@ export function ingest(series: Series, view: LiveResponse): Series {
   }
   const present = new Set(threads.map((thread) => thread.tid));
   for (const tid of seen.keys()) if (!present.has(tid)) seen.delete(tid);
+  const load = advanceLoad(series.load, point);
   return {
     session: health.session,
     points: [...series.points, point].filter((point) => point.t >= tick - 900),
     lastTick: tick,
     ids,
     seen,
+    load,
   };
 }
