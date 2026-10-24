@@ -99,6 +99,7 @@
 | QA-094 | NOT_RUN | - | - | - |
 | QA-095 | NOT_RUN | - | - | - |
 | QA-096 | NOT_RUN | - | - | - |
+| QA-097 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -576,3 +577,8 @@
 
 - Test: Monitor a target with resource sampling on, open sockets, and network activity. Hold the pointer on a Pressure stalls table cell, a Network stack drops & errors row, and a Fullest sockets cell for 10 s each, then move into each card. Focus the Fullest sockets checkbox, scroll the table, and clear the checkbox. Select 1 h, then 6 h; change the pressure scope to Whole host. Restart the target process while the pointer holds the sockets table.
 - Expected: Under the pointer and in its card, rows, values, and readouts do not change; after the pointer leaves, each panel shows the latest sample, and active network counters move first. The checkbox keeps focus, the table returns to the top, and the filter applies at once. Range and scope changes clear chart readouts, refresh the charts and In range at once, and change the Summary findings that use pressure and RSS history. After the restart, no row of the old process remains, and the panel waits for a sample of the new process.
+
+## QA-097: Socket I/O panel states, filters, and observer changes
+
+- Test: Monitor a target with the optional socket observer and a completion marker. Check Received, Sent, and Messages processed, a socket kind, and a thread search. Hold the pointer on a breakdown cell for 10 s, then press Escape twice. Scroll the breakdown, then type in the search. Open What is measured · setup. Stop the observer, restart it, and restart the target process. Repeat without the observer and with a collector build that has no socket endpoint.
+- Expected: Cards and chart show the whole process; filters change only the breakdown, keep focus, and start it at the top. Messages processed disables Socket kind, and Received restores the kind if it still exists. A held row and its card do not change during polls; the first Escape closes the card and the second does nothing else. Retired thread generations are separate rows, and no row opens a thread drawer. Observer silent, Observation ended, lower-bound, and cached states are named. After an observer or process restart, no row or card of the old one remains. The setup details stay open. Without the observer, the panel names the reason.

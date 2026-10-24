@@ -1635,6 +1635,105 @@ export const helpTopics = {
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/dev` transmit errs, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
   },
+  socketio: {
+    title: "Socket I/O & message processing",
+    scope: "Optional observer · target process",
+    meaning:
+      "Traffic measured by observed socket operations, with optional application completion counts.",
+    example: "",
+    reading:
+      "The cards and chart cover the whole process. Thread and socket-kind filters affect the breakdown only, which includes retired threads.",
+    limits:
+      "Received/sent bytes exclude peeks, failed operations, and UDP. A receive call can contain part of a message or many messages.",
+    related: ["received", "sent", "messages"],
+    aliases: ["What is measured · setup"],
+    source: "Optional eBPF observer: kernel tracepoints and a uprobe",
+    sourceDetail:
+      "The optional eBPF socket observer attaches to the kernel tracepoints sock_recv_length and sock_send_length. It counts, for each thread of the target, the bytes of successful socket receives and sends in kernel maps, and reports them to the collector once a second. Message counts come from a uprobe on the application marker function. Loading it needs privileges. The collector shows the observer that last reported the selected target's PID from the same sampler host. After a collector restart, it shows the stored observations of that PID until an observer reports, unless another target has the same PID.",
+  },
+  received: {
+    title: "Socket received",
+    scope: "Observed successful socket operations · bytes",
+    meaning: "Successful byte counts returned by observed receive operations.",
+    example: "",
+    reading:
+      "Compare the rate with message completions when application markers are enabled.",
+    limits:
+      "Coverage is specific to the observer. Receive calls and byte counts do not define application messages.",
+    related: ["socketio", "messages"],
+    aliases: ["↓ Received", "Received", "Received bytes"],
+    source: "eBPF: tracepoint sock_recv_length",
+    sourceDetail:
+      "The optional eBPF observer adds the byte count of each successful receive on a target socket, from the sock_recv_length kernel tracepoint. Peeks and failed calls are not counted.",
+  },
+  sent: {
+    title: "Socket sent",
+    scope: "Observed successful socket operations · bytes",
+    meaning: "Bytes accepted by observed socket send operations.",
+    example: "",
+    reading: "Compare sent and received rates with queue use.",
+    limits: "Acceptance by the socket does not prove delivery to the peer.",
+    related: ["socketio", "sendq"],
+    aliases: ["↑ Sent", "Sent", "Sent bytes"],
+    source: "eBPF: tracepoint sock_send_length",
+    sourceDetail:
+      "The optional eBPF observer adds the byte count of each successful send on a target socket, from the sock_send_length kernel tracepoint. Failed calls are not counted.",
+  },
+  messages: {
+    title: "Messages processed",
+    scope: "Application completion markers",
+    meaning:
+      "Calls to an explicit application marker, one per successfully processed message.",
+    example: "",
+    reading:
+      "A configured completion marker is required. Compare completions with byte rates to understand workload changes.",
+    limits: "Message counts are never inferred from read calls or byte counts.",
+    related: ["socketio", "received"],
+    aliases: ["Messages", "✓ Messages processed"],
+    source: "eBPF uprobe on the application marker function",
+    sourceDetail:
+      "The optional eBPF observer attaches a uprobe to the marker function named when it starts, and counts each call. The application calls the marker once for each message it has finished.",
+  },
+  sockettotal: {
+    title: "Socket total",
+    scope: "Process or breakdown · cumulative bytes",
+    meaning:
+      "The cumulative number of bytes moved by these sockets since monitoring began. It only grows; the rate columns show how fast.",
+    example: "1.5 GB means about 1.5 gigabytes moved in total, not per second.",
+    reading:
+      "Compare it with the rate columns to see whether past traffic or current traffic dominates.",
+    limits: "Lost counter updates can make the total a lower bound.",
+    related: ["rates", "coverage", "socketio"],
+    aliases: [],
+    source: "eBPF observer byte counters",
+    sourceDetail:
+      "The cumulative bytes counted by the optional eBPF observer (see Socket received and Socket sent) since it started observing.",
+  },
+  rates: {
+    title: "Socket rates",
+    scope: "Process or breakdown · per second",
+    meaning:
+      "Current, average, minimum, and maximum rates over their labeled observation windows.",
+    example: "",
+    reading:
+      "Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.",
+    limits:
+      "Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.",
+    related: ["coverage", "socketio"],
+    aliases: [
+      "Current rate",
+      "Now /s",
+      "Average since start",
+      "Average /s",
+      "Recent minimum",
+      "Recent min /s",
+      "Recent maximum",
+      "Recent max /s",
+    ],
+    source: "Collector: change of the eBPF observer counters",
+    sourceDetail:
+      "The collector divides the change of the observer counters by the time between reports, and keeps the minimum and maximum over the most recent 60 intervals.",
+  },
 } as const satisfies Record<string, HelpTopic>;
 
 export type HelpTopicId = keyof typeof helpTopics;
