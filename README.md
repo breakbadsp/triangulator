@@ -49,7 +49,7 @@ header to select **System**, **Light**, or **Dark**. Metric help includes a
 Use Linux and run as the monitored process user.
 Source builds need a C++23 compiler with `std::expected` and `std::format`, Make,
 SQLite development files, and static C/C++ runtime libraries.
-Target control needs Python 3.11+. Tests also need Node.js.
+Target control needs Python 3.11+. Building the collector needs Node.js 24+ and npm.
 Prefer binaries? See [release packages](#release-packages).
 
 ```sh

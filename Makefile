@@ -82,7 +82,7 @@ CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target
 	$(SOCKET_HEADERS) socket_sampler/main.cpp socket_sampler/socket.bpf.cpp \
 	$(METRICS_HEADERS) metrics/main.cpp
 
-.PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release sqlite-amalgamation FORCE
+.PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release sqlite-amalgamation dashboard-check FORCE
 all: build/triangulator-sampler build/triangulator-collector build/triangulator-socket-report
 
 # Rebuild when link mode, compiler or flags change, including after release.
@@ -115,7 +115,7 @@ build/sqlite3.o: $(SQLITE_SOURCE) $(SQLITE_HEADER) build/sqlite_options Makefile
 	$(COMPILER_CACHE) $(CXX) -x c $(CPPFLAGS) $(SQLITE_CFLAGS) -DSQLITE_OMIT_LOAD_EXTENSION -c $< -o $@
 
 # Optional download of the SQLite amalgamation for fully static builds. Nothing
-# else in this Makefile uses the network. The script checks the published hash.
+# else except npm ci in this Makefile uses the network. The script checks the published hash.
 sqlite-amalgamation:
 	python3 -I scripts/fetch-sqlite.py build/sqlite
 
@@ -155,11 +155,18 @@ build/triangulator-sampler: build/triangulator-sampler.o build/compiler_ok Makef
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
 
-# The collector embeds collector/dashboard.html, so the binary serves the
+# The collector embeds dashboard/dist/index.html, so the binary serves the
 # page without reading files at run time. od writes the page's bytes as a
 # comma-separated list that collector/http.hpp includes. (C++26 #embed does
 # the same but needs GCC 15 or Clang 19; this works with any C++23 compiler.)
-build/dashboard_html.inc: collector/dashboard.html Makefile
+dashboard/node_modules/.package-lock.json: dashboard/package.json dashboard/package-lock.json
+	cd dashboard && npm ci
+
+DASHBOARD_SOURCES := $(shell find dashboard/src -type f)
+dashboard/dist/index.html: $(DASHBOARD_SOURCES) dashboard/index.html dashboard/vite.config.ts dashboard/tsconfig.json dashboard/node_modules/.package-lock.json
+	cd dashboard && npm run build
+
+build/dashboard_html.inc: dashboard/dist/index.html Makefile
 	mkdir -p build
 	od -An -v -tu1 $< > $@.od
 	sed 's/^ *//; s/ *$$//; s/  */,/g; s/$$/,/' $@.od > $@.tmp
@@ -220,7 +227,10 @@ build/collector-test: build/collector-test.o $(SQLITE_OBJECT) build/compiler_ok 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) -Wl,--wrap=fsync $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
 CPP_TESTS := build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test build/socket-metrics-test
-check: all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
+dashboard-check: dashboard/node_modules/.package-lock.json
+	cd dashboard && npm run check
+
+check: dashboard-check all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
 	python3 tests/run_checks.py $(CPP_TESTS)
 
 check-asan:
@@ -276,14 +286,15 @@ benchmark-sampling: build/benchmark-sampling build/benchmark-target
 benchmark-slow-samples: build/benchmark-sampling build/benchmark-victim
 	python3 tests/benchmark_slow_samples.py
 
-format:
+format: dashboard/node_modules/.package-lock.json
+	cd dashboard && npm run format
 	$(CLANG_FORMAT) -i $(CPP_SOURCES)
 
 format-check:
 	$(CLANG_FORMAT) --dry-run --Werror $(CPP_SOURCES)
 
 clean:
-	rm -rf build
+	rm -rf build dashboard/dist
 
 # Optional privileged source; the normal proc sampler stays dependency-free.
 BPF_CXX ?= clang++
