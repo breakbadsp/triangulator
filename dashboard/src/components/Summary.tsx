@@ -110,7 +110,7 @@ export function Summary({
       topic={topic}
       points={points.some((point) => isNum(point[key])) ? points : []}
       series={[{ label, color, get: (point) => point[key] }]}
-      format={(value) => axisBytes(Number(value))}
+      format={axisBytes}
       nice={niceBytes}
       height={100}
       minMax={2 ** 20}

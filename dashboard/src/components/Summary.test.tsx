@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, MemorySummary, Resources } from "../api/types";
 import { helpTopics } from "../help/topics";
@@ -109,6 +109,28 @@ test("summary memory charts explain sampling that is off or missing", () => {
   expect(empty(container, "chart-rss")).toBeNull();
   expect(container.querySelector("#chart-rss svg")).not.toBeNull();
   expect(container.querySelector("#chart-load svg")).not.toBeNull();
+});
+
+test("a memory chart reads a missing sample as not available, not 0 B", () => {
+  vi.useFakeTimers();
+  try {
+    const { container } = show(
+      view({ resources: { available: true } }),
+      series([point(1), point(2, { rss: 2 ** 20 }), point(3)]),
+    );
+    // jsdom has no layout: the plot spans x=52 (t=1) to x=586 (t=3).
+    const hit = container.querySelector("#chart-rss rect") as SVGRectElement;
+    fireEvent.pointerMove(hit, { clientX: 586, clientY: 40 });
+    act(() => {
+      vi.advanceTimersByTime(1200);
+    });
+    const card = screen.getByRole("dialog");
+    expect(card.querySelector(".help-reading")?.textContent).toBe(
+      "Not availableResident (RSS)",
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("the assessment lists 8 findings and shows the rest on request", () => {
