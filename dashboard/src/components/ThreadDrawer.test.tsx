@@ -47,6 +47,7 @@ function Drawer({
   );
 }
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   close.mockClear();
 });
@@ -153,6 +154,46 @@ test("Escape closes drawer help before it closes the drawer", async () => {
   expect(document.querySelector(".help-card")).toBeNull();
   expect(close).not.toHaveBeenCalled();
   fireEvent.keyDown(document, { key: "Escape" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+test("Escape closes focused history help and cancels an earlier pending hover", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation(() => Promise.resolve(emptyHistory())),
+  );
+  render(<Drawer thread={selected(one)} />);
+  await screen.findByText(/0 summaries/);
+  vi.useFakeTimers();
+  const historyHelp = document.querySelector<HTMLElement>(
+    "#history [data-help='history']",
+  );
+  const closeHelp = screen
+    .getByRole("button", { name: "Close thread details" })
+    .closest("[data-help]");
+  if (!historyHelp || !closeHelp) throw new Error("Missing drawer help");
+  act(() => {
+    historyHelp.focus();
+    vi.advanceTimersByTime(250);
+  });
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(screen.getByRole("dialog", { name: "History" })).toBeDefined();
+  fireEvent.mouseLeave(historyHelp);
+  fireEvent.mouseEnter(closeHelp);
+  act(() => {
+    vi.advanceTimersByTime(1199);
+  });
+  expect(document.activeElement).toBe(historyHelp);
+  fireEvent.keyDown(historyHelp, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(close).not.toHaveBeenCalled();
+  act(() => {
+    vi.advanceTimersByTime(1200);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.keyDown(historyHelp, { key: "Escape" });
   expect(close).toHaveBeenCalledOnce();
 });
 

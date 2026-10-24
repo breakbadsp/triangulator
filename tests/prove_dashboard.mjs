@@ -726,6 +726,68 @@ try {
     "thread drawer and real history response",
   );
   assert.equal(await evaluate("location.hash"), "#thread=7001");
+  // Keep History focused while an earlier Help instance has a pending hover.
+  await evaluate(
+    "document.querySelector('#history [data-help=history]').focus()",
+  );
+  await delay(300);
+  assert.deepEqual(
+    await evaluate(
+      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
+    ),
+    ["History"],
+  );
+  await hover("#drawer-close");
+  await until(
+    () => evaluate("document.querySelector('#drawer-close').matches(':hover')"),
+    "Close thread details receives the hover",
+  );
+  assert.deepEqual(
+    await evaluate(
+      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
+    ),
+    ["History"],
+    "Escape precedes the Close thread details dwell",
+  );
+  assert.equal(
+    await evaluate("document.activeElement.dataset.help"),
+    "history",
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+  });
+  assert.equal(
+    await evaluate("document.querySelectorAll('.help-card').length"),
+    0,
+    "Escape dismisses focused History help despite an earlier pending hover",
+  );
+  assert.equal(await evaluate("!!document.querySelector('#drawer.open')"), true);
+  await delay(1300);
+  assert.deepEqual(
+    await evaluate(
+      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
+    ),
+    [],
+    "Escape cancels pending help without reopening the focused card",
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+  });
+  assert.equal(await evaluate("!!document.querySelector('#drawer.open')"), false);
+  await evaluate(
+    "document.querySelector('#threads [data-tid=\"7001\"]').click()",
+  );
+  await until(
+    () =>
+      evaluate(
+        "!!document.querySelector('#drawer.open') && document.querySelector('#history-note').textContent !== 'Loading…'",
+      ),
+    "reopened drawer after two Escape presses",
+  );
   await evaluate(`(() => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     for (const [id, value] of [['from', '2026-10-23T10:00'], ['to', '2026-10-23T10:15']]) {
@@ -808,6 +870,7 @@ try {
     JSON.stringify(mobileThreads),
   );
   const threads = {
+    focusedHelpAndPendingHoverEscape: true,
     mapHeldAcrossPollsAndCard: true,
     columnReadouts: true,
     nullRateHeld: true,
