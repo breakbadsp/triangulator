@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
@@ -579,17 +580,22 @@ test("the Summary findings use the Resources history and pressure scope", async 
     }),
   );
   render(<App />);
+  // The Memory map section lists the same memory findings; this is the Summary.
+  const summary = () =>
+    within(document.getElementById("overview") as HTMLElement);
   expect(
-    await screen.findByText("Resident memory grows without a plateau"),
+    await summary().findByText("Resident memory grows without a plateau"),
   ).toBeDefined();
   // The cgroup has no memory pressure; the host has 10%.
   expect(
-    screen.queryByText("Major page faults and memory pressure rise together"),
+    summary().queryByText(
+      "Major page faults and memory pressure rise together",
+    ),
   ).toBeNull();
   fireEvent.change(screen.getByRole("combobox", { name: "Pressure scope" }), {
     target: { value: "host" },
   });
   expect(
-    screen.getByText("Major page faults and memory pressure rise together"),
+    summary().getByText("Major page faults and memory pressure rise together"),
   ).toBeDefined();
 });

@@ -23,12 +23,14 @@ export function Fold({
   children,
   autoOpen = false,
   className = "fold",
+  summaryClassName = "fold-summary",
 }: {
   name: string;
   summary: ReactNode;
   children: ReactNode;
   autoOpen?: boolean;
   className?: string;
+  summaryClassName?: string;
 }) {
   const [open, setOpen] = useState(() => savedChoice(name) === "open");
   if (autoOpen && !open && !chosen.has(name) && savedChoice(name) === null)
@@ -43,7 +45,7 @@ export function Fold({
       }}
     >
       <summary
-        className="fold-summary"
+        className={summaryClassName}
         onClick={(event) => {
           // A click or key on the summary is the user's choice; an automatic
           // open is not.

@@ -1,9 +1,10 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { LiveResponse, PressureScope } from "../api/types";
+import type { LiveResponse, MemoryLayout, PressureScope } from "../api/types";
 import { Help } from "../help/Help";
 import { isHelpTopicId } from "../help/topics";
 import { assess } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
+import type { MemoryPoint } from "../lib/memoryView";
 import { axisBytes, niceBytes } from "../lib/chart";
 import { clock, isNum, memoryBytes } from "../lib/format";
 import {
@@ -61,6 +62,8 @@ export function Summary({
   onFindingAction,
   resourcePoints,
   pressureScope,
+  memoryLayout = null,
+  memoryHistory = [],
   children,
 }: {
   view: LiveResponse | undefined;
@@ -69,6 +72,9 @@ export function Summary({
   /** Stored resource samples of the Resources range, as the old page used. */
   resourcePoints: readonly ResourcePoint[];
   pressureScope: PressureScope;
+  /** The held memory-map layout and live memory history (Memory map). */
+  memoryLayout?: MemoryLayout | null;
+  memoryHistory?: readonly MemoryPoint[];
   windowSecs: ChartWindow;
   onWindow: (seconds: ChartWindow) => void;
   /** A finding row opens its thread or filters the thread table. */
@@ -87,8 +93,8 @@ export function Summary({
         series,
         watchRules: null,
         resourcePoints,
-        memoryLayout: null,
-        memoryHistory: [],
+        memoryLayout,
+        memoryHistory,
         pressureScope,
       })
     : null;
