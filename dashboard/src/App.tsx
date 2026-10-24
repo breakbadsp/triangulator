@@ -13,6 +13,7 @@ import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Resources, type ResourceRange } from "./components/Resources";
+import { SocketIO } from "./components/SocketIO";
 import { Summary, type ChartWindow } from "./components/Summary";
 import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
@@ -153,6 +154,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           scope={pressureScope}
           onScope={setPressureScope}
         />
+        <SocketIO view={view} context={context} />
       </main>
       <ThreadDrawer
         view={view}
