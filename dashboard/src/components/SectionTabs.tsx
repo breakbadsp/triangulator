@@ -7,6 +7,7 @@ export interface Section {
 }
 export const sections: readonly Section[] = [
   { id: "overview", label: "Summary" },
+  { id: "threads-section", label: "Threads" },
 ];
 
 export function SectionTabs({

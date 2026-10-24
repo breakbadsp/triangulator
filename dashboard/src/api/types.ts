@@ -24,6 +24,8 @@ export interface LiveResponse {
     target_absent: boolean | null;
   };
   threads: readonly Thread[];
+  /** Thread count by config group. */
+  groups?: Readonly<Record<string, number>>;
   resources?: Resources;
   memory?: MemorySummary;
   exit?: ProcessExit | null;
@@ -219,4 +221,22 @@ export interface ResourceRow {
   pid: number;
   elapsed_s: number | null;
   rss_bytes: number | null;
+}
+// Source: History and HistoryRow (collector/http.hpp, collector/storage.hpp).
+export interface HistoryRow {
+  ts: number;
+  cpu_pct: number | null;
+  run_delay_pct: number | null;
+  read_bps: number | null;
+  write_bps: number | null;
+  sample_counts: Readonly<Record<string, number>>;
+  samples: number;
+  expected_samples: number;
+  /** 1 when the bucket has enough samples. */
+  valid: number;
+}
+export interface HistoryResponse {
+  rows: readonly HistoryRow[];
+  limit: number;
+  truncated: boolean;
 }

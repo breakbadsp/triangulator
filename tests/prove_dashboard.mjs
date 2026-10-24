@@ -140,6 +140,7 @@ try {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Network.enable");
+  const chromiumVersion = (await send("Browser.getVersion")).product;
   await send("Page.addScriptToEvaluateOnNewDocument", {
     source:
       "window.cspViolations=[];addEventListener('securitypolicyviolation',event=>window.cspViolations.push(event.violatedDirective))",
@@ -330,7 +331,7 @@ try {
     hostWidth: document.querySelector('#chart-load').clientWidth,
     sub: document.querySelector('#overview-sub').textContent,
   })`);
-  assert.deepEqual(summary.tabs, ["Summary"]);
+  assert.deepEqual(summary.tabs, ["Summary", "Threads"]);
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
   // The chart is drawn at its host's measured width, not the 600 px default.
@@ -359,6 +360,7 @@ try {
       rows: [...card.querySelectorAll('.help-reading')].map((row) => row.textContent),
       left: parseFloat(card.style.left),
       top: parseFloat(card.style.top),
+      height: card.getBoundingClientRect().height,
     };
   })()`);
   assert.equal(readout.title, "Process load");
@@ -370,7 +372,10 @@ try {
   // The card opens beside the pointer, not under the chart's corner.
   assert.ok(Math.abs(readout.left - (box.x + 8)) <= 1, JSON.stringify(readout));
   assert.ok(
-    Math.abs(readout.top - Math.max(12, Math.min(box.y, box.height - 240))) <= 1,
+    Math.abs(
+      readout.top -
+        Math.max(12, Math.min(box.y, box.height - readout.height - 12)),
+    ) <= 1,
     JSON.stringify(readout),
   );
   await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
@@ -396,15 +401,448 @@ try {
         new URL(url).searchParams.get("target") === target.key,
     ),
   );
+  // Phase 5: keep the real collector and embedded page. Override only live
+  // responses for deterministic reorders and unavailable rates.
+  let threadStage = 0,
+    threadPolls = 0;
+  onPaused = async ({ requestId }) => {
+    const reply = await send("Fetch.getResponseBody", { requestId });
+    const view = JSON.parse(
+      reply.base64Encoded
+        ? Buffer.from(reply.body, "base64").toString()
+        : reply.body,
+    );
+    threadPolls++;
+    const tick = live.health.last_seen + threadPolls * 10 + 100;
+    view.health.session = "999999";
+    view.health.last_seen = tick;
+    view.groups = { main: 40 };
+    view.threads = Array.from({ length: 40 }, (_, index) => ({
+      tid: 7001 + index,
+      generation: 1,
+      name:
+        index === 0
+          ? "zulu"
+          : index === 1
+            ? "alpha"
+            : `worker-${String(index).padStart(2, "0")}`,
+      group: "main",
+      state: threadStage >= 4 && index >= 20 ? "futex" : "running",
+      wchan:
+        threadStage >= 4 && index >= 20
+          ? threadStage === 4
+            ? "futex_wait"
+            : "do_epoll_wait"
+          : "",
+      state_mix:
+        threadStage >= 4 && index >= 20 ? { futex: 20 } : { running: 20 },
+      cpu_pct:
+        index === 0
+          ? threadStage === 2
+            ? null
+            : threadStage === 3
+              ? 55
+              : threadStage === 0
+                ? 90
+                : 0
+          : index === 1
+            ? threadStage === 1
+              ? 990
+              : 1
+            : 1,
+      run_delay_pct: 0,
+      switches_per_s: 10,
+      read_bps: 2048,
+      write_bps: 4096,
+      major_faults_per_s: 0,
+      cpu: index % 4,
+      last_sample: tick,
+    }));
+    await send("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(view)).toString("base64"),
+    });
+  };
+  await send("Fetch.enable", {
+    patterns: [{ urlPattern: "*/api/live?*", requestStage: "Response" }],
+  });
+  await until(
+    () =>
+      evaluate(
+        "document.querySelectorAll('#threads tr[data-tid]').length === 40",
+      ),
+    "40 thread rows",
+  );
+  async function escapeHelp() {
+    await send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Escape",
+      code: "Escape",
+    });
+    await evaluate("document.activeElement?.blur()");
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+    await delay(300);
+  }
+  async function hover(selector) {
+    const point = await evaluate(`(() => {
+      const node = document.querySelector(${JSON.stringify(selector)});
+      node.scrollIntoView({ block: 'center' });
+      const b = node.getBoundingClientRect(); return { x: b.left + Math.min(10, b.width / 2), y: b.top + b.height / 2 };
+    })()`);
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+  }
+  const mapOrder =
+    "[...document.querySelectorAll('#mosaic [data-tid]')].map(node => node.dataset.tid)";
+  await evaluate("document.querySelector('[data-map-window=\"300\"]').click()");
+  await escapeHelp();
+  await hover('#mosaic [data-tid="7001"]');
+  await until(
+    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
+    "averaged map card",
+  );
+  const heldMap = await evaluate(mapOrder);
+  const heldText = await evaluate(
+    "document.querySelector('[role=dialog]').textContent",
+  );
+  await hover('[role="dialog"]');
+  const pollsBefore = threadPolls;
+  threadStage = 1;
+  await until(
+    () => threadPolls >= pollsBefore + 2,
+    "map reorder polls while inside card",
+  );
+  assert.deepEqual(await evaluate(mapOrder), heldMap);
+  assert.equal(
+    await evaluate("document.querySelector('[role=dialog]').textContent"),
+    heldText,
+  );
+  await escapeHelp();
+  await until(
+    async () => (await evaluate(mapOrder))[0] === "7002",
+    "latest averaged order after leaving card",
+  );
+  // One row, two columns with one topic: the second card must show Write/s.
+  const readCell = '#threads [data-tid="7001"] td:nth-child(8)';
+  const writeCell = '#threads [data-tid="7001"] td:nth-child(9)';
+  await hover(readCell);
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('[role=dialog] .help-readout')?.textContent.includes('Read/s')",
+      ),
+    "Read/s card",
+  );
+  const readText = await evaluate(
+    "document.querySelector('[role=dialog] .help-readout').textContent",
+  );
+  assert.ok(readText.includes("2.0 KB"));
+  await hover(writeCell);
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('[role=dialog] .help-readout')?.textContent.includes('Write/s')",
+      ),
+    "Write/s card",
+  );
+  assert.ok(
+    await evaluate(
+      "document.querySelector('[role=dialog] .help-readout').textContent.includes('4.0 KB')",
+    ),
+  );
+  await escapeHelp();
+  // A null rate remains unavailable in its card across a new poll.
+  threadStage = 2;
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#threads [data-tid=\"7001\"] td:nth-child(5)').textContent.includes('—')",
+      ),
+    "missing CPU rate",
+  );
+  await hover('#threads [data-tid="7001"] td:nth-child(5)');
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('[role=dialog] .help-readout')?.textContent.includes('Not available')",
+      ),
+    "unavailable CPU card",
+  );
+  const heldTable = await evaluate(
+    "document.querySelector('#threads').textContent",
+  );
+  await hover('[role="dialog"]');
+  threadStage = 3;
+  const tablePoll = threadPolls;
+  await until(() => threadPolls > tablePoll, "table poll inside card");
+  assert.equal(
+    await evaluate("document.querySelector('#threads').textContent"),
+    heldTable,
+  );
+  assert.ok(
+    await evaluate(
+      "document.querySelector('[role=dialog] .help-readout').textContent.includes('Not available')",
+    ),
+  );
+  await escapeHelp();
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#threads [data-tid=\"7001\"] td:nth-child(5)').textContent.includes('55.0%')",
+      ),
+    "table resumes after card",
+  );
+  // Reorder the DOM while the row has focus; keep its scroll container.
+  await evaluate(`window.threadRow = document.querySelector('#threads [data-tid="7001"]'); window.threadRow.focus();
+    window.threadScroller = window.threadRow.closest('.table-wrap'); window.threadScroller.scrollTop = 100;
+    window.threadScroll = window.threadScroller.scrollTop; document.querySelector('th[data-sort="name"]').click()`);
+  const threadFocus =
+    await evaluate(`({ kept: document.activeElement === window.threadRow,
+    connected: window.threadRow.isConnected, scroll: window.threadScroller.scrollTop, before: window.threadScroll,
+    last: document.querySelector('#threads tr:last-child').dataset.tid })`);
+  assert.equal(threadFocus.kept, true);
+  assert.equal(threadFocus.connected, true);
+  assert.equal(threadFocus.scroll, threadFocus.before);
+  assert.ok(threadFocus.before > 0);
+  assert.equal(threadFocus.last, "7001");
+  const focusPoll = threadPolls;
+  await until(() => threadPolls > focusPoll, "focused row poll");
+  assert.ok(
+    await evaluate(
+      "document.activeElement === window.threadRow && window.threadScroller.scrollTop === window.threadScroll",
+    ),
+  );
+  await escapeHelp();
+  // A wait-channel readout holds its bars through a poll and card entry.
+  threadStage = 4;
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#wchan-bars .name')?.textContent === 'futex_wait'",
+      ),
+    "wait channel bars",
+  );
+  await hover("#wchan-bars .bar-row");
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('[role=dialog] .help-readout')?.textContent.includes('futex_wait')",
+      ),
+    "wait channel readout",
+  );
+  const waitingBars = await evaluate(
+    "document.querySelector('#wchan-bars').textContent",
+  );
+  await hover('[role="dialog"]');
+  threadStage = 5;
+  const waitingPoll = threadPolls;
+  await until(() => threadPolls > waitingPoll, "wait channel poll inside card");
+  assert.equal(
+    await evaluate("document.querySelector('#wchan-bars').textContent"),
+    waitingBars,
+  );
+  await escapeHelp();
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#wchan-bars .name')?.textContent === 'do_epoll_wait'",
+      ),
+    "wait channels resume",
+  );
+  await evaluate("document.querySelector('#wchan-bars .bar-row').click()");
+  assert.equal(
+    await evaluate(
+      "document.querySelector('[data-activity=all]').getAttribute('aria-pressed')",
+    ),
+    "true",
+  );
+  assert.equal(
+    await evaluate("document.querySelectorAll('#threads tr[data-tid]').length"),
+    20,
+  );
+  await evaluate(
+    "document.querySelector('#clear-filters').click();document.querySelector('#family-bars .bar-row').click()",
+  );
+  assert.equal(
+    await evaluate("document.querySelector('#search').value"),
+    "worker",
+  );
+  assert.equal(
+    await evaluate("document.querySelectorAll('#threads tr[data-tid]').length"),
+    38,
+  );
+  await evaluate(
+    "document.querySelector('#clear-filters').click();document.querySelector('[data-fold=cores] > summary').click()",
+  );
+  await escapeHelp();
+  assert.equal(
+    await evaluate("document.querySelectorAll('#cores .core').length"),
+    4,
+  );
+  // Check each Threads topic with real focus. The metric topics retain their
+  // source descriptions. Column labels reuse those topics.
+  const threadHelp = [];
+  for (const topic of [
+    "states",
+    "wchan",
+    "map",
+    "families",
+    "cores",
+    "thread",
+    "group",
+    "mix",
+    "cpu",
+    "delay",
+    "switches",
+    "sysio",
+    "faults",
+    "active",
+  ]) {
+    await escapeHelp();
+    await evaluate(
+      `(() => { const node = document.querySelector('#threads-section [data-help="${topic}"]'); node.scrollIntoView({block:'center'}); node.focus(); })()`,
+    );
+    await until(
+      () => evaluate("!!document.querySelector('[role=dialog] h2')"),
+      `help for ${topic}`,
+    );
+    const text = await evaluate(
+      "document.querySelector('[role=dialog]').textContent",
+    );
+    assert.ok(text.includes("Limits."), topic);
+    threadHelp.push(topic);
+  }
+  await escapeHelp();
+
+  await evaluate(
+    "document.querySelector('#threads [data-tid=\"7001\"]').click()",
+  );
+  await until(
+    () =>
+      evaluate(
+        "!!document.querySelector('#drawer.open') && document.querySelector('#history-note').textContent !== 'Loading…'",
+      ),
+    "thread drawer and real history response",
+  );
+  assert.equal(await evaluate("location.hash"), "#thread=7001");
+  await evaluate(`(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    for (const [id, value] of [['from', '2026-10-23T10:00'], ['to', '2026-10-23T10:15']]) {
+      const node = document.getElementById(id); setter.call(node, value); node.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    document.querySelector('#load-history').click(); document.querySelector('#history details').open = true;
+  })()`);
+  await until(
+    () =>
+      evaluate(
+        "document.querySelector('#history-note').textContent.includes('2026-10-23 10:00')",
+      ),
+    "custom range history response",
+  );
+  await evaluate(
+    "document.querySelector('#drawer-close').click();document.querySelector('#threads [data-tid=\"7002\"]').click()",
+  );
+  await until(
+    () =>
+      evaluate(
+        "location.hash === '#thread=7002' && document.querySelector('#history-note').textContent.includes('2026-10-23 10:00')",
+      ),
+    "custom range on second thread",
+  );
+  const historyRange = await evaluate(
+    `({from: document.querySelector('#from').value, to: document.querySelector('#to').value, tableOpen: document.querySelector('#history details').open})`,
+  );
+  assert.deepEqual(historyRange, {
+    from: "2026-10-23T10:00",
+    to: "2026-10-23T10:15",
+    tableOpen: true,
+  });
+  await evaluate("document.querySelector('#drawer-close').click()");
+  assert.equal(
+    await evaluate("new URLSearchParams(location.search).get('target')"),
+    target.key,
+  );
+  assert.equal(await evaluate("location.hash"), "");
+  await delay(350);
+  assert.equal(
+    await evaluate("document.querySelectorAll('[role=dialog]').length"),
+    0,
+    "closing the drawer dismisses its help",
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "/",
+    code: "Slash",
+  });
+  assert.equal(await evaluate("document.activeElement.id"), "search");
+  await send("Fetch.disable");
+  onPaused = () => undefined;
+  await escapeHelp();
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await delay(100);
+  const mobileThreads = await evaluate(`({
+    width: innerWidth,
+    pageScrollWidth: document.documentElement.scrollWidth,
+    sectionRight: document.querySelector('#threads-section').getBoundingClientRect().right,
+    columns: getComputedStyle(document.querySelector('#threads-section .g-2-1')).gridTemplateColumns,
+    headerOverflow: Math.max(0, document.querySelector('#target-select').getBoundingClientRect().right - innerWidth),
+    overflowingThreads: [...document.querySelectorAll('#threads-section *')].filter(node => !node.closest('.table-wrap') && node.getBoundingClientRect().right > innerWidth + 1).map(node => node.id || node.className),
+  })`);
+  assert.ok(
+    mobileThreads.sectionRight <= mobileThreads.width,
+    JSON.stringify(mobileThreads),
+  );
+  assert.deepEqual(
+    mobileThreads.overflowingThreads,
+    [],
+    JSON.stringify(mobileThreads),
+  );
+  assert.ok(
+    !mobileThreads.columns.includes(" "),
+    JSON.stringify(mobileThreads),
+  );
+  const threads = {
+    mapHeldAcrossPollsAndCard: true,
+    columnReadouts: true,
+    nullRateHeld: true,
+    threadFocus,
+    historyRange,
+    targetQueryKept: true,
+    slashSearch: true,
+    waitBarsHeldAndFilter: true,
+    familyFilter: true,
+    threadHelp,
+    mobileThreads,
+  };
+  assert.deepEqual(await evaluate("window.cspViolations"), []);
+
   assert.ok(
     requests.every(
-      (url) => url === "about:blank" || new URL(url).origin === base,
+      (url) =>
+        url === "about:blank" ||
+        url.startsWith("data:image/svg+xml;") ||
+        new URL(url).origin === base,
+    ),
+    JSON.stringify(
+      requests.filter(
+        (url) =>
+          url !== "about:blank" &&
+          !url.startsWith("data:image/svg+xml;") &&
+          new URL(url).origin !== base,
+      ),
     ),
   );
   assert.deepEqual(exceptions, []);
   console.log(
     JSON.stringify(
       {
+        chromiumVersion,
         embeddedBytesEqual: true,
         csp,
         fleet,
@@ -415,6 +853,7 @@ try {
         summary,
         readout,
         restored,
+        threads,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },

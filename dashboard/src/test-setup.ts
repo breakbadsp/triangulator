@@ -9,3 +9,5 @@ globalThis.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 };
+// jsdom does not scroll.
+Element.prototype.scrollIntoView = () => undefined;
