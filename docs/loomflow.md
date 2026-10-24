@@ -23,6 +23,7 @@
   2. One reviewer uses the design reviewer model and effort below. Over-design is a finding. The builder revises once. Run design round 2 only when a design `blocker` is not `FIXED`. Never run a third. An open design `blocker` after round 2 stops the run.
   3. The builder builds, proves, writes the safety fact and its proof in the PR body, and marks the PR ready.
 - Major series (more than one PR): PRs target a feature branch and gate on the local check. The orchestrator cancels their automatic CI runs. After each merge, it writes the decisions and open items to the trail file, `<state>/<owner>-<repo>-<feature branch, "/" as "-">.md`, and continues from that file. One final sync PR to `master` runs full CI.
+- Major redesign series (a series that replaces a user-visible surface): after the last PR merges into the feature branch, the orchestrator stops and reports. The user tests the feature branch personally. The orchestrator opens the final sync PR only when the user asks, and the user merges it.
 - Proof: tests and short DOM facts (`evaluate`). Take screenshots only for a major UI redesign, as few as needed, saved to a file.
 - Rewrite or delete, in the same PR, a test that is pinned to the implementation and blocks the change.
 - Context rules are guidance only: give role prompts by pointer ("read <role file> and follow it" plus inputs), load only the tools a step needs, and record model IDs once.
