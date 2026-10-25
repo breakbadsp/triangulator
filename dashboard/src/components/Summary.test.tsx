@@ -5,6 +5,7 @@ import { helpTopics } from "../help/topics";
 import { assess } from "../lib/assess";
 import type { Finding } from "../lib/findings";
 import { emptySeries, type Point, type Series } from "../lib/series";
+import { watchedThread } from "../lib/test-fixtures";
 import css from "../style.css?raw";
 import { Summary } from "./Summary";
 
@@ -252,4 +253,60 @@ test("before the first live view the summary waits", () => {
   expect(screen.getByText("Waiting for data").id).toBe("verdict");
   expect(document.getElementById("hero-load")?.textContent).toBe("—");
   expect(document.querySelectorAll("#tiles .tile")).toHaveLength(0);
+});
+
+test("a watched finding keeps its help target through live re-renders", () => {
+  vi.useFakeTimers();
+  try {
+    const live = (now: number) => (
+      <Summary
+        view={view({
+          health: {
+            session: "s",
+            pid: 7,
+            last_seen: 1000,
+            sample_interval_ms: 200,
+            sampler_silent: false,
+            target_absent: false,
+          },
+          threads: [watchedThread(1, "worker-1", { quiet: 30 })],
+        })}
+        series={emptySeries}
+        now={now}
+        windowSecs={300}
+        onWindow={() => undefined}
+        resourcePoints={[]}
+        pressureScope="cgroup"
+        watchRules={[{ prefix: "worker-", wake_ms: 500 }]}
+      />
+    );
+    const { rerender } = render(live(1000));
+    const target = screen
+      .getByText("worker-1 stopped waking up")
+      .closest<HTMLElement>("[data-help]");
+    expect(target?.dataset.help).toBe("watched");
+    if (!target) return;
+    fireEvent.mouseEnter(target);
+    // Live polling re-renders about once a second, before the 1,200 ms help
+    // delay ends.
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    rerender(live(1001));
+    expect(target.isConnected, "the pending row is not replaced").toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(
+      screen.getByRole("dialog", { name: "Watched threads" }),
+      "help opens after 1,200 ms",
+    ).toBeDefined();
+    rerender(live(1002));
+    expect(target.isConnected, "an open card keeps its row too").toBe(true);
+    expect(screen.getByRole("dialog", { name: "Watched threads" })).toBe(
+      screen.getByRole("dialog"),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
