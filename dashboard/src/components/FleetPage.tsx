@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { readTargetControl } from "../api/targetControl";
+import { useTargetControl } from "../hooks/useTargetControl";
+import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
 import type { LiveResponse, TargetsResponse } from "../api/types";
 import { Help } from "../help/Help";
@@ -20,7 +23,10 @@ import { TopBar } from "./TopBar";
 import "./fleet.css";
 
 async function loadFleet(signal: AbortSignal) {
-  const { targets } = await getJson<TargetsResponse>("/api/targets", signal);
+  const [{ targets }, control] = await Promise.all([
+    getJson<TargetsResponse>("/api/targets", signal),
+    readTargetControl(signal),
+  ]);
   const views = new Map<string, LiveResponse | null>();
   let next = 0;
   async function worker() {
@@ -45,6 +51,7 @@ async function loadFleet(signal: AbortSignal) {
     Array.from({ length: Math.min(4, targets.length) }, worker),
   );
   return {
+    control,
     targets,
     views: views as ReadonlyMap<string, LiveResponse | null>,
     now: Date.now() / 1000,
@@ -86,6 +93,8 @@ const STATUS_LABELS = [
 
 export function FleetPage() {
   const fleet = usePoll(loadFleet, 5000, { pauseWhenHidden: true });
+  const control = fleet.data?.control ?? { enabled: false as const };
+  const editor = useTargetControl(control, fleet.refresh);
   const [filter, setFilter] = useState(readFilter);
   const [density, setDensity] = useState(readDensity);
   const [focused, setFocused] = useState<{
@@ -248,6 +257,15 @@ export function FleetPage() {
             </Help>
           )}
         </div>
+        <Help topic="manage-targets" as="div">
+          <p
+            id="fleet-status"
+            role="status"
+            className={(editor.form.bad ? "bad" : "muted") + " fleet-status"}
+          >
+            {editor.form.status}
+          </p>
+        </Help>
         {/* React DOM puts focus back on a focused tile link that a reorder moves
             (restoreSelection after each commit); tests/prove_dashboard.mjs checks it in Chromium. */}
         <div id="fleet-grid" className="fleet-grid" data-density={density}>
@@ -282,9 +300,40 @@ export function FleetPage() {
                   {tile.name}
                 </a>
               </div>
-              <Help topic="fleet-tile" as="div" className="ft-key">
+              <Help
+                key={tile.key + "identity"}
+                topic="fleet-tile"
+                as="div"
+                className="ft-key"
+              >
                 {tile.host} · {tile.id}
               </Help>
+              {control.enabled &&
+                tile.host === control.host &&
+                control.targets?.find((entry) => entry.id === tile.id) && (
+                  <Help
+                    key={tile.key + "remove"}
+                    topic="manage-targets"
+                    as="div"
+                    className="ft-foot"
+                  >
+                    <button
+                      className="ft-remove"
+                      type="button"
+                      aria-label={"Remove target " + tile.id}
+                      disabled={editor.busy || control.targets.length <= 1}
+                      onClick={() => {
+                        const managed = control.targets?.find(
+                          (entry) => entry.id === tile.id,
+                        );
+                        if (managed)
+                          void editor.change({ action: "remove", ...managed });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </Help>
+                )}
               {tile.card && (
                 <div className="ft-card">
                   <div className="ft-proc">{tile.card.proc}</div>
@@ -309,6 +358,27 @@ export function FleetPage() {
               )}
             </article>
           ))}
+          {control.enabled && (
+            <Help
+              key="fleet-add"
+              topic="manage-targets"
+              as="div"
+              className="fleet-add-help"
+            >
+              <button
+                id="fleet-add"
+                className="fleet-add"
+                type="button"
+                aria-haspopup="dialog"
+                disabled={editor.busy}
+                onClick={() => {
+                  editor.open();
+                }}
+              >
+                <span aria-hidden="true">+</span>Add target
+              </button>
+            </Help>
+          )}
         </div>
         {tiles.length > 0 && shown === 0 && (
           <Help topic="fleet-filter" as="div">
@@ -327,6 +397,13 @@ export function FleetPage() {
           </Help>
         )}
       </main>
+      {editor.form.open && (
+        <TargetDialog
+          key={editor.form.generation}
+          editor={editor}
+          enabled={control.enabled}
+        />
+      )}
     </>
   );
 }

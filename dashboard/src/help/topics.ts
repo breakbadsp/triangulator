@@ -12,6 +12,56 @@ export interface HelpTopic {
 }
 
 export const helpTopics = {
+  "target-pid": {
+    title: "Matching processes",
+    scope: "Add target · processes with the entered name",
+    meaning:
+      "When the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.",
+    example:
+      "Two processes named worker: PID 4100 · app · started 3 h ago · worker --queue orders, and PID 4377 · app · started 2 min ago · worker --queue billing. Select the first to monitor the orders worker.",
+    reading:
+      "A choice fills in its PID. Then select Add target. To monitor by name instead, stop the extra processes, or give them different names.",
+    limits:
+      "A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.",
+    related: ["manage-targets", "target-id"],
+    aliases: [],
+    source:
+      "Local control helper: `/proc/PID/comm`, `cmdline`, `stat`, and the owner of `/proc/PID`",
+    sourceDetail:
+      "The helper finds every process whose name equals the entered name, as the sampler does, and returns each PID with its user, start time (`/proc/PID/stat` field 22 and `btime`), and command line.",
+  },
+  "manage-targets": {
+    title: "Manage targets",
+    scope: "Targets overview · local sampler · every viewer",
+    meaning:
+      "Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.",
+    example:
+      "Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.",
+    reading:
+      "Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.",
+    limits:
+      "Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.",
+    related: ["target-id", "target-switch", "target"],
+    aliases: [],
+    source: "Sampler configuration and the local control helper",
+    sourceDetail:
+      "The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.",
+  },
+  "target-id": {
+    title: "Target ID",
+    scope: "Sampler configuration",
+    meaning: "A stable name for one monitored target.",
+    example: "orders remains the same ID when orders-api restarts.",
+    reading:
+      "Use 1 to 31 letters, digits, dots, underscores, or hyphens. Each ID must be unique on its host.",
+    limits:
+      "An ID is not a process selector. Set a process name or PID as well.",
+    related: ["manage-targets", "target-switch"],
+    aliases: [],
+    source: "`[[target]] id` in sampler.toml",
+    sourceDetail:
+      "The sampler sends this stable ID in TTGT. A target key combines the sampler host name and this ID.",
+  },
   "fleet-filter": {
     title: "Find targets",
     scope: "This browser tab · Targets overview",

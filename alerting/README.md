@@ -30,9 +30,9 @@ at the top level); the collector ignores them apart from `window_s`.
   rollups or `/api/live`. Their conditions are listed below.
 - **A main program** that loads the config, polls the collector, runs the
   checks through `AlertEngine` and hands events to `Delivery`.
-- **The dashboard settings API** (`GET`/`POST /api/alert-settings`). The page
-  still has the alert sections and settings form; it shows them when
-  `/api/live` has `alerts` fields. The Python collector checked that writes had
+- **The dashboard settings API** (`GET`/`POST /api/alert-settings`). The React dashboard has no alert sections or settings form. The old UI is
+  at `777cf3a:collector/dashboard.html`. Port it when the alerting program and
+  this API run. The Python collector checked that writes had
   a JSON body, an `X-Triangulator: 1` header, and an allowed `Host`
   (`http_allowed_hosts`) and `Origin`.
 
