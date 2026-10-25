@@ -122,7 +122,7 @@ export function MemoryMap({
     <section id="memory-map" className="block">
       <div className="section-head">
         <div>
-          <Help topic="memmap" as="div">
+          <Help key={memory.key} topic="memmap" as="div">
             <h2>Memory map</h2>
           </Help>
           <p id="memory-sub">
@@ -159,7 +159,7 @@ export function MemoryMap({
           summaryClassName="fold-summary fold-bar"
           autoOpen={wantsFold(findings, "memory")}
           summary={
-            <Help topic="amap">
+            <Help key={memory.key} topic="amap">
               <h3>Address space &amp; zoom</h3>
               <span className="muted">Every mapping, and a zoom into one</span>
             </Help>
