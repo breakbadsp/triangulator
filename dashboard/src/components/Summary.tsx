@@ -1,5 +1,10 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import type { LiveResponse, MemoryLayout, PressureScope } from "../api/types";
+import type {
+  LiveResponse,
+  MemoryLayout,
+  PressureScope,
+  WatchRule,
+} from "../api/types";
 import { Help } from "../help/Help";
 import { isHelpTopicId } from "../help/topics";
 import { assess } from "../lib/assess";
@@ -64,6 +69,7 @@ export function Summary({
   pressureScope,
   memoryLayout = null,
   memoryHistory = [],
+  watchRules = null,
   children,
 }: {
   view: LiveResponse | undefined;
@@ -75,6 +81,8 @@ export function Summary({
   /** The held memory-map layout and live memory history (Memory map). */
   memoryLayout?: MemoryLayout | null;
   memoryHistory?: readonly MemoryPoint[];
+  /** The rules in force from /api/watches, or null before a good read. */
+  watchRules?: readonly WatchRule[] | null;
   windowSecs: ChartWindow;
   onWindow: (seconds: ChartWindow) => void;
   /** A finding row opens its thread or filters the thread table. */
@@ -91,7 +99,7 @@ export function Summary({
         mode: { kind: "live" },
         now,
         series,
-        watchRules: null,
+        watchRules,
         resourcePoints,
         memoryLayout,
         memoryHistory,

@@ -12,12 +12,14 @@ import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
 import { MemoryMap } from "./components/MemoryMap";
+import { Monitor } from "./components/Monitor";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Resources, type ResourceRange } from "./components/Resources";
 import { SocketIO } from "./components/SocketIO";
 import { Summary, type ChartWindow } from "./components/Summary";
 import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
+import { WatchRules } from "./components/WatchRules";
 import { asResourcePoints } from "./lib/assess/memory";
 import type { Finding } from "./lib/findings";
 import { initialThreadView, threadView } from "./lib/threadView";
@@ -26,6 +28,7 @@ import { usePoll } from "./hooks/usePoll";
 import { useMemoryMap } from "./hooks/useMemoryMap";
 import { useScopedPoll } from "./hooks/useScopedPoll";
 import { useSeries } from "./hooks/useSeries";
+import { useWatchRules } from "./hooks/useWatchRules";
 import { readPage, type Page } from "./page";
 
 const loadTargets = (signal: AbortSignal) =>
@@ -42,6 +45,12 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const view = live.data?.view;
   const series = useSeries(page.key, view);
   const memory = useMemoryMap(page.key, view);
+  const watchRules = useWatchRules(view?.threads);
+  // Selecting the Settings tab reads the rules again, as before.
+  const [settingsOpened, openSettings] = useReducer(
+    (count: number) => count + 1,
+    0,
+  );
   // The Summary charts and the Threads state chart share this window.
   const [windowSecs, setWindowSecs] = useState<ChartWindow>(300);
   const [threads, dispatch] = useReducer(threadView, initialThreadView);
@@ -119,7 +128,11 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
     <>
       <header className="topbar">
         <TopBar page={page} targets={targets.data?.targets ?? []} live={view} />
-        <SectionTabs />
+        <SectionTabs
+          onSelect={(id) => {
+            if (id === "collector-settings") openSettings();
+          }}
+        />
       </header>
       <ErrorBanner health={view?.health} error={live.error ?? targets.error} />
       <main aria-label="Dashboard">
@@ -134,6 +147,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           pressureScope={pressureScope}
           memoryLayout={memory.state.layout}
           memoryHistory={memory.state.history}
+          watchRules={watchRules.rules}
         >
           {view && (
             <>
@@ -168,6 +182,12 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           series={series}
           resourcePoints={resourcePoints}
           scope={pressureScope}
+        />
+        <Monitor view={view} now={live.data?.now ?? 0} context={context} />
+        <WatchRules
+          threads={view?.threads ?? []}
+          opened={settingsOpened}
+          onChanged={() => void watchRules.refresh()}
         />
       </main>
       <ThreadDrawer

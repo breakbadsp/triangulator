@@ -22,6 +22,12 @@ export interface LiveResponse {
     last_seen: number | null;
     sampler_silent: boolean;
     target_absent: boolean | null;
+    bad_packets?: number;
+    duplicates?: number;
+    late_packets?: number;
+    raw_samples?: number;
+    /** Not written by this collector; Monitor health shows "—". */
+    sampler_ip?: string | null;
   };
   threads: readonly Thread[];
   /** Thread count by config group. */
@@ -310,6 +316,22 @@ export interface MemoryLayout {
 export interface WatchRule {
   prefix: string;
   wake_ms: number;
+}
+/** WatchSettings::Describe in collector/watch.hpp. */
+export interface WatchLimits {
+  prefix_max_bytes: number;
+  wake_ms_min: number;
+  wake_ms_max: number;
+  max_rules: number;
+}
+export interface WatchInfo {
+  rules: readonly WatchRule[];
+  source: "config" | "dashboard";
+  /** Why the saved file was not used at startup. */
+  saved_error: string | null;
+  /** Missing from a collector older than edit revisions. */
+  revision?: string;
+  limits: WatchLimits;
 }
 export interface ResourceRow {
   fd_open?: number | null;
