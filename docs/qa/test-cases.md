@@ -123,6 +123,7 @@
 | QA-118 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-churn.txt) |
 | QA-119 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-leak.txt) |
 | QA-120 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/stopped.txt) |
+| QA-121 | NOT_RUN | - | - | - |
 
 ## QA-001: Package installation and live dashboard
 
@@ -600,3 +601,8 @@
 
 - Test: Open Monitor health on a live target. Hold the pointer on the list for 10 s, open the help of Session, then restart the sampler. Stop the sampler for 15 s.
 - Expected: Under the pointer the values do not change; after the pointer leaves they show the latest health. After the sampler restart the list shows the new session and no help card of the old session stays open. With the sampler silent, Sampler reads Silent and the fold opens by itself unless the user closed it before.
+
+## QA-121: Dashboard hides unavailable alerts
+
+- Test: Start the C++ collector and open a live target. Check that `/api/live` has no `alerts` field. Open Settings, reload with `#settings`, and inspect requests in the browser network panel. For a controlled browser fixture, return `alerts: []` once, then omit the field on the next live poll.
+- Expected: No Open alerts, Recent alerts, alert settings editor, or alert toggle appears in any step. No `/api/alert-settings` request is sent. Target monitoring and Settings remain usable.

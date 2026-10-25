@@ -44,6 +44,8 @@ browser.stderr.on("data", (chunk) => {
   diagnostics += chunk;
 });
 let socket;
+let controlFixture;
+let controlBase;
 
 async function until(check, description) {
   for (let attempt = 0; attempt < 150; ++attempt) {
@@ -137,6 +139,12 @@ try {
     );
     return result.result.value;
   }
+  const typeInto = async (selector, text) => {
+    await evaluate(
+      `(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`,
+    );
+    await send("Input.insertText", { text });
+  };
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Network.enable");
@@ -145,6 +153,9 @@ try {
     source:
       "window.cspViolations=[];addEventListener('securitypolicyviolation',event=>window.cspViolations.push(event.violatedDirective))",
   });
+  let priorProof = {};
+  // Reuse prior-phase proof when only the target-control script changes.
+  if (!process.argv.includes("--target-control-only")) {
   await until(async () => {
     try {
       return (await fetch(`${base}/api/targets`)).ok;
@@ -1623,12 +1634,6 @@ try {
   );
   const watchText = (id) =>
     evaluate(`document.getElementById(${JSON.stringify(id)})?.textContent ?? null`);
-  const typeInto = async (selector, text) => {
-    await evaluate(
-      `(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`,
-    );
-    await send("Input.insertText", { text });
-  };
   const watchStatus = async (pattern, description) => {
     await until(async () => pattern.test((await watchText("watch-status")) ?? ""), description);
     return watchText("watch-status");
@@ -1733,19 +1738,192 @@ try {
   };
   assert.deepEqual(await evaluate("window.cspViolations"), []);
 
+  priorProof = {
+    embeddedBytesEqual: true, csp, fleet, reorder: { focusKey, mover, ...reorder },
+    theme: { saved: "dark", background: "rgb(9, 9, 10)" }, help, selected, summary,
+    readout, restored, threads, socketEntry, sockets, resources, memory, watch,
+  };
+  }
+
+  // Target management: real collector, local helper, sampler and owned PIDs.
+  // Reuse the integration fixture so its process and runtime isolation stay shared.
+  controlFixture = spawn("python3", ["-u", "-c", `
+import json, signal, sys, time
+sys.path.insert(0, "tests")
+from test_sampler_control import ScriptTests, start_named, stop
+case = ScriptTests()
+try:
+    case.setUp()
+    case.start_dashboard(extra='sampler_ips=["127.0.0.1"]\\n')
+    config = case.runtime / "config/sampler.toml"
+    config.write_text(f'collector="127.0.0.1:{case.port}"\\nrate_hz=5\\n[[target]]\\nid="default"\\npid={case.target.pid}\\n')
+    case.start_sampler(config)
+    name = f"proof-{case.target.pid}"
+    first, second = start_named(name), start_named(name)
+    case.addCleanup(stop, first, second)
+    print(json.dumps({"url": case.dashboard, "pid": first.pid, "name": name, "config": str(config)}), flush=True)
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    try:
+        while True: time.sleep(1)
+    except KeyboardInterrupt: pass
+finally:
+    case.doCleanups()
+`], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+  let controlInfo;
+  let fixtureOutput = "";
+  controlFixture.stdout.on("data", (chunk) => {
+    fixtureOutput += chunk;
+    if (!controlInfo && fixtureOutput.includes("\n")) controlInfo = JSON.parse(fixtureOutput.split("\n")[0]);
+  });
+  controlFixture.stderr.on("data", (chunk) => { diagnostics += chunk; });
+  await until(() => {
+    assert.equal(controlFixture.exitCode, null, diagnostics);
+    return !!controlInfo;
+  }, "local control fixture");
+  controlBase = controlInfo.url;
+  const controlUrl = `${controlBase}/api/targets/control`;
+  const targetList = async () => (await (await fetch(controlUrl)).json()).targets;
+  await until(async () => (await targetList())?.length === 1, "local configured target");
+  const originalConfig = await readFile(controlInfo.config, "utf8");
+  const targetWrites = [];
+  const targetStatuses = new Map();
+  const confirmations = [];
+  let acceptTargetChange = false;
+  socket.addEventListener("message", ({ data }) => {
+    const { method, params } = JSON.parse(data);
+    if (method === "Network.requestWillBeSent" && params.request.method === "POST" && params.request.url === `${controlBase}/api/targets`)
+      targetWrites.push({ id: params.requestId, body: JSON.parse(params.request.postData), headers: params.request.headers });
+    if (method === "Network.responseReceived") targetStatuses.set(params.requestId, params.response.status);
+    if (method === "Page.javascriptDialogOpening") {
+      confirmations.push(params.message);
+      void send("Page.handleJavaScriptDialog", { accept: acceptTargetChange });
+    }
+  });
+  await send("Page.navigate", { url: controlBase });
+  await until(() => evaluate("!!document.querySelector('#fleet-add') && document.querySelectorAll('#fleet-grid > article').length === 1"), "local Add tile");
+  const click = async (selector) => {
+    const point = await evaluate(`(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      element.scrollIntoView({block:'center'});
+      const r = element.getBoundingClientRect();
+      const x = r.left + r.width/2, y = r.top + r.height/2;
+      return {x,y,hit:element.contains(document.elementFromPoint(x,y))};
+    })()`);
+    assert.equal(point.hit, true, `Clickable: ${selector}`);
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  };
+  const escapeTargetHelp = async () => {
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape" });
+  };
+  await click("#fleet-add");
+  await until(() => evaluate("document.querySelector('#target-settings')?.matches(':modal')"), "native modal top layer");
+  await evaluate("document.querySelector('#target-id').focus()");
+  await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Target ID\"]')"), "modal ID help");
+  const modalHelp = await evaluate(`(() => {
+    const dialog = document.querySelector('#target-settings');
+    const card = dialog.querySelector('.help-card[aria-label="Target ID"]');
+    const r = card.getBoundingClientRect();
+    document.querySelector('#fleet-search').focus();
+    return {inside:card.closest('dialog')===dialog,focusInside:dialog.contains(document.activeElement),clamped:r.top>=0&&r.bottom<=innerHeight};
+  })()`);
+  assert.deepEqual(modalHelp, { inside: true, focusInside: true, clamped: true });
+  await click('#target-settings .help-card[aria-label="Target ID"] a[href="#help-manage-targets"]');
+  await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Manage targets\"]')"), "modal related help link");
+  await escapeTargetHelp();
+  assert.equal(await evaluate("document.querySelector('#target-settings').matches(':modal') && !document.querySelector('#target-settings .help-card')"), true);
+  // Help remains interactive in the top layer. Close by a real pointer click.
+  await evaluate("document.querySelector('#target-input').focus()");
+  await click("#target-settings .help-close");
+  assert.equal(await evaluate("document.querySelector('#target-settings .help-card') === null"), true);
+  await typeInto("#target-id", "proof");
+  await escapeTargetHelp();
+  await typeInto("#target-input", "2147483647");
+  await escapeTargetHelp();
+  await click("#target-save");
+  await until(() => evaluate("document.querySelector('#target-status').textContent.includes('no running process')"), "real invalid PID refusal");
+  assert.equal(confirmations.length, 0);
+  assert.equal(targetWrites.length, 1);
+  assert.equal(targetStatuses.get(targetWrites[0].id), 400);
+  assert.equal(await readFile(controlInfo.config, "utf8"), originalConfig);
+  await typeInto("#target-input", controlInfo.name);
+  await escapeTargetHelp();
+  await click("#target-save");
+  await until(() => evaluate("document.querySelector('#target-pid')?.options.length === 3"), "real ambiguous process picker");
+  assert.equal(await evaluate("document.activeElement.id"), "target-pid");
+  await evaluate(`document.querySelector('#target-pid').value=${JSON.stringify(String(controlInfo.pid))};document.querySelector('#target-pid').dispatchEvent(new Event('change',{bubbles:true}))`);
+  assert.equal(await evaluate("document.querySelector('#target-input').value"), String(controlInfo.pid));
+  assert.match(await evaluate("document.querySelector('#target-status').textContent"), /does not follow a restart/);
+  await escapeTargetHelp();
+  // Cancelled Add checks once but never applies.
+  await click("#target-save");
+  await until(() => confirmations.length === 1, "cancelled native Add confirmation");
+  await until(() => evaluate("!document.querySelector('#target-save').disabled"), "cancelled Add ready");
+  assert.equal(await readFile(controlInfo.config, "utf8"), originalConfig);
+  assert.equal(targetWrites.length, 3);
+  // A non-JSON server failure keeps the same input and permits a retry.
+  onPaused = async ({ requestId }) => {
+    await send("Fetch.fulfillRequest", { requestId, responseCode: 503, body: Buffer.from("unavailable").toString("base64") });
+  };
+  await send("Fetch.enable", { patterns: [{ urlPattern: `${controlBase}/api/targets`, requestStage: "Request" }] });
+  await evaluate("document.querySelector('#target-form').requestSubmit()");
+  await until(() => evaluate("document.querySelector('#target-status').textContent === 'Unable to change targets (HTTP 503)'"), "non-JSON failure recovery");
+  await send("Fetch.disable");
+  assert.equal(await evaluate("document.querySelector('#target-input').value"), String(controlInfo.pid));
+  acceptTargetChange = true;
+  const addStart = targetWrites.length;
+  await evaluate("document.querySelector('#target-form').requestSubmit();document.querySelector('#target-form').requestSubmit()");
+  await until(() => evaluate("!document.querySelector('#target-settings') && document.querySelector('#fleet-status').textContent.includes('Reload requested')"), "real Add and dialog close");
+  assert.deepEqual(targetWrites.slice(addStart).map((entry) => entry.body), [
+    { action: "add", id: "proof", target: String(controlInfo.pid), check: true },
+    { action: "add", id: "proof", target: String(controlInfo.pid) },
+  ]);
+  assert.equal(confirmations.length, 2);
+  await until(async () => (await targetList()).length === 2, "sampler config contains added target");
+  await until(() => evaluate("!!document.querySelector('[aria-label=\"Remove target proof\"]')"), "new removable tile after refresh");
+  acceptTargetChange = false;
+  const removeStart = targetWrites.length;
+  await click('[aria-label="Remove target proof"]');
+  await until(() => confirmations.length === 3, "cancelled native Remove confirmation");
+  assert.equal(targetWrites.length, removeStart);
+  acceptTargetChange = true;
+  await escapeTargetHelp();
+  await click('[aria-label="Remove target proof"]');
+  await until(async () => (await targetList()).length === 1, "real Remove in sampler config");
+  await until(() => evaluate("!document.querySelector('[aria-label=\"Remove target proof\"]')"), "removed tile after refresh");
+  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", id: "proof", target: String(controlInfo.pid) }]);
+  assert.equal(confirmations.length, 4);
+  assert.equal(await evaluate("document.querySelector('[aria-label=\"Remove target default\"]').disabled"), true);
+  for (const entry of targetWrites) {
+    const headers = Object.fromEntries(Object.entries(entry.headers).map(([name, value]) => [name.toLowerCase(), value]));
+    assert.equal(headers["x-triangulator"], "1");
+    assert.equal(headers["content-type"], "application/json");
+  }
+  // Collector guards are separate evidence from the new page-side writes.
+  const currentConfig = await readFile(controlInfo.config, "utf8");
+  const guardRequest = async (headers) => fetch(`${controlBase}/api/targets`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ action: "remove", id: "default" }) });
+  assert.equal((await guardRequest({})).status, 403);
+  assert.equal((await guardRequest({ "X-Triangulator": "1", Origin: "https://untrusted.invalid" })).status, 403);
+  assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 400);
+  assert.equal(await readFile(controlInfo.config, "utf8"), currentConfig);
+  assert.equal(await evaluate("document.querySelector('[id*=alert], [data-help=alerts]') === null"), true);
+  assert.equal(requests.some((url) => url.includes("/api/alert-settings")), false);
+  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,400], hiddenAlerts: true };
+
   assert.ok(
     requests.every(
       (url) =>
         url === "about:blank" ||
         url.startsWith("data:image/svg+xml;") ||
-        new URL(url).origin === base,
+        (new URL(url).origin === base || new URL(url).origin === controlBase),
     ),
     JSON.stringify(
       requests.filter(
         (url) =>
           url !== "about:blank" &&
           !url.startsWith("data:image/svg+xml;") &&
-          new URL(url).origin !== base,
+          new URL(url).origin !== base && new URL(url).origin !== controlBase,
       ),
     ),
   );
@@ -1754,22 +1932,8 @@ try {
     JSON.stringify(
       {
         chromiumVersion,
-        embeddedBytesEqual: true,
-        csp,
-        fleet,
-        reorder: { focusKey, mover, ...reorder },
-        theme: { saved: "dark", background: "rgb(9, 9, 10)" },
-        help,
-        selected,
-        summary,
-        readout,
-        restored,
-        threads,
-        socketEntry,
-        sockets,
-        resources,
-        memory,
-        watch,
+        ...priorProof,
+        targetControl,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },
@@ -1779,6 +1943,6 @@ try {
   );
 } finally {
   socket?.close();
-  await Promise.all([stop(browser), stop(fixture)]);
+  await Promise.all([stop(browser), stop(fixture), ...(controlFixture ? [stop(controlFixture)] : [])]);
   await rm(profile, { recursive: true, force: true });
 }

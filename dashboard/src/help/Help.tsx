@@ -42,6 +42,8 @@ function hoverHelpEnabled() {
 
 // Hidden drawers keep their range state, but must dismiss their portalled help.
 export const HelpEnabled = createContext(true);
+// Native modal dialogs must contain their help cards in the top layer.
+export const HelpPortalTarget = createContext<HTMLElement | null>(null);
 
 const helpTimers = new Set<{ cancel: (block?: boolean) => void }>();
 
@@ -61,8 +63,10 @@ export function Help({
   readout?: Readout;
 }) {
   const active = useContext(HelpEnabled);
+  const portalTarget = useContext(HelpPortalTarget);
   const anchor = useRef<HTMLElement>(null);
   const card = useRef<HTMLElement>(null);
+  const pointerFocus = useRef(false);
   const id = useId();
   const [shown, setShown] = useState<HelpTopicId | null>(null);
   const [position, setPosition] = useState({ left: 8, top: 8 });
@@ -184,12 +188,26 @@ export function Help({
         if (hoverHelpEnabled()) showHelp(false);
       }}
       onMouseLeave={() => {
+        pointerFocus.current = false;
         timer.leave(keepFocus);
       }}
+      onPointerDownCapture={() => {
+        pointerFocus.current = true;
+      }}
+      onPointerUpCapture={() => {
+        pointerFocus.current = false;
+      }}
+      onPointerCancelCapture={() => {
+        pointerFocus.current = false;
+      }}
       onFocus={() => {
-        showHelp(true);
+        // A card opened during pointer focus can cover the control before
+        // pointerup and swallow its click. Click opens help after the action.
+        if (!pointerFocus.current) showHelp(true);
+        pointerFocus.current = false;
       }}
       onBlur={(event) => {
+        pointerFocus.current = false;
         if (
           !card.current?.contains(event.relatedTarget) &&
           !event.currentTarget.contains(event.relatedTarget)
@@ -289,7 +307,7 @@ export function Help({
               </nav>
             )}
           </aside>,
-          document.body,
+          portalTarget ?? document.body,
         )}
     </Tag>
   );
