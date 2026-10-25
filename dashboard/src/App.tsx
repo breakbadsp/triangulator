@@ -25,6 +25,7 @@ import { ObservationContext } from "./hooks/observationContext";
 import { useObservation } from "./hooks/useObservation";
 import { emptySeries } from "./lib/series";
 import { initialMemory } from "./lib/memoryView";
+import { exitReason } from "./lib/exit";
 import { date } from "./lib/format";
 import type { Finding } from "./lib/findings";
 import { initialThreadView, threadView } from "./lib/threadView";
@@ -54,7 +55,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const memory = observation?.memory ?? initialMemory;
   const watchRules = useWatchRules(
     view?.threads,
-    mode.kind === "live" && display.active,
+    mode.kind === "live",
     display.scope,
   );
   const captureRules = display.rules;
@@ -132,10 +133,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           targets={targets.data?.targets ?? []}
           live={view}
           mode={mode}
-          onNavigate={() => {
-            closeThread();
-            display.leave();
-          }}
+          onDepart={display.depart}
           now={now}
           onLive={() => {
             closeThread();
@@ -157,7 +155,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           <div id="exited" className="card" hidden={!display.state.final}>
             <p id="exited-text">
               {display.state.final &&
-                `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}. Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
+                `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}: ${display.state.final.mode.kind === "final" && display.state.final.mode.exit ? `it ended (${exitReason(display.state.final.mode.exit)[0]}).` : "it exited or is no longer the target."} Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
             </p>
             <button
               id="exited-live"
@@ -246,7 +244,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
         <Monitor view={view} now={now} context={context} mode={mode} />
         <WatchRules
           threads={display.state.latest?.view.threads ?? []}
-          recorded={mode.kind === "recorded" || !display.active}
+          recorded={mode.kind === "recorded"}
           opened={settingsOpened}
           onChanged={() => void watchRules.refresh()}
         />

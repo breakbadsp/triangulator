@@ -237,6 +237,11 @@ test("switching targets clears the view caches of both targets and keeps others"
   select.append(option);
   fireEvent.change(select, { target: { value: "host-b/billing" } });
   expect(assign).toHaveBeenCalledWith("/?target=host-b%2Fbilling");
+  // The caches go when the page really unloads, not when the user selects.
+  expect(sessionStorage.getItem("triangulator:buffer:host-a/orders")).toBe(
+    "old",
+  );
+  dispatchEvent(new Event("pagehide"));
   expect(
     sessionStorage.getItem("triangulator:buffer:host-a/orders"),
   ).toBeNull();
@@ -707,3 +712,84 @@ test.each(["startup", "settings", "lost field"])(
     }
   },
 );
+
+// A navigation can end without an unload: a Ctrl-click, an unsaved Settings
+// draft that the user keeps ("Stay"), or a page that returns from the
+// back/forward cache. The page must stay live and keep its trends.
+function stubLiveTarget() {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn<typeof fetch>()
+      .mockImplementation((input) =>
+        Promise.resolve(
+          Response.json(
+            typeof input === "string" && input.startsWith("/api/targets")
+              ? targets
+              : { ...live, health: { ...live.health, session: "s1" } },
+          ),
+        ),
+      ),
+  );
+}
+async function renderLiveTarget() {
+  stubLiveTarget();
+  render(<App />);
+  await waitFor(() => {
+    expect(document.title).toContain(" · Thread monitor");
+  });
+}
+
+test("a cancelled navigation to the overview leaves the page live and editable", async () => {
+  await renderLiveTarget();
+  const cancel = (event: Event) => {
+    event.preventDefault();
+  };
+  document.addEventListener("click", cancel);
+  fireEvent.click(document.getElementById("fleet-back") as HTMLElement);
+  document.removeEventListener("click", cancel);
+  expect(document.getElementById("watch-recorded-readonly")).toBeNull();
+  sessionStorage.clear();
+});
+
+test("a cancelled target switch leaves the page live and keeps its caches", async () => {
+  await renderLiveTarget();
+  sessionStorage.setItem("triangulator:buffer:host/worker", "kept");
+  const assign = vi.fn();
+  vi.stubGlobal("location", {
+    assign,
+    hash: "",
+    pathname: location.pathname,
+    search: location.search,
+  });
+  const select = screen.getByRole("combobox", {
+    name: "Selected monitoring target",
+  });
+  const option = document.createElement("option");
+  option.value = "host-b/billing";
+  select.append(option);
+  fireEvent.change(select, { target: { value: "host-b/billing" } });
+  expect(assign).toHaveBeenCalled();
+  expect(document.getElementById("watch-recorded-readonly")).toBeNull();
+  expect(sessionStorage.getItem("triangulator:buffer:host/worker")).toBe(
+    "kept",
+  );
+  sessionStorage.clear();
+});
+
+test("leaving for the overview saves the trends this tab collected", async () => {
+  await renderLiveTarget();
+  const leave = (event: Event) => {
+    event.preventDefault();
+  };
+  document.addEventListener("click", leave);
+  fireEvent.click(document.getElementById("fleet-back") as HTMLElement);
+  document.removeEventListener("click", leave);
+  dispatchEvent(new Event("pagehide"));
+  const saved = JSON.parse(
+    sessionStorage.getItem("triangulator:buffer:host/worker") ?? "null",
+  ) as { session: string } | null;
+  expect(saved?.session).toBe("s1");
+  sessionStorage.clear();
+});
