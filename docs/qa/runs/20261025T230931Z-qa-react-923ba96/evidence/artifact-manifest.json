@@ -1,0 +1,180 @@
+{
+  "source_commit": "923ba96567f7e7729434763e043bb60ee2fa3cc5",
+  "source_tree": "bf4047b9f29ee5486ecd9da884a3d0439af5f164",
+  "equivalent_application_commit": "3acd6a28a85cf5bfb4ce03ea3462433eecb596e1",
+  "worktree": "/home/daksh/.t3/worktrees/triangulator/t3-5a2cf8d5",
+  "branch": "chore/react-qa-package",
+  "clean_tracked_and_untracked_status": true,
+  "archive_VERSION": "qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5",
+  "compiled_binary_VERSION": null,
+  "binary_version_note": "No compiled version field or --version option exists in these sources. Verified supported --help and exact packaged binary hashes. dashboard/package.json version is 0.0.0; it is not the archive version.",
+  "platform_label": "local-linux-x86_64-gcc16",
+  "uname": "Linux omarchy 7.2.8-9-omarchy #1 SMP PREEMPT_DYNAMIC Sat, 17 Oct 2026 22:09:33 +0000 x86_64 GNU/Linux",
+  "compiler": "c++ (GCC) 16.2.1 20260810\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+  "node": "v26.8.1",
+  "npm": "11.19.0",
+  "sqlite": {
+    "version": "3.53.4",
+    "source_id": "2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc",
+    "c_sha256": "b1dd5d74ec7f29055a6684fa06fb3c2f6821c87dd38f9a458dfd2e8a1db28189",
+    "h_sha256": "919e7f2e8ed1d8f56ac17b412b8971c76aa5d1a879752cc6058f75e7d5910e1d",
+    "download_url": "https://www.sqlite.org/2026/sqlite-amalgamation-3530400.zip",
+    "verified_archive_SHA3_256": "628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e"
+  },
+  "build_options": "c++ -Ibuild/sqlite/ -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow  -pthread -static -static build/sqlite3.o -lm -pthread build/sqlite/sqlite3.c -O2\n",
+  "binaries": {
+    "triangulator-sampler": {
+      "sha256": "243e95fd54fb13d62ff20bac33801d513a1269129cbfdb12ae51eec7b81db738",
+      "size": 2917160,
+      "file": "/home/daksh/.t3/worktrees/triangulator/t3-5a2cf8d5/build/triangulator-sampler: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=50ec5d5a340832c6135423cc5f7e8336da5dd124, for GNU/Linux 4.4.0, not stripped",
+      "readelf_no_INTERP_or_NEEDED": true,
+      "ldd": "\tnot a dynamic executable\n",
+      "help": "usage: triangulator-sampler [--check-config] CONFIG\n       triangulator-sampler -h|--help\n\nRead-only Linux process and thread sampler.\n--check-config validates CONFIG without sampling.",
+      "embedded_html": null
+    },
+    "triangulator-collector": {
+      "sha256": "97b22372691714d0d219220fc9467d54e434fdccc8d8d601951b8eb4cddc94b3",
+      "size": 6386512,
+      "file": "/home/daksh/.t3/worktrees/triangulator/t3-5a2cf8d5/build/triangulator-collector: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=5906606b74b80e51566a589cabe15c1d70007da3, for GNU/Linux 4.4.0, not stripped",
+      "readelf_no_INTERP_or_NEEDED": true,
+      "ldd": "\tnot a dynamic executable\n",
+      "help": "usage: triangulator-collector [-h] [--check-config] config\n\nTriangulator UDP collector and dashboard (C++)",
+      "embedded_html": {
+        "sha256": "774f6fe51e2d97e50dedab6ed4c5600109bbb4de2551fec310015310db27cdf9",
+        "size": 620204,
+        "binary_offset": 3773312,
+        "exact_byte_matches": 1
+      }
+    },
+    "triangulator-socket-report": {
+      "sha256": "7a1b4b024aac8cc494ea9401b96b70d170d4d26ea6c32e43a2a48a66d63ce856",
+      "size": 4538864,
+      "file": "/home/daksh/.t3/worktrees/triangulator/t3-5a2cf8d5/build/triangulator-socket-report: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=435eea5798efd091fd8269172449da8e7d016994, for GNU/Linux 4.4.0, not stripped",
+      "readelf_no_INTERP_or_NEEDED": true,
+      "ldd": "\tnot a dynamic executable\n",
+      "help": "usage: /home/daksh/.t3/worktrees/triangulator/t3-5a2cf8d5/build/triangulator-socket-report DATA-DIRECTORY PID OBSERVER-ID-OR-EMPTY",
+      "embedded_html": null
+    }
+  },
+  "archives": {
+    "triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz": {
+      "sha256": "694a4295cdd5c65c6d161b53836013f2309790a6a1e79a16b55f6826e2a6df13",
+      "size": 1155540,
+      "sha256_file_sha256": "de71ab60b6a5695756da07733ca21c112483c13499aa33f8b154a1e475e0dbcc",
+      "contents": [
+        "triangulator",
+        "triangulator/VERSION",
+        "triangulator/bin",
+        "triangulator/bin/triangulator-sampler",
+        "triangulator/scripts",
+        "triangulator/scripts/restart.sh",
+        "triangulator/scripts/runtime.sh",
+        "triangulator/scripts/sampler_control.py",
+        "triangulator/scripts/set-rate.sh",
+        "triangulator/scripts/set-target.sh",
+        "triangulator/scripts/start.sh",
+        "triangulator/scripts/stop.sh",
+        "triangulator/services",
+        "triangulator/services/triangulator-sampler.service",
+        "triangulator/templates",
+        "triangulator/templates/sampler.toml"
+      ],
+      "version": "qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5"
+    },
+    "triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz": {
+      "sha256": "646b01f349d29aa213e100c496ca1101b84a084bcc3eb2efdae8ad8e397a470e",
+      "size": 4533215,
+      "sha256_file_sha256": "166b296a0de9c18989adc4eafafdb2454efc9d6b26dea60e831b848d409bbd29",
+      "contents": [
+        "triangulator",
+        "triangulator/VERSION",
+        "triangulator/bin",
+        "triangulator/bin/triangulator-collector",
+        "triangulator/bin/triangulator-socket-report",
+        "triangulator/scripts",
+        "triangulator/scripts/restart.sh",
+        "triangulator/scripts/runtime.sh",
+        "triangulator/scripts/sampler_control.py",
+        "triangulator/scripts/set-rate.sh",
+        "triangulator/scripts/set-target.sh",
+        "triangulator/scripts/start.sh",
+        "triangulator/scripts/stop.sh",
+        "triangulator/services",
+        "triangulator/services/triangulator-collector.service",
+        "triangulator/templates",
+        "triangulator/templates/collector.toml"
+      ],
+      "version": "qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5"
+    }
+  },
+  "dashboard_html_sha256": "774f6fe51e2d97e50dedab6ed4c5600109bbb4de2551fec310015310db27cdf9",
+  "input_hashes": {
+    "Makefile": "5aac606212a3bac02ecab8ad0fe2269658d647b6f48ab6a530a5354408a27b51",
+    "scripts/package.sh": "e4989ce10d6137828647aee9426cf5ea2aaa33de1ae9c940b8c188f7aad0fcda",
+    "scripts/fetch-sqlite.py": "fdcef3f87374c1190e8e5154986636502a0b0067daabe0e76f8989defc3f207d",
+    "dashboard/package.json": "ce468bd55456d73ca0c103c4afd0715a4f3384d284c7067528a8673a9b13e047",
+    "dashboard/package-lock.json": "13487d1938d0f5b87dac30fee3a3e0172f9e7a7966ced1d1a63e245c18742268"
+  },
+  "checks": {
+    "make_release_static_validation": "PASS; exit 0; default READELF=readelf; all three binaries checked",
+    "independent_static_and_package_verification": "PASS",
+    "full_make_check": "Not rerun: application tree and tracked build/test inputs equal reviewed PR172 tree.",
+    "runtime_QA": "Not started"
+  },
+  "created_UTC": "2026-10-25T23:04:11.853860+00:00",
+  "server": {
+    "pid": 269278,
+    "port": 45269,
+    "bind": "127.0.0.1",
+    "root": "/home/daksh/.local/state/triangulator/react-qa-package-923ba96/packages",
+    "url": "http://127.0.0.1:45269",
+    "log": "/tmp/react-qa-package-923ba96/http-server.log",
+    "stop_command": "kill 269278",
+    "exec_session_id": 75576
+  },
+  "http_verification": {
+    "result": "PASS",
+    "fresh_download_directory": "/tmp/react-qa-package-923ba96/http-download-ki5gzom5",
+    "files": {
+      "triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz": {
+        "url": "http://127.0.0.1:45269/triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+        "sha256": "694a4295cdd5c65c6d161b53836013f2309790a6a1e79a16b55f6826e2a6df13",
+        "bytes": 1155540
+      },
+      "triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256": {
+        "url": "http://127.0.0.1:45269/triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256",
+        "sha256": "de71ab60b6a5695756da07733ca21c112483c13499aa33f8b154a1e475e0dbcc",
+        "bytes": 169
+      },
+      "triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz": {
+        "url": "http://127.0.0.1:45269/triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+        "sha256": "646b01f349d29aa213e100c496ca1101b84a084bcc3eb2efdae8ad8e397a470e",
+        "bytes": 4533215
+      },
+      "triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256": {
+        "url": "http://127.0.0.1:45269/triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256",
+        "sha256": "166b296a0de9c18989adc4eafafdb2454efc9d6b26dea60e831b848d409bbd29",
+        "bytes": 171
+      }
+    }
+  },
+  "release_command": "make release SQLITE_SOURCE=build/sqlite/sqlite3.c",
+  "release_exit_code": 0,
+  "package_command": "scripts/package.sh qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5 local-linux-x86_64-gcc16 /tmp/react-qa-package-923ba96/packages",
+  "evidence_hashes": {
+    "sqlite-download.log": "fdd8b77d591440d27b5d3f179c55c4dadaa7026b0ec6aa611216040f0a17ea4b",
+    "release.log": "7bdab62f81960e15dfb3500eb20de616b184c8af1b8048663de21c09f05df1ea",
+    "verify.py": "e994375c599c58ff782890a76ba0a66073f6a9d1062abdd8df3f3e2462f3faba",
+    "serve.py": "02f0310fe3c10cdec80abdddf1bf4c54638e5ddb7e0a1511971167625c677ae9",
+    "approved-package-qa-plan.txt": "726656ca7d3c35e1b74c0d5685532ffa52cad1f77327d2016cad29273854750d",
+    "source-proof.log": "e67ef0cc32450473c3fe19d4df2cc50402d92b607ff6a33ed254e81dc3e4fb3f",
+    "http-verify.py": "072933890448017839bc384a63ec83884ac5a338598ba6ae65b639d670cfc50a",
+    "package.log": "0237fcf9e3e373ef896ec416bdac2444e8189aa2fba9f9d04e006521bb006917",
+    "verification.log": "3714f0b32756f65ca7dbe7d80900134fdb94474f5df9cbecca91be0ca06f61b8",
+    "server.json": "9854d62ee8723a8e4788b07c045e9aacb5d10c82082e1942ccf85ba179a7fc17",
+    "http-verification.log": "10e8e9f1549aa17fee2f6ccf4915dca8d6282ebd370e189c5c1fab109bcbbd36",
+    "http-verification.json": "10e8e9f1549aa17fee2f6ccf4915dca8d6282ebd370e189c5c1fab109bcbbd36",
+    "static-validation.log": "a8c5e0da56008dcd5805224016657aaeed5a14c0bd1d942e9775349a97961367",
+    "http-server-verified-snapshot.log": "6e62cf89cb62584a2a7b918545d5a6227cd35bf41d4d4d1daee9081724f93850"
+  }
+}

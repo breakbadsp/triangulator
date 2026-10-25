@@ -1,0 +1,26 @@
+target_pid = 270445
+# target_pid = 1234
+rate_hz = 5.0
+collector = "127.0.0.1:56846"
+status_fallback = false
+# Seconds between resource samples: pressure, descriptors, socket queues and
+# network drops (default 2; 0 = off; 1..60). Never more often than thread
+# ticks. A sample costs about 5 ms for a target with 500 descriptors; see
+# docs/target-impact.md.
+resource_interval_s = 2
+# Seconds between memory-map samples: /proc/PID/maps and the address-space
+# summary (default 30; 0 = off; 1..3600). Reading maps briefly shares the
+# target's memory-map lock; see docs/measurement-limits.md.
+memory_interval_s = 30
+
+# CPU budget as a percentage of one CPU core. The sampler can lower its rate.
+cpu_budget_pct = 1.0
+
+# For multiple targets, remove target_process/target_pid above. Add tables
+# after all global settings:
+# [[target]]
+# id = "orders"
+# process = "orders-api"
+# [[target]]
+# id = "billing"
+# pid = 1234
