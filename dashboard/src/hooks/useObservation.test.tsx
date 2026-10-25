@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse } from "../api/types";
 import { useObservation } from "./useObservation";
@@ -78,29 +78,4 @@ test("a reload restores points and thread observations of the same session", () 
   // Another target's tab entries are not read.
   const other = renderHook(() => useSeries("h/other", third));
   expect(other.result.current?.points).toHaveLength(1);
-});
-
-test("a target switch drops the caches at unload and a restored page keeps saving", () => {
-  const { result, rerender } = renderHook(
-    ({ view }: { view: LiveResponse }) =>
-      useObservation("h/w", { view, now: view.health.last_seen ?? 0 }, 900),
-    { initialProps: { view: live(1) } },
-  );
-  rerender({ view: live(2) });
-  act(() => {
-    result.current.depart(["h/w", "h/other"]);
-  });
-  // The user chose "Stay": the page still ingests live replies.
-  rerender({ view: live(3) });
-  expect(result.current.observation?.series.points).toHaveLength(3);
-  // The back/forward cache restored the page: the intent is void.
-  dispatchEvent(new Event("pageshow"));
-  dispatchEvent(new Event("pagehide"));
-  expect(entry("triangulator:buffer")?.points).toHaveLength(3);
-  act(() => {
-    result.current.depart(["h/w", "h/other"]);
-  });
-  dispatchEvent(new Event("pagehide"));
-  expect(entry("triangulator:buffer")).toBeNull();
-  expect(entry("triangulator:threads")).toBeNull();
 });

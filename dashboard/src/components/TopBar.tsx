@@ -2,6 +2,7 @@ import type { ViewMode } from "../lib/assess";
 import { date } from "../lib/format";
 import { useEffect, useState } from "react";
 import type { LiveResponse, Target } from "../api/types";
+import { markDeparture } from "../api/viewStorage";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
@@ -25,7 +26,6 @@ export function TopBar({
   mode = { kind: "live" },
   now = 0,
   onLive,
-  onDepart,
 }: {
   page: Page;
   targets: readonly Target[];
@@ -34,7 +34,6 @@ export function TopBar({
   now?: number;
   onLive?: () => void;
   /** The user chose another target: drop these targets' caches on unload. */
-  onDepart?: (forget: readonly string[]) => void;
 }) {
   const [theme, setTheme] = useState<Theme>(readTheme);
   useEffect(() => {
@@ -84,7 +83,7 @@ export function TopBar({
   function navigate(key: string) {
     // The destination starts fresh: its saved view may be from another visit.
     if (key && page.kind === "target" && key !== page.key)
-      onDepart?.([page.key, key]);
+      markDeparture(page.key, key);
     const query = new URLSearchParams(location.search);
     if (key) query.set("target", key);
     else query.delete("target");
