@@ -466,6 +466,10 @@ export function assessRecorded(
   view: LiveResponse,
   at: number,
   resourcePoints: readonly ResourcePoint[],
+  {
+    memoryLayout = null,
+    pressureScope = "cgroup",
+  }: Partial<Pick<AssessInput, "memoryLayout" | "pressureScope">> = {},
 ): Finding[] {
   const findings = assess({
     view,
@@ -474,9 +478,9 @@ export function assessRecorded(
     series: ingest(emptySeries, view),
     watchRules: null,
     resourcePoints: resourcePoints.filter((point) => point.t <= at),
-    memoryLayout: null,
+    memoryLayout,
     memoryHistory: [],
-    pressureScope: "cgroup",
+    pressureScope,
   });
   return findings.map((item) =>
     item.action?.tid !== undefined

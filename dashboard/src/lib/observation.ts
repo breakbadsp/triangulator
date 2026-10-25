@@ -155,6 +155,15 @@ export function receiveLive(
   if (next.recorded) return next;
   return { ...next, live: observe(state.target, view, now, kept, restored) };
 }
+/** The cached memory layout when it is of the recorded process, else null. */
+export const compatibleLayout = (
+  cached: MemoryLayout | null | undefined,
+  view: LiveResponse,
+) =>
+  cached?.pid === view.health.pid &&
+  cached.id?.split(":")[0] === view.health.session
+    ? cached
+    : null;
 export function selectRecording(
   state: Observations,
   view: LiveResponse & { recorded_at: number },
@@ -162,15 +171,14 @@ export function selectRecording(
 ): Observations {
   const at = view.recorded_at;
   const observation = observe(state.target, view, at);
-  const cached = state.live?.memory.layout ?? state.final?.memory.layout;
-  const compatible =
-    cached?.pid === view.health.pid &&
-    cached.id?.split(":")[0] === view.health.session;
   // A cached layout is latest evidence. It is never replay memory history.
   const memory = {
     ...observation.memory,
     key: observationKey(state.target, view, "recorded", at),
-    layout: compatible ? cached : null,
+    layout: compatibleLayout(
+      state.live?.memory.layout ?? state.final?.memory.layout,
+      view,
+    ),
     history: [],
     previous: null,
     heapSpan: null,
