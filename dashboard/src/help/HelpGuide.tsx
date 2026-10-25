@@ -88,7 +88,9 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
             : null,
         readout,
         chart:
-          opener.dataset.help === topic ? captureGuideChart(opener) : undefined,
+          opener.dataset.help === topic
+            ? captureGuideChart(opener, topic)
+            : undefined,
       });
       setHover(hoverHelpEnabled());
     },

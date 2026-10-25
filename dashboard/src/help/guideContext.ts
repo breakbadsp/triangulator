@@ -4,6 +4,7 @@ import type { Readout } from "./Help";
 
 export interface GuideChart {
   key: string;
+  topic: HelpTopicId;
   headers: readonly string[];
   rows: readonly (readonly string[])[];
 }
@@ -39,10 +40,19 @@ export function registerGuideChart(element: Element, read: () => GuideChart) {
     charts.delete(element);
   };
 }
-export function captureGuideChart(opener: HTMLElement) {
-  const chart =
-    opener.closest(".chart") ??
-    opener.querySelector(".chart") ??
-    opener.closest(".card")?.querySelector(".chart");
-  return chart ? charts.get(chart)?.() : undefined;
+export function captureGuideChart(opener: HTMLElement, topic: HelpTopicId) {
+  const enclosing = opener.closest(".chart");
+  const contained = opener.querySelectorAll(".chart");
+  const candidates = enclosing
+    ? [enclosing]
+    : [
+        ...(contained.length
+          ? contained
+          : (opener.closest(".card")?.querySelectorAll(".chart") ?? [])),
+      ];
+  const matching = candidates
+    .map((element) => charts.get(element)?.())
+    .filter((chart) => chart?.topic === topic);
+  // A shared card can contain several metrics, or repeated views of one metric.
+  return matching.length === 1 ? matching[0] : undefined;
 }
