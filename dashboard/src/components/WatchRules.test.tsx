@@ -1,3 +1,4 @@
+// Moved to phase 10: old tests 2767 (match counts follow collector in final view); 2683 (recorded moment hides editor and shows read-only note; leaving restores editor).
 import {
   act,
   cleanup,

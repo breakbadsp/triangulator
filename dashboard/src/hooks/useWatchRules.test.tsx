@@ -1,3 +1,4 @@
+// Moved to phase 10: old test 2476 (no rules refresh in recorded or final views).
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { Thread } from "../api/types";
