@@ -24,6 +24,7 @@ const source = ts.createSourceFile(
 );
 const names = new Set(
   `
+  SETTLE_SECS settling targetExited inspectTime returnLive
   BUFFER_SECS AVG_STEP loadBuffer saveBuffer ingest loadOf updateLoadAverage
   averageCpu mapView idleFor
   STATES labels isNum pct compact number bytes perSec clock date duration ago family
@@ -876,11 +877,23 @@ for (const metric of ["input", "output", "messages"]) {
 const { memoryParity } = await import("./memory-parity.mjs");
 const memoryRun = await memoryParity({ oracle, load, dashboard, resolve });
 log(
-  `PASS: ${memoryRun.steps} old/new memory map steps with ${memoryRun.layoutsFetched} layout fetches; ${memoryRun.values} displayed-value comparisons.`,
+  `PASS: ${memoryRun.steps} old/new memory map steps with ${memoryRun.layoutsFetched} layout fetches; ${memoryRun.values} displayed-value comparisons; ${memoryRun.historicalChecks} compatible historical layout checks.`,
 );
 log(
   `PASS: ${viewComparisons} old/new resource/socket displayed-value and note comparisons.`,
 );
 log(
   `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, ${readings} thread map readings, and ${restores} restores; repeated calls are isolated.`,
+);
+
+const { replayParity } = await import("./replay-parity.mjs");
+const replayRun = await replayParity({
+  oracle,
+  load,
+  dashboard,
+  resolve,
+  seriesValue,
+});
+log(
+  `PASS: ${replayRun.comparisons} old/new replay and final transitions, ${replayRun.liveSteps} live steps and ${replayRun.recordings} recording selections.`,
 );

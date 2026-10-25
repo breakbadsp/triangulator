@@ -1,4 +1,5 @@
-import { useState, type MouseEvent } from "react";
+import { ObservationContext } from "./observationContext";
+import { useContext, useState, type MouseEvent } from "react";
 import type { Readout } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
 import type { TipRow } from "../lib/threads";
@@ -7,12 +8,19 @@ import type { TipRow } from "../lib/threads";
  * A help readout for the hovered part of a dense surface. One `Help` serves
  * the whole surface, so a target with thousands of threads mounts one card.
  */
-export function useReadout() {
+export function useReadout(selection = "") {
+  const { key } = useContext(ObservationContext);
+  const context = `${key}|${selection}`;
+  const [seen, setSeen] = useState(context);
   const [readout, setReadout] = useState<
     (Readout & { topic?: HelpTopicId }) | null
   >(null);
+  if (seen !== context) {
+    setSeen(context);
+    setReadout(null);
+  }
   return {
-    readout,
+    readout: seen === context ? readout : null,
     show: (
       event: MouseEvent,
       key: string,

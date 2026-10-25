@@ -1,3 +1,6 @@
+import { useContext } from "react";
+import { ObservationContext } from "../hooks/observationContext";
+import type { ViewMode } from "../lib/assess";
 import {
   useCallback,
   useLayoutEffect,
@@ -73,11 +76,20 @@ function useClearOn(selection: string, clear: () => void) {
 export function SocketIO({
   view,
   context,
+  mode = { kind: "live" },
+  heldReport,
+  heldError,
+  external = false,
 }: {
   view: LiveResponse | undefined;
+  mode?: ViewMode;
+  heldReport?: SocketReport;
+  heldError?: Error;
+  external?: boolean;
   /** The target, session and PID of the live view; null before it. */
   context: string | null;
 }) {
+  const observationContext = useContext(ObservationContext);
   const pid = view?.health.pid ?? 0;
   const load = useCallback(
     async (signal: AbortSignal) => {
@@ -94,12 +106,23 @@ export function SocketIO({
     },
     [pid],
   );
-  const result = useScopedPoll(context, load, 3000);
+  const result = useScopedPoll(
+    mode.kind === "live" && !external ? context : null,
+    load,
+    3000,
+  );
   // The collector answers for the PID it was asked about; check anyway.
-  const report =
-    result?.data && (!result.data.available || result.data.pid === pid)
+  const report: SocketReport | undefined =
+    heldReport ??
+    (mode.kind === "final"
+      ? {
+          available: false,
+          reason: "No socket report was retained for this final view.",
+        }
+      : undefined) ??
+    (result?.data && (!result.data.available || result.data.pid === pid)
       ? result.data
-      : undefined;
+      : undefined);
   const [metric, setMetric] = useState<SocketMetric>("input");
   const [kind, setKind] = useState("");
   const [search, setSearch] = useState("");
@@ -113,7 +136,8 @@ export function SocketIO({
   let status = "Checking observer…",
     scope =
       "Measure traffic handled by each thread, and application messages completed.";
-  if (result?.error) {
+  const error = external ? heldError : result?.error;
+  if (error) {
     status = "Report unavailable · stale";
     scope =
       "Unable to refresh socket observations. Previously displayed values may be stale.";
@@ -126,148 +150,159 @@ export function SocketIO({
     scope = `PID ${String(report.pid)} · observed for ${num(report.duration)} seconds · totals since this observer started · observer ${report.observer}`;
   }
   return (
-    <section
-      id="socket-panel"
-      className="block card"
-      aria-labelledby="socket-title"
+    <ObservationContext
+      value={{
+        ...observationContext,
+        key: JSON.stringify([
+          observationContext.key,
+          report?.available ? observerIdentity(report) : null,
+        ]),
+      }}
     >
-      <div className="socket-heading">
+      <section
+        id="socket-panel"
+        hidden={mode.kind === "recorded"}
+        className="block card"
+        aria-labelledby="socket-title"
+      >
+        <div className="socket-heading">
+          <Help topic="socketio" as="div">
+            <h2 id="socket-title">Socket I/O &amp; message processing</h2>
+          </Help>
+          <Help topic="socketio">
+            <span
+              id="socket-status"
+              className={
+                "socket-badge" +
+                (report?.available && (report.stale || report.lower_bound)
+                  ? " socket-warning"
+                  : "")
+              }
+              role="status"
+            >
+              {status}
+            </span>
+          </Help>
+        </div>
         <Help topic="socketio" as="div">
-          <h2 id="socket-title">Socket I/O &amp; message processing</h2>
+          <p id="socket-scope" className="socket-note">
+            {scope}
+          </p>
         </Help>
-        <Help topic="socketio">
-          <span
-            id="socket-status"
-            className={
-              "socket-badge" +
-              (report?.available && (report.stale || report.lower_bound)
-                ? " socket-warning"
-                : "")
-            }
-            role="status"
-          >
-            {status}
-          </span>
-        </Help>
-      </div>
-      <Help topic="socketio" as="div">
-        <p id="socket-scope" className="socket-note">
-          {scope}
-        </p>
-      </Help>
-      {report && !report.available && (
-        <Help topic="coverage" as="div">
-          <div id="socket-empty" className="socket-empty">
-            {report.reason || "Socket observer not connected"}
-          </div>
-        </Help>
-      )}
-      {report?.available && (
-        <div id="socket-content">
-          <div
-            className="socket-controls"
-            role="group"
-            aria-label="Socket metric"
-          >
-            <div className="seg">
-              {METRICS.map(([value, label, topic]) => (
-                <Help key={value} topic={topic}>
-                  <button
-                    type="button"
-                    data-socket-metric={value}
-                    aria-pressed={metric === value}
-                    onClick={() => {
-                      setMetric(value);
+        {report && !report.available && (
+          <Help topic="coverage" as="div">
+            <div id="socket-empty" className="socket-empty">
+              {report.reason || "Socket observer not connected"}
+            </div>
+          </Help>
+        )}
+        {report?.available && (
+          <div id="socket-content">
+            <div
+              className="socket-controls"
+              role="group"
+              aria-label="Socket metric"
+            >
+              <div className="seg">
+                {METRICS.map(([value, label, topic]) => (
+                  <Help key={value} topic={topic}>
+                    <button
+                      type="button"
+                      data-socket-metric={value}
+                      aria-pressed={metric === value}
+                      onClick={() => {
+                        setMetric(value);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  </Help>
+                ))}
+              </div>
+              <Help topic="endpoint">
+                <label>
+                  Socket kind{" "}
+                  <select
+                    id="socket-kind"
+                    value={kind}
+                    disabled={metric === "messages"}
+                    onChange={(event) => {
+                      setKind(event.target.value);
                     }}
                   >
-                    {label}
-                  </button>
-                </Help>
-              ))}
+                    <option value="">All kinds</option>
+                    {kinds.map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </Help>
+              <Help topic="thread">
+                <label>
+                  Thread{" "}
+                  <input
+                    id="socket-search"
+                    placeholder="Name or TID"
+                    aria-label="Find socket thread"
+                    value={search}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                    }}
+                  />
+                </label>
+              </Help>
             </div>
-            <Help topic="endpoint">
-              <label>
-                Socket kind{" "}
-                <select
-                  id="socket-kind"
-                  value={kind}
-                  disabled={metric === "messages"}
-                  onChange={(event) => {
-                    setKind(event.target.value);
-                  }}
-                >
-                  <option value="">All kinds</option>
-                  {kinds.map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <Help topic={METRIC_TOPICS[metric]} as="div">
+              <p id="socket-metric-note" className="socket-note">
+                {unconfigured
+                  ? "Message completion is not configured. Add a completion marker to count messages after the application finishes processing them."
+                  : METRIC_NOTES[metric]}
+              </p>
             </Help>
-            <Help topic="thread">
-              <label>
-                Thread{" "}
-                <input
-                  id="socket-search"
-                  placeholder="Name or TID"
-                  aria-label="Find socket thread"
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                  }}
-                />
-              </label>
-            </Help>
+            <SocketReportBody
+              key={`${String(context)}|${observerIdentity(report)}`}
+              report={report}
+              metric={metric}
+              kind={kind}
+              search={search}
+            />
           </div>
-          <Help topic={METRIC_TOPICS[metric]} as="div">
-            <p id="socket-metric-note" className="socket-note">
-              {unconfigured
-                ? "Message completion is not configured. Add a completion marker to count messages after the application finishes processing them."
-                : METRIC_NOTES[metric]}
+        )}
+        <details>
+          <summary>
+            <Help topic="socketio">What is measured · setup</Help>
+          </summary>
+          <Help topic="socketio" as="div">
+            <p>
+              Received and sent bytes are the successful byte counts reported by
+              observed kernel socket operations. Sent means accepted by the
+              socket, not delivered to the peer. Peeks, failed operations and
+              UDP are excluded. A receive operation can contain part of one
+              message or many messages.
+            </p>
+            <p>
+              Messages processed counts calls to an explicit application
+              completion marker, one call per successfully processed message. It
+              is never inferred from read calls or bytes.
+            </p>
+            <p>
+              Start the optional source on the target host:{" "}
+              <code>
+                build/triangulator-socket-sampler PID COLLECTOR-IP:PORT
+                build/socket.bpf.o
+              </code>
+              . Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion
+              counts. The source needs kernel BTF, socket length tracepoints and
+              BPF tracing privileges. The normal sampler continues without extra
+              privileges. See <code>docs/socket-ingress-design.md</code> for
+              coverage and setup.
             </p>
           </Help>
-          <SocketReportBody
-            key={`${String(context)}|${observerIdentity(report)}`}
-            report={report}
-            metric={metric}
-            kind={kind}
-            search={search}
-          />
-        </div>
-      )}
-      <details>
-        <summary>
-          <Help topic="socketio">What is measured · setup</Help>
-        </summary>
-        <Help topic="socketio" as="div">
-          <p>
-            Received and sent bytes are the successful byte counts reported by
-            observed kernel socket operations. Sent means accepted by the
-            socket, not delivered to the peer. Peeks, failed operations and UDP
-            are excluded. A receive operation can contain part of one message or
-            many messages.
-          </p>
-          <p>
-            Messages processed counts calls to an explicit application
-            completion marker, one call per successfully processed message. It
-            is never inferred from read calls or bytes.
-          </p>
-          <p>
-            Start the optional source on the target host:{" "}
-            <code>
-              build/triangulator-socket-sampler PID COLLECTOR-IP:PORT
-              build/socket.bpf.o
-            </code>
-            . Add <code>MARKER-BINARY MARKER-SYMBOL</code> for completion
-            counts. The source needs kernel BTF, socket length tracepoints and
-            BPF tracing privileges. The normal sampler continues without extra
-            privileges. See <code>docs/socket-ingress-design.md</code> for
-            coverage and setup.
-          </p>
-        </Help>
-      </details>
-    </section>
+        </details>
+      </section>
+    </ObservationContext>
   );
 }
 

@@ -13,6 +13,8 @@ export interface Target {
 }
 
 export interface LiveResponse {
+  recorded_at?: number;
+  recording_interval_s?: number;
   process?: ProcessInfo | null;
   health: {
     session?: string | null;
@@ -22,6 +24,7 @@ export interface LiveResponse {
     last_seen: number | null;
     sampler_silent: boolean;
     target_absent: boolean | null;
+    last_target?: { session: string; pid?: number; at?: number } | null;
     bad_packets?: number;
     duplicates?: number;
     late_packets?: number;

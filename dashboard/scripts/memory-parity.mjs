@@ -78,6 +78,9 @@ export async function memoryParity({ oracle, load, dashboard, resolve }) {
   const { memoryFaultRate } = lib("src/lib/assess/index.ts");
   const { emptySeries } = lib("src/lib/series.ts");
 
+  const observations = lib("src/lib/observation.ts");
+  let layoutRequests = 0,
+    historicalChecks = 0;
   let server = null; // the collector's latest /api/memory-map
   const elements = new Map();
   const context = createContext({
@@ -94,7 +97,10 @@ export async function memoryParity({ oracle, load, dashboard, resolve }) {
     helpButtonLabel: (value, id, className, tag) => el(tag, value, className),
     helpOwns: () => false,
     topicForText: () => "",
-    apiFetch: async () => ({ ok: true, json: async () => server }),
+    apiFetch: async () => {
+      layoutRequests++;
+      return { ok: true, json: async () => server };
+    },
     frozen: null,
     replayAt: null,
     replayResources: [],
@@ -397,6 +403,62 @@ Date.now=()=>now*1000;`,
         old("memory-sub").textContent,
         "subtitle",
       );
+      if (step % 10 === 0 && model.layout) {
+        const historyBefore = plain(runInContext("memoryHistory", context));
+        const requestsBefore = layoutRequests;
+        const saved = {
+          key: "live",
+          mode: { kind: "live" },
+          view: live,
+          now,
+          series: emptySeries,
+          memory: state,
+          resources: [],
+          watchRules: null,
+        };
+        const recorded = observations.selectRecording(
+          { ...observations.initialObservations("target"), live: saved },
+          { ...live, recorded_at: now - 30 },
+          [],
+        );
+        context.replayAt = now - 30;
+        runInContext("renderMemory()", context);
+        await flush();
+        same(
+          layoutRequests,
+          requestsBefore,
+          "recorded mode does not fetch layouts",
+        );
+        same(
+          runInContext("memoryHistory", context),
+          historyBefore,
+          "recording does not grow live memory history",
+        );
+        same(
+          recorded.live.memory.history,
+          state.history,
+          "saved live memory history is unchanged",
+        );
+        same(
+          recorded.recorded.memory.history,
+          [],
+          "recorded history is isolated",
+        );
+        same(
+          view.memoryGrowth(recorded.recorded.memory.history, "heap", false),
+          runInContext("memoryGrowth('heap')", context),
+          "recorded growth unavailable",
+        );
+        same(
+          view.memoryModel(recorded.recorded.memory).regions,
+          runInContext("memoryRegions(memoryLayout)", context),
+          "compatible latest layout regions",
+        );
+        context.replayAt = null;
+        runInContext("renderMemory()", context);
+        await flush();
+        historicalChecks++;
+      }
       // Tiles and findings.
       const series = { ...emptySeries, points: buffer };
       const trend = rssTrend(live, asResourcePoints(rows), now);
@@ -621,5 +683,5 @@ Date.now=()=>now*1000;`,
       );
     }
   }
-  return { steps, values, layoutsFetched };
+  return { steps, values, layoutsFetched, historicalChecks };
 }

@@ -49,11 +49,13 @@ function readOnlyNote(state: WatchEditor) {
  */
 export function WatchRules({
   threads,
+  recorded = false,
   opened,
   onChanged,
 }: {
   /** The collector's current threads, to count matches against. */
   threads: readonly Thread[];
+  recorded?: boolean;
   /** Increases each time the Settings tab is selected. */
   opened: number;
   /** A change was applied: the assessment reads the rules again. */
@@ -61,31 +63,48 @@ export function WatchRules({
 }) {
   const [state, dispatch] = useReducer(watchEditor, initialWatchEditor);
   const reads = useRef(0);
+  const active = useRef(!recorded);
+  useEffect(() => {
+    active.current = !recorded;
+  }, [recorded]);
+  useEffect(() => {
+    if (recorded) {
+      ++reads.current;
+      dispatch({ type: "suspend-read" });
+    }
+  }, [recorded]);
+  useEffect(
+    () => () => {
+      ++reads.current;
+    },
+    [],
+  );
   // A GET starts only while nothing is unsaved or in flight.
   const read = useEffectEvent(() => {
-    if (!canRead(state)) return;
+    if (recorded || !canRead(state)) return;
     const token = ++reads.current;
     dispatch({ type: "read", token });
     void readWatches().then((result) => {
-      dispatch({ type: "loaded", token, result });
+      if (active.current && token === reads.current)
+        dispatch({ type: "loaded", token, result });
     });
   });
   // At mount, and each time the Settings tab is selected.
   useEffect(() => {
     read();
-  }, [opened]);
+  }, [opened, recorded]);
   // Until the first good reply, try again every 5 s.
   const failed =
     state.kind === "loading" && state.error !== null ? state : null;
   useEffect(() => {
-    if (!failed) return;
+    if (!failed || recorded) return;
     const timer = setTimeout(() => {
       read();
     }, RETRY_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [failed]);
+  }, [failed, recorded]);
   const dirty = state.kind === "ready" && isDirty(state);
   useEffect(() => {
     if (!dirty) return;
@@ -124,20 +143,32 @@ export function WatchRules({
             </p>
           </div>
         </div>
-        {state.kind === "ready" ? (
-          <Editor
-            state={state}
-            dispatch={dispatch}
-            threads={threads}
-            onChanged={onChanged}
-          />
-        ) : (
+        {recorded && (
           <Help topic="collsettings" as="div">
-            <p id="watch-readonly" className="muted">
-              {readOnlyNote(state)}
+            <p id="watch-recorded-readonly" className="muted">
+              Settings cannot be edited while you inspect a recorded moment.
+              Select Live on the Timeline to edit them.
+              {dirty ? " Your unsaved edits are kept." : ""}
             </p>
           </Help>
         )}
+        <div hidden={recorded}>
+          {state.kind === "ready" ? (
+            <Editor
+              state={state}
+              recorded={recorded}
+              dispatch={dispatch}
+              threads={threads}
+              onChanged={onChanged}
+            />
+          ) : (
+            <Help topic="collsettings" as="div">
+              <p id="watch-readonly" className="muted">
+                {readOnlyNote(state)}
+              </p>
+            </Help>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -145,11 +176,13 @@ export function WatchRules({
 
 function Editor({
   state,
+  recorded,
   dispatch,
   threads,
   onChanged,
 }: {
   state: ReadyEditor;
+  recorded: boolean;
   dispatch: Dispatch<WatchAction>;
   threads: readonly Thread[];
   onChanged: () => void;
@@ -159,10 +192,18 @@ function Editor({
   const matches = watchMatches(state.draft, threads);
   // One request at a time, even for two clicks before the next render.
   const busy = useRef(false);
+  const readEpoch = useRef(0);
+  const suspendRead = useEffectEvent(() => {
+    ++readEpoch.current;
+    if (state.op === "reload") busy.current = false;
+  });
+  useEffect(() => {
+    suspendRead();
+  }, [recorded]);
   const focusRow = useRef<number | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   async function write(change: Change) {
-    if (busy.current) return;
+    if (recorded || busy.current) return;
     busy.current = true;
     dispatch({ type: "start", op: change });
     const result = await writeWatches(
@@ -175,7 +216,7 @@ function Editor({
     if (result.kind !== "failed") onChanged();
   }
   async function reload() {
-    if (busy.current) return;
+    if (recorded || busy.current) return;
     if (
       controls.dirty &&
       !confirm(
@@ -185,7 +226,9 @@ function Editor({
       return;
     busy.current = true;
     dispatch({ type: "start", op: "reload" });
+    const epoch = readEpoch.current;
     const result = await readWatches();
+    if (epoch !== readEpoch.current) return;
     busy.current = false;
     dispatch({ type: "reloaded", result });
   }
