@@ -11,7 +11,7 @@ import { usePoll } from "./usePoll";
 export function useScopedPoll<T>(
   context: string | null,
   load: (signal: AbortSignal) => Promise<T>,
-  intervalMs: number,
+  intervalMs: number | null,
 ): { data?: T; error?: Error } | undefined {
   const last = useRef<{ context: string; data: T } | null>(null);
   const scoped = useCallback(

@@ -1,4 +1,6 @@
+import { ObservationContext } from "./observationContext";
 import {
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -69,8 +71,9 @@ export function useHolding() {
  * pointer (the old page skipped those redraws).
  */
 export function useHeld<T>(value: T, holding: boolean): T {
-  const [held, setHeld] = useState<{ value: T } | null>(null);
-  if (holding && !held) setHeld({ value });
+  const { key } = useContext(ObservationContext);
+  const [held, setHeld] = useState<{ value: T; key: string } | null>(null);
+  if (holding && (!held || held.key !== key)) setHeld({ value, key });
   if (!holding && held) setHeld(null);
-  return holding && held ? held.value : value;
+  return holding && held?.key === key ? held.value : value;
 }

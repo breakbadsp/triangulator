@@ -1,4 +1,3 @@
-// Moved to phase 10: old test 2476 (no rules refresh in recorded or final views).
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { Thread } from "../api/types";
@@ -68,4 +67,37 @@ test("rules load once, refresh every 10 s and are fetched again when they look o
   await act(() => result.current.refresh());
   expect(fetchMock).toHaveBeenCalledTimes(5);
   expect(result.current.rules).toEqual(rules);
+});
+
+test("recorded and final assessments stop refresh and reject pending live rules", async () => {
+  let resolve: (value: Response) => void = () => undefined;
+  const fetchMock = vi.fn(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done;
+      }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const threads: Thread[] = [];
+  const { result, rerender } = renderHook(
+    ({ enabled, context }) => useWatchRules(threads, enabled, context),
+    { initialProps: { enabled: true, context: "live" } },
+  );
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  rerender({ enabled: false, context: "recorded" });
+  await act(async () => {
+    resolve(Response.json({ rules: [{ prefix: "late", wake_ms: 10 }] }));
+    await result.current.refresh();
+  });
+  expect(result.current.rules).toBeNull();
+  rerender({ enabled: false, context: "final" });
+  await act(() => result.current.refresh());
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  rerender({ enabled: true, context: "live-again" });
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    resolve(Response.json({ rules: [{ prefix: "current", wake_ms: 20 }] }));
+    await Promise.resolve();
+  });
+  expect(result.current.rules).toEqual([{ prefix: "current", wake_ms: 20 }]);
 });

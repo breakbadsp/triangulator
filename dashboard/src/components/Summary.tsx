@@ -7,6 +7,7 @@ import type {
 } from "../api/types";
 import { Help } from "../help/Help";
 import { isHelpTopicId } from "../help/topics";
+import type { ViewMode } from "../lib/assess";
 import { assess } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
@@ -60,6 +61,7 @@ const loadFormat = (value: unknown) =>
 /** The Summary section: how the whole target process is behaving. */
 export function Summary({
   view,
+  mode = { kind: "live" },
   series,
   now,
   windowSecs,
@@ -73,6 +75,7 @@ export function Summary({
   children,
 }: {
   view: LiveResponse | undefined;
+  mode?: ViewMode;
   series: Series;
   now: number;
   /** Stored resource samples of the Resources range, as the old page used. */
@@ -96,7 +99,7 @@ export function Summary({
   const findings = view
     ? assess({
         view,
-        mode: { kind: "live" },
+        mode,
         now,
         series,
         watchRules,
@@ -111,7 +114,7 @@ export function Summary({
       band.label !== "Blocked in kernel (D)" ||
       points.some((point) => point.s.kernel),
   );
-  const facts = loadFacts(threads, series, true);
+  const facts = loadFacts(threads, series, mode.kind !== "recorded");
   const memoryChart = (
     id: string,
     key: "rss" | "vm",
@@ -124,18 +127,20 @@ export function Summary({
   ) => (
     // The load chart supplies the points, so with sampling off or every
     // sample stale the memory charts would draw empty axes. Show why instead.
-    <TimeChart
-      id={id}
-      topic={topic}
-      points={points.some((point) => isNum(point[key])) ? points : []}
-      series={[{ label, color, get: (point) => point[key] }]}
-      format={axisBytes}
-      nice={niceBytes}
-      height={100}
-      minMax={2 ** 20}
-      from={from}
-      empty={source?.available ? waiting : source?.reason || missing}
-    />
+    <div hidden={mode.kind === "recorded"}>
+      <TimeChart
+        id={id}
+        topic={topic}
+        points={points.some((point) => isNum(point[key])) ? points : []}
+        series={[{ label, color, get: (point) => point[key] }]}
+        format={axisBytes}
+        nice={niceBytes}
+        height={100}
+        minMax={2 ** 20}
+        from={from}
+        empty={source?.available ? waiting : source?.reason || missing}
+      />
+    </div>
   );
   return (
     <section id="overview" className="block overview">
@@ -158,6 +163,7 @@ export function Summary({
               <button
                 key={seconds}
                 type="button"
+                disabled={mode.kind === "recorded"}
                 data-window={seconds}
                 aria-pressed={windowSecs === seconds}
                 onClick={() => {
@@ -238,23 +244,29 @@ export function Summary({
               </Fact>
             </div>
           </div>
-          <TimeChart
-            id="chart-load"
-            topic="load"
-            points={points}
-            stacked
-            series={bands}
-            overlay={{
-              label: "1-min load average",
-              color: "var(--ink-2)",
-              get: (point) => point.l1,
-            }}
-            format={loadFormat}
-            height={210}
-            minMax={0.05}
-            from={from}
-          />
-          <div id="load-legend" className="legend">
+          <div hidden={mode.kind === "recorded"}>
+            <TimeChart
+              id="chart-load"
+              topic="load"
+              points={points}
+              stacked
+              series={bands}
+              overlay={{
+                label: "1-min load average",
+                color: "var(--ink-2)",
+                get: (point) => point.l1,
+              }}
+              format={loadFormat}
+              height={210}
+              minMax={0.05}
+              from={from}
+            />
+          </div>
+          <div
+            id="load-legend"
+            hidden={mode.kind === "recorded"}
+            className="legend"
+          >
             {bands.map((band) => {
               const value = last ? band.get(last) : null;
               return (

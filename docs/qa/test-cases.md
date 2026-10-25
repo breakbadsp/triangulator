@@ -124,6 +124,7 @@
 | QA-119 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/thread-leak.txt) |
 | QA-120 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/stopped.txt) |
 | QA-121 | NOT_RUN | - | - | - |
+| QA-122 | NOT_RUN | - | - | - |
 
 ## QA-001: Package installation and live dashboard
 
@@ -147,8 +148,8 @@
 
 ## QA-005: Thread detail and recorded replay
 
-- Test: With two recorded times available, open a live thread drawer, inspect both recordings and a recorded thread, then return to Live.
-- Expected: Metrics match the selected thread and time. Recorded history ends at that time. Live updates resume.
+- Test: With two recorded times available, select a live map window and custom thread-history range. Open a thread, select Previous from Live, step both recordings, open a recorded thread, and return to Live. Preview a Timeline time without release, then select it.
+- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, socket observations, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
 
 ## QA-006: Package upgrade preserves configuration and history
 
@@ -303,16 +304,16 @@
 ## QA-037: Settings tab read-only states and help coverage
 
 - Test: Inspect every Settings label and control with hover and keyboard help. Keep an unsaved edit while opening replay, returning Live, blocking `/api/watches`, stopping the collector, and exiting/restarting the target.
-- Expected: Replay is read-only and preserves the draft for Live. Missing watches names the endpoint and suggests collector.toml. Failed Save preserves edits and reports connection failure. Match counts are zero in replay/final view and recover with live threads. Existing alert settings remain available when present.
+- Expected: Replay is read-only and preserves the draft for Live. Missing watches names the endpoint and suggests collector.toml. Failed Save preserves edits and reports connection failure. Recorded mode hides the editor and stops new reads, retries, and writes. A pending read cannot replace its draft. An already-sent write settles only current configuration state. In final mode the editor remains available; match counts use the current collector threads, not the final threads. Final and recorded assessments use sampled wake thresholds. Alert controls stay hidden until the separate alert module and API exist.
 
 ## QA-038: Timeline and past assessments show a recorded finding
 
-- Test: Record a CPU-spin finding, then recover. In Timeline, select its row and mark, step with keyboard, return Live, and filter by severity and type.
+- Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. After phase 10b, also select its past-assessment row, inspect its mark, and filter by severity and type.
 - Expected: Recorded assessment, thread, timestamp, and row agree. Stepping selects real recordings. Filters affect rows and marks consistently; Live resumes current data.
 
 ## QA-039: Earlier Timeline periods, empty states, and help
 
-- Test: Use two hours of recordings and an empty installation. Load earlier by scrolling and controls. Interrupt the test collector during loading; restart and retry. Inspect help by pointer and keyboard.
+- Test: Use two hours of recordings and an empty installation. Check direct Timeline bounds, gaps, missing recordings, and help. After phase 10b, load earlier past-assessment periods by scrolling and controls. Interrupt the test collector during loading; restart and retry. Inspect help by pointer and keyboard.
 - Expected: Earlier data appears without duplicates. Empty, loading, and failed states are explicit. Errors can be retried. Help explains sampling limits and navigation.
 
 ## QA-045: Concurrent viewers and slow connections
@@ -463,7 +464,7 @@
 ## QA-074: One of five production processes stops and restarts
 
 - Test: From QA-073, select by exact name. Stop and restart only deadlock while locks and control remain open. Inspect the final view, then Show live.
-- Expected: Only locks becomes absent. Its old PID and evidence remain until Show live. The replacement has a new PID; other targets remain live.
+- Expected: Only locks becomes absent. Its old PID, compatible memory layout, matching exit, and trends remain until Show live. Reload retains the final view when tab storage is available. A quota warning states when reload loses it. The replacement has a new PID; other targets remain live.
 
 ## QA-075: Thread drawer preserves a target URL
 
@@ -497,7 +498,7 @@
 
 ## QA-081: Past assessments show resident memory growth
 
-- Test: Record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
+- Test: After phase 10b, record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
 - Expected: The leak has a Memory row and timeline mark. Recorded assessment and RSS growth agree. The row persists in earlier periods, allowing less exact times.
 
 ## QA-082: Targets overview lists every target
@@ -606,3 +607,9 @@
 
 - Test: Start the C++ collector and open a live target. Check that `/api/live` has no `alerts` field. Open Settings, reload with `#settings`, and inspect requests in the browser network panel. For a controlled browser fixture, return `alerts: []` once, then omit the field on the next live poll.
 - Expected: No Open alerts, Recent alerts, alert settings editor, or alert toggle appears in any step. No `/api/alert-settings` request is sent. Target monitoring and Settings remain usable.
+
+
+## QA-122: Recording and final-view request isolation
+
+- Test: Delay snapshot, resource, memory-layout, thread-history, and watch reads. Change recording, return Live, change target, or close the page before delivery. Repeat with request errors, no-thread new sessions, absence during replay, restart, late matching and unrelated exits, last-target failure/wrong session/empty replies, reload, and blocked or full tab storage. Keep focus and pointer holds on controls and Help during transitions.
+- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory and socket refresh stop. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.

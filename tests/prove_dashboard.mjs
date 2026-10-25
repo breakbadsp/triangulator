@@ -155,7 +155,7 @@ try {
   });
   let priorProof = {};
   // Reuse prior-phase proof when only the target-control script changes.
-  if (!process.argv.includes("--target-control-only")) {
+  if (!process.argv.includes("--target-control-only") && !process.argv.includes("--replay-only")) {
   await until(async () => {
     try {
       return (await fetch(`${base}/api/targets`)).ok;
@@ -343,6 +343,7 @@ try {
     sub: document.querySelector('#overview-sub').textContent,
   })`);
   assert.deepEqual(summary.tabs, [
+    "Timeline",
     "Summary",
     "Threads",
     "Resources",
@@ -893,6 +894,7 @@ try {
   assert.equal(socketEntry.panel, true);
   assert.ok(socketEntry.empty.length > 0, JSON.stringify(socketEntry));
   assert.deepEqual(socketEntry.tabs, [
+    "Timeline",
     "Summary",
     "Threads",
     "Resources",
@@ -1745,6 +1747,14 @@ try {
   };
   }
 
+  if (process.argv.includes("--replay-only") || !process.argv.includes("--target-control-only")) {
+    const { proveReplay } = await import("./prove_replay.mjs");
+    priorProof.replay = await proveReplay({ root, profile, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });
+  }
+  if (process.argv.includes("--replay-only")) {
+    assert.deepEqual(exceptions, []);
+    console.log(JSON.stringify({ chromiumVersion, ...priorProof, runtimeExceptions: 0 }, null, 2));
+  } else {
   // Target management: real collector, local helper, sampler and owned PIDs.
   // Reuse the integration fixture so its process and runtime isolation stay shared.
   controlFixture = spawn("python3", ["-u", "-c", `
@@ -1916,14 +1926,14 @@ finally:
       (url) =>
         url === "about:blank" ||
         url.startsWith("data:image/svg+xml;") ||
-        (new URL(url).origin === base || new URL(url).origin === controlBase),
+        (new URL(url).origin === base || new URL(url).origin === controlBase || new URL(url).origin === priorProof.replay?.base),
     ),
     JSON.stringify(
       requests.filter(
         (url) =>
           url !== "about:blank" &&
           !url.startsWith("data:image/svg+xml;") &&
-          new URL(url).origin !== base && new URL(url).origin !== controlBase,
+          new URL(url).origin !== base && new URL(url).origin !== controlBase && new URL(url).origin !== priorProof.replay?.base,
       ),
     ),
   );
@@ -1941,6 +1951,7 @@ finally:
       2,
     ),
   );
+  }
 } finally {
   socket?.close();
   await Promise.all([stop(browser), stop(fixture), ...(controlFixture ? [stop(controlFixture)] : [])]);

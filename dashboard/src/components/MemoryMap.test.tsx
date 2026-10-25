@@ -9,7 +9,8 @@ import type {
   MemorySummary,
 } from "../api/types";
 import { helpTopics } from "../help/topics";
-import { useMemoryMap } from "../hooks/useMemoryMap";
+import { useObservation } from "../hooks/useObservation";
+import { initialMemory } from "../lib/memoryView";
 import type { ResourcePoint } from "../lib/assess/memory";
 import { emptySeries } from "../lib/series";
 import { NOW, memorySummary, rssHistory, view } from "../lib/test-fixtures";
@@ -98,13 +99,13 @@ function Harness({
   live: LiveResponse;
   points?: readonly ResourcePoint[];
 }) {
-  const memory = useMemoryMap("t", live);
+  const memory = useObservation("t", { view: live, now: NOW }, 900);
   return (
     <MemoryMap
       view={live}
       now={NOW}
-      memory={memory.state}
-      dispatch={memory.dispatch}
+      memory={memory.observation?.memory ?? initialMemory}
+      dispatch={memory.memory}
       series={emptySeries}
       resourcePoints={points}
       scope="cgroup"

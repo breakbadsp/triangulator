@@ -155,6 +155,7 @@ const ACTIVITIES: readonly [Activity, string][] = [
 /** `#thread-details`: the filters, chips, and the thread table. */
 export function ThreadTable({
   view,
+  recorded = false,
   threads,
   series,
   table,
@@ -164,6 +165,7 @@ export function ThreadTable({
   onOpen,
 }: {
   view: LiveResponse | undefined;
+  recorded?: boolean;
   /** The held threads and series that `table` was built from. */
   threads: readonly Thread[];
   series: Series;
@@ -561,12 +563,14 @@ export function ThreadTable({
                                 label: "Activity",
                                 metric: undefined,
                               },
-                              idleFor(thread, series) || "idle",
+                              (recorded ? null : idleFor(thread, series)) ||
+                                "idle",
                               "active",
                             );
                           }}
                         >
-                          {idleFor(thread, series) || "idle"}
+                          {(recorded ? null : idleFor(thread, series)) ||
+                            "idle"}
                         </td>
                         {cell(core, String(thread.cpu ?? ""), "num")}
                       </>

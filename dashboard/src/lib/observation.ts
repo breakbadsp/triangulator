@@ -23,6 +23,7 @@ export interface Observation {
   memory: MemoryState;
   resources: readonly ResourcePoint[];
   sockets?: SocketReport;
+  socketError?: Error;
   watchRules: readonly WatchRule[] | null;
 }
 export interface Observations {
@@ -84,6 +85,7 @@ export function observe(
     }),
     resources: same ? previous.resources : [],
     sockets: same ? previous.sockets : undefined,
+    socketError: same ? previous.socketError : undefined,
     watchRules: same ? previous.watchRules : null,
   };
 }
@@ -94,6 +96,10 @@ function freeze(state: Observations, observation: Observation): Observations {
     ...observation,
     key: observationKey(state.target, observation.view, "final", at),
     now: at,
+    memory: {
+      ...observation.memory,
+      key: observationKey(state.target, observation.view, "final", at),
+    },
     mode: { kind: "final", exit } as const,
     view: { ...observation.view, exit },
   };
@@ -163,6 +169,7 @@ export function selectRecording(
   // A cached layout is latest evidence. It is never replay memory history.
   const memory = {
     ...observation.memory,
+    key: observationKey(state.target, view, "recorded", at),
     layout: compatible ? cached : null,
     history: [],
     previous: null,

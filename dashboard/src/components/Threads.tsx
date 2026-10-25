@@ -1,3 +1,5 @@
+import { useContext } from "react";
+import { ObservationContext } from "../hooks/observationContext";
 import { useState, type Dispatch, type MouseEvent } from "react";
 import type { LiveResponse, Thread } from "../api/types";
 import { Help } from "../help/Help";
@@ -121,112 +123,125 @@ function ThreadMap({
   series,
   selected,
   onOpen,
+  recorded,
 }: {
+  recorded: boolean;
   threads: readonly Thread[];
   series: Series;
   selected: SelectedThread | null;
   onOpen: (thread: Thread, session: Series["session"]) => void;
 }) {
   const [window, setWindow] = useState<MapWindow>(0);
+  const context = useContext(ObservationContext);
+  const selection = String(recorded ? 0 : window);
   const { holding, handlers } = useHolding();
   // The averages and the order come from the same held data, so a poll
   // cannot move the tile under the pointer.
   const held = useHeld({ threads, series }, holding);
-  const map = mapCells(held.threads, held.series, window);
-  const { readout, show, clear } = useReadout();
+  const map = mapCells(held.threads, held.series, recorded ? 0 : window);
+  const { readout, show, clear } = useReadout(selection);
   return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <Help topic="map" as="div">
-            <h3>Thread map</h3>
-          </Help>
-          <p id="mosaic-sub">{map.sub}</p>
-        </div>
-        <Help topic="map" as="div">
-          <div className="seg" role="group" aria-label="Thread map time window">
-            {MAP_WINDOWS.map(([seconds, label]) => (
-              <button
-                key={seconds}
-                type="button"
-                data-map-window={seconds}
-                aria-pressed={window === seconds}
-                onClick={() => {
-                  setWindow(seconds);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Help>
-      </div>
-      <div {...handlers}>
-        <Help topic="map" as="div" readout={readout ?? undefined}>
-          <div
-            id="mosaic"
-            className={"mosaic" + (map.dense ? " dense" : "")}
-            onMouseLeave={clear}
-          >
-            {map.cells.map((cell) => (
-              <div
-                key={`${String(cell.thread.tid)}:${String(cell.thread.generation)}`}
-                data-tid={cell.thread.tid}
-                className={
-                  "cell" +
-                  (cell.thread.stale ? " stale" : cell.idle ? " idle" : "")
-                }
-                aria-label={cell.label}
-                style={{
-                  background: stateColor(cell.state),
-                  color: `var(--t-${cell.state})`,
-                  ...(isSelected(selected, held.series.session, cell.thread)
-                    ? { outline: "2px solid var(--ink)" }
-                    : {}),
-                }}
-                onMouseMove={(event) => {
-                  show(
-                    event,
-                    `map|${String(cell.thread.tid)}:${String(cell.thread.generation)}`,
-                    threadLabel(cell.thread),
-                    cell.tip,
-                    cell.thread.last_sample ?? held.series.lastTick,
-                  );
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onOpen(cell.thread, held.series.session);
-                }}
-              >
-                {cell.text}
-              </div>
-            ))}
-            {!held.threads.length && (
-              <p className="muted">No threads reported yet.</p>
-            )}
-          </div>
-        </Help>
-        <div id="mosaic-legend">
-          <div className="legend">
-            {map.legend.map(({ state, count }) => (
-              <Help key={state} topic={state}>
-                <i className={`sw ${state}`} />
-                {stateLabels[state]}
-                <b>{count}</b>
-              </Help>
-            ))}
-            <Help topic="map" className="muted">
-              {map.note}
+    <ObservationContext
+      value={{ ...context, key: `${context.key}|map|${selection}` }}
+    >
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <Help topic="map" as="div">
+              <h3>Thread map</h3>
             </Help>
-            {map.shortData && (
-              <Help topic="map" className="bad">
-                {map.shortData}
+            <p id="mosaic-sub">{map.sub}</p>
+          </div>
+          <Help topic="map" as="div">
+            <div
+              className="seg"
+              role="group"
+              aria-label="Thread map time window"
+            >
+              {MAP_WINDOWS.map(([seconds, label]) => (
+                <button
+                  key={seconds}
+                  type="button"
+                  data-map-window={seconds}
+                  disabled={recorded}
+                  aria-pressed={(recorded ? 0 : window) === seconds}
+                  onClick={() => {
+                    setWindow(seconds);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Help>
+        </div>
+        <div {...handlers}>
+          <Help topic="map" as="div" readout={readout ?? undefined}>
+            <div
+              id="mosaic"
+              className={"mosaic" + (map.dense ? " dense" : "")}
+              onMouseLeave={clear}
+            >
+              {map.cells.map((cell) => (
+                <div
+                  key={`${String(cell.thread.tid)}:${String(cell.thread.generation)}`}
+                  data-tid={cell.thread.tid}
+                  className={
+                    "cell" +
+                    (cell.thread.stale ? " stale" : cell.idle ? " idle" : "")
+                  }
+                  aria-label={cell.label}
+                  style={{
+                    background: stateColor(cell.state),
+                    color: `var(--t-${cell.state})`,
+                    ...(isSelected(selected, held.series.session, cell.thread)
+                      ? { outline: "2px solid var(--ink)" }
+                      : {}),
+                  }}
+                  onMouseMove={(event) => {
+                    show(
+                      event,
+                      `map|${String(cell.thread.tid)}:${String(cell.thread.generation)}`,
+                      threadLabel(cell.thread),
+                      cell.tip,
+                      cell.thread.last_sample ?? held.series.lastTick,
+                    );
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpen(cell.thread, held.series.session);
+                  }}
+                >
+                  {cell.text}
+                </div>
+              ))}
+              {!held.threads.length && (
+                <p className="muted">No threads reported yet.</p>
+              )}
+            </div>
+          </Help>
+          <div id="mosaic-legend">
+            <div className="legend">
+              {map.legend.map(({ state, count }) => (
+                <Help key={state} topic={state}>
+                  <i className={`sw ${state}`} />
+                  {stateLabels[state]}
+                  <b>{count}</b>
+                </Help>
+              ))}
+              <Help topic="map" className="muted">
+                {map.note}
               </Help>
-            )}
+              {map.shortData && (
+                <Help topic="map" className="bad">
+                  {map.shortData}
+                </Help>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </ObservationContext>
   );
 }
 
@@ -248,52 +263,57 @@ function Families({
   dispatch: Dispatch<ThreadAction>;
   onShowTable: () => void;
 }) {
+  const context = useContext(ObservationContext);
   const [mode, setMode] = useState<FamilyMode>("family");
   return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <Help topic="families" as="div">
-            <h3>Where the CPU goes</h3>
+    <ObservationContext
+      value={{ ...context, key: `${context.key}|families|${mode}` }}
+    >
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <Help topic="families" as="div">
+              <h3>Where the CPU goes</h3>
+            </Help>
+            <p id="family-sub">{FAMILY_SUBS[mode]}</p>
+          </div>
+          <Help topic="families">
+            <select
+              id="family-mode"
+              aria-label="Group CPU by"
+              value={mode}
+              onChange={(event) => {
+                setMode(event.target.value as FamilyMode);
+              }}
+            >
+              <option value="family">Name family</option>
+              <option value="group">Config group</option>
+              <option value="thread">Thread</option>
+            </select>
           </Help>
-          <p id="family-sub">{FAMILY_SUBS[mode]}</p>
         </div>
-        <Help topic="families">
-          <select
-            id="family-mode"
-            aria-label="Group CPU by"
-            value={mode}
-            onChange={(event) => {
-              setMode(event.target.value as FamilyMode);
-            }}
-          >
-            <option value="family">Name family</option>
-            <option value="group">Config group</option>
-            <option value="thread">Thread</option>
-          </select>
-        </Help>
+        <div {...barHandlers}>
+          <BarList
+            id="family-bars"
+            scope={`families|${mode}`}
+            topic="families"
+            items={familyItems(threads, mode)}
+            format={pct}
+            empty="No threads reported yet."
+            stamp={stamp}
+            onClick={
+              mode === "thread"
+                ? null
+                : (item) => {
+                    if (!item.key) return;
+                    dispatch({ type: "familyBar", mode, key: item.key });
+                    onShowTable();
+                  }
+            }
+          />
+        </div>
       </div>
-      <div {...barHandlers}>
-        <BarList
-          id="family-bars"
-          scope={`families|${mode}`}
-          topic="families"
-          items={familyItems(threads, mode)}
-          format={pct}
-          empty="No threads reported yet."
-          stamp={stamp}
-          onClick={
-            mode === "thread"
-              ? null
-              : (item) => {
-                  if (!item.key) return;
-                  dispatch({ type: "familyBar", mode, key: item.key });
-                  onShowTable();
-                }
-          }
-        />
-      </div>
-    </div>
+    </ObservationContext>
   );
 }
 
@@ -324,10 +344,10 @@ function Cores({
         </p>
         <Help topic="cores" as="div" readout={readout ?? undefined}>
           <div id="cores" className="cores" onMouseLeave={clear}>
-            {!threads.length && (
+            {!held.threads.length && (
               <p className="muted">No threads reported yet.</p>
             )}
-            {threads.length > 0 &&
+            {held.threads.length > 0 &&
               columns.map((column) => (
                 <div
                   key={column.core}
@@ -350,7 +370,7 @@ function Cores({
           </div>
         </Help>
         <div className="core-base" />
-        {threads.length > 0 && (
+        {held.threads.length > 0 && (
           <Help topic="cores" as="div">
             <div
               id="cores-scale"
@@ -369,6 +389,7 @@ function Cores({
 /** `section#threads-section`: what the threads do, where they wait, and the table. */
 export function Threads({
   view,
+  recorded = false,
   series,
   windowSecs,
   threadView,
@@ -376,6 +397,7 @@ export function Threads({
   onOpen,
 }: {
   view: LiveResponse | undefined;
+  recorded?: boolean;
   series: Series;
   windowSecs: number;
   threadView: ThreadView;
@@ -393,7 +415,7 @@ export function Threads({
   const wchanData = useHeld({ threads, stamp }, wchanHold.holding);
   const familyData = useHeld({ threads, stamp }, familyHold.holding);
   // The chips and the table hold together, as `#threads-live` did.
-  const tableData = useHeld({ threads, series }, tableHold.holding);
+  const tableData = useHeld({ view, threads, series }, tableHold.holding);
   const table = threadRows(tableData.threads, threadView, tableData.series);
   const showTable = () => {
     document
@@ -419,7 +441,7 @@ export function Threads({
         </div>
       </div>
       <div className="grid g-2-1" style={{ marginTop: 14 }}>
-        <div className="card">
+        <div className="card" hidden={recorded}>
           <div className="card-head">
             <div>
               <Help topic="states" as="div">
@@ -491,6 +513,7 @@ export function Threads({
 
       <div className="grid g-2-1" style={{ marginTop: 14 }}>
         <ThreadMap
+          recorded={recorded}
           threads={threads}
           series={series}
           selected={threadView.selected}
@@ -510,7 +533,8 @@ export function Threads({
       </div>
 
       <ThreadTable
-        view={view}
+        view={tableData.view}
+        recorded={recorded}
         threads={tableData.threads}
         series={tableData.series}
         table={table}

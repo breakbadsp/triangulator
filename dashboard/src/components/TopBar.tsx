@@ -1,9 +1,11 @@
+import type { ViewMode } from "../lib/assess";
+import { date } from "../lib/format";
 import { useEffect, useState } from "react";
 import type { LiveResponse, Target } from "../api/types";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
-import { clearViewCaches } from "../hooks/useSeries";
+import { clearViewCaches } from "../api/viewStorage";
 import { backHref } from "../lib/fleet";
 import { viewTargetName } from "../lib/target";
 
@@ -21,10 +23,18 @@ export function TopBar({
   page,
   targets,
   live,
+  mode = { kind: "live" },
+  now = 0,
+  onLive,
+  onNavigate,
 }: {
   page: Page;
   targets: readonly Target[];
   live?: LiveResponse;
+  mode?: ViewMode;
+  now?: number;
+  onLive?: () => void;
+  onNavigate?: () => void;
 }) {
   const [theme, setTheme] = useState<Theme>(readTheme);
   useEffect(() => {
@@ -48,13 +58,18 @@ export function TopBar({
           : undefined))
       : undefined;
   const health = live?.health;
-  const state = health?.sampler_silent
-    ? "Sampler silent"
-    : health?.target_absent
-      ? "Target absent"
-      : health?.last_seen
-        ? "Live"
-        : "Waiting";
+  const state =
+    mode.kind === "recorded"
+      ? "Historical"
+      : mode.kind === "final"
+        ? "Stopped reporting"
+        : health?.sampler_silent
+          ? "Sampler silent"
+          : health?.target_absent
+            ? "Target absent"
+            : health?.last_seen
+              ? "Live"
+              : "Waiting";
   const targetName = !health
     ? "Connecting…"
     : health.target_absent === null
@@ -67,6 +82,7 @@ export function TopBar({
   }, [page.kind, health?.pid, targetName]);
 
   function navigate(key: string) {
+    onNavigate?.();
     // The destination starts fresh: its saved view may be from another visit.
     if (key && page.kind === "target" && key !== page.key)
       for (const target of [page.key, key]) clearViewCaches(target);
@@ -83,6 +99,7 @@ export function TopBar({
       {page.kind === "target" && (
         <Help topic="fleet">
           <a
+            onClick={onNavigate}
             id="fleet-back"
             className="fleet-back"
             href={backHref(location.search)}
@@ -123,7 +140,7 @@ export function TopBar({
             <Help topic="health">
               <span
                 aria-label={state}
-                className={`status-dot ${health?.sampler_silent || health?.target_absent ? "critical" : health?.last_seen ? "live" : "warning"}`}
+                className={`status-dot ${mode.kind === "recorded" ? "warning" : mode.kind === "final" || health?.sampler_silent || health?.target_absent ? "critical" : health?.last_seen ? "live" : "warning"}`}
               />
             </Help>
             <Help topic="target">
@@ -133,11 +150,24 @@ export function TopBar({
               <span id="target-meta" className="muted">
                 {health?.pid ? `PID ${String(health.pid)} · ` : ""}
                 {state}
+                {mode.kind === "final" ? ` · at ${date(now)}` : ""}
               </span>
             </Help>
           </>
         )}
       </div>
+      {mode.kind === "recorded" && (
+        <Help topic="timeline">
+          <button
+            id="history-pill"
+            type="button"
+            onClick={onLive}
+            aria-label={`Viewing the recording at ${date(now)}. Back to live`}
+          >
+            {date(now)} · Back to live
+          </button>
+        </Help>
+      )}
       <Help topic="appearance" className="theme-picker">
         <label htmlFor="theme">Theme</label>
         <select
