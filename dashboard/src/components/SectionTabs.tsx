@@ -12,12 +12,16 @@ export const sections: readonly Section[] = [
   { id: "socket-panel", label: "Sockets" },
   { id: "memory-map", label: "Memory" },
   { id: "monitor", label: "Monitor" },
+  { id: "collector-settings", label: "Settings" },
 ];
 
 export function SectionTabs({
   entries = sections,
+  onSelect,
 }: {
   entries?: readonly Section[];
+  /** A tab was selected, even the current one. */
+  onSelect?: (id: string) => void;
 }) {
   const [current, setCurrent] = useState(
     location.hash.slice(1) || entries[0]?.id,
@@ -82,6 +86,7 @@ export function SectionTabs({
             key={section.id}
             href={`#${section.id}`}
             aria-current={current === section.id ? "location" : undefined}
+            onClick={() => onSelect?.(section.id)}
           >
             {section.label}
           </a>

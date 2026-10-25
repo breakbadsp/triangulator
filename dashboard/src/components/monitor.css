@@ -37,3 +37,63 @@ pre {
   padding: 12px;
   overflow: auto;
 }
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+#watch-card .watch-table td {
+  vertical-align: top;
+  white-space: normal;
+}
+.watch-prefix {
+  width: 13em;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.watch-wake {
+  width: 9em;
+  max-width: 100%;
+  text-align: right;
+}
+.watch-table input[aria-invalid="true"] {
+  border-color: var(--critical);
+}
+.watch-err {
+  color: var(--bad-ink);
+  font-size: 12px;
+  margin-top: 4px;
+  max-width: 26em;
+}
+.watch-names {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.watch-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.watch-warning {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+.watch-warning.bad {
+  border-color: color-mix(in srgb, var(--critical) 45%, transparent);
+  background: color-mix(in srgb, var(--critical) 10%, var(--surface));
+}
+#watch-status.warning {
+  color: var(--ink);
+  font-weight: 600;
+}
+.watch-unsaved {
+  margin: 12px 0 0;
+  color: var(--ink-2);
+}
