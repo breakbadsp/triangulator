@@ -308,12 +308,12 @@
 
 ## QA-038: Timeline and past assessments show a recorded finding
 
-- Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. After phase 10b, also select its past-assessment row, inspect its mark, and filter by severity and type.
+- Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. Select its past-assessment row, inspect its mark, and filter by severity and type.
 - Expected: Recorded assessment, thread, timestamp, and row agree. Stepping selects real recordings. Filters affect rows and marks consistently; Live resumes current data.
 
 ## QA-039: Earlier Timeline periods, empty states, and help
 
-- Test: Use two hours of recordings and an empty installation. Check direct Timeline bounds, gaps, missing recordings, and help. After phase 10b, load earlier past-assessment periods by scrolling and controls. Interrupt the test collector during loading; restart and retry. Inspect help by pointer and keyboard.
+- Test: Use two hours of recordings and an empty installation. Check direct Timeline bounds, gaps, missing recordings, and help. Load earlier past-assessment periods by scrolling and controls. Interrupt the test collector during loading; restart and retry. Inspect help by pointer and keyboard.
 - Expected: Earlier data appears without duplicates. Empty, loading, and failed states are explicit. Errors can be retried. Help explains sampling limits and navigation.
 
 ## QA-045: Concurrent viewers and slow connections
@@ -498,7 +498,7 @@
 
 ## QA-081: Past assessments show resident memory growth
 
-- Test: After phase 10b, record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
+- Test: Record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
 - Expected: The leak has a Memory row and timeline mark. Recorded assessment and RSS growth agree. The row persists in earlier periods, allowing less exact times.
 
 ## QA-082: Targets overview lists every target

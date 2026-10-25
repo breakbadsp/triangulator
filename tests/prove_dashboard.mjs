@@ -97,6 +97,7 @@ try {
   const requests = [];
   const exceptions = [];
   let onPaused = () => undefined;
+  let onDialog = () => undefined;
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
     if (message.id) {
@@ -112,6 +113,7 @@ try {
     if (message.method === "Network.requestWillBeSent")
       requests.push(message.params.request.url);
     if (message.method === "Fetch.requestPaused") void onPaused(message.params);
+    if (message.method === "Page.javascriptDialogOpening") void onDialog(message.params);
     if (message.method === "Runtime.exceptionThrown")
       exceptions.push(message.params.exceptionDetails.text);
   });
@@ -1749,7 +1751,7 @@ try {
 
   if (process.argv.includes("--replay-only") || !process.argv.includes("--target-control-only")) {
     const { proveReplay } = await import("./prove_replay.mjs");
-    priorProof.replay = await proveReplay({ root, profile, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });
+    priorProof.replay = await proveReplay({ root, profile, send, evaluate, until, stop, setPaused: value => { onPaused = value; }, setDialog: value => { onDialog = value; } });
   }
   if (process.argv.includes("--replay-only")) {
     assert.deepEqual(exceptions, []);

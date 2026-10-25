@@ -12,18 +12,51 @@ export interface HelpTopic {
 }
 
 export const helpTopics = {
+  assesshistory: {
+    title: "Past assessments",
+    scope: "Recordings · checked period",
+    meaning:
+      "What the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.",
+    example:
+      "When the page opens, up to 120 recordings of the last 15 minutes are checked, one every ~8 s. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 25 checked recordings is one row, and one red mark on the timeline.",
+    reading:
+      "Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.",
+    limits:
+      "Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.",
+    related: ["timeline", "assessment", "historyfilters"],
+    aliases: ["Load earlier"],
+    source: "Recordings from `/api/replay`, checked in this page",
+    sourceDetail:
+      "This page loads recorded views from the collector through `/api/replay` and applies the Assessment rules to each one.",
+  },
+  historyfilters: {
+    title: "Past assessment filters",
+    scope: "Rows already checked",
+    meaning:
+      "Show only past findings of the chosen severities and type, in the list and as timeline marks. The type is the area the rule looks at.",
+    example:
+      "Severity Critical and Serious with type Watched threads lists only watched threads that stopped waking or kept a core busy.",
+    reading:
+      "Monitoring: sampler, target and packet loss. Threads & CPU: CPU, run delay, kernel waits, faults, stopped and unreadable threads, lock hints. Watched threads: the watch rules. Resources & network: pressure, limits, descriptors and sockets. Memory: memory-map findings. A row keeps the worst severity it reached. Filters apply at once and read nothing new.",
+    limits:
+      "Info is off at first because info findings are notes, not problems. Filters only hide rows; the status line counts all of them.",
+    related: ["assesshistory", "assessment"],
+    aliases: [],
+    source: "Past assessments already checked in this page",
+    sourceDetail: "Filters hide rows and marks. They send no request.",
+  },
   timeline: {
     title: "Timeline and recorded views",
     scope: "Selected target · collector recordings",
     meaning:
-      "Previous from Live opens the newest recording. Previous and Next select actual recordings. Drag to preview a time, then release to select the recording at or before it. The last selectable step returns to Live.",
+      "Previous from Live opens the newest recording. Previous and Next select actual recordings. Drag to preview a time, then release to select the recording at or before it. The last selectable step returns to Live. The bar runs from the oldest time the past-assessment list has checked (at least the last 15 minutes) on the left to now on the right; coloured marks above it show when past findings were present.",
     example:
       "Select Previous to inspect the latest recorded process state. Select Live or Back to live to return to the retained live or final view.",
     reading:
-      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, live socket observations, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout.",
+      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, live socket observations, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout. Release the handle at the left end to also check an earlier period, which stretches the bar further back.",
     limits:
       "A gap, missing recording, invalid reply, or read error keeps the last successful view. The collector clock can be ahead of this browser. Recording can be disabled. This Timeline does not play automatically.",
-    related: ["exited", "history", "memmap", "collsettings"],
+    related: ["assesshistory", "exited", "history", "memmap", "collsettings"],
     aliases: [
       "Previous recording",
       "Next recording",
