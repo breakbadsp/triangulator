@@ -1,3 +1,4 @@
+import type { ViewMode } from "../lib/assess";
 import type { LiveResponse } from "../api/types";
 import { Help } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
@@ -41,10 +42,12 @@ function healthRows(health: LiveResponse["health"], now: number): HealthRow[] {
  */
 export function Monitor({
   view,
+  mode = { kind: "live" },
   now,
   context,
 }: {
   view: LiveResponse | undefined;
+  mode?: ViewMode;
   now: number;
   /** Target, session, and PID of the view. */
   context: string | null;
@@ -66,11 +69,7 @@ export function Monitor({
         <Fold
           name="health"
           autoOpen={
-            !!view &&
-            wantsFold(
-              monitorFindings({ view, mode: { kind: "live" }, now }),
-              "monitor",
-            )
+            !!view && wantsFold(monitorFindings({ view, mode, now }), "monitor")
           }
           summary={
             <Help key={key} topic="health">

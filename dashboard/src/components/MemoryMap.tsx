@@ -1,3 +1,6 @@
+import { useContext } from "react";
+import { ObservationContext } from "../hooks/observationContext";
+import type { ViewMode } from "../lib/assess";
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import type { LiveResponse, MemorySummary, PressureScope } from "../api/types";
 import { Help } from "../help/Help";
@@ -82,6 +85,7 @@ const LEVEL_NAMES = {
  */
 export function MemoryMap({
   view,
+  mode = { kind: "live" },
   now,
   memory,
   dispatch,
@@ -90,6 +94,7 @@ export function MemoryMap({
   scope,
 }: {
   view: LiveResponse | undefined;
+  mode?: ViewMode;
   now: number;
   memory: MemoryState;
   dispatch: (action: MemoryAction) => void;
@@ -97,13 +102,17 @@ export function MemoryMap({
   resourcePoints: readonly ResourcePoint[];
   scope: PressureScope;
 }) {
+  const context = useContext(ObservationContext);
   const [regionsOpen, setRegionsOpen] = useState(false);
-  const model = useMemo(() => memoryModel(memory), [memory]);
+  const model = useMemo(() => {
+    const value = memoryModel(memory);
+    return mode.kind === "recorded" ? { ...value, complete: false } : value;
+  }, [memory, mode.kind]);
   const m = view?.memory,
     available = !!m?.available;
   const faults = memoryFaultRate({
     series,
-    mode: { kind: "live" },
+    mode,
     memoryHistory: memory.history,
   });
   const trend = view ? rssTrend(view, resourcePoints, now) : null;
@@ -119,67 +128,88 @@ export function MemoryMap({
         )
       : [];
   return (
-    <section id="memory-map" className="block">
-      <div className="section-head">
-        <div>
-          <Help key={memory.key} topic="memmap" as="div">
-            <h2>Memory map</h2>
-          </Help>
-          <p id="memory-sub">
-            {m?.available ? memorySubtitle(m, now) : DEFAULT_SUB}
-          </p>
-        </div>
-      </div>
-      <p id="memory-empty" className="socket-empty" hidden={available}>
-        {available
-          ? ""
-          : m?.reason || "This collector does not report memory-map samples."}
-      </p>
-      <div id="memory-content" hidden={!available}>
-        {view && m?.available && (
-          <MemoryOverview
-            key={memory.key}
-            m={m}
-            tiles={memoryTiles(
-              m,
-              view.resources,
-              trend,
-              faults,
-              series.points,
-              scope,
-            )}
-            findings={findings}
-            stack={model.regions.find((region) => region.cat === "stack")}
-            notes={memoryNotes(m, model.layout, model.regions.length)}
-          />
-        )}
-        <Fold
-          name="memory"
-          className="fold memory-fold"
-          summaryClassName="fold-summary fold-bar"
-          autoOpen={wantsFold(findings, "memory")}
-          summary={
-            <Help key={memory.key} topic="amap">
-              <h3>Address space &amp; zoom</h3>
-              <span className="muted">Every mapping, and a zoom into one</span>
+    <ObservationContext
+      value={{
+        ...context,
+        key: JSON.stringify([
+          context.key,
+          m?.layout_id,
+          m?.flags,
+          m?.stale,
+          memory.layout?.id,
+          memory.layout?.flags,
+        ]),
+      }}
+    >
+      <section id="memory-map" className="block">
+        <div className="section-head">
+          <div>
+            <Help key={memory.key} topic="memmap" as="div">
+              <h2>Memory map</h2>
             </Help>
-          }
-        >
-          {m?.available && (
-            <MemoryZoomArea
+            <p id="memory-sub">
+              {m?.available
+                ? memorySubtitle(m, now) +
+                  (mode.kind === "recorded"
+                    ? " Historical view: a compatible cached layout is the latest layout, not the layout at the recording time."
+                    : "")
+                : DEFAULT_SUB}
+            </p>
+          </div>
+        </div>
+        <p id="memory-empty" className="socket-empty" hidden={available}>
+          {available
+            ? ""
+            : m?.reason || "This collector does not report memory-map samples."}
+        </p>
+        <div id="memory-content" hidden={!available}>
+          {view && m?.available && (
+            <MemoryOverview
               key={memory.key}
               m={m}
-              now={now}
-              memory={memory}
-              model={model}
-              dispatch={dispatch}
-              regionsOpen={regionsOpen}
-              onRegionsOpen={setRegionsOpen}
+              tiles={memoryTiles(
+                m,
+                view.resources,
+                trend,
+                faults,
+                series.points,
+                scope,
+              )}
+              findings={findings}
+              stack={model.regions.find((region) => region.cat === "stack")}
+              notes={memoryNotes(m, model.layout, model.regions.length)}
             />
           )}
-        </Fold>
-      </div>
-    </section>
+          <Fold
+            name="memory"
+            className="fold memory-fold"
+            summaryClassName="fold-summary fold-bar"
+            autoOpen={wantsFold(findings, "memory")}
+            summary={
+              <Help key={memory.key} topic="amap">
+                <h3>Address space &amp; zoom</h3>
+                <span className="muted">
+                  Every mapping, and a zoom into one
+                </span>
+              </Help>
+            }
+          >
+            {m?.available && (
+              <MemoryZoomArea
+                key={memory.key}
+                m={m}
+                now={now}
+                memory={memory}
+                model={model}
+                dispatch={dispatch}
+                regionsOpen={regionsOpen}
+                onRegionsOpen={setRegionsOpen}
+              />
+            )}
+          </Fold>
+        </div>
+      </section>
+    </ObservationContext>
   );
 }
 

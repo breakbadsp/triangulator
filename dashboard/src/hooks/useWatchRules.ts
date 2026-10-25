@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useEffectEvent,
   useRef,
   useState,
@@ -21,26 +22,45 @@ const EVERY_MS = 10000,
  * null, so no unmatched-rule finding comes from stale rules. `refresh`
  * reads again at once, after a change that the collector applied.
  */
-export function useWatchRules(threads: readonly Thread[] | undefined) {
+export function useWatchRules(
+  threads: readonly Thread[] | undefined,
+  enabled = true,
+  context: string | null = "live",
+) {
+  const request = useRef<AbortController | null>(null);
+  const active = useRef(enabled);
   const [rules, setRules] = useState<readonly WatchRule[] | null>(null);
   const readAt = useRef(-Infinity);
   const loading = useRef(false);
   const refresh = useCallback(async () => {
-    if (loading.current) return;
+    if (!active.current || loading.current) return;
+    const controller = new AbortController();
+    request.current = controller;
     loading.current = true;
     try {
-      setRules(
-        parseWatchRules(
-          await getJson<unknown>("/api/watches", new AbortController().signal),
-        ),
+      const value = parseWatchRules(
+        await getJson<unknown>("/api/watches", controller.signal),
       );
+      if (!controller.signal.aborted) setRules(value);
     } catch {
-      setRules(null);
+      if (!controller.signal.aborted) setRules(null);
     } finally {
-      readAt.current = Date.now();
-      loading.current = false;
+      if (!controller.signal.aborted) {
+        readAt.current = Date.now();
+        loading.current = false;
+      }
     }
   }, []);
+  useLayoutEffect(() => {
+    active.current = enabled;
+    readAt.current = -Infinity;
+    loading.current = false;
+    return () => {
+      active.current = false;
+      request.current?.abort();
+      loading.current = false;
+    };
+  }, [enabled, context]);
   const tick = useEffectEvent((current: readonly Thread[]) => {
     const age = Date.now() - readAt.current;
     if (
@@ -50,7 +70,7 @@ export function useWatchRules(threads: readonly Thread[] | undefined) {
       void refresh();
   });
   useEffect(() => {
-    if (threads) tick(threads);
-  }, [threads]);
+    if (enabled && threads) tick(threads);
+  }, [threads, enabled, context]);
   return { rules, refresh };
 }

@@ -59,6 +59,7 @@ export type WatchWrite =
   | { kind: "applied"; message: string; state: EditableInfo | null };
 
 export type WatchAction =
+  | { type: "suspend-read" }
   | { type: "read"; token: number }
   | { type: "loaded"; token: number; result: WatchRead }
   | { type: "edit"; id: number; field: "prefix" | "wake"; value: string }
@@ -299,6 +300,14 @@ export function watchEditor(
   action: WatchAction,
 ): WatchEditor {
   switch (action.type) {
+    case "suspend-read":
+      return {
+        ...state,
+        read: null,
+        ...(state.kind === "ready" && state.op === "reload"
+          ? { op: null }
+          : {}),
+      };
     case "read":
       return canRead(state) ? { ...state, read: action.token } : state;
     case "loaded": {

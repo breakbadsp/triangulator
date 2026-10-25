@@ -12,6 +12,46 @@ export interface HelpTopic {
 }
 
 export const helpTopics = {
+  timeline: {
+    title: "Timeline and recorded views",
+    scope: "Selected target · collector recordings",
+    meaning:
+      "Previous from Live opens the newest recording. Previous and Next select actual recordings. Drag to preview a time, then release to select the recording at or before it. The last selectable step returns to Live.",
+    example:
+      "Select Previous to inspect the latest recorded process state. Select Live or Back to live to return to the retained live or final view.",
+    reading:
+      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, live socket observations, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout.",
+    limits:
+      "A gap, missing recording, invalid reply, or read error keeps the last successful view. The collector clock can be ahead of this browser. Recording can be disabled. This Timeline does not play automatically.",
+    related: ["exited", "history", "memmap", "collsettings"],
+    aliases: [
+      "Previous recording",
+      "Next recording",
+      "Recorded time",
+      "Live",
+      "Back to live",
+    ],
+    source: "Collector /api/replay snapshots and /api/resources rollups",
+    sourceDetail:
+      "recorded_at fixes the display clock. Snapshot rates cover the preceding sampling interval. Resource reads end at that time. Recordings never enter this tab's live trends or storage.",
+  },
+  exited: {
+    title: "Final process view",
+    scope: "Selected target · last populated process session",
+    meaning:
+      "When the sampler confirms that the target is absent, this tab keeps its last populated view and trends. A restart does not replace them. Show live dismisses the final view.",
+    example:
+      "Inspect the final threads after a process exits. Select Show live to see the replacement process.",
+    reading:
+      "The stopped time fixes every panel's clock. A late exit report is shown only when its session and PID match. Settings continues to edit the current collector and counts its current threads. During recorded inspection, Show live dismisses the final view and leaves the recording open.",
+    limits:
+      "A new empty session has a ten-second settling period. A fresh tab can use the collector's last-target view but has no earlier live CPU samples. If tab storage is full, the banner warns that reload loses the final view.",
+    related: ["timeline", "exitreason", "health", "collsettings"],
+    aliases: ["Show live", "Stopped reporting"],
+    source: "Sampler absence and collector /api/last-target, /api/live",
+    sourceDetail:
+      "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout and socket refresh stop.",
+  },
   "target-pid": {
     title: "Matching processes",
     scope: "Add target · processes with the entered name",
@@ -548,7 +588,7 @@ export const helpTopics = {
       "Each card applies its change at once and says where the value is saved. Settings that need a collector restart will say so beside the control.",
     limits:
       "The tab is read-only while you inspect a recorded moment, and when the collector is a build without these controls. Other collector settings are still edited in collector.toml.",
-    related: ["watches", "replay"],
+    related: ["watches", "timeline"],
     aliases: [],
     source: "Collector: `/api/watches`",
     sourceDetail:
@@ -1058,7 +1098,7 @@ export const helpTopics = {
       "Choose a range or From/To times. Recent live CPU uses observations from this tab; stored history comes from the collector.",
     limits:
       "Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.",
-    related: ["replay", "mix", "samples"],
+    related: ["timeline", "mix", "samples"],
     aliases: ["From", "To", "History range", "Chart time window", "Load"],
     source: "Collector five-second summaries, through `/api/history`",
     sourceDetail:

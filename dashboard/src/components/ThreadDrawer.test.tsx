@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, Thread } from "../api/types";
-import { emptySeries } from "../lib/series";
+import { emptySeries, ingest } from "../lib/series";
 import type { SelectedThread } from "../lib/threadView";
 import { view as liveView } from "../lib/test-fixtures";
 import { ThreadDrawer } from "./ThreadDrawer";
@@ -336,3 +336,54 @@ test("stored history cells keep their metric help and distinguish read from writ
     vi.useRealTimers();
   }
 });
+
+test.each([
+  ["replacement", 1],
+  ["s", 2],
+] as const)(
+  "drawer CPU cannot use a reused TID from session %s generation %s",
+  async (session, generation) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(emptyHistory())),
+    );
+    const current = liveView({
+      health: { ...live.health, session },
+      threads: [{ ...one, generation, last_sample: 2000, cpu_pct: 90 }],
+    });
+    const next = {
+      ...current,
+      threads: [
+        {
+          ...current.threads[0],
+          tid: one.tid,
+          name: one.name,
+          last_sample: 2001,
+        },
+      ],
+    };
+    const series = ingest(ingest(emptySeries, current), next);
+    const page = render(
+      <ThreadDrawer
+        view={next}
+        series={series}
+        selected={selected(one)}
+        now={2001}
+        onClose={close}
+      />,
+    );
+    expect(document.querySelector("#drawer-live svg")).toBeNull();
+    expect(screen.getByText(/This thread is no longer reported/)).toBeDefined();
+    page.rerender(
+      <ThreadDrawer
+        view={next}
+        series={series}
+        selected={{ ...selected(one), session, generation }}
+        now={2001}
+        onClose={close}
+      />,
+    );
+    expect(document.querySelector("#drawer-live svg")).not.toBeNull();
+    await screen.findByText(/0 summaries/);
+  },
+);

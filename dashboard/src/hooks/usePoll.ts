@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export function usePoll<T>(
   load: (signal: AbortSignal) => Promise<T>,
-  intervalMs: number,
+  intervalMs: number | null,
   { pauseWhenHidden = false }: { pauseWhenHidden?: boolean } = {},
 ): { data?: T; error?: Error; refresh: () => void } {
   const [result, setResult] = useState<{ data?: T; error?: Error }>({});
@@ -30,7 +30,7 @@ export function usePoll<T>(
           setResult((previous) => ({ ...previous, error }));
         }
       } finally {
-        if (!request.signal.aborted)
+        if (!request.signal.aborted && intervalMs !== null)
           timer = setTimeout(() => {
             void poll();
           }, intervalMs);
