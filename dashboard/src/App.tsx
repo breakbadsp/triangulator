@@ -27,6 +27,7 @@ import { usePoll } from "./hooks/usePoll";
 import { useMemoryMap } from "./hooks/useMemoryMap";
 import { useScopedPoll } from "./hooks/useScopedPoll";
 import { useSeries } from "./hooks/useSeries";
+import { useWatchRules } from "./hooks/useWatchRules";
 import { readPage, type Page } from "./page";
 
 const loadTargets = (signal: AbortSignal) =>
@@ -43,6 +44,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const view = live.data?.view;
   const series = useSeries(page.key, view);
   const memory = useMemoryMap(page.key, view);
+  const watchRules = useWatchRules(view?.threads);
   // The Summary charts and the Threads state chart share this window.
   const [windowSecs, setWindowSecs] = useState<ChartWindow>(300);
   const [threads, dispatch] = useReducer(threadView, initialThreadView);
@@ -135,6 +137,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           pressureScope={pressureScope}
           memoryLayout={memory.state.layout}
           memoryHistory={memory.state.history}
+          watchRules={watchRules.rules}
         >
           {view && (
             <>
