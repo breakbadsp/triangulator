@@ -9,14 +9,17 @@ afterEach(() => {
 
 // Pinned 9. Geometry and observer events are browser inputs to the component.
 test("the current section follows scroll, hidden sections, resize and layout changes", () => {
-  let resize: ResizeObserverCallback | undefined;
+  let resize: (() => void) | undefined;
   vi.stubGlobal(
     "ResizeObserver",
     class {
       constructor(callback: ResizeObserverCallback) {
-        resize = callback;
+        resize = () => {
+          callback([], this);
+        };
       }
       observe() {}
+      unobserve() {}
       disconnect() {}
     },
   );
@@ -53,16 +56,16 @@ test("the current section follows scroll, hidden sections, resize and layout cha
   );
   const header = container.querySelector("header");
   if (!header) throw Error("Missing header");
-  vi.spyOn(header, "getBoundingClientRect").mockReturnValue({
-    bottom: 60,
-  } as DOMRect);
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 0, 60),
+  );
   let tops = [100, 1000, 5000];
   let hidden = false;
   entries.forEach((entry, index) => {
     const section = document.getElementById(entry.id);
     if (!section) throw Error(entry.id);
     vi.spyOn(section, "getBoundingClientRect").mockImplementation(
-      () => ({ top: tops[index] }) as DOMRect,
+      () => new DOMRect(0, tops[index]),
     );
     vi.spyOn(section, "getClientRects").mockImplementation(() =>
       Object.assign(hidden && index === 1 ? [] : [new DOMRect()], {
@@ -88,7 +91,7 @@ test("the current section follows scroll, hidden sections, resize and layout cha
   expect(active()).toBe("#threads-section");
   hidden = true;
   act(() => {
-    resize?.([], {} as ResizeObserver);
+    resize?.();
   });
   flush();
   expect(active()).toBe("#overview");
