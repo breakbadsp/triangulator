@@ -8,7 +8,7 @@ import type {
 import { Help } from "../help/Help";
 import { isHelpTopicId } from "../help/topics";
 import type { ViewMode } from "../lib/assess";
-import { assess } from "../lib/assess";
+import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
 import { axisBytes, niceBytes } from "../lib/chart";
@@ -97,17 +97,22 @@ export function Summary({
     { points, from } = windowPoints(series, windowSecs),
     last = points.at(-1);
   const findings = view
-    ? assess({
-        view,
-        mode,
-        now,
-        series,
-        watchRules,
-        resourcePoints,
-        memoryLayout,
-        memoryHistory,
-        pressureScope,
-      })
+    ? mode.kind === "recorded"
+      ? assessRecorded(view, now, resourcePoints, {
+          memoryLayout,
+          pressureScope,
+        })
+      : assess({
+          view,
+          mode,
+          now,
+          series,
+          watchRules,
+          resourcePoints,
+          memoryLayout,
+          memoryHistory,
+          pressureScope,
+        })
     : null;
   const bands = LOAD_BANDS.filter(
     (band) =>
