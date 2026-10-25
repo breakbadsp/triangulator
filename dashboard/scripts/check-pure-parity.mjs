@@ -47,6 +47,7 @@ const names = new Set(
   renderMemoryFindings renderMemoryTiles renderMemoryMap memoryDisplaySpan
   memoryLargestGap renderMemoryZoom memoryChart memoryBoundaryPoints
   renderMemoryCharts renderMemory refreshMemoryLayout
+  findingKey historyEpisodes slotTimes
 `
     .trim()
     .split(/\s+/),
@@ -896,4 +897,109 @@ const replayRun = await replayParity({
 });
 log(
   `PASS: ${replayRun.comparisons} old/new replay and final transitions, ${replayRun.liveSteps} live steps and ${replayRun.recordings} recording selections.`,
+);
+
+// Past assessments: episodes and checked times over seeded random samples.
+const past = load(resolve(dashboard, "src/lib/pastAssessments.ts"));
+let seed = 7;
+const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+const pick = (values) => values[Math.floor(random() * values.length)];
+let pastComparisons = 0;
+for (let run = 0; run < 300; run++) {
+  const samples = [];
+  for (let at = 1000; at < 1000 + 40 * 7.5; at += 7.5) {
+    if (random() < 0.1) {
+      samples.push(null);
+      continue;
+    }
+    const findings = [];
+    for (let i = Math.floor(random() * 5); i > 0; i--) {
+      const tid = random() < 0.6 ? pick([1, 2, 3]) : undefined;
+      findings.push({
+        type: pick(["threads", "memory", "monitor", "watched", "resources"]),
+        level: pick(["critical", "serious", "warning", "info", "good"]),
+        title: pick([
+          "%d threads in kernel wait",
+          "w-%d is saturating a core",
+          "Packet loss %d.%d%",
+        ]).replace(/%d/g, () => String(Math.floor(random() * 30))),
+        detail: "",
+        action:
+          tid === undefined
+            ? undefined
+            : { tid, session: pick(["a", "b"]), generation: pick([1, 2]) },
+      });
+    }
+    samples.push({ at, findings });
+  }
+  const oldEpisodes = JSON.parse(
+    runInNewContext(
+      oracle + `\nJSON.stringify(historyEpisodes(${JSON.stringify(samples)}))`,
+      {},
+    ),
+  );
+  const newEpisodes = canonical(past.episodes(samples));
+  for (const episode of newEpisodes) {
+    assert.equal(episode.id, `${episode.key}@${String(episode.first)}`);
+    delete episode.id;
+  }
+  assert.deepEqual(newEpisodes, oldEpisodes, `Past episode parity case ${run}`);
+  const start = Math.floor(random() * 1000),
+    step = 0.5 + random() * 20,
+    count = Math.floor(random() * 121);
+  const end = start + random() * 3000;
+  assert.deepEqual(
+    canonical(past.slotTimes(start, end, step, count)),
+    JSON.parse(
+      runInNewContext(
+        oracle +
+          `\nJSON.stringify(slotTimes(${start},${end},${step},${count}))`,
+        {},
+      ),
+    ),
+  );
+  pastComparisons += 2;
+}
+log(
+  `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
+);
+
+// The two history explanations are a word-for-word port of the pinned page.
+const topics = load(resolve(dashboard, "src/help/topics.ts")).helpTopics;
+for (const id of ["assesshistory", "historyfilters"]) {
+  const call = source.statements.find(
+    (statement) =>
+      ts.isExpressionStatement(statement) &&
+      ts.isCallExpression(statement.expression) &&
+      statement.expression.expression.getText(source) === "helpTopic" &&
+      statement.expression.arguments[0]?.text === id,
+  );
+  assert.ok(call, `Pinned help topic ${id}`);
+  const fields = [
+    "id",
+    "title",
+    "scope",
+    "meaning",
+    "example",
+    "reading",
+    "limits",
+    "related",
+    "aliases",
+  ];
+  const values = runInNewContext(
+    `let values; function helpTopic(...args) { values = args; } ${call.getText(source)}; values`,
+  );
+  for (let i = 1; i < values.length; i++)
+    assert.deepEqual(
+      canonical(topics[id][fields[i]]),
+      canonical(
+        fields[i] === "related"
+          ? values[i].map((value) => (value === "replay" ? "timeline" : value))
+          : values[i],
+      ),
+      `Help ${id}.${fields[i]}`,
+    );
+}
+log(
+  "PASS: assesshistory and historyfilters text matches the pinned page word for word.",
 );

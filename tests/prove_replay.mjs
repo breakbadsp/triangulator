@@ -16,6 +16,7 @@ export async function proveReplay({
   until,
   stop,
   setPaused,
+  setDialog,
 }) {
   const probe = createServer();
   probe.listen(0, "127.0.0.1");
@@ -129,6 +130,8 @@ export async function proveReplay({
   const log = [],
     overrides = new Map(),
     holds = new Map();
+  const scanHolds = [];
+  let holdScan = true;
   let current = frame(now),
     lastTarget = null;
   const liveLayout = {
@@ -241,6 +244,7 @@ export async function proveReplay({
     evaluate(
       `({ name: document.querySelector('#target-name').textContent, meta: document.querySelector('#target-meta').textContent, cpu: document.querySelector('#hero-cpu').textContent, load: document.querySelector('#hero-load').textContent, rss: document.querySelector('#overview-rss').textContent, process: document.querySelector('#process-facts').textContent, health: JSON.parse(document.querySelector('#diagnostics').textContent), assessment: document.querySelector('#findings').textContent, threads: document.querySelector('#threads-live').textContent, resources: document.querySelector('#resources').textContent, memory: document.querySelector('#memory-map').textContent, socketHidden: document.querySelector('#socket-panel').hidden, socket: document.querySelector('#socket-cards')?.textContent, settings: document.querySelector('#collector-settings').textContent, recordedSettings: !!document.querySelector('#watch-recorded-readonly'), mapWindow: document.querySelector('[data-map-window][aria-pressed=true]')?.dataset.mapWindow, drawer: document.querySelector('#drawer').getAttribute('aria-hidden') })`,
     );
+  const charts = () => evaluate("[...document.querySelectorAll('#overview svg, #threads-section svg, #resources svg, #memory-map svg')].map(node => node.outerHTML)");
   try {
     await until(async () => {
       if (child.exitCode !== null) throw Error(diagnostics);
@@ -273,6 +277,12 @@ export async function proveReplay({
         query: Object.fromEntries(url.searchParams),
         method: request.method,
       });
+      if (holdScan && url.pathname === "/api/resources" &&
+          Number(url.searchParams.get("start")) === first - 1 - 180 &&
+          Number(url.searchParams.get("end")) === last) {
+        scanHolds.push({ requestId });
+        return;
+      }
       const hold = holds.get(url.pathname);
       if (
         hold &&
@@ -321,6 +331,149 @@ export async function proveReplay({
         ),
       "live cached layout",
     );
+    // Past assessments: the first period checks the real recordings on load
+    // and leaves the live view and tab storage alone.
+    await until(() => scanHolds.length === 1, "held scan resource read");
+    const heldLive = [];
+    holds.set("/api/live", heldLive);
+    // Exercise the browser's Stay path while the scan has an unfinished read.
+    // The temporary listener supplies the browser confirmation dialog.
+    let stayed = false;
+    setDialog(async (dialog) => {
+      assert.equal(dialog.type, "beforeunload");
+      await send("Page.handleJavaScriptDialog", { accept: false });
+      stayed = true;
+    });
+    await evaluate("window.confirmLeave = event => { event.preventDefault(); event.returnValue = ''; }; addEventListener('beforeunload', window.confirmLeave)");
+    const backPoint = await evaluate(`(() => {
+      const node = document.querySelector('#fleet-back');
+      node.scrollIntoView({block:'center', behavior:'instant'});
+      const r = node.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2};
+    })()`);
+    await send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, ...backPoint });
+    await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...backPoint });
+    await until(() => stayed, "Stay cancels navigation");
+    await evaluate("removeEventListener('beforeunload', window.confirmLeave)");
+    assert.equal(await evaluate("location.search"), "?target=");
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+    const scanBefore = { panels: await facts(), charts: await charts(), storage: await storage() };
+    const scanLogStart = log.length;
+    await evaluate(`(() => {
+      window.scanStorageWrites = [];
+      const original = Storage.prototype.setItem;
+      const remove = Storage.prototype.removeItem;
+      const clear = Storage.prototype.clear;
+      window.restoreScanStorage = () => { Storage.prototype.setItem = original; Storage.prototype.removeItem = remove; Storage.prototype.clear = clear; };
+      Storage.prototype.setItem = function(...args) { window.scanStorageWrites.push(['set', ...args]); return original.apply(this, args); };
+      Storage.prototype.removeItem = function(...args) { window.scanStorageWrites.push(['remove', ...args]); return remove.apply(this, args); };
+      Storage.prototype.clear = function(...args) { window.scanStorageWrites.push(['clear']); return clear.apply(this, args); };
+    })()`);
+    holdScan = false;
+    for (const item of scanHolds) await send("Fetch.continueRequest", item);
+    await until(
+      async () => (await text("history-status"))?.startsWith("Checked "),
+      "first past-assessment period",
+    );
+    const scanAfter = { panels: await facts(), charts: await charts(), storage: await storage() };
+    assert.deepEqual(scanAfter, scanBefore);
+    const scanStorageWrites = await evaluate("window.scanStorageWrites");
+    assert.deepEqual(scanStorageWrites, []);
+    await evaluate("window.restoreScanStorage()");
+    const scanRequests = log.slice(scanLogStart).filter(r => r.path !== "/api/live");
+    assert.equal(scanRequests.length, 101);
+    assert.ok(scanRequests.every(r => r.path === "/api/replay" && r.query.direction === "at" && r.method === "GET"));
+    holds.delete("/api/live");
+    for (const item of heldLive) await fulfill(item.requestId, current);
+    const scanReads = log.filter(
+      (r) => r.path === "/api/replay" && r.query.direction === "at",
+    );
+    const periodReads = log.filter(
+      (r) =>
+        r.path === "/api/resources" &&
+        Number(r.query.start) === first - 1 - 180 &&
+        Number(r.query.end) === last,
+    );
+    const pastAssessments = {
+      status: await text("history-status"),
+      rows: await evaluate(
+        "[...document.querySelectorAll('#history-list > li')].map(row => row.textContent)",
+      ),
+      marks: await evaluate(
+        "document.querySelector('#timeline-marks').children.length",
+      ),
+      rangeMin: Number(await evaluate("document.querySelector('#timeline-range').min")),
+      scanReads: scanReads.length,
+      periodReads: periodReads.length,
+      storageKeys: Object.keys(await storage()),
+      name: await text("target-name"),
+      meta: await text("target-meta"),
+      stayed,
+      scanBefore,
+      scanAfter,
+      scanStorageWrites,
+      scanRequests,
+    };
+    // 101 one-second slots from first to last; only the two recordings count.
+    assert.equal(pastAssessments.scanReads, 101);
+    assert.equal(pastAssessments.periodReads, 1);
+    assert.match(
+      pastAssessments.status,
+      /^Checked 2 recordings back to .* \(the oldest recording\)\. 99 checked times had no recording\. Showing \d+ of \d+ findings?\.$/,
+    );
+    assert.equal(pastAssessments.rangeMin, first);
+    assert.equal(pastAssessments.name, "worker-200");
+    assert.ok(pastAssessments.meta.includes("Live"));
+    assert.ok(
+      pastAssessments.storageKeys.every(
+        (key) =>
+          key.startsWith("triangulator:buffer:") ||
+          key.startsWith("triangulator:threads:"),
+      ),
+      JSON.stringify(pastAssessments.storageKeys),
+    );
+    // Each new Past assessments label opens its own topic on hover.
+    const helpTitles = {};
+    await click('details[data-fold="past"] > summary');
+    for (const [selector, title] of [
+      ["#past-count", "Past assessments"],
+      ["#history-status", "Past assessments"],
+      ["#history-levels", "Past assessment filters"],
+      ["#history-type", "Past assessment filters"],
+      ["#timeline-marks", "Past assessments"],
+      ['details[data-fold="past"] h3', "Past assessments"],
+    ]) {
+      if (!title) continue;
+      const point = await evaluate(`(async () => {
+        const node = document.querySelector(${JSON.stringify(selector)});
+        node.scrollIntoView({ block: 'center', behavior: 'instant' });
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        const b = [...node.getClientRects()].find(rect => rect.width && rect.height);
+        return { x: b.left + Math.min(10, b.width / 2), y: b.top + b.height / 2 };
+      })()`);
+      assert.ok(await evaluate(`(() => {
+        const node = document.querySelector(${JSON.stringify(selector)});
+        return node.contains(document.elementFromPoint(${point.x}, ${point.y}));
+      })()`), `visible hover target ${selector}: ${JSON.stringify(point)} over ${await evaluate(`document.elementFromPoint(${point.x}, ${point.y})?.outerHTML.slice(0, 300)`)}`);
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+      await until(
+        async () =>
+          (await evaluate(
+            "document.querySelector('[role=dialog]')?.textContent ?? ''",
+          )).includes(title),
+        `help for ${selector} at ${JSON.stringify(point)} over ${await evaluate(`(() => { const e = document.elementFromPoint(${point.x}, ${point.y}); return e ? e.outerHTML.slice(0, 200) : 'none'; })()`)} open=${await evaluate("document.querySelector('details[data-fold=past]').open")}`,
+      );
+      helpTitles[selector] = title;
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+      await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+      await until(
+        async () => !(await evaluate("!!document.querySelector('[role=dialog]')")),
+        `help closed for ${selector}`,
+      );
+    }
+    pastAssessments.helpTitles = helpTitles;
+    await click('details[data-fold="past"] > summary');
     await click('[data-map-window="300"]');
     await change("#search", "worker", "input");
     await evaluate("dispatchEvent(new Event('pagehide'))");
@@ -880,11 +1033,151 @@ export async function proveReplay({
       identifier: newDocument.identifier,
     });
     assert.deepEqual(await evaluate("window.cspViolations"), []);
+    // Give the real recordings a saturated thread after all 10a assertions.
+    // The same SQLite rows serve both the scan and an explicit row selection.
+    const update = spawn("python3", ["-c", `
+import json, pathlib, sqlite3, sys
+for path in pathlib.Path(sys.argv[1]).glob('*.sqlite3'):
+    with sqlite3.connect(path) as db:
+        for at, body in db.execute('SELECT ts,snapshot FROM process_snapshot').fetchall():
+            view = json.loads(body)
+            view['threads'][0]['cpu_pct'] = 99
+            db.execute('UPDATE process_snapshot SET snapshot=? WHERE ts=?', (json.dumps(view), at))
+`, join(directory, "data/replay")], { stdio: ["ignore", "ignore", "pipe"] });
+    const [updateCode] = await once(update, "close");
+    assert.equal(updateCode, 0);
+    holds.clear();
+    overrides.clear();
+    current = frame(now);
+    lastTarget = null;
+    await send("Page.navigate", { url: `${base}/?target=` });
+    await until(async () => (await text("history-status"))?.startsWith("Checked ") &&
+      await evaluate("document.querySelectorAll('#history-list .t').length === 2"), "two real past finding episodes");
+    const findingRows = await evaluate("[...document.querySelectorAll('#history-list .t')].map(node=>node.textContent)");
+    assert.deepEqual(findingRows, Array(2).fill("worker-100 is saturating a core"));
+    assert.equal(await evaluate("document.querySelector('#timeline-marks').children.length"), 2);
+    if (!await evaluate("document.querySelector('details[data-fold=past]').open"))
+      await click('details[data-fold="past"] > summary');
+    await until(() => evaluate("document.querySelector('details[data-fold=past]').open"), "finding list open");
+    // Filters use the same episodes for the rows, count, and marks.
+    await click('#history-levels input[value="serious"]');
+    assert.equal(await text("past-count"), "0 findings");
+    assert.equal(await evaluate("document.querySelector('#timeline-marks').children.length"), 0);
+    assert.equal(await text("history-list"), "No findings match these filters.");
+    await click('#history-levels input[value="serious"]');
+    assert.equal(await text("past-count"), "2 findings");
+    // Wait for the Fold's native opening transition before keyboard use.
+    await until(() => evaluate(`(() => {
+      const row = document.querySelector('#history-list > li');
+      row.scrollIntoView({block:'center', behavior:'instant'});
+      row.focus(); return document.activeElement === row;
+    })()`), "past finding focus after Fold opens");
+    const rowFocus = await evaluate(`(() => {
+      const row = document.querySelector('#history-list > li');
+      return {focused:document.activeElement===row, active:document.activeElement.outerHTML.slice(0,300),
+        row:row.outerHTML.slice(0,300), rect:row.getBoundingClientRect().toJSON(),
+        open:row.closest('details').open, url:location.href};
+    })()`);
+    assert.equal(rowFocus.focused, true, JSON.stringify(rowFocus));
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter" });
+    await mode("Historical");
+    await until(() => evaluate("!!document.querySelector('#history-list > li[aria-current=true] .d')"), "selected past finding detail");
+    const rowAgreement = await evaluate(`(() => {
+      const row = document.querySelector('#history-list > li[aria-current=true]');
+      const marks = [...document.querySelectorAll('#timeline-marks [role=img]')];
+      return {title:row.querySelector('.t').textContent, detail:row.querySelector('.d').textContent,
+        assessment:document.querySelector('#findings').textContent, cpu:document.querySelector('#hero-cpu').textContent,
+        at:Number(document.querySelector('#timeline-range').value), marks:marks.map(node=>node.getAttribute('aria-label'))};
+    })()`);
+    assert.equal(rowAgreement.at, last);
+    assert.equal(rowAgreement.cpu, "0.99 cores");
+    assert.ok(rowAgreement.assessment.includes(rowAgreement.title));
+    assert.ok(rowAgreement.assessment.includes(rowAgreement.detail));
+    assert.equal(rowAgreement.marks.length, 2);
+    assert.ok(rowAgreement.marks.every(label=>label.startsWith(rowAgreement.title)));
+    // Each mark has a keyboard-accessible help card owned by its episode.
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+    await evaluate("document.querySelector('#timeline-marks .mark-help').focus()");
+    await until(() => evaluate("!!document.querySelector('[role=dialog][aria-label=\"Past assessments\"]')"), "mark keyboard help");
+    pastAssessments.rowAgreement = rowAgreement;
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+    current = frame(now + 7200.9);
+    await until(() => evaluate(`Number(document.querySelector('#timeline-range').max) === ${current.health.last_seen}`), "fractional collector clock on Timeline");
+    const nativeEndpoint = await evaluate(`(() => {
+      const range = document.querySelector('#timeline-range');
+      const min = Number(range.min), max = Number(range.max);
+      return {min, max, lastSelectable:min + Math.floor(max-min)};
+    })()`);
+    await change("#timeline-range", String(nativeEndpoint.lastSelectable - 1), "input");
+    assert.match(await text("timeline-cursor"), /^Release to view /);
+    await change("#timeline-range", String(nativeEndpoint.lastSelectable - 1));
+    await until(async () => log.some(r => r.path === "/api/replay" && Number(r.query.at) === nativeEndpoint.lastSelectable - 1) &&
+      !(await text("replay-note"))?.startsWith("Loading"), "step before fractional Live selects a recording");
+    await mode("Historical");
+    const beforeLiveStep = log.filter(r => r.path === "/api/replay" && r.query.at).length;
+    // The native setter rounds max down to the last allowed value for step=1.
+    await change("#timeline-range", String(nativeEndpoint.max), "input");
+    assert.equal(await evaluate("Number(document.querySelector('#timeline-range').value)"), nativeEndpoint.lastSelectable);
+    assert.equal(await text("timeline-cursor"), "Release for live");
+    await change("#timeline-range", String(nativeEndpoint.max));
+    await mode("Live");
+    assert.equal(log.filter(r => r.path === "/api/replay" && r.query.at).length, beforeLiveStep);
+    pastAssessments.nativeEndpoint = nativeEndpoint;
+    // A PID-change row with unavailable RSS must split the trend in SQLite,
+    // the scan, and the Timeline. The control confirms that growth is visible.
+    pastAssessments.pidBoundary = [];
+    for (const boundary of [false, true]) {
+      const seedBoundary = spawn("python3", ["-c", `
+import json, pathlib, sqlite3, sys
+root, at, boundary = pathlib.Path(sys.argv[1]), float(sys.argv[2]), sys.argv[3] == 'true'
+for path in (root / 'replay').glob('*.sqlite3'):
+    with sqlite3.connect(path) as db:
+        db.execute('DELETE FROM process_snapshot WHERE ts != ?', (at,))
+        for ts, body in db.execute('SELECT ts,snapshot FROM process_snapshot').fetchall():
+            view = json.loads(body)
+            view['threads'][0]['cpu_pct'] = 5
+            view['resources']['memory']['rss'] = (100 + 8 * 115) * 2**20
+            db.execute('UPDATE process_snapshot SET snapshot=? WHERE ts=?', (json.dumps(view), ts))
+for path in root.glob('*.sqlite3'):
+    with sqlite3.connect(path) as db:
+        db.execute('DELETE FROM resource_sample')
+        for i in range(24):
+            db.execute('INSERT INTO resource_sample VALUES (?,?,?,?,?,?,?)',
+                       (at - 120 + 5*i, '100', i, 42, 5, (100 + 8 * 5*i) * 2**20, 12))
+        if boundary:
+            db.execute('INSERT INTO resource_sample VALUES (?,?,?,?,?,?,?)',
+                       (at - 6, '100', 24, 43, 5, None, 12))
+`, join(directory, "data"), String(last), String(boundary)], { stdio: ["ignore", "ignore", "pipe"] });
+      const [seedCode] = await once(seedBoundary, "close");
+      assert.equal(seedCode, 0);
+      const history = await (await fetch(`${base}/api/resources?start=${last - 181}&end=${last}`)).json();
+      assert.equal(history.rows.length, boundary ? 25 : 24);
+      if (boundary) {
+        assert.equal(history.rows.at(-2).pid, 43);
+        assert.equal(history.rows.at(-2).rss_bytes, null);
+        assert.equal(history.rows.at(-1).pid, 42);
+      }
+      await send("Page.navigate", { url: `${base}/?target=` });
+      await until(async () => (await text("history-status"))?.startsWith("Checked 1 recording"), "PID boundary scan complete");
+      const result = {
+        boundary,
+        resourceRows: history.rows,
+        status: await text("history-status"),
+        count: await text("past-count"),
+        titles: await evaluate("[...document.querySelectorAll('#history-list .t')].map(node=>node.textContent)"),
+        marks: await evaluate("document.querySelector('#timeline-marks').children.length"),
+      };
+      assert.deepEqual(result.titles, boundary ? [] : ["Resident memory grows without a plateau"]);
+      assert.equal(result.count, boundary ? "0 findings" : "1 finding");
+      assert.equal(result.marks, boundary ? 0 : 1);
+      pastAssessments.pidBoundary.push(result);
+    }
     const evidence = {
       base,
       fixture: "real collector SQLite recordings/resources",
       bounds,
       liveFacts,
+      pastAssessments,
       recordedFacts,
       returnedFacts,
       finalFacts,
@@ -911,10 +1204,16 @@ export async function proveReplay({
         "quota",
         "last-target retry/dismissal",
         "target navigation and pagehide",
+        "past assessments first period on real recordings",
+        "Stay leaves the scan running",
+        "full scan preserves panels and storage without inspection",
+        "past rows, filters, counts, marks and recorded Assessment agree",
+        "native fractional Timeline endpoint returns to Live",
+        "unavailable RSS PID boundary excludes false finding and Timeline mark",
       ],
     };
     await writeFile(
-      "/tmp/pr169-browser-details.json",
+      process.env.REPLAY_PROOF_DETAILS || "/tmp/pr171-browser-details.json",
       JSON.stringify(evidence, null, 2),
     );
     return {
@@ -923,12 +1222,13 @@ export async function proveReplay({
       realRecordingRows: snapshots.length,
       realResourceRows: resourceRows.rows.length,
       cases: evidence.cases,
-      details: "/tmp/pr169-browser-details.json",
+      details: process.env.REPLAY_PROOF_DETAILS || "/tmp/pr171-browser-details.json",
       requests: log.length,
     };
   } finally {
     await send("Fetch.disable");
     setPaused(() => undefined);
+    setDialog(() => undefined);
     await stop(child);
   }
 }

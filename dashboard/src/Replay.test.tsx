@@ -1,6 +1,7 @@
 // 10a ports pinned tests 990,1020,1041,1057,1072,1086,1097,1391,1411,
 // 1433,1459,1483,1494,1508,1518,1531,1551,1566,1582,1610,2302.
-// 10b's remaining test handoff is at lib/observation.test.ts.
+// 10b ports 1124 and 1176 in lib/pastAssessments.test.ts, and 1194, 1258,
+// 1279, 1314, 1336 and 1359 in components/PastAssessments.test.tsx.
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";

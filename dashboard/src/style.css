@@ -750,3 +750,80 @@ details.fold[open] > .fold-summary {
     font-size: 22px;
   }
 }
+
+/* Timeline marks and Past assessments. */
+.timeline-marks {
+  position: relative;
+  height: 10px;
+  margin: 12px 8px 0;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.timeline-marks > span {
+  position: absolute;
+  top: 0;
+  height: 10px;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--lvl);
+}
+.timeline-marks .mark-help,
+.mark-help > span {
+  display: block;
+  height: 100%;
+}
+.past {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.history-filters {
+  display: flex;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.history-filters fieldset {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.history-filters legend {
+  float: left;
+  margin-right: 4px;
+  color: var(--ink-2);
+}
+.history-filters label {
+  font-size: 13px;
+}
+.history-list {
+  max-height: 260px;
+  overflow: auto;
+  gap: 4px;
+}
+.history-list .finding {
+  padding: 6px 10px;
+}
+.history-list .finding[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+.history-list .when {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.past-foot {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+}
