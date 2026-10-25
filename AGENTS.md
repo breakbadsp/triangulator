@@ -54,6 +54,11 @@ See [Multi-target design](docs/multi-target-design.md).
   and `docs/cpp-coding-standards.md`. Then read the `cpp-*` topic skills for
   the current step, using the C++ topic router in `$HOME/ai/AGENTS.md`. Read
   `cpp-checklist` before completion and before C++ review.
+- The `cpp-*` skills come from the
+  [ai-assets](https://github.com/breakbadsp/ai-assets) repository. It must be
+  cloned to `~/ai` and installed with its `install.sh`. If
+  `~/ai/skills/cpp-principles/SKILL.md` is missing, stop and tell the user
+  before you make C++ changes. Do not skip the C++ rules without saying so.
 - For C++ changes, run `make format` and `make format-check`. Keep the default
   warning flags and `-Werror` enabled.
 - Each commit must build and pass `make check`.

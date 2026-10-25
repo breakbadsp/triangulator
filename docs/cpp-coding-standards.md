@@ -1,7 +1,8 @@
 # C++ coding standards
 
-The shared `cpp-*` skills in [ai-assets](https://github.com/breakbadsp/ai-assets)
-define the general C++ rules. Follow the reading and validation steps in
+The shared `cpp-*` skills in [ai-assets at bd5294b](https://github.com/breakbadsp/ai-assets/tree/bd5294bd18bac75898dd1ac60c63f16e25b1ca49)
+define the general C++ rules. This link is pinned to that commit, so a later
+change to the skills does not change these rules without a review here. Follow the reading and validation steps in
 [AGENTS.md](../AGENTS.md). This file contains only Triangulator constraints.
 
 ## Project rules
