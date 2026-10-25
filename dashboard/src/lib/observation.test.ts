@@ -1,5 +1,5 @@
-// Phase 10b handoff, pinned 777cf3a:tests/dashboard_test.js:
-// B1: 1124 episode joining/gaps/worst severity; 1176 session/TID/generation.
+// Phase 10b handoff, pinned 777cf3a:tests/dashboard_test.js (B1 1124 and
+// 1176 run in lib/pastAssessments.test.ts):
 // B2: 1194 scan/filter/marks/selection/isolation; 1258 recorded RSS growth;
 // 1279 older scroll/left edge; 1314 long range; 1336 checked-range fractional
 // endpoint; 1359 newer samples/error retry. Phase 10a has direct controls only.
