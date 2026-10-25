@@ -2266,7 +2266,7 @@ const topics = {
 
 export type HelpTopicId = keyof typeof topics;
 export const helpTopics: Readonly<Record<HelpTopicId, HelpTopic>> = topics;
-export const helpTopicIds = Object.keys(topics) as HelpTopicId[];
+export const helpTopicIds = Object.keys(topics).filter(isHelpTopicId);
 
 export function isHelpTopicId(value: string): value is HelpTopicId {
   return Object.hasOwn(helpTopics, value);
