@@ -52,15 +52,10 @@ async function checkSlot(
   if (!view || view.recorded_at <= at - step) return null;
   return {
     at: view.recorded_at,
-    findings: assessRecorded(
-      view,
-      view.recorded_at,
-      points.filter((point) => point.pid === view.health.pid),
-      {
-        memoryLayout: compatibleLayout(judge.layout, view),
-        pressureScope: judge.pressureScope,
-      },
-    ),
+    findings: assessRecorded(view, view.recorded_at, points, {
+      memoryLayout: compatibleLayout(judge.layout, view),
+      pressureScope: judge.pressureScope,
+    }),
   };
 }
 
