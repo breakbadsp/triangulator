@@ -22,6 +22,12 @@ export interface LiveResponse {
     last_seen: number | null;
     sampler_silent: boolean;
     target_absent: boolean | null;
+    bad_packets?: number;
+    duplicates?: number;
+    late_packets?: number;
+    raw_samples?: number;
+    /** Not written by this collector; Monitor health shows "—". */
+    sampler_ip?: string | null;
   };
   threads: readonly Thread[];
   /** Thread count by config group. */
