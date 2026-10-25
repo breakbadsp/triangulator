@@ -214,6 +214,49 @@ test("In range counts the stored samples of the selected range", () => {
   expect(inRange()).toBe("—");
 });
 
+test("resource charts and range counts keep only the displayed PID", () => {
+  const rows = [100, 110].map((ts) => ({
+    ts,
+    pid: 7,
+    elapsed_s: 1,
+    tcp_timeouts_delta: 2,
+    rss_bytes: ts * 1024,
+    cgroup_cpu_some_pct: ts,
+  }));
+  const current = view(sample());
+  const paths = () =>
+    [
+      ...document.querySelectorAll(
+        "#resources svg polyline, #resources svg polygon",
+      ),
+    ].map((path) => path.getAttribute("points"));
+  const { rerender } = render(
+    show(current, { points: asResourcePoints(rows) }),
+  );
+  const before = paths();
+  expect(before.length).toBeGreaterThan(0);
+  rerender(
+    show(current, {
+      points: asResourcePoints([
+        ...rows.slice(0, 1),
+        {
+          ts: 105,
+          pid: 8,
+          elapsed_s: 1,
+          tcp_timeouts_delta: 9999,
+          rss_bytes: 1e15,
+        },
+        ...rows.slice(1),
+      ]),
+    }),
+  );
+  expect(
+    document.querySelector('#netstack tr[data-counter="tcp_timeouts"]')
+      ?.children[2]?.textContent,
+  ).toBe("4");
+  expect(paths()).toEqual(before);
+});
+
 test("every visible resource label has a registered help topic", () => {
   render(
     show(

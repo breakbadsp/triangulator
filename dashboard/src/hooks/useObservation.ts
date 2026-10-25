@@ -82,19 +82,13 @@ function save(target: string, observation: Observation | undefined) {
     }
   }
 }
-async function resources(
-  signal: AbortSignal,
-  end: number,
-  range: number,
-  pid: number,
-) {
+async function resources(signal: AbortSignal, end: number, range: number) {
   const data = await getJson<ResourceHistory>(
     `/api/resources?${new URLSearchParams({ start: String(end - range), end: String(end) })}`,
     signal,
   );
-  return asResourcePoints(
-    data.rows.filter((row) => row.ts <= end && row.pid === pid),
-  );
+  // RSS assessment needs every process boundary, including unavailable rows.
+  return asResourcePoints(data.rows.filter((row) => row.ts <= end));
 }
 const loadBounds = async (signal: AbortSignal) =>
   parseBounds(await getJson<unknown>("/api/replay", signal));
@@ -183,16 +177,18 @@ export function useObservation(
   }
   // Live receipt time changes every second, but the resource reader stays on
   // its five-second cadence. Historical requests end at the selected time.
-  const historicalEnd = mode === "live" ? null : (shown?.now ?? 0);
+  // Copy the scalar out of the observation alias for React Compiler. The
+  // observation itself is replaced below when scoped reads arrive.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-conversion
+  const historicalEnd = mode === "live" ? null : Number(shown?.now ?? 0);
   const resourceLoader = useCallback(
     (signal: AbortSignal) =>
       resources(
         signal,
         historicalEnd ?? Date.now() / 1000,
         Math.max(range, 180),
-        shown?.view.health.pid ?? 0,
       ),
-    [historicalEnd, shown?.view.health.pid, range],
+    [historicalEnd, range],
   );
   const resourceResult = useScopedPoll(
     scope ? `${scope}|resources|${String(range)}` : null,
@@ -214,7 +210,8 @@ export function useObservation(
     loadLayout,
     1000,
   );
-  const pid = shown?.view.health.pid ?? 0;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-conversion
+  const pid = Number(shown?.view.health.pid ?? 0);
   const loadSockets = useCallback(
     async (signal: AbortSignal): Promise<SocketReport> => {
       try {
@@ -416,7 +413,6 @@ export function useObservation(
             controller.signal,
             snapshot.recorded_at,
             Math.max(range, 180),
-            snapshot.health.pid,
           )
         : [];
       controller.signal.throwIfAborted();
