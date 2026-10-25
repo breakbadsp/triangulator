@@ -45,6 +45,16 @@ export async function proveCleanup({
         data.threads[0].cpu_pct = 99;
       }
       if (data.process) data.process.command = longName;
+      data.resources = {
+        ...data.resources,
+        available: true, stale: false, session: data.health.session, pid: data.health.pid,
+        memory: { ...data.resources?.memory, rss: (32 + liveReads) * 2 ** 20 },
+      };
+      data.memory = {
+        ...data.memory,
+        available: true, stale: false, pid: data.health.pid,
+        values: { ...data.memory?.values, vm_size_bytes: (512 + liveReads * 8) * 2 ** 20 },
+      };
     } else {
       targetReads++;
       for (const target of data.targets) {
@@ -127,8 +137,10 @@ export async function proveCleanup({
     await layout();
   };
   const explain = async (selector) => {
+    await until(() => evaluate("!document.querySelector('#help-guide')"), "previous guide closes");
+    await layout();
     await evaluate(
-      `(() => {const el=document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');el.scrollIntoView({block:'center'});el.focus();})()`,
+      `(() => {const el=document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');el.scrollIntoView({block:'center'});if(document.activeElement===el)el.blur();el.focus();})()`,
     );
     await until(
       () =>
@@ -262,6 +274,54 @@ export async function proveCleanup({
     frozen,
   );
   await keypress("Escape");
+  const metricGuides = [];
+  for (const [topic, heldId, liveId, valueId, label] of [
+    ["rss", "chart-rss", "chart-vm", "overview-rss", "Resident (RSS)"],
+    ["vmsize", "chart-vm", "chart-rss", "overview-vm", "Virtual size (VmSize)"],
+  ]) {
+    await until(() => evaluate(`document.querySelector('#${heldId} svg')?.textContent.includes('MiB')`), "distinct memory samples reach the chart");
+    await explain(`#overview-memory .help-label[data-help='${topic}']`);
+    await click("#help-guide details > summary");
+    const snapshot = await evaluate(`(() => {const table=document.querySelector('#help-guide .help-data');return {headers:[...table.querySelectorAll('th')].map(n=>n.textContent),last:table.querySelector('tbody tr:last-child td:last-child').textContent,value:document.getElementById('${valueId}').textContent.replace('.0 ', ' '),rows:table.textContent,held:document.querySelector('#${heldId} svg').innerHTML,live:document.querySelector('#${liveId} svg').innerHTML}})()`);
+    assert.deepEqual(snapshot.headers, ["Time", label]);
+    assert.equal(snapshot.last, snapshot.value);
+    const reads = liveReads;
+    await until(async () => liveReads >= reads + 2 && await evaluate(`document.querySelector('#${liveId} svg').innerHTML!==${JSON.stringify(snapshot.live)}`), "other memory chart updates while the selected chart is held");
+    assert.deepEqual(await evaluate(`({rows:document.querySelector('#help-guide .help-data').textContent,held:document.querySelector('#${heldId} svg').innerHTML})`), { rows: snapshot.rows, held: snapshot.held });
+    await keypress("Escape");
+    assert.notEqual(await evaluate(`document.querySelector('#${heldId} svg').innerHTML`), snapshot.held);
+    metricGuides.push({ topic, headers: snapshot.headers, value: snapshot.last, selectedChartHeld: true, otherChartUpdated: true });
+  }
+  // Reads stay available when quota prevents writes. Each case starts with
+  // its saved preference and restores the native storage method afterwards.
+  const partialStorage = [];
+  for (const saved of [null, "on", "off"]) {
+    await evaluate(`localStorage.removeItem('triangulator:hover-help');${saved === null ? "" : `localStorage.setItem('triangulator:hover-help', '${saved}');`}`);
+    await explain("#chart-load");
+    await evaluate("window.proofStorageWrite=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('quota','QuotaExceededError')}");
+    await click("#hover-help");
+    const enabled = saved === "off";
+    assert.equal(await evaluate("document.querySelector('#hover-help').checked"), enabled);
+    assert.equal(await evaluate("localStorage.getItem('triangulator:hover-help')"), saved);
+    await keypress("Escape");
+    await explain("#chart-load");
+    assert.equal(await evaluate("document.querySelector('#hover-help').checked"), enabled, "guide reopens with the page choice after a failed write");
+    await keypress("Escape");
+    await evaluate("document.activeElement.blur()");
+    const hover = await evaluate("(()=>{const el=document.querySelector('#chart-load').closest('[data-help]');el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+4,y:r.top+4}})()");
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...hover });
+    await delay(1500);
+    assert.equal(await evaluate("!!document.querySelector('.help-card')"), enabled, "hover uses the page choice after a failed write");
+    await keypress("Escape");
+    await evaluate("Storage.prototype.setItem=window.proofStorageWrite;delete window.proofStorageWrite");
+    await explain("#chart-load");
+    if (!enabled) await click("#hover-help");
+    else { await click("#hover-help"); await click("#hover-help"); }
+    assert.equal(await evaluate("localStorage.getItem('triangulator:hover-help')"), "on");
+    await keypress("Escape");
+    partialStorage.push({ saved, enabled, guideReopened: true, hover: true, keyboard: true, successfulWriteRestored: true });
+  }
   await click("#threads tr[data-tid] td:first-child");
   await until(
     () =>
@@ -355,6 +415,8 @@ export async function proveCleanup({
     modalFocus: true,
     threadReturn: true,
     frozenChart: true,
+    metricGuides,
+    partialStorage,
     nativeDialog: !!controlBase,
     zoom,
   };

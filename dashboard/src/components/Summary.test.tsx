@@ -8,6 +8,7 @@ import { emptySeries, type Point, type Series } from "../lib/series";
 import { watchedThread } from "../lib/test-fixtures";
 import css from "../style.css?raw";
 import { Summary } from "./Summary";
+import { HelpGuideProvider } from "../help/HelpGuide";
 
 vi.mock("../lib/assess", { spy: true });
 afterEach(() => {
@@ -254,6 +255,60 @@ test("before the first live view the summary waits", () => {
   expect(document.getElementById("hero-load")?.textContent).toBe("—");
   expect(document.querySelectorAll("#tiles .tile")).toHaveLength(0);
 });
+
+test.each([
+  ["rss", "chart-rss", "chart-vm", "Resident (RSS)", "2 MiB"],
+  ["vmsize", "chart-vm", "chart-rss", "Virtual size (VmSize)", "32 MiB"],
+])(
+  "the %s label guide holds only its own memory chart",
+  (topic, heldId, liveId, label, value) => {
+    const page = (scale: number) => (
+      <HelpGuideProvider>
+        <Summary
+          view={view()}
+          series={series([
+            point(1, { rss: 2 ** 20, vm: 16 * 2 ** 20 }),
+            point(2, { rss: scale * 2 * 2 ** 20, vm: scale * 32 * 2 ** 20 }),
+          ])}
+          now={10}
+          windowSecs={300}
+          onWindow={() => undefined}
+          resourcePoints={[]}
+          pressureScope="cgroup"
+        />
+      </HelpGuideProvider>
+    );
+    const { rerender } = render(page(1));
+    const opener = document.querySelector<HTMLElement>(
+      `#overview-memory .help-label[data-help='${topic}']`,
+    );
+    if (!opener) throw Error("Missing memory label");
+    act(() => {
+      opener.focus();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+    const guide = document.getElementById("help-guide");
+    if (!guide) throw Error("Missing guide");
+    fireEvent.click(within(guide).getByText("View chart data"));
+    expect(
+      within(guide).getByRole("columnheader", { name: label }),
+    ).toBeDefined();
+    expect(within(guide).getByRole("cell", { name: value })).toBeDefined();
+    const chart = (id: string) =>
+      document.getElementById(id)?.querySelector("svg")?.innerHTML;
+    const held = chart(heldId),
+      updating = chart(liveId),
+      rows = guide.querySelector(".help-data")?.textContent;
+    expect(held).toBeDefined();
+    expect(updating).toBeDefined();
+    rerender(page(4));
+    expect(chart(heldId)).toBe(held);
+    expect(chart(liveId)).not.toBe(updating);
+    expect(guide.querySelector(".help-data")?.textContent).toBe(rows);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(chart(heldId)).not.toBe(held);
+  },
+);
 
 test("a watched finding keeps its help target through live re-renders", () => {
   vi.useFakeTimers();
