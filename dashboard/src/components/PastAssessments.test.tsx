@@ -436,6 +436,46 @@ describe("past assessments", () => {
     );
   });
 
+  test.each([false, true])(
+    "stored RSS preserves PID boundaries, including unavailable rows: %s",
+    async (boundary) => {
+      const resourceRows: ResourceRow[] = Array.from(
+        { length: 24 },
+        (_, i) => ({
+          ts: 1780 + i * 5,
+          pid: 7,
+          elapsed_s: 5,
+          rss_bytes: (100 + 8 * i * 5) * 2 ** 20,
+        }),
+      );
+      if (boundary)
+        resourceRows.splice(-1, 0, {
+          ts: 1894,
+          pid: 8,
+          elapsed_s: 5,
+          rss_bytes: null,
+        });
+      const view = leakView(1900);
+      view.health.pid = 7;
+      view.memory = { ...view.memory, available: true, pid: 7 };
+      view.resources = { ...view.resources, available: true, pid: 7 };
+      open({
+        bounds: { first: 1900, last: 1900 },
+        snapshotAt: () => view,
+        resourcesIn: (start, end) =>
+          resourceRows.filter((row) => row.ts >= start && row.ts <= end),
+      });
+      await settle();
+      expect(status()).toMatch(/^Checked 1 recording/);
+      expect(rows()).toEqual([
+        boundary
+          ? "The Assessment found nothing in the checked recordings."
+          : "Resident memory grows without a plateau",
+      ]);
+      expect(byId("timeline-marks").children).toHaveLength(boundary ? 0 : 1);
+    },
+  );
+
   test("without stored resource samples there is no trend", async () => {
     open({ snapshotAt: leakView });
     await settle();

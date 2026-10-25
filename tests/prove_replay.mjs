@@ -1123,6 +1123,55 @@ for path in pathlib.Path(sys.argv[1]).glob('*.sqlite3'):
     await mode("Live");
     assert.equal(log.filter(r => r.path === "/api/replay" && r.query.at).length, beforeLiveStep);
     pastAssessments.nativeEndpoint = nativeEndpoint;
+    // A PID-change row with unavailable RSS must split the trend in SQLite,
+    // the scan, and the Timeline. The control confirms that growth is visible.
+    pastAssessments.pidBoundary = [];
+    for (const boundary of [false, true]) {
+      const seedBoundary = spawn("python3", ["-c", `
+import json, pathlib, sqlite3, sys
+root, at, boundary = pathlib.Path(sys.argv[1]), float(sys.argv[2]), sys.argv[3] == 'true'
+for path in (root / 'replay').glob('*.sqlite3'):
+    with sqlite3.connect(path) as db:
+        db.execute('DELETE FROM process_snapshot WHERE ts != ?', (at,))
+        for ts, body in db.execute('SELECT ts,snapshot FROM process_snapshot').fetchall():
+            view = json.loads(body)
+            view['threads'][0]['cpu_pct'] = 5
+            view['resources']['memory']['rss'] = (100 + 8 * 115) * 2**20
+            db.execute('UPDATE process_snapshot SET snapshot=? WHERE ts=?', (json.dumps(view), ts))
+for path in root.glob('*.sqlite3'):
+    with sqlite3.connect(path) as db:
+        db.execute('DELETE FROM resource_sample')
+        for i in range(24):
+            db.execute('INSERT INTO resource_sample VALUES (?,?,?,?,?,?,?)',
+                       (at - 120 + 5*i, '100', i, 42, 5, (100 + 8 * 5*i) * 2**20, 12))
+        if boundary:
+            db.execute('INSERT INTO resource_sample VALUES (?,?,?,?,?,?,?)',
+                       (at - 6, '100', 24, 43, 5, None, 12))
+`, join(directory, "data"), String(last), String(boundary)], { stdio: ["ignore", "ignore", "pipe"] });
+      const [seedCode] = await once(seedBoundary, "close");
+      assert.equal(seedCode, 0);
+      const history = await (await fetch(`${base}/api/resources?start=${last - 181}&end=${last}`)).json();
+      assert.equal(history.rows.length, boundary ? 25 : 24);
+      if (boundary) {
+        assert.equal(history.rows.at(-2).pid, 43);
+        assert.equal(history.rows.at(-2).rss_bytes, null);
+        assert.equal(history.rows.at(-1).pid, 42);
+      }
+      await send("Page.navigate", { url: `${base}/?target=` });
+      await until(async () => (await text("history-status"))?.startsWith("Checked 1 recording"), "PID boundary scan complete");
+      const result = {
+        boundary,
+        resourceRows: history.rows,
+        status: await text("history-status"),
+        count: await text("past-count"),
+        titles: await evaluate("[...document.querySelectorAll('#history-list .t')].map(node=>node.textContent)"),
+        marks: await evaluate("document.querySelector('#timeline-marks').children.length"),
+      };
+      assert.deepEqual(result.titles, boundary ? [] : ["Resident memory grows without a plateau"]);
+      assert.equal(result.count, boundary ? "0 findings" : "1 finding");
+      assert.equal(result.marks, boundary ? 0 : 1);
+      pastAssessments.pidBoundary.push(result);
+    }
     const evidence = {
       base,
       fixture: "real collector SQLite recordings/resources",
@@ -1160,6 +1209,7 @@ for path in pathlib.Path(sys.argv[1]).glob('*.sqlite3'):
         "full scan preserves panels and storage without inspection",
         "past rows, filters, counts, marks and recorded Assessment agree",
         "native fractional Timeline endpoint returns to Live",
+        "unavailable RSS PID boundary excludes false finding and Timeline mark",
       ],
     };
     await writeFile(
