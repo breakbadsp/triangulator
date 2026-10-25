@@ -317,6 +317,22 @@ export interface WatchRule {
   prefix: string;
   wake_ms: number;
 }
+/** WatchSettings::Describe in collector/watch.hpp. */
+export interface WatchLimits {
+  prefix_max_bytes: number;
+  wake_ms_min: number;
+  wake_ms_max: number;
+  max_rules: number;
+}
+export interface WatchInfo {
+  rules: readonly WatchRule[];
+  source: "config" | "dashboard";
+  /** Why the saved file was not used at startup. */
+  saved_error: string | null;
+  /** Missing from a collector older than edit revisions. */
+  revision?: string;
+  limits: WatchLimits;
+}
 export interface ResourceRow {
   fd_open?: number | null;
   read_bps?: number | null;

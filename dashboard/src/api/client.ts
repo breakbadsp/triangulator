@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** The parsed JSON error reply, when it was JSON. */
+    public readonly body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -26,8 +28,9 @@ function apiPath(path: string): string {
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = response.statusText || `HTTP ${String(response.status)}`;
+    let body: unknown;
     try {
-      const body: unknown = await response.json();
+      body = await response.json();
       if (
         typeof body === "object" &&
         body !== null &&
@@ -39,7 +42,7 @@ async function readJson<T>(response: Response): Promise<T> {
     } catch {
       // HTTP errors must retain their status even when the body is not JSON.
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, body);
   }
   // The same collector binary owns the JSON writers and this embedded page.
   return (await response.json()) as T;
