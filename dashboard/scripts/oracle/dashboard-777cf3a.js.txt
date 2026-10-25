@@ -1,0 +1,834 @@
+const STATES=['running','futex','poll','socket','pipe','sleep','stopped','kernel','other','no_access'];
+const labels={running:'Running',futex:'Futex wait',poll:'Poll / epoll',socket:'Socket wait',pipe:'Pipe / eventfd',sleep:'Sleep',stopped:'Stopped',kernel:'Kernel wait (D)',other:'Other',no_access:'No access'};
+const BUFFER_SECS=900;
+const isNum=value=>typeof value==='number'&&Number.isFinite(value);
+const pct=value=>!isNum(value)?'—':(Math.abs(value)>=100?value.toFixed(0):value.toFixed(1))+'%';
+const compact=new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1});
+const number=(value,digits=1)=>!isNum(value)?'—':Math.abs(value)>=10000?compact.format(value):value.toFixed(digits);
+const bytes=value=>{if(!isNum(value))return '—';if(value>0&&value<1)return '<1 B';const units=['B','KB','MB','GB','TB'];let index=0;while(Math.abs(value)>=1024&&index<units.length-1){value/=1024;index++}return value.toFixed(index?1:0)+' '+units[index]};
+const perSec=value=>isNum(value)?bytes(value)+'/s':'—';
+const date=value=>new Date(value*1000).toLocaleString();
+const clock=value=>new Date(value*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const duration=seconds=>seconds<90?Math.max(1,Math.round(seconds))+' s':seconds<5400?Math.round(seconds/60)+' min':(seconds/3600).toFixed(1)+' h';
+const ago=seconds=>!isNum(seconds)?'never':seconds<2?'just now':seconds<90?Math.round(seconds)+' s ago':seconds<5400?Math.round(seconds/60)+' min ago':Math.round(seconds/3600)+' h ago';
+const family=name=>(name||'?').replace(/[\s#:_.-]*\d+$/,'')||name;
+const AVG_STEP=10;
+const isIdle=thread=>!(thread.cpu_pct>0||thread.switches_per_s>0||thread.read_bps>0||thread.write_bps>0||thread.major_faults_per_s>0||thread.state==='running'||(thread.state_mix||{}).running||thread.state==='kernel'||thread.state==='stopped');
+function idleFor(thread){if(replayAt!==null)return '';const seen=threadSeen.get(thread.tid);if(!seen)return '';const tick=lastTick||thread.last_sample;
+  return seen.active!==null?'idle for '+duration(tick-seen.active):'idle for over '+duration(tick-seen.first)}
+function idleSecs(thread){if(replayAt!==null)return null;const seen=threadSeen.get(thread.tid);if(!isNum(seen?.futexSince))return null;return (lastTick||thread.last_sample)-seen.futexSince}
+const futexShare=thread=>{const mix=Object.values(thread.state_mix||{}),total=mix.reduce((sum,count)=>sum+count,0);return total?((thread.state_mix||{}).futex||0)/total:0};
+const STUCK_FUTEX_S=30;
+function lockHints(threads){
+  const found=[],current=threads.filter(thread=>!thread.stale),families=new Map();
+  for(const thread of current){const key=family(thread.name);if(!families.has(key))families.set(key,[]);families.get(key).push(thread)}
+  // Threads parked on a futex for a long time while other threads run. A
+  // family with an active member is a pool with spare workers; four or more
+  // stuck in one family look like an idle pool. Neither is reported.
+  const parked=thread=>thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1&&(idleSecs(thread)??0)>=STUCK_FUTEX_S;
+  const stuck=current.filter(thread=>{const kin=families.get(family(thread.name));return parked(thread)&&kin.every(isIdle)&&kin.filter(parked).length<4});
+  if(stuck.length>=2&&current.some(thread=>!isIdle(thread))){const least=Math.min(...stuck.map(idleSecs));
+    found.push({level:'info',title:`${stuck.length} threads have waited on a futex for over ${duration(least)} while other threads are active`,
+      detail:`Possible deadlock or lost wake-up: ${stuck.slice(0,3).map(threadLabel).join(', ')}${stuck.length>3?', …':''}. Idle service threads wait the same way, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,action:{state:'futex',activity:'idle'}})}
+  // Many threads of one family waking constantly yet blocked on futex almost all the time with little CPU.
+  for(const [name,kin] of families){
+    const waiting=kin.filter(thread=>futexShare(thread)>=.7&&thread.switches_per_s>=5&&isNum(thread.cpu_pct)),cpu=kin.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0);
+    if(kin.length>=4&&waiting.length>=kin.length*.75&&cpu<=10)
+      found.push({level:'info',title:`${waiting.length} of ${kin.length} “${name}” threads mostly wait on a futex but keep waking`,
+        detail:`Together they used ${pct(cpu)} of one core and switched ${number(kin.reduce((sum,thread)=>sum+(thread.switches_per_s||0),0),0)} times/s. This is how a lock held across slow work (a lock convoy) looks; a pool serving many tiny tasks looks the same. If throughput is lower than expected, find what the lock holder waits for.`,action:{state:'futex'}})}
+  return found}
+const SATURATED_PCT=90;
+const watchOverdueS=(wakeMs,intervalMs)=>(2*wakeMs+2*intervalMs)/1000;
+const sampleIntervalMs=()=>{const value=live.health?.sample_interval_ms;return isNum(value)&&value>0?value:1000};
+const isWatched=thread=>isNum(thread.wake_ms)&&thread.wake_ms>0&&isNum(thread.last_ran)&&isNum(thread.last_sample);
+const quietFor=thread=>Math.max(0,thread.last_sample-thread.last_ran);
+const quietText=seconds=>seconds<10?seconds.toFixed(1)+' s':duration(seconds);
+const isOverdue=thread=>quietFor(thread)>watchOverdueS(thread.wake_ms,sampleIntervalMs());
+const isBusyWatched=thread=>(thread.cpu_pct||0)>=SATURATED_PCT;
+function watchedThreads(threads){
+  const health=live.health||{};
+  return health.sampler_silent||health.target_absent?[]:threads.filter(thread=>!thread.stale&&isWatched(thread))}
+const watchRuleFor=(name,rules)=>rules.reduce((best,rule)=>name.startsWith(rule.prefix)&&(!best||rule.prefix.length>best.prefix.length)?rule:best,null);
+const watchRulesOutdated=threads=>!watchRules||threads.some(thread=>!thread.stale&&(watchRuleFor(thread.name,watchRules)?.wake_ms??null)!==(isNum(thread.wake_ms)?thread.wake_ms:null));
+const andMore=(names,shown)=>names.slice(0,shown).join(', ')+(names.length>shown?` and ${names.length-shown} more`:'');
+function stuckFinding(stuck){
+  stuck=[...stuck].sort((a,b)=>quietFor(b)-quietFor(a));const worst=stuck[0];
+  const lastState=`Last state: ${labels[worst.state]||worst.state}${worst.wchan?' in '+worst.wchan:''}.`;
+  const advice='deadlocked or waiting without a timeout';
+  if(stuck.length===1)return{level:'serious',title:`${worst.name} stopped waking up`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is set to wake at least every ${number(worst.wake_ms,0)} ms, but it has not run for ${quietText(quietFor(worst))}. It may be ${advice}. ${lastState}`}
+  return{level:'serious',title:`${stuck.length} watched threads stopped waking up`,help:'watched',action:{tid:worst.tid},hint:'Open the worst thread',
+    detail:`Each is set to wake regularly but has been quiet much longer than its interval. Worst first: ${andMore(stuck.map(thread=>`${thread.name} (${quietText(quietFor(thread))}, every ${number(thread.wake_ms,0)} ms)`),3)}. They may be ${advice}. Worst thread: ${worst.name}. ${lastState}`}}
+function busyFinding(busy){
+  busy=[...busy].sort((a,b)=>b.cpu_pct-a.cpu_pct);const worst=busy[0],share=kernelShare(worst);
+  const loop='It may be stuck in an infinite or retry loop.'+(share===null?'':` ${pct(100*share)} of its CPU is kernel time with ${number(worst.switches_per_s,0)} context switches/s, which looks like a polling or yield loop.`);
+  if(busy.length===1)return{level:'serious',title:`${worst.name} is running instead of sleeping`,help:'watched',action:{tid:worst.tid},
+    detail:`TID ${worst.tid} is expected to sleep and wake every ${number(worst.wake_ms,0)} ms, but it uses ${pct(worst.cpu_pct)} of one core. ${loop}`}
+  return{level:'serious',title:`${busy.length} watched threads are running instead of sleeping`,help:'watched',action:{tid:worst.tid},hint:'Open the busiest thread',
+    detail:`They are expected to sleep between wakes, but each uses ${SATURATED_PCT}% of a core or more: ${andMore(busy.map(thread=>`${thread.name} ${pct(thread.cpu_pct)}`),3)}. Worst: ${worst.name}. ${loop}`}}
+function unmatchedRules(threads){
+  const health=live.health||{};
+  if(replayAt!==null||frozen||health.sampler_silent||health.target_absent||!watchRules||!watchRules.length)return [];
+  const current=threads.filter(thread=>!thread.stale);
+  if(!current.length||watchRulesOutdated(current))return [];
+  const used=new Set(current.map(thread=>watchRuleFor(thread.name,watchRules)?.prefix));
+  return watchRules.filter(rule=>!used.has(rule.prefix))}
+function watchFindings(threads,watched){
+  const found=[],busy=watched.filter(isBusyWatched),stuck=watched.filter(thread=>!isBusyWatched(thread)&&isOverdue(thread));
+  if(stuck.length)found.push(stuckFinding(stuck));
+  if(busy.length)found.push(busyFinding(busy));
+  const missing=unmatchedRules(threads);
+  if(missing.length){const names=missing.map(rule=>`“${rule.prefix}”`);
+    found.push({level:'warning',help:'watched',title:missing.length===1?'A watch rule matches no thread':`${missing.length} watch rules match no thread`,
+      detail:`No thread matches watch rule${missing.length>1?'s':''} ${andMore(names,3)}: the threads may have exited or been renamed. Check the prefix, or remove the rule.`})}
+  if(watched.length&&!stuck.length&&!busy.length){
+    const prefixes=!watchRulesOutdated(watched)&&replayAt===null&&!frozen?[...new Set(watched.map(thread=>watchRuleFor(thread.name,watchRules).prefix))]:[];
+    found.push({level:'info',help:'watched',title:`${watched.length} watched thread${watched.length>1?'s wake':' wakes'} on schedule${prefixes.length?` (${andMore(prefixes,3)})`:''}`,
+      detail:`Each ran within twice its wake interval, so none looks deadlocked or stuck in a loop.`})}
+  return found}
+const loadOf=point=>point.cpu===null?null:(point.cpu+(point.rd||0))/100+(point.s.kernel||0);
+function updateLoadAverage(point){const value=loadOf(point);
+  if(value===null){point.l1=null;return}
+  const averages=loadState?loadState.averages.map((average,index)=>{const step=Math.min(point.t-loadState.t,30),decay=Math.exp(-step/[60,300,900][index]);return average*decay+value*(1-decay)}):[value,value,value];
+  loadState={averages,t:point.t};point.l1=averages[0]}
+helpTopic('assesshistory','Past assessments','Recordings · checked period','What the Assessment found in the past. The dashboard reads recorded views of the process and applies the same fixed rules as the Assessment card to each one.','When the page opens, up to 120 recordings of the last 15 minutes are checked, one every ~8 s. “worker-3 is saturating a core” seen from 14:02:10 to 14:05:40 in 25 checked recordings is one row, and one red mark on the timeline.','Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.','Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.',['replay','assessment','historyfilters'],['Load earlier']);
+helpTopic('historyfilters','Past assessment filters','Rows already checked','Show only past findings of the chosen severities and type, in the list and as timeline marks. The type is the area the rule looks at.','Severity Critical and Serious with type Watched threads lists only watched threads that stopped waking or kept a core busy.','Monitoring: sampler, target and packet loss. Threads & CPU: CPU, run delay, kernel waits, faults, stopped and unreadable threads, lock hints. Watched threads: the watch rules. Resources & network: pressure, limits, descriptors and sockets. Memory: memory-map findings. A row keeps the worst severity it reached. Filters apply at once and read nothing new.','Info is off at first because info findings are notes, not problems. Filters only hide rows; the status line counts all of them.',['assesshistory','assessment']);
+function loadBuffer(session){bufferSession=session;buffer=[];lastTick=0;previousThreads=null;loadState=null;threadCpu=new Map();threadSeen=new Map();threadAvg=new Map();avgSince=0;
+  if(replayAt!==null)return;
+  try{const saved=JSON.parse(sessionStorage.getItem(targetStorageKey('triangulator:threads'))||'null');if(saved&&saved.session===session){avgSince=saved.since;for(const [tid,series] of saved.avg)threadAvg.set(tid,series);for(const [tid,seen] of saved.seen)threadSeen.set(tid,seen)}}catch{}
+  try{const saved=JSON.parse(sessionStorage.getItem(targetStorageKey('triangulator:buffer'))||'null');if(saved&&saved.session===session){buffer=saved.points;lastTick=buffer.at(-1)?.t||0;
+    const state=saved.loadState;
+    if(state&&isNum(state.t)&&state.t<=lastTick&&Array.isArray(state.averages)&&state.averages.length===3&&state.averages.every(isNum))loadState=state;
+    // Older tabs saved only chart points; seed their averages once on restore.
+    else for(const point of buffer)updateLoadAverage(point)}}catch{}}
+function saveBuffer(){if(replayAt!==null)return;try{sessionStorage.setItem(targetStorageKey('triangulator:buffer'),JSON.stringify({session:bufferSession,points:buffer,loadState}))}catch{}
+  try{sessionStorage.setItem(targetStorageKey('triangulator:threads'),JSON.stringify({session:bufferSession,since:avgSince,avg:[...threadAvg],seen:[...threadSeen]}))}catch{sessionStorage.removeItem(targetStorageKey('triangulator:threads'))}}
+function ingest(){
+  const health=live.health,threads=live.threads||[];
+  if(health.session!==bufferSession)loadBuffer(health.session);
+  let tick=0;for(const thread of threads)tick=Math.max(tick,thread.last_sample||0);
+  if(!threads.length||tick<=lastTick)return;
+  lastTick=tick;
+  const point={t:tick,cpu:0,rd:null,sw:0,rb:0,wb:0,mf:0,n:threads.length,busy:0,active:0,s:{},born:0,died:0};
+  const ids=new Set();
+  for(const thread of threads){if(isNum(thread.cpu_pct)){point.cpu+=thread.cpu_pct;if(thread.cpu_pct>=1)point.busy++}
+    if(isNum(thread.run_delay_pct))point.rd=(point.rd||0)+thread.run_delay_pct;
+    point.sw+=thread.switches_per_s||0;point.rb+=thread.read_bps||0;point.wb+=thread.write_bps||0;point.mf+=thread.major_faults_per_s||0;
+    const state=STATES.includes(thread.state)?thread.state:'other';point.s[state]=(point.s[state]||0)+1;
+    ids.add(thread.tid+':'+thread.generation);
+    const seen=threadSeen.get(thread.tid);if(!seen||seen.generation!==thread.generation)threadSeen.set(thread.tid,{first:tick,active:null,generation:thread.generation});
+    const observation=threadSeen.get(thread.tid);
+    if(!thread.stale&&thread.state==='futex'&&isIdle(thread)&&futexShare(thread)===1)observation.futexSince??=tick;
+    else observation.futexSince=null;
+    if(!isIdle(thread)){point.active++;threadSeen.get(thread.tid).active=tick}
+    let series=threadAvg.get(thread.tid);if(!series||series[0]!==thread.generation){series=[thread.generation];threadAvg.set(thread.tid,series)}
+    if(isNum(thread.cpu_pct)&&(series.length<3||tick-series.at(-2)>=AVG_STEP-.5)){series.push(tick,+thread.cpu_pct.toFixed(2));while(series.length>3&&series[1]<tick-BUFFER_SECS)series.splice(1,2)}
+    const history=threadCpu.get(thread.tid)||[];history.push({t:tick,v:thread.cpu_pct});while(history.length&&history[0].t<tick-120)history.shift();threadCpu.set(thread.tid,history)}
+  // Memory is sampled less often than threads (RSS every resource interval,
+  // VmSize every memory interval); each point keeps the latest known value.
+  // A name target follows restarts, so a sample counts only when it is from
+  // the current process: RSS checks session and PID, VmSize checks PID (the
+  // memory summary has no session field).
+  const resources=live.resources,memory=live.memory;
+  point.rss=resources?.available&&!resources.stale&&resources.session===health.session&&resources.pid===health.pid?resources.memory?.rss??null:null;
+  point.vm=memory?.available&&!memory.stale&&memory.pid===health.pid?memory.values?.vm_size_bytes??null:null;
+  // After a sampler pause of 10 s or more, the collector has one sample per
+  // thread in its window and sends null rates. Summing those as 0 would
+  // record a fake idle moment, so mark the point's rates unknown instead.
+  if(!threads.some(thread=>isNum(thread.cpu_pct)))Object.assign(point,{cpu:null,rd:null,sw:null,rb:null,wb:null,mf:null,busy:null,active:null});
+  if(previousThreads){for(const id of ids)if(!previousThreads.has(id))point.born++;for(const id of previousThreads)if(!ids.has(id))point.died++}
+  previousThreads=ids;
+  const present=new Set(threads.map(thread=>thread.tid));
+  for(const tid of threadCpu.keys())if(!present.has(tid)&&threadCpu.get(tid).at(-1).t<tick-120)threadCpu.delete(tid);
+  for(const tid of threadSeen.keys())if(!present.has(tid))threadSeen.delete(tid);
+  for(const tid of threadAvg.keys())if(!present.has(tid))threadAvg.delete(tid);
+  if(!avgSince)avgSince=tick;
+  if(replayAt===null)updateLoadAverage(point);buffer.push(point);while(buffer.length&&buffer[0].t<tick-BUFFER_SECS)buffer.shift();
+  if(buffer.length%5===0)saveBuffer();
+}
+const threadLabel=thread=>`${thread.name} (${thread.tid})`;
+function threadGrowth(points){
+  const STEP=15,counts=points.filter(point=>isNum(point.n));if(counts.length<2)return null;
+  const end=counts.at(-1).t;let best=null;
+  for(const span of [120,300]){
+    const bins=[];for(const point of counts){if(point.t<end-span)continue;const index=Math.floor((end-point.t)/STEP);if(!bins[index]||point.n<bins[index].n)bins[index]={n:point.n,t:point.t}}
+    let series=[];for(let index=bins.length-1;index>=0;index--){if(bins[index]!==undefined)series.push(bins[index]);else series=[]}
+    for(let i=series.length-1;i>0;i--)if(series[i-1].n-series[i].n>=5&&series[i].n<.75*series[i-1].n){series=series.slice(i);break}
+    if(series.length<8||series.at(-1).t-series[0].t<120)continue;
+    const steps=series.length-1,deltas=series.slice(1).map((value,i)=>value.n-series[i].n),rises=deltas.filter(delta=>delta>0).length,recent=deltas.slice(-3).filter(delta=>delta>0).length,falls=deltas.filter(delta=>delta<0).length;
+    const first=series[0].n,last=series.at(-1).n,total=last-first,middle=Math.floor(steps/2),early=series[middle].n-first,late=last-series[middle].n;
+    if(total<20||total<.1*first||rises<.6*steps||recent<2||falls>.2*steps||early<.25*total||late<.25*total)continue;
+    const minutes=(series.at(-1).t-series[0].t)/60,found={from:first,to:last,minutes,rate:total/minutes};
+    if(!best||found.rate>best.rate)best=found}
+  return best}
+const KERNEL_SHARE_MIN=.5;
+const SPIN_SWITCHES_MIN=100;
+function kernelShare(thread){
+  if(!(thread.cpu_pct>0)||!(thread.system_pct>=0))return null;
+  const share=Math.min(1,thread.system_pct/thread.cpu_pct);
+  return share>=KERNEL_SHARE_MIN&&(thread.switches_per_s||0)>=SPIN_SWITCHES_MIN?share:null}
+const LEVEL_ORDER=['critical','serious','warning','info','good'];
+const LEVEL_ICONS={good:'✓',info:'i',warning:'!',serious:'▲',critical:'✕'};
+const VERDICTS={critical:'Needs attention now',serious:'Something is struggling',warning:'Worth a look',info:'Healthy',good:'Healthy'};
+const ofType=(type,items)=>items.map(item=>Object.assign(item,{type}));
+function assess(threads,points){
+  const health=live.health,findings=[];let type='monitor';const add=(level,title,detail,action)=>findings.push({type,level,title,detail,action});
+  if(health.sampler_silent)add('critical','Sampler is silent',`No data ${ago(viewNow()-(health.last_seen||0))}. Everything below may be stale.`);
+  const ended=frozen&&replayAt===null?frozenExit():health.target_absent?endedTarget():null;
+  if(ended)add('critical',`Target process ended · ${exitReason(ended)[0]}`,`${ended.name||'PID '+ended.pid} ended ${frozen&&replayAt===null?'at '+clock(ended.ended_at):ago(viewNow()-ended.ended_at)}. See Last process exit.`);
+  else if(health.target_absent)add('critical','Target process is absent','The sampler cannot find the configured process. Check it is running, or select another target.');
+  if((health.packet_loss_pct||0)>1)add('warning',`Packet loss ${pct(health.packet_loss_pct)}`,'Some samples were lost between sampler and collector over the last minute; rates may be noisy.');
+  type='threads';
+  const kernel=threads.filter(thread=>thread.state==='kernel');
+  if(kernel.length){const stuck=kernel.filter(thread=>Object.keys(thread.state_mix||{}).every(state=>state==='kernel'));
+    add(stuck.length?'serious':'warning',`${kernel.length} thread${kernel.length>1?'s':''} in uninterruptible kernel wait`,(stuck.length?`${stuck.length} stayed there for the whole last 10 s. `:'')+'Usually disk, NFS or driver I/O: '+kernel.slice(0,3).map(threadLabel).join(', '),{state:'kernel'})}
+  const hot=threads.filter(thread=>(thread.cpu_pct||0)>=SATURATED_PCT).sort((a,b)=>b.cpu_pct-a.cpu_pct);
+  // A busy watched thread gets its own, more specific finding below.
+  const watched=watchedThreads(threads),watchBusy=new Set(watched.filter(isBusyWatched));
+  for(const thread of hot.filter(thread=>!watchBusy.has(thread)).slice(0,2)){
+    const share=kernelShare(thread);
+    if(share===null)add('serious',`${thread.name} is saturating a core`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core. Work that needs this thread will queue behind it.`,{tid:thread.tid});
+    else add('serious',`${thread.name} is saturating a core in the kernel`,`TID ${thread.tid} uses ${pct(thread.cpu_pct)} of one core, ${pct(100*share)} of it in the kernel, with ${number(thread.switches_per_s,0)} context switches/s: it looks like a polling or yield loop (sched_yield, a zero-timeout poll, a spinning retry), not computation. Work that needs this thread will queue behind it.`,{tid:thread.tid})}
+  findings.push(...ofType('watched',watchFindings(threads,watched)));
+  const cpu=threads.reduce((sum,thread)=>sum+(thread.cpu_pct||0),0),delay=threads.reduce((sum,thread)=>sum+(thread.run_delay_pct||0),0);
+  if(cpu>=10&&delay>cpu*.25)add('warning','Threads are waiting for CPU',`Run delay is ${pct(100*delay/cpu)} of CPU time: for every second on a core, threads spent ${(delay/cpu).toFixed(2)} s waiting for one. The host may be oversubscribed.`);
+  else{const delayed=threads.filter(thread=>(thread.run_delay_pct||0)>=20).sort((a,b)=>b.run_delay_pct-a.run_delay_pct);if(delayed.length)add('warning',`${delayed[0].name} waits for CPU`,`Runnable but not running ${pct(delayed[0].run_delay_pct)} of the time.`,{tid:delayed[0].tid})}
+  const faults=threads.reduce((sum,thread)=>sum+(thread.major_faults_per_s||0),0);
+  if(faults>0){const worst=threads.reduce((best,thread)=>(thread.major_faults_per_s||0)>(best?.major_faults_per_s||0)?thread:best,null);add('warning',`${number(faults)} major page faults/s`,`Memory is being read back from disk, which stalls the faulting thread. Most: ${threadLabel(worst)}.`,{tid:worst.tid});findings.at(-1).topic='faults'}
+  const stopped=threads.filter(thread=>thread.state==='stopped');
+  if(stopped.length)add('warning',`${stopped.length} stopped thread${stopped.length>1?'s':''}`,'Stopped by a signal or a debugger.',{state:'stopped'});
+  const recent=points.filter(point=>point.t>=(points.at(-1)?.t||0)-60),born=recent.reduce((sum,point)=>sum+point.born,0),died=recent.reduce((sum,point)=>sum+point.died,0);
+  if(born+died>=10)add('info','High thread churn',`At least ${born} threads started and ${died} ended in the last minute (threads that start and exit between samples are not counted). Short-lived threads cost creation time; consider a pool.`);
+  const growth=threadGrowth(points);
+  if(growth){const pids=live.resources?.available?live.resources.cgroup_limits?.pids:null,room=isNum(pids?.current)&&isNum(pids?.max)&&pids.max>0?pids.max-pids.current:null;
+    const eta=room!==null&&growth.rate>0?room/growth.rate:null,close=room!==null&&(pids.current>=.75*pids.max||eta<=10);
+    add(close?'serious':'warning','Thread count keeps growing',`${growth.from} to ${growth.to} threads in ${number(growth.minutes,1)} min, +${number(growth.rate,0)} threads/min, and still rising. Each thread holds a stack; if none ever exit, this is a leak (for example workers or requests that wait forever).`+(room!==null?` The cgroup allows ${pids.max} processes and threads (${pids.current} in use)`+(room>0?`; at this rate it is full in about ${number(eta,0)} min.`:'.'):' No cgroup pids.max is known; RLIMIT_NPROC and kernel.threads-max also cap this.'))}
+  const stale=threads.filter(thread=>thread.stale);if(stale.length)add('info',`${stale.length} stale thread${stale.length>1?'s':''}`,'Not reported recently; they may have exited.');
+  const hidden=threads.filter(thread=>thread.state==='no_access');if(hidden.length)add('info',`${hidden.length} thread${hidden.length>1?'s':''} unreadable`,'The sampler could not read their state; run it as the target user.',{state:'no_access'});
+  if(cpu>=1&&threads.length>1){const top=threads.reduce((best,thread)=>(thread.cpu_pct||0)>(best.cpu_pct||0)?thread:best);const share=(top.cpu_pct||0)/cpu;if(share>=.6&&!hot.length)add('info',`${top.name} does most of the work`,`${pct(100*share)} of the process's CPU is on one thread. If load grows, it will be the first bottleneck.`,{tid:top.tid})}
+  findings.push(...ofType('threads',lockHints(threads)));
+  findings.push(...ofType('resources',assessResources(live.resources)));
+  // Memory-map findings join too. One about the same topic as a finding above
+  // (major faults) is not repeated: the more severe wording stays, with the
+  // thread link of the one it replaces.
+  const memory=memoryOverviewFindings(),rank=item=>LEVEL_ORDER.indexOf(item.level);
+  for(const item of ofType('memory',memory||[])){const twin=item.topic&&findings.find(other=>other.topic===item.topic);
+    if(!twin)findings.push(item);else if(rank(item)<rank(twin))findings[findings.indexOf(twin)]={...item,action:twin.action}}
+  if(!findings.some(item=>item.level!=='info'))findings.unshift({level:'good',title:'No problems detected',detail:(live.resources?.available?'No saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now.':'No saturated threads, CPU waiting, kernel stalls or paging right now.')+(memory?' No memory-map warnings detected in the available samples.':'')});
+  return findings}
+function averageCpu(tid,window){const series=threadAvg.get(tid);if(!series)return null;let sum=0,count=0;
+  for(let index=1;index<series.length;index+=2)if(series[index]>lastTick-window){sum+=series[index+1];count++}
+  return count?sum/count:null}
+function mapView(thread){
+  if(!mapWindow)return{cpu:thread.cpu_pct,idle:isIdle(thread)};
+  const seen=threadSeen.get(thread.tid),blocked=thread.state==='kernel'||thread.state==='stopped';
+  const active=seen&&seen.active!==null&&lastTick-seen.active<mapWindow;
+  return{cpu:averageCpu(thread.tid,mapWindow),idle:!blocked&&!active&&isIdle(thread)}}
+const KIND_LABELS={tcp4:'TCP',tcp6:'TCP6',udp4:'UDP',udp6:'UDP6',unix_stream:'Unix stream',unix_dgram:'Unix datagram',unix_seqpacket:'Unix seqpacket'};
+const PRESSURE_SERIES=[['cpu','CPU','var(--s-running)'],['memory','Memory','var(--s-futex)'],['io','I/O','var(--s-poll)']];
+const NET_COUNTERS=[
+  ['listen_overflows','Accept queue overflows','A listener’s accept queue was full and a new connection was dropped. The app is not calling accept() fast enough, or the backlog (listen(), somaxconn) is too small.','listen_overflows_delta','`/proc/PID/net/netstat` TcpExt: ListenOverflows'],
+  ['listen_drops','Listen drops','Every dropped incoming connection attempt, overflows included.','listen_drops_delta','`/proc/PID/net/netstat` TcpExt: ListenDrops'],
+  ['tcp_req_q_full_drop','SYN queue full','Half-open connections were dropped because the SYN queue was full.',null,'`/proc/PID/net/netstat` TcpExt: TCPReqQFullDrop'],
+  ['syncookies_sent','SYN cookies sent','The SYN queue overflowed and the kernel fell back to SYN cookies: a connection burst, a flood, or a slow accept loop.',null,'`/proc/PID/net/netstat` TcpExt: SyncookiesSent'],
+  ['tcp_backlog_drop','Socket backlog drops','Packets dropped while the app held the socket lock and the socket backlog was full.','tcp_backlog_drop_delta','`/proc/PID/net/netstat` TcpExt: TCPBacklogDrop'],
+  ['tcp_rcvq_drop','Receive queue drops','Packets dropped because a TCP receive buffer was full: a slow reader.','tcp_rcvq_drop_delta','`/proc/PID/net/netstat` TcpExt: TCPRcvQDrop'],
+  ['tcp_zero_window_drop','Zero-window drops','Packets dropped because the receiver had advertised a zero window.','tcp_zero_window_drop_delta','`/proc/PID/net/netstat` TcpExt: TCPZeroWindowDrop'],
+  ['prune_called','Receive queue pruning','The kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.',null,'`/proc/PID/net/netstat` TcpExt: PruneCalled'],
+  ['rcv_pruned','Packets pruned','Packets thrown away from receive queues under memory limits.',null,'`/proc/PID/net/netstat` TcpExt: RcvPruned'],
+  ['ofo_pruned','Out-of-order pruned','Out-of-order packets thrown away under memory limits.',null,'`/proc/PID/net/netstat` TcpExt: OfoPruned'],
+  ['tcp_retrans_segs','Retransmitted segments','Segments sent again: packet loss or congestion on some path.','tcp_retrans_segs_delta','`/proc/PID/net/snmp` Tcp: RetransSegs'],
+  ['tcp_timeouts','Retransmission timeouts','A retransmission timer fired: a peer went quiet or the loss was severe.','tcp_timeouts_delta','`/proc/PID/net/netstat` TcpExt: TCPTimeouts'],
+  ['tcp_abort_on_timeout','Aborted after timeouts','Connections given up after repeated timeouts.',null,'`/proc/PID/net/netstat` TcpExt: TCPAbortOnTimeout'],
+  ['tcp_estab_resets','Connections reset','Established connections reset, by the peer or locally.','tcp_estab_resets_delta','`/proc/PID/net/snmp` Tcp: EstabResets'],
+  ['tcp_attempt_fails','Failed connection attempts','Outgoing connections that failed (refused or timed out).',null,'`/proc/PID/net/snmp` Tcp: AttemptFails'],
+  ['tcp_memory_pressures','TCP memory pressure','The kernel entered TCP memory pressure and started shrinking socket buffers (net.ipv4.tcp_mem).','tcp_memory_pressures_delta','`/proc/PID/net/netstat` TcpExt: TCPMemoryPressures'],
+  ['tcp_abort_on_memory','Aborted for memory','Connections aborted because TCP memory was exhausted.','tcp_abort_on_memory_delta','`/proc/PID/net/netstat` TcpExt: TCPAbortOnMemory'],
+  ['udp_rcvbuf_errors','UDP receive buffer full','Datagrams dropped because a receive buffer was full: a UDP reader is too slow or its SO_RCVBUF too small.','udp_rcvbuf_errors_delta','`/proc/PID/net/snmp` Udp: RcvbufErrors, plus Udp6RcvbufErrors in `snmp6`'],
+  ['udp_sndbuf_errors','UDP send buffer full','Sends that failed because the send buffer was full.','udp_sndbuf_errors_delta','`/proc/PID/net/snmp` Udp: SndbufErrors, plus Udp6SndbufErrors in `snmp6`'],
+  ['udp_in_errors','UDP input errors','Datagrams that could not be delivered, including receive-buffer drops.','udp_in_errors_delta','`/proc/PID/net/snmp` Udp: InErrors, plus Udp6InErrors in `snmp6`'],
+  ['udp_mem_errors','UDP memory errors','Datagrams dropped because UDP memory (net.ipv4.udp_mem) was exhausted.',null,'`/proc/PID/net/snmp` Udp: MemErrors, plus Udp6MemErrors in `snmp6`'],
+  ['udp_no_ports','UDP to closed ports','Datagrams to ports nobody listens on.',null,'`/proc/PID/net/snmp` Udp: NoPorts, plus Udp6NoPorts in `snmp6`'],
+  ['if_rx_dropped','Interface receive drops','A network interface dropped incoming packets before any socket saw them (ring or queue full). Summed over the namespace’s interfaces except lo.',null,'`/proc/PID/net/dev` receive drop, summed over interfaces except lo'],
+  ['if_tx_dropped','Interface transmit drops','A network interface dropped outgoing packets (queue full or link trouble).',null,'`/proc/PID/net/dev` transmit drop, summed over interfaces except lo'],
+  ['if_rx_errors','Interface receive errors','Bad frames, CRC or length errors on a network interface: cabling, driver or hardware.',null,'`/proc/PID/net/dev` receive errs, summed over interfaces except lo'],
+  ['if_tx_errors','Interface transmit errors','Transmit errors on a network interface: driver or hardware.',null,'`/proc/PID/net/dev` transmit errs, summed over interfaces except lo']];
+const DROP_COLUMNS=['listen_drops_delta','tcp_backlog_drop_delta','tcp_rcvq_drop_delta','tcp_zero_window_drop_delta','udp_in_errors_delta','udp_sndbuf_errors_delta'];
+const hasCgroup=r=>PRESSURE_SERIES.some(([key])=>isNum(r?.pressure?.cgroup?.[key]?.some?.pct)||isNum(r?.pressure?.cgroup?.[key]?.some?.avg10));
+const scopeOf=r=>pressureScope==='cgroup'&&hasCgroup(r)?'cgroup':'host';
+const stall=entry=>isNum(entry?.pct)?entry.pct:entry?.avg10;
+const fillLevel=value=>value>=90?'critical':value>=75?'warning':'';
+const socketName=item=>item.path!==undefined?(item.path||'unnamed'):item.remote?`${item.local} → ${item.remote}`:item.local;
+const socketLabel=item=>`${KIND_LABELS[item.kind]||item.kind} ${item.state} · fd ${item.fd}`;
+const MOVES_DATA=new Set(['ESTAB','CLOSE-WAIT','FIN-WAIT-1','LAST-ACK']);
+const movesData=item=>!item.listener&&(item.kind==='tcp4'||item.kind==='tcp6')&&MOVES_DATA.has(item.state);
+const peerWindowZero=item=>movesData(item)&&item.tcp?.peer_window===0;
+function socketNotes(item){const notes=[],tcp=item.tcp||{};
+  if(item.state==='SYN-SENT')notes.push(['Connect unanswered: check accept queue']);
+  else if(item.state==='SYN-RECV')notes.push(['Handshake not finished: waiting for the peer’s final ACK']);
+  if(item.listener){if((item.accept_fill_pct||0)>=100)notes.push(['Accept queue full: new connections are dropped','bad']);else if((item.accept_fill_pct||0)>=50)notes.push(['Connections wait for accept()'])}
+  if((item.rx_fill_pct||0)>=80)notes.push(['Receive buffer nearly full: the app is not reading fast enough','bad']);
+  else if(item.rx_queue>0&&!item.listener)notes.push(['Unread data waiting']);
+  if(item.tx_queue>0&&peerWindowZero(item))notes.push(['Peer window is zero: the peer is not reading','bad']);
+  else if((item.tx_fill_pct||0)>=80)notes.push(['Send buffer nearly full: the peer or network is behind','bad']);
+  if(movesData(item)&&(tcp.rwnd_limited_pct||0)>=20)notes.push([`Limited by the peer’s window ${pct(tcp.rwnd_limited_pct)} of the time`]);
+  if((tcp.sndbuf_limited_pct||0)>=20)notes.push([`Limited by its own send buffer ${pct(tcp.sndbuf_limited_pct)} of the time: raise SO_SNDBUF`]);
+  if(tcp.probes>0)notes.push([`Zero-window probing (${tcp.probes})`,'bad']);
+  if(tcp.retransmits>0)notes.push([`Retransmitting now (backoff ${tcp.backoff})`,'bad']);
+  if((item.drops_delta||0)>0)notes.push([`${item.drops_delta} dropped in the last interval`,'bad']);
+  if(item.state==='CLOSE-WAIT')notes.push(['Peer closed; the app has not closed its socket','bad']);
+  return notes}
+function assessResources(r){const findings=[];if(!r?.available)return findings;
+  const add=(level,title,detail)=>findings.push({level,title,detail});
+  if(r.stale)add('warning','Resource samples are stale',`No resource sample since ${ago(viewNow()-(r.updated||0))}; pressure and socket figures below may be out of date.`);
+  const scope=hasCgroup(r)?'cgroup':'host',where=scope==='cgroup'?'in the target’s cgroup':'on the host',p=r.pressure?.[scope]||{};
+  const io=p.io||{},memory=p.memory||{},cpu=p.cpu||{};
+  if(stall(io.full)>=5)add('serious',`I/O is stalling all work ${pct(stall(io.full))} of the time`,`Every non-idle task ${where} was waiting for I/O at once. Look at disk latency, fsync-heavy code, or a noisy neighbour on the device.`);
+  else if(stall(io.some)>=10)add('warning',`Tasks wait for I/O ${pct(stall(io.some))} of the time`,`Some tasks ${where} were stalled on I/O. Storage reads ${perSec(r.io?.read_bps)}, writes ${perSec(r.io?.write_bps)} by this process.`);
+  if(stall(memory.full)>=2)add('serious',`Memory is thrashing (${pct(stall(memory.full))} full stall)`,`All tasks ${where} were waiting on reclaim or swap at once. The workload needs more memory or a higher memory.high.`);
+  else if(stall(memory.some)>=5)add('warning',`Tasks wait for memory ${pct(stall(memory.some))} of the time`,`Reclaim, swap-in or refaults ${where}. Check memory limits and growth.`);
+  // Name the quota only when cpu.max sets one; "max" has a period and no quota.
+  const cpuLimit=r.cgroup_limits?.cpu||{},noQuota=!isNum(cpuLimit.quota_us)&&isNum(cpuLimit.period_us);
+  if(stall(cpu.some)>=20)add('warning',`Runnable tasks wait for CPU ${pct(stall(cpu.some))} of the time`,scope!=='cgroup'?'The host is oversubscribed.':noQuota?'More tasks are runnable than the cores can run. The cgroup has no CPU quota (cpu.max is max).':'CPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.');
+  const fds=r.fds||{};
+  if(isNum(fds.open)&&isNum(fds.soft_limit)&&fds.soft_limit>0){const used=100*fds.open/fds.soft_limit;
+    if(used>=75)add(used>=90?'critical':'warning',`${pct(used)} of file descriptors in use`,`${fds.open} of ${fds.soft_limit} (soft RLIMIT_NOFILE). At the limit, accept(), open() and socket() fail with EMFILE. Look for a descriptor leak or raise LimitNOFILE.`)}
+  const network=r.network||{},grew=key=>network[key]?.delta||0;
+  const top=r.sockets?.top||[];
+  const overflowing=top.filter(item=>item.listener&&(item.accept_fill_pct||0)>=80);
+  if(grew('listen_overflows')||grew('listen_drops'))add('serious',`${grew('listen_drops')||grew('listen_overflows')} incoming connections dropped`,(overflowing.length?`Accept queue of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full. `:'')+'A listener’s accept queue overflowed in the last interval (namespace-wide counter). The app is not accepting fast enough, or the backlog is too small.');
+  else if(overflowing.length)add('warning',`Accept backlog of ${overflowing[0].local} is ${pct(overflowing[0].accept_fill_pct)} full`,`${overflowing[0].rx_queue} connections wait for accept() with a backlog of ${overflowing[0].tx_queue}.`);
+  const reading=top.filter(item=>!item.listener&&(item.rx_fill_pct||0)>=80).sort((a,b)=>b.rx_fill_pct-a.rx_fill_pct);
+  if(reading.length){const item=reading[0];add((item.drops_delta||0)>0?'serious':'warning',`The app is not keeping up reading ${socketName(item)}`,`Receive buffer ${pct(item.rx_fill_pct)} full with ${bytes(item.rx_queue)} unread`+((item.drops_delta||0)>0?`; ${item.drops_delta} packet${item.drops_delta>1?'s':''} dropped.`:'.')+(reading.length>1?` ${reading.length-1} more socket${reading.length>2?'s':''} likewise.`:''))}
+  const stuck=top.filter(item=>!item.listener&&item.tx_queue>0&&((item.tx_fill_pct||0)>=80||peerWindowZero(item))).sort((a,b)=>b.tx_queue-a.tx_queue);
+  if(stuck.length){const item=stuck[0];add('warning',`${item.remote||socketName(item)} is not taking data`,`${bytes(item.tx_queue)} waiting to be sent`+(peerWindowZero(item)?'; the peer advertises a zero window, so it is not reading.':`; send buffer ${pct(item.tx_fill_pct)} full.`)+' Writers to this socket will block or see EAGAIN.')}
+  const udp=grew('udp_rcvbuf_errors');
+  if(udp)add('serious',`${udp} UDP datagrams dropped: receive buffers full`,'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).');
+  const queued=['tcp_rcvq_drop','tcp_backlog_drop','tcp_zero_window_drop'].reduce((sum,key)=>sum+grew(key),0);
+  if(queued)add('warning',`${queued} TCP packets dropped at full socket queues`,'Receive buffers or socket backlogs were full in the last interval: a reader is too slow.');
+  const sent=grew('tcp_out_segs'),retrans=grew('tcp_retrans_segs');
+  if(sent>=100&&retrans/sent>=.02)add('warning',`${pct(100*retrans/sent)} of TCP segments retransmitted`,'Packet loss or congestion on some path; expect latency spikes. Check the sockets with retransmits below.');
+  const tcpMemory=r.sockstat?.tcp_mem,pressureAt=r.limits?.tcp_mem?.[1];
+  if(grew('tcp_memory_pressures')||(isNum(tcpMemory)&&isNum(pressureAt)&&pressureAt>0&&tcpMemory>=pressureAt))add('serious','TCP is under memory pressure','The kernel is shrinking socket buffers (net.ipv4.tcp_mem), which slows every TCP connection on the host.');
+  const closeWait=r.sockets?.tcp_states?.close_wait||0;
+  if(closeWait>=10)add('warning',`${closeWait} connections in CLOSE-WAIT`,'Peers closed these connections but the app never closed its end. Usually a missing close() on an error path: a descriptor leak.');
+  const cg=r.cgroup_limits||{},mem=cg.memory||{},quota=cg.cpu||{},pids=cg.pids||{};
+  if(mem.oom_kill_delta>0)add('critical',`${mem.oom_kill_delta} process${mem.oom_kill_delta>1?'es':''} killed by the OOM killer`,`The target’s cgroup reached its memory limit (${bytes(mem.max)}) and the kernel killed a process in it. Raise memory.max or find what grew.`);
+  else if(mem.max_events_delta>0)add('warning','Memory limit reached',`The cgroup hit memory.max ${mem.max_events_delta} time${mem.max_events_delta>1?'s':''} in the last interval, forcing reclaim before allocations could continue (${bytes(mem.current)} of ${bytes(mem.max)}).`);
+  else if(isNum(mem.current)&&isNum(mem.max)&&mem.max>0&&mem.current>=.9*mem.max)add('warning',`Cgroup memory is ${pct(100*mem.current/mem.max)} of its limit`,`${bytes(mem.current)} of ${bytes(mem.max)}. This includes reclaimable page cache; it is a problem if the process’s own memory (RSS ${bytes(r.memory?.rss)}) is most of it.`);
+  if(quota.throttled_pct>=5)add(quota.throttled_pct>=25?'serious':'warning',`CPU quota throttled ${pct(quota.throttled_pct)} of periods`,`The cgroup’s CPU quota (${number(quota.quota_us/quota.period_us,2)} cores) ran out, so runnable threads waited for the next period even if cores were idle. Raise cpu.max or reduce CPU use.`);
+  if(isNum(pids.current)&&isNum(pids.max)&&pids.max>0&&pids.current>=.9*pids.max)add('warning',`${pids.current} of ${pids.max} processes and threads in use`,'At the cgroup’s pids.max, fork() and thread creation fail with EAGAIN.');
+  const dropped=(network.if_rx_dropped?.delta||0)+(network.if_tx_dropped?.delta||0),errored=(network.if_rx_errors?.delta||0)+(network.if_tx_errors?.delta||0);
+  if(dropped>0||errored>0)add('warning',`Network interfaces dropped ${dropped} and reported ${errored} errors`,'Counted at the network card, before any socket (namespace-wide, last interval). Check interface queues, driver and cabling.');
+  const flags=r.flags||{};
+  if(flags.other_network_namespace)add('info','Socket queues unavailable','The target is in another network namespace; run the sampler inside it to list its sockets.');
+  else if(flags.descriptors_hidden)add('info','Socket details hidden','The sampler cannot read the target’s descriptor links; run it as the target’s user.');
+  else if(flags.socket_diag_failed)add('info','Socket diagnostics failed','The kernel’s sock_diag interface did not answer; socket queues are missing from this sample.');
+  return findings}
+function meter(label,sub,value,max,text){const row=node('div',undefined,'meter'),name=helpButtonLabel(label,topicForText(label));if(sub)name.append(node('small',sub));
+  const track=node('div',undefined,'track'),fill=node('div',undefined,'fill'),share=isNum(value)&&max>0?100*value/max:null;
+  if(share!==null){fill.style.width=Math.min(100,share)+'%';const level=fillLevel(share);if(level)fill.classList.add(level);track.append(fill)}
+  row.append(name,track,node('div',text??(share===null?'—':pct(share)),'val'));return row}
+function fillCell(value,title){const cell=node('td');if(!isNum(value)){cell.textContent='—';return cell}
+  const box=node('div',undefined,'fillcell'),track=node('div',undefined,'track'),fill=node('div',undefined,'fill');fill.style.width=Math.min(100,value)+'%';const level=fillLevel(value);if(level)fill.classList.add(level);track.append(fill);box.append(track,node('span',pct(value)));cell.append(box);if(title)cell.dataset.hint=title;return cell}
+const asResourcePoints=rows=>rows.map(row=>({...row,t:row.ts,per:key=>isNum(row[key])&&row.elapsed_s>0?row[key]/row.elapsed_s:null}));
+function resourcePoints(){return asResourcePoints(resourceHistory?.rows||[])}
+function renderResourceTiles(r,points){
+  if(helpOwns(element('resource-tiles')))return;
+  observeHelp(element('resource-tiles'),r);
+  const scope=scopeOf(r),p=r.pressure?.[scope]||{},fds=r.fds||{},io=r.io||{},kinds=r.sockets||{},net=r.network||{};
+  const queued=key=>{const values=['tcp','udp','unix'].map(kind=>kinds[kind]?.[key]);return values.every(isNum)?values.reduce((sum,value)=>sum+value,0):null};
+  const receiveQueue=queued('rx_queue'),sendQueue=queued('tx_queue');
+  const drops=['listen_drops','tcp_backlog_drop','tcp_rcvq_drop','tcp_zero_window_drop','udp_in_errors','udp_sndbuf_errors'].reduce((sum,key)=>isNum(net[key]?.per_s)?(sum??0)+net[key].per_s:sum,null);
+  const retrans=net.tcp_retrans_segs?.per_s,sent=net.tcp_out_segs?.per_s;
+  const tiles=[];
+  for(const [key,label] of PRESSURE_SERIES.slice().reverse())tiles.push([label+' pressure',pct(stall(p[key]?.some)),`full ${pct(stall(p[key]?.full))} · ${scope==='cgroup'?'cgroup':'host'}`,points.map(point=>point[`${scope}_${key}_some_pct`])]);
+  const memory=r.memory||{};
+  tiles.push(['Memory (RSS)',bytes(memory.rss),`peak ${bytes(memory.peak)} · swap ${bytes(memory.swap)}`+(isNum(memory.rss_growth_per_s)&&Math.abs(memory.rss_growth_per_s)>=1024?` · ${memory.rss_growth_per_s>0?'+':'−'}${bytes(Math.abs(memory.rss_growth_per_s))}/s`:''),points.map(point=>point.rss_bytes)]);
+  tiles.push(['Open files',isNum(fds.open)?String(fds.open):'—',isNum(fds.soft_limit)&&isNum(fds.open)?`${pct(100*fds.open/fds.soft_limit)} of limit ${fds.soft_limit} · ${fds.sockets??'?'} sockets`:'limit unknown',points.map(point=>point.fd_open)]);
+  tiles.push(['Disk I/O',isNum(io.read_bps)||isNum(io.write_bps)?perSec((io.read_bps||0)+(io.write_bps||0)):'—',`read ${perSec(io.read_bps)} · write ${perSec(io.write_bps)} (block layer)`,points.map(point=>isNum(point.read_bps)?point.read_bps+(point.write_bps||0):null)]);
+  tiles.push(['Queued in sockets',bytes(isNum(receiveQueue)&&isNum(sendQueue)?receiveQueue+sendQueue:null),`unread ${bytes(receiveQueue)} · unsent ${bytes(sendQueue)}`,points.map(point=>isNum(point.rx_queue_bytes)&&isNum(point.tx_queue_bytes)?point.rx_queue_bytes+point.tx_queue_bytes:null)]);
+  tiles.push(['Network drops',isNum(drops)?number(drops,drops<10?2:1)+'/s':'—','connections and packets, namespace-wide',points.map(point=>{let sum=null;for(const key of DROP_COLUMNS){const value=point.per(key);if(isNum(value))sum=(sum||0)+value}return sum})]);
+  tiles.push(['TCP retransmits',isNum(retrans)?number(retrans,retrans<10?2:1)+'/s':'—',isNum(retrans)&&sent>0?`${pct(100*retrans/sent)} of segments sent`:'namespace-wide',points.map(point=>point.per('tcp_retrans_segs_delta'))]);
+  const closeWait=kinds.tcp_states?.close_wait;
+  if(closeWait>0||points.some(point=>point.tcp_close_wait>0))tiles.push(['CLOSE-WAIT',String(closeWait??'—'),'closed by the peer, not by the app',points.map(point=>point.tcp_close_wait)]);
+  const host=element('resource-tiles');host.replaceChildren();
+  for(const [label,value,sub,values] of tiles){const tile=node('div',undefined,'card tile');tile.append(helpButtonLabel(label,topicForText(label),'label'),node('div',value,'value'),node('div',sub,'sub'),sparkline(values,'var(--series-1)'));host.append(tile)}}
+function renderNetstack(r,points){
+  if(helpOwns(element('netstack')))return;
+  observeHelp(element('netstack'),r);
+  const network=r.network||{},body=element('netstack');body.replaceChildren();let zero=0;
+  const inRange=column=>column&&points.length?points.reduce((sum,point)=>sum+(point[column]||0),0):null;
+  // Counters that grew recently first; the rest keep their reading order.
+  const entries=NET_COUNTERS.map(([key,label,help,column])=>{const entry=network[key],range=inRange(column);return{entry,label,help,range,active:(entry?.delta||0)>0||(range||0)>0}}).filter(item=>item.entry&&isNum(item.entry.total));
+  entries.sort((a,b)=>(b.entry.delta>0)-(a.entry.delta>0)||b.active-a.active);
+  for(const {entry,label,help,range,active} of entries){if(!entry.total&&!active){zero++;continue}
+    const row=node('tr');row.className=active?'':'zero';row.dataset.help=topicForText(label);const name=node('td');const labelNode=node('span',label);addHelp(labelNode,topicForText(label));name.append(labelNode);name.append(node('small',help));
+    const now=node('td',isNum(entry.per_s)?number(entry.per_s,entry.per_s<10?2:1)+'/s':'—','num');if(active&&entry.per_s>0)now.classList.add('bad');
+    const ranged=node('td',range===null?'—':number(range,0),'num');if(range>0)ranged.classList.add('bad');
+    row.append(name,now,ranged,node('td',number(entry.total,0),'num'));body.append(row)}
+  if(zero){const row=node('tr','', 'zero'),cell=node('td',`${zero} other counter${zero>1?'s are':' is'} zero.`);cell.colSpan=4;row.append(cell);body.append(row)}
+  element('netstack-sub').textContent='Counters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.'}
+function renderResourceSockets(r){
+  if(helpOwns(element('resource-sockets')))return;
+  observeHelp(element('resource-sockets'),r);
+  const busyOnly=element('sockets-busy-only').checked,all=r.sockets?.top||[];
+  const busy=item=>item.rx_queue>0||(item.tx_queue>0&&!item.listener)||(item.drops_delta||0)>0||(item.tcp?.retrans_delta||0)>0||(item.listener&&item.rx_queue>0)||Math.max(item.rx_fill_pct||0,item.tx_fill_pct||0)>=10||item.state==='CLOSE-WAIT';
+  const rows=busyOnly?all.filter(busy):all;
+  element('resource-socket-count').textContent=`(${rows.length} of ${all.length} reported${r.flags?.sockets_truncated?', more not listed':''})`;
+  const body=element('resource-sockets');body.replaceChildren();
+  for(const item of rows){const row=node('tr'),label=node('td');label.append(node('span',socketLabel(item)));if(item.listener)label.append(node('small','listener'));
+    const peer=node('td',socketName(item),'mono');peer.dataset.hint=socketName(item);
+    const recvQ=node('td',item.listener?`${item.rx_queue} pending`:bytes(item.rx_queue),'num');
+    const tcp=item.tcp;
+    const drops=node('td',isNum(item.drops)?String(item.drops)+((item.drops_delta||0)>0?` (+${item.drops_delta})`:''):'—','num');if((item.drops_delta||0)>0)drops.classList.add('bad');
+    const retrans=node('td',tcp?String(tcp.retrans)+((tcp.retrans_delta||0)>0?` (+${tcp.retrans_delta})`:''):'—','num');
+    const notes=node('td');for(const [text,kind] of socketNotes(item))notes.append(node('span',text,'note'+(kind?' '+kind:'')));
+    row.append(label,peer,recvQ,item.listener?fillCell(item.accept_fill_pct,`${item.rx_queue} waiting for accept(), backlog ${item.tx_queue}`):fillCell(item.rx_fill_pct,isNum(item.rcvbuf)?`${bytes(item.rmem_alloc)} of ${bytes(item.rcvbuf)} receive buffer`:''),node('td',item.listener?'—':bytes(item.tx_queue),'num'),item.listener?node('td','—'):fillCell(item.tx_fill_pct,isNum(item.sndbuf)?`${bytes(Math.max(item.wmem_queued||0,item.wmem_alloc||0))} of ${bytes(item.sndbuf)} send buffer`:''),drops,node('td',tcp&&!item.listener?number(tcp.rtt_ms,2)+' ms':'—','num'),retrans,notes);
+    body.append(row)}
+  if(!rows.length){const row=node('tr'),cell=node('td',all.length?'No socket has queued data, drops or retransmits right now.':'The target has no sockets the sampler could list.');cell.colSpan=10;row.append(cell);body.append(row)}
+  const matched=r.sockets?.matched,unmatched=r.sockets?.unmatched,flags=r.flags||{};
+  let text=`Sample ${r.sequence} · every ${duration(r.interval_s)} · ${isNum(matched)?matched:'?'} sockets listed`+(unmatched?`, ${unmatched} not listable (netlink, raw, packet or unbound UDP sockets)`:'')+'.';
+  if(!r.sockets?.complete)text+=' Part of this sample was lost in transit; some sockets may be missing.';
+  if(flags.other_network_namespace)text+=' The target is in another network namespace: its sockets are not visible to the sampler.';
+  if(flags.descriptors_hidden)text+=' The sampler cannot read the target’s descriptor links, so its sockets cannot be identified.';
+  if(flags.descriptor_scan_truncated)text+=' The target has too many descriptors to inspect each one.';
+  if(r.cgroup)text+=' Cgroup: '+r.cgroup+'.';
+  element('resource-coverage').textContent=text}
+const socketTitles={input:'Received bytes',output:'Sent bytes',messages:'Messages processed'};
+function socketValue(value,rate=false){if(value===null||value===undefined)return '—';const n=Number(value);
+  return socketMetric==='messages'?new Intl.NumberFormat(undefined,{maximumFractionDigits:rate?1:0}).format(n)+(rate?' /s':''):bytes(n)+(rate?' /s':'')}
+function renderSocketChart(){const points=(socketData.history||[]).map(point=>({t:point.ts,v:point[socketMetric]}));const values=points.map(point=>point.v).filter(isNum);
+  timeChart(element('socket-chart'),{points,series:[{label:socketTitles[socketMetric]+' /s',color:'var(--series-1)',get:point=>point.v}],format:value=>socketValue(value,true),height:150,empty:'No covered rate windows yet'});
+  element('socket-chart-scale').textContent=values.length?'Peak: '+socketValue(Math.max(...values),true):'No covered rate windows yet'}
+function renderSocket(){if(helpOwns(element('socket-cards'))||helpOwns(element('socket-rows')))return;const data=socketData;if(!data)return;const available=data.available;
+  element('socket-content').hidden=!available;element('socket-empty').hidden=available;
+  if(!available){element('socket-status').textContent='Not available';element('socket-empty').textContent=data.reason||'Socket observer not connected';element('socket-scope').textContent='Socket traffic and message completion require the optional observer. Expand setup below to connect it.';return}
+  const status=data.refresh_error?'Report refresh failed · cached':data.stopped?'Observation ended':data.stale?'Observer silent':data.lower_bound?'Incomplete · lower-bound totals':'Observing supported paths';
+  element('socket-status').textContent=status;element('socket-status').classList.toggle('socket-warning',Boolean(data.stale||data.lower_bound));
+  element('socket-scope').textContent='PID '+data.pid+' · observed for '+number(data.duration)+' seconds · totals since this observer started · observer '+data.observer;
+  for(const button of document.querySelectorAll('[data-socket-metric]'))button.setAttribute('aria-pressed',String(button.dataset.socketMetric===socketMetric));
+  element('socket-kind').disabled=socketMetric==='messages';
+  const kind=element('socket-kind'),chosen=kind.value;kind.replaceChildren(node('option','All kinds'));kind.firstChild.value='';
+  const kinds=new Map((data.rows||[]).filter(r=>r.kind_id!==6).map(r=>[String(r.kind_id),r.kind]));
+  for(const [id,label] of kinds){const option=node('option',label);option.value=id;kind.append(option)}
+  kind.value=kinds.has(chosen)?chosen:'';
+  const unconfigured=socketMetric==='messages'&&!data.messages_enabled;const totals=data.totals[socketMetric];
+  element('socket-metric-note').textContent=unconfigured?'Message completion is not configured. Add a completion marker to count messages after the application finishes processing them.':socketMetric==='messages'?'One marker call = one completed application message. Counts reflect the marker contract defined by your application.':socketMetric==='input'?'Bytes reported by successful receive operations. Peeks do not count. A read is not a processed message.':'Bytes accepted by successful send operations, including partial writes. Acceptance does not prove peer delivery.';
+  const cards=element('socket-cards');cards.replaceChildren();
+  for(const [title,value,isRate] of [[socketTitles[socketMetric],totals.total,false],['Current rate',totals.current,true],['Average since start',totals.average,true],['Recent minimum',totals.minimum,true],['Recent maximum',totals.maximum,true]]){const card=node('div',undefined,'card tile');card.append(helpButtonLabel(title,topicForText(title),'label'),node('div',socketValue(value,isRate),'value'));if(value!==null)card.dataset.hint=String(value)+(isRate?' per second':'');cards.append(card)}
+  renderSocketChart();
+  const search=element('socket-search').value.toLowerCase();
+  const rows=(data.rows||[]).filter(r=>(socketMetric==='messages'?r.kind_id===6:r.kind_id!==6)&&(!kind.value||socketMetric==='messages'||String(r.kind_id)===kind.value)&&(!search||`${r.tid} ${r.name||''}`.toLowerCase().includes(search))).sort((a,b)=>Number(b.metrics[socketMetric].total)-Number(a.metrics[socketMetric].total));
+  element('socket-row-count').textContent='('+rows.length+')';
+  const body=element('socket-rows');body.replaceChildren();
+  for(const item of rows){const row=node('tr'),thread=node('td');thread.append(node('span',item.name||'Thread'),node('small','TID '+item.tid));thread.dataset.hint='Thread generation '+item.thread_start;
+    const m=item.metrics[socketMetric];row.append(thread,node('td',item.kind));
+    for(const [v,rate] of [[m.total,false],[m.current,true],[m.average,true],[m.minimum,true],[m.maximum,true]]){const cell=node('td',socketValue(v,rate),'num');if(v!==null)cell.dataset.hint=String(v);row.append(cell)}
+    body.append(row)}
+  if(!rows.length){const row=node('tr'),cell=node('td',unconfigured?'Completion marker not configured.':search||kind.value?'No matching threads.':'No observed activity yet.');cell.colSpan=7;row.append(cell);body.append(row)}
+  let coverage=data.coverage+' Average covers the monitoring period; min/max cover '+data.rate_windows+' valid nominal 1-second windows in the most recent 60 intervals. Idle covered windows count as zero.';
+  if(data.gaps)coverage+=' '+data.gaps+' recent gaps were excluded.';
+  if(data.lower_bound)coverage+=' '+data.losses+' counter updates were lost: totals are lower bounds and averages are unavailable.';
+  if(data.stale&&!data.stopped)coverage+=' Observer is silent; totals may be stale.';
+  if(data.refresh_error)coverage+=' Report refresh failed; displayed totals and history are cached.';
+  if(data.truncated||data.read_error)coverage+=' Report is incomplete because observations were limited or unreadable.';
+  element('socket-coverage').textContent=coverage}
+function fleetName(target,view){
+  const main=view?.threads?.find(thread=>thread.tid===view.health?.pid)?.name;
+  return main||target.process?.command?.split(' ')[0].split('/').pop()||endedTarget(view||{})?.name||target.id}
+const SETTLE_SECS=10;
+function settling(next){const waiting=next.health.session!==bufferSession&&next.health.target_absent!==true&&!(next.threads||[]).length&&buffer.length>0&&live.health?.session===bufferSession&&(live.threads||[]).length>0;
+  if(!waiting){settleSince=null;return false}
+  settleSince??=Date.now()/1000;return Date.now()/1000-settleSince<SETTLE_SECS}
+function targetExited(next,kept={bufferSession,buffer,view:live}){return next.health?.target_absent===true&&next.health.session!==kept.bufferSession&&kept.buffer.length>0&&kept.view.health?.session===kept.bufferSession&&(kept.view.threads||[]).length>0}
+async function inspectTime(at,direction='at'){
+  // No upper bound: recordings carry the collector's clock, which may be ahead of this browser's.
+  if(!isNum(at)||at<0){element('replay-note').textContent='Choose a valid time.';return}
+  const request=++replayRequest;element('replay-note').textContent='Loading recorded process view…';
+  try{const response=await apiFetch('/api/replay?'+new URLSearchParams({at,direction}));const data=await response.json();
+    if(request!==replayRequest)return;
+    if(!response.ok)throw Error(data.error||'Unable to read recordings.');
+    setReplayBounds(data);
+    if(!data.snapshot){element('replay-note').textContent=direction==='at'?'No recording at or before this time. Choose a later time on the timeline.':'No more recorded snapshots in this direction.';replayControls();return}
+    const recorded=data.snapshot.recorded_at,points=data.snapshot.resources?.available?await fetchResourcePoints(recorded-RSS_TREND_WINDOWS.at(-1),recorded):[];
+    if(request!==replayRequest)return;
+    if(replayAt===null){saveBuffer();liveMapWindow=mapWindow;
+      // Keep live analysis in memory: session storage does not contain CPU samples.
+      savedLiveAnalysis={view:live,buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}}
+    if(selected)closeThread();
+    replayAt=recorded;live=data.snapshot;replayResources=points;
+    loadBuffer(live.health.session);ingest();setMapWindow(0);
+    const gap=Math.max(0,at-replayAt);
+    element('replay-note').textContent=`Recorded view · ${date(replayAt)} · session ${live.health.session}.`+(direction==='at'&&gap>Math.max(2,(live.recording_interval_s||data.interval_s||1)*2)?` The recording is ${duration(gap)} before the requested time; there is a recording gap.`:'')+' State is the latest sampled observation; rates cover the preceding ~10 seconds.';
+    replayControls();renderReplayView();
+  }catch(error){if(request===replayRequest)element('replay-note').textContent=error.message}
+}
+async function returnLive(){const request=++replayRequest;
+  if(replayAt===null){element('replay-note').textContent=LIVE_NOTE;return}
+  if(!frozen&&!latestLive?.health){try{const response=await apiFetch('/api/live');if(!response.ok)throw Error();const data=await response.json();if(!data.health)throw Error();latestLive=data}catch{if(request===replayRequest)element('replay-note').textContent='Unable to return to live: collector is unavailable.';return}}
+  if(request!==replayRequest)return;
+  if(selected)closeThread();replayAt=null;live=frozen?.live??latestLive;
+  if(savedLiveAnalysis?.bufferSession===live.health.session){
+    ({buffer,bufferSession,lastTick,previousThreads,loadState,threadCpu,threadSeen,threadAvg,avgSince}=savedLiveAnalysis);
+  }else loadBuffer(live.health.session);
+  savedLiveAnalysis=null;ingest();setMapWindow(liveMapWindow);renderReplayView();
+  element('replay-note').textContent=LIVE_NOTE;replayControls();
+}
+const findingKey=item=>[item.type,item.title.replace(/\d+(?:[.,]\d+)*/g,'#'),item.action?.tid??'',item.action?.session??'',item.action?.generation??''].join('|');
+function historyEpisodes(samples){
+  const open=new Map(),done=[],rank=level=>LEVEL_ORDER.indexOf(level);
+  for(const sample of samples){const seen=new Set();
+    for(const item of sample?.findings||[]){const key=findingKey(item);if(item.level==='good'||seen.has(key))continue;seen.add(key);
+      let episode=open.get(key);
+      if(!episode){episode={key,type:item.type,level:item.level,item,at:sample.at,first:sample.at,last:sample.at,count:0};open.set(key,episode)}
+      episode.last=sample.at;episode.count++;
+      if(rank(item.level)<rank(episode.level))Object.assign(episode,{level:item.level,item,at:sample.at})}
+    for(const [key,episode] of open)if(!seen.has(key)){done.push(episode);open.delete(key)}}
+  return [...done,...open.values()].sort((a,b)=>b.first-a.first||rank(a.level)-rank(b.level))}
+const slotTimes=(start,end,step,count)=>Array.from({length:count},(_,index)=>Math.max(start,end-(count-1-index)*step));
+async function refreshMemoryLayout(){memoryLayoutLoading=true;
+  try{const response=await apiFetch('/api/memory-map');if(response.ok){const layout=await response.json();if(layout.available){
+    // Keep the layout before it for the zoom's "mapped since" squares.
+    if(memoryLayout&&memoryLayout.id!==layout.id)memoryPrevious=memoryLayout.pid===layout.pid&&memoryLayout.id.split(':')[0]===layout.id.split(':')[0]?memoryLayout:null;
+    memoryLayout=layout;if(live.health)renderMemory()}}}
+  catch{}finally{memoryLayoutLoading=false}}
+function memoryLayoutFor(m){if(!memoryLayout||!m.layout_id)return null;
+  return memoryLayout.id.split(':')[0]===m.layout_id.split(':')[0]&&memoryLayout.pid===m.pid?memoryLayout:null}
+const memoryBytes=value=>bytes(value).replace(/\b(K|M|G|T)B\b/g,'$1iB');
+function memoryResources(){const r=live.resources;
+  return r?.available&&!r.stale&&r.pid===live.memory?.pid&&r.session===live.health?.session?r:null}
+function memoryPageSize(){const page=memoryResources()?.limits?.page_size;
+  if(Number.isSafeInteger(page)&&page>0)memoryPage=page;
+  return memoryPage}
+function memoryLayoutComplete(layout){const flags=layout?.flags||{};return !!layout&&!flags.maps_hidden&&!flags.maps_partial&&!flags.regions_truncated}
+function memoryCurrentLayout(){const m=live.memory;
+  return replayAt===null&&m?.available&&!m.stale&&memoryLayoutComplete(m)&&memoryLayoutComplete(memoryLayout)&&memoryLayout?.id===m.layout_id&&memoryLayout.pid===m.pid&&memoryLayout.id.split(':')[0]===live.health?.session?memoryLayout:null}
+function memoryZoomIdentity(){const m=live.memory;return JSON.stringify([live.health?.session,m?.pid,m?.layout_id,m?.stale,m?.flags,memoryPageSize(),replayAt])}
+function resetMemoryTarget(m){const key=`${live.health?.session}:${m?.pid??live.health?.pid}`;
+  if(memoryHistoryKey!==key){memoryHistory=[];memoryHistoryKey=key;memoryPrevious=null;memorySelected=null;memoryHeapSpan=null;memoryPage=null;memoryRenderedLayout=undefined}}
+function memoryGrowth(key){if(!memoryCurrentLayout()||!isNum(memoryHistory.at(-1)?.[key]))return 'Unavailable';
+  const points=memoryHistory.filter(point=>isNum(point[key]));
+  return points.length>=2?`${signed(points.at(-1)[key]-points[0][key])} in ${duration(points.at(-1).t-points[0].t)}`:'Collecting…'}
+function microseconds(value){return isNum(value)?(value>=1000?number(value/1000,1)+' ms':value+' µs'):'—'}
+function memoryRegionName(region){return region.name||({anonymous:'[anonymous]',heap:'[heap]',stack:'[stack]'}[region.kind]??'')}
+const MEMORY_KINDS={code:['var(--k-code)',true],library:['var(--k-code)',true],heap:['var(--k-heap)',true],stack:['var(--k-stack)',true],anonymous:['var(--k-anon)',false],file:['var(--k-file)',false],guard:['var(--k-guard)',false],kernel:['var(--k-kernel)',false]};
+const MEMORY_KIND_LABELS={code:'program / library code',library:'program / library code',heap:'heap (brk)',stack:'stack',anonymous:'anonymous (arenas, mmap)',file:'file mapping',guard:'guard (no access)',kernel:'kernel'};
+const MEMORY_GAP=2**30;
+const MEMORY_ROWS=18;
+const isLibrary=name=>/\.so(\.\d[\w.]*)?( \(deleted\))?$/.test(name||'');
+const baseName=name=>(name||'').split('/').pop();
+const memoryComm=()=>(live.threads||[]).find(thread=>thread.tid===live.health?.pid)?.name;
+function memoryRegions(layout){const regions=(layout?.regions||[]).map(region=>({...region,lo:BigInt(region.start),hi:BigInt(region.end)}));
+  regions.sort((a,b)=>a.lo<b.lo?1:a.lo>b.lo?-1:0);
+  // The program image is an executable file mapping, not a library. A data
+  // file can be mapped below it, so execute permission is required. The one
+  // named like the target's comm is the program for certain; without such a
+  // match the lowest candidate is only a guess.
+  const comm=memoryComm();
+  const candidates=regions.filter(region=>region.kind==='file'&&region.permissions[2]==='x'&&!isLibrary(region.name));
+  const named=comm?candidates.find(region=>baseName(region.name).replace(/ \(deleted\)$/,'').startsWith(comm)):undefined;
+  const program=named??candidates.at(-1);
+  for(const region of regions)region.cat=region.kind==='heap'||region.kind==='stack'||region.kind==='kernel'?region.kind:region.permissions.startsWith('---')?'guard':region.kind==='file'?(isLibrary(region.name)?'library':region===program?'code':'file'):'anonymous';
+  if(program)program.certain=program===named;
+  return regions}
+function memoryRows(regions){const rows=[];let row=null;
+  for(const region of regions){
+    if(row&&Number(row.lo-region.hi)>=MEMORY_GAP){rows.push({gap:Number(row.lo-region.hi)});row=null}
+    const joins=row&&(row.cat===region.cat&&!['code','heap','stack'].includes(row.cat)||row.cat==='library'&&['anonymous','guard'].includes(region.cat)&&region.size<=2**20||row.cat==='anonymous'&&region.cat==='guard');
+    if(joins){row.members.push(region);row.lo=region.lo;row.size+=region.size;row.vmas+=region.vmas}
+    else{row={cat:region.cat,members:[region],lo:region.lo,hi:region.hi,size:region.size,vmas:region.vmas};rows.push(row)}}
+  // A busy process has hundreds of runs. Merge the cheapest neighbouring
+  // pair until the map fits: the one with the least mapped and unmapped
+  // bytes, so big gaps stay. Heap, stack, program and kernel stay apart.
+  const mergeable=item=>!item.gap&&!['code','heap','stack','kernel'].includes(item.cat);
+  while(rows.filter(item=>!item.gap).length>MEMORY_ROWS){let best=null;
+    for(let index=0;index<rows.length;index++){if(!mergeable(rows[index]))continue;
+      const next=rows[index+1]?.gap?index+2:index+1;if(!rows[next]||!mergeable(rows[next]))continue;
+      const cost=rows[index].size+rows[next].size+(rows[index+1].gap||0);if(!best||cost<best.cost)best={index,next,cost}}
+    if(!best)break;
+    const upper=rows[best.index],lower=rows[best.next],merged={members:[...upper.members,...lower.members],lo:lower.lo,hi:upper.hi,size:upper.size+lower.size,vmas:upper.vmas+lower.vmas};
+    const totals=new Map();for(const region of merged.members)totals.set(region.cat,(totals.get(region.cat)||0)+region.size);
+    merged.cat=[...totals].sort((a,b)=>b[1]-a[1])[0][0];merged.mixed=totals.size>1||upper.mixed||lower.mixed||best.next>best.index+1;
+    rows.splice(best.index,best.next-best.index+1,merged)}
+  // Heap, stack and program keep their key while they grow, so the zoom
+  // stays on them.
+  for(const item of rows)if(!item.gap)item.key=['heap','stack','code'].includes(item.cat)?item.cat:`${item.cat}:${item.lo}`;
+  return rows}
+function memoryRowName(row){const members=row.members,count=cat=>members.filter(region=>region.cat===cat).length;
+  const names=new Set(members.map(region=>region.name));
+  if(members.length>1&&names.size===1&&members[0].name)return `${members.length} × ${baseName(members[0].name)}`;
+  if(row.mixed){const parts=[['anonymous','anonymous','anonymous'],['library','library','libraries'],['file','file','files'],['guard','guard','guards']].map(([cat,one,many])=>{const n=count(cat);return n?`${n} ${n===1?one:many}`:''}).filter(Boolean);
+    return parts.join(', ')+(parts.length===1&&count('anonymous')>1?' regions':'')}
+  switch(row.cat){
+    case 'library':{const names=[...new Set(members.filter(region=>region.cat==='library').map(region=>baseName(region.name).replace(/\.so(\.\d[\w.]*)?/,'')).reverse())];
+      return names.length===1?baseName(members.find(region=>region.cat==='library').name):`${names.slice(0,4).join(', ')}${names.length>4?' …':''} (${names.length} libraries)`}
+    case 'code':return baseName(members[0].name)+(members[0].certain?' (program image)':' (probably the program)');
+    case 'kernel':return members.map(memoryRegionName).reverse().join(' ');
+    case 'anonymous':{const anonymous=count('anonymous'),guards=count('guard');
+      return anonymous===1&&!guards?memoryRegionName(members[0]):`${anonymous} anonymous region${anonymous===1?'':'s'}${guards?` + ${guards} guard${guards===1?'':'s'}`:''}`}
+    case 'file':return members.length===1?baseName(members[0].name):`${members.length} mapped files`;
+    case 'guard':return members.length===1?'guard (no access)':`${members.length} guard regions`;
+    default:return memoryRegionName(members[0])}}
+const memoryPerms=row=>[...new Set(row.members.map(region=>region.permissions))].slice(0,3).join(' ');
+const memoryGrows=cat=>cat==='heap'?' · grows ↑':cat==='stack'?' · grows ↓':'';
+function recordMemory(m,regions,fresh){if(replayAt!==null)return;
+  fresh=fresh&&!m.stale;
+  const heapRegion=fresh?regions.find(region=>region.cat==='heap'):null,stackRegion=fresh?regions.find(region=>region.cat==='stack'):null,
+    mapping={heap:heapRegion?.size??null,stack:stackRegion?.size??null,heapEnd:heapRegion?.hi??null,stackStart:stackRegion?.lo??null},last=memoryHistory.at(-1);
+  const v=m.values||{},r=m.stale?null:memoryResources();
+  if(last?.t===m.updated){if(fresh)Object.assign(last,mapping);
+    // The resource sample may arrive after the first memory sample.
+    if(!isNum(last.rss))last.rss=r?.memory?.rss??null;if(!isNum(last.anon))last.anon=r?.memory?.anon??null;return}
+  memoryHistory.push({t:m.updated,...mapping,mf:m.stale?null:v.major_faults??null,rss:r?.memory?.rss??null,anon:r?.memory?.anon??null});
+  while(memoryHistory.length&&memoryHistory[0].t<m.updated-BUFFER_SECS)memoryHistory.shift()}
+function memorySlope(points,key){const values=points.filter(point=>isNum(point[key]));if(values.length<2)return null;
+  const mean=(list)=>list.reduce((sum,value)=>sum+value,0)/list.length,t0=mean(values.map(point=>point.t)),v0=mean(values.map(point=>point[key]));
+  let covariance=0,variance=0;for(const point of values){covariance+=(point.t-t0)*(point[key]-v0);variance+=(point.t-t0)**2}
+  return variance>0?60*covariance/variance:null}
+const RSS_TREND_WINDOWS=[60,120,180];
+const RSS_TREND_MIN_SPAN=30;
+const RSS_TREND_MIN_POINTS=6;
+function rssTrend(){if(!live.resources?.available||live.resources.stale)return null;
+  const all=replayAt===null?resourcePoints():replayResources;if(!all.length)return null;
+  const newest=all.at(-1);if(!isNum(newest.rss_bytes)||viewNow()-newest.t>2*RSS_TREND_WINDOWS.at(-1))return null;
+  if(!isNum(live.health?.pid)||newest.pid!==live.health.pid)return null;
+  let first=all.length-1;while(first>0&&all[first-1].pid===newest.pid)first--;
+  const run=all.slice(first).filter(point=>isNum(point.rss_bytes));let best=null;
+  for(const window of RSS_TREND_WINDOWS){const points=run.filter(point=>point.t>=newest.t-window);
+    if(points.length<RSS_TREND_MIN_POINTS||newest.t-points[0].t<RSS_TREND_MIN_SPAN)continue;
+    let rises=0;for(let index=1;index<points.length;index++)if(points[index].rss_bytes>points[index-1].rss_bytes)rises++;
+    const steps=points.length-1,slope=memorySlope(points,'rss_bytes'),span=newest.t-points[0].t;
+    const steady=rises>=.8*steps&&slope>=2**20&&slope*span/60>=2**20;
+    const trend={slope,span,rises,steps,steady};
+    if(!best||(steady&&(!best.steady||slope>best.slope))||(!steady&&!best.steady))best=trend}
+  return best}
+const signed=value=>(value>0?'+':value<0?'−':'')+memoryBytes(Math.abs(value));
+function assessMemory(m,regions,rows){const findings=[],v=m.values||{},r=live.resources?.available?live.resources:null,flags=m.flags||{};
+  const add=(level,title,detail,topic)=>findings.push({level,title,detail,topic});
+  if(flags.maps_hidden)add('warning','The memory map is not readable','The sampler cannot read /proc/PID/maps. Run it as the target’s user; the target may also be non-dumpable.');
+  if(isNum(v.vma_count)&&v.max_map_count>0){const share=100*v.vma_count/v.max_map_count;
+    if(share>=75){const anonymous=regions.filter(region=>region.cat==='anonymous').reduce((sum,region)=>sum+region.vmas,0),guards=regions.filter(region=>region.cat==='guard').reduce((sum,region)=>sum+region.vmas,0);
+      add(share>=90?'critical':'warning','Mapping count is close to the limit',`${v.vma_count} of ${v.max_map_count} (vm.max_map_count). At the limit, mmap and thread creation fail with ENOMEM. ${anonymous} mappings are anonymous and ${guards} are guard pages.`)}}
+  if(isNum(v.vm_size_bytes)&&v.address_space_limit_bytes>0){const share=100*v.vm_size_bytes/v.address_space_limit_bytes;
+    if(share>=75)add(share>=90?'critical':'warning','Address space is close to RLIMIT_AS',`${memoryBytes(v.vm_size_bytes)} of ${memoryBytes(v.address_space_limit_bytes)} mapped. Past the limit, mmap and malloc fail even with free RAM.`)}
+  const faults=memoryFaultRate(),psi=memoryPressure(r);
+  if(isNum(faults)&&faults>=10&&isNum(psi)&&psi>=5)add('serious','Major page faults and memory pressure rise together',`${number(faults)} major faults/s and memory pressure ${pct(psi)} (some). The working set does not fit in memory${r?.memory?.swap?`; ${memoryBytes(r.memory.swap)} is swapped out`:''}.`,'faults');
+  else if(isNum(faults)&&faults>=50)add('warning','Frequent major page faults',`${number(faults)} major faults/s: threads wait for pages read back from disk or swap.`,'faults');
+  const trend=rssTrend(),heap=rows.find(row=>row.cat==='heap');
+  if(trend?.steady)add('warning','Resident memory grows without a plateau',`RSS rose in ${trend.rises} of the last ${trend.steps} samples (${signed(trend.slope)}/min over ${duration(trend.span)}). Anonymous: ${memoryBytes(r?.memory?.anon)}${heap?`; heap: ${memoryBytes(heap.size)}`:''}.`);
+  if(r?.memory?.swap>0&&r.memory.rss>0&&r.memory.swap>=.1*r.memory.rss)add('warning','Part of the process is swapped out',`${memoryBytes(r.memory.swap)} in swap next to ${memoryBytes(r.memory.rss)} resident. Touching it costs a major fault.`);
+  // Only code matters: deleted data files (shared memory, temporary files)
+  // are normal, and the sampler may cut the start of long names.
+  // A guessed program image is reported as an executable file, not as the program.
+  const deleted=regions.filter(region=>(region.cat==='library'||region.cat==='code')&&/ \(deleted\)$/.test(region.name));
+  if(deleted.length)add('info',deleted.some(region=>region.cat==='code'&&region.certain)?'Program replaced on disk':deleted.some(region=>region.cat==='code')?'Executable file replaced on disk':'Library replaced on disk',`${deleted.slice(0,2).map(region=>region.name).join(', ')}${deleted.length>2?` and ${deleted.length-2} more`:''} ${deleted.length===1?'is':'are'} still mapped. The process runs the old code until it restarts.`);
+  const stack=regions.find(region=>region.cat==='stack');
+  if(stack&&v.stack_limit_bytes>0){const share=100*stack.size/v.stack_limit_bytes;
+    add(share>=75?'warning':'info',`Main stack is at ${pct(share)} of its limit`,`[stack] is ${memoryBytes(stack.size)}; RLIMIT_STACK is ${memoryBytes(v.stack_limit_bytes)}. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.`)}
+  if(!findings.some(item=>item.level!=='info'))add('good','Nothing unusual in the memory map','Mappings, address space and stack are well within their limits.');
+  const order=['critical','serious','warning','info','good'];
+  return findings.sort((a,b)=>order.indexOf(a.level)-order.indexOf(b.level))}
+function memoryOverviewFindings(){const m=live.memory;if(!m?.available||m.stale)return null;
+  const regions=memoryRegions(memoryLayout?.id===m.layout_id?memoryLayoutFor(m):null);
+  return assessMemory(m,regions,memoryRows(regions)).filter(item=>item.level!=='info'&&item.level!=='good')}
+function memoryFaultRate(){const last=buffer.at(-1);if(isNum(last?.mf))return last.mf;
+  if(replayAt!==null)return null;
+  const points=memoryHistory.filter(point=>isNum(point.mf)).slice(-2);
+  const rate=points.length===2&&points[1].t>points[0].t?(points[1].mf-points[0].mf)/(points[1].t-points[0].t):null;
+  return rate>=0?rate:null}
+function memoryPressure(r){const p=r?.pressure?.[scopeOf(r)]?.memory;return p?stall(p.some):null}
+function renderMemoryFindings(findings){const list=element('memory-findings');if(helpOwns(list))return;list.replaceChildren();
+  const names={critical:'critical',serious:'serious',warning:'warning',info:'notice',good:'ok'};
+  for(const item of findings){const row=node('li',undefined,'mem-finding');row.dataset.help='memfindings';row.style.setProperty('--lvl',`var(--${item.level==='info'?'accent':item.level})`);
+    const body=node('div');body.append(node('div',item.title,'t'),node('div',item.detail,'d'));
+    row.append(node('span',names[item.level],'sev'+(item.level==='warning'||item.level==='serious'?' dark':'')),body);list.append(row)}}
+function renderMemoryTiles(m){if(helpOwns(element('memory-tiles')))return;const v=m.values||{},r=live.resources?.available?live.resources:null,memory=r?.memory||{};
+  const tiles=[],tile=(label,value,sub,bad)=>tiles.push([label,value,sub,bad]);
+  tile('Virtual size (VmSize)',memoryBytes(v.vm_size_bytes),v.address_space_limit_bytes>0?`limit ${memoryBytes(v.address_space_limit_bytes)} · peak ${memoryBytes(v.vm_peak_bytes)}`:`limit: unlimited · peak ${memoryBytes(v.vm_peak_bytes)}`);
+  const trend=rssTrend(),growth=trend?.slope??(isNum(memory.rss_growth_per_s)?60*memory.rss_growth_per_s:null);
+  tile('Resident (RSS)',memoryBytes(memory.rss),isNum(growth)&&Math.abs(growth)>=2**20?`${growth>0?'▲':'▼'} ${memoryBytes(Math.abs(growth))} / min`:`peak ${memoryBytes(memory.peak)} · swap ${memoryBytes(memory.swap)}`,trend?trend.steady:growth>=2**20);
+  const split=[memory.anon,memory.file,memory.shmem];
+  if(split.some(isNum)){const largest=Math.max(...split.filter(isNum)),unit=largest>=2**30?['GiB',2**30]:largest>=2**20?['MiB',2**20]:['KiB',2**10];
+    tile('Anonymous / file / shared',split.map(value=>isNum(value)?number(value/unit[1],value/unit[1]>=10?0:1):'—').join(' / '),`${unit[0]}: RssAnon / File / Shmem`)}
+  else tile('Anonymous / file / shared','—','needs resource samples');
+  const vmaShare=v.max_map_count>0&&isNum(v.vma_count)?100*v.vma_count/v.max_map_count:null;
+  tile('Mappings (VMAs)',isNum(v.vma_count)?v.vma_count.toLocaleString():'—',isNum(vmaShare)?`${pct(vmaShare)} of vm.max_map_count`:'limit unknown',vmaShare>=75);
+  const faults=memoryFaultRate(),before=buffer.find(point=>point.t>=(buffer.at(-1)?.t||0)-600);
+  tile('Major faults',isNum(faults)?number(faults)+' /s':'—',isNum(faults)&&isNum(before?.mf)&&buffer.at(-1).t-before.t>=300?`was ${number(before.mf)} /s ${duration(buffer.at(-1).t-before.t)} ago`:`${number(v.major_faults,0)} since start`,faults>=10);
+  const psi=memoryPressure(r),full=r?stall(r.pressure?.[scopeOf(r)]?.memory?.full):null;
+  tile('Memory pressure (PSI some)',pct(psi),r?`${scopeOf(r)} full ${pct(full)}`:'needs resource samples',psi>=5);
+  const host=element('memory-tiles');host.replaceChildren();
+  for(const [label,value,sub,bad] of tiles){const box=node('div',undefined,'card tile');box.append(helpButtonLabel(label,topicForText(label),'label'),node('div',value,'value'),node('div',sub,'sub'+(bad?' bad':'')));host.append(box)}}
+function renderMemoryMap(rows){const host=element('memory-amap');host.replaceChildren();
+  if(!rows.length){host.append(node('p','No layout yet. It arrives with the next memory-map sample.','muted'));return}
+  const largest=Math.log2(Math.max(...rows.filter(row=>!row.gap).map(row=>row.size))),scale=size=>Math.max(0,Math.min(1,(Math.log2(Math.max(size,4096))-12)/Math.max(1,largest-12)));
+  for(const row of rows){
+    if(row.gap){host.append(node('div','⋮','addr'),node('div',row.gap>=2**52?'kernel half of the address space':`≈ ${memoryBytes(row.gap)} not mapped`,'agap'));continue}
+    const [color,onDark]=MEMORY_KINDS[row.cat],bar=node('button',undefined,'arow'+(onDark?' on-dark':''));
+    bar.style.setProperty('--kind',color);bar.style.height=Math.round(24+20*scale(row.size))+'px';bar.setAttribute('aria-pressed',String(row.key===memorySelected));
+    const band=node('div',undefined,'band');band.style.width=(100*scale(row.size)).toFixed(1)+'%';
+    bar.append(band,node('span',memoryRowName(row),'name'),node('span',`${memoryPerms(row)} · ${memoryBytes(row.size)}${memoryGrows(row.cat)}`,'meta'));
+    bar.dataset.hint=`${memoryRowName(row)}\n0x${row.lo.toString(16)} – 0x${row.hi.toString(16)}\n${row.members.length} region(s), ${row.vmas} VMAs`;
+    bar.onclick=()=>{memorySelected=row.key;for(const other of host.querySelectorAll('.arow'))other.setAttribute('aria-pressed',String(other===bar));renderMemoryZoom(row)};
+    host.append(node('div',row.lo.toString(16),'addr'),bar)}}
+function memoryDisplaySpan(row){const limit=1048576n;
+  if(row.cat!=='heap'){memoryHeapSpan=null;return {lo:row.lo,hi:row.hi}}
+  // Hide the margin while coverage is unavailable, but keep its bounds for
+  // the same selected heap when the next complete layout arrives.
+  if(!memoryCurrentLayout())return {lo:row.lo,hi:row.hi};
+  if(!memoryHeapSpan||memoryHeapSpan.key!==row.key||row.lo<memoryHeapSpan.lo||row.hi>memoryHeapSpan.hi||memoryHeapSpan.hi-row.hi>limit){
+    const page=memoryPageSize()||1,margin=BigInt(Math.min(Number(limit),Math.max(65536,Math.ceil(row.size/4/page)*page)));
+    memoryHeapSpan={key:row.key,lo:row.lo,hi:row.hi+margin}}
+  return memoryHeapSpan}
+function memoryLargestGap(row){let cursor=row.lo,largest=0n;
+  for(const region of [...row.members].sort((a,b)=>a.lo<b.lo?-1:a.lo>b.lo?1:0)){
+    const lo=region.lo>row.lo?region.lo:row.lo,hi=region.hi<row.hi?region.hi:row.hi;
+    if(hi<=lo)continue;
+    if(lo>cursor&&lo-cursor>largest)largest=lo-cursor;
+    if(hi>cursor)cursor=hi}
+  return row.hi-cursor>largest?row.hi-cursor:largest}
+function renderMemoryZoom(row){const v=live.memory?.values||{};
+  element('memory-zoom-name').textContent=row?memoryRowName(row):'—';
+  const facts=element('memory-zoom-facts'),grid=element('memory-grid'),legend=element('memory-grid-legend'),body=element('memory-regions'),charts=element('memory-charts');
+  // A host that carries open or pending help is left alone; the flag makes
+  // the next poll rebuild the zoom once help lets go of it.
+  memoryZoomStale=helpOwns(facts)||helpOwns(body)||helpOwns(charts)||helpOwns(element('memory-grid-caption'));
+  renderMemoryCharts(charts);
+  if(memoryZoomStale)return;
+  memoryRenderedZoom=memoryZoomIdentity();
+  memoryGrowthCells=[];facts.replaceChildren();grid.replaceChildren();legend.replaceChildren();body.replaceChildren();
+  if(!row){memoryHeapSpan=null;element('memory-zoom-sub').textContent='';element('memory-grid-caption').textContent='No layout yet.';return}
+  const span=Number(row.hi-row.lo),complete=!!memoryCurrentLayout();
+  element('memory-zoom-sub').textContent=`0x${row.lo.toString(16)} – 0x${row.hi.toString(16)} · ${memoryPerms(row)}${memoryGrows(row.cat)}`;
+  const fact=(label,value,growth)=>{const item=node('div'),cell=node('dd',value);if(growth)memoryGrowthCells.push([cell,growth]);item.append(helpButtonLabel(label,topicForText(label)||'memzoom','help-fact','dt'),cell);facts.append(item)};
+  fact('Size (mapped)',memoryBytes(row.size));fact('Address span',memoryBytes(span));
+  fact('Regions / VMAs',`${row.members.length} / ${row.vmas}`);fact('Share of VmSize',v.vm_size_bytes>0?pct(100*row.size/v.vm_size_bytes):'—');
+  fact('Not mapped inside',complete?memoryBytes(span-row.size):'Unavailable');
+  fact('Largest unmapped gap',complete?memoryBytes(Number(memoryLargestGap(row))):'Unavailable');fact('Largest region',memoryBytes(Math.max(...row.members.map(region=>region.size))));
+  if(row.cat==='heap'||row.cat==='stack')fact(row.cat==='heap'?'Heap mapping size change':'Stack mapping size change',memoryGrowth(row.cat),row.cat);
+  const page=memoryPageSize();fact('Page size',page?memoryBytes(page):'Unknown');
+  // At most 512 squares of whole pages, high addresses on the top row.
+  const display=memoryDisplaySpan(row),gridSpan=Number(display.hi-display.lo),margin=display.hi>row.hi||display.lo<row.lo;
+  const unit=page||1,cell=Math.max(unit,Math.ceil(gridSpan/512/unit)*unit),count=Math.ceil(gridSpan/cell),columns=64,lines=Math.ceil(count/columns);
+  element('memory-grid-caption').textContent=`Top = high address. One square = ${page?`${memoryBytes(cell)} (${cell/page} page${cell===page?'':'s'})`:`${cell} bytes`}, ${count} squares.${complete?'':' Uncovered cells are unknown: layout incomplete, stale, or historical.'}`;
+  if(margin)element('memory-grid-caption').append(node('br'),helpButtonLabel('Heap display margin','heapmargin',undefined,'span'),
+    node('span',` · heap mapping end 0x${row.hi.toString(16)} · grid 0x${display.lo.toString(16)} – 0x${display.hi.toString(16)}`));
+  const offset=region=>[Number(region.lo-display.lo),Number(region.hi-display.lo)];
+  const members=(margin?memoryRegions(memoryCurrentLayout()).filter(region=>region.hi>display.lo&&region.lo<display.hi):row.members).map(region=>[region,...offset(region)]);
+  const shown=new Map(),swatch=(label,className,color)=>{const item=node('span'),mark=node('i',undefined,'sw '+className);if(color)mark.style.background=color;item.append(mark,label);return item};
+  const previous=complete&&memoryLayoutComplete(memoryPrevious)?memoryRegions(memoryPrevious).filter(region=>region.hi>display.lo&&region.lo<display.hi).map(offset):null;
+  for(let line=lines-1;line>=0;line--)for(let column=0;column<columns;column++){const index=line*columns+column,square=node('i');
+    if(index>=count){square.className='pad';grid.append(square);continue}
+    const from=index*cell,to=Math.min(gridSpan,from+cell);let best=null,covered=0;
+    for(const [region,lo,hi] of members){const overlap=Math.min(hi,to)-Math.max(lo,from);if(overlap>covered){covered=overlap;best=region}}
+    if(!best){const label=complete?'not mapped':'unknown coverage',kind=complete?'cell-none':'cell-unknown';square.className=kind;square.dataset.hint=label;shown.set(kind,swatch(label,kind))}
+    else{square.style.setProperty('--kind',MEMORY_KINDS[best.cat][0]);shown.set(MEMORY_KIND_LABELS[best.cat],best.cat==='guard'?swatch(MEMORY_KIND_LABELS.guard,'cell-guard'):swatch(MEMORY_KIND_LABELS[best.cat],'',MEMORY_KINDS[best.cat][0]));if(best.cat==='guard')square.className='cell-guard';
+      if(previous&&!previous.some(([lo,hi])=>lo<to&&hi>from)){square.classList.add('cell-new');shown.set('new',swatch('mapped since the previous layout','cell-new','var(--raised)'))}
+      square.dataset.hint=`${memoryRegionName(best)||best.cat} · ${best.permissions}\n0x${(display.lo+BigInt(from)).toString(16)}`}
+    grid.append(square)}
+  legend.append(...shown.values());
+  for(const region of row.members.slice(0,300)){const tr=node('tr'),name=node('td',memoryRegionName(region)||region.cat);name.dataset.hint=region.name;
+    tr.append(name,node('td',region.start,'mono'),node('td',memoryBytes(region.size),'num'),node('td',region.permissions,'mono'),node('td',String(region.vmas),'num'));body.append(tr)}}
+function memoryChart(title,points,key,color,offset=false,available=true){const box=node('div',undefined,'mem-chart'),cap=node('div',undefined,'cap'),values=points.filter(point=>isNum(point[key]));
+  const slope=available?memorySlope(values,key):null;cap.append(helpButtonLabel(title,topicForText(title),undefined,'h3'),node('span',isNum(slope)?`${signed(slope)} / min`:''));
+  box.append(cap);
+  if(!available||values.length<2){const wait=node('div',!available?'Unavailable':points.length>=2&&!values.length?'Not in the layout':'Collecting…','chart-empty');wait.style.height='84px';box.append(wait);return box}
+  const width=300,height=84,svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,preserveAspectRatio:'none'});box.append(svg);
+  const t0=values[0].t,t1=values.at(-1).t,low=Math.min(...values.map(point=>point[key])),high=Math.max(...values.map(point=>point[key])),range=high-low||1;
+  const x=t=>(t1>t0?(t-t0)/(t1-t0):0)*width,y=value=>high===low?height/2:height-10-(value-low)/range*(height-26);
+  // Steps, not slopes: the value holds until the next sample.
+  let path='',previous=null,run=0;
+  // A run of one sample has no line: a zero-length round-capped segment is
+  // its dot, which keeps its shape under the stretched viewBox.
+  const finish=()=>{if(path)svg.append(svgNode('polyline',{points:run===1?`${path} ${path}`:path,fill:'none',stroke:color,'stroke-width':run===1?5:2,'vector-effect':'non-scaling-stroke','stroke-linejoin':'round','stroke-linecap':'round'}));path='';previous=null;run=0};
+  for(const point of points){if(!isNum(point[key])){finish();continue}
+    path+=previous?` ${x(point.t).toFixed(1)},${y(previous[key]).toFixed(1)} ${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`:`${x(point.t).toFixed(1)},${y(point[key]).toFixed(1)}`;
+    run++;previous=point}
+  finish();
+  const format=offset?signed:memoryBytes;
+  box.append(node('div',`${offset?'Offset: ':''}${format(values[0][key])} → ${format(values.at(-1)[key])}`,'range'));return box}
+function memoryBoundaryPoints(key){const base=memoryHistory.find(point=>typeof point[key]==='bigint')?.[key];
+  return memoryHistory.map(point=>{const value=typeof point[key]==='bigint'?Number(point[key]-base):null;
+    return {t:point.t,offset:Number.isSafeInteger(value)?value:null}})}
+function renderMemoryCharts(host){if(helpOwns(host))return;host.replaceChildren();
+  const current=!!memoryCurrentLayout();
+  host.append(memoryChart('Heap mapping end ↑',memoryBoundaryPoints('heapEnd'),'offset','var(--k-heap)',true,current),
+    memoryChart('Main stack start ↓',memoryBoundaryPoints('stackStart'),'offset','var(--k-stack)',true,current),
+    memoryChart('Resident anonymous',memoryHistory,'anon','var(--k-anon)',false))}
+function renderMemory(){const m=live.memory,empty=element('memory-empty'),content=element('memory-content');
+  if(replayAt===null)resetMemoryTarget(m);
+  if(!m||!m.available){empty.hidden=false;content.hidden=true;empty.textContent=m?.reason||'This collector does not report memory-map samples.';return}
+  empty.hidden=true;content.hidden=false;
+  const historical=replayAt!==null;
+  // A final view keeps its layout: /api/memory-map may already hold the next target's.
+  if(!historical&&m.layout_id&&memoryLayout?.id!==m.layout_id&&!(frozen&&memoryLayoutFor(m))&&!memoryLayoutLoading)refreshMemoryLayout();
+  const layout=historical?memoryLayout:memoryLayoutFor(m);
+  const v=m.values||{},now=viewNow(),flags=m.flags||{};
+  element('memory-sub').textContent=`The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${number(m.interval_s,0)} s; the longest maps read took ${microseconds(v.maps_read_max_us)}. ${m.stale?'Stale: no sample since '+ago(now-m.updated)+'.':'Updated '+ago(now-m.updated)+'.'}`;
+  const regions=memoryRegions(layout),rows=memoryRows(regions),stack=regions.find(region=>region.cat==='stack');
+  recordMemory(m,regions,!!memoryCurrentLayout());
+  renderMemoryTiles(m);renderMemoryFindings(assessMemory(m,regions,rows));
+  const limits=element('memory-limits'),facts=element('memory-facts');
+  if(!helpOwns(limits)){limits.replaceChildren();
+  limits.append(meter('Mappings','vm.max_map_count',v.vma_count,v.max_map_count,isNum(v.vma_count)&&isNum(v.max_map_count)?`${v.vma_count} / ${v.max_map_count}`:'—'));
+  limits.append(isNum(v.address_space_limit_bytes)?meter('Address space','RLIMIT_AS',v.vm_size_bytes,v.address_space_limit_bytes,`${memoryBytes(v.vm_size_bytes)} / ${memoryBytes(v.address_space_limit_bytes)}`):meter('Address space','no RLIMIT_AS limit',null,0,memoryBytes(v.vm_size_bytes)));
+  if(stack)limits.append(isNum(v.stack_limit_bytes)?meter('Main stack','RLIMIT_STACK; the [stack] mapping',stack.size,v.stack_limit_bytes,`${memoryBytes(stack.size)} / ${memoryBytes(v.stack_limit_bytes)}`):meter('Main stack','no RLIMIT_STACK limit',null,0,memoryBytes(stack.size)))}
+  if(!helpOwns(facts)){facts.replaceChildren();
+  for(const [label,value] of [['Peak virtual size',memoryBytes(v.vm_peak_bytes)],['Data + heap (VmData)',memoryBytes(v.vm_data_bytes)],['Page tables',memoryBytes(v.vm_pte_bytes)],['Locked',memoryBytes(v.vm_locked_bytes)],
+    ['Page faults since start',`${number(v.major_faults,0)} major · ${number(v.minor_faults,0)} minor`],['Longest maps read',`${microseconds(v.maps_read_max_us)} (${v.maps_reads??'—'} reads, ${microseconds(v.maps_read_us)} total)`]]){
+    const item=node('div');item.append(helpButtonLabel(label,topicForText(label),'help-fact','dt'),node('dd',value));facts.append(item)}}
+  const notes=[];
+  if(flags.maps_hidden)notes.push('The sampler cannot read /proc/PID/maps: run it as the target\'s user. The target may also be non-dumpable.');
+  if(flags.maps_partial)notes.push('The last read of /proc/PID/maps stopped early, for example because the target exited.');
+  if(layout?.flags?.regions_truncated)notes.push(`Only the first ${regions.length} regions are shown; the rest are counted in the mapping total.`);
+  if(replayAt!==null)notes.push('Historical view: the layout is the latest one, not the one at the replay time.');
+  element('memory-notes').textContent=notes.join(' ');
+  element('memory-region-count').textContent=layout?`${regions.length} regions · updated ${ago(Date.now()/1000-layout.updated)}`:'';
+  // Rebuild the map only for another layout, or when the target's comm
+  // arrives or changes (it names the program image); a poll changes nothing
+  // else in it. The charts follow every poll.
+  const bars=rows.filter(row=>!row.gap);let rebuild=memoryZoomStale||memoryRenderedZoom!==memoryZoomIdentity();
+  if((layout!==memoryRenderedLayout||memoryComm()!==memoryRenderedComm)&&!element('memory-amap').matches(':hover')){memoryRenderedLayout=layout;memoryRenderedComm=memoryComm();
+    if(!bars.some(row=>row.key===memorySelected))memorySelected=(bars.find(row=>row.cat==='heap')||bars.reduce((best,row)=>row.size>(best?.size||0)?row:best,null))?.key??null;
+    renderMemoryMap(rows);rebuild=true}
+  if(rebuild)renderMemoryZoom(bars.find(row=>row.key===memorySelected));
+  else{renderMemoryCharts(element('memory-charts'));
+    for(const [cell,key] of memoryGrowthCells)cell.textContent=memoryGrowth(key)}}
+function viewTargetName(view){const health=view.health||{};return (view.threads||[]).find(thread=>thread.tid===health.pid)?.name||(health.pid?'PID '+health.pid:endedTarget(view)?.name||'the target')}
+function endedTarget(view=live){const health=view.health||{};return health.target_absent&&view.exit&&health.session&&view.exit.next_session===health.session?view.exit:null}
+const EXIT_REASONS={
+  segfault:['Segmentation fault','critical','A thread read or wrote memory it may not access. The kernel sent SIGSEGV.'],
+  oom:['Killed by the out-of-memory killer','critical','The host or the process\'s cgroup ran out of memory. The kernel ended the process with SIGKILL.'],
+  gp_fault:['General protection fault','critical','The CPU rejected a memory access, often through a corrupted pointer. The kernel sent SIGSEGV.'],
+  divide_error:['Divide error','critical','An integer division by zero or overflow. The kernel sent SIGFPE.'],
+  invalid_opcode:['Invalid instruction','critical','The CPU could not run an instruction, for example __builtin_trap() or a corrupted jump. The kernel sent SIGILL.'],
+  breakpoint:['Breakpoint trap','critical','The process ran a breakpoint instruction with no debugger attached. The kernel sent SIGTRAP.'],
+  fatal_signal:['Fatal signal','critical','The kernel logged an unexpected fatal signal for the process.'],
+  not_reported:['No kernel crash message','warning','The sampler found no crash message for this process and could not read its exit status. It may have exited by itself, crashed through abort() or a signal handler, or been ended by another process (SIGTERM, SIGKILL).'],
+  log_unreadable:['Reason unknown: kernel log not readable','warning','The sampler may not read the kernel log. Set kernel.dmesg_restrict = 0 on the target host to show the reason next time.'],
+  log_unavailable:['Reason unknown: kernel log unavailable','warning','The sampler could not open /dev/kmsg, for example inside a container.']};
+const CRASH_SIGNALS={
+  SIGSEGV:'A thread accessed memory it may not use. The kernel logged no fault: a signal handler or a language runtime caught it first, or the message was rate-limited.',
+  SIGABRT:'The process called abort(): usually a failed assert(), an uncaught C++ exception, a Rust panic, or the C library finding heap corruption.',
+  SIGBUS:'A memory access the hardware could not complete, often to a memory-mapped file that was truncated.',
+  SIGFPE:'An arithmetic fault, usually an integer division by zero.',
+  SIGILL:'The CPU could not run an instruction, for example __builtin_trap() or a jump into data.',
+  SIGTRAP:'A breakpoint or trap instruction ran with no debugger attached.',
+  SIGSYS:'The process made a system call that its seccomp filter forbids.'};
+const KILL_SIGNALS={
+  SIGKILL:'SIGKILL cannot be caught. It comes from kill -9, a service manager whose stop timed out, or the out-of-memory killer.',
+  SIGTERM:'Another process asked it to stop: kill, systemctl stop, or a shutdown.',
+  SIGINT:'An interrupt, such as Ctrl+C in its terminal.',
+  SIGHUP:'Its terminal closed, or another process sent SIGHUP.'};
+const signalLabel=ended=>ended.signal_name||'signal '+ended.signal;
+function exitReason(ended){
+  if(ended.reason==='crashed')return [`Crashed: ${signalLabel(ended)}`,'critical',CRASH_SIGNALS[ended.signal_name]||'A signal that reports a fault in the process ended it.'];
+  if(ended.reason==='killed')return [`Killed by ${signalLabel(ended)}`,'warning',(KILL_SIGNALS[ended.signal_name]||'Another process sent a signal that ended it.')+(ended.signal_name==='SIGKILL'&&ended.kernel_log!=='read'?' Without the kernel log, an out-of-memory kill looks the same.':'')];
+  if(ended.reason==='exited')return ended.exit_code===0?['Exited normally','good','The process returned from main or called exit(0).']:[`Exited with code ${ended.exit_code}`,'warning','The process called exit() or returned from main with a non-zero code, usually after it logged an error.'];
+  return EXIT_REASONS[ended.reason]||[ended.reason,'warning',''];
+}
+function exitStatusText(ended){
+  if(isNum(ended.signal))return `Exit status: ${signalLabel(ended)} (signal ${ended.signal})${ended.core_dumped?', core dumped':''}.`;
+  if(isNum(ended.exit_code))return `Exit status: exit code ${ended.exit_code}.`;
+  return 'Exit status: not available. The sampler reads it on Linux 6.15 and later, or while the process is a zombie.'}
