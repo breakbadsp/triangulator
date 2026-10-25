@@ -473,6 +473,15 @@ describe("past assessments", () => {
           : "Resident memory grows without a plateau",
       ]);
       expect(byId("timeline-marks").children).toHaveLength(boundary ? 0 : 1);
+      // A direct recording selection must agree with its scan, even when
+      // there is no finding row to select.
+      fireEvent.click(byId("replay-previous"));
+      await settle();
+      expect(
+        byId("findings").textContent.includes(
+          "Resident memory grows without a plateau",
+        ),
+      ).toBe(!boundary);
     },
   );
 
