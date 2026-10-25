@@ -1,3 +1,4 @@
+import { GuideContext } from "../help/guideContext";
 import { ObservationContext } from "../hooks/observationContext";
 import { useContext } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -505,6 +506,7 @@ export function ThreadDrawer({
   onClose: () => void;
 }) {
   const close = useRef<HTMLButtonElement>(null);
+  const guide = useContext(GuideContext);
   const open = !!selected;
   useEffect(() => {
     if (!open) return;
@@ -570,6 +572,7 @@ export function ThreadDrawer({
         />
         <aside
           id="drawer"
+          hidden={!!guide?.request?.drawer}
           className={"drawer" + (open ? " open" : "")}
           aria-label="Thread details"
           aria-hidden={!open}

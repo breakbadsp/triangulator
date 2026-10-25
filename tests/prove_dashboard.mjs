@@ -226,7 +226,11 @@ try {
   );
   assert.equal(help.position, "fixed");
   assert.ok(help.left.endsWith("px"));
-  assert.equal(help.links, 0);
+  assert.equal(help.links, 1);
+  const helpHash = await evaluate("location.hash");
+  await evaluate("document.querySelector('[role=dialog] a[href=\"#help-page\"]').click()");
+  assert.equal(await evaluate("document.querySelector('[role=dialog] h2').textContent"), "How to read this page");
+  assert.equal(await evaluate("location.hash"), helpHash);
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
     key: "Escape",
@@ -1923,6 +1927,9 @@ finally:
   assert.equal(requests.some((url) => url.includes("/api/alert-settings")), false);
   const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,400], hiddenAlerts: true };
 
+  const { proveCleanup } = await import("./prove_cleanup.mjs");
+  const cleanup = await proveCleanup({ root, profile, base, controlBase, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });
+
   assert.ok(
     requests.every(
       (url) =>
@@ -1946,6 +1953,7 @@ finally:
         chromiumVersion,
         ...priorProof,
         targetControl,
+        cleanup,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },
@@ -1957,5 +1965,5 @@ finally:
 } finally {
   socket?.close();
   await Promise.all([stop(browser), stop(fixture), ...(controlFixture ? [stop(controlFixture)] : [])]);
-  await rm(profile, { recursive: true, force: true });
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }

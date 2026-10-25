@@ -243,7 +243,8 @@ button.primary {
   gap: 10px;
   min-width: 0;
 }
-.target > div {
+.target > div,
+.target > span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -281,7 +282,8 @@ button.primary {
   border-radius: 6px;
 }
 .target-choice select {
-  max-width: min(480px, 80vw);
+  min-width: 0;
+  max-width: min(480px, 100%);
   font-size: 12px;
 }
 .target-badge {
@@ -429,6 +431,7 @@ section.block {
     gap: 4px;
   }
   .target {
+    flex-basis: 100%;
     flex-wrap: wrap;
   }
 }
@@ -603,7 +606,7 @@ section.block {
 }
 .finding {
   display: grid;
-  grid-template-columns: 22px 1fr;
+  grid-template-columns: 22px minmax(0, 1fr);
   gap: 10px;
   padding: 10px 12px;
   border-radius: 10px;
@@ -627,9 +630,11 @@ section.block {
   color: #fff;
 }
 .finding .t {
+  overflow-wrap: anywhere;
   font-weight: 600;
 }
 .finding .d {
+  overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--ink-2);
   margin-top: 3px;
