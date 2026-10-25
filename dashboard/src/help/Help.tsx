@@ -1,3 +1,4 @@
+import { ObservationContext } from "../hooks/observationContext";
 import {
   createContext,
   useContext,
@@ -62,6 +63,8 @@ export function Help({
   id?: string;
   readout?: Readout;
 }) {
+  const { key: observation, recorded } = useContext(ObservationContext);
+  const [seen, setSeen] = useState(observation);
   const active = useContext(HelpEnabled);
   const portalTarget = useContext(HelpPortalTarget);
   const anchor = useRef<HTMLElement>(null);
@@ -90,8 +93,15 @@ export function Help({
           setShownReadout(null);
         },
       ),
-    [],
+    // Each observation owns its pending and visible Help.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [observation],
   );
+  if (seen !== observation) {
+    setSeen(observation);
+    setShown(null);
+    setShownReadout(null);
+  }
 
   useEffect(() => {
     helpTimers.add(timer);
@@ -268,7 +278,9 @@ export function Help({
                     <span>{row.label}</span>
                   </div>
                 ))}
-                <p className="muted">At {date(shownReadout.stamp)}</p>
+                <p className="muted">
+                  {recorded ? "Recorded at" : "At"} {date(shownReadout.stamp)}
+                </p>
               </div>
             )}
             {content.example && (

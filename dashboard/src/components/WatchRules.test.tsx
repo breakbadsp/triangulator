@@ -1,4 +1,3 @@
-// Moved to phase 10: old tests 2767 (match counts follow collector in final view); 2683 (recorded moment hides editor and shows read-only note; leaving restores editor).
 import {
   act,
   cleanup,
@@ -813,4 +812,86 @@ test("every visible element of the Settings section has registered help", async 
     helped(button(name));
   fireEvent.click(button("Remove rule 1"));
   helped(document.getElementById("watch-empty"));
+});
+
+test("recorded mode keeps the dirty draft, blocks actions, and restores the same revision", async () => {
+  const info = watchReply([{ prefix: "worker-", wake_ms: 500 }]);
+  const server = collector(
+    () => reply(info),
+    () => reply(info),
+  );
+  const onChanged = vi.fn();
+  const view = render(
+    <WatchRules threads={[]} opened={0} onChanged={onChanged} />,
+  );
+  await screen.findByRole("button", { name: "Save" });
+  type(0, "prefix", "draft-");
+  view.rerender(
+    <WatchRules threads={[]} opened={1} recorded onChanged={onChanged} />,
+  );
+  expect(queryButton("Save")).toBeNull();
+  expect(text("watch-recorded-readonly")).toContain(
+    "Your unsaved edits are kept.",
+  );
+  const count = server.reads;
+  view.rerender(
+    <WatchRules threads={[]} opened={2} recorded onChanged={onChanged} />,
+  );
+  expect(server.reads).toBe(count);
+  view.rerender(<WatchRules threads={[]} opened={3} onChanged={onChanged} />);
+  expect(field(0, "prefix").value).toBe("draft-");
+  fireEvent.click(button("Save"));
+  await waitFor(() => {
+    expect(server.writes).toHaveLength(1);
+  });
+  expect(server.writes[0]?.headers["If-Match"]).toBe('"test-1"');
+});
+
+test("a pending read is discarded on replay; an already sent write settles the current editor", async () => {
+  const info = watchReply([{ prefix: "worker-", wake_ms: 500 }]);
+  let deliver: (value: Response) => void = () => undefined;
+  const server = collector(
+    () =>
+      new Promise<Response>((done) => {
+        deliver = done;
+      }),
+    () =>
+      new Promise<Response>((done) => {
+        deliver = done;
+      }),
+  );
+  const onChanged = vi.fn();
+  const view = render(
+    <WatchRules threads={[]} opened={0} onChanged={onChanged} />,
+  );
+  view.rerender(
+    <WatchRules threads={[]} opened={0} recorded onChanged={onChanged} />,
+  );
+  await act(async () => {
+    deliver(Response.json(info));
+    await Promise.resolve();
+  });
+  expect(document.getElementById("watch-editor")).toBeNull();
+  server.read = () => reply(info);
+  view.rerender(<WatchRules threads={[]} opened={0} onChanged={onChanged} />);
+  await screen.findByRole("button", { name: "Save" });
+  type(0, "prefix", "draft-");
+  fireEvent.click(button("Save"));
+  view.rerender(
+    <WatchRules threads={[]} opened={0} recorded onChanged={onChanged} />,
+  );
+  await act(async () => {
+    deliver(
+      Response.json(
+        watchReply([{ prefix: "draft-", wake_ms: 500 }], {
+          revision: "test-2",
+        }),
+      ),
+    );
+    await Promise.resolve();
+  });
+  view.rerender(<WatchRules threads={[]} opened={0} onChanged={onChanged} />);
+  expect(field(0, "prefix").value).toBe("draft-");
+  expect(saveDisabled()).toBe(true);
+  expect(server.writes).toHaveLength(1);
 });

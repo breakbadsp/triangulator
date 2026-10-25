@@ -1,3 +1,4 @@
+import { ObservationContext } from "../hooks/observationContext";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Help, HelpEnabled, HelpPortalTarget } from "./Help";
@@ -170,4 +171,37 @@ test("pointer focus leaves the click target in place, while keyboard focus still
   fireEvent.blur(button);
   fireEvent.focus(button);
   expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
+});
+
+test("an observation change clears visible and pending Help without replacing focused controls", () => {
+  function Page({ identity }: { identity: string }) {
+    return (
+      <ObservationContext
+        value={{ key: identity, recorded: identity === "recorded" }}
+      >
+        <Help topic="overview" as="div">
+          <h2>Summary heading</h2>
+        </Help>
+        <Help topic="map">
+          <input aria-label="Kept control" defaultValue="draft" />
+        </Help>
+      </ObservationContext>
+    );
+  }
+  const view = render(<Page identity="live" />);
+  const input = screen.getByRole("textbox", { name: "Kept control" });
+  act(() => {
+    input.focus();
+  });
+  expect(screen.getByRole("dialog")).toBeDefined();
+  view.rerender(<Page identity="recorded" />);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(input);
+  expect(screen.getByRole("textbox", { name: "Kept control" })).toBe(input);
+  fireEvent.mouseEnter(screen.getByText("Summary heading"));
+  view.rerender(<Page identity="new-session" />);
+  act(() => {
+    vi.advanceTimersByTime(1500);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
