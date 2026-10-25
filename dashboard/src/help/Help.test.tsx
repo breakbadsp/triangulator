@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { Help, HelpEnabled } from "./Help";
+import { Help, HelpEnabled, HelpPortalTarget } from "./Help";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -121,4 +121,53 @@ test("a hidden drawer dismisses help without remounting its content", () => {
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.getByLabelText("Kept input")).toBe(input);
   expect(input.value).toBe("custom range");
+});
+
+test("a modal portal keeps interactive help inside its dialog and falls back to body", () => {
+  const dialog = document.createElement("dialog");
+  dialog.open = true;
+  document.body.append(dialog);
+  const app = render(
+    <HelpPortalTarget value={dialog}>
+      <Help topic="appearance">Theme</Help>
+    </HelpPortalTarget>,
+  );
+  fireEvent.focus(screen.getByText("Theme"));
+  expect(
+    dialog.contains(screen.getByRole("dialog", { name: "Color theme" })),
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Close help" }));
+  expect(screen.queryByRole("dialog", { name: "Color theme" })).toBeNull();
+  app.rerender(
+    <HelpPortalTarget value={null}>
+      <Help topic="appearance">Theme</Help>
+    </HelpPortalTarget>,
+  );
+  fireEvent.click(screen.getByText("Theme"));
+  expect(
+    screen.getByRole("dialog", { name: "Color theme" }).parentElement,
+  ).toBe(document.body);
+  app.unmount();
+  dialog.remove();
+});
+
+test("pointer focus leaves the click target in place, while keyboard focus still opens help", () => {
+  const action = vi.fn();
+  render(
+    <Help topic="manage-targets">
+      <button onClick={action}>Add target</button>
+    </Help>,
+  );
+  const button = screen.getByRole("button", { name: "Add target" });
+  fireEvent.pointerDown(button);
+  fireEvent.focus(button);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.pointerUp(button);
+  fireEvent.click(button);
+  expect(action).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.blur(button);
+  fireEvent.focus(button);
+  expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
 });

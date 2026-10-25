@@ -76,6 +76,7 @@ test.each(["/", "/?target=host%2Fworker"])(
         fetchMock.mock.calls.every(
           (call) =>
             call[0] === "/api/targets" ||
+            call[0] === "/api/targets/control" ||
             call[0] === "/api/live?target=host%2Fworker",
         ),
       ).toBe(true);
@@ -648,3 +649,61 @@ test("selecting the Settings tab reads the watch rules again", async () => {
     "1",
   );
 });
+
+// Replaces test_monitor.py showAlerting: the separate alert program has no API.
+test.each(["startup", "settings", "lost field"])(
+  "alerts stay hidden with no alert requests: %s",
+  async (mode) => {
+    vi.useFakeTimers();
+    try {
+      history.replaceState(
+        null,
+        "",
+        "/?target=host%2Fworker" + (mode === "settings" ? "#settings" : ""),
+      );
+      let hasAlerts = mode === "lost field";
+      const urls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof fetch>().mockImplementation((input) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.href
+                : input.url;
+          urls.push(url);
+          if (url.startsWith("/api/targets"))
+            return Promise.resolve(Response.json(targets));
+          if (url.startsWith("/api/watches"))
+            return Promise.resolve(Response.json({}, { status: 404 }));
+          return Promise.resolve(
+            Response.json({
+              ...live,
+              ...(hasAlerts ? { alerts: [] } : {}),
+            }),
+          );
+        }),
+      );
+      render(<App />);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      const assertHidden = () => {
+        expect(
+          document.querySelector('[id*="alert"], [data-help="alerts"]'),
+        ).toBeNull();
+        expect(
+          screen.queryByText(/Open alerts|Recent alerts|Alert settings/),
+        ).toBeNull();
+        expect(urls.some((url) => url.includes("/api/alert-settings"))).toBe(
+          false,
+        );
+      };
+      assertHidden();
+      hasAlerts = false;
+      await act(() => vi.advanceTimersByTimeAsync(1100));
+      assertHidden();
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);

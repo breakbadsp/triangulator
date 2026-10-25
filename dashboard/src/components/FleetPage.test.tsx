@@ -1,3 +1,4 @@
+// Old test 3187 (page-guide inert behavior) is deferred to phase 11.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../App";
@@ -219,6 +220,8 @@ test("overview page starts no new live request once the tab is hidden mid-batch"
   let started = 0;
   respond = (url) => {
     if (url === "/api/targets") return Response.json({ targets: many });
+    if (url === "/api/targets/control")
+      return Response.json({ enabled: false });
     if (++started === 4) hidden = true;
     return Response.json(fleetView(1, "x", 1));
   };
