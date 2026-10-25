@@ -1,0 +1,36 @@
+{
+  "version": "qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5",
+  "root": "/tmp/triangulator-qa-phase11-923ba96",
+  "home": "/tmp/triangulator-qa-phase11-923ba96/triangulator",
+  "http_port": 57583,
+  "udp_port": 56846,
+  "url": "http://127.0.0.1:57583",
+  "fixture_pids": [
+    270445,
+    270446
+  ],
+  "archives": [
+    {
+      "component": "sampler",
+      "url": "http://127.0.0.1:45269/triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+      "checksum_url": "http://127.0.0.1:45269/triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256",
+      "filename": "triangulator-sampler-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+      "sha256": "694a4295cdd5c65c6d161b53836013f2309790a6a1e79a16b55f6826e2a6df13"
+    },
+    {
+      "component": "collector",
+      "url": "http://127.0.0.1:45269/triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+      "checksum_url": "http://127.0.0.1:45269/triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz.sha256",
+      "filename": "triangulator-collector-qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5-local-linux-x86_64-gcc16.tar.gz",
+      "sha256": "646b01f349d29aa213e100c496ca1101b84a084bcc3eb2efdae8ad8e397a470e"
+    }
+  ],
+  "processes": {
+    "collector": 270535,
+    "sampler": 270547
+  },
+  "exec_session_id": 1939,
+  "browser_tab_id": "tab_2_dc011108-9ada-400d-9a9d-0a225d0f3758",
+  "source_commit": "923ba96567f7e7729434763e043bb60ee2fa3cc5",
+  "source_tree": "bf4047b9f29ee5486ecd9da884a3d0439af5f164"
+}
