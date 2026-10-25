@@ -101,6 +101,8 @@
 | QA-096 | NOT_RUN | - | - | - |
 | QA-097 | NOT_RUN | - | - | - |
 | QA-098 | NOT_RUN | - | - | - |
+| QA-099 | NOT_RUN | - | - | - |
+| QA-100 | NOT_RUN | - | - | - |
 | QA-101 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/healthy.txt) |
 | QA-102 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-spin.txt) |
 | QA-103 | PASSED | source 384352f | [Run](runs/20261021T013000Z-source-384352f-bug-lab/index.md) | [Overview](runs/20261021T013000Z-source-384352f-bug-lab/evidence/cpu-oversub.txt) |
@@ -588,3 +590,13 @@
 
 - Test: Monitor a target with memory sampling on (`memory_interval_s` set). Open Address space & zoom and Member regions. Hold the pointer on an address-space bar and on a zoom grid square for 10 s each, then move into each card. Click the stack bar, then the heap bar, while the target grows its heap past the display margin. Focus a bar, press Escape twice, and scroll the Member regions table. Restart the target process while the pointer holds the address map and the bar keeps focus. Repeat after a sampler restart.
 - Expected: Under the pointer, the bars, zoom facts, grid, and charts do not change; after the pointer leaves, each part shows the latest sample at once. A click selects the bar during polls, and the heap grid keeps its span until the heap leaves the margin. The first Escape closes the card and the second does nothing else. After a target or sampler restart, no bar, address, readout, card, or chart point of the old process remains, the fold and Member regions stay open, and the section waits for the new layout. Tiles, findings, limits, and Summary memory findings use the same samples.
+
+## QA-099: Watch rule edits survive live polls and send one write
+
+- Test: Open Settings on a live target. Type in a prefix field for 10 s while the threads change, and watch Matching threads now. Leave an unsaved edit, select the Settings tab again, and restart the target process. Double-click Save, then Reset to config file. In a second tab, save different rules, then save from the first tab, reload, and save again.
+- Expected: The field keeps focus and the typed text through every poll, and the match counts follow the live threads. The unsaved edit survives the tab selection and the restart. Each double-click sends one POST (browser network panel). The stale save shows the conflict text, keeps the draft, and offers only Reload current rules; after Reload, Save names the new revision and succeeds.
+
+## QA-100: Monitor health stays still under the pointer and resets for a new session
+
+- Test: Open Monitor health on a live target. Hold the pointer on the list for 10 s, open the help of Session, then restart the sampler. Stop the sampler for 15 s.
+- Expected: Under the pointer the values do not change; after the pointer leaves they show the latest health. After the sampler restart the list shows the new session and no help card of the old session stays open. With the sampler silent, Sampler reads Silent and the fold opens by itself unless the user closed it before.

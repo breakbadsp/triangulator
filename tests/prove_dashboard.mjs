@@ -337,6 +337,8 @@ try {
     "Resources",
     "Sockets",
     "Memory",
+    "Monitor",
+    "Settings",
   ]);
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
@@ -885,6 +887,8 @@ try {
     "Resources",
     "Sockets",
     "Memory",
+    "Monitor",
+    "Settings",
   ]);
   // From here the test answers live and socket requests, so every state is
   // deterministic. Resource history still comes from the collector.
@@ -1585,6 +1589,134 @@ try {
     !mobileThreads.columns.includes(" "),
     JSON.stringify(mobileThreads),
   );
+  // Watch rules: the first write path, against the real collector. A second
+  // editor (this script) saves between two saves of the page.
+  await send("Emulation.clearDeviceMetricsOverride");
+  const watchUrl = `${base}/api/watches?${new URLSearchParams({ target: target.key })}`;
+  const watchWrites = [];
+  const watchStatuses = new Map();
+  socket.addEventListener("message", ({ data }) => {
+    const message = JSON.parse(data);
+    const { method, params } = message;
+    if (
+      method === "Network.requestWillBeSent" &&
+      params.request.method === "POST" &&
+      new URL(params.request.url).pathname.startsWith("/api/watches")
+    )
+      watchWrites.push({
+        id: params.requestId,
+        path: new URL(params.request.url).pathname,
+        ifMatch: params.request.headers["If-Match"],
+        guard: params.request.headers["X-Triangulator"],
+        body: params.request.postData,
+      });
+    if (method === "Network.responseReceived")
+      watchStatuses.set(params.requestId, params.response.status);
+  });
+  const writeStatus = (index) => watchStatuses.get(watchWrites[index]?.id);
+  // Reset and Reload ask first; answer yes.
+  await evaluate("window.confirm = () => true");
+  await evaluate("document.querySelector('a[href=\"#collector-settings\"]').click()");
+  await until(
+    () => evaluate("!!document.querySelector('#watch-add:not([disabled])')"),
+    "watch rules editor",
+  );
+  const watchText = (id) =>
+    evaluate(`document.getElementById(${JSON.stringify(id)})?.textContent ?? null`);
+  const typeInto = async (selector, text) => {
+    await evaluate(
+      `(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`,
+    );
+    await send("Input.insertText", { text });
+  };
+  const watchStatus = async (pattern, description) => {
+    await until(async () => pattern.test((await watchText("watch-status")) ?? ""), description);
+    return watchText("watch-status");
+  };
+  const rowsBefore = await evaluate("document.querySelectorAll('#watch-rows tr').length");
+  await evaluate("document.querySelector('#watch-add').click()");
+  const lastRow = `#watch-rows tr:nth-child(${String(rowsBefore + 1)})`;
+  assert.equal(
+    await evaluate(`document.activeElement === document.querySelector('${lastRow} .watch-prefix')`),
+    true,
+  );
+  await send("Input.insertText", { text: "proof-" });
+  await typeInto(`${lastRow} .watch-wake`, "500");
+  const watchBefore = await (await fetch(watchUrl)).json();
+  await evaluate("document.querySelector('#watch-save').click()");
+  const watch = { saved: await watchStatus(/^Saved and applied\.$/, "real save") };
+  const afterSave = await (await fetch(watchUrl)).json();
+  assert.deepEqual(watchWrites[0], {
+    id: watchWrites[0].id,
+    path: "/api/watches",
+    ifMatch: `"${watchBefore.revision}"`,
+    guard: "1",
+    body: JSON.stringify({ rules: [...watchBefore.rules, { prefix: "proof-", wake_ms: 500 }] }),
+  });
+  assert.equal(writeStatus(0), 200);
+  assert.equal(afterSave.source, "dashboard");
+  assert.deepEqual(afterSave.rules.at(-1), { prefix: "proof-", wake_ms: 500 });
+  // The second editor saves with the revision in force.
+  const other = await fetch(watchUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Triangulator": "1",
+      Origin: base,
+      "If-Match": `"${afterSave.revision}"`,
+    },
+    body: JSON.stringify({ rules: [{ prefix: "other-", wake_ms: 1000 }] }),
+  });
+  assert.equal(other.status, 200);
+  const otherRules = await other.json();
+  // The page still holds afterSave as its base. Its next save is refused.
+  await typeInto(`${lastRow} .watch-wake`, "750");
+  await evaluate("document.querySelector('#watch-save').click()");
+  watch.conflict = await watchStatus(/^Another user changed/, "real 409");
+  assert.equal(watchWrites[1].ifMatch, `"${afterSave.revision}"`);
+  assert.equal(writeStatus(1), 409);
+  watch.afterConflict = await evaluate(`({
+    draftKept: document.querySelector('${lastRow} .watch-wake').value,
+    saveDisabled: document.querySelector('#watch-save').disabled,
+    resetDisabled: document.querySelector('#watch-reset').disabled,
+    reload: !!document.querySelector('#watch-reload'),
+  })`);
+  assert.deepEqual(watch.afterConflict, {
+    draftKept: "750",
+    saveDisabled: true,
+    resetDisabled: true,
+    reload: true,
+  });
+  assert.deepEqual((await (await fetch(watchUrl)).json()).rules, otherRules.rules);
+  await evaluate("document.querySelector('#watch-reload').click()");
+  watch.reloaded = await watchStatus(/^Current rules loaded\./, "reload after 409");
+  assert.equal(
+    await evaluate("document.querySelector('#watch-rows .watch-prefix').value"),
+    "other-",
+  );
+  // A double click sends one write, which names the reloaded revision.
+  await typeInto("#watch-rows .watch-wake", "1500");
+  await evaluate(
+    "(() => { const save = document.querySelector('#watch-save'); save.click(); save.click(); })()",
+  );
+  await watchStatus(/^Saved and applied\.$/, "save after reload");
+  await delay(300);
+  assert.equal(watchWrites.length, 3, "one write for two clicks");
+  assert.equal(watchWrites[2].ifMatch, `"${otherRules.revision}"`);
+  assert.equal(writeStatus(2), 200);
+  await evaluate("document.querySelector('#watch-reset').click()");
+  watch.reset = await watchStatus(/^Reset\. The rules from the config file are in force\.$/, "real reset");
+  assert.equal(watchWrites[3].path, "/api/watches/reset");
+  assert.equal(writeStatus(3), 200);
+  const afterReset = await (await fetch(watchUrl)).json();
+  assert.equal(afterReset.source, "config");
+  assert.deepEqual(afterReset.rules, watchBefore.rules);
+  watch.writes = watchWrites.map((write, index) => ({
+    path: write.path,
+    status: writeStatus(index),
+    ifMatch: write.ifMatch,
+  }));
+  watch.source = await watchText("watch-source");
   const threads = {
     focusedHelpAndPendingHoverEscape: true,
     mapHeldAcrossPollsAndCard: true,
@@ -1637,6 +1769,7 @@ try {
         sockets,
         resources,
         memory,
+        watch,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },
