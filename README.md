@@ -211,6 +211,17 @@ for each repeat, pooled percentiles, source and binary hashes, and the method.
 
 ## Test results
 
+Run `make check` for the normal checks. The dashboard check includes the pinned
+`777cf3a` parity oracle. It needs no Git history or network after dependencies
+are installed. Run `npm --prefix dashboard run check:controls` to verify that
+incorrect average timing, an early RSS PID filter, and an undefined help link
+are rejected. `npm --prefix dashboard run check:oracle-source` verifies the
+fixture extraction and needs that pinned Git commit locally.
+
+After `make check`, run `node tests/prove_dashboard.mjs` for the real collector
+and Chromium proof. It uses owned fixtures and ports. Set `CHROMIUM` to select
+the browser executable. This script does not record manual package QA passes.
+
 Manual browser QA results are kept in the repository and checked in CI. Each case links to a
 dated run record with its package version, steps, and evidence.
 These results describe the tested versions. Cases marked `NOT_RUN` have no

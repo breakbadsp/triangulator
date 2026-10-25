@@ -8,8 +8,10 @@
   },
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit && eslint . && prettier --check . && vitest run",
-    "format": "prettier --write ."
+    "check": "tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-pure-parity.mjs",
+    "format": "prettier --write .",
+    "check:controls": "node scripts/check-negative-controls.mjs",
+    "check:oracle-source": "node scripts/parity-oracle.mjs --verify-source"
   },
   "dependencies": {
     "react": "19.3.1",
