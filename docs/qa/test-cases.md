@@ -15,7 +15,7 @@
 | QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
 | QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
-| QA-007 | FAILED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Help sweep](runs/20261011T110000Z-ci-5189c47/evidence/qa007-help.json) |
+| QA-007 | NOT_RUN | - | - | - |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
 | QA-009 | NOT_RUN | - | - | - |
 | QA-010 | PASSED | source 93946af | [Run](runs/20261011T095009Z-v0.1.0-retest/index.md) | [Interactive log](runs/20261011T095009Z-v0.1.0-retest/evidence/qa010-drops.json) |
@@ -158,8 +158,9 @@
 
 ## QA-007: Contextual help covers every dashboard section
 
-- Test: With resource and memory data, hover each section, label, legend, chart, limit, zoom fact, and full-width table message for 1.2 seconds. Repeat during refresh and with keyboard focus.
-- Expected: Each item opens specific help. Memory legends use their card's guide. Idle rows explain Active threads; other messages explain their panel.
+- Revision: 2
+- Test: With resource and memory data, hover each section, label, legend, chart, limit, zoom fact, and full-width table message for 1.2 seconds. Repeat during refresh and with keyboard focus. Open the page guide and a metric guide. Follow related topics and All topics. Test Close, Escape, and Back to thread. Repeat at 390, 1199, 1200, and 1440 px, and a short viewport. Toggle Show help on hover, including with blocked storage.
+- Expected: Each item opens specific help. Memory legends use their card's guide. Idle rows explain Active threads; other messages explain their panel. Below 1200 px the guide traps focus and blocks the background. At 1200 px and above it is complementary. Closing restores the opener or the page-guide fallback. Back to thread restores the mounted drawer, selected thread, filters, history interval, and scroll. Context changes dismiss old Help and guides. Hover off preserves keyboard and touch access. Escape cancels pending Help before it can close the drawer.
 
 ## QA-008: Memory zoom legend matches the grid
 
@@ -223,8 +224,9 @@
 
 ## QA-020: Current section tab
 
-- Test: Navigate every section by pointer, keyboard, scrolling, direct URL, reload, Back, and Forward. Repeat in both themes, narrow width, and during layout changes.
-- Expected: Exactly one visible section has the highlight and `aria-current="location"`. Settings is current at the page bottom. Help does not block navigation.
+- Revision: 2
+- Test: Navigate every section by pointer, keyboard, scrolling, direct URL, reload, Back, and Forward. Repeat in both themes, narrow width, and during layout changes, including guide open, close, and resize.
+- Expected: Exactly one visible section has the highlight and `aria-current="location"`. Settings is current at the page bottom. Help does not block navigation. The current tab follows the visible section, including the last section at the bottom. Header offsets follow sticky and narrow layouts. Hash and target query navigation stay correct.
 
 ## QA-021: Dashboard HTTP server animation
 
@@ -368,13 +370,15 @@
 
 ## QA-055: Dashboard appearance and summary layout
 
-- Test: Test healthy and CPU-spin Summary at desktop and 390 pixels, 200% zoom, all themes, keyboard access, replay, blocked storage, unavailable collector, and more than eight findings.
-- Expected: Layout and focus remain readable without page-wide overflow. Theme persists when possible. System follows the OS. Every finding stays accessible; unavailable data is neutral.
+- Revision: 2
+- Test: Test healthy and CPU-spin Summary with long target identities, long finding text, and more than eight findings at 320, 390, 768, 1199, 1200, and 1440 px. Repeat in all themes, a short viewport, and at 200% zoom, including replay, blocked storage, and an unavailable collector. Focus the target selector and Summary controls during polling; open and resize a guide.
+- Expected: Assessment stays readable. Theme persists when possible. System follows the OS. Every finding stays accessible; unavailable data is neutral. The page has no horizontal overflow. Text wraps without clipping controls or focus indicators. Tables may scroll inside their own containers. Polls preserve focus and pointer clicks. The guide fits the viewport without hiding its Close control.
 
 ## QA-056: Help names the source of each value
 
-- Test: Hover CPU, run delay, and state; open guides for PSI, descriptors, queues, network, memory, and exit status. Run two source commands. Check controls, dark theme, and narrow width.
-- Expected: Measured values identify source, field, reader, interval, and calculation. Commands agree with the metric. Controls need no measurement source. Paths wrap readably.
+- Revision: 2
+- Test: Hover CPU, run delay, and state; open guides for PSI, descriptors, queues, network, memory, and exit status. Run two source commands. Expand View chart data, including a missing value; keep it open during polling, then close it. Check controls, dark theme, and narrow width.
+- Expected: Each measured value names its source, field, reader, calculation, scope, unit, interval, and limits. Commands agree with the metric. Controls need no measurement source. Paths wrap readably. File names and commands are formatted as code. Chart rows match the displayed observation when the guide opened and stay fixed with their chart. Missing data is distinct from zero. Closing releases the chart to current data.
 
 ## QA-057: Network counter column names
 
@@ -403,13 +407,15 @@
 
 ## QA-062: Manage local targets
 
-- Test: On the Targets overview, use Add target and Remove on tiles to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target. Open help from the dialog at a width below 1,200 px. Check a remote dashboard and a stopped sampler.
-- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove is disabled on the last target and absent on remote hosts. Help works inside the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
+- Revision: 2
+- Test: On the Targets overview, use Add target and Remove on tiles to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target. Open a metric guide from the dialog below 1200 px, use related topics and Escape, then complete Add target. Check a remote dashboard and a stopped sampler.
+- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove is disabled on the last target and absent on remote hosts. The guide remains inside the native dialog; its dialog ancestor stays usable. Escape closes the guide before the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
 
 ## QA-063: Target access and sampler budget badges
 
-- Test: Observe limited-access and throttled targets. Compare badge CPU, effective rate, and budget with the API. Make an unselected target absent/silent; switch selection. Check help by keyboard in both themes.
-- Expected: Badges distinguish access limits and shared sampler budget. Attention counts exclude the selected target. Scope remains clear and help does not change selection.
+- Revision: 2
+- Test: Observe limited-access and throttled targets. Compare badge CPU, effective rate, and budget with the API. Make an unselected target absent or silent; switch selection. Reduce the list to one selected target, then request an unavailable target. Repeat polls with selector focus. Check help by keyboard in both themes.
+- Expected: Badges distinguish access limits and the shared sampler budget. Attention counts exclude the selected target. A single selected target shows its host and ID. An unavailable selection keeps its selector across polls. Scope remains clear and help does not change selection.
 
 ## QA-064: Per-target watch settings and recordings
 
@@ -498,8 +504,9 @@
 
 ## QA-081: Past assessments show resident memory growth
 
-- Test: Record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods.
-- Expected: The leak has a Memory row and timeline mark. Recorded assessment and RSS growth agree. The row persists in earlier periods, allowing less exact times.
+- Revision: 2
+- Test: Record mem-leak for at least three minutes, then stop growth or exit. Open the dashboard later; filter past assessments to Memory, select the growth row, and load earlier periods. Then use an owned recording/resource fixture with continuous PID 7 growth as a control, and a second stream with an unavailable RSS row from PID 8 between two PID 7 runs. Select each recording directly. Include a row newer than the recording.
+- Expected: Continuous growth has a Memory finding and a past row/mark. The row persists in earlier periods, allowing less exact times. The intervening unavailable PID boundary stops the RSS run and produces no false growth across processes. The displayed recorded Assessment agrees with the scan. Future rows do not affect it. Resource charts and range counts include only the displayed PID.
 
 ## QA-082: Targets overview lists every target
 

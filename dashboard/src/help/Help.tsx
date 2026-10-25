@@ -12,12 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { createHelpTimer } from "./createHelpTimer";
-import {
-  helpTopics,
-  isHelpTopicId,
-  type HelpTopic,
-  type HelpTopicId,
-} from "./topics";
+import { helpTopics, type HelpTopic, type HelpTopicId } from "./topics";
+import { GuideContext } from "./guideContext";
 import { date } from "../lib/format";
 import "./help.css";
 
@@ -33,11 +29,20 @@ export interface Readout {
   point: { x: number; y: number };
 }
 
-function hoverHelpEnabled() {
+let hoverFallback = true;
+export function hoverHelpEnabled() {
   try {
     return localStorage.getItem("triangulator:hover-help") !== "off";
   } catch {
-    return true;
+    return hoverFallback;
+  }
+}
+export function setHoverHelp(enabled: boolean) {
+  hoverFallback = enabled;
+  try {
+    localStorage.setItem("triangulator:hover-help", enabled ? "on" : "off");
+  } catch {
+    /* The preference still holds in this page. */
   }
 }
 
@@ -47,6 +52,9 @@ export const HelpEnabled = createContext(true);
 export const HelpPortalTarget = createContext<HTMLElement | null>(null);
 
 const helpTimers = new Set<{ cancel: (block?: boolean) => void }>();
+export function cancelHelp() {
+  for (const timer of helpTimers) timer.cancel(true);
+}
 
 export function Help({
   topic,
@@ -65,9 +73,17 @@ export function Help({
 }) {
   const { key: observation, recorded } = useContext(ObservationContext);
   const [seen, setSeen] = useState(observation);
-  const active = useContext(HelpEnabled);
+  const guide = useContext(GuideContext);
+  const active = useContext(HelpEnabled) && !guide?.request;
+  const dismissOwner = guide?.dismissOwner;
   const portalTarget = useContext(HelpPortalTarget);
   const anchor = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const owner = anchor.current;
+    return () => {
+      if (owner) dismissOwner?.(owner);
+    };
+  }, [observation, dismissOwner]);
   const card = useRef<HTMLElement>(null);
   const pointerFocus = useRef(false);
   const id = useId();
@@ -108,7 +124,7 @@ export function Help({
     function escape(event: KeyboardEvent) {
       if (event.key === "Escape" && timer.active) {
         // A pending hover can receive Escape before another card's listener.
-        for (const helpTimer of helpTimers) helpTimer.cancel(true);
+        cancelHelp();
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -213,7 +229,7 @@ export function Help({
       onFocus={() => {
         // A card opened during pointer focus can cover the control before
         // pointerup and swallow its click. Click opens help after the action.
-        if (!pointerFocus.current) showHelp(true);
+        if (!pointerFocus.current && !guide?.restoring.current) showHelp(true);
         pointerFocus.current = false;
       }}
       onBlur={(event) => {
@@ -302,14 +318,32 @@ export function Help({
                 {content.sourceDetail}
               </p>
             )}
-            {content.related.filter(isHelpTopicId).length > 0 && (
+            {guide && (
+              <button
+                type="button"
+                className="help-open-guide"
+                onClick={() => {
+                  if (anchor.current)
+                    guide.open(
+                      shown ?? topic,
+                      anchor.current,
+                      portalTarget,
+                      shownReadout ?? undefined,
+                    );
+                }}
+              >
+                Open metric guide
+              </button>
+            )}
+            {content.related.length > 0 && (
               <nav aria-label="Related help">
-                {content.related.filter(isHelpTopicId).map((related) => (
+                {content.related.map((related) => (
                   <a
                     key={related}
                     href={`#help-${related}`}
                     onClick={(event) => {
                       event.preventDefault();
+                      setShownReadout(null);
                       setShown(related);
                     }}
                   >

@@ -1,8 +1,8 @@
+import { GuideContext } from "../help/guideContext";
 import { ObservationContext } from "./observationContext";
 import {
   useContext,
   useEffect,
-  useRef,
   useState,
   type FocusEvent,
   type MouseEvent,
@@ -14,14 +14,15 @@ import {
  * of it.
  */
 export function useHolding() {
-  const surface = useRef<HTMLElement>(null);
+  const guide = useContext(GuideContext);
+  const [surface, setSurface] = useState<HTMLElement | null>(null);
   const [pointer, setPointer] = useState(false);
   // Removing a portal under the pointer (Escape or Close help) can omit
   // mouseleave. The next move must release the snapshot outside its owner.
   useEffect(() => {
     if (!pointer) return;
     function move(event: globalThis.MouseEvent) {
-      const panel = surface.current;
+      const panel = surface;
       const target = event.target;
       if (!panel || !(target instanceof Element) || panel.contains(target))
         return;
@@ -39,19 +40,23 @@ export function useHolding() {
     return () => {
       document.removeEventListener("mousemove", move);
     };
-  }, [pointer]);
+  }, [pointer, surface]);
   const [focus, setFocus] = useState(false);
   return {
-    holding: pointer || focus,
+    holding:
+      pointer ||
+      focus ||
+      !!(surface && guide?.request?.ancestors.includes(surface)),
     handlers: {
       onMouseEnter: (event: MouseEvent<HTMLElement>) => {
-        surface.current = event.currentTarget;
+        setSurface(event.currentTarget);
         setPointer(true);
       },
       onMouseLeave: () => {
         setPointer(false);
       },
-      onFocus: () => {
+      onFocus: (event: FocusEvent<HTMLElement>) => {
+        setSurface(event.currentTarget);
         setFocus(true);
       },
       onBlur: (event: FocusEvent) => {

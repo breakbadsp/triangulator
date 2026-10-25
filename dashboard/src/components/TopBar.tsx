@@ -1,5 +1,5 @@
 import type { ViewMode } from "../lib/assess";
-import { date } from "../lib/format";
+import { date, num } from "../lib/format";
 import { useEffect, useState } from "react";
 import type { LiveResponse, Target } from "../api/types";
 import { markDeparture } from "../api/viewStorage";
@@ -33,7 +33,6 @@ export function TopBar({
   mode?: ViewMode;
   now?: number;
   onLive?: () => void;
-  /** The user chose another target: drop these targets' caches on unload. */
 }) {
   const [theme, setTheme] = useState<Theme>(readTheme);
   useEffect(() => {
@@ -56,6 +55,16 @@ export function TopBar({
           ? (ordered.find((target) => target.id === "default") ?? ordered[0])
           : undefined))
       : undefined;
+  const unavailable = page.kind === "target" && !!page.key && !chosen;
+  const hidePicker =
+    page.kind === "target" && ordered.length <= 1 && !unavailable;
+  const attention = ordered.filter(
+    (target) =>
+      target.key !== chosen?.key &&
+      (target.status === "absent" ||
+        target.status === "silent" ||
+        target.throttled),
+  ).length;
   const health = live?.health;
   const state =
     mode.kind === "recorded"
@@ -109,6 +118,7 @@ export function TopBar({
         <Help topic="target-switch" className="target-choice">
           <select
             id="target-select"
+            hidden={hidePicker}
             aria-label="Selected monitoring target"
             value={page.kind === "fleet" ? "" : (chosen?.key ?? page.key)}
             onChange={(event) => {
@@ -128,10 +138,46 @@ export function TopBar({
                   : ""}
                 {target.pid ? ` · PID ${String(target.pid)}` : ""} ·{" "}
                 {target.status}
+                {target.access === "limited" ? " · Limited access" : ""}
+                {target.throttled ? " · Sampler throttled" : ""}
               </option>
             ))}
           </select>
+          <span id="target-key" hidden={!hidePicker}>
+            {chosen
+              ? `${chosen.host} · ${chosen.id}`
+              : page.kind === "target"
+                ? page.key
+                : ""}
+          </span>
         </Help>
+        {page.kind === "target" && attention > 0 && (
+          <Help topic="target-attention">
+            <span id="target-attention" className="target-badge">
+              {attention} other target{attention === 1 ? " needs" : "s need"}{" "}
+              attention
+            </span>
+          </Help>
+        )}
+        {page.kind === "target" && chosen?.access === "limited" && (
+          <Help topic="target-access">
+            <span id="target-access" className="target-badge">
+              Limited access
+            </span>
+          </Help>
+        )}
+        {page.kind === "target" && chosen?.throttled && (
+          <Help topic="sampler-budget">
+            <span id="target-budget" className="target-badge">
+              Sampler throttled ·{" "}
+              <span id="target-budget-value">
+                {num(chosen.effective_rate_hz, 2)} Hz
+              </span>{" "}
+              · CPU {num(chosen.sampler_cpu_pct, 2)}% of one core; budget{" "}
+              {num(chosen.cpu_budget_pct, 2)}%
+            </span>
+          </Help>
+        )}
         {page.kind === "target" && (
           <>
             <Help topic="health">

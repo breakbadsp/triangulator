@@ -10,6 +10,11 @@ export interface Target {
   pid: number;
   status: "live" | "silent" | "absent";
   process: { command: string } | null;
+  access?: "full" | "limited";
+  throttled?: boolean;
+  effective_rate_hz?: number | null;
+  sampler_cpu_pct?: number | null;
+  cpu_budget_pct?: number | null;
 }
 
 export interface LiveResponse {

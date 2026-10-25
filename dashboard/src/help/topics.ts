@@ -5,13 +5,75 @@ export interface HelpTopic {
   example: string;
   reading: string;
   limits: string;
-  related: readonly string[];
+  related: readonly HelpTopicId[];
   aliases: readonly string[];
   source: string;
   sourceDetail: string;
 }
 
-export const helpTopics = {
+const topics = {
+  page: {
+    title: "How to read this page",
+    scope: "Dashboard guide",
+    meaning:
+      "Read the scope, unit, time interval, and data status before interpreting a metric.",
+    example: "",
+    reading:
+      "Read Assessment first, then the key measurements and charts. Open Timeline below the charts to inspect recordings. Use Theme in the header to select System, Light, or Dark. Pause over a label or value for 1.2 seconds. Open metric help, then select Open metric guide for an example, measurement limits, chart data, and related topics. Use Open page guide for every topic. Show help on hover controls pointer help; keyboard and touch help remain available. Select a ▸ heading to open or close its panel. The page remembers that choice in this browser. Monitor health, Address space & zoom, and Network stack drops open by themselves when the Assessment has a warning of their kind, until you choose.",
+    limits:
+      "A single metric does not establish a cause. Missing data is not zero.",
+    related: ["cpu", "pressure", "health"],
+    aliases: [],
+    source: "`/proc` and `/sys/fs/cgroup` → sampler → collector → this page",
+    sourceDetail:
+      "The sampler runs on the target host as the target user. It reads `/proc` and `/sys/fs/cgroup` files and sends the raw counters over UDP. The collector turns counters into rates, stores history, and serves this page through `/api/…` endpoints. This page computes load, assessments, and findings. The optional eBPF observer adds socket bytes and messages. The Source section of each topic names its file.",
+  },
+  "target-attention": {
+    title: "Other targets need attention",
+    scope: "Targets outside this view",
+    meaning: "Count of other targets that are absent, silent, or throttled.",
+    example: "A count of 2 means two other targets need inspection.",
+    reading: "Open the target selector and inspect their status.",
+    limits: "This count does not identify the cause.",
+    related: ["target-switch", "health", "sampler-budget"],
+    aliases: [],
+    source: "Collector target status and sampler rate",
+    sourceDetail:
+      "The page counts absent, silent, and throttled entries from `/api/targets`, excluding the selected target.",
+  },
+  "target-access": {
+    title: "Limited access",
+    scope: "Selected target",
+    meaning: "The sampler cannot read all process files.",
+    example:
+      "CPU and thread states can remain available while I/O and memory maps are hidden.",
+    reading:
+      "Run the sampler as the target user for full access when process permissions permit it.",
+    limits:
+      "Access can also be limited for a process that disables inspection.",
+    related: ["wchan", "memmap"],
+    aliases: [],
+    source: "Sampler access checks for `/proc/PID/io` and `/proc/PID/maps`",
+    sourceDetail:
+      "The sampler reports limited access when these files cannot be opened. Permission changes are checked with each announcement.",
+  },
+  "sampler-budget": {
+    title: "Sampler throttled",
+    scope: "Sampler host · all targets",
+    meaning:
+      "The sampler reduced its shared rate because its CPU use exceeded the configured budget.",
+    example:
+      "A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.",
+    reading:
+      "The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.",
+    limits:
+      "The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.",
+    related: ["health", "target-switch"],
+    aliases: [],
+    source: "`CLOCK_THREAD_CPUTIME_ID` and monotonic elapsed time",
+    sourceDetail:
+      "The sampler measures CPU time for all targets and sends raw counters in TTGT. The collector computes the percentage. The sampler lowers the rate after about five seconds above its budget.",
+  },
   assesshistory: {
     title: "Past assessments",
     scope: "Recordings · checked period",
@@ -2413,9 +2475,11 @@ export const helpTopics = {
     sourceDetail:
       "With each memory sample (every 30 s by default), the sampler reads fields 10 and 12 of `/proc/PID/stat`: the minor and major faults of the whole process since it started, including threads that have ended. Check it yourself: `ps -o min_flt,maj_flt -p PID`.",
   },
-} as const satisfies Record<string, HelpTopic>;
+} as const;
 
-export type HelpTopicId = keyof typeof helpTopics;
+export type HelpTopicId = keyof typeof topics;
+export const helpTopics: Readonly<Record<HelpTopicId, HelpTopic>> = topics;
+export const helpTopicIds = Object.keys(topics) as HelpTopicId[];
 
 export function isHelpTopicId(value: string): value is HelpTopicId {
   return Object.hasOwn(helpTopics, value);
