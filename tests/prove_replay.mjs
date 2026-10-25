@@ -1170,6 +1170,11 @@ for path in root.glob('*.sqlite3'):
       assert.deepEqual(result.titles, boundary ? [] : ["Resident memory grows without a plateau"]);
       assert.equal(result.count, boundary ? "0 findings" : "1 finding");
       assert.equal(result.marks, boundary ? 0 : 1);
+      await click("#replay-previous");
+      await mode("Historical");
+      await until(() => evaluate("[...document.querySelectorAll('#resource-tiles .tile')].some(tile => tile.querySelector('.label')?.textContent === 'Memory (RSS)' && tile.querySelector('polyline')?.getAttribute('points').split(' ').length === 24)"), "recorded resource history has all 24 current-PID samples");
+      result.displayedFindings = await text("findings");
+      assert.equal(result.displayedFindings.includes("Resident memory grows without a plateau"), !boundary);
       pastAssessments.pidBoundary.push(result);
     }
     const evidence = {

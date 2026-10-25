@@ -61,7 +61,7 @@ test.each(["/", "/?target=host%2Fworker"])(
       );
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<App />);
-    await screen.findByRole("option", { name: /host · worker/ });
+    await screen.findByRole("option", { name: /host · worker/, hidden: true });
     if (url.includes("target")) {
       await screen.findByText("worker", topBar);
       expect(screen.getByText("PID 42 · Live")).toBeDefined();
@@ -116,7 +116,7 @@ test("restores and saves the theme under the existing key", async () => {
   fireEvent.change(theme, { target: { value: "auto" } });
   expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   expect(localStorage.getItem("triangulator:theme")).toBe("auto");
-  await screen.findByRole("option", { name: /host · worker/ });
+  await screen.findByRole("option", { name: /host · worker/, hidden: true });
 });
 
 test("reports poll failures and keeps the last target name", async () => {
@@ -161,7 +161,7 @@ test("uses a safe default when stored theme data is invalid", async () => {
     screen.getByRole<HTMLSelectElement>("combobox", { name: "Color theme" })
       .value,
   ).toBe("auto");
-  await screen.findByRole("option", { name: /host · worker/ });
+  await screen.findByRole("option", { name: /host · worker/, hidden: true });
 });
 
 // The served page computes the Summary in the browser from /api/live.
@@ -769,7 +769,7 @@ test.each(["startup", "settings", "lost field"])(
 // A navigation can end without an unload: a Ctrl-click, an unsaved Settings
 // draft that the user keeps ("Stay"), or a page that returns from the
 // back/forward cache. The page must stay live and keep its trends.
-function stubLiveTarget() {
+function stubLiveTarget(targetList = targets) {
   history.replaceState(null, "", "/?target=host%2Fworker");
   vi.stubGlobal(
     "fetch",
@@ -779,15 +779,15 @@ function stubLiveTarget() {
         Promise.resolve(
           Response.json(
             typeof input === "string" && input.startsWith("/api/targets")
-              ? targets
+              ? targetList
               : { ...live, health: { ...live.health, session: "s1" } },
           ),
         ),
       ),
   );
 }
-async function renderLiveTarget() {
-  stubLiveTarget();
+async function renderLiveTarget(targetList = targets) {
+  stubLiveTarget(targetList);
   render(<App />);
   await waitFor(() => {
     expect(document.title).toContain(" · Thread monitor");
@@ -807,7 +807,19 @@ test("a cancelled navigation to the overview leaves the page live and editable",
 });
 
 test("a cancelled target switch leaves the page live and keeps its caches", async () => {
-  await renderLiveTarget();
+  await renderLiveTarget({
+    targets: [
+      ...targets.targets,
+      {
+        key: "host-b/billing",
+        host: "host-b",
+        id: "billing",
+        pid: 43,
+        status: "live",
+        process: null,
+      },
+    ],
+  });
   sessionStorage.setItem("triangulator:buffer:host/worker", "kept");
   const assign = vi.fn();
   vi.stubGlobal("location", {
@@ -819,9 +831,6 @@ test("a cancelled target switch leaves the page live and keeps its caches", asyn
   const select = screen.getByRole("combobox", {
     name: "Selected monitoring target",
   });
-  const option = document.createElement("option");
-  option.value = "host-b/billing";
-  select.append(option);
   fireEvent.change(select, { target: { value: "host-b/billing" } });
   expect(assign).toHaveBeenCalled();
   expect(document.getElementById("watch-recorded-readonly")).toBeNull();
@@ -845,4 +854,50 @@ test("leaving for the overview saves the trends this tab collected", async () =>
   ) as { session: string } | null;
   expect(saved?.session).toBe("s1");
   sessionStorage.clear();
+});
+
+test("the page guide exposes all metric topics and restores its opener", async () => {
+  await renderLiveTarget();
+  fireEvent.click(screen.getByText("How to read this page"));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const opener = screen.getByRole("button", { name: "Open page guide" });
+  fireEvent.click(opener);
+  const guide = screen.getByRole("dialog", { name: "How to read this page" });
+  expect(guide.querySelectorAll(".help-topics button").length).toBeGreaterThan(
+    140,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Close metric guide" }));
+  expect(document.activeElement).toBe(opener);
+});
+
+// Pinned 1939, 1969, 1977 and 1997 now inspect React's rendered elements.
+test("all headings, columns, disclosures and table messages have explicit help", async () => {
+  await renderLiveTarget();
+  const topic = (element: Element) => {
+    const owner =
+      element.closest<HTMLElement>("[data-help]") ??
+      element.querySelector<HTMLElement>("[data-help]");
+    return owner?.dataset.help;
+  };
+  const labels = [...document.querySelectorAll("h2, h3, th, summary, dt")];
+  expect(labels.length).toBeGreaterThan(20);
+  for (const label of labels)
+    expect(Object.hasOwn(helpTopics, topic(label) ?? ""), label.outerHTML).toBe(
+      true,
+    );
+  for (const table of document.querySelectorAll("main table")) {
+    const card = table.closest(".card, section");
+    const heading = card?.querySelector("h2, h3");
+    expect(
+      heading && Object.hasOwn(helpTopics, topic(heading) ?? ""),
+      table.id,
+    ).toBe(true);
+  }
+  for (const message of document.querySelectorAll("td[colspan]")) {
+    const heading = message.closest(".card, section")?.querySelector("h2, h3");
+    expect(
+      topic(message) ?? (heading && topic(heading)),
+      message.outerHTML,
+    ).toBeDefined();
+  }
 });

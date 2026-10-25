@@ -193,6 +193,16 @@ details[open] > .exit-summary #exit-brief {
   overflow-wrap: anywhere;
 }
 @media (max-width: 640px) {
+  .assessment-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .assessment-body {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
