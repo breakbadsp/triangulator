@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { getJson, ApiError } from "../api/client";
-import { clearViewCaches } from "../api/viewStorage";
+import { settleArrival } from "../api/viewStorage";
 import {
   parseBounds,
   parseFrozen,
@@ -106,10 +106,11 @@ export function useObservation(
   latest: { view: LiveResponse; now: number } | undefined,
   range: number,
 ) {
-  // Targets whose caches the page drops when it unloads. A click only states
-  // an intent: the navigation can still end without an unload.
-  const departing = useRef<readonly string[] | null>(null);
-  const [state, setState] = useState(() => initialObservations(target));
+  const [state, setState] = useState(() => {
+    // Before any cache read: a switch from another target clears them here.
+    settleArrival(target);
+    return initialObservations(target);
+  });
   const [restoredOnce, setRestoredOnce] = useState(false);
   let next = state;
   if (
@@ -365,18 +366,11 @@ export function useObservation(
   useEffect(() => {
     const hide = () => {
       const held = current.current;
-      if (departing.current) departing.current.forEach(clearViewCaches);
-      else if (!held.recorded) save(target, held.final ?? held.live);
-    };
-    // A page restored from the back/forward cache did not leave after all.
-    const show = () => {
-      departing.current = null;
+      if (!held.recorded) save(target, held.final ?? held.live);
     };
     addEventListener("pagehide", hide);
-    addEventListener("pageshow", show);
     return () => {
       removeEventListener("pagehide", hide);
-      removeEventListener("pageshow", show);
     };
   }, [target]);
   function invalidate() {
@@ -496,11 +490,7 @@ export function useObservation(
         : previous,
     );
   }, []);
-  function depart(forget: readonly string[]) {
-    departing.current = forget;
-  }
   return {
-    depart,
     observation: shown,
     state: next,
     mode,

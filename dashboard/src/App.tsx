@@ -133,7 +133,6 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           targets={targets.data?.targets ?? []}
           live={view}
           mode={mode}
-          onDepart={display.depart}
           now={now}
           onLive={() => {
             closeThread();
