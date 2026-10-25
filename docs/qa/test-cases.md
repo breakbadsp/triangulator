@@ -9,8 +9,8 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
-| QA-002 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [API targets](runs/20261020T191300Z-source-384352f-multi-target/evidence/qa001-002-api-targets.txt) |
+| QA-001 | PASSED | qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5 | [Run](runs/20261025T230931Z-qa-react-923ba96/index.md) | [Evidence](runs/20261025T230931Z-qa-react-923ba96/evidence/observations.json) |
+| QA-002 | FAILED | qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5 | [Run](runs/20261025T230931Z-qa-react-923ba96/index.md) | [Evidence](runs/20261025T230931Z-qa-react-923ba96/evidence/qa002-blocked-submit.png) |
 | QA-003 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
 | QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
 | QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
