@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse } from "../api/types";
-import { clearViewCaches } from "../api/viewStorage";
 import { useObservation } from "./useObservation";
 function useSeries(target: string, view: LiveResponse) {
   return useObservation(target, { view, now: view.health.last_seen ?? 0 }, 900)
@@ -81,73 +80,27 @@ test("a reload restores points and thread observations of the same session", () 
   expect(other.result.current?.points).toHaveLength(1);
 });
 
-test("target navigation aborts pending work and pagehide does not restore cleared caches", async () => {
-  const pending: {
-    path: string;
-    signal?: AbortSignal | null;
-    deliver: (value: unknown) => void;
-  }[] = [];
-  const requests: string[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((path: string, init?: RequestInit) => {
-      requests.push(path);
-      if (path === "/api/replay")
-        return Promise.resolve(
-          Response.json({ first: 1, last: 2, interval_s: 1 }),
-        );
-      return new Promise<Response>((resolve) => {
-        pending.push({
-          path,
-          signal: init?.signal,
-          deliver: (value) => {
-            resolve(Response.json(value));
-          },
-        });
-      });
-    }),
-  );
-  vi.useFakeTimers();
-  const first: LiveResponse = {
-    ...live(10),
-    memory: { available: true, pid: 1, layout_id: "s:1" },
-  };
+test("a target switch drops the caches at unload and a restored page keeps saving", () => {
   const { result, rerender } = renderHook(
-    ({ view }) =>
+    ({ view }: { view: LiveResponse }) =>
       useObservation("h/w", { view, now: view.health.last_seen ?? 0 }, 900),
-    { initialProps: { view: first } },
+    { initialProps: { view: live(1) } },
   );
-  await act(async () => {
-    await Promise.resolve();
-  });
-  let selection: Promise<boolean> | undefined;
+  rerender({ view: live(2) });
   act(() => {
-    selection = result.current.inspect(2);
+    result.current.depart(["h/w", "h/other"]);
   });
-  const expected = result.current.observation?.key;
+  // The user chose "Stay": the page still ingests live replies.
+  rerender({ view: live(3) });
+  expect(result.current.observation?.series.points).toHaveLength(3);
+  // The back/forward cache restored the page: the intent is void.
+  dispatchEvent(new Event("pageshow"));
+  dispatchEvent(new Event("pagehide"));
+  expect(entry("triangulator:buffer")?.points).toHaveLength(3);
   act(() => {
-    result.current.leave();
-    clearViewCaches("h/w");
-    dispatchEvent(new Event("pagehide"));
+    result.current.depart(["h/w", "h/other"]);
   });
-  expect(pending.length).toBeGreaterThan(2);
-  expect(pending.every((request) => request.signal?.aborted)).toBe(true);
-  await act(async () => {
-    for (const request of pending)
-      request.deliver(
-        request.path.startsWith("/api/replay?")
-          ? { first: 1, last: 2, snapshot: { ...live(2), recorded_at: 2 } }
-          : { rows: [], available: true, id: "s:1", pid: 1, regions: [] },
-      );
-    await selection;
-  });
-  rerender({ view: { ...first, ...live(11) } });
-  expect(result.current.observation?.key).toBe(expected);
-  expect(result.current.observation?.view.threads[0]?.last_sample).toBe(10);
+  dispatchEvent(new Event("pagehide"));
   expect(entry("triangulator:buffer")).toBeNull();
   expect(entry("triangulator:threads")).toBeNull();
-  expect(sessionStorage.getItem("triangulator:frozen:h/w")).toBeNull();
-  const count = requests.length;
-  await act(() => vi.advanceTimersByTimeAsync(30000));
-  expect(requests).toHaveLength(count);
 });

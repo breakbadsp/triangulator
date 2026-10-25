@@ -490,9 +490,15 @@ test("final view restores compatible layout and trends without replacement reads
   current = { ...absent(), exit: { ...exit, pid: 77 } };
   await tick();
   expect(document.getElementById("process-exit")).toBeNull();
+  expect(byId("exited-text").textContent).toContain(
+    "it exited or is no longer the target",
+  );
   current = { ...absent(), exit };
   await tick();
   expect(byId("process-exit").textContent).toContain("Segmentation fault");
+  expect(byId("exited-text").textContent).toContain(
+    "it ended (Segmentation fault)",
+  );
   current = { ...absent(), exit: { ...exit, session: "unrelated" } };
   await tick();
   app.unmount();

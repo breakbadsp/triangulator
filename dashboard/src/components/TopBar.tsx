@@ -5,7 +5,6 @@ import type { LiveResponse, Target } from "../api/types";
 import { Help } from "../help/Help";
 import type { Page } from "../page";
 
-import { clearViewCaches } from "../api/viewStorage";
 import { backHref } from "../lib/fleet";
 import { viewTargetName } from "../lib/target";
 
@@ -26,7 +25,7 @@ export function TopBar({
   mode = { kind: "live" },
   now = 0,
   onLive,
-  onNavigate,
+  onDepart,
 }: {
   page: Page;
   targets: readonly Target[];
@@ -34,7 +33,8 @@ export function TopBar({
   mode?: ViewMode;
   now?: number;
   onLive?: () => void;
-  onNavigate?: () => void;
+  /** The user chose another target: drop these targets' caches on unload. */
+  onDepart?: (forget: readonly string[]) => void;
 }) {
   const [theme, setTheme] = useState<Theme>(readTheme);
   useEffect(() => {
@@ -82,10 +82,9 @@ export function TopBar({
   }, [page.kind, health?.pid, targetName]);
 
   function navigate(key: string) {
-    onNavigate?.();
     // The destination starts fresh: its saved view may be from another visit.
     if (key && page.kind === "target" && key !== page.key)
-      for (const target of [page.key, key]) clearViewCaches(target);
+      onDepart?.([page.key, key]);
     const query = new URLSearchParams(location.search);
     if (key) query.set("target", key);
     else query.delete("target");
@@ -99,7 +98,6 @@ export function TopBar({
       {page.kind === "target" && (
         <Help topic="fleet">
           <a
-            onClick={onNavigate}
             id="fleet-back"
             className="fleet-back"
             href={backHref(location.search)}
