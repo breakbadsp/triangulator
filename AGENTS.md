@@ -54,6 +54,16 @@ See [Multi-target design](docs/multi-target-design.md).
   `$HOME/ai/conventions/cpp.md`. Run `make format` after C++ changes.
 - Each commit must build and pass `make check`.
 
+## Frontend skills
+
+Read these project-local skills when the requested work needs them:
+
+- `.agents/skills/typescript-best-practices/SKILL.md`: reading or editing TypeScript and TSX.
+- `.agents/skills/architect/SKILL.md`: substantial frontend design or redesign.
+- `.agents/skills/visual-parity/SKILL.md`: preserving the interface during migration.
+
+These skills are manual-only. Repository rules govern checks and delivery.
+
 ## Dashboard help
 
 - Every user-visible dashboard section, card, chart, label, column, legend, and
