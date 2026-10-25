@@ -12,6 +12,7 @@ import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
 import { FleetPage } from "./components/FleetPage";
 import { MemoryMap } from "./components/MemoryMap";
+import { Monitor } from "./components/Monitor";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Resources, type ResourceRange } from "./components/Resources";
 import { SocketIO } from "./components/SocketIO";
@@ -169,6 +170,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           resourcePoints={resourcePoints}
           scope={pressureScope}
         />
+        <Monitor view={view} now={live.data?.now ?? 0} context={context} />
       </main>
       <ThreadDrawer
         view={view}
