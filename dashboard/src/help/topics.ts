@@ -151,6 +151,83 @@ export const helpTopics = {
     sourceDetail:
       "The collector counts the UDP datagrams it receives from the sampler: when the last one arrived, their session, sequence gaps, and rejected packets. It serves the result in `/api/live`. Nothing here is read from the target process.",
   },
+  interval: {
+    title: "Sample interval",
+    scope: "Sampler · milliseconds",
+    meaning: "The configured time between thread samples.",
+    example: "200 ms corresponds to five samples per second.",
+    reading:
+      "Resource samples and the optional socket observer have separate reporting intervals.",
+    limits:
+      "Short events between samples can be missed. A shorter interval increases sampling overhead.",
+    related: ["health", "history"],
+    aliases: [],
+    source: "`rate_hz` in sampler.toml",
+    sourceDetail:
+      "The sampler sends its interval in every datagram. It comes from `rate_hz` in sampler.toml, which `scripts/set-rate.sh` changes (0.2–10 Hz, 5 Hz by default).",
+  },
+  loss: {
+    title: "Packet loss (1 min)",
+    scope: "Sampler link · preceding minute",
+    meaning:
+      "The reported share of missing sampler packets in the last minute.",
+    example: "",
+    reading:
+      "Compare loss with sample age and incomplete data before drawing conclusions.",
+    limits:
+      "Packet loss in the monitor is different from application network drops.",
+    related: ["health", "netdrops"],
+    aliases: [],
+    source: "Collector: gaps in the numbered sampler datagrams",
+    sourceDetail:
+      "The sampler numbers each sample and the datagrams it is split into. Over the last minute, the collector counts the datagrams that never arrived, including whole skipped samples, and divides by the number expected.",
+  },
+  session: {
+    title: "Session",
+    scope: "Sampler session",
+    meaning:
+      "A session separates one sampler run or sampling configuration from another.",
+    example: "",
+    reading:
+      "Use the session and thread generation when comparing observations across restarts.",
+    limits:
+      "A new session does not necessarily mean that the target process restarted.",
+    related: ["thread", "health"],
+    aliases: [],
+    source: "Random ID chosen by the sampler",
+    sourceDetail:
+      "The sampler picks a random session ID when it starts, reloads its configuration, or finds a new target process, and puts it in every datagram. The collector stores history under that ID.",
+  },
+  packetcounts: {
+    title: "Bad · duplicate · late",
+    scope: "Sampler packets · counters",
+    meaning:
+      "Packets rejected as invalid, received more than once, or received too late for normal assembly.",
+    example: "",
+    reading: "Compare these counters with loss and sample age.",
+    limits:
+      "These are monitor transport counters, not application socket errors.",
+    related: ["loss", "health"],
+    aliases: [],
+    source: "Collector packet counters",
+    sourceDetail:
+      "The collector counts datagrams it could not decode (bad), received twice (duplicate), or that arrived after their sample was assembled (late).",
+  },
+  rawsamples: {
+    title: "Raw samples held",
+    scope: "Collector · observation count",
+    meaning:
+      "The number of raw thread observations retained in the collector buffer.",
+    example: "",
+    reading:
+      "Use this count when checking collector retention and buffer behavior.",
+    limits: "This is not a count of active threads or stored history buckets.",
+    related: ["health", "history"],
+    aliases: [],
+    source: "Collector memory",
+    sourceDetail:
+      "The number of raw thread samples in the in-memory buffer of the collector, from `/api/live`.",
+  },
   fleet: {
     title: "Targets overview",
     scope: "Every target of this collector · latest live view",

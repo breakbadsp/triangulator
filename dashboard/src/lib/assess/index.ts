@@ -5,7 +5,7 @@ import type {
   MemoryLayout,
   Thread,
 } from "../../api/types";
-import type { Finding, Level, FindingType } from "../findings";
+import type { Finding, Level } from "../findings";
 import { LEVEL_ORDER } from "../findings";
 import { isNum, num, pct, ago, clock, duration } from "../format";
 import {
@@ -216,19 +216,16 @@ export function threadGrowth(
   return best;
 }
 
-export function assess(input: AssessInput) {
-  const { view: live, mode, now, series, watchRules } = input,
-    threads = live.threads,
-    points = series.points;
+/** The sampler link and target presence findings (type "monitor"). */
+export function monitorFindings({
+  view: live,
+  mode,
+  now,
+}: Pick<AssessInput, "view" | "mode" | "now">) {
   const health = live.health,
     findings: Finding[] = [];
-  let type: FindingType = "monitor";
-  const add = (
-    level: Level,
-    title: string,
-    detail: string,
-    action?: Finding["action"],
-  ) => findings.push({ type, level, title, detail, action });
+  const add = (level: Level, title: string, detail: string) =>
+    findings.push({ type: "monitor", level, title, detail });
   if (health.sampler_silent)
     add(
       "critical",
@@ -259,7 +256,21 @@ export function assess(input: AssessInput) {
       `Packet loss ${pct(health.packet_loss_pct)}`,
       "Some samples were lost between sampler and collector over the last minute; rates may be noisy.",
     );
-  type = "threads";
+  return findings;
+}
+
+export function assess(input: AssessInput) {
+  const { view: live, mode, now, series, watchRules } = input,
+    threads = live.threads,
+    points = series.points;
+  const health = live.health,
+    findings: Finding[] = monitorFindings(input);
+  const add = (
+    level: Level,
+    title: string,
+    detail: string,
+    action?: Finding["action"],
+  ) => findings.push({ type: "threads", level, title, detail, action });
   const kernel = threads.filter((thread) => thread.state === "kernel");
   if (kernel.length) {
     const stuck = kernel.filter((thread) =>
