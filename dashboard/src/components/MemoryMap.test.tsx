@@ -162,6 +162,44 @@ for (const [change, next] of [
     ).toBeDefined();
   });
 
+for (const [change, next] of [
+  ["session", { session: "s2" }],
+  ["PID", { pid: 2, seq: 2 }],
+] as const)
+  for (const label of ["Memory map", "Address space & zoom"])
+    for (const phase of ["pending", "open"])
+      test(`D1 a ${change} change cancels ${phase} ${label} help and keeps the disclosures open`, async () => {
+        const { rerender } = render(<Harness live={processView()} />);
+        await settle();
+        const fold = byId("memory-map").querySelector("details[data-fold]");
+        const details = byId("memory-region-details") as HTMLDetailsElement;
+        details.open = true;
+        fireEvent(details, new Event("toggle"));
+        const help = screen
+          .getByRole("heading", { name: label })
+          .closest("[data-help]") as Element;
+        fireEvent.mouseEnter(help);
+        await act(() =>
+          vi.advanceTimersByTimeAsync(phase === "pending" ? 600 : 1200),
+        );
+        expect(screen.queryAllByRole("dialog")).toHaveLength(
+          phase === "pending" ? 0 : 1,
+        );
+
+        rerender(<Harness live={processView(next)} />);
+        await settle();
+        expect(screen.queryAllByRole("dialog")).toEqual([]);
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        expect(screen.queryAllByRole("dialog")).toEqual([]);
+        expect(byId("memory-map").querySelector("details[data-fold]")).toBe(
+          fold,
+        );
+        expect(fold?.hasAttribute("open")).toBe(true);
+        expect((byId("memory-region-details") as HTMLDetailsElement).open).toBe(
+          true,
+        );
+      });
+
 test("2138 a held zoom shows its snapshot until release, and other parts are not held", async () => {
   const live = (size: number, vmas: number) =>
     processView({
