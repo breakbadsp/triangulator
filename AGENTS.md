@@ -50,8 +50,12 @@ See [Multi-target design](docs/multi-target-design.md).
 
 ## C++ and validation
 
-- Before C++ changes or review, read `docs/cpp-coding-standards.md` and
-  `$HOME/ai/conventions/cpp.md`. Run `make format` after C++ changes.
+- Before C++ changes or review, read `$HOME/ai/skills/cpp-principles/SKILL.md`
+  and `docs/cpp-coding-standards.md`. Then read the `cpp-*` topic skills for
+  the current step, using the C++ topic router in `$HOME/ai/AGENTS.md`. Read
+  `cpp-checklist` before completion and before C++ review.
+- For C++ changes, run `make format` and `make format-check`. Keep the default
+  warning flags and `-Werror` enabled.
 - Each commit must build and pass `make check`.
 
 ## Dashboard help
