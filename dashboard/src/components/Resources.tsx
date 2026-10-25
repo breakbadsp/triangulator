@@ -72,7 +72,7 @@ export function Resources({
 }: {
   view: LiveResponse | undefined;
   now: number;
-  /** Stored samples of the selected range for this target and session. */
+  /** Ordered stored samples. RSS assessment also uses process boundaries. */
   points: readonly ResourcePoint[];
   range: ResourceRange;
   onRange: (range: ResourceRange) => void;
@@ -89,7 +89,11 @@ export function Resources({
     r.pid === view?.health.pid
       ? r
       : null;
-  const observation = current && { r: current, points, now };
+  const observation = current && {
+    r: current,
+    points: points.filter((point) => point.pid === current.pid),
+    now,
+  };
   return (
     <section id="resources" className="block">
       <div className="section-head">
