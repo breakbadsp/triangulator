@@ -1,0 +1,5 @@
+interface:
+  display_name: "Architect"
+  short_description: "Review architecture and design tradeoffs"
+policy:
+  allow_implicit_invocation: false
