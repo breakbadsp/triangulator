@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useState } from "react";
-import { Help, HelpPortalTarget } from "./Help";
+import { Help, HelpPortalTarget, setHoverHelp } from "./Help";
 import { HelpGuideProvider, PageHelp } from "./HelpGuide";
 import { ObservationContext } from "../hooks/observationContext";
 import { TimeChart } from "../components/TimeChart";
@@ -114,6 +114,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  setHoverHelp(true);
   localStorage.clear();
 });
 
@@ -267,4 +268,122 @@ test("a related explanation cannot label the original chart as another metric", 
   const guide = document.getElementById("help-guide");
   if (!guide) throw Error("Missing guide");
   expect(within(guide).queryByText("View chart data")).toBeNull();
+});
+
+test.each([null, "on", "off"])(
+  "hover choice survives a failed write with saved %s and successful reads",
+  (saved) => {
+    if (saved !== null) localStorage.setItem("triangulator:hover-help", saved);
+    const enabled = saved === "off";
+    render(<Fixture />);
+    const { source, guide } = explain();
+    const reads = vi.spyOn(Storage.prototype, "getItem");
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw Error("quota");
+    });
+    fireEvent.click(
+      within(guide).getByRole("checkbox", { name: "Show help on hover" }),
+    );
+    expect(localStorage.getItem("triangulator:hover-help")).toBe(saved);
+    fireEvent.keyDown(document, { key: "Escape" });
+    act(() => {
+      source.blur();
+    });
+    fireEvent.mouseEnter(source);
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(!!screen.queryByRole("dialog")).toBe(enabled);
+    expect(reads).toHaveReturnedWith(saved);
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseLeave(source);
+    act(() => {
+      source.focus();
+    });
+    expect(screen.getByRole("dialog")).toBeDefined();
+    fireEvent.keyDown(document, { key: "Escape" });
+    act(() => {
+      source.blur();
+    });
+    fireEvent.click(source);
+    expect(screen.getByRole("dialog")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
+      name: "Show help on hover",
+    });
+    expect(checkbox.checked).toBe(enabled);
+  },
+);
+
+test("a heading with two charts of the same topic omits ambiguous chart data", () => {
+  render(
+    <HelpGuideProvider>
+      <main>
+        <div className="card">
+          <Help topic="cpu">CPU source</Help>
+          {["first", "second"].map((id) => (
+            <TimeChart
+              key={id}
+              id={id}
+              topic="cpu"
+              points={points}
+              series={[{ label: id, color: "blue", get: (p) => p.value }]}
+            />
+          ))}
+        </div>
+      </main>
+    </HelpGuideProvider>,
+  );
+  const { guide } = explain();
+  expect(within(guide).queryByText("View chart data")).toBeNull();
+  fireEvent.keyDown(document, { key: "Escape" });
+  const opener = document
+    .getElementById("second")
+    ?.closest<HTMLElement>("[data-help]");
+  if (!opener) throw Error("Missing chart source");
+  act(() => {
+    opener.focus();
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+  const direct = document.getElementById("help-guide");
+  if (!direct) throw Error("Missing direct chart guide");
+  fireEvent.click(within(direct).getByText("View chart data"));
+  expect(
+    within(direct).getByRole("columnheader", { name: "second" }),
+  ).toBeDefined();
+});
+
+test("a successful preference write replaces a failed-write choice", () => {
+  render(<Fixture />);
+  const { source, guide } = explain();
+  const write = vi
+    .spyOn(Storage.prototype, "setItem")
+    .mockImplementation(() => {
+      throw Error("quota");
+    });
+  fireEvent.click(
+    within(guide).getByRole("checkbox", { name: "Show help on hover" }),
+  );
+  write.mockRestore();
+  fireEvent.click(
+    within(guide).getByRole("checkbox", { name: "Show help on hover" }),
+  );
+  expect(localStorage.getItem("triangulator:hover-help")).toBe("on");
+  fireEvent.keyDown(document, { key: "Escape" });
+  act(() => {
+    source.blur();
+  });
+  fireEvent.mouseEnter(source);
+  act(() => {
+    vi.advanceTimersByTime(1500);
+  });
+  expect(screen.getByRole("dialog")).toBeDefined();
+  fireEvent.keyDown(document, { key: "Escape" });
+  localStorage.setItem("triangulator:hover-help", "off");
+  fireEvent.mouseLeave(source);
+  fireEvent.mouseEnter(source);
+  act(() => {
+    vi.advanceTimersByTime(1500);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

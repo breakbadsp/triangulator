@@ -73,6 +73,7 @@ function Chart<P extends { t: number }>({
       const columns = overlay ? [...series, overlay] : series;
       return {
         key: chartKey,
+        topic,
         headers: ["Time", ...columns.map((item) => item.label)],
         rows: points.map((point) => [
           clock(point.t),
@@ -85,7 +86,7 @@ function Chart<P extends { t: number }>({
         ]),
       };
     });
-  }, [chartKey, points, series, overlay, format]);
+  }, [chartKey, topic, points, series, overlay, format]);
 
   // The hovered sample's time, not the pointer's x: a live update moves the
   // axis, and the readout must stay on the sample the reader chose.

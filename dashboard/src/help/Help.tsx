@@ -30,7 +30,9 @@ export interface Readout {
 }
 
 let hoverFallback = true;
+let hoverWriteFailed = false;
 export function hoverHelpEnabled() {
+  if (hoverWriteFailed) return hoverFallback;
   try {
     return localStorage.getItem("triangulator:hover-help") !== "off";
   } catch {
@@ -41,8 +43,9 @@ export function setHoverHelp(enabled: boolean) {
   hoverFallback = enabled;
   try {
     localStorage.setItem("triangulator:hover-help", enabled ? "on" : "off");
+    hoverWriteFailed = false;
   } catch {
-    /* The preference still holds in this page. */
+    hoverWriteFailed = true;
   }
 }
 
