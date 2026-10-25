@@ -194,6 +194,30 @@ describe("checked periods", () => {
     ]);
   });
 
+  it("cap earlier periods at six hours and keep every batch within 120 slots", () => {
+    const bounds = { first: 0, last: 300000, interval_s: 1 };
+    let scan = initialScan;
+    const chunks: number[] = [];
+    while (!scan.done) {
+      const batch = older(scan, bounds);
+      chunks.push(scan.chunk);
+      expect(batch.times.length).toBeLessThanOrEqual(120);
+      const oldest = scan.oldest;
+      if (oldest !== null)
+        expect(batch.times.every((at) => at < oldest)).toBe(true);
+      scan = scanReducer(scan, {
+        type: "checked",
+        batch,
+        samples: batch.times.map(() => null),
+      });
+    }
+    expect(chunks.slice(0, 7)).toEqual([
+      900, 1800, 3600, 7200, 14400, 21600, 21600,
+    ]);
+    expect(Math.max(...chunks)).toBe(21600);
+    expect(scan.oldest).toBe(0);
+  });
+
   it("add newer slots after the newest checked one, with a gap after a long skip", () => {
     const bounds = { first: 1000, last: 1900, interval_s: 1 };
     const first = older(initialScan, bounds);

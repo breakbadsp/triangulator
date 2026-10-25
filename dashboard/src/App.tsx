@@ -23,6 +23,7 @@ import { Timeline } from "./components/Timeline";
 import { Help } from "./help/Help";
 import { ObservationContext } from "./hooks/observationContext";
 import { useObservation } from "./hooks/useObservation";
+import { usePastAssessments } from "./hooks/usePastAssessments";
 import { emptySeries } from "./lib/series";
 import { initialMemory } from "./lib/memoryView";
 import { exitReason } from "./lib/exit";
@@ -73,6 +74,15 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const session = view?.health.session;
   const context = display.scope;
   const [pressureScope, setPressureScope] = useState<PressureScope>("cgroup");
+  const past = usePastAssessments({
+    bounds: display.bounds,
+    recorded: mode.kind === "recorded",
+    layout:
+      display.state.live?.memory.layout ??
+      display.state.final?.memory.layout ??
+      null,
+    pressureScope,
+  });
   const resourcePoints = useMemo(
     () => observation?.resources ?? [],
     [observation?.resources],
@@ -182,6 +192,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
             closeThread();
             display.live();
           }}
+          past={past}
         />
         <Summary
           view={view}

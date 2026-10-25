@@ -1,9 +1,22 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { ReplayBounds } from "../api/replay";
 import { timelineAtLive } from "../api/replay";
 import type { Observation } from "../lib/observation";
-import { date } from "../lib/format";
+import { clock, date } from "../lib/format";
 import { Help } from "../help/Help";
+import type { Episode, Scan } from "../lib/pastAssessments";
+import { PAST } from "../lib/pastAssessments";
+import {
+  initialFilter,
+  PastAssessments,
+  shownEpisodes,
+} from "./PastAssessments";
 
 export function Timeline({
   bounds,
@@ -12,6 +25,7 @@ export function Timeline({
   note,
   onInspect,
   onLive,
+  past,
 }: {
   bounds?: ReplayBounds | null;
   observation?: Observation;
@@ -19,19 +33,42 @@ export function Timeline({
   note: string;
   onInspect: (at: number, direction?: "at" | "previous" | "next") => void;
   onLive: () => void;
+  past: {
+    scan: Scan;
+    episodes: readonly Episode[];
+    loadOlder: () => void;
+  };
 }) {
   const [preview, setPreview] = useState<number | null>(null);
+  const [filter, setFilter] = useState(initialFilter);
+  const [selected, setSelected] = useState<string | null>(null);
   const recorded = observation?.mode.kind === "recorded";
   const first = bounds?.first ?? 0;
   const last = bounds?.last ?? 0;
-  const end = Math.max(first + 1, last, latestAt, observation?.now ?? 0);
+  const newest = Math.max(last, latestAt, observation?.now ?? 0);
+  // The bar spans the checked period, at least the first period, and the
+  // displayed recording.
+  const start = Math.max(
+    first,
+    Math.min(
+      past.scan.oldest ?? Infinity,
+      newest - PAST.firstS,
+      recorded ? observation.now : Infinity,
+    ),
+  );
+  const end = Math.max(start + 1, newest);
   const at = recorded ? observation.now : end;
   const available = bounds?.first != null && bounds.last != null;
+  const shown = shownEpisodes(past.episodes, filter);
   const input = useRef<HTMLInputElement>(null);
   const select = useEffectEvent((value: number) => {
     setPreview(null);
     if (timelineAtLive(value, end, 1)) onLive();
-    else onInspect(value);
+    else {
+      onInspect(value);
+      // The left end also checks an earlier period.
+      if (value <= start + (end - start) / 100) past.loadOlder();
+    }
   });
   useEffect(() => {
     const element = input.current;
@@ -87,12 +124,38 @@ export function Timeline({
             ? `Recordings from ${date(first)} to ${date(last)}, ${bounds.interval_s ? `one every ${String(bounds.interval_s)} s.` : "recording is now disabled."}`
             : "No recordings yet. Recording may be disabled; thread history still has older summaries."}
         </p>
+        <Help topic="assesshistory" as="div">
+          <div id="timeline-marks" className="timeline-marks">
+            {available &&
+              shown.map((episode) => (
+                // One mark per shown past finding, in its severity colour,
+                // from first to last seen.
+                <span
+                  key={episode.id}
+                  style={
+                    {
+                      left: `${String(100 * Math.max(0, (episode.first - start) / (end - start)))}%`,
+                      width: `${String(100 * Math.max(0, (episode.last - episode.first) / (end - start)))}%`,
+                      "--lvl": `var(--${episode.level === "info" ? "muted" : episode.level})`,
+                    } as CSSProperties
+                  }
+                >
+                  <Help topic="assesshistory" className="mark-help">
+                    <span
+                      role="img"
+                      aria-label={`${episode.item.title} · ${clock(episode.first)}`}
+                    />
+                  </Help>
+                </span>
+              ))}
+          </div>
+        </Help>
         <input
           ref={input}
           id="timeline-range"
           type="range"
           aria-label="Recorded time"
-          min={first}
+          min={start}
           max={end}
           step="1"
           disabled={!available}
@@ -110,7 +173,7 @@ export function Timeline({
           style={{ width: "100%" }}
         />
         <div className="range">
-          <span id="timeline-start">{available ? date(first) : ""}</span>
+          <span id="timeline-start">{available ? date(start) : ""}</span>
           <span id="timeline-end">
             {recorded ? `Now · ${date(end)}` : "Live"}
           </span>
@@ -128,6 +191,20 @@ export function Timeline({
           {note}
         </p>
       </Help>
+      <PastAssessments
+        scan={past.scan}
+        episodes={past.episodes}
+        filter={filter}
+        onFilter={setFilter}
+        recordings={available}
+        viewingAt={recorded ? observation.now : null}
+        selected={selected}
+        onSelect={(episode) => {
+          setSelected(episode.id);
+          onInspect(episode.at);
+        }}
+        onLoadOlder={past.loadOlder}
+      />
     </section>
   );
 }

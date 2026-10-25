@@ -99,7 +99,7 @@ function memorySlope(
   return variance > 0 ? (60 * covariance) / variance : null;
 }
 
-const RSS_TREND_WINDOWS = [60, 120, 180],
+export const RSS_TREND_WINDOWS = [60, 120, 180],
   RSS_TREND_MIN_SPAN = 30,
   RSS_TREND_MIN_POINTS = 6;
 export function rssTrend(
