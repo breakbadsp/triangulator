@@ -37,12 +37,12 @@ test("waits for completion before starting the next interval", async () => {
     first.complete(7);
     await first.promise;
   });
-  expect(result.current).toEqual({ data: 7 });
+  expect(result.current).toMatchObject({ data: 7 });
   await act(() => vi.advanceTimersByTimeAsync(999));
   expect(load).toHaveBeenCalledTimes(1);
   await act(() => vi.advanceTimersByTimeAsync(1));
   expect(load).toHaveBeenCalledTimes(2);
-  expect(result.current).toEqual({ data: 9 });
+  expect(result.current).toMatchObject({ data: 9 });
 });
 
 test("keeps the last good data after a failure and clears the error on recovery", async () => {
@@ -54,11 +54,11 @@ test("keeps the last good data after a failure and clears the error on recovery"
     .mockResolvedValueOnce(9);
   const { result } = renderHook(() => usePoll(load, 1000));
   await act(() => Promise.resolve());
-  expect(result.current).toEqual({ data: 7 });
+  expect(result.current).toMatchObject({ data: 7 });
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(result.current).toEqual({ data: 7, error });
+  expect(result.current).toMatchObject({ data: 7, error });
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(result.current).toEqual({ data: 9 });
+  expect(result.current).toMatchObject({ data: 9 });
 });
 
 test("aborts on unmount and ignores a late result without scheduling another poll", async () => {
@@ -108,7 +108,7 @@ test("aborts a replaced loader and does not publish its late response", async ()
     old.complete(1);
     await old.promise;
   });
-  expect(result.current).toEqual({ data: 2 });
+  expect(result.current).toMatchObject({ data: 2 });
 });
 
 test("hidden polling skips ticks, drops results and errors, and resumes within one interval", async () => {
@@ -134,10 +134,11 @@ test("hidden polling skips ticks, drops results and errors, and resumes within o
     late.complete(7);
     await late.promise;
   });
-  expect(result.current).toEqual({});
+  expect(result.current.data).toBeUndefined();
+  expect(result.current.error).toBeUndefined();
   hidden = false;
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(result.current).toEqual({ data: 9 });
+  expect(result.current).toMatchObject({ data: 9 });
   await act(() => vi.advanceTimersByTimeAsync(1000));
   hidden = true;
   // A hidden failure must not publish an error or replace good data.
@@ -145,9 +146,33 @@ test("hidden polling skips ticks, drops results and errors, and resumes within o
     failed.fail(new Error("hidden failure"));
     await Promise.resolve();
   });
-  expect(result.current).toEqual({ data: 9 });
+  expect(result.current).toMatchObject({ data: 9 });
   hidden = false;
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(result.current).toEqual({ data: 11 });
+  expect(result.current).toMatchObject({ data: 11 });
   vi.restoreAllMocks();
+});
+
+test("refresh replaces a pending poll, rejects its late answer, and keeps one timer", async () => {
+  const old = deferred<number>();
+  const load = vi
+    .fn<(signal: AbortSignal) => Promise<number>>()
+    .mockReturnValueOnce(old.promise)
+    .mockResolvedValue(9);
+  const { result } = renderHook(() => usePoll(load, 1000));
+  const refresh = result.current.refresh;
+  await act(() => {
+    refresh();
+    return Promise.resolve();
+  });
+  expect(load.mock.calls[0]?.[0].aborted).toBe(true);
+  expect(result.current.data).toBe(9);
+  await act(async () => {
+    old.complete(1);
+    await old.promise;
+  });
+  expect(result.current.data).toBe(9);
+  expect(result.current.refresh).toBe(refresh);
+  await act(() => vi.advanceTimersByTimeAsync(1000));
+  expect(load).toHaveBeenCalledTimes(3);
 });
