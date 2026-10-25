@@ -77,7 +77,7 @@ test("Escape dismisses all visible cards and a later pending hover", () => {
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-test("shows links only for ported topics and opens a related topic", () => {
+test("opens a related topic through its explicit ID", () => {
   render(<Help topic="fleet">Targets</Help>);
   fireEvent.focus(screen.getByText("Targets"));
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
