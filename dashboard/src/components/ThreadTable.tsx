@@ -328,7 +328,7 @@ export function ThreadTable({
           {states.map((chip) => (
             <Help
               key={chip.value}
-              topic={chip.value ? (chip.value as HelpTopicId) : "active"}
+              topic={isHelpTopicId(chip.value) ? chip.value : "active"}
             >
               <button
                 type="button"

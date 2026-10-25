@@ -1,4 +1,13 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useContext,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { GuideContext, registerGuideChart } from "../help/guideContext";
+import { useHeld } from "../hooks/useHeld";
 import { Help, type Readout } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
 import { niceMax, segments } from "../lib/chart";
@@ -18,21 +27,7 @@ const PAD = { l: 52, r: 14, t: 10, b: 22 };
  * break the line. Hover snaps a crosshair to the nearest sample, and the help
  * card lists every series there.
  */
-export function TimeChart<P extends { t: number }>({
-  id,
-  topic,
-  points,
-  series,
-  stacked = false,
-  overlay = null,
-  format = num,
-  height = 160,
-  minMax = 0,
-  nice = niceMax,
-  from,
-  to,
-  empty = "Collecting data…",
-}: {
+interface TimeChartProps<P extends { t: number }> {
   id?: string;
   topic: HelpTopicId;
   points: readonly P[];
@@ -46,9 +41,53 @@ export function TimeChart<P extends { t: number }>({
   from?: number | undefined;
   to?: number | undefined;
   empty?: string;
-}) {
+}
+export function TimeChart<P extends { t: number }>(props: TimeChartProps<P>) {
+  const chartKey = useId();
+  const guide = useContext(GuideContext);
+  const held = useHeld(props, guide?.request?.chart?.key === chartKey);
+  return <Chart {...held} chartKey={chartKey} />;
+}
+function Chart<P extends { t: number }>({
+  id,
+  topic,
+  points,
+  series,
+  stacked = false,
+  overlay = null,
+  format = num,
+  height = 160,
+  minMax = 0,
+  nice = niceMax,
+  from,
+  to,
+  empty = "Collecting data…",
+  chartKey,
+}: TimeChartProps<P> & { chartKey: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
+  useLayoutEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    return registerGuideChart(element, () => {
+      const columns = overlay ? [...series, overlay] : series;
+      return {
+        key: chartKey,
+        topic,
+        headers: ["Time", ...columns.map((item) => item.label)],
+        rows: points.map((point) => [
+          clock(point.t),
+          ...columns.map((item) => {
+            const value = item.get(point);
+            return isNum(value)
+              ? (item.format ?? format)(value)
+              : "Not available";
+          }),
+        ]),
+      };
+    });
+  }, [chartKey, topic, points, series, overlay, format]);
+
   // The hovered sample's time, not the pointer's x: a live update moves the
   // axis, and the readout must stay on the sample the reader chose.
   const [hover, setHover] = useState<{

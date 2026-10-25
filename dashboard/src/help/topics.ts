@@ -5,13 +5,70 @@ export interface HelpTopic {
   example: string;
   reading: string;
   limits: string;
-  related: readonly string[];
-  aliases: readonly string[];
+  related: readonly HelpTopicId[];
   source: string;
   sourceDetail: string;
 }
 
-export const helpTopics = {
+const topics = {
+  page: {
+    title: "How to read this page",
+    scope: "Dashboard guide",
+    meaning:
+      "Read the scope, unit, time interval, and data status before interpreting a metric.",
+    example: "",
+    reading:
+      "Read Assessment first, then the key measurements and charts. Open Timeline below the charts to inspect recordings. Use Theme in the header to select System, Light, or Dark. Pause over a label or value for 1.2 seconds. Open metric help, then select Open metric guide for an example, measurement limits, chart data, and related topics. Use Open page guide for every topic. Show help on hover controls pointer help; keyboard and touch help remain available. Select a ▸ heading to open or close its panel. The page remembers that choice in this browser. Monitor health, Address space & zoom, and Network stack drops open by themselves when the Assessment has a warning of their kind, until you choose.",
+    limits:
+      "A single metric does not establish a cause. Missing data is not zero.",
+    related: ["cpu", "pressure", "health"],
+    source: "`/proc` and `/sys/fs/cgroup` → sampler → collector → this page",
+    sourceDetail:
+      "The sampler runs on the target host as the target user. It reads `/proc` and `/sys/fs/cgroup` files and sends the raw counters over UDP. The collector turns counters into rates, stores history, and serves this page through `/api/…` endpoints. This page computes load, assessments, and findings. The optional eBPF observer adds socket bytes and messages. The Source section of each topic names its file.",
+  },
+  "target-attention": {
+    title: "Other targets need attention",
+    scope: "Targets outside this view",
+    meaning: "Count of other targets that are absent, silent, or throttled.",
+    example: "A count of 2 means two other targets need inspection.",
+    reading: "Open the target selector and inspect their status.",
+    limits: "This count does not identify the cause.",
+    related: ["target-switch", "health", "sampler-budget"],
+    source: "Collector target status and sampler rate",
+    sourceDetail:
+      "The page counts absent, silent, and throttled entries from `/api/targets`, excluding the selected target.",
+  },
+  "target-access": {
+    title: "Limited access",
+    scope: "Selected target",
+    meaning: "The sampler cannot read all process files.",
+    example:
+      "CPU and thread states can remain available while I/O and memory maps are hidden.",
+    reading:
+      "Run the sampler as the target user for full access when process permissions permit it.",
+    limits:
+      "Access can also be limited for a process that disables inspection.",
+    related: ["wchan", "memmap"],
+    source: "Sampler access checks for `/proc/PID/io` and `/proc/PID/maps`",
+    sourceDetail:
+      "The sampler reports limited access when these files cannot be opened. Permission changes are checked with each announcement.",
+  },
+  "sampler-budget": {
+    title: "Sampler throttled",
+    scope: "Sampler host · all targets",
+    meaning:
+      "The sampler reduced its shared rate because its CPU use exceeded the configured budget.",
+    example:
+      "A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.",
+    reading:
+      "The badge shows the effective rate, measured CPU use, and budget. Low CPU use permits gradual rate recovery.",
+    limits:
+      "The minimum is 0.2 Hz. CPU use can still exceed the budget at that rate.",
+    related: ["health", "target-switch"],
+    source: "`CLOCK_THREAD_CPUTIME_ID` and monotonic elapsed time",
+    sourceDetail:
+      "The sampler measures CPU time for all targets and sends raw counters in TTGT. The collector computes the percentage. The sampler lowers the rate after about five seconds above its budget.",
+  },
   assesshistory: {
     title: "Past assessments",
     scope: "Recordings · checked period",
@@ -24,7 +81,6 @@ export const helpTopics = {
     limits:
       "Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.",
     related: ["timeline", "assessment", "historyfilters"],
-    aliases: ["Load earlier"],
     source: "Recordings from `/api/replay`, checked in this page",
     sourceDetail:
       "This page loads recorded views from the collector through `/api/replay` and applies the Assessment rules to each one.",
@@ -41,7 +97,6 @@ export const helpTopics = {
     limits:
       "Info is off at first because info findings are notes, not problems. Filters only hide rows; the status line counts all of them.",
     related: ["assesshistory", "assessment"],
-    aliases: [],
     source: "Past assessments already checked in this page",
     sourceDetail: "Filters hide rows and marks. They send no request.",
   },
@@ -57,13 +112,6 @@ export const helpTopics = {
     limits:
       "A gap, missing recording, invalid reply, or read error keeps the last successful view. The collector clock can be ahead of this browser. Recording can be disabled. This Timeline does not play automatically.",
     related: ["assesshistory", "exited", "history", "memmap", "collsettings"],
-    aliases: [
-      "Previous recording",
-      "Next recording",
-      "Recorded time",
-      "Live",
-      "Back to live",
-    ],
     source: "Collector /api/replay snapshots and /api/resources rollups",
     sourceDetail:
       "recorded_at fixes the display clock. Snapshot rates cover the preceding sampling interval. Resource reads end at that time. Recordings never enter this tab's live trends or storage.",
@@ -80,7 +128,6 @@ export const helpTopics = {
     limits:
       "A new empty session has a ten-second settling period. A fresh tab can use the collector's last-target view but has no earlier live CPU samples. If tab storage is full, the banner warns that reload loses the final view.",
     related: ["timeline", "exitreason", "health", "collsettings"],
-    aliases: ["Show live", "Stopped reporting"],
     source: "Sampler absence and collector /api/last-target, /api/live",
     sourceDetail:
       "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout and socket refresh stop.",
@@ -97,7 +144,6 @@ export const helpTopics = {
     limits:
       "A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.",
     related: ["manage-targets", "target-id"],
-    aliases: [],
     source:
       "Local control helper: `/proc/PID/comm`, `cmdline`, `stat`, and the owner of `/proc/PID`",
     sourceDetail:
@@ -115,7 +161,6 @@ export const helpTopics = {
     limits:
       "Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.",
     related: ["target-id", "target-switch", "target"],
-    aliases: [],
     source: "Sampler configuration and the local control helper",
     sourceDetail:
       "The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.",
@@ -130,7 +175,6 @@ export const helpTopics = {
     limits:
       "An ID is not a process selector. Set a process name or PID as well.",
     related: ["manage-targets", "target-switch"],
-    aliases: [],
     source: "`[[target]] id` in sampler.toml",
     sourceDetail:
       "The sampler sends this stable ID in TTGT. A target key combines the sampler host name and this ID.",
@@ -147,7 +191,6 @@ export const helpTopics = {
     limits:
       "Search and status only show or hide tiles: they start no request and do not change monitoring. A tile with keyboard focus keeps its last level until focus leaves it, so it can stay shown or hidden until the next refresh.",
     related: ["fleet", "fleet-tile", "fleet-density"],
-    aliases: ["Find target", "Needs attention"],
     source: "",
     sourceDetail: "",
   },
@@ -162,7 +205,6 @@ export const helpTopics = {
     limits:
       "If browser storage is blocked, the selection lasts only until the page reloads. Density does not change assessments or which targets show.",
     related: ["fleet", "fleet-tile", "appearance"],
-    aliases: ["Tile density"],
     source: "",
     sourceDetail: "",
   },
@@ -184,7 +226,6 @@ export const helpTopics = {
       "target-access",
       "sampler-budget",
     ],
-    aliases: ["Target tiles"],
     source:
       "Collector: `/api/targets` and `/api/live?target=host/id`; assessment computed in this page",
     sourceDetail:
@@ -202,7 +243,6 @@ export const helpTopics = {
     limits:
       "Linux process names are limited to 15 bytes. A thread ID is not a process ID.",
     related: ["session", "health"],
-    aliases: ["Change target"],
     source:
       "Sampler `[[target]]` tables or legacy `target_process` and `target_pid`; names match `/proc/PID/comm`",
     sourceDetail:
@@ -217,7 +257,6 @@ export const helpTopics = {
       "The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. All targets returns to the overview of every target.",
     limits: "Viewing a target does not change the sampler.",
     related: ["target", "manage-targets"],
-    aliases: ["Selected monitoring target"],
     source: "Collector: `/api/targets`; URL `?target=host/id`",
     sourceDetail:
       "TTGT announcements identify each host and target ID. The collector routes sessions and returns target metadata. This tab adds the selected key to its API requests.",
@@ -233,7 +272,6 @@ export const helpTopics = {
     limits:
       "If browser storage is blocked, the selection lasts only until the page reloads. Theme changes do not change measurements or status meanings.",
     related: ["page"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -248,7 +286,6 @@ export const helpTopics = {
     limits:
       "At the bottom of the page, the last tab (Settings) is highlighted.",
     related: [],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -263,13 +300,6 @@ export const helpTopics = {
     limits:
       "A connected sampler does not guarantee complete data. Silence and packet loss can limit every metric.",
     related: ["loss", "interval", "session"],
-    aliases: [
-      "Sampler",
-      "Last data",
-      "Last sample",
-      "Sampler address",
-      "Monitor diagnostics (raw health JSON)",
-    ],
     source: "Collector: datagrams received from the sampler",
     sourceDetail:
       "The collector counts the UDP datagrams it receives from the sampler: when the last one arrived, their session, sequence gaps, and rejected packets. It serves the result in `/api/live`. Nothing here is read from the target process.",
@@ -284,7 +314,6 @@ export const helpTopics = {
     limits:
       "Short events between samples can be missed. A shorter interval increases sampling overhead.",
     related: ["health", "history"],
-    aliases: [],
     source: "`rate_hz` in sampler.toml",
     sourceDetail:
       "The sampler sends its interval in every datagram. It comes from `rate_hz` in sampler.toml, which `scripts/set-rate.sh` changes (0.2–10 Hz, 5 Hz by default).",
@@ -300,7 +329,6 @@ export const helpTopics = {
     limits:
       "Packet loss in the monitor is different from application network drops.",
     related: ["health", "netdrops"],
-    aliases: [],
     source: "Collector: gaps in the numbered sampler datagrams",
     sourceDetail:
       "The sampler numbers each sample and the datagrams it is split into. Over the last minute, the collector counts the datagrams that never arrived, including whole skipped samples, and divides by the number expected.",
@@ -316,7 +344,6 @@ export const helpTopics = {
     limits:
       "A new session does not necessarily mean that the target process restarted.",
     related: ["thread", "health"],
-    aliases: [],
     source: "Random ID chosen by the sampler",
     sourceDetail:
       "The sampler picks a random session ID when it starts, reloads its configuration, or finds a new target process, and puts it in every datagram. The collector stores history under that ID.",
@@ -331,7 +358,6 @@ export const helpTopics = {
     limits:
       "These are monitor transport counters, not application socket errors.",
     related: ["loss", "health"],
-    aliases: [],
     source: "Collector packet counters",
     sourceDetail:
       "The collector counts datagrams it could not decode (bad), received twice (duplicate), or that arrived after their sample was assembled (late).",
@@ -346,7 +372,6 @@ export const helpTopics = {
       "Use this count when checking collector retention and buffer behavior.",
     limits: "This is not a count of active threads or stored history buckets.",
     related: ["health", "history"],
-    aliases: [],
     source: "Collector memory",
     sourceDetail:
       "The number of raw thread samples in the in-memory buffer of the collector, from `/api/live`.",
@@ -363,7 +388,6 @@ export const helpTopics = {
     limits:
       "Tiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.",
     related: ["fleet-tile", "target-switch", "assessment"],
-    aliases: ["All targets", "Targets"],
     source:
       "Collector: `/api/targets` and `/api/live?target=host/id` for each target",
     sourceDetail:
@@ -380,7 +404,6 @@ export const helpTopics = {
     limits:
       "Browser trends are not the same as stored thread history. Missing observations can limit every total.",
     related: ["load", "cpu", "health"],
-    aliases: [],
     source: "Thread samples from `/proc/PID/task/TID/`, summed",
     sourceDetail:
       "The tiles sum the values of the threads: CPU and faults from `stat`, run delay and switches from `schedstat`, read and write bytes from `io`, and states from `stat` and `wchan`. Socket bytes come from the optional eBPF observer.",
@@ -395,7 +418,6 @@ export const helpTopics = {
     limits:
       "These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.",
     related: ["watched", "health", "cpu", "pressure"],
-    aliases: ["What it means"],
     source: "Computed in this page from the displayed data",
     sourceDetail:
       "This page applies fixed rules to the values it shows: thread samples, resource samples, memory samples, and monitor health. Each finding names the value it used; the topic of that value gives its source.",
@@ -411,14 +433,6 @@ export const helpTopics = {
     limits:
       "Idle does not mean exited. A sampling gap is not evidence of inactivity.",
     related: ["states", "switches"],
-    aliases: [
-      "Activity",
-      "Threads",
-      "Active",
-      "Idle",
-      "All",
-      "Which threads to show",
-    ],
     source: "Thread counters in `/proc/PID/task/TID/`",
     sourceDetail:
       "A thread is active when, in the preceding ~10 seconds, it used CPU (`stat` utime + stime), was put on a CPU (`schedstat`), read or wrote (`io` rchar, wchar), had a major fault (`stat` majflt), or was sampled running, in kernel wait, or stopped. The collector computes the rates; this page applies the rule.",
@@ -434,7 +448,6 @@ export const helpTopics = {
     limits:
       "This rate alone does not identify overhead or distinguish every reason for a switch.",
     related: ["cpu", "states"],
-    aliases: ["Switches/s"],
     source: "`/proc/PID/task/TID/schedstat`: third number",
     sourceDetail:
       "The third number in `/proc/PID/task/TID/schedstat` counts how many times the scheduler put the thread on a CPU. The collector divides its change by the time between samples. With `status_fallback = true`, the sampler reads voluntary_ctxt_switches from `/proc/PID/task/TID/status` instead. Check it yourself: `cat /proc/PID/task/TID/schedstat`.",
@@ -450,7 +463,6 @@ export const helpTopics = {
     limits:
       "These counters do not cover every receive API and are not a measure of bytes transferred by the disk device.",
     related: ["disk", "socketio"],
-    aliases: ["Read/s", "Write/s", "I/O"],
     source: "`/proc/PID/task/TID/io`: rchar, wchar",
     sourceDetail:
       "Each sample, the sampler reads the rchar and wchar lines of `/proc/PID/task/TID/io`: bytes passed to read- and write-family system calls, including sockets, pipes, and cached files. The collector divides the change by the time between samples. Process values sum the threads. The file is readable only when the sampler runs as the target user. Check it yourself: `cat /proc/PID/task/TID/io`.",
@@ -465,7 +477,6 @@ export const helpTopics = {
     limits:
       "A major fault is not an application crash. A single fault does not prove memory pressure.",
     related: ["rss", "pressure", "disk"],
-    aliases: ["Maj. faults/s", "Major faults/s"],
     source: "`/proc/PID/task/TID/stat`: field 12 (majflt)",
     sourceDetail:
       "Each sample, the sampler reads field 12 of `/proc/PID/task/TID/stat`, the count of major page faults of the thread. The collector divides its change by the time between samples. Process values sum the threads.",
@@ -482,7 +493,6 @@ export const helpTopics = {
     limits:
       "A thread that starts and exits between two samples is never seen, and the kernel offers no unprivileged count of threads created. At 2 samples/s, a thread living 10 ms is seen about 2% of the time. Raise the sample rate, or count thread creations inside the application.",
     related: ["thread", "health"],
-    aliases: [],
     source: "Thread IDs in `/proc/PID/task`, compared between updates",
     sourceDetail:
       "Each sample, the sampler lists `/proc/PID/task`, which has one entry per live thread. This page compares the thread IDs of consecutive live updates: a new ID counts as a start and a missing ID as an end. The kernel keeps no count of created threads that an unprivileged reader can see.",
@@ -498,7 +508,6 @@ export const helpTopics = {
     limits:
       "This estimate covers the target process. It is not the host load average. Live averages need observations in this browser tab.",
     related: ["cpu", "delay", "kernel"],
-    aliases: ["1-minute load"],
     source:
       "Computed in this page from thread CPU, run delay, and kernel waits",
     sourceDetail:
@@ -512,7 +521,6 @@ export const helpTopics = {
     reading: "Compare CPU cores used with process load and runnable demand.",
     limits: "This is CPU use by the process, not the number of host cores.",
     related: ["cpu", "load"],
-    aliases: ["On CPU"],
     source: "`/proc/PID/task/TID/stat`: utime + stime, summed",
     sourceDetail:
       "The sum of thread CPU (see CPU) divided by 100: CPU seconds per elapsed second.",
@@ -529,7 +537,6 @@ export const helpTopics = {
     limits:
       "Very low demand makes this ratio unstable. The display uses negligible below 1% of one core of demand.",
     related: ["delay", "cpucores", "pressure"],
-    aliases: [],
     source: "`stat` CPU and `schedstat` run delay, summed",
     sourceDetail:
       "Summed over all threads: run delay (the second number of `/proc/PID/task/TID/schedstat`) divided by CPU time (utime + stime of `stat`) plus run delay.",
@@ -544,7 +551,6 @@ export const helpTopics = {
     limits:
       "Linux can reuse a TID. Stored history also uses the thread generation and sampler session.",
     related: ["history", "session"],
-    aliases: ["Thread", "Busiest thread", "Find socket thread"],
     source: "`/proc/PID/task` and `stat` field 2 (comm)",
     sourceDetail:
       "The thread IDs are the entries of `/proc/PID/task`. The name is field 2 of `/proc/PID/task/TID/stat`, the same as `/proc/PID/task/TID/comm`, which the kernel cuts to 15 bytes. The collector adds a generation number when a TID is reused. Check it yourself: `ls /proc/PID/task`.",
@@ -558,7 +564,6 @@ export const helpTopics = {
     limits:
       "This often involves I/O, but the state alone cannot identify the device or cause.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Kernel wait (D) when field 3 of `stat` is D. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -574,7 +579,6 @@ export const helpTopics = {
     limits:
       "Mapped memory is not the same as physical use. Missing samples are gaps, not zero.",
     related: ["rss", "vmsize", "memmap"],
-    aliases: [],
     source: "`/proc/PID/status`: VmRSS, VmSize",
     sourceDetail:
       'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
@@ -589,7 +593,6 @@ export const helpTopics = {
     limits:
       "Shared pages count in full. RSS differs from private memory and cgroup memory. Growth alone does not establish a leak. The Summary chart steps once per resource sample (2 s by default) and covers only the time this tab was open.",
     related: ["pressure", "cgroupmem", "vmsize"],
-    aliases: ["Resident (RSS)", "Resident memory (RSS)"],
     source: "`/proc/PID/status`: VmRSS, VmHWM, VmSwap",
     sourceDetail:
       'With each resource sample (every 2 s by default), the sampler reads the VmRSS (resident), VmHWM (peak), and VmSwap lines of `/proc/PID/status`. Check it yourself: `grep -E "VmRSS|VmHWM|VmSwap" /proc/PID/status`.',
@@ -606,7 +609,6 @@ export const helpTopics = {
     limits:
       "Virtual size is not memory use. Growth alone does not establish a leak. The Summary chart steps once per memory sample (30 s by default) and covers only the time this tab was open.",
     related: ["aslimit", "rss", "vmas"],
-    aliases: ["Peak virtual size", "Share of VmSize"],
     source: "`/proc/PID/status`: VmSize, VmPeak",
     sourceDetail:
       'With each memory sample, the sampler reads VmSize and VmPeak from `/proc/PID/status`. Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
@@ -622,7 +624,6 @@ export const helpTopics = {
     limits:
       "The tab is read-only while you inspect a recorded moment, and when the collector is a build without these controls. Other collector settings are still edited in collector.toml.",
     related: ["watches", "timeline"],
-    aliases: [],
     source: "Collector: `/api/watches`",
     sourceDetail:
       "This tab reads and writes the collector settings through `/api/watches`. Rules saved here apply to the selected target. They use `data_dir/watch-rules/<hex-key>.json`; the default target that keeps `data_dir/replay` keeps `data_dir/watch-rules.json`.",
@@ -639,7 +640,6 @@ export const helpTopics = {
     limits:
       "The collector only reports when each thread last ran. A thread with a long wait by design, or a name that no rule matches, is not watched. A rule does not start or stop anything.",
     related: ["assessment", "thread", "states"],
-    aliases: [],
     source: "[[watch]] in collector.toml, or `data_dir/watch-rules.json`",
     sourceDetail:
       "The collector reads the [[watch]] tables of collector.toml when it starts. Rules saved from this page replace them for the selected target until Reset. Target files are in `data_dir/watch-rules/`; the default target that keeps `data_dir/replay` keeps `data_dir/watch-rules.json`. This page reads the rules in force from `/api/watches`.",
@@ -655,7 +655,6 @@ export const helpTopics = {
     limits:
       "Editing collector.toml has no effect on watch rules while dashboard rules are saved. The collector reads the config file only at startup.",
     related: ["watches", "watchreset"],
-    aliases: [],
     source: "[[watch]] in collector.toml, or `data_dir/watch-rules.json`",
     sourceDetail:
       "The collector reports which file the rules in force came from through `/api/watches`.",
@@ -672,7 +671,6 @@ export const helpTopics = {
     limits:
       "Spaces count, so a trailing space must match the name. Characters outside ASCII use more than one byte. The tab checks the rules again on save, and the collector has the final say.",
     related: ["watchmatch", "watchwake"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -687,7 +685,6 @@ export const helpTopics = {
     limits:
       "A thread that waits without a timeout will never meet a small value. That is what the rule is meant to show, but it can also be a thread that is idle by design.",
     related: ["watches", "interval"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -703,7 +700,6 @@ export const helpTopics = {
     limits:
       "Threads are counted at the latest sample. While you inspect a recorded moment or the target is absent, there are no live threads to count. In the final view of an ended target, the count follows the threads the collector reports now, such as those of a restarted target. Names are cut at 15 bytes by Linux.",
     related: ["watchprefix", "thread"],
-    aliases: [],
     source: "Thread names from the latest live update",
     sourceDetail:
       "This page counts the thread names (field 2 of `/proc/PID/task/TID/stat`) in the latest live update that start with each prefix.",
@@ -719,7 +715,6 @@ export const helpTopics = {
     limits:
       "Threads that matched the rule are then not watched, unless a shorter prefix also matches them.",
     related: ["watchsave"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -732,7 +727,6 @@ export const helpTopics = {
       "Fill in the prefix and interval, then check Matching threads now before you save. The collector accepts up to the limit shown beside the button.",
     limits: "The new rule exists only in this page until you select Save.",
     related: ["watchprefix", "watchsave"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -747,7 +741,6 @@ export const helpTopics = {
     limits:
       "These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry. The retry is refused if another user changed the rules.",
     related: ["watchsource", "watchreset"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -762,7 +755,6 @@ export const helpTopics = {
     limits:
       "Your draft stays in the table if you cancel or the read fails. A successful reload replaces it.",
     related: ["watchsave", "watchreset"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -777,7 +769,6 @@ export const helpTopics = {
     limits:
       "It is off when the config file rules are already in force, unless the collector could not confirm the last reset on disk; then select it again to retry. It cannot restore the rules you discard. If another user changed the rules, reset is refused until you reload the current rules.",
     related: ["watchsource", "watchsave"],
-    aliases: [],
     source: "",
     sourceDetail: "",
   },
@@ -793,7 +784,6 @@ export const helpTopics = {
     limits:
       "The check sees whether a thread ran, not whether it did useful work, so a thread that wakes on its timer but never makes progress looks healthy. A thread that sleeps longer than its rule by design is flagged; set the rule to the longest sleep. Stale threads, a silent sampler and an absent target are not checked. In a recorded view on the Timeline and in the final view of an ended target the recorded rules are used and the unmatched-rule check is skipped. Rules come from collector.toml or the ones saved from the dashboard.",
     related: ["assessment", "states", "wchan", "thread"],
-    aliases: ["Watched", "Stopped waking", "Watch rule"],
     source: "Collector: when each thread last ran; rules from `/api/watches`",
     sourceDetail:
       "The collector records when each thread last ran: the latest sample in which its `schedstat` switch count or its CPU ticks in `stat` changed. The rules come from `/api/watches`: the [[watch]] tables in collector.toml, or the rules saved from this page.",
@@ -809,7 +799,6 @@ export const helpTopics = {
     limits:
       "The sampler reads these values from /proc when it starts watching a process and sends them again every 10 seconds. It does not read them again, so a later change of directory or CPU affinity does not show. Values the sampler may not read show Not available.",
     related: ["cmdline", "exe", "started"],
-    aliases: [],
     source: "`/proc/PID/cmdline`, `exe`, `cwd`, `stat`, and `status`",
     sourceDetail:
       "When monitoring starts, the sampler reads `/proc/PID/cmdline`, the links `/proc/PID/exe` and `/proc/PID/cwd`, fields 4 and 22 of `/proc/PID/stat`, and the Uid, Gid, and Cpus_allowed_list lines of `/proc/PID/status`. The topic of each value names its file.",
@@ -825,7 +814,6 @@ export const helpTopics = {
     limits:
       "An argument that contains a space looks like two arguments. A long command line is cut and ends with …. The process can rewrite its own command line. The text is shown as the process has it, so a secret passed as an argument is visible here.",
     related: ["procinfo", "exe"],
-    aliases: [],
     source: "`/proc/PID/cmdline`",
     sourceDetail:
       "The sampler reads `/proc/PID/cmdline`, where the kernel separates the arguments with zero bytes, and joins them with spaces. Check it yourself: `ps -o args= -p PID`.",
@@ -841,7 +829,6 @@ export const helpTopics = {
     limits:
       "Readable only when the sampler runs as the target user and the process allows it. Otherwise it shows Not available. A long path is cut at the start and begins with ….",
     related: ["procinfo", "cwd"],
-    aliases: [],
     source: "Link `/proc/PID/exe`",
     sourceDetail:
       'The sampler reads the symbolic link `/proc/PID/exe`. The kernel adds " (deleted)" when the file was removed or replaced. Check it yourself: `readlink /proc/PID/exe`.',
@@ -855,7 +842,6 @@ export const helpTopics = {
     limits:
       "The same read limits apply as for Executable. The process can change directory later; the value is the one read at the start.",
     related: ["procinfo", "exe"],
-    aliases: [],
     source: "Link `/proc/PID/cwd`",
     sourceDetail:
       "The sampler reads the symbolic link `/proc/PID/cwd`. Check it yourself: `readlink /proc/PID/cwd`.",
@@ -872,7 +858,6 @@ export const helpTopics = {
     limits:
       "The kernel records the start as ticks after boot. The sampler adds the boot time, so the result is accurate to about a second and moves if the clock was stepped after boot.",
     related: ["procinfo", "session"],
-    aliases: [],
     source: "`/proc/PID/stat`: field 22 (starttime)",
     sourceDetail:
       "Field 22 of `/proc/PID/stat` is the start time in clock ticks after boot. The sampler adds the wall-clock time of boot (CLOCK_REALTIME minus CLOCK_BOOTTIME). Check it yourself: `ps -o lstart= -p PID`.",
@@ -887,7 +872,6 @@ export const helpTopics = {
     limits:
       "None visible means the parent is outside the target's PID namespace, as in a container. The parent can change when the original parent exits; the value is the one read at the start.",
     related: ["procinfo", "target"],
-    aliases: [],
     source: "`/proc/PID/stat`: field 4 (ppid)",
     sourceDetail:
       "Field 4 of `/proc/PID/stat`. Check it yourself: `ps -o ppid= -p PID`.",
@@ -904,7 +888,6 @@ export const helpTopics = {
     limits:
       "Only numbers are shown; names live on the target host and the sampler does not look them up.",
     related: ["procinfo", "exe"],
-    aliases: [],
     source: "`/proc/PID/status`: Uid, Gid",
     sourceDetail:
       'The first two numbers (real and effective) of the Uid and Gid lines of `/proc/PID/status`. Check it yourself: `grep -E "^(Uid|Gid)" /proc/PID/status`.',
@@ -920,7 +903,6 @@ export const helpTopics = {
     limits:
       "This is the mask of the main thread at the start. Other threads can have narrower masks, and a cgroup cpuset can narrow it further. A long list is cut.",
     related: ["cores", "delay"],
-    aliases: [],
     source: "`/proc/PID/status`: Cpus_allowed_list",
     sourceDetail:
       "The Cpus_allowed_list line of `/proc/PID/status`. Check it yourself: `taskset -cp PID`.",
@@ -937,7 +919,6 @@ export const helpTopics = {
     limits:
       'The kernel logs only the faults it handles and the out-of-memory killer, and reading the log needs kernel.dmesg_restrict = 0. The exit status names the signal or exit code without that, on Linux 6.15 and later, or when the sampler sees the process as a zombie. "No kernel crash message" means neither was found, so it does not prove the process did not crash. The card shows the latest exit since the collector started.',
     related: ["exitstatus", "exitmessages", "health"],
-    aliases: ["Reason the process ended", "Earlier process exit"],
     source: "`/dev/kmsg`, then the exit status",
     sourceDetail:
       "The sampler reads new kernel log records from `/dev/kmsg` that name the target PID or one of its threads, such as a segfault or an OOM kill. If none names it, the reason comes from the exit status (see Exit status). Reading `/dev/kmsg` can need CAP_SYSLOG when kernel.dmesg_restrict = 1. Check it yourself: `dmesg | grep PID`.",
@@ -954,7 +935,6 @@ export const helpTopics = {
     limits:
       "The sampler is not the parent. It reads the status through a pidfd on Linux 6.15 and later, which needs no privileges, or from /proc while the process is a zombie. On older kernels the parent often reaps the process first, and the status is not available. SIGKILL from the out-of-memory killer looks like kill -9 unless the kernel log is readable.",
     related: ["exitreason", "exitmessages"],
-    aliases: [],
     source: "pidfd (PIDFD_GET_INFO), or `/proc/PID/stat` field 52",
     sourceDetail:
       "The sampler opens a pidfd for the target with pidfd_open when it finds it. On Linux 6.15 and later, the PIDFD_GET_INFO ioctl returns the exit status after the parent reaps the process. While the process is a zombie, the sampler can also read field 52 (exit_code) of `/proc/PID/stat`.",
@@ -971,7 +951,6 @@ export const helpTopics = {
     limits:
       "Only messages logged after the sampler found the process are read. Long lines are cut at 191 bytes. The out-of-memory task table is left out.",
     related: ["exitreason"],
-    aliases: [],
     source: "`/dev/kmsg`",
     sourceDetail:
       "Kernel log records from `/dev/kmsg` that name the process or one of its thread IDs, logged after the sampler found the process. Check it yourself: `dmesg | grep PID`.",
@@ -986,7 +965,6 @@ export const helpTopics = {
     limits:
       "A high value can be normal for a busy worker. CPU use alone does not establish a problem.",
     related: ["delay", "pressure", "cores"],
-    aliases: ["Recent live CPU"],
     source: "`/proc/PID/task/TID/stat`: utime + stime",
     sourceDetail:
       "Each sample, the sampler reads `/proc/PID/task/TID/stat` for every thread. Fields 14 (utime) and 15 (stime) are the CPU time the thread used in user and kernel mode, in clock ticks (usually 100 per second). The collector divides the change between two samples by the time between them. Process CPU sums the threads. `top -H -p PID` reads the same counters.",
@@ -1001,7 +979,6 @@ export const helpTopics = {
     limits:
       "Sleep and futex wait are separate measurements. Run delay alone does not identify a cause.",
     related: ["cpu", "pressure", "throttle"],
-    aliases: [],
     source: "`/proc/PID/task/TID/schedstat`: second number",
     sourceDetail:
       "Each sample, the sampler reads `/proc/PID/task/TID/schedstat`. Its second number is the total time, in nanoseconds, that the thread was ready to run but waited for a CPU. The collector divides the change between two samples by the time between them. With `status_fallback = true` in sampler.toml, the sampler reads `status` instead, and run delay is not available. Check it yourself: `cat /proc/PID/task/TID/schedstat`.",
@@ -1018,11 +995,6 @@ export const helpTopics = {
     limits:
       "Samples can miss brief transitions. A wait state does not establish that the application is unhealthy.",
     related: ["futex", "kernel", "mix"],
-    aliases: [
-      "What the threads are doing",
-      "State / wait channel",
-      "State / block type",
-    ],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "Field 3 of `/proc/PID/task/TID/stat` is the scheduler state letter. For a sleeping thread, `/proc/PID/task/TID/wchan` names the kernel function it waits in. The collector maps R to Running, D to Kernel wait, and T or t to Stopped. Otherwise it matches the wait channel: futex; epoll, poll, or select; socket functions; pipe or eventfd; and nanosleep. An empty wait channel is No access. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1037,7 +1009,6 @@ export const helpTopics = {
     limits:
       "Sample share is not an exact trace of time spent in each state. Missing samples reduce coverage.",
     related: ["states", "history"],
-    aliases: ["Last ~10 s"],
     source: "Collector: counts of classified thread samples",
     sourceDetail:
       "The collector classifies every thread sample as Thread states describes (from `stat` field 3 and `wchan`) and counts the samples in each state over the window.",
@@ -1052,7 +1023,6 @@ export const helpTopics = {
     limits:
       "Kernel function names depend on the kernel. A name alone does not identify an application call site.",
     related: ["states", "futex"],
-    aliases: ["Where threads wait"],
     source: "`/proc/PID/task/TID/wchan`",
     sourceDetail:
       "Each sample, the sampler reads `/proc/PID/task/TID/wchan`: the kernel function a sleeping thread waits in. Compiler suffixes such as .constprop.0 are removed. The kernel shows 0 for a running thread and to a reader without access to the target. Check it yourself: `cat /proc/PID/task/TID/wchan`.",
@@ -1069,7 +1039,6 @@ export const helpTopics = {
     limits:
       "Color represents the current sampled state even when the CPU number is an average. Short observation history limits the average.",
     related: ["cpu", "states", "active"],
-    aliases: ["Thread map time window"],
     source: "Thread CPU and state from `/proc/PID/task/TID/stat` and `wchan`",
     sourceDetail:
       "Each tile uses the CPU of the thread from `/proc/PID/task/TID/stat` (utime + stime) and its classified state (see Thread states). Windows longer than Now average the CPU values this tab received.",
@@ -1085,7 +1054,6 @@ export const helpTopics = {
     limits:
       "Similar names do not prove that threads do the same work. Percentages of process CPU differ from percentages of one core.",
     related: ["cpu", "group"],
-    aliases: ["Group CPU by", "Name family"],
     source:
       "Thread names from `/proc/PID/task/TID/stat`; groups from collector.toml",
     sourceDetail:
@@ -1102,7 +1070,6 @@ export const helpTopics = {
     limits:
       "A thread can migrate between samples. These bars are not exact per-core utilization measurements.",
     related: ["cpu", "thread"],
-    aliases: ["Core", "Last core"],
     source: "`/proc/PID/task/TID/stat`: field 39 (processor)",
     sourceDetail:
       "Each sample, the sampler reads field 39 of `/proc/PID/task/TID/stat`, the CPU on which the thread last ran. CPU use comes from utime + stime in the same file. Check it yourself: `ps -L -o tid,psr,comm -p PID`.",
@@ -1116,7 +1083,6 @@ export const helpTopics = {
     limits:
       "A configured group is different from a name family or a Linux cgroup.",
     related: ["families", "pressure"],
-    aliases: [],
     source: "[[group]] prefixes in collector.toml",
     sourceDetail:
       "The collector assigns each thread to the first [[group]] in collector.toml whose prefix starts the thread name, or to ungrouped. The thread name is field 2 of `/proc/PID/task/TID/stat`.",
@@ -1132,7 +1098,6 @@ export const helpTopics = {
     limits:
       "Summary buckets are not exact process snapshots. Missing buckets and missing values mean unknown, not zero.",
     related: ["timeline", "mix", "samples"],
-    aliases: ["From", "To", "History range", "Chart time window", "Load"],
     source: "Collector five-second summaries, through `/api/history`",
     sourceDetail:
       "The collector combines the samples of each thread into five-second rows and stores them in SQLite day files under `data_dir`. The drawer loads them with `/api/history`. Recent live CPU comes from the updates this tab received.",
@@ -1146,7 +1111,6 @@ export const helpTopics = {
       "Use the count to assess how much data supports the state mix and rates.",
     limits: "A partial bucket or packet loss can reduce the count.",
     related: ["history", "loss"],
-    aliases: [],
     source: "Collector: thread samples in each stored row",
     sourceDetail:
       "The number of thread samples the collector combined into the five-second row.",
@@ -1160,7 +1124,6 @@ export const helpTopics = {
     limits:
       "This state does not prove that it occupied a CPU for the full interval.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Running when field 3 of `stat` is R. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1175,7 +1138,6 @@ export const helpTopics = {
     limits:
       "A lock, condition variable, or timed idle wait can use futex. This sample cannot distinguish them.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Futex wait when the wait channel contains futex. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1188,7 +1150,6 @@ export const helpTopics = {
     reading: "Compare the wait channel and recent thread history.",
     limits: "Waiting for events can be normal. Check whether work is expected.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Poll / epoll when the wait channel contains epoll, poll, or select. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1201,7 +1162,6 @@ export const helpTopics = {
     reading: "Compare the wait channel and recent thread history.",
     limits: "The state does not identify which peer or socket caused the wait.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Socket wait when the wait channel contains skb, sk_wait, sock, unix_stream, inet_csk, tcp_, or udp_. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1214,7 +1174,6 @@ export const helpTopics = {
     reading: "Compare the wait channel and recent thread history.",
     limits: "This state can be normal coordination between threads.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Pipe / eventfd when the wait channel contains pipe or eventfd. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1228,7 +1187,6 @@ export const helpTopics = {
     limits:
       "A sleeping thread is not necessarily blocked by a resource problem.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Sleep when the wait channel contains nanosleep. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1241,7 +1199,6 @@ export const helpTopics = {
     reading: "Compare the wait channel and recent thread history.",
     limits: "Check the expected process state before treating this as a fault.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Stopped when field 3 of `stat` is T or t. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1254,7 +1211,6 @@ export const helpTopics = {
     reading: "Compare the wait channel and recent thread history.",
     limits: "Do not interpret this category as running or as an error.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows Other when the wait channel matches no other state. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1269,7 +1225,6 @@ export const helpTopics = {
     limits:
       "Unavailable observations are not zero activity. Check access and monitor health.",
     related: ["states", "wchan"],
-    aliases: [],
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
       "The collector shows No access when the state letter is not R, D, T, or t and the wait channel is empty: it read 0 or could not be read. Each sample, the sampler reads `/proc/PID/task/TID/stat` and `/proc/PID/task/TID/wchan` for every thread. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
@@ -1286,19 +1241,6 @@ export const helpTopics = {
     limits:
       "The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.",
     related: ["throttle", "rss", "disk"],
-    aliases: [
-      "Pressure, limits & sockets",
-      "Pressure scope",
-      "CPU pressure",
-      "Memory pressure",
-      "I/O pressure",
-      "Cgroup some",
-      "Cgroup full",
-      "Host some",
-      "Host full",
-      "Resource",
-      "Memory pressure (PSI some)",
-    ],
     source: "`/proc/pressure/*` and `/sys/fs/cgroup/CGROUP/*.pressure`",
     sourceDetail:
       "Host values come from `/proc/pressure/cpu`, `memory`, and `io`. Cgroup values come from `cpu.pressure`, `memory.pressure`, and `io.pressure` in the target cgroup directory under `/sys/fs/cgroup`, found from `/proc/PID/cgroup`. Interval values use the change of the cumulative total= stall time; the first sample uses avg10. Check it yourself: `cat /proc/pressure/cpu`.",
@@ -1314,7 +1256,6 @@ export const helpTopics = {
     limits:
       "Caching can make storage traffic differ from application read/write traffic.",
     related: ["sysio", "pressure", "faults"],
-    aliases: [],
     source: "`/proc/PID/io`: read_bytes, write_bytes",
     sourceDetail:
       "With each resource sample, the sampler reads read_bytes and write_bytes from `/proc/PID/io`: bytes the process caused the block layer to read or write, including threads that have ended. The collector divides the change by the interval. The file is readable only when the sampler runs as the target user. Check it yourself: `cat /proc/PID/io`.",
@@ -1330,7 +1271,6 @@ export const helpTopics = {
     limits:
       "The hard limit restricts changes to the soft limit. An unknown limit is not unlimited.",
     related: ["limits", "socketio"],
-    aliases: [],
     source: "`/proc/PID/fd` count; `/proc/PID/limits`: Max open files",
     sourceDetail:
       "With each resource sample, the sampler counts the entries of `/proc/PID/fd` and reads the Max open files line (soft and hard) of `/proc/PID/limits`. Check it yourself: `ls /proc/PID/fd | wc -l`.",
@@ -1346,7 +1286,6 @@ export const helpTopics = {
     limits:
       "A high percentage suggests less remaining capacity; it does not by itself establish a leak.",
     related: ["fds", "cgroupmem", "throttle"],
-    aliases: [],
     source: "Each row names its file in its own topic",
     sourceDetail:
       "Open files: `/proc/PID/fd` and `/proc/PID/limits`. Cgroup memory, CPU quota, and tasks: `memory.*`, `cpu.max`, `cpu.stat`, and `pids.*` in the target cgroup directory under `/sys/fs/cgroup`. Socket memory and backlog: `/proc/PID/net/sockstat` and `/proc/sys/net/`. All are read with each resource sample.",
@@ -1362,7 +1301,6 @@ export const helpTopics = {
     limits:
       "This value is not the target process RSS. Reclaimable cache can form part of the total.",
     related: ["rss", "pressure"],
-    aliases: [],
     source:
       "`/sys/fs/cgroup/CGROUP/memory.current`, `memory.max`, `memory.high`, `memory.events`",
     sourceDetail:
@@ -1379,7 +1317,6 @@ export const helpTopics = {
       "Compare quota, CPU pressure, and run delay. Tasks can wait for quota even when host cores are idle.",
     limits: "The denominator is CPU periods, not elapsed time.",
     related: ["delay", "pressure", "cpu"],
-    aliases: ["CPU throttled"],
     source: "`/sys/fs/cgroup/CGROUP/cpu.stat`: nr_throttled ÷ nr_periods",
     sourceDetail:
       "With each resource sample, the sampler reads nr_periods, nr_throttled, and throttled_usec from cpu.stat, and the quota from cpu.max, in the target cgroup directory. The share is the change in nr_throttled divided by the change in nr_periods.",
@@ -1394,7 +1331,6 @@ export const helpTopics = {
     limits:
       "The count includes processes and threads in the cgroup, not only the target process.",
     related: ["limits", "churn"],
-    aliases: [],
     source: "`/sys/fs/cgroup/CGROUP/pids.current`, `pids.max`",
     sourceDetail:
       "With each resource sample, the sampler reads pids.current and pids.max in the target cgroup directory.",
@@ -1410,11 +1346,6 @@ export const helpTopics = {
     limits:
       "These values cover the host and cannot be attributed to one process.",
     related: ["limits", "queues"],
-    aliases: [
-      "UDP memory",
-      "Max SO_RCVBUF (rmem_max)",
-      "Max SO_SNDBUF (wmem_max)",
-    ],
     source: "`/proc/PID/net/sockstat`; `/proc/sys/net/ipv4/tcp_mem`",
     sourceDetail:
       "TCP and UDP memory in use are the mem values (in pages) of `/proc/PID/net/sockstat`. The thresholds are `/proc/sys/net/ipv4/tcp_mem` and `udp_mem`. The largest buffers are `/proc/sys/net/core/rmem_max` and `wmem_max`. All are read with each resource sample.",
@@ -1429,7 +1360,6 @@ export const helpTopics = {
     limits:
       "Listener queues use connection counts, not bytes. A full queue can have several causes.",
     related: ["recvq", "netdrops"],
-    aliases: ["Max listen backlog (somaxconn)"],
     source: "sock_diag listener queue; `/proc/sys/net/core/somaxconn`",
     sourceDetail:
       "The sampler lists sockets through sock_diag, the netlink interface that `ss` uses. For a listener, the receive queue is the connections waiting for accept() and the send queue is the backlog limit. somaxconn comes from `/proc/sys/net/core/somaxconn`. Check it yourself: `ss -ltn`.",
@@ -1444,12 +1374,6 @@ export const helpTopics = {
     limits:
       "A queue does not identify a cause by itself. Missing socket coverage is not an empty queue.",
     related: ["recvq", "sendq", "coverage"],
-    aliases: [
-      "Queued in sockets",
-      "Fullest sockets",
-      "Receive queue (unread)",
-      "Send queue (unsent)",
-    ],
     source: "sock_diag socket list, matched through `/proc/PID/fd`",
     sourceDetail:
       "With each resource sample, the sampler lists the TCP, UDP, and Unix sockets of its network namespace through sock_diag, the netlink interface that `ss` uses. It keeps the sockets whose inode appears as socket:[INODE] in `/proc/PID/fd` and sums their receive and send queues. A target in another network namespace has no socket queues. Check it yourself: `ss -tanp`.",
@@ -1464,7 +1388,6 @@ export const helpTopics = {
     limits:
       "Buffer fill uses queued memory and the buffer limit, which can differ from payload byte counts.",
     related: ["backlog", "queues"],
-    aliases: ["Receive buffer"],
     source: "sock_diag: receive queue and socket memory",
     sourceDetail:
       "Recv-Q is the receive queue that sock_diag reports for the socket, as `ss` shows it. Buffer fill uses the allocated receive memory and the receive buffer size (rmem_alloc and rcvbuf) from the same list, as `ss -m` shows them.",
@@ -1479,7 +1402,6 @@ export const helpTopics = {
       "Compare queue growth with send buffer use, RTT, and retransmissions.",
     limits: "Queued data alone does not prove that the peer is slow.",
     related: ["rtt", "retrans", "queues"],
-    aliases: ["Send buffer"],
     source: "sock_diag: send queue and socket memory",
     sourceDetail:
       "Send-Q is the send queue that sock_diag reports for the socket, as `ss` shows it. Buffer fill uses the queued send memory and the send buffer size (wmem_queued and sndbuf) from the same list, as `ss -m` shows them.",
@@ -1492,7 +1414,6 @@ export const helpTopics = {
     reading: "Compare sustained changes with retransmissions and queue growth.",
     limits: "RTT is not the application request or message-processing time.",
     related: ["retrans", "sendq"],
-    aliases: [],
     source: "sock_diag `tcp_info`: tcpi_rtt",
     sourceDetail:
       "The sampler asks sock_diag for the kernel tcp_info of each TCP socket of the target, which `ss -ti` also shows. RTT is tcpi_rtt, the smoothed round-trip time in microseconds.",
@@ -1508,7 +1429,6 @@ export const helpTopics = {
     limits:
       "Retransmissions do not identify where on the path the problem occurred.",
     related: ["rtt", "netdrops"],
-    aliases: ["Retrans"],
     source:
       "Per socket: `tcp_info`; namespace: `/proc/PID/net/snmp` RetransSegs",
     sourceDetail:
@@ -1526,7 +1446,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["health", "retrans", "coverage"],
-    aliases: ["Network stack drops & errors"],
     source: "`/proc/PID/net/netstat`, `snmp`, `snmp6`, and `dev`",
     sourceDetail:
       "With each resource sample, the sampler reads counters from `/proc/PID/net/netstat` (TcpExt), `/proc/PID/net/snmp` (Tcp and Udp), `/proc/PID/net/snmp6` (Udp6, added to Udp), and `/proc/PID/net/dev` (every interface except lo). These files describe the network namespace of the target. Each counter topic names its line. Check it yourself: `cat /proc/PID/net/netstat`.",
@@ -1542,7 +1461,6 @@ export const helpTopics = {
     limits:
       "A socket can disappear between samples. State and endpoint alone do not identify the owning application operation.",
     related: ["queues", "coverage"],
-    aliases: ["Local → peer", "Socket kind", "TCP sockets in namespace"],
     source: "sock_diag socket list",
     sourceDetail:
       "Kind, state, and the local and peer addresses come from the sock_diag entry of the socket, as `ss -tuxan` lists them. Unix socket paths come from the same list. A socket belongs to the target when its inode appears in `/proc/PID/fd`.",
@@ -1558,7 +1476,6 @@ export const helpTopics = {
     limits:
       "Namespace-wide drop counters are in Network drops. A counter can reset when the socket is recreated.",
     related: ["recvq", "netdrops", "endpoint"],
-    aliases: [],
     source: "sock_diag socket memory: drops",
     sourceDetail:
       "The drop count in the socket memory information (SK_MEMINFO_DROPS) of the sock_diag list, which `ss -m` shows as d. The collector shows the change since the previous resource sample.",
@@ -1573,7 +1490,6 @@ export const helpTopics = {
       "A sustained or growing count can indicate missing socket cleanup.",
     limits: "A brief CLOSE-WAIT state can be normal during shutdown.",
     related: ["endpoint", "fds"],
-    aliases: [],
     source: "sock_diag socket states",
     sourceDetail:
       "The number of target TCP sockets that sock_diag reports in the CLOSE-WAIT state. Check it yourself: `ss -tan state close-wait`.",
@@ -1588,7 +1504,6 @@ export const helpTopics = {
       "Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.",
     limits: "Do not treat gaps or unreadable values as zero activity.",
     related: ["health", "socketio"],
-    aliases: [],
     source: "Flags sent with each sample",
     sourceDetail:
       "The sampler and the socket observer mark data they could not read completely, such as a cut socket list or an unreadable file. The collector marks samples as stale when they are old.",
@@ -1604,7 +1519,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: ListenOverflows",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: ListenOverflows. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1619,7 +1533,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: ListenDrops",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: ListenDrops. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1635,7 +1548,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPReqQFullDrop",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPReqQFullDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1651,7 +1563,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: SyncookiesSent",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: SyncookiesSent. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1667,7 +1578,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPBacklogDrop",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPBacklogDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1683,7 +1593,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPRcvQDrop",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPRcvQDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1699,7 +1608,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPZeroWindowDrop",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPZeroWindowDrop. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1715,7 +1623,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: PruneCalled",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: PruneCalled. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1730,7 +1637,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: RcvPruned",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: RcvPruned. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1745,7 +1651,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: OfoPruned",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: OfoPruned. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1760,7 +1665,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/snmp` Tcp: RetransSegs",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: RetransSegs. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1776,7 +1680,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPTimeouts",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPTimeouts. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1791,7 +1694,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPAbortOnTimeout",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPAbortOnTimeout. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1806,7 +1708,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/snmp` Tcp: EstabResets",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: EstabResets. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1821,7 +1722,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/snmp` Tcp: AttemptFails",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/snmp` Tcp: AttemptFails. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1837,7 +1737,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPMemoryPressures",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPMemoryPressures. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1852,7 +1751,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/netstat` TcpExt: TCPAbortOnMemory",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/netstat` TcpExt: TCPAbortOnMemory. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1868,7 +1766,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/snmp` Udp: RcvbufErrors, plus Udp6RcvbufErrors in `snmp6`",
     sourceDetail:
@@ -1884,7 +1781,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/snmp` Udp: SndbufErrors, plus Udp6SndbufErrors in `snmp6`",
     sourceDetail:
@@ -1901,7 +1797,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/snmp` Udp: InErrors, plus Udp6InErrors in `snmp6`",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: InErrors, plus Udp6InErrors in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1917,7 +1812,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/snmp` Udp: MemErrors, plus Udp6MemErrors in `snmp6`",
     sourceDetail:
@@ -1933,7 +1827,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source: "`/proc/PID/net/snmp` Udp: NoPorts, plus Udp6NoPorts in `snmp6`",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/snmp` Udp: NoPorts, plus Udp6NoPorts in `snmp6`. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
@@ -1949,7 +1842,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/dev` receive drop, summed over interfaces except lo",
     sourceDetail:
@@ -1966,7 +1858,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/dev` transmit drop, summed over interfaces except lo",
     sourceDetail:
@@ -1983,7 +1874,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/dev` receive errs, summed over interfaces except lo",
     sourceDetail:
@@ -1999,7 +1889,6 @@ export const helpTopics = {
     limits:
       "Other processes can contribute. Counter resets, gaps, and partial coverage can limit comparisons.",
     related: ["netdrops", "coverage"],
-    aliases: [],
     source:
       "`/proc/PID/net/dev` transmit errs, summed over interfaces except lo",
     sourceDetail:
@@ -2016,7 +1905,6 @@ export const helpTopics = {
     limits:
       "Received/sent bytes exclude peeks, failed operations, and UDP. A receive call can contain part of a message or many messages.",
     related: ["received", "sent", "messages"],
-    aliases: ["What is measured · setup"],
     source: "Optional eBPF observer: kernel tracepoints and a uprobe",
     sourceDetail:
       "The optional eBPF socket observer attaches to the kernel tracepoints sock_recv_length and sock_send_length. It counts, for each thread of the target, the bytes of successful socket receives and sends in kernel maps, and reports them to the collector once a second. Message counts come from a uprobe on the application marker function. Loading it needs privileges. The collector shows the observer that last reported the selected target's PID from the same sampler host. After a collector restart, it shows the stored observations of that PID until an observer reports, unless another target has the same PID.",
@@ -2031,7 +1919,6 @@ export const helpTopics = {
     limits:
       "Coverage is specific to the observer. Receive calls and byte counts do not define application messages.",
     related: ["socketio", "messages"],
-    aliases: ["↓ Received", "Received", "Received bytes"],
     source: "eBPF: tracepoint sock_recv_length",
     sourceDetail:
       "The optional eBPF observer adds the byte count of each successful receive on a target socket, from the sock_recv_length kernel tracepoint. Peeks and failed calls are not counted.",
@@ -2044,7 +1931,6 @@ export const helpTopics = {
     reading: "Compare sent and received rates with queue use.",
     limits: "Acceptance by the socket does not prove delivery to the peer.",
     related: ["socketio", "sendq"],
-    aliases: ["↑ Sent", "Sent", "Sent bytes"],
     source: "eBPF: tracepoint sock_send_length",
     sourceDetail:
       "The optional eBPF observer adds the byte count of each successful send on a target socket, from the sock_send_length kernel tracepoint. Failed calls are not counted.",
@@ -2059,7 +1945,6 @@ export const helpTopics = {
       "A configured completion marker is required. Compare completions with byte rates to understand workload changes.",
     limits: "Message counts are never inferred from read calls or byte counts.",
     related: ["socketio", "received"],
-    aliases: ["Messages", "✓ Messages processed"],
     source: "eBPF uprobe on the application marker function",
     sourceDetail:
       "The optional eBPF observer attaches a uprobe to the marker function named when it starts, and counts each call. The application calls the marker once for each message it has finished.",
@@ -2074,7 +1959,6 @@ export const helpTopics = {
       "Compare it with the rate columns to see whether past traffic or current traffic dominates.",
     limits: "Lost counter updates can make the total a lower bound.",
     related: ["rates", "coverage", "socketio"],
-    aliases: [],
     source: "eBPF observer byte counters",
     sourceDetail:
       "The cumulative bytes counted by the optional eBPF observer (see Socket received and Socket sent) since it started observing.",
@@ -2090,16 +1974,6 @@ export const helpTopics = {
     limits:
       "Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.",
     related: ["coverage", "socketio"],
-    aliases: [
-      "Current rate",
-      "Now /s",
-      "Average since start",
-      "Average /s",
-      "Recent minimum",
-      "Recent min /s",
-      "Recent maximum",
-      "Recent max /s",
-    ],
     source: "Collector: change of the eBPF observer counters",
     sourceDetail:
       "The collector divides the change of the observer counters by the time between reports, and keeps the minimum and maximum over the most recent 60 intervals.",
@@ -2115,7 +1989,6 @@ export const helpTopics = {
     limits:
       "Mapped memory is not resident memory. A layout is sampled less often than threads, so short-lived mappings can be missed.",
     related: ["amap", "vmsize", "rss"],
-    aliases: [],
     source: "`/proc/PID/maps` and `/proc/PID/status`",
     sourceDetail:
       "With each memory sample (every 30 s by default), the sampler reads `/proc/PID/maps` in small parts within a time budget, and the Vm lines of `/proc/PID/status`. The collector serves the layout through `/api/memory-map`. Check it yourself: `cat /proc/PID/maps`.",
@@ -2131,7 +2004,6 @@ export const helpTopics = {
     limits:
       "The split comes from resource samples and needs them to be available. Shared pages count in full for each process that maps them.",
     related: ["rss", "anonres", "cgroupmem"],
-    aliases: [],
     source: "`/proc/PID/status`: RssAnon, RssFile, RssShmem",
     sourceDetail:
       "With each resource sample, the sampler reads RssAnon, RssFile, and RssShmem from `/proc/PID/status`. Their sum is VmRSS.",
@@ -2147,7 +2019,6 @@ export const helpTopics = {
     limits:
       "Adjacent regions can merge or split without a change in memory use.",
     related: ["memregions", "vmsize", "memlimits"],
-    aliases: ["Mappings", "Regions / VMAs"],
     source: "Lines of `/proc/PID/maps`; `/proc/sys/vm/max_map_count`",
     sourceDetail:
       "Each line of `/proc/PID/maps` is one VMA; the sampler counts them with each memory sample. The limit is `/proc/sys/vm/max_map_count`. Check it yourself: `wc -l < /proc/PID/maps`.",
@@ -2163,7 +2034,6 @@ export const helpTopics = {
     limits:
       "These are rules of thumb, not a diagnosis. They use only the latest samples.",
     related: ["assessment", "memlimits", "amap"],
-    aliases: [],
     source: "Computed in this page",
     sourceDetail:
       "This page applies fixed rules to the latest memory, resource, and thread samples. Each finding names the value it used.",
@@ -2179,7 +2049,6 @@ export const helpTopics = {
     limits:
       "Gaps between mappings are shortened. A large bar can use little RAM because mapped is not resident.",
     related: ["memzoom", "memkinds", "vmsize"],
-    aliases: ["Address space map"],
     source: "`/proc/PID/maps`",
     sourceDetail:
       "Each bar groups adjacent lines of `/proc/PID/maps` of the same kind. The kind comes from the path column ([heap], [stack], a file, or none for anonymous memory) and the permissions.",
@@ -2196,13 +2065,6 @@ export const helpTopics = {
     limits:
       "The grid shows mappings, not residency. Page size comes from the sampler host. If it is unknown, cells show bytes without page counts. KiB and MiB use powers of 1,024.",
     related: ["amap", "memregions", "heap", "memgap", "heapmargin"],
-    aliases: [
-      "Size (mapped)",
-      "Address span",
-      "Not mapped inside",
-      "Largest region",
-      "Page size",
-    ],
     source: "`/proc/PID/maps`; page size of the sampler host",
     sourceDetail:
       "The grid shows the address ranges of `/proc/PID/maps`. The page size is sysconf(_SC_PAGESIZE) on the sampler host.",
@@ -2217,7 +2079,6 @@ export const helpTopics = {
     limits:
       "An unmapped gap is not an allocator free block. Incomplete, stale, or historical layouts cannot supply this value.",
     related: ["memzoom", "memregions"],
-    aliases: ["Largest unmapped gap"],
     source: "Computed from `/proc/PID/maps`",
     sourceDetail:
       "The longest range inside the bar that no line of `/proc/PID/maps` covers.",
@@ -2233,7 +2094,6 @@ export const helpTopics = {
     limits:
       "The margin is capped at 1 MiB and requires a complete current layout. Selection or target changes reset it. The mapping end is not the exact program break.",
     related: ["heapend", "memzoom"],
-    aliases: [],
     source: "Display range around the [heap] line of `/proc/PID/maps`",
     sourceDetail:
       "A display choice of this page. The addresses come from `/proc/PID/maps`.",
@@ -2249,7 +2109,6 @@ export const helpTopics = {
     limits:
       "Many allocators also use mmap arenas. Size change uses samples collected while this page was open and shows their measured interval. It is not an exact program-break movement.",
     related: ["anonres", "stack", "memkinds"],
-    aliases: ["Heap mapping size change"],
     source: "The [heap] line of `/proc/PID/maps`",
     sourceDetail:
       "The size of the [heap] line of `/proc/PID/maps` (end address minus start address) in each memory sample. Check it yourself: `grep heap /proc/PID/maps`.",
@@ -2265,7 +2124,6 @@ export const helpTopics = {
     limits:
       "This is not the exact program break. Missing samples leave gaps. History resets when the target or sampler session changes.",
     related: ["heap", "stackstart"],
-    aliases: ["Heap mapping end ↑"],
     source: "End address of the [heap] line of `/proc/PID/maps`",
     sourceDetail:
       "The end address of the [heap] line of `/proc/PID/maps` in each memory sample.",
@@ -2281,7 +2139,6 @@ export const helpTopics = {
     limits:
       "The mapping boundary does not measure stack depth. Missing samples leave gaps.",
     related: ["stack", "heapend"],
-    aliases: ["Main stack start ↓"],
     source: "Start address of the [stack] line of `/proc/PID/maps`",
     sourceDetail:
       "The start address of the [stack] line of `/proc/PID/maps` in each memory sample.",
@@ -2297,7 +2154,6 @@ export const helpTopics = {
     limits:
       "It counts mapped address space, not resident memory. Memory that was never touched still counts.",
     related: ["heap", "anonres", "memkinds"],
-    aliases: ["Data + heap (VmData)"],
     source: "`/proc/PID/status`: VmData",
     sourceDetail:
       "With each memory sample, the sampler reads the VmData line of `/proc/PID/status`.",
@@ -2313,7 +2169,6 @@ export const helpTopics = {
     limits:
       "Other threads have their own stacks inside anonymous mappings. The mapping does not shrink when the stack unwinds. Size change shows the measured interval between samples while this page was open.",
     related: ["heap", "memlimits"],
-    aliases: ["Main stack ↓", "Stack mapping size change"],
     source: "[stack] in `/proc/PID/maps`; `/proc/PID/limits`: Max stack size",
     sourceDetail:
       "The size of the [stack] line of `/proc/PID/maps`, compared with the soft Max stack size of `/proc/PID/limits`. Check it yourself: `grep stack /proc/PID/maps`.",
@@ -2326,7 +2181,6 @@ export const helpTopics = {
     reading: "At the limit, mmap() and malloc() fail even when RAM is free.",
     limits: "RLIMIT_AS counts reserved address space, not RAM.",
     related: ["vmsize", "memlimits"],
-    aliases: ["Address space"],
     source: "`/proc/PID/limits`: Max address space",
     sourceDetail:
       "The soft value of the Max address space line of `/proc/PID/limits`. Check it yourself: `prlimit --as --pid PID`.",
@@ -2342,7 +2196,6 @@ export const helpTopics = {
     limits:
       "Swapped anonymous pages leave this total. The chart covers only the time this page was open.",
     related: ["memkinds", "heap", "rss"],
-    aliases: [],
     source: "`/proc/PID/status`: RssAnon",
     sourceDetail:
       "With each resource sample (every 2 s by default), the sampler reads the RssAnon line of `/proc/PID/status`.",
@@ -2358,7 +2211,6 @@ export const helpTopics = {
     limits:
       "Other runtimes can manage stacks differently. Residency does not measure current stack depth.",
     related: ["stack", "anonres", "memregions"],
-    aliases: [],
     source: "Anonymous lines of `/proc/PID/maps`",
     sourceDetail:
       "The dashboard does not measure the residency of each thread stack. Thread stacks appear as anonymous lines in `/proc/PID/maps`, usually with a guard page below them.",
@@ -2374,7 +2226,6 @@ export const helpTopics = {
     limits:
       "Only the first 300 regions are listed. Permissions are the union over the region's mappings.",
     related: ["memzoom", "vmas"],
-    aliases: ["Region", "Perms", "Member regions"],
     source: "`/proc/PID/maps`",
     sourceDetail:
       "The start address, size, and permissions of the merged lines of `/proc/PID/maps`.",
@@ -2390,7 +2241,6 @@ export const helpTopics = {
     limits:
       "No configured limit is different from an unknown limit. The longest maps read shows the sampler's own cost.",
     related: ["vmas", "aslimit", "stack"],
-    aliases: ["Page tables", "Locked", "Longest maps read"],
     source:
       "`/proc/PID/limits`, `/proc/PID/status`, `/proc/sys/vm/max_map_count`",
     sourceDetail:
@@ -2408,14 +2258,15 @@ export const helpTopics = {
     limits:
       "These are counts, not rates, so they only grow and say nothing about what is happening now.",
     related: ["faults", "rss"],
-    aliases: ["Page faults since start"],
     source: "`/proc/PID/stat`: fields 10 (minflt) and 12 (majflt)",
     sourceDetail:
       "With each memory sample (every 30 s by default), the sampler reads fields 10 and 12 of `/proc/PID/stat`: the minor and major faults of the whole process since it started, including threads that have ended. Check it yourself: `ps -o min_flt,maj_flt -p PID`.",
   },
-} as const satisfies Record<string, HelpTopic>;
+} as const;
 
-export type HelpTopicId = keyof typeof helpTopics;
+export type HelpTopicId = keyof typeof topics;
+export const helpTopics: Readonly<Record<HelpTopicId, HelpTopic>> = topics;
+export const helpTopicIds = Object.keys(topics).filter(isHelpTopicId);
 
 export function isHelpTopicId(value: string): value is HelpTopicId {
   return Object.hasOwn(helpTopics, value);

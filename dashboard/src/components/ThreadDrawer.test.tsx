@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, Thread } from "../api/types";
@@ -11,6 +12,7 @@ import { emptySeries, ingest } from "../lib/series";
 import type { SelectedThread } from "../lib/threadView";
 import { view as liveView } from "../lib/test-fixtures";
 import { ThreadDrawer } from "./ThreadDrawer";
+import { HelpGuideProvider } from "../help/HelpGuide";
 
 const one: Thread = {
   tid: 7,
@@ -52,6 +54,61 @@ afterEach(() => {
   close.mockClear();
 });
 const emptyHistory = () => Response.json({ rows: [], truncated: false });
+
+test.each([
+  ["CPU", "CPU", "20.0%"],
+  ["Run delay", "Run delay", "7.0%"],
+  ["State mix", "Running", "100%"],
+  ["I/O", "Read/s", "2.0 KB/s"],
+])(
+  "the history %s heading captures its metric",
+  async (heading, column, value) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(() =>
+        Promise.resolve(
+          Response.json({
+            rows: [990, 1000].map((ts) => ({
+              ts,
+              cpu_pct: 20,
+              run_delay_pct: 7,
+              read_bps: 2048,
+              write_bps: 4096,
+              samples: 20,
+              expected_samples: 20,
+              valid: true,
+              sample_counts: { running: 20 },
+            })),
+            truncated: false,
+          }),
+        ),
+      ),
+    );
+    render(
+      <HelpGuideProvider>
+        <Drawer thread={selected(one)} />
+      </HelpGuideProvider>,
+    );
+    await screen.findByText(/2 summaries/);
+    fireEvent.keyDown(document, { key: "Escape" });
+    const opener = within(document.getElementById("history") ?? document.body)
+      .getByRole("heading", { name: heading })
+      .closest<HTMLElement>("[data-help]");
+    if (!opener) throw Error("Missing history heading");
+    act(() => {
+      opener.focus();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+    const guide = document.getElementById("help-guide");
+    if (!guide) throw Error("Missing guide");
+    fireEvent.click(within(guide).getByText("View chart data"));
+    expect(
+      within(guide).getByRole("columnheader", { name: column }),
+    ).toBeDefined();
+    expect(within(guide).getAllByRole("cell", { name: value })).toHaveLength(2);
+    fireEvent.keyDown(document, { key: "Escape" });
+  },
+);
 
 // Old tests 356 and 378: ranges persist across close and another thread.
 test("the custom history interval and open table survive closing and changing threads", async () => {

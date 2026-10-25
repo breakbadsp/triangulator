@@ -1,77 +1,16 @@
 import assert from "node:assert/strict";
 import process from "node:process";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { URL, fileURLToPath } from "node:url";
 import { createContext, runInContext, runInNewContext } from "node:vm";
 import { log } from "node:console";
 import ts from "typescript";
+import { readPinnedOracle } from "./parity-oracle.mjs";
 
-// Run from any directory. The pinned page is the oracle for this migration.
+// This fixture works in shallow clones and source archives without Git.
 const dashboard = fileURLToPath(new URL("../", import.meta.url));
-const html = execFileSync("git", ["show", "777cf3a:collector/dashboard.html"], {
-  cwd: dashboard,
-  encoding: "utf8",
-});
-const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-assert.ok(script, "The pinned page must have its inline script");
-const source = ts.createSourceFile(
-  "old.js",
-  script,
-  ts.ScriptTarget.Latest,
-  true,
-);
-const names = new Set(
-  `
-  SETTLE_SECS settling targetExited inspectTime returnLive
-  BUFFER_SECS AVG_STEP loadBuffer saveBuffer ingest loadOf updateLoadAverage
-  averageCpu mapView idleFor
-  STATES labels isNum pct compact number bytes perSec clock date duration ago family
-  isIdle idleSecs futexShare STUCK_FUTEX_S lockHints SATURATED_PCT watchOverdueS
-  sampleIntervalMs isWatched quietFor quietText isOverdue isBusyWatched watchedThreads
-  watchRuleFor watchRulesOutdated andMore stuckFinding busyFinding unmatchedRules watchFindings
-  threadLabel threadGrowth KERNEL_SHARE_MIN SPIN_SWITCHES_MIN kernelShare LEVEL_ORDER
-  LEVEL_ICONS VERDICTS ofType assess PRESSURE_SERIES hasCgroup scopeOf stall socketName
-  MOVES_DATA movesData peerWindowZero assessResources asResourcePoints resourcePoints
-  memoryBytes memoryLayoutFor memoryComm isLibrary baseName memoryRegions MEMORY_GAP
-  MEMORY_ROWS memoryRows memorySlope RSS_TREND_WINDOWS RSS_TREND_MIN_SPAN
-  RSS_TREND_MIN_POINTS rssTrend signed assessMemory memoryOverviewFindings memoryFaultRate
-  memoryPressure endedTarget EXIT_REASONS CRASH_SIGNALS KILL_SIGNALS signalLabel
-  exitReason exitStatusText viewTargetName fleetName
-  KIND_LABELS NET_COUNTERS DROP_COLUMNS socketLabel socketNotes renderResourceTiles socketValue socketTitles renderSocket renderSocketChart
-  fillLevel fillCell renderResourceSockets renderNetstack
-  meter microseconds MEMORY_KINDS MEMORY_KIND_LABELS memoryResources memoryPageSize
-  memoryLayoutComplete memoryCurrentLayout memoryZoomIdentity resetMemoryTarget
-  memoryGrowth memoryRegionName memoryRowName memoryPerms memoryGrows recordMemory
-  renderMemoryFindings renderMemoryTiles renderMemoryMap memoryDisplaySpan
-  memoryLargestGap renderMemoryZoom memoryChart memoryBoundaryPoints
-  renderMemoryCharts renderMemory refreshMemoryLayout
-  findingKey historyEpisodes slotTimes
-`
-    .trim()
-    .split(/\s+/),
-);
-const declarations = [];
-for (const statement of source.statements) {
-  if (
-    ts.isFunctionDeclaration(statement) &&
-    names.delete(statement.name?.text)
-  ) {
-    declarations.push(statement.getText(source));
-  } else if (ts.isVariableStatement(statement)) {
-    for (const declaration of statement.declarationList.declarations) {
-      if (
-        ts.isIdentifier(declaration.name) &&
-        names.delete(declaration.name.text)
-      ) {
-        declarations.push(`const ${declaration.getText(source)};`);
-      }
-    }
-  }
-}
-assert.deepEqual([...names], [], "Every oracle declaration must exist");
-const oracle = declarations.join("\n");
+const { oracle, source } = readPinnedOracle();
 
 // Load the real TypeScript modules without a second build or generated files.
 const modules = new Map();
@@ -87,6 +26,19 @@ function load(filename) {
   ) {
     assert.ok(text.includes("AVG_STEP = 10"));
     text = text.replace("AVG_STEP = 10", "AVG_STEP = 9");
+  }
+  if (
+    process.argv.includes("--negative-pid-filter") &&
+    filename.endsWith("/assess/memory.ts")
+  ) {
+    const boundary =
+      "  if (!view.resources?.available || view.resources.stale) return null;";
+    assert.ok(text.includes(boundary));
+    text = text.replace(
+      boundary,
+      "  all = all.filter(point => point.pid === view.health.pid);\n" +
+        boundary,
+    );
   }
   const { outputText } = ts.transpileModule(text, {
     compilerOptions: {
@@ -111,7 +63,7 @@ const { emptySeries, ingest, restoreSeries, threadsEntry } = load(
 const { averageCpu, mapView, idleFor } = load(
   resolve(dashboard, "src/lib/threads.ts"),
 );
-const { asResourcePoints } = load(
+const { asResourcePoints, rssTrend } = load(
   resolve(dashboard, "src/lib/assess/memory.ts"),
 );
 const canonical = (value) => JSON.parse(JSON.stringify(value));
@@ -197,6 +149,46 @@ function resources(host = 0, cgroup = 0) {
     },
   };
 }
+// An unavailable RSS row still separates two runs of the same PID.
+for (const boundary of [false, true]) {
+  const rows = Array.from({ length: 24 }, (_, i) => ({
+    ts: 880 + i * 5,
+    pid: 7,
+    elapsed_s: 5,
+    rss_bytes: (100 + 8 * i * 5) * 2 ** 20,
+  }));
+  if (boundary)
+    rows.splice(-1, 0, { ts: 994, pid: 8, elapsed_s: 5, rss_bytes: null });
+  const points = asResourcePoints(rows);
+  const live = view([], { resources: resources() });
+  const expected = runInNewContext(oracle + "\nrssTrend()", {
+    live,
+    replayAt: 1000,
+    replayResources: points,
+    viewNow: () => 1000,
+  });
+  assert.equal(!!expected?.steady, !boundary, "Pinned RSS boundary/control");
+  assert.deepEqual(
+    canonical(rssTrend(live, points, 1000)),
+    canonical(expected),
+    "Unavailable RSS PID boundary must end the run",
+  );
+  check(input(live, { resourcePoints: points }));
+  assert.deepEqual(
+    canonical(
+      assessRecorded(live, 1000, [
+        ...points,
+        ...asResourcePoints([{ ts: 1100, pid: 8, rss_bytes: null }]),
+      ]),
+    ),
+    canonical(assessRecorded(live, 1000, points)),
+    "Future resources cannot alter the recording",
+  );
+}
+log(
+  "PASS: RSS growth control and unavailable-row process boundary match the pinned oracle.",
+);
+
 const memory = {
   available: true,
   pid: 7,
@@ -964,7 +956,8 @@ log(
   `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
 );
 
-// The two history explanations are a word-for-word port of the pinned page.
+// The history explanations retain the pinned text. Automatic label aliases
+// are retired; internal callers use type-checked topic IDs.
 const topics = load(resolve(dashboard, "src/help/topics.ts")).helpTopics;
 for (const id of ["assesshistory", "historyfilters"]) {
   const call = source.statements.find(
@@ -984,12 +977,11 @@ for (const id of ["assesshistory", "historyfilters"]) {
     "reading",
     "limits",
     "related",
-    "aliases",
   ];
   const values = runInNewContext(
     `let values; function helpTopic(...args) { values = args; } ${call.getText(source)}; values`,
   );
-  for (let i = 1; i < values.length; i++)
+  for (let i = 1; i < fields.length; i++)
     assert.deepEqual(
       canonical(topics[id][fields[i]]),
       canonical(

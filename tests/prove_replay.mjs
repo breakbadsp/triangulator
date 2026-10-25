@@ -26,7 +26,9 @@ export async function proveReplay({
   const base = `http://127.0.0.1:${port}`;
   const directory = join(profile, "replay-fixture");
   await mkdir(directory);
-  const now = Math.floor(Date.now() / 1000),
+  // The custom range ends at an exact minute, so every run checks native
+  // datetime-local normalization of zero seconds.
+  const now = Math.floor(Date.now() / 60000) * 60 + 10,
     first = now - 600,
     last = now - 500;
   function frame(at, session = "200", pid = 42) {
@@ -551,9 +553,10 @@ export async function proveReplay({
       Number(log.filter((r) => r.path === "/api/history").at(-1).query.end),
       last,
     );
+    // datetime-local removes zero seconds. Compare the selected instant.
     assert.equal(
-      await evaluate("document.querySelector('#to').value"),
-      localInput(now + 50),
+      Date.parse(await evaluate("document.querySelector('#to').value")),
+      Date.parse(localInput(now + 50)),
     );
     await click('[data-range="900"]');
     // A recorded readout names the selected time. Keyboard focus stays safe.
@@ -1170,6 +1173,11 @@ for path in root.glob('*.sqlite3'):
       assert.deepEqual(result.titles, boundary ? [] : ["Resident memory grows without a plateau"]);
       assert.equal(result.count, boundary ? "0 findings" : "1 finding");
       assert.equal(result.marks, boundary ? 0 : 1);
+      await click("#replay-previous");
+      await mode("Historical");
+      await until(() => evaluate("[...document.querySelectorAll('#resource-tiles .tile')].some(tile => tile.querySelector('.label')?.textContent === 'Memory (RSS)' && tile.querySelector('polyline')?.getAttribute('points').split(' ').length === 24)"), "recorded resource history has all 24 current-PID samples");
+      result.displayedFindings = await text("findings");
+      assert.equal(result.displayedFindings.includes("Resident memory grows without a plateau"), !boundary);
       pastAssessments.pidBoundary.push(result);
     }
     const evidence = {

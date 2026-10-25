@@ -1,3 +1,4 @@
+import type { HelpTopicId } from "../help/topics";
 export type Level = "critical" | "serious" | "warning" | "info" | "good";
 export type FindingType =
   "monitor" | "threads" | "watched" | "resources" | "memory";
@@ -7,7 +8,7 @@ export interface Finding {
   title: string;
   detail: string;
   topic?: string;
-  help?: string;
+  help?: HelpTopicId;
   hint?: string;
   action?: {
     tid?: number;

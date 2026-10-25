@@ -20,6 +20,7 @@ import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
 import { WatchRules } from "./components/WatchRules";
 import { Timeline } from "./components/Timeline";
+import { HelpGuideProvider, PageHelp } from "./help/HelpGuide";
 import { Help } from "./help/Help";
 import { ObservationContext } from "./hooks/observationContext";
 import { useObservation } from "./hooks/useObservation";
@@ -137,137 +138,142 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
         recorded: mode.kind === "recorded",
       }}
     >
-      <header className="topbar">
-        <TopBar
-          page={page}
-          targets={targets.data?.targets ?? []}
-          live={view}
-          mode={mode}
-          now={now}
-          onLive={() => {
-            closeThread();
-            display.live();
-          }}
+      <HelpGuideProvider>
+        <header className="topbar">
+          <TopBar
+            page={page}
+            targets={targets.data?.targets ?? []}
+            live={view}
+            mode={mode}
+            now={now}
+            onLive={() => {
+              closeThread();
+              display.live();
+            }}
+          />
+          <SectionTabs
+            onSelect={(id) => {
+              if (id === "collector-settings") openSettings();
+            }}
+          />
+        </header>
+        <ErrorBanner
+          health={view?.health}
+          error={
+            mode.kind === "live" ? (live.error ?? targets.error) : undefined
+          }
         />
-        <SectionTabs
-          onSelect={(id) => {
-            if (id === "collector-settings") openSettings();
-          }}
-        />
-      </header>
-      <ErrorBanner
-        health={view?.health}
-        error={mode.kind === "live" ? (live.error ?? targets.error) : undefined}
-      />
-      <main aria-label="Dashboard">
-        <Help topic="exited" as="div">
-          <div id="exited" className="card" hidden={!display.state.final}>
-            <p id="exited-text">
-              {display.state.final &&
-                `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}: ${display.state.final.mode.kind === "final" && display.state.final.mode.exit ? `it ended (${exitReason(display.state.final.mode.exit)[0]}).` : "it exited or is no longer the target."} Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
-            </p>
-            <button
-              id="exited-live"
-              type="button"
-              onClick={() => {
-                closeThread();
-                display.dismiss();
-              }}
-            >
-              Show live
-            </button>
-          </div>
-        </Help>
-        <Timeline
-          bounds={display.bounds}
-          observation={observation}
-          latestAt={display.state.latest?.view.health.last_seen ?? 0}
-          note={display.note}
-          onInspect={(at, direction) => {
-            void display.inspect(at, direction).then((selected) => {
-              if (selected) closeThread();
-            });
-          }}
-          onLive={() => {
-            closeThread();
-            display.live();
-          }}
-          past={past}
-        />
-        <Summary
-          view={view}
-          mode={mode}
-          series={series}
-          now={now}
-          windowSecs={windowSecs}
-          onWindow={setWindowSecs}
-          onFindingAction={findingAction}
-          resourcePoints={resourcePoints}
-          pressureScope={pressureScope}
-          memoryLayout={memory.layout}
-          memoryHistory={memory.history}
-          watchRules={observation?.watchRules ?? null}
-        >
-          {view && (
-            <>
-              <ProcessInfo view={view} now={now} />
-              <ProcessExit view={view} now={now} />
-            </>
-          )}
-        </Summary>
-        <Threads
-          view={view}
-          recorded={mode.kind === "recorded"}
-          series={series}
-          windowSecs={windowSecs}
-          threadView={threads}
-          dispatch={dispatch}
-          onOpen={openThread}
-        />
-        <Resources
-          view={view}
-          now={now}
-          points={resourcePoints}
-          range={resourceRange}
-          onRange={setResourceRange}
-          scope={pressureScope}
-          onScope={setPressureScope}
-        />
-        <SocketIO
-          external
-          view={view}
+        <main aria-label="Dashboard">
+          <Help topic="exited" as="div">
+            <div id="exited" className="card" hidden={!display.state.final}>
+              <p id="exited-text">
+                {display.state.final &&
+                  `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}: ${display.state.final.mode.kind === "final" && display.state.final.mode.exit ? `it ended (${exitReason(display.state.final.mode.exit)[0]}).` : "it exited or is no longer the target."} Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
+              </p>
+              <button
+                id="exited-live"
+                type="button"
+                onClick={() => {
+                  closeThread();
+                  display.dismiss();
+                }}
+              >
+                Show live
+              </button>
+            </div>
+          </Help>
+          <Timeline
+            bounds={display.bounds}
+            observation={observation}
+            latestAt={display.state.latest?.view.health.last_seen ?? 0}
+            note={display.note}
+            onInspect={(at, direction) => {
+              void display.inspect(at, direction).then((selected) => {
+                if (selected) closeThread();
+              });
+            }}
+            onLive={() => {
+              closeThread();
+              display.live();
+            }}
+            past={past}
+          />
+          <Summary
+            view={view}
+            mode={mode}
+            series={series}
+            now={now}
+            windowSecs={windowSecs}
+            onWindow={setWindowSecs}
+            onFindingAction={findingAction}
+            resourcePoints={resourcePoints}
+            pressureScope={pressureScope}
+            memoryLayout={memory.layout}
+            memoryHistory={memory.history}
+            watchRules={observation?.watchRules ?? null}
+          >
+            {view && (
+              <>
+                <ProcessInfo view={view} now={now} />
+                <ProcessExit view={view} now={now} />
+              </>
+            )}
+          </Summary>
+          <Threads
+            view={view}
+            recorded={mode.kind === "recorded"}
+            series={series}
+            windowSecs={windowSecs}
+            threadView={threads}
+            dispatch={dispatch}
+            onOpen={openThread}
+          />
+          <Resources
+            view={view}
+            now={now}
+            points={resourcePoints}
+            range={resourceRange}
+            onRange={setResourceRange}
+            scope={pressureScope}
+            onScope={setPressureScope}
+          />
+          <SocketIO
+            external
+            view={view}
+            context={context}
+            mode={mode}
+            heldReport={observation?.sockets}
+            heldError={observation?.socketError}
+          />
+          <MemoryMap
+            mode={mode}
+            view={view}
+            now={now}
+            memory={memory}
+            dispatch={display.memory}
+            series={series}
+            resourcePoints={resourcePoints}
+            scope={pressureScope}
+          />
+          <Monitor view={view} now={now} context={context} mode={mode} />
+          <WatchRules
+            threads={display.state.latest?.view.threads ?? []}
+            recorded={mode.kind === "recorded"}
+            opened={settingsOpened}
+            onChanged={() => void watchRules.refresh()}
+          />
+          <PageHelp />
+        </main>
+        <ThreadDrawer
           context={context}
-          mode={mode}
-          heldReport={observation?.sockets}
-          heldError={observation?.socketError}
-        />
-        <MemoryMap
-          mode={mode}
-          view={view}
-          now={now}
-          memory={memory}
-          dispatch={display.memory}
-          series={series}
-          resourcePoints={resourcePoints}
-          scope={pressureScope}
-        />
-        <Monitor view={view} now={now} context={context} mode={mode} />
-        <WatchRules
-          threads={display.state.latest?.view.threads ?? []}
           recorded={mode.kind === "recorded"}
-          opened={settingsOpened}
-          onChanged={() => void watchRules.refresh()}
+          view={view}
+          series={series}
+          selected={selected}
+          now={now}
+          onClose={closeThread}
         />
-      </main>
-      <ThreadDrawer
-        context={context}
-        recorded={mode.kind === "recorded"}
-        view={view}
-        series={series}
-        selected={selected}
-        now={now}
-        onClose={closeThread}
-      />
+      </HelpGuideProvider>
     </ObservationContext>
   );
 }

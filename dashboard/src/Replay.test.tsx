@@ -5,7 +5,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App";
-import type { LiveResponse, MemoryLayout } from "./api/types";
+import type { LiveResponse, MemoryLayout, ResourceRow } from "./api/types";
 
 function frame(at: number, session = "live", pid = 9): LiveResponse {
   return {
@@ -782,3 +782,42 @@ test("a recording at zero keeps the resource range end at zero", async () => {
   expect(Number(request?.searchParams.get("end"))).toBe(0);
   expect(byId("target-name").textContent).toBe("old-worker");
 });
+
+for (const mode of ["live", "final", "recorded"] as const) {
+  test.each([false, true])(
+    `${mode} RSS keeps unavailable process boundaries: %s`,
+    async (boundary) => {
+      current = frame(2000, "live", 7);
+      snapshot = frame(2000, "old", 7);
+      first = last = 2000;
+      const rows: ResourceRow[] = Array.from({ length: 24 }, (_, i) => ({
+        ts: 1880 + i * 5,
+        pid: 7,
+        elapsed_s: 5,
+        rss_bytes: (100 + 8 * i * 5) * 2 ** 20,
+      }));
+      if (boundary)
+        rows.splice(-1, 0, { ts: 1994, pid: 8, elapsed_s: 5, rss_bytes: null });
+      // The response deliberately includes a future process boundary. Neither
+      // the recorded nor the frozen assessment may consume it.
+      rows.push({ ts: 2001, pid: 8, elapsed_s: 5, rss_bytes: null });
+      pending.set("/api/resources", () =>
+        Promise.resolve(Response.json({ rows })),
+      );
+      await open();
+      if (mode === "final") {
+        current = absent();
+        await tick();
+        expect(meta()).toContain("Stopped reporting");
+      } else if (mode === "recorded") {
+        await previous();
+        expect(meta()).toContain("Historical");
+      }
+      expect(
+        byId("findings").textContent.includes(
+          "Resident memory grows without a plateau",
+        ),
+      ).toBe(!boundary);
+    },
+  );
+}

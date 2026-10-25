@@ -4,6 +4,7 @@ import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
 import type { LiveResponse, TargetsResponse } from "../api/types";
+import { HelpGuideProvider, PageHelp } from "../help/HelpGuide";
 import { Help } from "../help/Help";
 import { usePoll } from "../hooks/usePoll";
 import {
@@ -132,7 +133,7 @@ export function FleetPage() {
     );
   }
   return (
-    <>
+    <HelpGuideProvider>
       <header className="topbar">
         <TopBar page={{ kind: "fleet" }} targets={fleet.data?.targets ?? []} />
       </header>
@@ -396,6 +397,7 @@ export function FleetPage() {
             </p>
           </Help>
         )}
+        <PageHelp />
       </main>
       {editor.form.open && (
         <TargetDialog
@@ -404,6 +406,6 @@ export function FleetPage() {
           enabled={control.enabled}
         />
       )}
-    </>
+    </HelpGuideProvider>
   );
 }

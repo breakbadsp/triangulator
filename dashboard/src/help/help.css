@@ -37,3 +37,153 @@
 .help-reading span {
   color: var(--ink-2);
 }
+
+#help-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  background: #0006;
+}
+#help-guide {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: 400px;
+  z-index: 120;
+  background: var(--surface);
+  color: var(--ink);
+  border-left: 1px solid var(--axis);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.help-guide-head {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.help-guide-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.help-guide-top span {
+  font-size: 13px;
+  color: var(--ink-2);
+  letter-spacing: 0.05em;
+}
+#help-guide-title {
+  font-size: 26px;
+  line-height: 1.3;
+  text-decoration: none;
+}
+#help-guide-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 6px 24px 24px;
+  flex: 1;
+}
+#help-guide-body h3 {
+  font-size: 15px;
+  margin: 20px 0 6px;
+}
+#help-guide-body p {
+  margin: 6px 0 16px;
+}
+.help-intro {
+  font-size: 16px;
+}
+.help-example {
+  border: 1px solid var(--axis);
+  border-radius: 10px;
+  background: var(--accent-wash);
+  padding: 12px 16px;
+  margin: 20px 0;
+}
+.help-example h3 {
+  margin: 0 0 6px !important;
+  color: var(--accent-ink);
+}
+.help-related,
+.help-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0;
+}
+.help-topics {
+  flex-direction: column;
+  align-items: stretch;
+}
+.help-data {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.help-preference {
+  flex: none;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+}
+.page-help {
+  margin-top: 28px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.page-help summary {
+  cursor: pointer;
+}
+.page-help p {
+  margin: 10px 0;
+}
+@media (min-width: 1200px) {
+  body.help-open {
+    padding-right: 400px;
+  }
+  body.help-open .g-hero,
+  body.help-open .g-2-1,
+  body.help-open .g-1-1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1199px) {
+  #help-guide {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 90dvh;
+    border: 1px solid var(--axis);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+  }
+  body.help-open {
+    overflow: hidden;
+  }
+  .help-guide-head {
+    padding: 16px 20px;
+  }
+  #help-guide-body {
+    padding: 6px 20px 20px;
+  }
+  .help-preference {
+    padding: 12px 20px;
+  }
+}
+@media (max-height: 480px) {
+  #help-guide {
+    overflow: auto;
+  }
+  #help-guide-body {
+    flex: none;
+    overflow: visible;
+  }
+}
+@media (pointer: coarse) {
+  .help-guide-top button,
+  #help-back-thread,
+  .help-preference label {
+    min-height: 44px;
+  }
+}

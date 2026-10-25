@@ -6,7 +6,6 @@ import type {
   WatchRule,
 } from "../api/types";
 import { Help } from "../help/Help";
-import { isHelpTopicId } from "../help/topics";
 import type { ViewMode } from "../lib/assess";
 import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
@@ -451,14 +450,7 @@ function Assessment({
                 <span className="ic" aria-label={item.level}>
                   {LEVEL_ICONS[item.level]}
                 </span>
-                <Help
-                  topic={
-                    item.help && isHelpTopicId(item.help)
-                      ? item.help
-                      : "assessment"
-                  }
-                  as="div"
-                >
+                <Help topic={item.help ?? "assessment"} as="div">
                   <div className="t">{item.title}</div>
                   <div className="d">{item.detail}</div>
                 </Help>

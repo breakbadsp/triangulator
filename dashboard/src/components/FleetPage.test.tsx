@@ -1,4 +1,3 @@
-// Old test 3187 (page-guide inert behavior) is deferred to phase 11.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../App";
