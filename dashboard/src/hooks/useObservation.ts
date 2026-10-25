@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { getJson, ApiError } from "../api/client";
+import { clearViewCaches } from "../api/viewStorage";
 import {
   parseBounds,
   parseFrozen,
@@ -105,13 +106,13 @@ export function useObservation(
   latest: { view: LiveResponse; now: number } | undefined,
   range: number,
 ) {
-  const [active, setActive] = useState(true);
-  const leaving = useRef(false);
+  // Targets whose caches the page drops when it unloads. A click only states
+  // an intent: the navigation can still end without an unload.
+  const departing = useRef<readonly string[] | null>(null);
   const [state, setState] = useState(() => initialObservations(target));
   const [restoredOnce, setRestoredOnce] = useState(false);
   let next = state;
   if (
-    active &&
     latest &&
     (latest.view !== state.latest?.view || latest.now !== state.latest.now)
   ) {
@@ -159,9 +160,8 @@ export function useObservation(
   }, [next]);
   const shown = displayed(next);
   const mode = shown?.mode.kind ?? "live";
-  const scope =
-    active && shown ? `${shown.key}|${String(next.generation)}` : null;
-  const boundsPoll = useScopedPoll(active ? "bounds" : null, loadBounds, 15000);
+  const scope = shown ? `${shown.key}|${String(next.generation)}` : null;
+  const boundsPoll = useScopedPoll("bounds", loadBounds, 15000);
   const [selectedBounds, setSelectedBounds] = useState<ReplayBounds | null>(
     null,
   );
@@ -293,7 +293,6 @@ export function useObservation(
       ? next.latest.view.health.last_target?.session
       : undefined;
   const wantFinal =
-    active &&
     expected &&
     !next.final &&
     !next.recorded &&
@@ -330,7 +329,7 @@ export function useObservation(
   }
   const final = next.final;
   useEffect(() => {
-    if (!final || !active) return;
+    if (!final) return;
     save(target, final);
     try {
       sessionStorage.setItem(
@@ -353,26 +352,31 @@ export function useObservation(
       }
       setUnsaved(true);
     }
-  }, [target, final, active]);
+  }, [target, final]);
   useEffect(() => {
     if (
-      active &&
       !next.recorded &&
       !next.final &&
       next.live?.series.points.length &&
       next.live.series.points.length % 5 === 0
     )
       save(target, next.live);
-  }, [target, next.live, next.recorded, next.final, active]);
+  }, [target, next.live, next.recorded, next.final]);
   useEffect(() => {
     const hide = () => {
       const held = current.current;
-      if (!leaving.current && !held.recorded)
-        save(target, held.final ?? held.live);
+      if (departing.current) departing.current.forEach(clearViewCaches);
+      else if (!held.recorded) save(target, held.final ?? held.live);
+    };
+    // A page restored from the back/forward cache did not leave after all.
+    const show = () => {
+      departing.current = null;
     };
     addEventListener("pagehide", hide);
+    addEventListener("pageshow", show);
     return () => {
       removeEventListener("pagehide", hide);
+      removeEventListener("pageshow", show);
     };
   }, [target]);
   function invalidate() {
@@ -492,14 +496,11 @@ export function useObservation(
         : previous,
     );
   }, []);
-  function leave() {
-    leaving.current = true;
-    selection.current?.abort();
-    setActive(false);
+  function depart(forget: readonly string[]) {
+    departing.current = forget;
   }
   return {
-    active,
-    leave,
+    depart,
     observation: shown,
     state: next,
     mode,
