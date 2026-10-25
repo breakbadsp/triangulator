@@ -1,0 +1,233 @@
+/* Ported from the pinned page (777cf3a), "Memory map". .legend, .sw, .facts,
+   .meter, .chart-empty and .socket-note are shared and live elsewhere. */
+:root {
+  --k-code: #6b7785;
+  --k-heap: #2a78d6;
+  --k-stack: #d85a28;
+  --k-anon: #1baf7a;
+  --k-file: #c4a24a;
+  --k-guard: #c4c8ce;
+  --k-kernel: #9aa0a8;
+}
+.mem-findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+.mem-finding {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--lvl);
+}
+.mem-finding .sev {
+  flex: none;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--lvl);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mem-finding .sev.dark {
+  color: #2a1d00;
+}
+.mem-finding .t {
+  font-weight: 600;
+}
+.mem-finding .d {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+.g-mem {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: start;
+}
+.amap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: center;
+}
+.amap .addr {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.arow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 2px 0;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  background: var(--kind);
+  color: #111;
+  font-size: 13px;
+  text-align: left;
+}
+.arow:hover {
+  background: var(--kind);
+  filter: brightness(1.08);
+}
+.arow.on-dark {
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+.arow .band {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.26);
+}
+.arow > span {
+  position: relative;
+  white-space: nowrap;
+}
+.arow .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.arow .meta {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.arow[aria-pressed="true"] {
+  outline: 3px solid var(--accent);
+  outline-offset: 1px;
+}
+.agap {
+  height: 18px;
+  margin: 2px 0;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--line) 6px 12px
+  );
+}
+.facts.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.pagegrid {
+  display: grid;
+  grid-template-columns: repeat(64, minmax(0, 1fr));
+  gap: 2px;
+}
+.pagegrid i {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--kind);
+}
+.pagegrid i.pad {
+  visibility: hidden;
+}
+.cell-none {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface) 0 2px,
+    var(--axis) 2px 4px
+  ) !important;
+}
+.cell-unknown {
+  background: var(--muted) !important;
+  opacity: 0.35;
+}
+.cell-guard {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--k-guard) 0 2px,
+    var(--raised) 2px 4px
+  ) !important;
+}
+.cell-new {
+  outline: 2px solid var(--good);
+  outline-offset: -1px;
+}
+.mem-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.mem-chart .cap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.mem-chart .cap span {
+  font-family: ui-monospace, monospace;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.mem-chart svg {
+  display: block;
+  width: 100%;
+  height: 84px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.mem-chart .range {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.mem-hint {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+@media (max-width: 1050px) {
+  .g-mem,
+  .mem-findings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .facts.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.g-1-1 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.memory-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.memory-cards,
+.memory-fold {
+  margin-top: 14px;
+}
+@media (max-width: 1050px) {
+  .g-1-1 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

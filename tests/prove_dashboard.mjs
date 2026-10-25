@@ -336,6 +336,7 @@ try {
     "Threads",
     "Resources",
     "Sockets",
+    "Memory",
   ]);
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
@@ -883,6 +884,7 @@ try {
     "Threads",
     "Resources",
     "Sockets",
+    "Memory",
   ]);
   // From here the test answers live and socket requests, so every state is
   // deterministic. Resource history still comes from the collector.
@@ -1316,6 +1318,244 @@ try {
   await escapeHelp();
   await send("Fetch.disable");
   onPaused = () => undefined;
+  // Phase 7: Memory map on the real collector and page. The fixture sends
+  // no memory samples, so the first answer is the collector's own reason.
+  await until(
+    () =>
+      evaluate(
+        `document.querySelector('#memory-empty')?.textContent === ${JSON.stringify(live.memory.reason)}`,
+      ),
+    "real collector memory reason",
+  );
+  // From here the test answers the live memory fields and /api/memory-map,
+  // so each process is deterministic.
+  let memSession = "800001",
+    memPid = live.health.pid,
+    memSeq = 1,
+    memComm = "oldproc",
+    holdLayout = false;
+  const memoryRequests = [],
+    heldLayouts = [];
+  const memoryLayout = () => ({
+    available: true,
+    id: `${memSession}:${String(memSeq)}`,
+    pid: memPid,
+    updated: Date.now() / 1000,
+    flags: {},
+    regions: [
+      ["0x7ffc00000000", 0x21000, "stack", "rw-p", ""],
+      ["0x555500400000", 0x100000, "heap", "rw-p", ""],
+      ["0x555500000000", 0x200000, "file", "r-xp", `/usr/bin/${memComm}`],
+    ].map(([start, size, kind, permissions, name]) => ({
+      start,
+      end: "0x" + (BigInt(start) + BigInt(size)).toString(16),
+      size,
+      vmas: 1,
+      kind,
+      permissions,
+      name,
+    })),
+  });
+  const answer = (requestId, body) =>
+    send("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(body)).toString("base64"),
+    });
+  onPaused = async ({ requestId, request }) => {
+    if (new URL(request.url).pathname === "/api/memory-map") {
+      memoryRequests.push(request.url);
+      if (holdLayout) heldLayouts.push({ requestId, body: memoryLayout() });
+      else await answer(requestId, memoryLayout());
+      return;
+    }
+    const reply = await send("Fetch.getResponseBody", { requestId });
+    const view = JSON.parse(
+      reply.base64Encoded
+        ? Buffer.from(reply.body, "base64").toString()
+        : reply.body,
+    );
+    view.health.session = memSession;
+    view.health.pid = memPid;
+    view.threads = [
+      ...view.threads.filter((thread) => thread.tid !== memPid),
+      { ...view.threads[0], tid: memPid, name: memComm },
+    ];
+    view.memory = {
+      available: true,
+      stale: false,
+      pid: memPid,
+      updated: Date.now() / 1000,
+      interval_s: 30,
+      flags: {},
+      layout_id: `${memSession}:${String(memSeq)}`,
+      values: {
+        vm_size_bytes: 2 ** 30,
+        vma_count: 3,
+        max_map_count: 65530,
+        stack_limit_bytes: 8 << 20,
+        major_faults: 1,
+        minor_faults: 2,
+      },
+    };
+    await answer(requestId, view);
+  };
+  await send("Fetch.enable", {
+    patterns: [
+      { urlPattern: "*/api/live?*", requestStage: "Response" },
+      { urlPattern: "*/api/memory-map*", requestStage: "Request" },
+    ],
+  });
+  const barNames = () =>
+    evaluate(
+      "[...document.querySelectorAll('#memory-amap .arow .name')].map((node) => node.textContent)",
+    );
+  const memoryText = () =>
+    evaluate(
+      "document.querySelector('#memory-map').textContent + [...document.querySelectorAll('[role=dialog]')].map((node) => node.textContent).join('')",
+    );
+  await until(
+    async () => (await barNames()).includes("oldproc (program image)"),
+    "memory bars of the first process",
+  );
+  const memory = {
+    layoutRequestTarget: new URL(memoryRequests[0]).searchParams.get("target"),
+  };
+  assert.equal(memory.layoutRequestTarget, target.key);
+  // A layout is fetched once: polls that name the same layout send nothing.
+  const requestsBefore = memoryRequests.length;
+  await delay(2500);
+  memory.requestsDuringSameLayout = memoryRequests.length - requestsBefore;
+  assert.equal(memory.requestsDuringSameLayout, 0);
+  // Open the fold and Member regions with clicks, as a person does.
+  await evaluate(
+    "(() => { const fold = document.querySelector('#memory-map details[data-fold]'); if (!fold.open) fold.querySelector('summary').click(); })()",
+  );
+  await until(
+    () => evaluate("document.querySelector('#memory-map details[data-fold]').open"),
+    "memory fold open",
+  );
+  await evaluate("document.querySelector('#memory-regions-summary').click()");
+  await until(
+    () => evaluate("document.querySelector('#memory-region-details').open"),
+    "member regions open",
+  );
+  const disclosures = () =>
+    evaluate(
+      "[document.querySelector('#memory-map details[data-fold]').open, document.querySelector('#memory-region-details').open]",
+    );
+  // Hold the pointer on the program bar: its readout card opens, stays
+  // inside the viewport, and keeps its readout through polls.
+  const programBar = "#memory-amap button:last-of-type";
+  await escapeHelp();
+  await hover(programBar);
+  await until(
+    () =>
+      evaluate(
+        "[...document.querySelectorAll('[role=dialog]')].some((node) => node.textContent.includes('oldproc (program image)'))",
+      ),
+    "bar readout card",
+  );
+  const barCard = () =>
+    evaluate(`(() => { const node = [...document.querySelectorAll('[role=dialog]')].find((item) => item.textContent.includes('oldproc (program image)')); if (!node) return null; const b = node.getBoundingClientRect(); return { id: node.id, left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: innerWidth, height: innerHeight }; })()`);
+  const opened = await barCard();
+  await delay(2500);
+  const afterPolls = await barCard();
+  assert.equal(afterPolls?.id, opened.id, "the readout card survives polls");
+  assert.ok(
+    opened.left >= 0 &&
+      opened.right <= opened.width &&
+      opened.top >= 0 &&
+      opened.bottom <= opened.height,
+    JSON.stringify(opened),
+  );
+  memory.readoutCardHeldThroughPolls = true;
+  // Focus the bar too. Its focused topic card is the open card from here.
+  await evaluate(`document.querySelector('${programBar}').focus({preventScroll:true})`);
+  await until(
+    () => evaluate("document.activeElement?.matches('#memory-amap button')"),
+    "focused bar",
+  );
+  // A late layout of the old session never shows. Hold the old session's
+  // next layout, then restart the process (new session and PID) while the
+  // pointer and focus stay on the bar and the disclosures are open.
+  holdLayout = true;
+  memSeq = 2;
+  await until(() => heldLayouts.length >= 1, "held layout of the old session");
+  memSession = "800002";
+  memPid += 1;
+  memSeq = 1;
+  memComm = "newproc";
+  await until(
+    async () => !(await memoryText()).includes("oldproc"),
+    "old process gone from the memory map",
+  );
+  await until(() => heldLayouts.length >= 2, "held layout of the new session");
+  memory.whileNewLayoutPending = await evaluate(`({
+    noLayout: document.querySelector('#memory-amap').textContent.includes('No layout yet'),
+    dialogs: document.querySelectorAll('[role=dialog]').length,
+  })`);
+  assert.deepEqual(memory.whileNewLayoutPending, { noLayout: true, dialogs: 0 });
+  assert.deepEqual(await disclosures(), [true, true]);
+  // Answer the old session's request first, then the rest.
+  holdLayout = false;
+  // The page aborts a request whose process is gone; the browser then
+  // refuses its late answer. Any answer that does arrive must not show.
+  let abortedLayouts = 0;
+  for (const held of heldLayouts.splice(0)) {
+    try {
+      await answer(held.requestId, held.body);
+    } catch {
+      abortedLayouts++;
+    }
+    await delay(300);
+    assert.ok(!(await memoryText()).includes("oldproc"), "late old layout");
+  }
+  await until(
+    async () => (await barNames()).includes("newproc (program image)"),
+    "memory bars of the new session",
+  );
+  memory.sessionChange = {
+    lateOldLayoutShown: false,
+    abortedLayouts,
+    disclosures: await disclosures(),
+  };
+  assert.deepEqual(memory.sessionChange.disclosures, [true, true]);
+  // A new PID in the same sampler session.
+  memPid += 1;
+  memSeq = 2;
+  memComm = "thirdproc";
+  await until(
+    async () => (await barNames()).includes("thirdproc (program image)"),
+    "memory bars of the new PID",
+  );
+  assert.ok(!(await memoryText()).includes("newproc"));
+  memory.pidChange = { disclosures: await disclosures() };
+  assert.deepEqual(memory.pidChange.disclosures, [true, true]);
+  // Escape closes the card; a second Escape leaves the disclosures open.
+  await hover(programBar);
+  await until(
+    () =>
+      evaluate(
+        "[...document.querySelectorAll('[role=dialog]')].some((node) => node.textContent.includes('thirdproc (program image)'))",
+      ),
+    "bar readout card of the new PID",
+  );
+  for (const press of [1, 2]) {
+    await send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Escape",
+      code: "Escape",
+    });
+    await delay(200);
+    assert.equal(await evaluate("document.querySelectorAll('[role=dialog]').length"), 0, `Escape ${String(press)}`);
+  }
+  memory.escape = { disclosures: await disclosures() };
+  assert.deepEqual(memory.escape.disclosures, [true, true]);
+  await escapeHelp();
+  await send("Fetch.disable");
+  onPaused = () => undefined;
   await escapeHelp();
   await send("Emulation.setDeviceMetricsOverride", {
     width: 390,
@@ -1396,6 +1636,7 @@ try {
         socketEntry,
         sockets,
         resources,
+        memory,
         sameOriginRequests: true,
         runtimeExceptions: 0,
       },

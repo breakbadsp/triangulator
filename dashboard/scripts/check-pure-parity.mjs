@@ -40,6 +40,12 @@ const names = new Set(
   exitReason exitStatusText viewTargetName fleetName
   KIND_LABELS NET_COUNTERS DROP_COLUMNS socketLabel socketNotes renderResourceTiles socketValue socketTitles renderSocket renderSocketChart
   fillLevel fillCell renderResourceSockets renderNetstack
+  meter microseconds MEMORY_KINDS MEMORY_KIND_LABELS memoryResources memoryPageSize
+  memoryLayoutComplete memoryCurrentLayout memoryZoomIdentity resetMemoryTarget
+  memoryGrowth memoryRegionName memoryRowName memoryPerms memoryGrows recordMemory
+  renderMemoryFindings renderMemoryTiles renderMemoryMap memoryDisplaySpan
+  memoryLargestGap renderMemoryZoom memoryChart memoryBoundaryPoints
+  renderMemoryCharts renderMemory refreshMemoryLayout
 `
     .trim()
     .split(/\s+/),
@@ -867,6 +873,11 @@ for (const metric of ["input", "output", "messages"]) {
     viewComparisons += 4;
   }
 }
+const { memoryParity } = await import("./memory-parity.mjs");
+const memoryRun = await memoryParity({ oracle, load, dashboard, resolve });
+log(
+  `PASS: ${memoryRun.steps} old/new memory map steps with ${memoryRun.layoutsFetched} layout fetches; ${memoryRun.values} displayed-value comparisons.`,
+);
 log(
   `PASS: ${viewComparisons} old/new resource/socket displayed-value and note comparisons.`,
 );
