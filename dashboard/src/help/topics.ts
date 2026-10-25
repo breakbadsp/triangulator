@@ -488,6 +488,176 @@ export const helpTopics = {
     sourceDetail:
       'With each memory sample, the sampler reads VmSize and VmPeak from `/proc/PID/status`. Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
   },
+  collsettings: {
+    title: "Collector settings",
+    scope: "Collector · saved on the collector host",
+    meaning:
+      "Settings that change how the collector behaves, edited here instead of in files on the collector host. Today only the watched-thread rules are editable.",
+    example: "",
+    reading:
+      "Each card applies its change at once and says where the value is saved. Settings that need a collector restart will say so beside the control.",
+    limits:
+      "The tab is read-only while you inspect a recorded moment, and when the collector is a build without these controls. Other collector settings are still edited in collector.toml.",
+    related: ["watches", "replay"],
+    aliases: [],
+    source: "Collector: `/api/watches`",
+    sourceDetail:
+      "This tab reads and writes the collector settings through `/api/watches`. Rules saved here apply to the selected target. They use `data_dir/watch-rules/<hex-key>.json`; the default target that keeps `data_dir/replay` keeps `data_dir/watch-rules.json`.",
+  },
+  watches: {
+    title: "Watch rules",
+    scope: "Collector · thread name prefixes",
+    meaning:
+      "Rules that say threads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking (a possible deadlock, or a wait with no timeout) or keeps a core busy (a possible infinite loop).",
+    example:
+      '"worker-" every 500 ms watches worker-1, worker-2 and so on. A thread that has not run for much longer than 500 ms is then reported.',
+    reading:
+      'Add one rule per group of threads that should keep waking. When several prefixes match, the longest one is used, so "worker-" and "worker-io" can have different intervals. Check Matching threads now before you save.',
+    limits:
+      "The collector only reports when each thread last ran. A thread with a long wait by design, or a name that no rule matches, is not watched. A rule does not start or stop anything.",
+    related: ["assessment", "thread", "states"],
+    aliases: [],
+    source: "[[watch]] in collector.toml, or `data_dir/watch-rules.json`",
+    sourceDetail:
+      "The collector reads the [[watch]] tables of collector.toml when it starts. Rules saved from this page replace them for the selected target until Reset. Target files are in `data_dir/watch-rules/`; the default target that keeps `data_dir/replay` keeps `data_dir/watch-rules.json`. This page reads the rules in force from `/api/watches`.",
+  },
+  watchsource: {
+    title: "Where the watch rules come from",
+    scope: "Collector · rules in force",
+    meaning:
+      "Whether the rules in force come from the [[watch]] tables in collector.toml or were saved from this dashboard. Rules saved here replace the config file rules completely, even an empty list, until you reset.",
+    example: "",
+    reading:
+      '"From the config file" means nothing was saved here. After Reset to config file the collector uses the [[watch]] rules again. A warning means the saved rules could not be read, so the config file rules are in force.',
+    limits:
+      "Editing collector.toml has no effect on watch rules while dashboard rules are saved. The collector reads the config file only at startup.",
+    related: ["watches", "watchreset"],
+    aliases: [],
+    source: "[[watch]] in collector.toml, or `data_dir/watch-rules.json`",
+    sourceDetail:
+      "The collector reports which file the rules in force came from through `/api/watches`.",
+  },
+  watchprefix: {
+    title: "Thread name prefix",
+    scope: "One rule · UTF-8 bytes",
+    meaning:
+      "The start of the thread names the rule applies to. A rule matches every thread whose name begins with these characters, with the same upper and lower case.",
+    example:
+      '"worker-" matches worker-1 and worker-io but not Worker-1 or my-worker-1.',
+    reading:
+      "Use 1 to 15 bytes. Linux thread names are at most 15 bytes, so a longer prefix could never match. Each prefix may appear once. The count next to it shows at once whether the prefix is right.",
+    limits:
+      "Spaces count, so a trailing space must match the name. Characters outside ASCII use more than one byte. The tab checks the rules again on save, and the collector has the final say.",
+    related: ["watchmatch", "watchwake"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchwake: {
+    title: "Wakes at least every (ms)",
+    scope: "One rule · milliseconds",
+    meaning:
+      "The longest time a matching thread may go without running before it counts as stuck. Workers that wait with a timeout wake at least this often.",
+    example: "500 means the thread should run at least twice a second.",
+    reading:
+      "Use a whole number from 10 to 3,600,000 (one hour). Choose a value above the thread's wait timeout, plus some margin for a busy host. A value close to the sample interval is noisy.",
+    limits:
+      "A thread that waits without a timeout will never meet a small value. That is what the rule is meant to show, but it can also be a thread that is idle by design.",
+    related: ["watches", "interval"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchmatch: {
+    title: "Matching threads now",
+    scope: "Live threads · your edited rules",
+    meaning:
+      "How many threads of the monitored process have a name that starts with this prefix right now, counting each thread under the longest matching prefix, as the collector does. A few names follow the count.",
+    example:
+      '"3 · worker-1, worker-2, worker-3" means three threads would use this rule.',
+    reading:
+      "It updates while you type and as threads start and stop, before anything is saved. 0 usually means a typo, wrong case, or threads that do not exist yet. A note shows threads that match this prefix but use a longer one.",
+    limits:
+      "Threads are counted at the latest sample. While you inspect a recorded moment or the target is absent, there are no live threads to count. In the final view of an ended target, the count follows the threads the collector reports now, such as those of a restarted target. Names are cut at 15 bytes by Linux.",
+    related: ["watchprefix", "thread"],
+    aliases: [],
+    source: "Thread names from the latest live update",
+    sourceDetail:
+      "This page counts the thread names (field 2 of `/proc/PID/task/TID/stat`) in the latest live update that start with each prefix.",
+  },
+  watchremove: {
+    title: "Remove a watch rule",
+    scope: "One rule",
+    meaning:
+      "Takes this rule out of the list you are editing. Nothing changes on the collector until you select Save.",
+    example: "",
+    reading:
+      "Remove a rule you no longer need, then check the other counts. Use Discard edits to bring back the saved list.",
+    limits:
+      "Threads that matched the rule are then not watched, unless a shorter prefix also matches them.",
+    related: ["watchsave"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchadd: {
+    title: "Add watch rule",
+    scope: "Rules you are editing",
+    meaning: "Adds an empty row for a new prefix and interval.",
+    example: "",
+    reading:
+      "Fill in the prefix and interval, then check Matching threads now before you save. The collector accepts up to the limit shown beside the button.",
+    limits: "The new rule exists only in this page until you select Save.",
+    related: ["watchprefix", "watchsave"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchsave: {
+    title: "Save watch rules",
+    scope: "Collector · whole list at once",
+    meaning:
+      "Applies the whole list in the table to the collector at once and saves it on the collector host, replacing the config file rules. Save is off while any field has a problem, or when nothing has changed and the last save was confirmed.",
+    example: "",
+    reading:
+      "Fix each marked field, then select Save. The message below the button tells whether the collector accepted the list; if it refuses, its message is shown unchanged and nothing changes. Discard edits restores the list now in force.",
+    limits:
+      "These rules are shared by all viewers. If another user changes them, your save is refused and your draft stays in the table. Select Reload current rules to discard the draft and review the saved list. Unsaved edits are lost when you reload, leave the page, or reset. If the collector reports that it applied the rules but could not confirm that they were written to disk, select Save again to retry. The retry is refused if another user changed the rules.",
+    related: ["watchsource", "watchreset"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchreload: {
+    title: "Reload current watch rules",
+    scope: "Shared collector settings",
+    meaning:
+      "Loads the current saved rules after another user changed them, or after the collector restarted. Your save or reset was refused so it could not overwrite that change.",
+    example: "",
+    reading:
+      "Copy any edits you want to keep. Select Reload current rules, confirm that the draft can be discarded, then review and edit the current list.",
+    limits:
+      "Your draft stays in the table if you cancel or the read fails. A successful reload replaces it.",
+    related: ["watchsave", "watchreset"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
+  watchreset: {
+    title: "Reset watch rules",
+    scope: "Collector · rules saved from the dashboard",
+    meaning:
+      "Deletes the rules saved from this dashboard, and returns to the [[watch]] rules in collector.toml. You are asked to confirm because this discards the dashboard rules and any unsaved edits.",
+    example: "",
+    reading:
+      "Use it when you want the config file to be the single source again. It is also the way to clear a saved file that the collector could not read.",
+    limits:
+      "It is off when the config file rules are already in force, unless the collector could not confirm the last reset on disk; then select it again to retry. It cannot restore the rules you discard. If another user changed the rules, reset is refused until you reload the current rules.",
+    related: ["watchsource", "watchsave"],
+    aliases: [],
+    source: "",
+    sourceDetail: "",
+  },
   watched: {
     title: "Watched threads",
     scope: "Threads that match a watch rule · wake interval",

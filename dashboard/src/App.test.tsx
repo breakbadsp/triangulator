@@ -339,6 +339,9 @@ test.each(["table", "map"])(
         return Promise.resolve(Response.json(targets));
       if (url.startsWith("/api/history"))
         return Promise.resolve(Response.json({ rows: [], truncated: false }));
+      // Only /api/live answers count as polls.
+      if (url.startsWith("/api/watches"))
+        return Promise.resolve(Response.json({}, { status: 404 }));
       liveCalls++;
       return Promise.resolve(
         Response.json({
@@ -598,4 +601,50 @@ test("the Summary findings use the Resources history and pressure scope", async 
   expect(
     summary().getByText("Major page faults and memory pressure rise together"),
   ).toBeDefined();
+});
+
+test("selecting the Settings tab reads the watch rules again", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  const rules = {
+    rules: [{ prefix: "worker", wake_ms: 500 }],
+    source: "config",
+    saved_error: null,
+    revision: "r1",
+    limits: {
+      prefix_max_bytes: 15,
+      wake_ms_min: 10,
+      wake_ms_max: 3600000,
+      max_rules: 64,
+    },
+  };
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const url = typeof input === "string" ? input : "";
+    return Promise.resolve(
+      Response.json(
+        url.startsWith("/api/targets")
+          ? targets
+          : url.startsWith("/api/watches")
+            ? rules
+            : live,
+      ),
+    );
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  await screen.findByRole("button", { name: "Save" });
+  const reads = () =>
+    fetchMock.mock.calls.filter(
+      ([input]) => input === "/api/watches?target=host%2Fworker",
+    ).length;
+  await waitFor(() => {
+    expect(reads(), "the editor and the assessment each read once").toBe(2);
+  });
+  fireEvent.click(screen.getByRole("link", { name: "Settings" }));
+  await waitFor(() => {
+    expect(reads()).toBe(3);
+  });
+  // The matching column counts the live threads of the target.
+  expect(document.querySelector("#watch-rows .watch-count")?.textContent).toBe(
+    "1",
+  );
 });

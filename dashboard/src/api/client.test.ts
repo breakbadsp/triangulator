@@ -101,6 +101,7 @@ test.each([false, true])(
     await expect(request).rejects.toMatchObject({
       status: 404,
       message: "Selected target is unavailable",
+      body: { error: "Selected target is unavailable" },
     });
   },
 );
