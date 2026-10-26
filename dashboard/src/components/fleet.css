@@ -227,7 +227,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ft-assessment {
+.status-dot.ft-assessment {
   width: 10px;
   height: 10px;
   background: var(--lvl);
