@@ -119,6 +119,120 @@ async function screenshot(name) {
   });
   await writeFile(join(output, name + ".png"), Buffer.from(data, "base64"));
 }
+async function portSpacing(theme, target) {
+  for (const width of [1440, 390]) {
+    const label = `${theme} ${width} port spacing`;
+    await send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height: width === 390 ? 844 : 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await send("Page.navigate", {
+      url: `${base}/?target=${encodeURIComponent(target)}&q=rack&status=critical#overview`,
+    });
+    await until(
+      () =>
+        evaluate(
+          "!!document.querySelector('.card.tile') && !!document.querySelector('#fleet-back')",
+        ),
+      label,
+    );
+    await evaluate("scrollTo(0,0)");
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+    const facts = await evaluate(`(()=>{
+      const back=document.querySelector('#fleet-back'),s=getComputedStyle(back),r=back.getBoundingClientRect();
+      const tiles=[...document.querySelectorAll('.card.tile')].map(e=>{
+        const s=getComputedStyle(e),r=e.getBoundingClientRect();
+        return {padding:s.padding,inside:r.left>=0&&r.right<=innerWidth};
+      });
+      const x=r.left+r.width/2,y=r.top+r.height/2;
+      return {weight:s.fontWeight,padding:s.padding,border:[s.borderTopWidth,s.borderTopStyle,s.borderTopColor],radius:s.borderRadius,color:s.color,decoration:s.textDecorationLine,href:back.getAttribute('href'),linkHeight:r.height,linkWidth:r.width,x,y,hit:back.contains(document.elementFromPoint(x,y)),overflow:document.documentElement.scrollWidth>innerWidth,tiles};
+    })()`);
+    check(facts.weight, "600", label + " return link weight");
+    check(facts.padding, "4px 10px", label + " return link padding");
+    check(
+      facts.border,
+      [
+        "1px",
+        "solid",
+        theme === "light" ? "rgb(220, 227, 237)" : "rgb(36, 36, 40)",
+      ],
+      label + " return link border",
+    );
+    check(facts.radius, "999px", label + " return link radius");
+    check(
+      facts.color,
+      theme === "light" ? "rgb(28, 92, 171)" : "rgb(134, 182, 239)",
+      label + " inherited link color",
+    );
+    check(facts.decoration, "none", label + " link decoration");
+    check(
+      facts.linkHeight >= 25 && facts.linkWidth >= 60,
+      true,
+      label + " link hit area",
+    );
+    check(facts.hit, true, label + " unobscured link");
+    check(facts.overflow, false, label + " page overflow");
+    for (const tile of facts.tiles) {
+      check(
+        tile.padding,
+        width === 390 ? "14px 12px" : "16px 20px 12px",
+        label + " Summary tile padding",
+      );
+      check(tile.inside, true, label + " tile fits viewport");
+    }
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: facts.x,
+      y: facts.y,
+    });
+    await delay(200);
+    const hover = await evaluate(
+      "getComputedStyle(document.querySelector('#fleet-back')).backgroundColor",
+    );
+    check(
+      hover,
+      theme === "light" ? "rgb(234, 240, 248)" : "rgb(28, 28, 32)",
+      label + " return link hover",
+    );
+    await screenshot(`${theme}-port-spacing-${width}`);
+    // Use native input to verify both keyboard access and the retained filter URL.
+    await evaluate("document.querySelector('#fleet-back').focus()");
+    check(
+      await evaluate("document.activeElement.id"),
+      "fleet-back",
+      label + " keyboard focus",
+    );
+    for (const type of ["keyDown", "keyUp"])
+      await send("Input.dispatchKeyEvent", {
+        type,
+        key: "Enter",
+        code: "Enter",
+        windowsVirtualKeyCode: 13,
+      });
+    await until(
+      () => evaluate("document.documentElement?.dataset.page==='fleet'"),
+      label + " return navigation",
+    );
+    const destination = await evaluate("location.pathname+location.search");
+    check(destination, "/?q=rack&status=critical", label + " retained filters");
+    cases.push({
+      theme,
+      width,
+      surface: "port-spacing",
+      ...facts,
+      hover,
+      destination,
+    });
+  }
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+}
 let result = { cases, failures, exceptions, output };
 try {
   let debugPort;
@@ -251,6 +365,10 @@ try {
     })()`);
     check(infoDot, colors.info, theme + " fleet info alias");
     cases.push({ theme, surface: "fleet-info-alias", color: infoDot });
+    await portSpacing(
+      theme,
+      fleet.find((tile) => tile.level === "critical").key,
+    );
     for (const level of ["critical", "serious", "warning", "good", "unknown"]) {
       const tile = fleet.find((tile) => tile.level === level);
       await send("Page.navigate", {
@@ -340,7 +458,7 @@ try {
   check(exceptions, [], "browser exceptions");
   assert.equal(failures.length, 0, failures.join("\n\n"));
   console.log(
-    `PASS: severity dots and Assessment borders, Light and Dark. Evidence: ${output}`,
+    `PASS: severity dots, Assessment borders, return link and Summary spacing, Light and Dark. Evidence: ${output}`,
   );
 } catch (error) {
   result.error = String(error.stack || error);
