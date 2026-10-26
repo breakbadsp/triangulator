@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "../help/createHelpTimer";
 // Ported from 777cf3a:tests/dashboard_test.js (old start lines in names),
 // with the D1 identity case of PR 165.
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -146,7 +147,7 @@ for (const [change, next] of [
       bar.focus();
     });
     fireEvent.mouseMove(bar, { clientX: 20, clientY: 20 });
-    await act(() => vi.advanceTimersByTimeAsync(1200));
+    await act(() => vi.advanceTimersByTimeAsync(HELP_DELAY));
     expect(screen.getByRole("dialog").textContent).toContain("oldapp");
 
     rerender(<Harness live={processView(next)} />);
@@ -181,7 +182,7 @@ for (const [change, next] of [
           .closest("[data-help]") as Element;
         fireEvent.mouseEnter(help);
         await act(() =>
-          vi.advanceTimersByTimeAsync(phase === "pending" ? 600 : 1200),
+          vi.advanceTimersByTimeAsync(phase === "pending" ? 600 : HELP_DELAY),
         );
         expect(screen.queryAllByRole("dialog")).toHaveLength(
           phase === "pending" ? 0 : 1,
