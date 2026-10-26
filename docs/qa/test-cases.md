@@ -158,9 +158,9 @@
 
 ## QA-007: Contextual help covers every dashboard section
 
-- Revision: 2
-- Test: With resource and memory data, hover each section, label, legend, chart, limit, zoom fact, and full-width table message for 1.2 seconds. Repeat during refresh and with keyboard focus. Open the page guide and a metric guide. Follow related topics and All topics. Test Close, Escape, and Back to thread. Repeat at 390, 1199, 1200, and 1440 px, and a short viewport. Toggle Show help on hover, including with blocked storage.
-- Expected: Each item opens specific help. Memory legends use their card's guide. Idle rows explain Active threads; other messages explain their panel. Below 1200 px the guide traps focus and blocks the background. At 1200 px and above it is complementary. Closing restores the opener or the page-guide fallback. Back to thread restores the mounted drawer, selected thread, filters, history interval, and scroll. Context changes dismiss old Help and guides. Hover off preserves keyboard and touch access. Escape cancels pending Help before it can close the drawer.
+- Revision: 3
+- Test: With resource and memory data, hover each section, label, legend, chart, limit, zoom fact, and full-width table message for 3 seconds. Repeat during refresh and with keyboard focus on Help labels. Use Enter, Space, and a label tap for immediate Help. Use inputs and row actions. Open the page guide and a metric guide. Follow related topics and All topics. Test Close, Escape, and Back to thread. Repeat at 390, 1199, 1200, and 1440 px, and a short viewport. Toggle Show help on hover, including with blocked storage.
+- Expected: Each item opens specific help after the delay. Normal control focus, clicks, and editing do not open Help. Memory legends use their card's guide. Idle rows explain Active threads; other messages explain their panel. Below 1200 px the guide traps focus and blocks the background. At 1200 px and above it is complementary. Closing restores the opener or the page-guide fallback. Back to thread restores the mounted drawer, selected thread, filters, history interval, and scroll. Context changes dismiss old Help and guides. Hover off preserves keyboard and touch access. Escape cancels pending Help before it can close the drawer.
 
 ## QA-008: Memory zoom legend matches the grid
 

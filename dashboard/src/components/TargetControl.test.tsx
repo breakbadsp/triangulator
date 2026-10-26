@@ -405,7 +405,7 @@ test("ambiguous names list PID, user, age and command; selection and validation 
 test("dialog Help stays in the modal and is discarded on close and reopen", async () => {
   await start();
   open();
-  fireEvent.focus(el("target-id"));
+  fireEvent.click(el("target-id").closest("[data-help]") ?? el("target-id"));
   const oldCard = screen.getByRole("dialog", { name: "Target ID" });
   expect(
     el("target-settings").contains(
@@ -422,5 +422,7 @@ test("dialog Help stays in the modal and is discarded on close and reopen", asyn
   fireEvent.click(el("target-cancel"));
   expect(oldCard.isConnected).toBe(false);
   open();
+  expect(screen.queryByRole("dialog", { name: "Target ID" })).toBeNull();
+  fireEvent.click(el("target-id").closest("[data-help]") ?? el("target-id"));
   expect(screen.getByRole("dialog", { name: "Target ID" })).not.toBe(oldCard);
 });

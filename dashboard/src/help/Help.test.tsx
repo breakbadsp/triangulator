@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "./createHelpTimer";
 import { ObservationContext } from "../hooks/observationContext";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -12,11 +13,11 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test("opens after 1200 ms, permits entry into the card, and closes on Escape", () => {
+test("opens after the dwell delay, permits entry into the card, and closes on Escape", () => {
   render(<Help topic="appearance">Theme</Help>);
   fireEvent.mouseEnter(screen.getByText("Theme"));
   act(() => {
-    vi.advanceTimersByTime(1199);
+    vi.advanceTimersByTime(HELP_DELAY - 1);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
   act(() => {
@@ -39,10 +40,13 @@ test("disables hover through the existing storage key but permits focus and tap"
   const anchor = screen.getByText("Theme");
   fireEvent.mouseEnter(anchor);
   act(() => {
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(HELP_DELAY + 1);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.focus(anchor);
+  act(() => {
+    vi.advanceTimersByTime(HELP_DELAY);
+  });
   expect(screen.getByRole("dialog")).toBeDefined();
   fireEvent.keyDown(document, { key: "Escape" });
   fireEvent.click(anchor);
@@ -61,9 +65,11 @@ test("Escape dismisses all visible cards and a later pending hover", () => {
   );
   act(() => {
     screen.getByText("Theme").focus();
+    fireEvent.keyDown(screen.getByText("Theme"), { key: "Enter" });
   });
   act(() => {
     screen.getByText("Targets").focus();
+    fireEvent.keyDown(screen.getByText("Targets"), { key: "Enter" });
   });
   expect(screen.getAllByRole("dialog")).toHaveLength(2);
   const pendingHelp = document.querySelector("[data-help='assessment']");
@@ -72,19 +78,22 @@ test("Escape dismisses all visible cards and a later pending hover", () => {
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
   act(() => {
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(HELP_DELAY + 1);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 test("opens a related topic through its explicit ID", () => {
   render(<Help topic="fleet">Targets</Help>);
-  fireEvent.focus(screen.getByText("Targets"));
+  fireEvent.click(screen.getByText("Targets"));
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Target tile",
     "Monitoring target",
     "Assessment",
   ]);
+  fireEvent.pointerDown(
+    screen.getByRole("link", { name: "Monitoring target" }),
+  );
   fireEvent.click(screen.getByRole("link", { name: "Monitoring target" }));
   expect(
     screen.getByRole("dialog", { name: "Monitoring target" }),
@@ -96,7 +105,7 @@ test("does not open a pending card after unmount", () => {
   fireEvent.mouseEnter(screen.getByText("Theme"));
   unmount();
   act(() => {
-    vi.advanceTimersByTime(2000);
+    vi.advanceTimersByTime(HELP_DELAY + 1);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
 });
@@ -111,13 +120,16 @@ test("a hidden drawer dismisses help without remounting its content", () => {
   );
   const { rerender } = render(show(true));
   const input = screen.getByLabelText<HTMLInputElement>("Kept input");
-  fireEvent.focus(input);
+  fireEvent.mouseEnter(input);
+  act(() => {
+    vi.advanceTimersByTime(HELP_DELAY);
+  });
   expect(screen.getByRole("dialog")).toBeDefined();
   rerender(show(false));
   expect(screen.queryByRole("dialog")).toBeNull();
   rerender(show(true));
   act(() => {
-    vi.advanceTimersByTime(1200);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.getByLabelText("Kept input")).toBe(input);
@@ -133,7 +145,7 @@ test("a modal portal keeps interactive help inside its dialog and falls back to 
       <Help topic="appearance">Theme</Help>
     </HelpPortalTarget>,
   );
-  fireEvent.focus(screen.getByText("Theme"));
+  fireEvent.click(screen.getByText("Theme"));
   expect(
     dialog.contains(screen.getByRole("dialog", { name: "Color theme" })),
   ).toBe(true);
@@ -152,7 +164,7 @@ test("a modal portal keeps interactive help inside its dialog and falls back to 
   dialog.remove();
 });
 
-test("pointer focus leaves the click target in place, while keyboard focus still opens help", () => {
+test("control clicks stay usable and its Help label permits keyboard access", () => {
   const action = vi.fn();
   render(
     <Help topic="manage-targets">
@@ -166,10 +178,9 @@ test("pointer focus leaves the click target in place, while keyboard focus still
   fireEvent.pointerUp(button);
   fireEvent.click(button);
   expect(action).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
-  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.blur(button);
-  fireEvent.focus(button);
+  fireEvent.keyDown(button.parentElement ?? button, { key: "Enter" });
   expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
 });
 
@@ -192,6 +203,7 @@ test("an observation change clears visible and pending Help without replacing fo
   const input = screen.getByRole("textbox", { name: "Kept control" });
   act(() => {
     input.focus();
+    fireEvent.click(input.parentElement ?? input);
   });
   expect(screen.getByRole("dialog")).toBeDefined();
   view.rerender(<Page identity="recorded" />);
@@ -201,7 +213,73 @@ test("an observation change clears visible and pending Help without replacing fo
   fireEvent.mouseEnter(screen.getByText("Summary heading"));
   view.rerender(<Page identity="new-session" />);
   act(() => {
-    vi.advanceTimersByTime(1500);
+    vi.advanceTimersByTime(HELP_DELAY + 1);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("automatic hover and label focus wait three seconds", () => {
+  render(<Help topic="appearance">Theme</Help>);
+  const anchor = screen.getByText("Theme");
+  for (const enter of [fireEvent.mouseEnter, fireEvent.focus]) {
+    enter(anchor);
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByRole("dialog", { name: "Color theme" })).toBeDefined();
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.blur(anchor);
+    fireEvent.mouseLeave(anchor);
+  }
+});
+
+test("normal controls and editing do not open Help", () => {
+  const action = vi.fn();
+  render(
+    <Help topic="manage-targets">
+      <input aria-label="Target name" />
+      <button onClick={action}>Add target</button>
+    </Help>,
+  );
+  const input = screen.getByRole("textbox");
+  fireEvent.focus(input);
+  act(() => {
+    vi.advanceTimersByTime(3000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.mouseEnter(input);
+  fireEvent.input(input, { target: { value: "worker" } });
+  act(() => {
+    vi.advanceTimersByTime(3000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Add target" }));
+  expect(action).toHaveBeenCalledOnce();
+  act(() => {
+    vi.advanceTimersByTime(3000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.mouseLeave(input);
+  fireEvent.mouseEnter(input);
+  fireEvent.keyDown(input, { key: "a" });
+  act(() => {
+    vi.advanceTimersByTime(3000);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("Help labels retain immediate keyboard and touch access", () => {
+  render(<Help topic="appearance">Theme</Help>);
+  const anchor = screen.getByText("Theme");
+  for (const key of ["Enter", " "]) {
+    fireEvent.keyDown(anchor, { key });
+    expect(screen.getByRole("dialog", { name: "Color theme" })).toBeDefined();
+    fireEvent.keyDown(document, { key: "Escape" });
+  }
+  fireEvent.click(anchor);
+  expect(screen.getByRole("dialog", { name: "Color theme" })).toBeDefined();
 });

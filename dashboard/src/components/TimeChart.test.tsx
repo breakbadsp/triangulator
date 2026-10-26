@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "../help/createHelpTimer";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { TimeChart } from "./TimeChart";
@@ -31,7 +32,7 @@ function chart() {
 }
 const wait = () => {
   act(() => {
-    vi.advanceTimersByTime(1200);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
 };
 const readings = () =>
@@ -76,11 +77,11 @@ test("a live update under a still pointer keeps the sample and its delay", () =>
   // x=200 is nearest to t=0 now, but nearest to t=10 once t=20 stretches the axis.
   fireEvent.pointerMove(hit, { clientX: 200, clientY: 40 });
   act(() => {
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(HELP_DELAY / 2);
   });
   rerender(element([...points, { t: 20, a: 5, b: 6 }]));
   act(() => {
-    vi.advanceTimersByTime(600);
+    vi.advanceTimersByTime(HELP_DELAY / 2);
   });
   expect(readings()).toEqual(["1.0A", "2.0B"]);
 });

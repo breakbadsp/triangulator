@@ -220,7 +220,13 @@ export function Help({
         pointerFocus.current = false;
         timer.leave(keepFocus);
       }}
-      onPointerDownCapture={() => {
+      onPointerDownCapture={(event) => {
+        if (
+          event.target instanceof Node &&
+          card.current?.contains(event.target)
+        )
+          return;
+        timer.cancel(true);
         pointerFocus.current = true;
       }}
       onPointerUpCapture={() => {
@@ -229,11 +235,29 @@ export function Help({
       onPointerCancelCapture={() => {
         pointerFocus.current = false;
       }}
-      onFocus={() => {
-        // A card opened during pointer focus can cover the control before
-        // pointerup and swallow its click. Click opens help after the action.
-        if (!pointerFocus.current && !guide?.restoring.current) showHelp(true);
+      onFocus={(event) => {
+        // Native dialogs and drawers focus controls as part of their action.
+        if (
+          event.target === event.currentTarget &&
+          !pointerFocus.current &&
+          !guide?.restoring.current
+        )
+          showHelp(false);
         pointerFocus.current = false;
+      }}
+      onInputCapture={() => {
+        timer.cancel(true);
+      }}
+      onChangeCapture={() => {
+        timer.cancel(true);
+      }}
+      onKeyDownCapture={(event) => {
+        if (
+          event.target !== event.currentTarget &&
+          event.target instanceof Node &&
+          !card.current?.contains(event.target)
+        )
+          timer.cancel(true);
       }}
       onBlur={(event) => {
         pointerFocus.current = false;
@@ -243,8 +267,24 @@ export function Help({
         )
           timer.leave();
       }}
-      onClick={() => {
-        showHelp(true);
+      onKeyDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          (event.key === "Enter" || event.key === " ")
+        ) {
+          event.preventDefault();
+          showHelp(true);
+        }
+      }}
+      onClick={(event) => {
+        const control =
+          event.target instanceof Element
+            ? event.target.closest(
+                "button, a, input, select, textarea, [role='button'], [tabindex]",
+              )
+            : null;
+        if (control && control !== event.currentTarget) timer.cancel(true);
+        else showHelp(true);
       }}
     >
       {children}
