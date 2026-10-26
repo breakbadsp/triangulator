@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "./createHelpTimer";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useState } from "react";
@@ -89,6 +90,7 @@ function explain(label = "CPU source") {
   if (!source) throw Error("Missing source");
   act(() => {
     source.focus();
+    fireEvent.keyDown(source, { key: "Enter" });
   });
   const card = document.getElementById(
     source.getAttribute("aria-describedby") ?? "",
@@ -241,10 +243,11 @@ test("hover preference survives blocked storage and leaves keyboard help availab
   fireEvent.blur(source);
   fireEvent.mouseEnter(source);
   act(() => {
-    vi.advanceTimersByTime(1500);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.focus(source);
+  fireEvent.keyDown(source, { key: "Enter" });
   expect(screen.getByRole("dialog")).toBeDefined();
 });
 
@@ -256,6 +259,7 @@ test("a related explanation cannot label the original chart as another metric", 
   if (!source) throw Error("Missing source");
   act(() => {
     source.focus();
+    fireEvent.keyDown(source, { key: "Enter" });
   });
   const card = document.getElementById(
     source.getAttribute("aria-describedby") ?? "",
@@ -291,7 +295,7 @@ test.each([null, "on", "off"])(
     });
     fireEvent.mouseEnter(source);
     act(() => {
-      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(HELP_DELAY);
     });
     expect(!!screen.queryByRole("dialog")).toBe(enabled);
     expect(reads).toHaveReturnedWith(saved);
@@ -299,6 +303,7 @@ test.each([null, "on", "off"])(
     fireEvent.mouseLeave(source);
     act(() => {
       source.focus();
+      fireEvent.keyDown(source, { key: "Enter" });
     });
     expect(screen.getByRole("dialog")).toBeDefined();
     fireEvent.keyDown(document, { key: "Escape" });
@@ -343,6 +348,7 @@ test("a heading with two charts of the same topic omits ambiguous chart data", (
   if (!opener) throw Error("Missing chart source");
   act(() => {
     opener.focus();
+    fireEvent.keyDown(opener, { key: "Enter" });
   });
   fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
   const direct = document.getElementById("help-guide");
@@ -375,7 +381,7 @@ test("a successful preference write replaces a failed-write choice", () => {
   });
   fireEvent.mouseEnter(source);
   act(() => {
-    vi.advanceTimersByTime(1500);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
   expect(screen.getByRole("dialog")).toBeDefined();
   fireEvent.keyDown(document, { key: "Escape" });
@@ -383,7 +389,7 @@ test("a successful preference write replaces a failed-write choice", () => {
   fireEvent.mouseLeave(source);
   fireEvent.mouseEnter(source);
   act(() => {
-    vi.advanceTimersByTime(1500);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
 });

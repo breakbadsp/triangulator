@@ -1,4 +1,4 @@
-export const HELP_DELAY = 1200;
+export const HELP_DELAY = 3000;
 const HELP_CLOSE_DELAY = 250;
 type Point = { x: number; y: number };
 type Request<T> = { key: string; payload: T; point: Point | null };

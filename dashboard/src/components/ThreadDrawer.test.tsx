@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "../help/createHelpTimer";
 import {
   act,
   fireEvent,
@@ -97,6 +98,7 @@ test.each([
     if (!opener) throw Error("Missing history heading");
     act(() => {
       opener.focus();
+      fireEvent.keyDown(opener, { key: "Enter" });
     });
     fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
     const guide = document.getElementById("help-guide");
@@ -206,6 +208,7 @@ test("Escape closes drawer help before it closes the drawer", async () => {
   );
   if (!historyHelp) throw new Error("Missing history help");
   fireEvent.focus(historyHelp);
+  fireEvent.keyDown(historyHelp, { key: "Enter" });
   expect(document.querySelector(".help-card")).not.toBeNull();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(document.querySelector(".help-card")).toBeNull();
@@ -233,6 +236,7 @@ test("Escape closes focused history help and cancels an earlier pending hover", 
   if (!historyHelp || !closeHelp) throw new Error("Missing drawer help");
   act(() => {
     historyHelp.focus();
+    fireEvent.keyDown(historyHelp, { key: "Enter" });
     vi.advanceTimersByTime(250);
   });
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -240,14 +244,14 @@ test("Escape closes focused history help and cancels an earlier pending hover", 
   fireEvent.mouseLeave(historyHelp);
   fireEvent.mouseEnter(closeHelp);
   act(() => {
-    vi.advanceTimersByTime(1199);
+    vi.advanceTimersByTime(HELP_DELAY - 1);
   });
   expect(document.activeElement).toBe(historyHelp);
   fireEvent.keyDown(historyHelp, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(close).not.toHaveBeenCalled();
   act(() => {
-    vi.advanceTimersByTime(1200);
+    vi.advanceTimersByTime(HELP_DELAY);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
   fireEvent.keyDown(historyHelp, { key: "Escape" });
@@ -376,14 +380,14 @@ test("stored history cells keep their metric help and distinguish read from writ
     if (!read || !write) throw new Error("Missing I/O cells");
     fireEvent.mouseMove(read, { clientX: 10, clientY: 10 });
     act(() => {
-      vi.advanceTimersByTime(1200);
+      vi.advanceTimersByTime(HELP_DELAY);
     });
     expect(
       screen.getByRole("dialog", { name: "Disk & syscall I/O" }).textContent,
     ).toContain("2.0 KB");
     fireEvent.mouseMove(write, { clientX: 20, clientY: 10 });
     act(() => {
-      vi.advanceTimersByTime(1200);
+      vi.advanceTimersByTime(HELP_DELAY);
     });
     const card = screen.getByRole("dialog", { name: "Disk & syscall I/O" });
     expect(card.textContent).toContain("4.0 KB");
