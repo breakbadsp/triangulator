@@ -1,0 +1,821 @@
+{
+  "qa001": {
+    "toolIcon": {
+      "_tag": "website",
+      "pageUrl": "http://127.0.0.1:57583/?target=omarchy%2Fdefault"
+    },
+    "value": {
+      "header": "\u2190 All targets\nomarchy \u00b7 default\nsleep\nPID 270445 \u00b7 Live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nSockets\nMemory\nMonitor\nSettings",
+      "threads": "Threads (1)\n\nThread activity and wait states. Select a row for history; press / to search.\n\nWhat the threads are doing\n\nThread count by latest state, stacked. Hover to read a moment.\n\n0\n1\n1\n04:40:27 AM\n04:40:31 AM\n04:40:36 AM\nSleep\n1\nWhere threads wait\n\nKernel wait channels right now. Click to filter the thread table.\n\nhrtimer_nanosleep\n1\nThread map\n\nOne tile per thread (1), grouped by current state, busiest now first. Click a tile for details.\n\nNow\n1 min\n5 min\n15 min\nSleep\n1\nNumber = CPU % of one core, last ~10 s \u00b7 faded = idle\nWhere the CPU goes\n\nProcess CPU by thread family (name without its number).\n\nName family\nConfig group\nThread\nsleep\n0.0%\u00d71\nCore placement\nThread details\nActive 0\nIdle 1\nAll 1\nGroup\nAll groups\nungrouped (1)\nSort\nCPU\nRun delay\nSwitches/s\nI/O\nMajor faults/s\nTID\nName\nClear filters\nSTATE / BLOCK TYPE\nAll\n1\nSleep\n1\nWAIT CHANNEL (kernel function the thread is blocked in)\nAll\n1\nhrtimer_nanosleep\n1\n\nThread\tGroup\tState / wait channel\tLast ~10 s\tCPU\tRun delay\tSwitches/s\tRead/s\tWrite/s\tMaj. faults/s\tCore\nsleep\nTID 270445\n\tungrouped\t\nSleep\nhrtimer_nanosleep\n\t\n\tidle for over 9 s\t3",
+      "utc": "2026-10-25T23:10:36.843Z"
+    }
+  },
+  "qa002": {
+    "toolIcon": {
+      "_tag": "website",
+      "pageUrl": "http://127.0.0.1:57583/"
+    },
+    "value": {
+      "utc": "2026-10-25T23:10:52.736Z",
+      "inputs": [
+        {
+          "label": "Find target",
+          "placeholder": "Name, host or target ID",
+          "value": ""
+        },
+        {
+          "label": null,
+          "placeholder": "e.g. orders",
+          "value": "qa-second"
+        },
+        {
+          "label": null,
+          "placeholder": "e.g. ghostty or 1234",
+          "value": "270446"
+        }
+      ],
+      "dialogs": [
+        {
+          "name": "target-dialog-title",
+          "text": "Add target\n\nMonitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does",
+          "display": "block",
+          "visibility": "visible",
+          "rect": {
+            "x": 420,
+            "y": 216.0390625,
+            "width": 440,
+            "height": 367.921875,
+            "top": 216.0390625,
+            "right": 860,
+            "bottom": 583.9609375,
+            "left": 420
+          }
+        },
+        {
+          "name": "Manage targets",
+          "text": "\u00d7\nManage targets\n\nTargets overview \u00b7 local sampler \u00b7 every viewer\n\nAdd or remove monitored targets on the sampler host. Add target at the end of the tiles opens",
+          "display": "block",
+          "visibility": "visible",
+          "rect": {
+            "x": 447,
+            "y": 168.0078125,
+            "width": 380,
+            "height": 619.9921875,
+            "top": 168.0078125,
+            "right": 827,
+            "bottom": 788,
+            "left": 447
+          }
+        }
+      ],
+      "atSubmit": "<p><strong>Limits. </strong>Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.</p>",
+      "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "viewport": [
+        1280,
+        800
+      ]
+    }
+  },
+  "diagnostics": {
+    "console": [],
+    "actions": [
+      {
+        "id": "a03970a7-9ebf-45f0-8264-fcc4234f4d3d",
+        "action": "click",
+        "status": "succeeded",
+        "startedAt": "2026-10-25T23:10:37.022Z",
+        "completedAt": "2026-10-25T23:10:37.154Z"
+      },
+      {
+        "id": "0df11118-5434-4dc5-a6bb-506bb022935b",
+        "action": "type",
+        "status": "succeeded",
+        "startedAt": "2026-10-25T23:10:41.825Z",
+        "completedAt": "2026-10-25T23:10:41.838Z"
+      },
+      {
+        "id": "5af0cea7-9068-4ef7-9892-13e30f8e4a4f",
+        "action": "type",
+        "status": "succeeded",
+        "startedAt": "2026-10-25T23:10:41.852Z",
+        "completedAt": "2026-10-25T23:10:41.865Z"
+      },
+      {
+        "id": "c2bc8024-cfe5-4658-8bff-30e6662147e3",
+        "action": "click",
+        "status": "failed",
+        "startedAt": "2026-10-25T23:10:41.879Z",
+        "completedAt": "2026-10-25T23:10:44.912Z",
+        "error": "locator.click: Timeout 3000ms exceeded."
+      }
+    ]
+  },
+  "screenshot": {
+    "url": "http://127.0.0.1:57583/",
+    "screenshotPath": "/home/daksh/.t3/userdata/browser-artifacts/browser-screenshot-127-0-0-1-mvofyak8-1a540d76.png"
+  },
+  "cases": [
+    {
+      "id": "QA-001",
+      "revision": 1,
+      "status": "PASSED",
+      "observation": "Verified both checksums; packaged startup needed no compiler; browser showed sleep, PID 270445, one fresh sleep thread, and live sample clocks."
+    },
+    {
+      "id": "QA-002",
+      "revision": 1,
+      "status": "FAILED",
+      "observation": "Manage targets help covered the Add target confirmation button. Browser click timed out; no second target appeared."
+    },
+    {
+      "id": "QA-003",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-004",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-005",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-006",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-007",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-008",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-009",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-010",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-011",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-012",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-013",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-014",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-015",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-016",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-017",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-018",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-019",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-020",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-021",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-022",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-023",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-024",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-025",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-026",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-028",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-029",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-030",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-031",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-032",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-033",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-034",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-035",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-036",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-037",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-038",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-039",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-045",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-046",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-047",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-048",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-049",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-050",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-051",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-052",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-053",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-054",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-055",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-056",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-057",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-058",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-059",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-060",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-061",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-062",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-063",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-064",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-065",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-066",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-067",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-068",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-069",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-070",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-071",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-072",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-073",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-074",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-075",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-076",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-077",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-078",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-079",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-080",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-081",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-082",
+      "revision": 3,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-083",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-084",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-085",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-086",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-087",
+      "revision": 5,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-088",
+      "revision": 2,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-089",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-090",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-091",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-092",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-093",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-094",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-095",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-096",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-097",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-098",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-099",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-100",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-101",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-102",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-103",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-104",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-105",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-106",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-107",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-108",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-109",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-110",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-111",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-112",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-113",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-114",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-115",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-116",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-117",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-118",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-119",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-120",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-121",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    },
+    {
+      "id": "QA-122",
+      "revision": 1,
+      "status": "NOT_RUN",
+      "observation": "Not attempted: stopped at blocking Sanity failure QA-002."
+    }
+  ],
+  "counts": {
+    "PASSED": 1,
+    "FAILED": 1,
+    "BLOCKED": 0,
+    "NOT_RUN": 114
+  }
+}
