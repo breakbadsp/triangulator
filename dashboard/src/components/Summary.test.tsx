@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "../help/createHelpTimer";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, MemorySummary, Resources } from "../api/types";
@@ -126,7 +127,7 @@ test("a memory chart reads a missing sample as not available, not 0 B", () => {
     const hit = container.querySelector("#chart-rss rect") as SVGRectElement;
     fireEvent.pointerMove(hit, { clientX: 586, clientY: 40 });
     act(() => {
-      vi.advanceTimersByTime(1200);
+      vi.advanceTimersByTime(HELP_DELAY);
     });
     const card = screen.getByRole("dialog");
     expect(card.querySelector(".help-reading")?.textContent).toBe(
@@ -285,6 +286,7 @@ test.each([
     if (!opener) throw Error("Missing memory label");
     act(() => {
       opener.focus();
+      fireEvent.keyDown(opener, { key: "Enter" });
     });
     fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
     const guide = document.getElementById("help-guide");
@@ -342,7 +344,7 @@ test("a watched finding keeps its help target through live re-renders", () => {
     expect(target?.dataset.help).toBe("watched");
     if (!target) return;
     fireEvent.mouseEnter(target);
-    // Live polling re-renders about once a second, before the 1,200 ms help
+    // Live polling re-renders about once a second, before the 3,000 ms help
     // delay ends.
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -350,11 +352,11 @@ test("a watched finding keeps its help target through live re-renders", () => {
     rerender(live(1001));
     expect(target.isConnected, "the pending row is not replaced").toBe(true);
     act(() => {
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(HELP_DELAY - 1000);
     });
     expect(
       screen.getByRole("dialog", { name: "Watched threads" }),
-      "help opens after 1,200 ms",
+      "help opens after 3,000 ms",
     ).toBeDefined();
     rerender(live(1002));
     expect(target.isConnected, "an open card keeps its row too").toBe(true);

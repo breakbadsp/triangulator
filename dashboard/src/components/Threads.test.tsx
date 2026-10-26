@@ -1,3 +1,4 @@
+import { HELP_DELAY } from "../help/createHelpTimer";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useReducer } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -208,7 +209,7 @@ test("a poll that reverses the 5 min averages does not move the hovered tile", (
   if (!tile) throw new Error("no tile");
   fireEvent.mouseEnter(tile);
   fireEvent.mouseMove(tile, { clientX: 20, clientY: 20 });
-  advance(1200);
+  advance(HELP_DELAY);
   const card = screen.getByRole("dialog", { name: "Thread map" });
   expect(card.textContent).toContain("worker-1 (1)");
   // The pointer moves into the card; the next polls arrive.
@@ -237,12 +238,12 @@ test("moving from Read/s to Write/s on one row shows the Write/s value", () => {
   const [read, write] = [7, 8].map((index) => row?.children[index]);
   if (!read || !write) throw new Error("no cells");
   fireEvent.mouseMove(read, { clientX: 10, clientY: 10 });
-  advance(1200);
+  advance(HELP_DELAY);
   const card = () => screen.getByRole("dialog", { name: "Disk & syscall I/O" });
   expect(card().textContent).toContain("Read/s");
   expect(card().textContent).toContain("2.0 KB");
   fireEvent.mouseMove(write, { clientX: 60, clientY: 10 });
-  advance(1200);
+  advance(HELP_DELAY);
   expect(card().textContent).toContain("Write/s");
   expect(card().textContent).toContain("4.0 KB");
   expect(card().textContent).not.toContain("2.0 KB");
@@ -293,7 +294,7 @@ test("a missing CPU rate stays unavailable in the held cell and its card during 
   if (!cell) throw new Error("Missing CPU cell");
   fireEvent.mouseEnter(cell);
   fireEvent.mouseMove(cell, { clientX: 10, clientY: 10 });
-  advance(1200);
+  advance(HELP_DELAY);
   const card = screen.getByRole("dialog", { name: "CPU" });
   expect(card.textContent).toContain("Not available");
   fireEvent.mouseLeave(cell, { relatedTarget: card });
