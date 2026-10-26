@@ -49,6 +49,8 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+.card.tile {
   padding: 16px 20px 12px;
 }
 .tile .label {
@@ -209,7 +211,7 @@ details[open] > .exit-summary #exit-brief {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-  .tile {
+  .card.tile {
     padding: 14px 12px;
   }
   .tile .value {
