@@ -105,6 +105,8 @@ section.overview {
   display: grid;
   grid-template-columns: minmax(220px, 0.7fr) minmax(0, 2fr);
   gap: 24px;
+}
+.card.assessment-card {
   border-left: 3px solid var(--assessment, var(--axis));
 }
 .assessment-card[data-level="good"],
