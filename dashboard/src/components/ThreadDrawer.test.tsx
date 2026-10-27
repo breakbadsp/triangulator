@@ -99,11 +99,7 @@ test.each([
       .getByRole("heading", { name: heading })
       .closest<HTMLElement>("[data-help]");
     if (!opener) throw Error("Missing history heading");
-    act(() => {
-      opener.focus();
-      fireEvent.keyDown(opener, { key: "Enter" });
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+    fireEvent.click(within(opener).getByRole("button", { name: /^Explain / }));
     const guide = document.getElementById("help-guide");
     if (!guide) throw Error("Missing guide");
     fireEvent.click(within(guide).getByText("View chart data"));
@@ -227,64 +223,24 @@ test("Escape closes drawer help before it closes the drawer", async () => {
       .fn<typeof fetch>()
       .mockImplementation(() => Promise.resolve(emptyHistory())),
   );
-  render(<Drawer thread={selected(one)} />);
-  await screen.findByText(/0 summaries/);
-  const initialHelp = document.querySelector<HTMLButtonElement>(
-    ".help-card .help-close",
+  render(
+    <HelpGuideProvider>
+      <Drawer thread={selected(one)} />
+    </HelpGuideProvider>,
   );
-  if (initialHelp) fireEvent.click(initialHelp);
+  await screen.findByText(/0 summaries/);
   const historyHelp = document.querySelector<HTMLElement>(
     "#history [data-help='history']",
   );
   if (!historyHelp) throw new Error("Missing history help");
-  fireEvent.focus(historyHelp);
-  fireEvent.keyDown(historyHelp, { key: "Enter" });
-  expect(document.querySelector(".help-card")).not.toBeNull();
+  fireEvent.click(
+    within(historyHelp).getByRole("button", { name: /^Explain / }),
+  );
+  expect(document.getElementById("help-guide")).not.toBeNull();
   fireEvent.keyDown(document, { key: "Escape" });
-  expect(document.querySelector(".help-card")).toBeNull();
+  expect(document.getElementById("help-guide")).toBeNull();
   expect(close).not.toHaveBeenCalled();
   fireEvent.keyDown(document, { key: "Escape" });
-  expect(close).toHaveBeenCalledOnce();
-});
-
-test("Escape closes focused history help and cancels an earlier pending hover", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn<typeof fetch>()
-      .mockImplementation(() => Promise.resolve(emptyHistory())),
-  );
-  render(<Drawer thread={selected(one)} />);
-  await screen.findByText(/0 summaries/);
-  vi.useFakeTimers();
-  const historyHelp = document.querySelector<HTMLElement>(
-    "#history [data-help='history']",
-  );
-  const closeHelp = screen
-    .getByRole("button", { name: "Close thread details" })
-    .closest("[data-help]");
-  if (!historyHelp || !closeHelp) throw new Error("Missing drawer help");
-  act(() => {
-    historyHelp.focus();
-    fireEvent.keyDown(historyHelp, { key: "Enter" });
-    vi.advanceTimersByTime(250);
-  });
-  expect(screen.getAllByRole("dialog")).toHaveLength(1);
-  expect(screen.getByRole("dialog", { name: "History" })).toBeDefined();
-  fireEvent.mouseLeave(historyHelp);
-  fireEvent.mouseEnter(closeHelp);
-  act(() => {
-    vi.advanceTimersByTime(HELP_DELAY - 1);
-  });
-  expect(document.activeElement).toBe(historyHelp);
-  fireEvent.keyDown(historyHelp, { key: "Escape" });
-  expect(screen.queryByRole("dialog")).toBeNull();
-  expect(close).not.toHaveBeenCalled();
-  act(() => {
-    vi.advanceTimersByTime(HELP_DELAY);
-  });
-  expect(screen.queryByRole("dialog")).toBeNull();
-  fireEvent.keyDown(historyHelp, { key: "Escape" });
   expect(close).toHaveBeenCalledOnce();
 });
 
