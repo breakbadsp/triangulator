@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { getJson } from "./api/client";
-import type {
-  LiveResponse,
-  PressureScope,
-  TargetsResponse,
-  Thread,
-} from "./api/types";
+import { parseLive } from "./api/replay";
+import type { PressureScope, TargetsResponse, Thread } from "./api/types";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
@@ -40,7 +36,7 @@ const loadTargets = (signal: AbortSignal) =>
   getJson<TargetsResponse>("/api/targets", signal);
 // The view's clock is read once, when its response arrives.
 const loadLive = async (signal: AbortSignal) => ({
-  view: await getJson<LiveResponse>("/api/live", signal),
+  view: parseLive(await getJson<unknown>("/api/live", signal)),
   now: Date.now() / 1000,
 });
 

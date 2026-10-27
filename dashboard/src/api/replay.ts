@@ -11,6 +11,13 @@ export interface ReplayBounds {
 export interface ReplayReply extends ReplayBounds {
   snapshot: (LiveResponse & { recorded_at: number }) | null;
 }
+// The live reply is checked once a second, thread by thread.
+const splitNames = new Map<string, string[]>();
+function namesOf(names: string) {
+  let list = splitNames.get(names);
+  if (!list) splitNames.set(names, (list = names.split(" ").filter(Boolean)));
+  return list;
+}
 function fields(
   value: Record<string, unknown>,
   numbers: string,
@@ -22,7 +29,7 @@ function fields(
     [strings, (v: unknown) => typeof v === "string"],
     [booleans, (v: unknown) => typeof v === "boolean"],
   ] as const)
-    for (const name of names.split(" ").filter(Boolean))
+    for (const name of namesOf(names))
       if (value[name] != null && !check(value[name]))
         throw Error(`Invalid recorded field: ${name}.`);
 }
@@ -103,12 +110,13 @@ function sample(value: unknown) {
   }
 }
 // Replay and tab storage can outlive the collector version that wrote them.
-export function parseView(value: unknown): LiveResponse {
+// A live reply has no session before the first sampler packet.
+function view(value: unknown, live: boolean): LiveResponse {
   if (!object(value) || !object(value.health) || !Array.isArray(value.threads))
     throw Error("Invalid recorded process view.");
   const h = value.health;
   if (
-    typeof h.session !== "string" ||
+    !(typeof h.session === "string" || (live && h.session == null)) ||
     !number(h.pid) ||
     h.pid < 0 ||
     !(h.last_seen === null || number(h.last_seen)) ||
@@ -179,6 +187,22 @@ export function parseView(value: unknown): LiveResponse {
   )
     throw Error("Invalid recorded groups.");
   return value as unknown as LiveResponse;
+}
+export const parseView = (value: unknown) => view(value, false);
+/**
+ * The 1 Hz live reply, checked like a recording. A reply that does not fit
+ * fails the poll, so the page shows the error, not a blank tile.
+ */
+export function parseLive(value: unknown): LiveResponse {
+  try {
+    return view(value, true);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "";
+    throw Error(
+      `The collector sent a live reply that this page cannot read. ${detail.replace("recorded ", "")}`.trim(),
+      { cause },
+    );
+  }
 }
 export function parseBounds(value: unknown): ReplayBounds {
   if (
