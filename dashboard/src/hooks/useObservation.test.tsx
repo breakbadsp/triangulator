@@ -1,6 +1,8 @@
 import { renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse } from "../api/types";
+import { markDeparture } from "../api/viewStorage";
 import { useObservation } from "./useObservation";
 function useSeries(target: string, view: LiveResponse) {
   return useObservation(target, { view, now: view.health.last_seen ?? 0 }, 900)
@@ -79,3 +81,42 @@ test("a reload restores points and thread observations of the same session", () 
   const other = renderHook(() => useSeries("h/other", third));
   expect(other.result.current?.points).toHaveLength(1);
 });
+
+// StrictMode runs a state initializer twice. The departure intent is consumed
+// by the first run, so the second run must reach the same result.
+test.each([
+  ["a reload", null, [1, 2, 3]],
+  ["a switch from another target", ["h/other", "h/w"], [3]],
+] as const)(
+  "%s gives the same restore in StrictMode and outside it",
+  (_name, departure, expected) => {
+    const saved = renderHook(
+      ({ view }: { view: LiveResponse }) => useSeries("h/w", view),
+      { initialProps: { view: live(1) } },
+    );
+    saved.rerender({ view: live(2) });
+    dispatchEvent(new Event("pagehide"));
+    saved.unmount();
+    const snapshot = Array.from(
+      { length: sessionStorage.length },
+      (_, index) => {
+        const key = sessionStorage.key(index) ?? "";
+        return [key, sessionStorage.getItem(key) ?? ""] as const;
+      },
+    );
+    const third = live(3);
+    const points = (strict: boolean) => {
+      sessionStorage.clear();
+      for (const [key, value] of snapshot) sessionStorage.setItem(key, value);
+      if (departure) markDeparture(departure[0], departure[1]);
+      const { result, unmount } = renderHook(() => useSeries("h/w", third), {
+        ...(strict && { wrapper: StrictMode }),
+      });
+      const seen = result.current?.points.map((point) => point.t);
+      unmount();
+      return seen;
+    };
+    expect(points(false)).toEqual(expected);
+    expect(points(true)).toEqual(expected);
+  },
+);
