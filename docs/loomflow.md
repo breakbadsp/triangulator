@@ -56,6 +56,7 @@ Pick the models from the size of the change. Pass the model and effort to every 
 | Normal | other `full` changes | orchestrator | GPT 6.1 Sol or Sonnet 5.5, medium | Haiku 5.5, medium | Sonnet 5.5, medium | Haiku 5.5, low |
 | Major | a new feature or redesign; any change on a sensitive path; concurrency, storage, wire format, auth, or secrets; or more than 300 changed code lines | Opus 5.5, high; orchestrator when Major only for path or area | GPT 6.1 Sol, high (Opus 5.5, high, when Sol is unavailable) | Sonnet 5.5, high | Sonnet 5.5, high | Haiku 5.5, low |
 
+- Changed code lines are added plus modified lines. Deleted test lines do not count: removing tests for removed behavior adds no risk, and counting it made cleanups Major.
 - Use two model families for A and B when possible. In any doubt between two sizes, use the larger one.
 - By default, do not use Astra 6 or effort above `high`. Only the following exceptions apply.
 - When the Claude usage limit is reached, continue on Codex. Opus 5.5 `high` becomes GPT 6.1 Sol `xhigh`; Sonnet 5.5 becomes GPT 6.1 Sol at the same effort; Haiku becomes GPT 6.1 Sol `low`. Use Astra 6 `medium` only when required for this fallback.
