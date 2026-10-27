@@ -100,6 +100,17 @@ Test records
   Use relative links that work from the document. Never invent results or evidence.
   Preserve historical reports; do not rewrite them as current observations.
 
+Model split
+- Run scripted cases (Driver: scripted in docs/qa/test-cases.md) and
+  record-keeping on the cheapest suitable model: Haiku, or Terra 6.1 low when
+  Claude is unavailable.
+- Give a failed or ambiguous case to a stronger model for the verdict: Sonnet,
+  or Sol 6.1 medium. Report a mismatch between a case and the design as a
+  mismatch. Never pass it silently.
+- Use scripts/qa/ (see scripts/qa/README.md) for setup, browser steps, records,
+  and the QA-060 sweep. Do not write a new per-run harness. Do not copy harness
+  files into run evidence.
+
 Completion
 - Follow the project's worktree, validation, commit, and pull request rules for
   document changes. Link any QA pull request to the T3 thread when tools support it.
