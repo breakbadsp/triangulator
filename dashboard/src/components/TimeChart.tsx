@@ -2,6 +2,7 @@ import {
   useContext,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -108,194 +109,46 @@ function Chart<P extends { t: number }>({
     };
   }, []);
 
+  const scene = useMemo(
+    () =>
+      points.length < 2
+        ? null
+        : buildScene({
+            points,
+            series,
+            stacked,
+            overlay,
+            format,
+            width,
+            height,
+            minMax,
+            nice,
+            from,
+            to,
+          }),
+    [
+      points,
+      series,
+      stacked,
+      overlay,
+      format,
+      width,
+      height,
+      minMax,
+      nice,
+      from,
+      to,
+    ],
+  );
   let body: ReactNode, readout: Readout | undefined;
-  if (points.length < 2) {
+  if (!scene) {
     body = (
       <div className="chart-empty" style={{ height }}>
         {empty}
       </div>
     );
   } else {
-    const plotW = width - PAD.l - PAD.r,
-      plotH = height - PAD.t - PAD.b;
-    const t0 = from ?? points[0]?.t ?? 0,
-      t1 = to ?? points.at(-1)?.t ?? 0;
-    const x = (t: number) =>
-      PAD.l + (t1 > t0 ? (t - t0) / (t1 - t0) : 0.5) * plotW;
-    let max = minMax;
-    for (const point of points) {
-      if (stacked) {
-        let sum = 0;
-        for (const item of series) sum += item.get(point) || 0;
-        max = Math.max(max, sum);
-      } else
-        for (const item of series) {
-          const value = item.get(point);
-          if (isNum(value)) max = Math.max(max, value);
-        }
-      const value = overlay?.get(point);
-      if (isNum(value)) max = Math.max(max, value);
-    }
-    const nearest = (t: number) => {
-      let best = 0;
-      points.forEach((point, index) => {
-        if (Math.abs(point.t - t) < Math.abs((points[best]?.t ?? 0) - t))
-          best = index;
-      });
-      return points[best] as P;
-    };
-    const top = nice(max),
-      y = (value: number) => PAD.t + (1 - value / top) * plotH;
-    const marks: ReactNode[] = [];
-    for (const fraction of [0, 0.5, 1]) {
-      const py = y(top * fraction);
-      marks.push(
-        <line
-          key={`grid${String(fraction)}`}
-          x1={PAD.l}
-          x2={width - PAD.r}
-          y1={py}
-          y2={py}
-          stroke={fraction ? "var(--grid)" : "var(--axis)"}
-          strokeWidth={1}
-        />,
-        <text
-          key={`value${String(fraction)}`}
-          x={PAD.l - 8}
-          y={py + 4}
-          textAnchor="end"
-          className="axis-label"
-        >
-          {format(top * fraction)}
-        </text>,
-      );
-    }
-    for (const [t, anchor] of [
-      [t0, "start"],
-      [(t0 + t1) / 2, "middle"],
-      [t1, "end"],
-    ] as const)
-      marks.push(
-        <text
-          key={`time${anchor}`}
-          x={x(t)}
-          y={height - 5}
-          textAnchor={anchor}
-          className="axis-label"
-        >
-          {clock(t)}
-        </text>,
-      );
-    const unknown = (point: P) =>
-      stacked && series.every((item) => !isNum(item.get(point)));
-    const runs = segments(points, unknown);
-    const line = (run: readonly P[], get: (point: P) => number) =>
-      run.map((point) => `${String(x(point.t))},${String(y(get(point)))}`);
-    if (stacked) {
-      runs.forEach((segment, index) => {
-        if (segment.length < 2) return;
-        const base = segment.map(() => 0);
-        series.forEach((item, band) => {
-          const upper = segment.map(
-            (point, i) => (base[i] ?? 0) + (item.get(point) || 0),
-          );
-          if (upper.some((value, i) => value > (base[i] ?? 0)))
-            marks.push(
-              <polygon
-                key={`band${String(index)}-${String(band)}`}
-                points={segment
-                  .map(
-                    (point, i) =>
-                      `${String(x(point.t))},${String(y(upper[i] ?? 0))}`,
-                  )
-                  .concat(
-                    segment
-                      .map(
-                        (point, i) =>
-                          `${String(x(point.t))},${String(y(base[i] ?? 0))}`,
-                      )
-                      .reverse(),
-                  )
-                  .join(" ")}
-                fill={item.color}
-                stroke="var(--surface)"
-                strokeWidth={1}
-                strokeLinejoin="round"
-              />,
-            );
-          upper.forEach((value, i) => (base[i] = value));
-        });
-      });
-      if (overlay)
-        runs.forEach((segment, index) => {
-          const run = segment.filter((point) => isNum(overlay.get(point)));
-          if (run.length > 1)
-            marks.push(
-              <polyline
-                key={`overlay${String(index)}`}
-                points={line(run, (point) => overlay.get(point) ?? 0).join(" ")}
-                fill="none"
-                stroke={overlay.color}
-                strokeWidth={2}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />,
-            );
-        });
-    } else {
-      series.forEach((item, band) => {
-        runs.forEach((segment, index) => {
-          let run: P[] = [],
-            part = 0;
-          const flush = () => {
-            const key = `${String(band)}-${String(index)}-${String(part++)}`;
-            const first = run[0],
-              last = run.at(-1);
-            if (run.length > 1 && first && last) {
-              const points = line(run, (point) => item.get(point) ?? 0).join(
-                " ",
-              );
-              if (series.length === 1)
-                marks.push(
-                  <polygon
-                    key={`wash${key}`}
-                    points={`${String(x(first.t))},${String(y(0))} ${points} ${String(x(last.t))},${String(y(0))}`}
-                    fill={item.color}
-                    fillOpacity={0.12}
-                  />,
-                );
-              marks.push(
-                <polyline
-                  key={`line${key}`}
-                  points={points}
-                  fill="none"
-                  stroke={item.color}
-                  strokeWidth={2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />,
-              );
-            } else if (first)
-              marks.push(
-                <circle
-                  key={`dot${key}`}
-                  cx={x(first.t)}
-                  cy={y(item.get(first) ?? 0)}
-                  r={2.5}
-                  fill={item.color}
-                />,
-              );
-            run = [];
-          };
-          for (const point of segment) {
-            if (isNum(item.get(point))) run.push(point);
-            else flush();
-          }
-          flush();
-        });
-      });
-    }
-
+    const { marks, plotW, plotH, t0, t1, x, y, nearest } = scene;
     // Hover layer: a crosshair at the nearest sample, a dot for each series.
     let hoverMarks: ReactNode = null;
     if (hover) {
@@ -416,4 +269,224 @@ function Chart<P extends { t: number }>({
       </div>
     </Help>
   );
+}
+
+interface Scene<P extends { t: number }> {
+  marks: ReactNode[];
+  plotW: number;
+  plotH: number;
+  t0: number;
+  t1: number;
+  x: (t: number) => number;
+  y: (value: number) => number;
+  nearest: (t: number) => P;
+}
+/**
+ * The static scene: axes, bands, lines. It depends on the data and the size
+ * only, so a hover that moves the crosshair does not draw it again.
+ */
+function buildScene<P extends { t: number }>({
+  points,
+  series,
+  stacked,
+  overlay,
+  format,
+  width,
+  height,
+  minMax,
+  nice,
+  from,
+  to,
+}: {
+  points: readonly P[];
+  series: readonly ChartSeries<P>[];
+  stacked: boolean;
+  overlay: ChartSeries<P> | null;
+  format: (value: unknown) => string;
+  width: number;
+  height: number;
+  minMax: number;
+  nice: (value: number) => number;
+  from: number | undefined;
+  to: number | undefined;
+}): Scene<P> {
+  const plotW = width - PAD.l - PAD.r,
+    plotH = height - PAD.t - PAD.b;
+  const t0 = from ?? points[0]?.t ?? 0,
+    t1 = to ?? points.at(-1)?.t ?? 0;
+  const x = (t: number) =>
+    PAD.l + (t1 > t0 ? (t - t0) / (t1 - t0) : 0.5) * plotW;
+  let max = minMax;
+  for (const point of points) {
+    if (stacked) {
+      let sum = 0;
+      for (const item of series) sum += item.get(point) || 0;
+      max = Math.max(max, sum);
+    } else
+      for (const item of series) {
+        const value = item.get(point);
+        if (isNum(value)) max = Math.max(max, value);
+      }
+    const value = overlay?.get(point);
+    if (isNum(value)) max = Math.max(max, value);
+  }
+  const nearest = (t: number) => {
+    let best = 0;
+    points.forEach((point, index) => {
+      if (Math.abs(point.t - t) < Math.abs((points[best]?.t ?? 0) - t))
+        best = index;
+    });
+    return points[best] as P;
+  };
+  const top = nice(max),
+    y = (value: number) => PAD.t + (1 - value / top) * plotH;
+  const marks: ReactNode[] = [];
+  for (const fraction of [0, 0.5, 1]) {
+    const py = y(top * fraction);
+    marks.push(
+      <line
+        key={`grid${String(fraction)}`}
+        x1={PAD.l}
+        x2={width - PAD.r}
+        y1={py}
+        y2={py}
+        stroke={fraction ? "var(--grid)" : "var(--axis)"}
+        strokeWidth={1}
+      />,
+      <text
+        key={`value${String(fraction)}`}
+        x={PAD.l - 8}
+        y={py + 4}
+        textAnchor="end"
+        className="axis-label"
+      >
+        {format(top * fraction)}
+      </text>,
+    );
+  }
+  for (const [t, anchor] of [
+    [t0, "start"],
+    [(t0 + t1) / 2, "middle"],
+    [t1, "end"],
+  ] as const)
+    marks.push(
+      <text
+        key={`time${anchor}`}
+        x={x(t)}
+        y={height - 5}
+        textAnchor={anchor}
+        className="axis-label"
+      >
+        {clock(t)}
+      </text>,
+    );
+  const unknown = (point: P) =>
+    stacked && series.every((item) => !isNum(item.get(point)));
+  const runs = segments(points, unknown);
+  const line = (run: readonly P[], get: (point: P) => number) =>
+    run.map((point) => `${String(x(point.t))},${String(y(get(point)))}`);
+  if (stacked) {
+    runs.forEach((segment, index) => {
+      if (segment.length < 2) return;
+      const base = segment.map(() => 0);
+      series.forEach((item, band) => {
+        const upper = segment.map(
+          (point, i) => (base[i] ?? 0) + (item.get(point) || 0),
+        );
+        if (upper.some((value, i) => value > (base[i] ?? 0)))
+          marks.push(
+            <polygon
+              key={`band${String(index)}-${String(band)}`}
+              points={segment
+                .map(
+                  (point, i) =>
+                    `${String(x(point.t))},${String(y(upper[i] ?? 0))}`,
+                )
+                .concat(
+                  segment
+                    .map(
+                      (point, i) =>
+                        `${String(x(point.t))},${String(y(base[i] ?? 0))}`,
+                    )
+                    .reverse(),
+                )
+                .join(" ")}
+              fill={item.color}
+              stroke="var(--surface)"
+              strokeWidth={1}
+              strokeLinejoin="round"
+            />,
+          );
+        upper.forEach((value, i) => (base[i] = value));
+      });
+    });
+    if (overlay)
+      runs.forEach((segment, index) => {
+        const run = segment.filter((point) => isNum(overlay.get(point)));
+        if (run.length > 1)
+          marks.push(
+            <polyline
+              key={`overlay${String(index)}`}
+              points={line(run, (point) => overlay.get(point) ?? 0).join(" ")}
+              fill="none"
+              stroke={overlay.color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />,
+          );
+      });
+  } else {
+    series.forEach((item, band) => {
+      runs.forEach((segment, index) => {
+        let run: P[] = [],
+          part = 0;
+        const flush = () => {
+          const key = `${String(band)}-${String(index)}-${String(part++)}`;
+          const first = run[0],
+            last = run.at(-1);
+          if (run.length > 1 && first && last) {
+            const points = line(run, (point) => item.get(point) ?? 0).join(" ");
+            if (series.length === 1)
+              marks.push(
+                <polygon
+                  key={`wash${key}`}
+                  points={`${String(x(first.t))},${String(y(0))} ${points} ${String(x(last.t))},${String(y(0))}`}
+                  fill={item.color}
+                  fillOpacity={0.12}
+                />,
+              );
+            marks.push(
+              <polyline
+                key={`line${key}`}
+                points={points}
+                fill="none"
+                stroke={item.color}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />,
+            );
+          } else if (first)
+            marks.push(
+              <circle
+                key={`dot${key}`}
+                cx={x(first.t)}
+                cy={y(item.get(first) ?? 0)}
+                r={2.5}
+                fill={item.color}
+              />,
+            );
+          run = [];
+        };
+        for (const point of segment) {
+          if (isNum(item.get(point))) run.push(point);
+          else flush();
+        }
+        flush();
+      });
+    });
+  }
+
+  return { marks, plotW, plotH, t0, t1, x, y, nearest };
 }

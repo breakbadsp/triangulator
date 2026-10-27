@@ -126,3 +126,23 @@ test("the readout card stays inside the viewport at its measured height", () => 
     measure.mockRestore();
   }
 });
+
+test("a hover moves the crosshair without drawing the chart again", () => {
+  const many = Array.from({ length: 400 }, (_, index) => ({
+    t: index,
+    a: index,
+    b: 1,
+  }));
+  const get = vi.fn((point: { a: number }) => point.a);
+  const series = [{ label: "A", color: "red", get }];
+  const { container } = render(
+    <TimeChart id="scene" topic="load" points={many} series={series} />,
+  );
+  const hit = container.querySelector("rect") as SVGRectElement;
+  const drawn = get.mock.calls.length;
+  expect(drawn).toBeGreaterThanOrEqual(many.length);
+  for (let move = 0; move < 10; move++)
+    fireEvent.pointerMove(hit, { clientX: 60 + move * 50, clientY: 40 });
+  // Each hover reads the hovered sample, not the whole series.
+  expect(get.mock.calls.length - drawn).toBeLessThan(many.length);
+});
