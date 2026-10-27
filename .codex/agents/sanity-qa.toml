@@ -40,6 +40,10 @@ Records
   environment, and failure steps. Update the current-result rows once. Run
   scripts/qa_summary.py --write-readme and then --check once.
 
+Scope by change
+- Select cases by the paths the change touches. Follow "Scope by change" in
+  docs/qa/tiers.md. Record out-of-scope cases as Excluded with the reason.
+
 Model split
 - Run scripted cases (Driver: scripted in docs/qa/test-cases.md) and
   record-keeping on the cheapest suitable model: Haiku, or Terra 6.1 low when
