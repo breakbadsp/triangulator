@@ -402,27 +402,14 @@ test("ambiguous names list PID, user, age and command; selection and validation 
 });
 
 // Old test 3180. Real showModal/portal interaction is also in prove_dashboard.mjs.
-test("dialog Help stays in the modal and is discarded on close and reopen", async () => {
+test("dialog Help opens its guide inside the modal and closes with it", async () => {
   await start();
   open();
-  fireEvent.click(el("target-id").closest("[data-help]") ?? el("target-id"));
-  const oldCard = screen.getByRole("dialog", { name: "Target ID" });
-  expect(
-    el("target-settings").contains(
-      screen.getByRole("dialog", { name: "Target ID" }),
-    ),
-  ).toBe(true);
-  fireEvent.click(
-    within(screen.getByRole("dialog", { name: "Target ID" })).getByRole(
-      "button",
-      { name: "Close help" },
-    ),
-  );
-  expect(screen.queryByRole("dialog", { name: "Target ID" })).toBeNull();
+  const label = el("target-id").closest<HTMLElement>("[data-help]");
+  if (!label) throw Error("Missing Target ID help");
+  fireEvent.click(within(label).getByRole("button", { name: /^Explain / }));
+  const guide = document.getElementById("help-guide");
+  expect(guide && el("target-settings").contains(guide)).toBe(true);
   fireEvent.click(el("target-cancel"));
-  expect(oldCard.isConnected).toBe(false);
-  open();
-  expect(screen.queryByRole("dialog", { name: "Target ID" })).toBeNull();
-  fireEvent.click(el("target-id").closest("[data-help]") ?? el("target-id"));
-  expect(screen.getByRole("dialog", { name: "Target ID" })).not.toBe(oldCard);
+  expect(document.getElementById("help-guide")).toBeNull();
 });

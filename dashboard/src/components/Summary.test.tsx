@@ -284,11 +284,7 @@ test.each([
       `#overview-memory .help-label[data-help='${topic}']`,
     );
     if (!opener) throw Error("Missing memory label");
-    act(() => {
-      opener.focus();
-      fireEvent.keyDown(opener, { key: "Enter" });
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
+    fireEvent.click(within(opener).getByRole("button", { name: /^Explain / }));
     const guide = document.getElementById("help-guide");
     if (!guide) throw Error("Missing guide");
     fireEvent.click(within(guide).getByText("View chart data"));
@@ -312,7 +308,7 @@ test.each([
   },
 );
 
-test("a watched finding keeps its help target through live re-renders", () => {
+test("a watched finding keeps its open guide through live re-renders", () => {
   vi.useFakeTimers();
   try {
     const live = (now: number) => (
@@ -337,32 +333,18 @@ test("a watched finding keeps its help target through live re-renders", () => {
         watchRules={[{ prefix: "worker-", wake_ms: 500 }]}
       />
     );
-    const { rerender } = render(live(1000));
+    const { rerender } = render(live(1000), { wrapper: HelpGuideProvider });
     const target = screen
       .getByText("worker-1 stopped waking up")
       .closest<HTMLElement>("[data-help]");
     expect(target?.dataset.help).toBe("watched");
     if (!target) return;
-    fireEvent.mouseEnter(target);
-    // Live polling re-renders about once a second, before the 3,000 ms help
-    // delay ends.
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
+    fireEvent.click(within(target).getByRole("button", { name: /^Explain / }));
     rerender(live(1001));
-    expect(target.isConnected, "the pending row is not replaced").toBe(true);
-    act(() => {
-      vi.advanceTimersByTime(HELP_DELAY - 1000);
-    });
+    expect(target.isConnected, "an open guide keeps its row").toBe(true);
     expect(
-      screen.getByRole("dialog", { name: "Watched threads" }),
-      "help opens after 3,000 ms",
+      screen.getByRole("complementary", { name: "Watched threads" }),
     ).toBeDefined();
-    rerender(live(1002));
-    expect(target.isConnected, "an open card keeps its row too").toBe(true);
-    expect(screen.getByRole("dialog", { name: "Watched threads" })).toBe(
-      screen.getByRole("dialog"),
-    );
   } finally {
     vi.useRealTimers();
   }

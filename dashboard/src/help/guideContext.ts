@@ -1,4 +1,4 @@
-import { createContext, type RefObject } from "react";
+import { createContext } from "react";
 import type { HelpTopicId } from "./topics";
 import type { Readout } from "./Help";
 
@@ -20,7 +20,6 @@ export interface GuideRequest {
 }
 export const GuideContext = createContext<{
   request: GuideRequest | null;
-  restoring: RefObject<boolean>;
   open: (
     topic: HelpTopicId,
     opener: HTMLElement,

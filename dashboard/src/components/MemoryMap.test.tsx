@@ -1,7 +1,8 @@
 import { HELP_DELAY } from "../help/createHelpTimer";
 // Ported from 777cf3a:tests/dashboard_test.js (old start lines in names),
 // with the D1 identity case of PR 165.
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { HelpGuideProvider } from "../help/HelpGuide";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type {
   LiveResponse,
@@ -102,15 +103,17 @@ function Harness({
 }) {
   const memory = useObservation("t", { view: live, now: NOW }, 900);
   return (
-    <MemoryMap
-      view={live}
-      now={NOW}
-      memory={memory.observation?.memory ?? initialMemory}
-      dispatch={memory.memory}
-      series={emptySeries}
-      resourcePoints={points}
-      scope="cgroup"
-    />
+    <HelpGuideProvider>
+      <MemoryMap
+        view={live}
+        now={NOW}
+        memory={memory.observation?.memory ?? initialMemory}
+        dispatch={memory.memory}
+        series={emptySeries}
+        resourcePoints={points}
+        scope="cgroup"
+      />
+    </HelpGuideProvider>
   );
 }
 const settle = () => act(() => vi.advanceTimersByTimeAsync(10));
@@ -169,38 +172,30 @@ for (const [change, next] of [
   ["PID", { pid: 2, seq: 2 }],
 ] as const)
   for (const label of ["Memory map", "Address space & zoom"])
-    for (const phase of ["pending", "open"])
-      test(`D1 a ${change} change cancels ${phase} ${label} help and keeps the disclosures open`, async () => {
-        const { rerender } = render(<Harness live={processView()} />);
-        await settle();
-        const fold = byId("memory-map").querySelector("details[data-fold]");
-        const details = byId("memory-region-details") as HTMLDetailsElement;
-        details.open = true;
-        fireEvent(details, new Event("toggle"));
-        const help = screen
-          .getByRole("heading", { name: label })
-          .closest("[data-help]") as Element;
-        fireEvent.mouseEnter(help);
-        await act(() =>
-          vi.advanceTimersByTimeAsync(phase === "pending" ? 600 : HELP_DELAY),
-        );
-        expect(screen.queryAllByRole("dialog")).toHaveLength(
-          phase === "pending" ? 0 : 1,
-        );
+    test(`D1 a ${change} change closes the ${label} guide and keeps the disclosures open`, async () => {
+      const { rerender } = render(<Harness live={processView()} />);
+      await settle();
+      const fold = byId("memory-map").querySelector("details[data-fold]");
+      const details = byId("memory-region-details") as HTMLDetailsElement;
+      details.open = true;
+      fireEvent(details, new Event("toggle"));
+      const help = screen
+        .getByRole("heading", { name: label })
+        .closest("[data-help]") as Element;
+      fireEvent.click(
+        within(help as HTMLElement).getByRole("button", { name: /^Explain / }),
+      );
+      expect(document.getElementById("help-guide")).not.toBeNull();
 
-        rerender(<Harness live={processView(next)} />);
-        await settle();
-        expect(screen.queryAllByRole("dialog")).toEqual([]);
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        expect(screen.queryAllByRole("dialog")).toEqual([]);
-        expect(byId("memory-map").querySelector("details[data-fold]")).toBe(
-          fold,
-        );
-        expect(fold?.hasAttribute("open")).toBe(true);
-        expect((byId("memory-region-details") as HTMLDetailsElement).open).toBe(
-          true,
-        );
-      });
+      rerender(<Harness live={processView(next)} />);
+      await settle();
+      expect(document.getElementById("help-guide")).toBeNull();
+      expect(byId("memory-map").querySelector("details[data-fold]")).toBe(fold);
+      expect(fold?.hasAttribute("open")).toBe(true);
+      expect((byId("memory-region-details") as HTMLDetailsElement).open).toBe(
+        true,
+      );
+    });
 
 test("2138 a held zoom shows its snapshot until release, and other parts are not held", async () => {
   const live = (size: number, vmas: number) =>

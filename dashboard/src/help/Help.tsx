@@ -29,26 +29,6 @@ export interface Readout {
   point: { x: number; y: number };
 }
 
-let hoverFallback = true;
-let hoverWriteFailed = false;
-export function hoverHelpEnabled() {
-  if (hoverWriteFailed) return hoverFallback;
-  try {
-    return localStorage.getItem("triangulator:hover-help") !== "off";
-  } catch {
-    return hoverFallback;
-  }
-}
-export function setHoverHelp(enabled: boolean) {
-  hoverFallback = enabled;
-  try {
-    localStorage.setItem("triangulator:hover-help", enabled ? "on" : "off");
-    hoverWriteFailed = false;
-  } catch {
-    hoverWriteFailed = true;
-  }
-}
-
 // Hidden drawers keep their range state, but must dismiss their portalled help.
 export const HelpEnabled = createContext(true);
 // Native modal dialogs must contain their help cards in the top layer.
@@ -59,14 +39,7 @@ export function cancelHelp() {
   for (const timer of helpTimers) timer.cancel(true);
 }
 
-export function Help({
-  topic,
-  children,
-  className,
-  as: Tag = "span",
-  id: anchorId,
-  readout,
-}: {
+export function Help(props: {
   topic: HelpTopicId;
   children: ReactNode;
   className?: string;
@@ -74,6 +47,14 @@ export function Help({
   id?: string;
   readout?: Readout;
 }) {
+  const {
+    topic,
+    children,
+    className,
+    as: Tag = "span",
+    id: anchorId,
+    readout,
+  } = props;
   const { key: observation, recorded } = useContext(ViewIdentityContext);
   const [seen, setSeen] = useState(observation);
   const guide = useContext(GuideContext);
@@ -88,7 +69,6 @@ export function Help({
     };
   }, [observation, dismissOwner]);
   const card = useRef<HTMLElement>(null);
-  const pointerFocus = useRef(false);
   const id = useId();
   const [shown, setShown] = useState<HelpTopicId | null>(null);
   const [position, setPosition] = useState({ left: 8, top: 8 });
@@ -162,7 +142,7 @@ export function Help({
   const readoutKey = readout?.key,
     readoutPoint = readout?.point;
   useEffect(() => {
-    if (!active || !readoutKey || !readoutPoint || !hoverHelpEnabled()) return;
+    if (!active || !readoutKey || !readoutPoint) return;
     // Beside the pointer, or on its left when the card would overflow.
     const width = Math.min(380, innerWidth - 24);
     let left = readoutPoint.x + 8;
@@ -199,24 +179,27 @@ export function Help({
     element.style.top = `${String(Math.max(12, Math.min(position.top, innerHeight - height - 12)))}px`;
   }, [shown, shownReadout, position, portalTarget]);
 
-  function showHelp(immediate: boolean) {
-    if (!active) return;
-    const bounds = anchor.current?.getBoundingClientRect();
-    if (!bounds) return;
-    setPosition({
-      left: Math.max(8, Math.min(bounds.left, innerWidth - 392)),
-      top: Math.max(8, Math.min(bounds.bottom + 8, innerHeight - 240)),
-    });
-    if (immediate) timer.show(topic, { topic });
-    else timer.request(topic, { topic });
-  }
   function keepFocus() {
-    return !!(
-      anchor.current?.contains(document.activeElement) ||
-      card.current?.contains(document.activeElement)
-    );
+    return !!card.current?.contains(document.activeElement);
   }
   const content: HelpTopic | null = active && shown ? helpTopics[shown] : null;
+  // A chart passes `readout` even before the pointer is on it, and explains
+  // itself through the readout card. A table body cannot hold a button.
+  const info = guide && !("readout" in props) && Tag !== "tbody";
+  const infoButton = info && (
+    <button
+      type="button"
+      className={Tag === "div" ? "help-info help-info-corner" : "help-info"}
+      data-help={topic}
+      aria-label={`Explain ${helpTopics[topic].title}`}
+      onClick={(event) => {
+        // Inside a summary, the click must not also toggle the details.
+        event.preventDefault();
+        event.stopPropagation();
+        guide.open(topic, event.currentTarget, portalTarget);
+      }}
+    />
+  );
   return (
     <Tag
       ref={(element) => {
@@ -225,39 +208,8 @@ export function Help({
       id={anchorId}
       className={className}
       data-help={topic}
-      tabIndex={0}
       aria-describedby={content ? id : undefined}
-      onMouseEnter={(event) => {
-        if (
-          hoverHelpEnabled() &&
-          !(
-            event.target instanceof Element &&
-            event.target.closest("button, a, input, select, textarea")
-          )
-        )
-          showHelp(false);
-      }}
-      onMouseOver={(event) => {
-        if (
-          event.target instanceof Element &&
-          !card.current?.contains(event.target) &&
-          event.target.closest("button, a, input, select, textarea")
-        )
-          timer.cancel(true);
-        else if (
-          hoverHelpEnabled() &&
-          event.relatedTarget instanceof Element &&
-          event.currentTarget.contains(event.relatedTarget) &&
-          event.relatedTarget.closest("button, a, input, select, textarea") &&
-          event.target instanceof Element &&
-          !card.current?.contains(event.target)
-        ) {
-          timer.release();
-          showHelp(false);
-        }
-      }}
       onMouseLeave={() => {
-        pointerFocus.current = false;
         timer.leave(keepFocus);
       }}
       onPointerDownCapture={(event) => {
@@ -267,67 +219,11 @@ export function Help({
         )
           return;
         timer.cancel(true);
-        pointerFocus.current = true;
-      }}
-      onPointerUpCapture={() => {
-        pointerFocus.current = false;
-      }}
-      onPointerCancelCapture={() => {
-        pointerFocus.current = false;
-      }}
-      onFocus={(event) => {
-        // Native dialogs and drawers focus controls as part of their action.
-        if (
-          event.target === event.currentTarget &&
-          !pointerFocus.current &&
-          !guide?.restoring.current
-        )
-          showHelp(false);
-        pointerFocus.current = false;
-      }}
-      onInputCapture={() => {
-        timer.cancel(true);
-      }}
-      onChangeCapture={() => {
-        timer.cancel(true);
-      }}
-      onKeyDownCapture={(event) => {
-        if (
-          event.target !== event.currentTarget &&
-          event.target instanceof Node &&
-          !card.current?.contains(event.target)
-        )
-          timer.cancel(true);
-      }}
-      onBlur={(event) => {
-        pointerFocus.current = false;
-        if (
-          !card.current?.contains(event.relatedTarget) &&
-          !event.currentTarget.contains(event.relatedTarget)
-        )
-          timer.leave();
-      }}
-      onKeyDown={(event) => {
-        if (
-          event.target === event.currentTarget &&
-          (event.key === "Enter" || event.key === " ")
-        ) {
-          event.preventDefault();
-          showHelp(true);
-        }
-      }}
-      onClick={(event) => {
-        const control =
-          event.target instanceof Element
-            ? event.target.closest(
-                "button, a, input, select, textarea, [role='button'], [tabindex]",
-              )
-            : null;
-        if (control && control !== event.currentTarget) timer.cancel(true);
-        else showHelp(true);
       }}
     >
+      {Tag === "div" && infoButton}
       {children}
+      {Tag !== "div" && infoButton}
       {content &&
         createPortal(
           <aside
