@@ -122,3 +122,20 @@ test("reports a non-JSON HTTP error as ApiError", async () => {
     message: "Service Unavailable",
   });
 });
+
+test("a write can be cancelled with the signal of its owner", async () => {
+  const fetchMock = vi.fn<typeof fetch>((_input, init) => {
+    const own = init?.signal;
+    return new Promise<Response>((_resolve, reject) => {
+      own?.addEventListener("abort", () => {
+        reject(new DOMException("aborted", "AbortError"));
+      });
+    });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const owner = new AbortController();
+  const write = postJson("/api/watches", {}, { signal: owner.signal });
+  owner.abort();
+  await expect(write).rejects.toMatchObject({ name: "AbortError" });
+  expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(owner.signal);
+});
