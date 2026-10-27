@@ -27,6 +27,19 @@ import "./monitor.css";
 
 const RETRY_MS = 5000;
 
+/** Aborts when the component unmounts, so its requests end with it. */
+function useUnmountSignal() {
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const own = new AbortController();
+    controller.current = own;
+    return () => {
+      own.abort();
+    };
+  }, []);
+  return () => (controller.current ?? new AbortController()).signal;
+}
+
 function readOnlyNote(state: WatchEditor) {
   switch (state.kind) {
     case "missing":
@@ -62,6 +75,7 @@ export function WatchRules({
   onChanged: () => void;
 }) {
   const [state, dispatch] = useReducer(watchEditor, initialWatchEditor);
+  const signal = useUnmountSignal();
   const reads = useRef(0);
   const active = useRef(!recorded);
   useEffect(() => {
@@ -84,7 +98,7 @@ export function WatchRules({
     if (recorded || !canRead(state)) return;
     const token = ++reads.current;
     dispatch({ type: "read", token });
-    void readWatches().then((result) => {
+    void readWatches(signal()).then((result) => {
       if (active.current && token === reads.current)
         dispatch({ type: "loaded", token, result });
     });
@@ -188,6 +202,7 @@ function Editor({
   onChanged: () => void;
 }) {
   const id = useId();
+  const signal = useUnmountSignal();
   const controls = watchControls(state);
   const matches = watchMatches(state.draft, threads);
   // One request at a time, even for two clicks before the next render.
@@ -210,6 +225,7 @@ function Editor({
       change,
       state.base.revision,
       draftRules(state.draft),
+      signal(),
     );
     busy.current = false;
     dispatch({ type: "written", change, result });
@@ -227,7 +243,7 @@ function Editor({
     busy.current = true;
     dispatch({ type: "start", op: "reload" });
     const epoch = readEpoch.current;
-    const result = await readWatches();
+    const result = await readWatches(signal());
     if (epoch !== readEpoch.current) return;
     busy.current = false;
     dispatch({ type: "reloaded", result });
