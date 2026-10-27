@@ -169,6 +169,20 @@ export function usePastAssessments({
   useEffect(() => {
     onBounds();
   }, [bounds]);
+  // Episodes are judged with the pressure scope and the memory layout of the
+  // moment, as the Summary is. A new scope, or the first layout, starts the
+  // scan again. A later layout id does not: it follows the heap and would
+  // repeat every request.
+  const judge = `${pressureScope}|${String(layout !== null)}`;
+  const judged = useRef(judge);
+  useEffect(() => {
+    if (judged.current === judge) return;
+    judged.current = judge;
+    running.current?.abort();
+    current.current = initialScan;
+    setScan(initialScan);
+    onBounds();
+  }, [judge]);
   useEffect(
     () => () => {
       // Unmount: nothing more is sent or applied. A remount starts again.

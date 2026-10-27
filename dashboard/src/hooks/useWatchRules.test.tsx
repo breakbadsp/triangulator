@@ -101,3 +101,33 @@ test("recorded and final assessments stop refresh and reject pending live rules"
   });
   expect(result.current.rules).toEqual([{ prefix: "current", wake_ms: 20 }]);
 });
+
+test("rules of the previous view are not used after the context or the mode changes", async () => {
+  const rules = [{ prefix: "worker-", wake_ms: 500 }];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(Response.json({ rules }))),
+  );
+  const threads: readonly Thread[] = [];
+  const { result, rerender } = renderHook(
+    ({ enabled, context }: { enabled: boolean; context: string }) =>
+      useWatchRules(threads, enabled, context),
+    { initialProps: { enabled: true, context: "a" } },
+  );
+  await waitFor(() => {
+    expect(result.current.rules).toEqual(rules);
+  });
+  // Recorded or final mode disables the hook: no rules at once.
+  rerender({ enabled: false, context: "b" });
+  expect(result.current.rules).toBeNull();
+  // A new context and a new live read: rules only after that read.
+  rerender({ enabled: true, context: "c" });
+  expect(result.current.rules).toBeNull();
+  await waitFor(() => {
+    expect(result.current.rules).toEqual(rules);
+  });
+  // Going back to a context that was read before does not show its old list.
+  rerender({ enabled: true, context: "d" });
+  rerender({ enabled: true, context: "c" });
+  expect(result.current.rules).toBeNull();
+});

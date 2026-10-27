@@ -29,7 +29,14 @@ export function useWatchRules(
 ) {
   const request = useRef<AbortController | null>(null);
   const active = useRef(enabled);
-  const [rules, setRules] = useState<readonly WatchRule[] | null>(null);
+  // The rules carry the context they were read for. Another context, or a
+  // disabled hook, reads as no rules at once, not after an effect.
+  const scope = useRef(context);
+  const [read, setRead] = useState<{
+    context: string | null;
+    rules: readonly WatchRule[] | null;
+  }>({ context, rules: null });
+  const rules = enabled && read.context === context ? read.rules : null;
   const readAt = useRef(-Infinity);
   const loading = useRef(false);
   const refresh = useCallback(async () => {
@@ -41,9 +48,11 @@ export function useWatchRules(
       const value = parseWatchRules(
         await getJson<unknown>("/api/watches", controller.signal),
       );
-      if (!controller.signal.aborted) setRules(value);
+      if (!controller.signal.aborted)
+        setRead({ context: scope.current, rules: value });
     } catch {
-      if (!controller.signal.aborted) setRules(null);
+      if (!controller.signal.aborted)
+        setRead({ context: scope.current, rules: null });
     } finally {
       if (!controller.signal.aborted) {
         readAt.current = Date.now();
@@ -53,6 +62,12 @@ export function useWatchRules(
   }, []);
   useLayoutEffect(() => {
     active.current = enabled;
+    scope.current = context;
+    // A rule list read for an earlier use of this hook must not return.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRead((previous) =>
+      previous.rules === null ? previous : { context, rules: null },
+    );
     readAt.current = -Infinity;
     loading.current = false;
     return () => {
