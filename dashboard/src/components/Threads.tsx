@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { useState, type Dispatch, type MouseEvent } from "react";
 import type { LiveResponse, Thread } from "../api/types";
 import { Help } from "../help/Help";
@@ -132,7 +132,7 @@ function ThreadMap({
   onOpen: (thread: Thread, session: Series["session"]) => void;
 }) {
   const [window, setWindow] = useState<MapWindow>(0);
-  const context = useContext(ObservationContext);
+  const context = useContext(ViewIdentityContext);
   const selection = String(recorded ? 0 : window);
   const { holding, handlers } = useHolding();
   // The averages and the order come from the same held data, so a poll
@@ -141,7 +141,7 @@ function ThreadMap({
   const map = mapCells(held.threads, held.series, recorded ? 0 : window);
   const { readout, show, clear } = useReadout(selection);
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{ ...context, key: `${context.key}|map|${selection}` }}
     >
       <div className="card">
@@ -241,7 +241,7 @@ function ThreadMap({
           </div>
         </div>
       </div>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 
@@ -263,10 +263,10 @@ function Families({
   dispatch: Dispatch<ThreadAction>;
   onShowTable: () => void;
 }) {
-  const context = useContext(ObservationContext);
+  const context = useContext(ViewIdentityContext);
   const [mode, setMode] = useState<FamilyMode>("family");
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{ ...context, key: `${context.key}|families|${mode}` }}
     >
       <div className="card">
@@ -313,7 +313,7 @@ function Families({
           />
         </div>
       </div>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 

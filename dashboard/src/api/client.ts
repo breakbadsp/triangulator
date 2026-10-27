@@ -58,7 +58,7 @@ export async function getJson<T>(
 export async function postJson<T>(
   path: string,
   body: unknown,
-  { ifMatch }: { ifMatch?: string } = {},
+  { ifMatch, signal }: { ifMatch?: string; signal?: AbortSignal } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -70,6 +70,7 @@ export async function postJson<T>(
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      ...(signal && { signal }),
     }),
   );
 }

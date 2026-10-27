@@ -45,11 +45,9 @@ const UNEXPECTED = "The collector answered with an unexpected reply.";
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-export async function readWatches(): Promise<WatchRead> {
+export async function readWatches(signal: AbortSignal): Promise<WatchRead> {
   try {
-    const info = parseWatchInfo(
-      await getJson<unknown>("/api/watches", new AbortController().signal),
-    );
+    const info = parseWatchInfo(await getJson<unknown>("/api/watches", signal));
     return info ? { kind: "ok", info } : { kind: "error", message: UNEXPECTED };
   } catch (error) {
     if (!(error instanceof ApiError))
@@ -71,13 +69,14 @@ export async function writeWatches(
   change: "save" | "reset",
   revision: string,
   rules: readonly WatchRule[],
+  signal?: AbortSignal,
 ): Promise<WatchWrite> {
   let reply: unknown;
   try {
     reply = await postJson<unknown>(
       change === "save" ? "/api/watches" : "/api/watches/reset",
       change === "save" ? { rules } : {},
-      { ifMatch: `"${revision}"` },
+      { ifMatch: `"${revision}"`, ...(signal && { signal }) },
     );
   } catch (error) {
     if (!(error instanceof ApiError))

@@ -1,5 +1,5 @@
 import { HELP_DELAY } from "./createHelpTimer";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { Help, HelpEnabled, HelpPortalTarget } from "./Help";
@@ -187,7 +187,7 @@ test("control clicks stay usable and its Help label permits keyboard access", ()
 test("an observation change clears visible and pending Help without replacing focused controls", () => {
   function Page({ identity }: { identity: string }) {
     return (
-      <ObservationContext
+      <ViewIdentityContext
         value={{ key: identity, recorded: identity === "recorded" }}
       >
         <Help topic="overview" as="div">
@@ -196,7 +196,7 @@ test("an observation change clears visible and pending Help without replacing fo
         <Help topic="map">
           <input aria-label="Kept control" defaultValue="draft" />
         </Help>
-      </ObservationContext>
+      </ViewIdentityContext>
     );
   }
   const view = render(<Page identity="live" />);

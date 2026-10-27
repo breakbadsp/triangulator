@@ -1,5 +1,5 @@
 import { GuideContext } from "../help/guideContext";
-import { ObservationContext } from "./observationContext";
+import { ViewIdentityContext } from "./viewIdentityContext";
 import {
   useContext,
   useEffect,
@@ -76,7 +76,7 @@ export function useHolding() {
  * pointer (the old page skipped those redraws).
  */
 export function useHeld<T>(value: T, holding: boolean): T {
-  const { key } = useContext(ObservationContext);
+  const { key } = useContext(ViewIdentityContext);
   const [held, setHeld] = useState<{ value: T; key: string } | null>(null);
   if (holding && (!held || held.key !== key)) setHeld({ value, key });
   if (!holding && held) setHeld(null);

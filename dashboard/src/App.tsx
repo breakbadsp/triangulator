@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { getJson } from "./api/client";
-import type {
-  LiveResponse,
-  PressureScope,
-  TargetsResponse,
-  Thread,
-} from "./api/types";
+import { parseLive } from "./api/replay";
+import type { PressureScope, TargetsResponse, Thread } from "./api/types";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { SectionTabs } from "./components/SectionTabs";
 import { TopBar } from "./components/TopBar";
@@ -22,7 +18,7 @@ import { WatchRules } from "./components/WatchRules";
 import { Timeline } from "./components/Timeline";
 import { HelpGuideProvider, PageHelp } from "./help/HelpGuide";
 import { Help } from "./help/Help";
-import { ObservationContext } from "./hooks/observationContext";
+import { ViewIdentityContext } from "./hooks/viewIdentityContext";
 import { useObservation } from "./hooks/useObservation";
 import { usePastAssessments } from "./hooks/usePastAssessments";
 import { emptySeries } from "./lib/series";
@@ -40,7 +36,7 @@ const loadTargets = (signal: AbortSignal) =>
   getJson<TargetsResponse>("/api/targets", signal);
 // The view's clock is read once, when its response arrives.
 const loadLive = async (signal: AbortSignal) => ({
-  view: await getJson<LiveResponse>("/api/live", signal),
+  view: parseLive(await getJson<unknown>("/api/live", signal)),
   now: Date.now() / 1000,
 });
 
@@ -132,7 +128,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
       ?.scrollIntoView({ behavior: "smooth" });
   }
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{
         key: `${context ?? "waiting"}|${String(resourceRange)}|${pressureScope}|${String(windowSecs)}`,
         recorded: mode.kind === "recorded",
@@ -274,7 +270,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           onClose={closeThread}
         />
       </HelpGuideProvider>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 

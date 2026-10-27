@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import type { ViewMode } from "../lib/assess";
 import {
   useCallback,
@@ -89,7 +89,7 @@ export function SocketIO({
   /** The target, session and PID of the live view; null before it. */
   context: string | null;
 }) {
-  const observationContext = useContext(ObservationContext);
+  const viewIdentity = useContext(ViewIdentityContext);
   const pid = view?.health.pid ?? 0;
   const load = useCallback(
     async (signal: AbortSignal) => {
@@ -150,11 +150,11 @@ export function SocketIO({
     scope = `PID ${String(report.pid)} · observed for ${num(report.duration)} seconds · totals since this observer started · observer ${report.observer}`;
   }
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{
-        ...observationContext,
+        ...viewIdentity,
         key: JSON.stringify([
-          observationContext.key,
+          viewIdentity.key,
           report?.available ? observerIdentity(report) : null,
         ]),
       }}
@@ -302,7 +302,7 @@ export function SocketIO({
           </Help>
         </details>
       </section>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 
