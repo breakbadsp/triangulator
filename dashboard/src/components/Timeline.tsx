@@ -31,7 +31,10 @@ export function Timeline({
   observation?: Observation;
   latestAt: number;
   note: string;
-  onInspect: (at: number, direction?: "at" | "previous" | "next") => void;
+  onInspect: (
+    at: number,
+    direction?: "at" | "previous" | "next" | "latest",
+  ) => void;
   onLive: () => void;
   past: {
     scan: Scan;
@@ -93,7 +96,7 @@ export function Timeline({
             type="button"
             disabled={!available || (recorded && at <= first)}
             onClick={() => {
-              onInspect(recorded ? at : last, recorded ? "previous" : "at");
+              onInspect(recorded ? at : last, recorded ? "previous" : "latest");
             }}
             aria-label="Previous recording"
           >
