@@ -162,7 +162,8 @@ build/triangulator-sampler: build/triangulator-sampler.o build/compiler_ok Makef
 dashboard/node_modules/.package-lock.json: dashboard/package.json dashboard/package-lock.json
 	cd dashboard && npm ci
 
-DASHBOARD_SOURCES := $(shell find dashboard/src -type f)
+# Tests and their helpers do not change the page, so they do not rebuild it.
+DASHBOARD_SOURCES := $(shell find dashboard/src -type f ! -name '*.test.*' ! -name 'test-*')
 dashboard/dist/index.html: $(DASHBOARD_SOURCES) dashboard/index.html dashboard/vite.config.ts dashboard/tsconfig.json dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run build
 
