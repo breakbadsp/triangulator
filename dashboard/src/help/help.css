@@ -140,9 +140,17 @@
   cursor: help;
   opacity: 0;
 }
-/* A block anchor keeps its own layout; the button sits in its corner. */
+/* A block anchor keeps its own layout, even as a flex or grid container: the
+   button leaves the flow and sits in the anchor's corner. Zero specificity
+   lets any anchor class that sets its own position win. */
+:where(:has(> .help-info-corner)) {
+  position: relative;
+}
 .help-info-corner {
-  float: right;
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
 }
 .help-info::before {
   content: "i";
