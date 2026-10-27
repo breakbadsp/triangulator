@@ -903,3 +903,32 @@ test("a pending read is discarded on replay; an already sent write settles the c
   expect(saveDisabled()).toBe(true);
   expect(server.writes).toHaveLength(1);
 });
+
+test("unmounting ends the requests that the settings started", async () => {
+  const info = watchReply([{ prefix: "worker-", wake_ms: 500 }]);
+  const signals: { method: string; signal: AbortSignal | undefined }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((_input: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      signals.push({ method, signal: init?.signal ?? undefined });
+      // The write never answers, so it is still pending at unmount.
+      return method === "POST"
+        ? new Promise<Response>(() => undefined)
+        : reply(info);
+    }),
+  );
+  const view = render(
+    <WatchRules threads={[]} opened={0} onChanged={() => undefined} />,
+  );
+  await screen.findByRole("button", { name: "Save" });
+  type(0, "wake", "600");
+  fireEvent.click(button("Save"));
+  await waitFor(() => {
+    expect(signals.some((item) => item.method === "POST")).toBe(true);
+  });
+  const post = signals.find((item) => item.method === "POST");
+  expect(post?.signal?.aborted).toBe(false);
+  view.unmount();
+  expect(post?.signal?.aborted).toBe(true);
+});
