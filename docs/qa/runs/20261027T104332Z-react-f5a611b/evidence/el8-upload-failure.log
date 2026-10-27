@@ -1,0 +1,19 @@
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	﻿2026-10-27T10:34:29.3007805Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3008261Z with:
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3008460Z   name: packages-el8
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3008675Z   path: dist/
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3008869Z   retention-days: 14
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3009095Z   if-no-files-found: warn
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3009331Z   compression-level: 6
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3009548Z   overwrite: false
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3009764Z   include-hidden-files: false
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3010056Z env:
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3010616Z   CCACHE_HOST_DIR: /home/gha-runner/.cache/triangulator/alma8-package
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.3011132Z ##[endgroup]
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.4519084Z (node:302442) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.4520188Z (Use `node --trace-deprecation ...` to show where the warning was created)
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.4566666Z With the provided path, there will be 4 files uploaded
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.4572233Z Artifact name is valid!
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:29.4572862Z Root directory input is valid!
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	2026-10-27T10:34:52.1295627Z ##[error]Failed to CreateArtifact: Unable to make request: ECONNRESET
+Package for AlmaLinux 8	Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02	If you are using self-hosted runners, please make sure your runner has access to all GitHub endpoints: https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners#communication-between-self-hosted-runners-and-github

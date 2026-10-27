@@ -1,0 +1,74 @@
+{
+  "version": "dev-f5a611b",
+  "source_revision": "f5a611b16d995a38612ea5cc213b289f29800605",
+  "package_source": "https://github.com/breakbadsp/triangulator/actions/runs/40489294813",
+  "packages": [
+    {
+      "component": "sampler",
+      "filename": "triangulator-sampler-dev-f5a611b-el9-x86_64.tar.gz",
+      "sha256": "74463209a9a2063d7e4743c983582f9e83197b136ca47568e41b09831123c987"
+    },
+    {
+      "component": "collector",
+      "filename": "triangulator-collector-dev-f5a611b-el9-x86_64.tar.gz",
+      "sha256": "ad8df26df877a157b072b99517e5174d3a576edbe69aa11978333f7efbb679b8"
+    }
+  ],
+  "tested_platform": "EL9 binaries on Arch Linux x86_64, Linux 7.2.8-9-omarchy",
+  "browser": "Chromium 155.0.8059.84 headless",
+  "viewport": {
+    "width": 1280,
+    "height": 713
+  },
+  "url": "http://127.0.0.1:33907",
+  "el8": "BLOCKED: artifact upload failed with ECONNRESET; no packages-el8 artifact",
+  "qa005_custom_range": {
+    "live_before": [
+      "2026-10-27T15:04:15",
+      "2026-10-27T16:05:15"
+    ],
+    "recorded_preset": [
+      "2026-10-27T15:50:08",
+      "2026-10-27T16:05:08"
+    ],
+    "live_after": [
+      "2026-10-27T15:04:15",
+      "2026-10-27T16:05:15"
+    ],
+    "status": "PASSED"
+  },
+  "qa005_newest": {
+    "status": "FAILED",
+    "before_click_at": 1793097535.338,
+    "server_last": 1793097534.266875,
+    "selected": 1793097522.26679,
+    "gap_s": 12.00008511543274,
+    "prior_ui_observation": {
+      "selected_local": "16:05:08",
+      "bounds_refreshed_local": "16:05:24"
+    }
+  },
+  "cleanup": "All owned browser, application, fixture and setup processes stopped",
+  "results": {
+    "QA-001": {
+      "status": "PASSED",
+      "observation": "Published EL9 sampler and collector checksums passed. Package startup needed no compiler. Chromium identified sleep PID 302669 and fresh threads, resources, memory data and recordings."
+    },
+    "QA-002": {
+      "status": "PASSED",
+      "observation": "Added owned PID 302670 as qa-second. The hovered submit button stayed unobstructed. Confirmation applied the target. Both targets stayed live; its thread appeared and selection survived reload."
+    },
+    "QA-003": {
+      "status": "PASSED",
+      "observation": "Empty process input rejected with browser required-field validation. Nonexistent PID 999999999 rejected before confirmation. Reload preserved only default and qa-second."
+    },
+    "QA-005": {
+      "status": "FAILED",
+      "observation": "Live custom history interval now restores after recorded preset, and Timeline preview remains Live until release. Separate failure: Previous from Live opened 1793097522.26679 while a read-only bound check immediately before the click reported newest recording 1793097534.266875 (12 seconds newer). Earlier attempt opened a recording 16 seconds behind. Cached UI bounds choose stale recording."
+    },
+    "QA-004": {
+      "status": "PASSED",
+      "observation": "Absent name qa-next was accepted as qa-wait2, then Target absent became live PID 305210 when the named process started. SIGTERM produced a final view that survived selecting default and returning via the picker. Show live dismissed it. A restarted qa-absent PID did not replace its prior final view until Show live. scripts/set-target.sh changed qa-wait from qa-absent to qa-other."
+    }
+  }
+}

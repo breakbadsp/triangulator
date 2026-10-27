@@ -9,11 +9,11 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
-| QA-001 | PASSED | qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5 | [Run](runs/20261025T230931Z-qa-react-923ba96/index.md) | [Evidence](runs/20261025T230931Z-qa-react-923ba96/evidence/observations.json) |
-| QA-002 | FAILED | qa-react-923ba96567f7e7729434763e043bb60ee2fa3cc5 | [Run](runs/20261025T230931Z-qa-react-923ba96/index.md) | [Evidence](runs/20261025T230931Z-qa-react-923ba96/evidence/qa002-blocked-submit.png) |
-| QA-003 | PASSED | source square-dot 83dcb99d | [Run](runs/20261023T034016Z-source-square-dot/index.md) | [Browser observations](runs/20261023T034016Z-source-square-dot/evidence/observations.json) |
-| QA-004 | FAILED | source 384352f | [Run](runs/20261020T192000Z-source-384352f-multi-target-regression/index.md) | [Named target](runs/20261020T192000Z-source-384352f-multi-target-regression/evidence/qa004-named-target.txt) |
-| QA-005 | PASSED | source 384352f | [Run](runs/20261020T191300Z-source-384352f-multi-target/index.md) | [Browser observations](runs/20261020T191300Z-source-384352f-multi-target/evidence/browser-observations.txt) |
+| QA-001 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
+| QA-002 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
+| QA-003 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
+| QA-004 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
+| QA-005 | FAILED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | NOT_RUN | - | - | - |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
