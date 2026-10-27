@@ -181,9 +181,23 @@ export function Help({
   useLayoutEffect(() => {
     const element = card.current;
     if (!element) return;
+    if (portalTarget instanceof HTMLDialogElement) {
+      const bounds = portalTarget.getBoundingClientRect();
+      const leftSpace = bounds.left - 16;
+      const rightSpace = innerWidth - bounds.right - 16;
+      const space = Math.max(leftSpace, rightSpace);
+      if (space >= 200) {
+        element.style.boxSizing = "border-box";
+        element.style.width = `min(380px, ${String(space)}px)`;
+        const { width } = element.getBoundingClientRect();
+        if (leftSpace >= rightSpace)
+          element.style.left = `${String(bounds.left - width - 8)}px`;
+        else element.style.left = `${String(bounds.right + 8)}px`;
+      }
+    }
     const { height } = element.getBoundingClientRect();
     element.style.top = `${String(Math.max(12, Math.min(position.top, innerHeight - height - 12)))}px`;
-  }, [shown, shownReadout, position]);
+  }, [shown, shownReadout, position, portalTarget]);
 
   function showHelp(immediate: boolean) {
     if (!active) return;
@@ -213,8 +227,23 @@ export function Help({
       data-help={topic}
       tabIndex={0}
       aria-describedby={content ? id : undefined}
-      onMouseEnter={() => {
-        if (hoverHelpEnabled()) showHelp(false);
+      onMouseEnter={(event) => {
+        if (
+          hoverHelpEnabled() &&
+          !(
+            event.target instanceof Element &&
+            event.target.closest("button, a, input, select, textarea")
+          )
+        )
+          showHelp(false);
+      }}
+      onMouseOver={(event) => {
+        if (
+          event.target instanceof Element &&
+          !card.current?.contains(event.target) &&
+          event.target.closest("button, a, input, select, textarea")
+        )
+          timer.cancel(true);
       }}
       onMouseLeave={() => {
         pointerFocus.current = false;
