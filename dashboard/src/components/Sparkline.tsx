@@ -1,7 +1,9 @@
+import { memo, useMemo } from "react";
+import type { CpuSample } from "../lib/series";
 import { isNum } from "../lib/format";
 
 /** A small line over a 12% wash, stretched to its box. Gaps are skipped. */
-export function Sparkline({
+export const Sparkline = memo(function Sparkline({
   values,
   color,
   min = 0,
@@ -55,5 +57,28 @@ export function Sparkline({
     >
       {marks}
     </svg>
+  );
+});
+
+/**
+ * A thread's CPU line. The samples array changes only when the thread gets a
+ * new sample, so a redraw for another reason (hover, sort, selection) keeps
+ * the same values and skips the SVG.
+ */
+export function CpuSparkline({
+  samples,
+  className,
+}: {
+  samples: readonly CpuSample[];
+  className?: string;
+}) {
+  const values = useMemo(() => samples.map((sample) => sample.v), [samples]);
+  return (
+    <Sparkline
+      className={className}
+      values={values}
+      color="var(--series-1)"
+      min={5}
+    />
   );
 }
