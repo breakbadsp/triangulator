@@ -1,0 +1,39 @@
+{"at":"2026-10-27T09:35:38.407Z","action":{"kind":"scroll","selector":"#mosaic [data-tid]"},"result":{}}
+{"at":"2026-10-27T09:35:38.439Z","action":{"kind":"click","selector":"#mosaic [data-tid]"},"result":{"x":82,"y":433.40625}}
+{"at":"2026-10-27T09:35:38.458Z","action":{"kind":"click","selector":"#from"},"result":{"x":1626.6187744140625,"y":565.78125}}
+{"at":"2026-10-27T09:35:38.461Z","action":{"kind":"key","key":"ArrowDown"},"result":null}
+{"at":"2026-10-27T09:35:38.473Z","action":{"kind":"click","selector":"#load-history"},"result":{"x":1561.9781494140625,"y":610.46875}}
+{"at":"2026-10-27T09:35:38.474Z","action":{"kind":"read","expression":"({phase:'live-before-retry',drawer:document.querySelector('#drawer').className,from:document.querySelector('#from').value,to:document.querySelector('#to').value,map:document.querySelector('[data-map-window=\"60\"]').getAttribute('aria-pressed')})"},"result":{"phase":"live-before-retry","drawer":"drawer open","from":"2026-10-27T14:50:38","to":"2026-10-27T15:05:38","map":"true"}}
+{"at":"2026-10-27T09:35:38.489Z","action":{"kind":"click","selector":"#drawer-close"},"result":{"x":1824.255859375,"y":30}}
+{"at":"2026-10-27T09:35:38.492Z","action":{"kind":"scroll","selector":"#replay-previous"},"result":{}}
+{"at":"2026-10-27T09:35:38.517Z","action":{"kind":"click","selector":"#replay-previous"},"result":{"x":103.3828125,"y":315.359375}}
+{"at":"2026-10-27T09:35:56.635Z","action":{"kind":"click","selector":"#replay-live"},"result":{"x":258.6875,"y":315.359375}}
+{"at":"2026-10-27T09:35:56.656Z","action":{"kind":"scroll","selector":"#mosaic [data-tid]"},"result":{}}
+{"at":"2026-10-27T09:35:56.687Z","action":{"kind":"click","selector":"#mosaic [data-tid]"},"result":{"x":82,"y":433.40625}}
+{"at":"2026-10-27T09:36:01.439Z","action":{"kind":"click","selector":"#from"},"result":{"x":994.21875,"y":565.78125}}
+{"at":"2026-10-27T09:36:01.446Z","action":{"kind":"key","key":"ArrowDown"},"result":null}
+{"at":"2026-10-27T09:36:01.459Z","action":{"kind":"click","selector":"#load-history"},"result":{"x":929.578125,"y":610.46875}}
+{"at":"2026-10-27T09:36:01.460Z","action":{"kind":"read","expression":"({phase:'live-custom-retry',from:document.querySelector('#from').value,to:document.querySelector('#to').value,drawer:document.querySelector('#drawer').className})"},"result":{"phase":"live-custom-retry","from":"2026-10-27T14:49:56","to":"2026-10-27T15:05:56","drawer":"drawer open"}}
+{"at":"2026-10-27T09:36:06.520Z","action":{"kind":"screenshot","path":"/tmp/triangulator-qa-react-full-7365dd0/qa005-live-custom-before.png"},"result":"/tmp/triangulator-qa-react-full-7365dd0/qa005-live-custom-before.png"}
+{"at":"2026-10-27T09:36:06.550Z","action":{"kind":"click","selector":"#drawer-close"},"result":{"x":1230.796875,"y":30}}
+{"at":"2026-10-27T09:36:06.557Z","action":{"kind":"scroll","selector":"#replay-previous"},"result":{}}
+{"at":"2026-10-27T09:36:06.585Z","action":{"kind":"click","selector":"#replay-previous"},"result":{"x":103.3828125,"y":315.359375}}
+{"at":"2026-10-27T09:36:10.416Z","action":{"kind":"scroll","selector":"#mosaic [data-tid]"},"result":{}}
+{"at":"2026-10-27T09:36:10.450Z","action":{"kind":"click","selector":"#mosaic [data-tid]"},"result":{"x":82,"y":433.046875}}
+{"at":"2026-10-27T09:36:14.914Z","action":{"kind":"click","selector":"#drawer [data-range='900']"},"result":{"x":725.015625,"y":306.046875}}
+{"at":"2026-10-27T09:36:14.916Z","action":{"kind":"read","expression":"({phase:'recorded-preset-retry',note:document.querySelector('#replay-note').innerText,from:document.querySelector('#from').value,to:document.querySelector('#to').value})"},"result":{"phase":"recorded-preset-retry","note":"Recorded view · 10/27/2026, 3:05:58 PM · session 16940196342065309616. State is the latest sampled observation; rates cover the preceding ~10 seconds.","from":"2026-10-27T14:50:58","to":"2026-10-27T15:05:58"}}
+{"at":"2026-10-27T09:36:14.921Z","action":{"kind":"scroll","selector":"#replay-live"},"result":{}}
+{"at":"2026-10-27T09:36:14.950Z","action":{"kind":"click","selector":"#replay-live"},"result":{"x":258.6875,"y":315.359375}}
+{"at":"2026-10-27T09:36:19.454Z","action":{"kind":"read","expression":"({phase:'returned-live-retry',header:document.body.innerText.slice(0,190),drawer:document.querySelector('#drawer').className,from:document.querySelector('#from').value,to:document.querySelector('#to').value,map:document.querySelector('[data-map-window=\"60\"]').getAttribute('aria-pressed')})"},"result":{"phase":"returned-live-retry","header":"← All targets\nAll targets\n● omarchy · default · sleep · PID 210053 · live\n● omarchy · qa-second · sleep · PID 210054 · live\nsleep\nPID 210054 · Historical\n10/27/2026, 3:05:58 PM · Back to liv","drawer":"drawer","from":"2026-10-27T14:50:58","to":"2026-10-27T15:05:58","map":"false"}}
+{"at":"2026-10-27T09:36:19.457Z","action":{"kind":"scroll","selector":"#mosaic [data-tid]"},"result":{}}
+{"at":"2026-10-27T09:36:19.481Z","action":{"kind":"click","selector":"#mosaic [data-tid]"},"result":{"x":82,"y":433.046875}}
+{"at":"2026-10-27T09:36:40.616Z","action":{"kind":"key","key":"Escape"},"result":null}
+{"at":"2026-10-27T09:36:40.621Z","action":{"kind":"key","key":"Escape"},"result":null}
+{"at":"2026-10-27T09:36:40.626Z","action":{"kind":"scroll","selector":"#replay-live"},"result":{}}
+{"at":"2026-10-27T09:36:40.627Z","action":{"kind":"read","expression":"(()=>{const e=document.querySelector('#replay-live'),r=e.getBoundingClientRect();return{hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML.slice(0,200),text:e.innerText}})()"},"result":{"hit":"<button id=\"replay-live\" type=\"button\" aria-pressed=\"false\">Live</button>","text":"Live"}}
+{"at":"2026-10-27T09:36:40.661Z","action":{"kind":"click","selector":"#replay-live"},"result":{"x":258.6875,"y":315.359375}}
+{"at":"2026-10-27T09:36:46.530Z","action":{"kind":"read","expression":"({phase:'confirmed-live-after-retry',header:document.body.innerText.slice(0,220),drawer:document.querySelector('#drawer').className,from:document.querySelector('#from').value,to:document.querySelector('#to').value,map:document.querySelector('[data-map-window=\"60\"]').getAttribute('aria-pressed')})"},"result":{"phase":"confirmed-live-after-retry","header":"← All targets\nAll targets\n● omarchy · default · sleep · PID 210053 · live\n● omarchy · qa-second · sleep · PID 210054 · live\nsleep\nPID 210054 · Live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nSockets\nMemor","drawer":"drawer","from":"2026-10-27T14:50:58","to":"2026-10-27T15:05:58","map":"true"}}
+{"at":"2026-10-27T09:36:46.535Z","action":{"kind":"scroll","selector":"#mosaic [data-tid]"},"result":{}}
+{"at":"2026-10-27T09:36:46.569Z","action":{"kind":"click","selector":"#mosaic [data-tid]"},"result":{"x":82,"y":433.40625}}
+{"at":"2026-10-27T09:36:53.117Z","action":{"kind":"screenshot","path":"/tmp/triangulator-qa-react-full-7365dd0/qa005-live-custom-after.png"},"result":"/tmp/triangulator-qa-react-full-7365dd0/qa005-live-custom-after.png"}
+{"at":"2026-10-27T09:36:53.119Z","action":{"kind":"read","expression":"({phase:'reopened-live-after-retry',from:document.querySelector('#from').value,to:document.querySelector('#to').value,drawer:document.querySelector('#drawer').innerText.slice(0,300)})"},"result":{"phase":"reopened-live-after-retry","from":"2026-10-27T14:51:46","to":"2026-10-27T15:06:46","drawer":"sleep\nTID 210054 · group ungrouped · family sleep\n✕\nSleep in hrtimer_nanosleep · last 10 s: \nActivity\nidle for over 5 min\nLast core\n#1\nLast sample\n03:06:51 PM\nRecent live CPU\n\nLast two minutes from the live feed.\n\n0.0%\n2.5%\n5.0%\n03:04:59 PM\n03:05:55 PM\n03:06:51 PM\nHistory\n\n5-second summaries stored "}}
