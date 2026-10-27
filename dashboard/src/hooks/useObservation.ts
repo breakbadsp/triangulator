@@ -382,7 +382,7 @@ export function useObservation(
   }
   async function inspect(
     at: number,
-    direction: "at" | "previous" | "next" = "at",
+    direction: "at" | "previous" | "next" | "latest" = "at",
   ) {
     if (!Number.isFinite(at) || at < 0) {
       setNote("Choose a valid time.");
@@ -391,9 +391,18 @@ export function useObservation(
     const controller = invalidate();
     setNote("Loading recorded process view…");
     try {
+      const requestedAt =
+        direction === "latest"
+          ? (await loadBounds(controller.signal)).last
+          : at;
+      controller.signal.throwIfAborted();
+      if (requestedAt === null) {
+        setNote("No recordings available.");
+        return false;
+      }
       const reply = parseReplay(
         await getJson<unknown>(
-          `/api/replay?${new URLSearchParams({ at: String(at), direction })}`,
+          `/api/replay?${new URLSearchParams({ at: String(requestedAt), direction: direction === "latest" ? "at" : direction })}`,
           controller.signal,
         ),
       );
@@ -420,7 +429,7 @@ export function useObservation(
         save(target, current.current.final ?? current.current.live);
       setState((previous) => selectRecording(previous, snapshot, points));
       const gap =
-        at - snapshot.recorded_at >
+        requestedAt - snapshot.recorded_at >
         Math.max(2, (snapshot.recording_interval_s ?? reply.interval_s) * 2);
       setNote(
         `Recorded view · ${new Date(snapshot.recorded_at * 1000).toLocaleString()} · session ${String(snapshot.health.session)}.${direction === "at" && gap ? " There is a recording gap before the requested time." : ""} State is the latest sampled observation; rates cover the preceding ~10 seconds.`,
