@@ -1,0 +1,47 @@
+2026-10-27T03:32:31.0118539Z AlmaLinux 9 - AppStream                         8.3 MB/s |  31 MB     00:03    
+2026-10-27T03:32:39.0125053Z AlmaLinux 9 - BaseOS                             14 MB/s |  51 MB     00:03    
+2026-10-27T03:32:44.0459529Z AlmaLinux 9 - Extras                             40 kB/s |  33 kB     00:00    
+2026-10-27T03:32:44.8998716Z Dependencies resolved.
+2026-10-27T03:32:44.9004508Z ================================================================================
+2026-10-27T03:32:44.9005506Z  Package                 Architecture  Version              Repository     Size
+2026-10-27T03:32:44.9006268Z ================================================================================
+2026-10-27T03:32:44.9006625Z Installing:
+2026-10-27T03:32:44.9006980Z  dnf-plugins-core        noarch        4.3.0-26.el9         baseos         35 k
+2026-10-27T03:32:44.9007356Z 
+2026-10-27T03:32:44.9007456Z Transaction Summary
+2026-10-27T03:32:44.9007743Z ================================================================================
+2026-10-27T03:32:44.9008130Z Install  1 Package
+2026-10-27T03:32:44.9008296Z 
+2026-10-27T03:32:44.9008920Z Total download size: 35 k
+2026-10-27T03:32:44.9009347Z Installed size: 22 k
+2026-10-27T03:32:44.9009644Z Downloading Packages:
+2026-10-27T03:32:45.6958385Z dnf-plugins-core-4.3.0-26.el9.noarch.rpm        988 kB/s |  35 kB     00:00    
+2026-10-27T03:32:45.6959082Z --------------------------------------------------------------------------------
+2026-10-27T03:32:45.6959825Z Total                                            44 kB/s |  35 kB     00:00     
+2026-10-27T03:32:45.7142115Z Running transaction check
+2026-10-27T03:32:45.7185402Z Transaction check succeeded.
+2026-10-27T03:32:45.7186107Z Running transaction test
+2026-10-27T03:32:45.7225315Z Transaction test succeeded.
+2026-10-27T03:32:45.7228792Z Running transaction
+2026-10-27T03:32:45.7517397Z   Preparing        :                                                        1/1 
+2026-10-27T03:32:45.7739821Z   Installing       : dnf-plugins-core-4.3.0-26.el9.noarch                   1/1 
+2026-10-27T03:32:45.7952519Z   Verifying        : dnf-plugins-core-4.3.0-26.el9.noarch                   1/1 
+2026-10-27T03:32:45.7952925Z 
+2026-10-27T03:32:45.7953078Z Installed:
+2026-10-27T03:32:45.7953479Z   dnf-plugins-core-4.3.0-26.el9.noarch                                          
+2026-10-27T03:32:45.7953819Z 
+2026-10-27T03:32:45.7964435Z Complete!
+2026-10-27T03:32:47.3829976Z AlmaLinux 9 - CRB                               5.5 MB/s | 6.4 MB     00:01    
+2026-10-27T03:32:48.3825854Z Last metadata expiration check: 0:00:01 ago on Tue Oct 27 03:32:47 2026.
+2026-10-27T03:32:49.3209155Z Package tar-2:1.34-13.el9_8.x86_64 is already installed.
+2026-10-27T03:32:49.3213594Z Package gzip-1.12-2.el9_8.x86_64 is already installed.
+2026-10-27T03:32:49.3346734Z Error: 
+2026-10-27T03:32:49.3347843Z (try to add '--allowerasing' to command line to replace conflicting packages or '--skip-broken' to skip uninstallable packages or '--nobest' to use not only best candidate packages)
+2026-10-27T03:32:49.3352345Z  Problem: problem with installed package curl-minimal-7.76.1-40.el9_8.7.x86_64
+2026-10-27T03:32:49.3353599Z   - package curl-minimal-7.76.1-40.el9_8.7.x86_64 from @System conflicts with curl provided by curl-7.76.1-40.el9_8.8.x86_64 from baseos
+2026-10-27T03:32:49.3354542Z   - package curl-minimal-7.76.1-40.el9.x86_64 from baseos conflicts with curl provided by curl-7.76.1-40.el9_8.8.x86_64 from baseos
+2026-10-27T03:32:49.3355474Z   - package curl-minimal-7.76.1-40.el9_8.5.x86_64 from baseos conflicts with curl provided by curl-7.76.1-40.el9_8.8.x86_64 from baseos
+2026-10-27T03:32:49.3356411Z   - package curl-minimal-7.76.1-40.el9_8.7.x86_64 from baseos conflicts with curl provided by curl-7.76.1-40.el9_8.8.x86_64 from baseos
+2026-10-27T03:32:49.3357352Z   - package curl-minimal-7.76.1-40.el9_8.8.x86_64 from baseos conflicts with curl provided by curl-7.76.1-40.el9_8.8.x86_64 from baseos
+2026-10-27T03:32:49.3358014Z   - cannot install the best candidate for the job
+2026-10-27T03:32:49.5396391Z ##[error]Process completed with exit code 1.

@@ -1,0 +1,436 @@
+{
+  "qa001": {
+    "toolIcon": {
+      "_tag": "website",
+      "pageUrl": "http://localhost:45355/?target=omarchy%2Fdefault"
+    },
+    "value": {
+      "url": "http://localhost:45355/?target=omarchy%2Fdefault",
+      "title": "sleep · Thread monitor",
+      "text": "← All targets\nomarchy · default\nsleep\nPID 33895 · Live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nSockets\nMemory\nMonitor\nSettings\nTimeline\n\nInspect a recorded process view.\n\n◀ Previous\nNext ▶\nLive\n\nRecordings from 10/27/2026, 9:04:47 AM to 10/27/2026, 9:05:11 AM, one every 1 s.\n\n10/27/2026, 9:04:47 AM\nLive\n\nLive view. Drag the Timeline back to inspect a recording.\n\nPast assessments\n1 finding\nSummary\n\nsleep · 1 threads. Trends kept in this tab since 09:05:11 AM.\n\n1 min\n5 min\n15 min\nAssessment\nWorth a look\nas of 09:05:15 AM\n\n1 of 1 threads are waiting: 1 sleep. No thread is using noticeable CPU.\n\n!\nRunnable tasks wait for CPU 30.0% of the time\nCPU contention or the cgroup’s CPU quota (cpu.max) is throttling the target.\nActive threads\n0\nof 1 · 1 idle for 10 s+\nContext switches\n0/s\nDisk & syscall I/O\n0 B/s\nread 0 B/s · write 0 B/s\nThread churn\n+0 / −0\nlower bound · seen starting / ending, last minute\nProcess load\n\nRunning, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.\n\n0.00\n1-minute load\n5 min\n0.00\n15 min (4 s of data)\n0.00\nOn CPU now\n0.00 cores\nWaiting for CPU\nnegligible\nBusiest thread\nall idle\n0\n0.03\n0.05\n09:05:11 AM\n09:05:13 AM\n09:05:15 AM\nOn CPU\n0.00\nWaiting for CPU\n0.00\n1-min average\nMemory use\n\nPhysical memory and mapped address space.\n\nResident memory (RSS)\n2.2 MiB\n0 B\n2.5 MiB\n5 MiB\n09:05:11 AM\n09:05:13 AM\n09:05:15 AM\nVirtual size (VmSize)\n6.3 MiB\n0 B\n5 MiB\n10 MiB\n09:05:11 AM\n09:05:13 AM\n09:05:15 AM\nProcess details\nThreads (0 of 1)\n\nThread activity and wait states. Select a row for history; press / to search.\n\nWhat the threads are doing\n\nThread count by latest state, stacked. Hover to read a moment.\n\n0\n1\n1\n09:05:11 AM\n09:05:13 AM\n09:05:15 AM\nSleep\n1\nWhere threads wait\n\nKernel wait channels right now. Click to filter the thread table.\n\nhrtimer_nanosleep\n1\nThread map\n\nOne tile per thread (1), grouped by current state, busiest now first. Click a tile for details.\n\nNow\n1 min\n5 min\n15 min\nSleep\n1\nNumber = CPU % of one core, last ~10 s · faded = idle\nWhere the CPU goes\n\nProcess CPU by thread family (name without its number).\n\nName family\nConfig group\nThread\nsleep\n0.0%×1\nCore placement\nThread details\nActive 0\nIdle 1\nAll 1\nGroup\nAll groups\nungrouped (1)\nSort\nCPU\nRun delay\nSwitches/s\nI/O\nMajor faults/s\nTID\nName\nClear filters\nSTATE / BLOCK TYPE\nAll\n0\nWAIT CHANNEL (kernel function the thread is blocked in)\nAll\n0\n\n1 idle thread hidden (1 sleep).Show them\n\nThread\tGroup\tState / wait channel\tLast ~10 s\tCPU\tRun delay\tSwitches/s\tRead/s\tWrite/s\tMaj. faults/s\tCore\nEvery thread is idle right now.\nPressure, limits & sockets\n\nResource stalls, remaining capacity, and socket queues. Updated just now.\n\n15 min\n1 h\n6 h\n24 h\nI/O pressure\n0.0%\nfull 0.0% · cgroup\nMemory pressure\n0.0%\nfull 0.0% · cgroup\nCPU pressure\n30.0%\nfull 4.1% · cgroup\nMemory (RSS)\n2.2 MB\npeak 2.2 MB · swap 0 B\nOpen files\n3\n0.0% of limit 524288 · 0 sockets\nDisk I/O\n0 B/s\nread 0 B/s · write 0 B/s (block layer)\nQueued in sockets\n0 B\nunread 0 B · unsent 0 B\nNetwork drops\n0.00/s\nconnections and packets, namespace-wide\nTCP retransmits\n0.00/s\n0.0% of segments sent\nPressure stalls (PSI)\n\nTime lost waiting for CPU, memory, or I/O. Peaks per interval.\n\nTarget's cgroup\nWhole host\n0.0%\n25.0%\n50.0%\n08:50:15 AM\n08:57:45 AM\n09:05:15 AM\nCPU some\n30.0%\nMemory some\n0.0%\nI/O some\n0.0%\nResource\tCgroup some\tCgroup full\tHost some\tHost full\nCPU\t30.0%\t4.1%\t31.3%\t0.0%\nMemory\t0.0%\t0.0%\t0.0%\t0.0%\nI/O\t0.0%\t0.0%\t0.0%\t0.0%\nLimits & headroom\n\nHow close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.\n\nOpen files\nhard limit 524288\n3 / 524288\nCgroup memory\nno memory.max limit\n2.0 GB\nProcesses & threads\ncgroup pids.max\n142 / 18824\nTCP memory\npressure at 974.2 MB, limit 1.4 GB · host-wide\n1000.0 KB\nUDP memory\npressure at 1.9 GB, limit 2.9 GB · host-wide\n1.0 MB\nMax SO_RCVBUF (rmem_max)\n4.0 MB\nMax SO_SNDBUF (wmem_max)\n4.0 MB\nMax listen backlog (somaxconn)\n4096\nTCP sockets in namespace\n14 · 0 orphaned · 84 time-wait\nBytes waiting in the target's sockets\n\nReceive: waiting for the app. Send: waiting for the peer or network.\n\n0 B\n1000 B\n2.0 KB\n08:50:15 AM\n08:57:45 AM\n09:05:15 AM\nReceive queue (unread)\n0 B\nSend queue (unsent)\n0 B\n0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listening\nNetwork stack drops & errors\n\nCounters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.\n\nCounter\tRate (/s)\tIn range\tTotal\nFailed connection attempts\nOutgoing connections that failed (refused or timed out).\n\t2.00/s\t—\t76\nReceive queue pruning\nThe kernel had to collapse receive queues to stay within buffer limits: a slow reader or a small SO_RCVBUF.\n\t0.00/s\t—\t24\nRetransmitted segments\nSegments sent again: packet loss or congestion on some path.\n\t0.00/s\t0\t504\nRetransmission timeouts\nA retransmission timer fired: a peer went quiet or the loss was severe.\n\t0.00/s\t0\t32\nConnections reset\nEstablished connections reset, by the peer or locally.\n\t0.00/s\t0\t30\n21 other counters are zero.\nFullest sockets (0 of 0 reported)\n\nSockets ranked by buffer use in the latest sample.\n\n Only sockets with data, drops or retransmits\nSocket\tLocal → peer\tRecv-Q\tReceive buffer\tSend-Q\tSend buffer\tDrops\tRTT\tRetrans\tWhat it means\nThe target has no sockets the sampler could list.\n\nSample 14 · every 2 s · 0 sockets listed. Cgroup: /user.slice/user-1000.slice/user@1000.service/app.slice/app-t3code.slice/app-t3code-agents.slice/app-t3code-agents-bd5be1bd9f4e.\n\nSocket I/O & message processing\nNot available\n\nSocket traffic and message completion require the optional observer. Expand setup below to connect it.\n\nSocket observer not connected. Start the optional socket sampler to measure I/O.\nWhat is measured · setup\nMemory map\n\nThe target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every 5 s; the longest maps read took 30 µs. Updated 3 s ago.\n\nVirtual size (VmSize)\n6.3 MiB\nlimit: unlimited · peak 6.3 MiB\nResident (RSS)\n2.2 MiB\npeak 2.2 MiB · swap 0 B\nAnonymous / file / shared\n0.1 / 2.1 / 0.0\nMiB: RssAnon / File / Shmem\nMappings (VMAs)\n39\n0.0% of vm.max_map_count\nMajor faults\n0.0 /s\n0 since start\nMemory pressure (PSI some)\n0.0%\ncgroup full 0.0%\nFindings\n\nWorked out in the browser from the latest memory-map, resource and thread samples.\n\nNOTICE\nMain stack is at 1.7% of its limit\n[stack] is 140.0 KiB; RLIMIT_STACK is 8.0 MiB. Going deeper than the limit ends in SIGSEGV. Common pthread stacks reserve a fixed range and are not counted here.\nOK\nNothing unusual in the memory map\nMappings, address space and stack are well within their limits.\nLimits & headroom\n\nLimits that make mmap, malloc or thread creation fail, or stop the main stack from growing.\n\nMappings\nvm.max_map_count\n39 / 1048576\nAddress space\nno RLIMIT_AS limit\n6.3 MiB\nMain stack\nRLIMIT_STACK; the [stack] mapping\n140.0 KiB / 8.0 MiB\nPeak virtual size\n6.3 MiB\nData + heap (VmData)\n204.0 KiB\nPage tables\n48.0 KiB\nLocked\n0 B\nPage faults since start\n0 major · 86 minor\nLongest maps read\n30 µs (2 reads, 31 µs total)\n\nAddress space & zoom\nEvery mapping, and a zoom into one\nMonitor\nMonitor health\nMonitor diagnostics (raw health JSON)\nSettings\n\nChange how the collector watches this process, without editing files on the collector host. Changes apply at once.\n\nWatched threads\n\nThreads whose name starts with a prefix should wake at least every N milliseconds, as workers that wait with a timeout do. The Assessment flags a matching thread that stops waking or keeps a core busy.\n\nFrom the config file (collector.toml).\n\nThread name prefix\tWakes at least every (ms)\tMatching threads now\tRemove\n\nNo rules. No thread is watched.\n\nAdd rule\nSave\nReset to config file\nHow to read this page\nThread\n✕\nRecent live CPU\n\nLast two minutes from the live feed.\n\nCollecting data…\nHistory\n\n5-second summaries stored by the collector.\n\n15 min\n1 h\n6 h\n24 h\nLoad\n\nTable view",
+      "agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "timezone": "Asia/Calcutta"
+    }
+  },
+  "qa002": {
+    "submitted": {
+      "toolIcon": {
+        "_tag": "website",
+        "pageUrl": "http://localhost:45355/"
+      },
+      "value": {
+        "url": "http://localhost:45355/",
+        "text": "All targets\n● omarchy · default · sleep · PID 33895 · live\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nTotals for all targets\n1\nHealthy\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nShowing 1 of 1 targets\nsleep\nomarchy · default\nRemove\n+\nAdd target\nHow to read this page\nAdd target\n\nMonitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.\n\nTarget ID\nProcess name or PID\nCancel\nAdd target\n\n×\nManage targets\n\nTargets overview · local sampler · every viewer\n\nAdd or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.\n\nExample. Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.\n\nEach change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.\n\nLimits. Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.\n\nSource. Sampler configuration and the local control helper\nThe helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.\n\nOpen metric guide\nTarget ID\nMonitoring target\nProcess name or PID"
+      }
+    },
+    "hitTest": {
+      "toolIcon": {
+        "_tag": "website",
+        "pageUrl": "http://localhost:45355/"
+      },
+      "value": {
+        "url": "http://localhost:45355/",
+        "inputs": [
+          {
+            "value": "qa-second",
+            "placeholder": "e.g. orders"
+          },
+          {
+            "value": "33896",
+            "placeholder": "e.g. ghostty or 1234"
+          }
+        ],
+        "button": {
+          "text": "Add target",
+          "rect": {
+            "x": 742.3984375,
+            "y": 515.265625,
+            "width": 90.6015625,
+            "height": 37.6953125,
+            "top": 515.265625,
+            "right": 833,
+            "bottom": 552.9609375,
+            "left": 742.3984375
+          },
+          "disabled": false
+        },
+        "hit": {
+          "tag": "P",
+          "text": "Limits. Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.",
+          "ancestors": [
+            {
+              "tag": "P",
+              "class": "",
+              "role": null
+            },
+            {
+              "tag": "ASIDE",
+              "class": "help-card",
+              "role": "dialog"
+            },
+            {
+              "tag": "DIALOG",
+              "class": "target-dialog",
+              "role": null
+            }
+          ]
+        }
+      }
+    },
+    "diagnostics": {
+      "url": "http://localhost:45355/",
+      "title": "Targets · Thread monitor",
+      "loading": false,
+      "visibleText": "All targets\n● omarchy · default · sleep · PID 33895 · live\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nTotals for all targets\n1\nHealthy\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nShowing 1 of 1 targets\nsleep\nomarchy · default\nRemove\n+\nAdd target\nHow to read this page\nAdd target\n\nMonitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.\n\nTarget ID\nProcess name or PID\nCancel\nAdd target\n\n×\nManage targets\n\nTargets overview · local sampler · every viewer\n\nAdd or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.\n\nExample. Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.\n\nEach change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.\n\nLimits. Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.\n\nSource. Sampler configuration and the local control helper\nThe helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.\n\nOpen metric guide\nTarget ID\nMonitoring target\nProcess name or PID",
+      "interactiveElements": [],
+      "consoleEntries": [],
+      "networkEntries": [
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:16.792Z"
+        },
+        {
+          "url": "http://localhost:45355/api/resources?start=1793071216.88&end=1793072116.88&target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:16.888Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:17.741Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:17.795Z"
+        },
+        {
+          "url": "http://localhost:45355/api/socket-io?pid=33895&target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:17.888Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:18.797Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:19.743Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:19.806Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:20.811Z"
+        },
+        {
+          "url": "http://localhost:45355/api/socket-io?pid=33895&target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:20.891Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:21.746Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:21.813Z"
+        },
+        {
+          "url": "http://localhost:45355/api/resources?start=1793071221.886&end=1793072121.886&target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:21.890Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:22.816Z"
+        },
+        {
+          "url": "http://localhost:45355/api/watches?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:22.828Z"
+        },
+        {
+          "url": "http://localhost:45355/",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:23.279Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:23.317Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:23.366Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:23.366Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:28.372Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:28.414Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:28.415Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:33.419Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:33.460Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:33.462Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:38.465Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:38.504Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:38.506Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:43.509Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:43.549Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:43.550Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:48.554Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:48.597Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:48.598Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:53.602Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:53.640Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:53.641Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:58.645Z"
+        },
+        {
+          "url": "http://localhost:45355/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:58.682Z"
+        },
+        {
+          "url": "http://localhost:45355/api/live?target=omarchy%2Fdefault",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-10-27T03:35:58.685Z"
+        }
+      ],
+      "actionTimeline": [
+        {
+          "id": "e85ed13f-76fe-4ccd-b67c-e73e0aa7d0bf",
+          "action": "navigate",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:00.404Z",
+          "completedAt": "2026-10-27T03:35:00.498Z"
+        },
+        {
+          "id": "510ef35f-126f-481c-8dae-dc5cfc930f96",
+          "action": "click",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:11.186Z",
+          "completedAt": "2026-10-27T03:35:11.365Z"
+        },
+        {
+          "id": "2efcd47f-f996-468d-875c-27ea6067e1a3",
+          "action": "click",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:23.160Z",
+          "completedAt": "2026-10-27T03:35:23.292Z"
+        },
+        {
+          "id": "05d556bc-6ef5-493f-827c-559371935dfd",
+          "action": "click",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:23.335Z",
+          "completedAt": "2026-10-27T03:35:23.457Z"
+        },
+        {
+          "id": "3421e054-b343-47f1-8a3e-1fba75525dbd",
+          "action": "type",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:27.647Z",
+          "completedAt": "2026-10-27T03:35:27.667Z"
+        },
+        {
+          "id": "c00fe782-49d2-49c1-be6b-ae8de45e8f2b",
+          "action": "type",
+          "status": "succeeded",
+          "startedAt": "2026-10-27T03:35:27.689Z",
+          "completedAt": "2026-10-27T03:35:27.707Z"
+        },
+        {
+          "id": "a9f4786f-c7cf-4966-9426-4890b3d1a258",
+          "action": "click",
+          "status": "failed",
+          "startedAt": "2026-10-27T03:35:27.726Z",
+          "completedAt": "2026-10-27T03:35:32.765Z",
+          "error": "locator.click: Timeout 5000ms exceeded."
+        }
+      ],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      },
+      "accessibilityTree": "- generic [ref=t3-4b9eb2df-9-e2] [box=0,0,1280,477]:\n  - banner [ref=t3-4b9eb2df-9-e3] [box=0,0,1280,65]:\n    - generic [ref=t3-4b9eb2df-9-e4] [box=0,0,1280,64]:\n      - combobox \"Selected monitoring target\" [ref=t3-4b9eb2df-9-e7] [box=32,18,285,32]:\n        - option \"All targets\" [selected] [box=0,0,0,0]\n        - option \"● omarchy · default · sleep · PID 33895 · live\" [box=0,0,0,0]\n      - generic [ref=t3-4b9eb2df-9-e8] [box=1110,16,138,36]:\n        - generic [ref=t3-4b9eb2df-9-e9] [box=1110,24,40,20]: Theme\n        - combobox \"Color theme\" [ref=t3-4b9eb2df-9-e10] [box=1159,16,90,36]:\n          - option \"System\" [selected] [box=0,0,0,0]\n          - option \"Light\" [box=0,0,0,0]\n          - option \"Dark\" [box=0,0,0,0]\n  - main \"Targets\" [ref=t3-4b9eb2df-9-e11] [box=0,65,1280,412]:\n    - generic [ref=t3-4b9eb2df-9-e12] [box=32,93,1216,69]:\n      - generic [ref=t3-4b9eb2df-9-e13] [box=32,93,549,69]:\n        - heading \"Targets\" [level=2] [ref=t3-4b9eb2df-9-e14] [box=32,93,549,43]\n        - paragraph [ref=t3-4b9eb2df-9-e15] [box=32,140,549,22]: Every monitored process and its current assessment. Select a tile to open its dashboard.\n      - generic [ref=t3-4b9eb2df-9-e17] [box=1034,131,214,31]:\n        - generic [ref=t3-4b9eb2df-9-e18] [box=1034,137,108,19]: Totals for all targets\n        - generic [ref=t3-4b9eb2df-9-e59] [box=1151,131,97,31]:\n          - generic [ref=t3-4b9eb2df-9-e60] [box=1179,137,7,19]: \"1\"\n          - text: Healthy\n    - generic [ref=t3-4b9eb2df-9-e21] [box=32,176,1216,38]:\n      - searchbox \"Find target\" [ref=t3-4b9eb2df-9-e23] [box=32,176,240,38]\n      - generic [ref=t3-4b9eb2df-9-e25] [box=282,178,180,33]:\n        - text: Status\n        - combobox \"Assessment status\" [ref=t3-4b9eb2df-9-e26] [box=325,178,138,33]:\n          - option \"All\" [selected] [box=0,0,0,0]\n          - option \"Needs attention\" [box=0,0,0,0]\n          - option \"Critical\" [box=0,0,0,0]\n          - option \"Serious\" [box=0,0,0,0]\n          - option \"Warning\" [box=0,0,0,0]\n          - option \"Healthy\" [box=0,0,0,0]\n          - option \"No data\" [box=0,0,0,0]\n      - generic [ref=t3-4b9eb2df-9-e28] [box=472,178,150,33]:\n        - text: Tiles\n        - combobox \"Tile density\" [ref=t3-4b9eb2df-9-e29] [box=505,178,117,33]:\n          - option \"Comfortable\" [selected] [box=0,0,0,0]\n          - option \"Compact\" [box=0,0,0,0]\n      - generic [ref=t3-4b9eb2df-9-e31] [box=632,187,139,16]: Showing 1 of 1 targets\n    - generic [ref=t3-4b9eb2df-9-e32] [box=32,224,1216,140]:\n      - article [ref=t3-4b9eb2df-9-e33] [box=32,224,286,140]:\n        - generic [ref=t3-4b9eb2df-9-e34] [box=53,245,244,28]:\n          - 'img \"Assessment: Healthy\" [ref=t3-4b9eb2df-9-e61] [box=53,254,10,10]'\n          - 'link \"sleep, omarchy · default: Healthy. Open its dashboard.\" [ref=t3-4b9eb2df-9-e62] [cursor=pointer] [box=73,245,224,28]':\n            - /url: \"?target=omarchy%2Fdefault\"\n            - text: sleep\n        - generic [ref=t3-4b9eb2df-9-e37] [box=53,277,244,19]: omarchy · default\n        - button \"Remove target default\" [disabled] [ref=t3-4b9eb2df-9-e39] [box=230,316,67,27]: Remove\n      - button \"Add target\" [ref=t3-4b9eb2df-9-e41] [cursor=pointer] [box=342,224,286,140]:\n        - generic [ref=t3-4b9eb2df-9-e42] [box=476,265,18,30]: +\n        - text: Add target\n    - group [ref=t3-4b9eb2df-9-e43] [box=32,392,1216,22]:\n      - generic \"How to read this page\" [ref=t3-4b9eb2df-9-e44] [cursor=pointer] [box=32,392,1216,22]\n  - dialog \"Add target\" [ref=t3-4b9eb2df-9-e45] [box=420,216,440,368]:\n    - generic [ref=t3-4b9eb2df-9-e46] [box=447,241,386,102]:\n      - heading \"Add target\" [level=2] [ref=t3-4b9eb2df-9-e47] [box=447,241,386,31]\n      - paragraph [ref=t3-4b9eb2df-9-e48] [box=447,278,386,65]: Monitor one more process with the local sampler. The change applies to every viewer. A process name follows the process when it restarts; a PID does not.\n    - generic [ref=t3-4b9eb2df-9-e49] [box=447,359,386,194]:\n      - generic [ref=t3-4b9eb2df-9-e50] [box=447,359,386,62]:\n        - generic [ref=t3-4b9eb2df-9-e51] [box=447,359,386,19]: Target ID\n        - textbox \"Target ID\" [ref=t3-4b9eb2df-9-e52] [box=447,384,386,38]:\n          - /placeholder: e.g. orders\n          - text: qa-second\n      - generic [ref=t3-4b9eb2df-9-e53] [box=447,435,386,62]:\n        - generic [ref=t3-4b9eb2df-9-e54] [box=447,435,386,19]: Process name or PID\n        - textbox \"Process name or PID\" [active] [ref=t3-4b9eb2df-9-e55] [box=447,460,386,38]:\n          - /placeholder: e.g. ghostty or 1234\n          - text: \"33896\"\n      - generic [ref=t3-4b9eb2df-9-e56] [box=447,515,386,38]:\n        - button \"Cancel\" [ref=t3-4b9eb2df-9-e57] [cursor=pointer] [box=663,515,70,38]\n        - button \"Add target\" [ref=t3-4b9eb2df-9-e58] [cursor=pointer] [box=742,515,91,38]\n    - generic [box=447,559,386,0]:\n      - status [box=447,559,386,0]\n    - dialog \"Manage targets\" [ref=t3-4b9eb2df-9-e63] [box=447,168,380,620]:\n      - button \"Close help\" [ref=t3-4b9eb2df-9-e64] [cursor=pointer] [box=784,187,22,24]: ×\n      - heading \"Manage targets\" [level=2] [ref=t3-4b9eb2df-9-e65] [box=468,187,338,31]\n      - paragraph [ref=t3-4b9eb2df-9-e66] [box=468,224,338,22]: Targets overview · local sampler · every viewer\n      - paragraph [ref=t3-4b9eb2df-9-e67] [box=468,252,338,65]: Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.\n      - paragraph [ref=t3-4b9eb2df-9-e68] [box=468,323,338,43]:\n        - strong [ref=t3-4b9eb2df-9-e69] [box=468,326,65,16]: Example.\n        - text: Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.\n      - paragraph [ref=t3-4b9eb2df-9-e70] [box=468,372,338,108]: Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.\n      - paragraph [ref=t3-4b9eb2df-9-e71] [box=468,487,338,108]:\n        - strong [ref=t3-4b9eb2df-9-e72] [box=468,490,49,16]: Limits.\n        - text: Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.\n      - paragraph [ref=t3-4b9eb2df-9-e73] [box=468,601,338,108]:\n        - strong [ref=t3-4b9eb2df-9-e74] [box=468,604,55,16]: Source.\n        - text: Sampler configuration and the local control helper\n        - text: \"The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.\"\n      - button \"Open metric guide\" [ref=t3-4b9eb2df-9-e75] [cursor=pointer] [box=468,710,140,38]\n      - navigation \"Related help\" [ref=t3-4b9eb2df-9-e76] [box=468,747,338,22]:\n        - link \"Target ID\" [ref=t3-4b9eb2df-9-e77] [cursor=pointer] [box=468,747,57,22]:\n          - /url: \"#help-target-id\"\n        - link \"Monitoring target\" [ref=t3-4b9eb2df-9-e78] [cursor=pointer] [box=537,747,105,22]:\n          - /url: \"#help-target-switch\"\n        - link \"Process name or PID\" [ref=t3-4b9eb2df-9-e79] [cursor=pointer] [box=654,747,133,22]:\n          - /url: \"#help-target\"",
+      "omitted": [
+        "51 older network entries"
+      ]
+    }
+  }
+}

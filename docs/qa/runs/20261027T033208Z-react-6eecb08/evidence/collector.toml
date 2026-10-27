@@ -1,0 +1,86 @@
+clock_ticks = 100
+udp_host = "127.0.0.1"
+udp_port = 55745
+http_host = "127.0.0.1"
+http_port = 45355
+sampler_ip = "127.0.0.1"
+# For several sampler hosts, replace sampler_ip with an allowlist:
+# sampler_ips = ["192.0.2.10", "192.0.2.11"]
+# With neither key, the collector pins the first valid sampler source.
+# Target slots, 1..64 (default 8). Each slot keeps the full max_live_samples.
+max_targets = 8
+data_dir = "./data"
+retention_days = 7
+store_raw = true
+# Record complete dashboard views for "Inspect a moment".
+# Named targets use data_dir/targets/<hex-host-and-id>/replay.
+# Default 1; 0 disables recording; 0.5..60 sets seconds between recordings.
+# Views are large (~327 KB per 1,000 threads); budget disk space accordingly.
+replay_interval_s = 1
+# Live samples kept in memory for each target slot. The collector reserves
+# about 280 bytes of address space per sample at startup, for every slot, so
+# max_live_samples times max_targets must be at most 10000000.
+max_live_samples = 10000
+# deadman_url = "https://your-heartbeat-service.example/your-token"
+
+# The collector uses only window_s, the rollup window (5-10 s). Everything else
+# here, and deadman_url above, is for the alerting module (alerting/), which is
+# not wired up yet; the collector logs a warning that it ignores them.
+[alerts]
+window_s = 5
+sustain_windows = 3
+resolve_windows = 2
+cpu_warn_pct = 50
+cpu_crit_pct = 90
+cpu_sustain_secs = 5
+starve_run_delay_pct = 20
+kernel_wait_secs = 5
+sampler_silent_secs = 10
+target_absent_secs = 5
+packet_loss_pct = 20
+reminder_secs = 1800
+webhook_url = "https://your-alert-service.example/triangulator"
+
+# [alerts.smtp]
+# host = "smtp.example.com"
+# port = 587
+# from = "monitor@example.com"
+# to = ["oncall@example.com"]
+# starttls = true
+# username = "monitor"
+# password_env = "TRIANGULATOR_SMTP_PASSWORD"
+
+[[group]]
+name = "io"
+prefix = "io-"
+
+[[group]]
+name = "worker"
+prefix = "worker-"
+
+[[group]]
+name = "sender"
+prefix = "sender-"
+
+[[group]]
+name = "misc"
+prefix = "misc-"
+
+# Threads that should wake up at least every wake_ms milliseconds, such as
+# workers that wait with a timeout. The dashboard flags a matching thread
+# that stops waking up or keeps a core busy. prefix is 1-15 bytes and unique;
+# when several prefixes match a thread name, the longest wins. wake_ms is
+# 10-3600000. At most 64 rules. Rules saved from the dashboard (in
+# data_dir/watch-rules/<hex-host-and-id>.json) replace these for that target
+# until reset. The default target that keeps data_dir/replay also keeps
+# data_dir/watch-rules.json.
+# [[watch]]
+# prefix = "worker-"
+# wake_ms = 500
+
+# Optional per-target recording interval. These tables use the announced host
+# and ID. Keep global settings above all table sections.
+# [[target]]
+# host = "app-host"
+# id = "orders"
+# replay_interval_s = 2
