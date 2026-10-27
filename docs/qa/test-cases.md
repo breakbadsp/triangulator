@@ -13,7 +13,7 @@
 | QA-002 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
 | QA-003 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
 | QA-004 | PASSED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
-| QA-005 | FAILED | dev-f5a611b (CI, el9-x86_64) | [Run](runs/20261027T104332Z-react-f5a611b/index.md) | [Evidence](runs/20261027T104332Z-react-f5a611b/evidence/observations.json) |
+| QA-005 | PASSED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
 | QA-006 | BLOCKED | 0.1.0 | [Run](runs/20261009T035640Z-v0.1.0/index.md) | [Release metadata](runs/20261009T035640Z-v0.1.0/evidence/release.json) |
 | QA-007 | NOT_RUN | - | - | - |
 | QA-008 | BLOCKED | PR65 5189c47 (CI) | [Run](runs/20261011T110000Z-ci-5189c47/index.md) | [Legend check](runs/20261011T110000Z-ci-5189c47/evidence/qa008-legend.json) |
@@ -62,8 +62,8 @@
 | QA-057 | NOT_RUN | - | - | - |
 | QA-058 | NOT_RUN | - | - | - |
 | QA-059 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Commands](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa059-065-target-commands.txt) |
-| QA-060 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Budget](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa060-budget.txt) |
-| QA-061 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-060 | FAILED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
+| QA-061 | PASSED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | NOT_RUN | - | - | - |
 | QA-064 | NOT_RUN | - | - | - |
@@ -73,14 +73,14 @@
 | QA-068 | NOT_RUN | - | - | - |
 | QA-069 | NOT_RUN | - | - | - |
 | QA-070 | NOT_RUN | - | - | - |
-| QA-071 | FAILED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Removed target](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa071-removed-target.txt) |
+| QA-071 | PASSED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
 | QA-072 | PASSED | source 384352f | [Run](runs/20261021T020000Z-source-384352f-multi-target-thorough/index.md) | [Timeline](runs/20261021T020000Z-source-384352f-multi-target-thorough/evidence/qa072-clean-timeline.txt) |
 | QA-073 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-074 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
-| QA-075 | FAILED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
+| QA-075 | PASSED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
 | QA-076 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
 | QA-077 | PASSED | dev-384352f (CI) | [Run](runs/20261021T005620Z-five-targets/index.md) | [Observations](runs/20261021T005620Z-five-targets/evidence/observations.json) |
-| QA-078 | FAILED | source 384352f+master | [Run](runs/20261021T0700Z-capacity-sanitizer-followup/index.md) | [Test log](runs/20261021T0700Z-capacity-sanitizer-followup/evidence/qa078-test.log) |
+| QA-078 | PASSED | dev-468af65 (CI merge ddba0af, el8-x86_64) | [Run](runs/20261027T184756Z-package-468af65-six-failed/index.md) | [Evidence](runs/20261027T184756Z-package-468af65-six-failed/evidence/observations.json) |
 | QA-079 | NOT_RUN | - | - | - |
 | QA-080 | NOT_RUN | - | - | - |
 | QA-081 | NOT_RUN | - | - | - |
