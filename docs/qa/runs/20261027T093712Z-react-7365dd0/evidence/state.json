@@ -1,0 +1,28 @@
+{
+  "root": "/tmp/triangulator-qa-react-full-7365dd0",
+  "home": "/tmp/triangulator-qa-react-full-7365dd0/triangulator",
+  "http_port": 43959,
+  "udp_port": 49111,
+  "url": "http://127.0.0.1:43959",
+  "fixture_pids": [
+    210053,
+    210054
+  ],
+  "archives": [
+    {
+      "component": "sampler",
+      "filename": "triangulator-sampler-dev-7365dd0-el9-x86_64.tar.gz",
+      "sha256": "553fd5c5d5b0780c4381704a885271f4fce0f342b3449543f5622370c8d1ceab"
+    },
+    {
+      "component": "collector",
+      "filename": "triangulator-collector-dev-7365dd0-el9-x86_64.tar.gz",
+      "sha256": "637d94859dcf7702e731cae5726e12024b12e7de318b595d6ec03d2a83690f63"
+    }
+  ],
+  "version": "dev-7365dd0",
+  "processes": {
+    "sampler": 210083,
+    "collector": 210071
+  }
+}
