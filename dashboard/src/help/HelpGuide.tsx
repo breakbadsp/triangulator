@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { date } from "../lib/format";
-import { Help, cancelHelp, hoverHelpEnabled, setHoverHelp } from "./Help";
+import { cancelHelp } from "./Help";
 import {
   captureGuideChart,
   GuideContext,
@@ -37,12 +37,10 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
     setRequest(null);
     setReturnFocus(false);
   }
-  const restoring = useRef(false);
   const guide = useRef<HTMLElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const body = useRef<HTMLDivElement>(null);
-  const [modal, setModal] = useState(() => innerWidth < 1200);
-  const [hover, setHover] = useState(hoverHelpEnabled);
+  const [modal, setModal] = useState(() => innerWidth < 760);
   const close = useCallback((focus = true) => {
     cancelHelp();
     setReturnFocus(focus);
@@ -50,7 +48,8 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
   }, []);
   const dismissOwner = useCallback(
     (owner: HTMLElement) => {
-      if (current.current?.opener === owner) close(!owner.isConnected);
+      const opener = current.current?.opener;
+      if (opener && owner.contains(opener)) close(!owner.isConnected);
     },
     [close],
   );
@@ -92,7 +91,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
             ? captureGuideChart(opener, topic)
             : undefined,
       });
-      setHover(hoverHelpEnabled());
     },
     [],
   );
@@ -104,15 +102,13 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       ? previous.opener
       : document.getElementById("page-help");
     destination?.closest("details")?.setAttribute("open", "");
-    restoring.current = true;
     destination?.focus({ preventScroll: true });
-    restoring.current = false;
     if (previous.drawer?.body.isConnected)
       previous.drawer.body.scrollTop = previous.drawer.scroll;
   }, [request, returnFocus]);
   useEffect(() => {
     const resize = () => {
-      setModal(innerWidth < 1200);
+      setModal(innerWidth < 760);
     };
     addEventListener("resize", resize);
     return () => {
@@ -206,7 +202,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
     setRequest((previous) => previous && { ...previous, topic });
   };
   return (
-    <GuideContext value={{ request, restoring, open, close, dismissOwner }}>
+    <GuideContext value={{ request, open, close, dismissOwner }}>
       {children}
       {request &&
         content &&
@@ -373,22 +369,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
                   </button>
                 )}
               </div>
-              <div className="help-preference">
-                <label data-help="page">
-                  <input
-                    id="hover-help"
-                    type="checkbox"
-                    checked={hover}
-                    onChange={(event) => {
-                      const enabled = event.currentTarget.checked;
-                      setHoverHelp(enabled);
-                      setHover(enabled);
-                      cancelHelp();
-                    }}
-                  />{" "}
-                  Show help on hover
-                </label>
-              </div>
             </aside>
           </>,
           request.portal ?? document.body,
@@ -401,15 +381,7 @@ export function PageHelp() {
   const guide = useContext(GuideContext);
   return (
     <details className="page-help">
-      <summary
-        data-help="page"
-        onClickCapture={(event) => {
-          event.stopPropagation();
-          cancelHelp();
-        }}
-      >
-        <Help topic="page">How to read this page</Help>
-      </summary>
+      <summary data-help="page">How to read this page</summary>
       <p>
         Read the scope, unit, time interval, and data status before interpreting
         a metric. Open metric help for sources and measurement limits.
