@@ -355,6 +355,53 @@ test("newer selection and return reject late snapshot successes and errors", asy
   expect(byId("replay-note").textContent).toContain("Live view");
 });
 
+test("Previous from Live opens the newest recording even when displayed bounds are stale", async () => {
+  await open();
+  last = 1200;
+  pending.set("/api/replay", () => {
+    const at = requests.at(-1)?.searchParams.get("at");
+    return Promise.resolve(
+      Response.json({
+        first,
+        last,
+        ...(at === null
+          ? {}
+          : {
+              snapshot: frame(Number(at), at === "1200" ? "newest" : "stale"),
+            }),
+      }),
+    );
+  });
+  await previous();
+  expect(byId("target-name").textContent).toBe("newest-worker");
+});
+
+test("returning to Live cancels a pending refresh of recording bounds", async () => {
+  await open();
+  const bounds = deferred();
+  pending.set("/api/replay", () => bounds.promise);
+  await previous();
+  await live();
+  bounds.resolve({ first: 900, last: 1200, interval_s: 1 });
+  await flush();
+  expect(byId("target-name").textContent).toBe("live-worker");
+  expect(byId("replay-note").textContent).toContain("Live view");
+});
+
+test("Previous retains Live when fresh recording bounds are empty or fail", async () => {
+  await open();
+  pending.set("/api/replay", () =>
+    Promise.resolve(Response.json({ first: null, last: null, interval_s: 1 })),
+  );
+  await previous();
+  expect(byId("target-name").textContent).toBe("live-worker");
+  expect(byId("replay-note").textContent).toBe("No recordings available.");
+  pending.set("/api/replay", () => Promise.reject(Error("Bounds unavailable")));
+  await previous();
+  expect(byId("target-name").textContent).toBe("live-worker");
+  expect(byId("replay-note").textContent).toBe("Bounds unavailable");
+});
+
 test("missing, invalid, failed and gap recordings retain the last successful view", async () => {
   await open();
   await previous();
