@@ -1,0 +1,28 @@
+{
+  "root": "/tmp/triangulator-qa-react-full-f5a611b",
+  "home": "/tmp/triangulator-qa-react-full-f5a611b/triangulator",
+  "http_port": 33907,
+  "udp_port": 45248,
+  "url": "http://127.0.0.1:33907",
+  "fixture_pids": [
+    302669,
+    302670
+  ],
+  "archives": [
+    {
+      "component": "sampler",
+      "filename": "triangulator-sampler-dev-f5a611b-el9-x86_64.tar.gz",
+      "sha256": "74463209a9a2063d7e4743c983582f9e83197b136ca47568e41b09831123c987"
+    },
+    {
+      "component": "collector",
+      "filename": "triangulator-collector-dev-f5a611b-el9-x86_64.tar.gz",
+      "sha256": "ad8df26df877a157b072b99517e5174d3a576edbe69aa11978333f7efbb679b8"
+    }
+  ],
+  "version": "dev-f5a611b",
+  "processes": {
+    "sampler": 302699,
+    "collector": 302687
+  }
+}
