@@ -244,6 +244,17 @@ export function Help({
           event.target.closest("button, a, input, select, textarea")
         )
           timer.cancel(true);
+        else if (
+          hoverHelpEnabled() &&
+          event.relatedTarget instanceof Element &&
+          event.currentTarget.contains(event.relatedTarget) &&
+          event.relatedTarget.closest("button, a, input, select, textarea") &&
+          event.target instanceof Element &&
+          !card.current?.contains(event.target)
+        ) {
+          timer.release();
+          showHelp(false);
+        }
       }}
       onMouseLeave={() => {
         pointerFocus.current = false;

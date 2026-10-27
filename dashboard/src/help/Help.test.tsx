@@ -290,6 +290,24 @@ test("hovering an action does not cover it with Help", () => {
   expect(action).toHaveBeenCalledOnce();
 });
 
+test("moving from an input to its label starts the help dwell", () => {
+  render(
+    <Help topic="manage-targets" as="div">
+      <label htmlFor="target-name">Target name</label>
+      <input id="target-name" />
+    </Help>,
+  );
+  const input = screen.getByRole("textbox");
+  const label = screen.getByText("Target name");
+  fireEvent.mouseOver(input);
+  fireEvent.mouseEnter(input);
+  fireEvent.mouseOver(label, { relatedTarget: input });
+  act(() => {
+    vi.advanceTimersByTime(HELP_DELAY);
+  });
+  expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
+});
+
 test("Help labels retain immediate keyboard and touch access", () => {
   render(<Help topic="appearance">Theme</Help>);
   const anchor = screen.getByText("Theme");
