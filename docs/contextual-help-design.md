@@ -1,8 +1,10 @@
 # Dashboard contextual help
 
-- Keep one explanation per topic. Reuse it in hover cards, guides, and the page guide to prevent conflicting descriptions.
-- Use delayed help so pointer movement across live tables does not produce unwanted cards. The selected delay is 1,200 ms.
-- Keep short cards brief. Use the explicit guide action for longer explanations and chart data. Related links reuse the same topic content.
+- Keep one explanation per topic. Reuse it in chart readout cards, guides, and the page guide to prevent conflicting descriptions.
+- Open help only on request. Automatic cards covered the data that the reader was looking at. Each help label shows a quiet ⓘ button when the reader points at it or focuses it, and always on touch screens. The button opens the metric guide.
+- Show the guide beside the dashboard, never over it. At 760 px and wider, the guide is a right-side panel that pushes the page aside. Narrower screens have no room for both, so there the guide is a modal sheet.
+- Keep help simple. It is not a critical feature, so prefer one shared component and few tests to per-label code.
+- Chart readouts still open a card after a hover delay, because they show the values at the pointer. Table bodies and chart wrappers have no ⓘ button.
 - Provide keyboard and touch access. Hover alone cannot serve every user.
 - Keep help dismissible and readable while the pointer moves into it. Follow [W3C hover and focus guidance](https://www.w3.org/WAI/WCAG22/Understanding/content-on-hover-or-focus.html).
 - Freeze the explanation and its timestamp while it is open. Live updates must not change the text during reading.

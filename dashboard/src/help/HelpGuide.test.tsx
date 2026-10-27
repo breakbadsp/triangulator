@@ -1,8 +1,7 @@
-import { HELP_DELAY } from "./createHelpTimer";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useState } from "react";
-import { Help, HelpPortalTarget, setHoverHelp } from "./Help";
+import { Help, HelpPortalTarget } from "./Help";
 import { HelpGuideProvider, PageHelp } from "./HelpGuide";
 import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { TimeChart } from "../components/TimeChart";
@@ -88,20 +87,11 @@ function Fixture({
 function explain(label = "CPU source") {
   const source = screen.getByText(label).closest<HTMLElement>("[data-help]");
   if (!source) throw Error("Missing source");
-  act(() => {
-    source.focus();
-    fireEvent.keyDown(source, { key: "Enter" });
-  });
-  const card = document.getElementById(
-    source.getAttribute("aria-describedby") ?? "",
-  );
-  if (!card) throw Error("Missing source card");
-  fireEvent.click(
-    within(card).getByRole("button", { name: "Open metric guide" }),
-  );
+  const opener = within(source).getByRole("button", { name: /^Explain / });
+  fireEvent.click(opener);
   const guide = document.getElementById("help-guide");
   if (!guide) throw Error("Missing guide");
-  return { source, guide };
+  return { opener, guide };
 }
 beforeEach(() => {
   vi.stubGlobal("innerWidth", 390);
@@ -116,13 +106,12 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  setHoverHelp(true);
   localStorage.clear();
 });
 
 test("narrow guide traps focus, navigates topics, resizes, and restores the opener", () => {
   render(<Fixture />);
-  const { source, guide } = explain();
+  const { opener, guide } = explain();
   expect(guide.getAttribute("role")).toBe("dialog");
   expect(document.querySelector("main")?.inert).toBe(true);
   expect(document.activeElement?.id).toBe("help-guide-title");
@@ -130,7 +119,7 @@ test("narrow guide traps focus, navigates topics, resizes, and restores the open
     key: "Tab",
     shiftKey: true,
   });
-  expect(document.activeElement?.id).toBe("hover-help");
+  expect(document.activeElement?.textContent).toBe("All topics");
   fireEvent.keyDown(document.activeElement ?? document, { key: "Tab" });
   expect(document.activeElement?.getAttribute("aria-label")).toBe(
     "Close metric guide",
@@ -154,7 +143,7 @@ test("narrow guide traps focus, navigates topics, resizes, and restores the open
   expect(document.querySelector("main")?.inert).toBe(false);
   fireEvent.keyDown(document, { key: "Escape" });
   expect(document.getElementById("help-guide")).toBeNull();
-  expect(document.activeElement).toBe(source);
+  expect(document.activeElement).toBe(opener);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
@@ -212,7 +201,7 @@ test("Back to thread preserves the mounted drawer, inputs, scroll and opener", (
   fireEvent.change(from, { target: { value: "2026-10-20T12:34:00" } });
   const custom = from.value;
   body.scrollTop = 87;
-  const { source, guide } = explain("worker");
+  const { opener, guide } = explain("worker");
   expect(drawer.hidden).toBe(true);
   fireEvent.click(within(guide).getByRole("button", { name: "All topics" }));
   fireEvent.click(
@@ -222,103 +211,8 @@ test("Back to thread preserves the mounted drawer, inputs, scroll and opener", (
   expect(drawer.hidden).toBe(false);
   expect(from.value).toBe(custom);
   expect(body.scrollTop).toBe(87);
-  expect(document.activeElement).toBe(source);
+  expect(document.activeElement).toBe(opener);
 });
-
-test("hover preference survives blocked storage and leaves keyboard help available", () => {
-  render(<Fixture />);
-  const { source, guide } = explain();
-  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-    throw Error("blocked");
-  });
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-    throw Error("blocked");
-  });
-  fireEvent.click(
-    within(guide).getByRole("checkbox", { name: "Show help on hover" }),
-  );
-  fireEvent.click(
-    within(guide).getByRole("button", { name: "Close metric guide" }),
-  );
-  fireEvent.blur(source);
-  fireEvent.mouseEnter(source);
-  act(() => {
-    vi.advanceTimersByTime(HELP_DELAY);
-  });
-  expect(screen.queryByRole("dialog")).toBeNull();
-  fireEvent.focus(source);
-  fireEvent.keyDown(source, { key: "Enter" });
-  expect(screen.getByRole("dialog")).toBeDefined();
-});
-
-test("a related explanation cannot label the original chart as another metric", () => {
-  render(<Fixture />);
-  const source = screen
-    .getByText("CPU source")
-    .closest<HTMLElement>("[data-help]");
-  if (!source) throw Error("Missing source");
-  act(() => {
-    source.focus();
-    fireEvent.keyDown(source, { key: "Enter" });
-  });
-  const card = document.getElementById(
-    source.getAttribute("aria-describedby") ?? "",
-  );
-  if (!card) throw Error("Missing card");
-  fireEvent.click(within(card).getAllByRole("link")[0] ?? document.body);
-  fireEvent.click(
-    within(card).getByRole("button", { name: "Open metric guide" }),
-  );
-  const guide = document.getElementById("help-guide");
-  if (!guide) throw Error("Missing guide");
-  expect(within(guide).queryByText("View chart data")).toBeNull();
-});
-
-test.each([null, "on", "off"])(
-  "hover choice survives a failed write with saved %s and successful reads",
-  (saved) => {
-    if (saved !== null) localStorage.setItem("triangulator:hover-help", saved);
-    const enabled = saved === "off";
-    render(<Fixture />);
-    const { source, guide } = explain();
-    const reads = vi.spyOn(Storage.prototype, "getItem");
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw Error("quota");
-    });
-    fireEvent.click(
-      within(guide).getByRole("checkbox", { name: "Show help on hover" }),
-    );
-    expect(localStorage.getItem("triangulator:hover-help")).toBe(saved);
-    fireEvent.keyDown(document, { key: "Escape" });
-    act(() => {
-      source.blur();
-    });
-    fireEvent.mouseEnter(source);
-    act(() => {
-      vi.advanceTimersByTime(HELP_DELAY);
-    });
-    expect(!!screen.queryByRole("dialog")).toBe(enabled);
-    expect(reads).toHaveReturnedWith(saved);
-    fireEvent.keyDown(document, { key: "Escape" });
-    fireEvent.mouseLeave(source);
-    act(() => {
-      source.focus();
-      fireEvent.keyDown(source, { key: "Enter" });
-    });
-    expect(screen.getByRole("dialog")).toBeDefined();
-    fireEvent.keyDown(document, { key: "Escape" });
-    act(() => {
-      source.blur();
-    });
-    fireEvent.click(source);
-    expect(screen.getByRole("dialog")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
-    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", {
-      name: "Show help on hover",
-    });
-    expect(checkbox.checked).toBe(enabled);
-  },
-);
 
 test("a heading with two charts of the same topic omits ambiguous chart data", () => {
   render(
@@ -341,55 +235,4 @@ test("a heading with two charts of the same topic omits ambiguous chart data", (
   );
   const { guide } = explain();
   expect(within(guide).queryByText("View chart data")).toBeNull();
-  fireEvent.keyDown(document, { key: "Escape" });
-  const opener = document
-    .getElementById("second")
-    ?.closest<HTMLElement>("[data-help]");
-  if (!opener) throw Error("Missing chart source");
-  act(() => {
-    opener.focus();
-    fireEvent.keyDown(opener, { key: "Enter" });
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Open metric guide" }));
-  const direct = document.getElementById("help-guide");
-  if (!direct) throw Error("Missing direct chart guide");
-  fireEvent.click(within(direct).getByText("View chart data"));
-  expect(
-    within(direct).getByRole("columnheader", { name: "second" }),
-  ).toBeDefined();
-});
-
-test("a successful preference write replaces a failed-write choice", () => {
-  render(<Fixture />);
-  const { source, guide } = explain();
-  const write = vi
-    .spyOn(Storage.prototype, "setItem")
-    .mockImplementation(() => {
-      throw Error("quota");
-    });
-  fireEvent.click(
-    within(guide).getByRole("checkbox", { name: "Show help on hover" }),
-  );
-  write.mockRestore();
-  fireEvent.click(
-    within(guide).getByRole("checkbox", { name: "Show help on hover" }),
-  );
-  expect(localStorage.getItem("triangulator:hover-help")).toBe("on");
-  fireEvent.keyDown(document, { key: "Escape" });
-  act(() => {
-    source.blur();
-  });
-  fireEvent.mouseEnter(source);
-  act(() => {
-    vi.advanceTimersByTime(HELP_DELAY);
-  });
-  expect(screen.getByRole("dialog")).toBeDefined();
-  fireEvent.keyDown(document, { key: "Escape" });
-  localStorage.setItem("triangulator:hover-help", "off");
-  fireEvent.mouseLeave(source);
-  fireEvent.mouseEnter(source);
-  act(() => {
-    vi.advanceTimersByTime(HELP_DELAY);
-  });
-  expect(screen.queryByRole("dialog")).toBeNull();
 });

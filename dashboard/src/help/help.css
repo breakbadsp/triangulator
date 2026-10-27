@@ -47,7 +47,7 @@
 #help-guide {
   position: fixed;
   inset: 0 0 0 auto;
-  width: 400px;
+  width: min(400px, 40vw);
   z-index: 120;
   background: var(--surface);
   color: var(--ink);
@@ -123,10 +123,60 @@
   overflow-x: auto;
   max-width: 100%;
 }
-.help-preference {
-  flex: none;
-  padding: 12px 24px;
-  border-top: 1px solid var(--line);
+/* Shown only where the reader points or focuses, so labels stay quiet. */
+.help-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--accent-ink);
+  background: transparent;
+  vertical-align: middle;
+  cursor: help;
+  opacity: 0;
+}
+/* A block anchor keeps its own layout, even as a flex or grid container: the
+   button leaves the flow and sits in the anchor's corner. Zero specificity
+   lets any anchor class that sets its own position win. */
+:where(:has(> .help-info-corner)) {
+  position: relative;
+}
+.help-info-corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+}
+.help-info::before {
+  content: "i";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font:
+    600 11px/1 Georgia,
+    serif;
+}
+[data-help]:hover > .help-info,
+[data-help]:focus-within > .help-info,
+.help-info:focus-visible {
+  opacity: 1;
+}
+.help-info:hover {
+  background: var(--accent-wash);
+}
+@media (hover: none) {
+  .help-info {
+    opacity: 1;
+  }
 }
 .page-help {
   margin-top: 28px;
@@ -139,9 +189,9 @@
 .page-help p {
   margin: 10px 0;
 }
-@media (min-width: 1200px) {
+@media (min-width: 760px) {
   body.help-open {
-    padding-right: 400px;
+    padding-right: min(400px, 40vw);
   }
   body.help-open .g-hero,
   body.help-open .g-2-1,
@@ -149,7 +199,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@media (max-width: 1199px) {
+@media (max-width: 759px) {
   #help-guide {
     inset: auto 0 0;
     width: 100%;
@@ -167,9 +217,6 @@
   #help-guide-body {
     padding: 6px 20px 20px;
   }
-  .help-preference {
-    padding: 12px 20px;
-  }
 }
 @media (max-height: 480px) {
   #help-guide {
@@ -182,8 +229,7 @@
 }
 @media (pointer: coarse) {
   .help-guide-top button,
-  #help-back-thread,
-  .help-preference label {
+  #help-back-thread {
     min-height: 44px;
   }
 }

@@ -862,7 +862,9 @@ test("the page guide exposes all metric topics and restores its opener", async (
   expect(screen.queryByRole("dialog")).toBeNull();
   const opener = screen.getByRole("button", { name: "Open page guide" });
   fireEvent.click(opener);
-  const guide = screen.getByRole("dialog", { name: "How to read this page" });
+  const guide = screen.getByRole("complementary", {
+    name: "How to read this page",
+  });
   expect(guide.querySelectorAll(".help-topics button").length).toBeGreaterThan(
     140,
   );
