@@ -1,0 +1,4 @@
+{"tab":"T1","at":"2026-10-27T18:25:39.010Z","method":"Network.loadingFailed","p":{"requestId":"588198.160","timestamp":15779.071493,"type":"Fetch","errorText":"net::ERR_ABORTED","canceled":true}}
+{"tab":"T1","at":"2026-10-27T18:26:16.642Z","method":"Network.loadingFailed","p":{"requestId":"588198.212","timestamp":15816.715115,"type":"Fetch","errorText":"net::ERR_ABORTED","canceled":true}}
+{"tab":"T1","at":"2026-10-27T18:26:52.255Z","method":"Network.responseReceived","p":{"url":"http://127.0.0.1:51353/api/targets","status":409}}
+{"tab":"T1","at":"2026-10-27T18:28:34.028Z","method":"Network.loadingFailed","p":{"requestId":"588198.425","timestamp":15954.100737,"type":"Fetch","errorText":"net::ERR_ABORTED","canceled":true}}
