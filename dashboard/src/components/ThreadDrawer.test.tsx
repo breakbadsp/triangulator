@@ -35,13 +35,16 @@ const close = vi.fn();
 function Drawer({
   thread,
   view = live,
+  recorded = false,
 }: {
   thread: SelectedThread | null;
   view?: LiveResponse;
+  recorded?: boolean;
 }) {
   return (
     <ThreadDrawer
       view={view}
+      recorded={recorded}
       series={emptySeries}
       selected={thread}
       now={1000}
@@ -188,6 +191,33 @@ test("a 15 min preset replaces a custom history range and survives another threa
   expect(
     document.querySelector('[data-range="900"]')?.getAttribute("aria-pressed"),
   ).toBe("true");
+});
+
+test("returning from a recording restores the live custom history interval", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(() => Promise.resolve(emptyHistory())),
+  );
+  const { rerender } = render(<Drawer thread={selected(one)} />);
+  await screen.findByText(/0 summaries/);
+  const from = screen.getByLabelText<HTMLInputElement>("From");
+  const to = screen.getByLabelText<HTMLInputElement>("To");
+  fireEvent.change(from, { target: { value: "2026-10-23T10:00" } });
+  fireEvent.change(to, { target: { value: "2026-10-23T11:00" } });
+  fireEvent.click(screen.getByRole("button", { name: "Load" }));
+  rerender(<Drawer thread={null} recorded />);
+  rerender(<Drawer thread={selected(one)} recorded />);
+  fireEvent.click(screen.getByRole("button", { name: "15 min" }));
+  rerender(<Drawer thread={null} />);
+  rerender(<Drawer thread={selected(one)} />);
+  expect([from.value, to.value]).toEqual([
+    "2026-10-23T10:00",
+    "2026-10-23T11:00",
+  ]);
+  expect(
+    screen.getByRole("button", { name: "15 min" }).getAttribute("aria-pressed"),
+  ).toBe("false");
+  await screen.findByText(/2026-10-23 10:00/);
 });
 
 test("Escape closes drawer help before it closes the drawer", async () => {
