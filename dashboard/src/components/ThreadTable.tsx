@@ -4,7 +4,7 @@ import { Help } from "../help/Help";
 import { isHelpTopicId, type HelpTopicId } from "../help/topics";
 import type { useHolding } from "../hooks/useHeld";
 import { bytes, isNum, num, pct } from "../lib/format";
-import type { Series } from "../lib/series";
+import type { CpuSample, Series } from "../lib/series";
 import {
   chips,
   isSelected,
@@ -23,7 +23,7 @@ import {
   threadLabel,
   type TipRow,
 } from "../lib/threads";
-import { Sparkline } from "./Sparkline";
+import { CpuSparkline } from "./Sparkline";
 import { useReadout } from "../hooks/useReadout";
 
 export function StatePill({ thread }: { thread: Thread }) {
@@ -82,6 +82,9 @@ interface Column {
   /** The thread field this column shows, for the help card's value. */
   metric?: keyof Thread;
 }
+// One array for threads without samples, so their line keeps its identity.
+const noSamples: readonly CpuSample[] = [];
+
 const COLUMNS: readonly Column[] = [
   { id: "thread", label: "Thread", topic: "thread", sort: "name" },
   { id: "group", label: "Group", topic: "group" },
@@ -583,13 +586,9 @@ export function ThreadTable({
                           }}
                         >
                           <div className="cpu-cell">
-                            <Sparkline
+                            <CpuSparkline
                               className="spark"
-                              values={(series.cpu.get(thread.tid) ?? []).map(
-                                (sample) => sample.v,
-                              )}
-                              color="var(--series-1)"
-                              min={5}
+                              samples={series.cpu.get(thread.tid) ?? noSamples}
                             />
                             <span>{pct(thread.cpu_pct)}</span>
                           </div>
