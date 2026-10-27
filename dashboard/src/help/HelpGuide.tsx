@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { date } from "../lib/format";
 import { Help, cancelHelp, hoverHelpEnabled, setHoverHelp } from "./Help";
 import {
@@ -27,7 +27,7 @@ export function CodeText({ text }: { text: string }) {
 }
 
 export function HelpGuideProvider({ children }: { children: ReactNode }) {
-  const { key } = useContext(ObservationContext);
+  const { key } = useContext(ViewIdentityContext);
   const [request, setRequest] = useState<GuideRequest | null>(null);
   const current = useRef<GuideRequest | null>(null);
   const [returnFocus, setReturnFocus] = useState(false);

@@ -22,7 +22,7 @@ import { WatchRules } from "./components/WatchRules";
 import { Timeline } from "./components/Timeline";
 import { HelpGuideProvider, PageHelp } from "./help/HelpGuide";
 import { Help } from "./help/Help";
-import { ObservationContext } from "./hooks/observationContext";
+import { ViewIdentityContext } from "./hooks/viewIdentityContext";
 import { useObservation } from "./hooks/useObservation";
 import { usePastAssessments } from "./hooks/usePastAssessments";
 import { emptySeries } from "./lib/series";
@@ -132,7 +132,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
       ?.scrollIntoView({ behavior: "smooth" });
   }
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{
         key: `${context ?? "waiting"}|${String(resourceRange)}|${pressureScope}|${String(windowSecs)}`,
         recorded: mode.kind === "recorded",
@@ -274,7 +274,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           onClose={closeThread}
         />
       </HelpGuideProvider>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 

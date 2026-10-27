@@ -36,7 +36,7 @@ export const RESOURCE_RANGES = [
 export type ResourceRange = (typeof RESOURCE_RANGES)[number][0];
 
 /** The latest sample with the stored history drawn beside it. */
-interface Observation {
+interface ResourceReading {
   r: ResourceSample;
   points: readonly ResourcePoint[];
   now: number;
@@ -237,7 +237,7 @@ function Tiles({
   observation,
   scope,
 }: {
-  observation: Observation;
+  observation: ResourceReading;
   scope: PressureScope;
 }) {
   const { holding, handlers } = useHolding();
@@ -276,7 +276,7 @@ function Pressure({
   scope,
   range,
 }: {
-  observation: Observation;
+  observation: ResourceReading;
   scope: PressureScope;
   range: ResourceRange;
 }) {
@@ -412,7 +412,7 @@ export function Meter({
     </Help>
   );
 }
-function Limits({ observation }: { observation: Observation }) {
+function Limits({ observation }: { observation: ResourceReading }) {
   const { holding, handlers } = useHolding();
   const { r } = useHeld(observation, holding);
   const fds = r.fds || {},
@@ -561,7 +561,7 @@ function Queues({
   observation,
   range,
 }: {
-  observation: Observation;
+  observation: ResourceReading;
   range: ResourceRange;
 }) {
   const { holding, handlers } = useHolding();
@@ -609,7 +609,7 @@ function Queues({
 }
 
 const NETWORK_COLUMNS = ["Counter", "Rate (/s)", "In range", "Total"] as const;
-function Network({ observation }: { observation: Observation }) {
+function Network({ observation }: { observation: ResourceReading }) {
   const { holding, handlers } = useHolding();
   const { r, points, now } = useHeld(observation, holding);
   const { readout, show, clear } = useReadout();
@@ -742,7 +742,7 @@ function FullestSockets({
   busyOnly,
   onBusyOnly,
 }: {
-  observation: Observation;
+  observation: ResourceReading;
   busyOnly: boolean;
   onBusyOnly: (busyOnly: boolean) => void;
 }) {
