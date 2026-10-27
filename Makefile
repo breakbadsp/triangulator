@@ -6,7 +6,7 @@ CXX := c++
 endif
 # Optional compiler cache. Linking always uses the selected compiler directly.
 COMPILER_CACHE ?=
-CXXFLAGS ?= -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow
+CXXFLAGS ?= -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS ?=
 LDFLAGS ?=
 # glibc before 2.34 keeps pthread symbols in a separate library.
