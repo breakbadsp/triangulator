@@ -102,6 +102,60 @@ const isLoadState = (value: unknown, lastTick: number): value is LoadState =>
   Array.isArray(value.averages) &&
   value.averages.length === 3 &&
   value.averages.every(isNum);
+// A tab's storage can hold another format, or be cut off. These guards keep
+// only entries that the analysis can read; the rest is dropped.
+const isNumOrNull = (value: unknown): value is number | null =>
+  value === null || isNum(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+// A missing field is read as before; a field of the wrong type is damage.
+const POINT_FIELDS = [
+  "cpu",
+  "rd",
+  "sw",
+  "rb",
+  "wb",
+  "mf",
+  "n",
+  "busy",
+  "active",
+  "born",
+  "died",
+  "rss",
+  "vm",
+  "l1",
+] as const;
+const isPoint = (value: unknown): value is Point =>
+  isRecord(value) &&
+  isNum(value.t) &&
+  POINT_FIELDS.every(
+    (key) => value[key] === undefined || isNumOrNull(value[key]),
+  ) &&
+  isRecord(value.s) &&
+  Object.values(value.s).every(isNum);
+const isSeenEntry = (value: unknown): value is [number, ThreadSeen] => {
+  if (!Array.isArray(value) || value.length !== 2) return false;
+  const [tid, seen] = value as [unknown, unknown];
+  return (
+    isNum(tid) &&
+    isRecord(seen) &&
+    isNum(seen.first) &&
+    isNumOrNull(seen.active) &&
+    (seen.generation == null || isNum(seen.generation)) &&
+    (seen.futexSince == null || isNum(seen.futexSince))
+  );
+};
+const isAvgEntry = (value: unknown): value is [number, unknown[]] => {
+  if (!Array.isArray(value) || value.length !== 2) return false;
+  const [tid, saved] = value as [unknown, unknown];
+  return (
+    isNum(tid) &&
+    Array.isArray(saved) &&
+    (saved[0] == null || isNum(saved[0])) &&
+    saved.length % 2 === 1 &&
+    saved.slice(1).every(isNum)
+  );
+};
 const savedFor = (saved: unknown, session: Series["session"]) =>
   typeof saved === "object" &&
   saved !== null &&
@@ -121,21 +175,24 @@ export function restoreSeries(
 ): Series {
   const savedThreads = savedFor(threads, session),
     savedBuffer = savedFor(buffer, session);
-  const seen = new Map<number, ThreadSeen>(
-    Array.isArray(savedThreads?.seen)
-      ? (savedThreads.seen as [number, ThreadSeen][])
-      : [],
-  );
+  const seen = new Map<number, ThreadSeen>();
+  if (Array.isArray(savedThreads?.seen))
+    for (const entry of savedThreads.seen as unknown[])
+      if (isSeenEntry(entry)) seen.set(entry[0], entry[1]);
   const points = Array.isArray(savedBuffer?.points)
-    ? (savedBuffer.points as Point[]).map((point) => ({ ...point }))
+    ? (savedBuffer.points as unknown[])
+        .filter(isPoint)
+        .map((point) => ({ ...point }))
     : [];
   const lastTick = points.at(-1)?.t || 0;
   const avg = new Map<number, ThreadAverage>();
   if (Array.isArray(savedThreads?.avg))
-    for (const [tid, saved] of savedThreads.avg as [number, unknown[]][]) {
+    for (const entry of savedThreads.avg as unknown[]) {
+      if (!isAvgEntry(entry)) continue;
+      const [tid, saved] = entry;
       const samples: (readonly [number, number])[] = [];
       for (let index = 1; index + 1 < saved.length; index += 2)
-        samples.push([Number(saved[index]), Number(saved[index + 1])]);
+        samples.push([saved[index] as number, saved[index + 1] as number]);
       avg.set(tid, {
         generation: saved[0] as ThreadAverage["generation"],
         samples,
