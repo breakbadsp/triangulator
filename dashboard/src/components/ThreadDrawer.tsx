@@ -83,16 +83,32 @@ function History({
   selected: SelectedThread | null;
   now: number;
 }) {
-  // The range survives closing the drawer: 0 is a custom interval.
-  const [range, setRange] = useState(3600);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Each view retains its range when the drawer closes. 0 is a custom interval.
+  const [ranges, setRanges] = useState({
+    live: { range: 3600, from: "", to: "" },
+    recorded: { range: 3600, from: "", to: "" },
+  });
   const [request, setRequest] = useState<HistoryRequest | null>(null);
   const [result, setResult] = useState<HistoryResult | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
   const observation = useContext(ObservationContext);
+  const mode = observation.recorded ? "recorded" : "live";
+  const [previousMode, setPreviousMode] = useState(mode);
+  const enteringRecording = mode === "recorded" && previousMode === "live";
+  if (mode !== previousMode) {
+    setPreviousMode(mode);
+    if (enteringRecording)
+      setRanges((previous) => ({ ...previous, recorded: previous.live }));
+  }
+  const { range, from, to } = enteringRecording ? ranges.live : ranges[mode];
+  function updateRange(update: Partial<(typeof ranges)[typeof mode]>) {
+    setRanges((previous) => ({
+      ...previous,
+      [mode]: { ...previous[mode], ...update },
+    }));
+  }
   const key = selected
-    ? `${observation.key}|${String(selected.session)}:${String(selected.tid)}:${String(selected.generation)}`
+    ? `${mode}|${observation.key}|${String(selected.session)}:${String(selected.tid)}:${String(selected.generation)}`
     : null;
   function load(fromValue: string, toValue: string) {
     if (!selected) return;
@@ -106,16 +122,15 @@ function History({
     });
   }
   function applyRange(seconds: number) {
-    setRange(seconds);
     if (seconds <= 0) {
+      updateRange({ range: seconds });
       load(from, to);
       return;
     }
     const end = now * 1000,
       fromValue = localInput(end - seconds * 1000),
       toValue = localInput(end);
-    setFrom(fromValue);
-    setTo(toValue);
+    updateRange({ range: seconds, from: fromValue, to: toValue });
     load(fromValue, toValue);
   }
   // Each opened thread loads once, with the range the reader chose last.
@@ -238,7 +253,7 @@ function History({
               aria-label="From"
               value={from}
               onChange={(event) => {
-                setFrom(event.target.value);
+                updateRange({ from: event.target.value });
               }}
             />
           </Help>
@@ -250,7 +265,7 @@ function History({
               aria-label="To"
               value={to}
               onChange={(event) => {
-                setTo(event.target.value);
+                updateRange({ to: event.target.value });
               }}
             />
           </Help>
@@ -259,7 +274,7 @@ function History({
               id="load-history"
               type="button"
               onClick={() => {
-                setRange(0);
+                updateRange({ range: 0 });
                 load(from, to);
               }}
             >
