@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import type { ViewMode } from "../lib/assess";
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import type { LiveResponse, MemorySummary, PressureScope } from "../api/types";
@@ -102,7 +102,7 @@ export function MemoryMap({
   resourcePoints: readonly ResourcePoint[];
   scope: PressureScope;
 }) {
-  const context = useContext(ObservationContext);
+  const context = useContext(ViewIdentityContext);
   const [regionsOpen, setRegionsOpen] = useState(false);
   const model = useMemo(() => {
     const value = memoryModel(memory);
@@ -128,7 +128,7 @@ export function MemoryMap({
         )
       : [];
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{
         ...context,
         key: JSON.stringify([
@@ -209,7 +209,7 @@ export function MemoryMap({
           </Fold>
         </div>
       </section>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 
