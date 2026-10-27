@@ -3,6 +3,7 @@ import { readTargetControl } from "../api/targetControl";
 import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
+import { parseLive } from "../api/replay";
 import type { LiveResponse, TargetsResponse } from "../api/types";
 import { HelpGuideProvider, PageHelp } from "../help/HelpGuide";
 import { Help } from "../help/Help";
@@ -37,10 +38,12 @@ async function loadFleet(signal: AbortSignal) {
       try {
         views.set(
           target.key,
-          await getJson<LiveResponse>(
-            "/api/live?" +
-              new URLSearchParams({ target: target.key }).toString(),
-            signal,
+          parseLive(
+            await getJson<unknown>(
+              "/api/live?" +
+                new URLSearchParams({ target: target.key }).toString(),
+              signal,
+            ),
           ),
         );
       } catch {
@@ -93,6 +96,9 @@ const STATUS_LABELS = [
 ];
 
 export function FleetPage() {
+  // The overview is a snapshot, so it may pause in a hidden tab. The target
+  // page must not: its charts and findings are built from every 1 Hz reply,
+  // and a pause would leave a gap in them.
   const fleet = usePoll(loadFleet, 5000, { pauseWhenHidden: true });
   const control = fleet.data?.control ?? { enabled: false as const };
   const editor = useTargetControl(control, fleet.refresh);
