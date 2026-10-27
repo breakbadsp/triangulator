@@ -40,6 +40,17 @@ Records
   environment, and failure steps. Update the current-result rows once. Run
   scripts/qa_summary.py --write-readme and then --check once.
 
+Model split
+- Run scripted cases (Driver: scripted in docs/qa/test-cases.md) and
+  record-keeping on the cheapest suitable model: Haiku, or Terra 6.1 low when
+  Claude is unavailable.
+- Give a failed or ambiguous case to a stronger model for the verdict: Sonnet,
+  or Sol 6.1 medium. Report a mismatch between a case and the design as a
+  mismatch. Never pass it silently.
+- Use scripts/qa/ (see scripts/qa/README.md) for setup, browser steps, records,
+  and the QA-060 sweep. Do not write a new per-run harness. Do not copy harness
+  files into run evidence.
+
 Completion
 - Follow the project's worktree, commit, and pull request rules for the record.
   Do not run /loomflow and do not merge. Report package identity, status

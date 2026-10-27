@@ -8,3 +8,4 @@
 - Cases define actions and expected results. [Current results](qa/test-cases.md#current-results) describe tested versions, not the current source.
 - Keep evidence for current results. Git history preserves removed run records.
 - After recording a run, refresh and validate the README summary with `python3 scripts/qa_summary.py --write-readme --check`.
+- Use the shared tools in [scripts/qa/README.md](../scripts/qa/README.md) for setup, browser steps, records, and the QA-060 sweep.
