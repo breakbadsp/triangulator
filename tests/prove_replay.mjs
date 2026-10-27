@@ -441,7 +441,7 @@ export async function proveReplay({
       ["#past-count", "Past assessments"],
       ["#history-status", "Past assessments"],
       ["#history-levels", "Past assessment filters"],
-      ["#history-type", "Past assessment filters"],
+      ["label:has(#history-type)", "Past assessment filters"],
       ["#timeline-marks", "Past assessments"],
       ['details[data-fold="past"] h3', "Past assessments"],
     ]) {
@@ -568,7 +568,10 @@ export async function proveReplay({
       "(() => {const b=document.querySelector('#mosaic .cell').getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2}})()",
     );
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...cell });
-    await delay(1350);
+    await until(
+      () => evaluate("document.querySelector('.help-card')?.textContent.includes('Recorded at')"),
+      "recorded readout help",
+    );
     assert.match(
       await evaluate("document.querySelector('.help-card')?.textContent || ''"),
       /Recorded at/,
