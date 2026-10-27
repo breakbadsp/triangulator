@@ -11,7 +11,7 @@ el="${ALMA_VERSION:?set ALMA_VERSION to 8 or 9}"
 dnf install -y dnf-plugins-core
 dnf config-manager --set-enabled "$([[ "$el" == 8 ]] && echo powertools || echo crb)"
 dnf install -y gcc-toolset-14-gcc-c++ gcc-toolset-14-libstdc++-devel \
-    glibc-static libstdc++-static make python3.11 tar gzip curl
+    glibc-static libstdc++-static make python3.11 tar gzip /usr/bin/curl
 mkdir -p /opt/tools/bin
 ln -s /usr/bin/python3.11 /opt/tools/bin/python3
 export PATH="/opt/tools/bin:$PATH"

@@ -136,12 +136,13 @@ export async function proveCleanup({
     });
     await layout();
   };
-  const explain = async (selector) => {
+  const explain = async (selector, immediate = false) => {
     await until(() => evaluate("!document.querySelector('#help-guide')"), "previous guide closes");
     await layout();
     await evaluate(
       `(() => {const el=document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');el.scrollIntoView({block:'center'});if(document.activeElement===el)el.blur();el.focus();})()`,
     );
+    if (immediate) await keypress("Enter");
     await until(
       () =>
         evaluate(
@@ -311,11 +312,12 @@ export async function proveCleanup({
     const hover = await evaluate("(()=>{const el=document.querySelector('#chart-load').closest('[data-help]');el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+4,y:r.top+4}})()");
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...hover });
-    await delay(1500);
+    await delay(3100);
     assert.equal(await evaluate("!!document.querySelector('.help-card')"), enabled, "hover uses the page choice after a failed write");
     await keypress("Escape");
+    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
     await evaluate("Storage.prototype.setItem=window.proofStorageWrite;delete window.proofStorageWrite");
-    await explain("#chart-load");
+    await explain("#chart-load", true);
     if (!enabled) await click("#hover-help");
     else { await click("#hover-help"); await click("#hover-help"); }
     assert.equal(await evaluate("localStorage.getItem('triangulator:hover-help')"), "on");

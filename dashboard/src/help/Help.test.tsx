@@ -120,7 +120,7 @@ test("a hidden drawer dismisses help without remounting its content", () => {
   );
   const { rerender } = render(show(true));
   const input = screen.getByLabelText<HTMLInputElement>("Kept input");
-  fireEvent.mouseEnter(input);
+  fireEvent.mouseEnter(input.parentElement ?? input);
   act(() => {
     vi.advanceTimersByTime(HELP_DELAY);
   });
@@ -270,6 +270,42 @@ test("normal controls and editing do not open Help", () => {
     vi.advanceTimersByTime(3000);
   });
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("hovering an action does not cover it with Help", () => {
+  const action = vi.fn();
+  render(
+    <Help topic="manage-targets" as="div">
+      <button onClick={action}>Add target</button>
+    </Help>,
+  );
+  const button = screen.getByRole("button", { name: "Add target" });
+  fireEvent.mouseOver(button);
+  fireEvent.mouseEnter(button);
+  act(() => {
+    vi.advanceTimersByTime(3001);
+  });
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(button);
+  expect(action).toHaveBeenCalledOnce();
+});
+
+test("moving from an input to its label starts the help dwell", () => {
+  render(
+    <Help topic="manage-targets" as="div">
+      <label htmlFor="target-name">Target name</label>
+      <input id="target-name" />
+    </Help>,
+  );
+  const input = screen.getByRole("textbox");
+  const label = screen.getByText("Target name");
+  fireEvent.mouseOver(input);
+  fireEvent.mouseEnter(input);
+  fireEvent.mouseOver(label, { relatedTarget: input });
+  act(() => {
+    vi.advanceTimersByTime(HELP_DELAY);
+  });
+  expect(screen.getByRole("dialog", { name: "Manage targets" })).toBeDefined();
 });
 
 test("Help labels retain immediate keyboard and touch access", () => {

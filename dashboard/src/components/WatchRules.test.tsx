@@ -166,11 +166,19 @@ test("watch rule fields are checked against the collector limits, and Save follo
   expect(document.activeElement, "Remove focuses Add rule").toBe(
     button("Add rule"),
   );
-  // The rule limit stops Add.
-  for (let row = 1; row < 64; ++row) {
-    fireEvent.click(button("Add rule"));
-    type(row, "prefix", `p${String(row)}`);
-  }
+});
+
+test("the rule limit stops Add", async () => {
+  await editor(
+    watchReply(
+      Array.from({ length: 63 }, (_, row) => ({
+        prefix: `p${String(row)}`,
+        wake_ms: 500,
+      })),
+    ),
+  );
+  expect((button("Add rule") as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(button("Add rule"));
   expect((button("Add rule") as HTMLButtonElement).disabled).toBe(true);
   expect(text("watch-limit")).toBe("At most 64 rules.");
 });

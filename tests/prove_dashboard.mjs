@@ -756,7 +756,7 @@ try {
   await evaluate(
     "document.querySelector('#history [data-help=history]').focus()",
   );
-  await delay(300);
+  await until(() => evaluate("!!document.querySelector('.help-card h2')"), "focused History help");
   assert.deepEqual(
     await evaluate(
       "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
@@ -1833,9 +1833,10 @@ finally:
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape" });
   };
+  await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await click("#fleet-add");
   await until(() => evaluate("document.querySelector('#target-settings')?.matches(':modal')"), "native modal top layer");
-  await evaluate("document.querySelector('#target-id').focus()");
+  await evaluate("document.querySelector('#target-id').closest('[data-help]').focus()");
   await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Target ID\"]')"), "modal ID help");
   const modalHelp = await evaluate(`(() => {
     const dialog = document.querySelector('#target-settings');
@@ -1845,14 +1846,26 @@ finally:
     return {inside:card.closest('dialog')===dialog,focusInside:dialog.contains(document.activeElement),clamped:r.top>=0&&r.bottom<=innerHeight};
   })()`);
   assert.deepEqual(modalHelp, { inside: true, focusInside: true, clamped: true });
+  const addHit = await evaluate(`(() => {
+    const dialog = document.querySelector('#target-settings');
+    const bounds = dialog.getBoundingClientRect();
+    const button = document.querySelector('#target-save');
+    const r = button.getBoundingClientRect();
+    return {space: Math.max(bounds.left - 16, innerWidth - bounds.right - 16),
+      hit: button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))};
+  })()`);
+  assert.ok(addHit.space >= 200, "space beside the dialog for Help");
+  assert.equal(addHit.hit, true, "Add target remains clickable while Help is open");
   await click('#target-settings .help-card[aria-label="Target ID"] a[href="#help-manage-targets"]');
   await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Manage targets\"]')"), "modal related help link");
   await escapeTargetHelp();
   assert.equal(await evaluate("document.querySelector('#target-settings').matches(':modal') && !document.querySelector('#target-settings .help-card')"), true);
   // Help remains interactive in the top layer. Close by a real pointer click.
-  await evaluate("document.querySelector('#target-input').focus()");
+  await evaluate("document.querySelector('#target-input').closest('[data-help]').focus()");
+  await until(() => evaluate("!!document.querySelector('#target-settings .help-close')"), "modal input help");
   await click("#target-settings .help-close");
   assert.equal(await evaluate("document.querySelector('#target-settings .help-card') === null"), true);
+  await send("Emulation.clearDeviceMetricsOverride");
   await typeInto("#target-id", "proof");
   await escapeTargetHelp();
   await typeInto("#target-input", "2147483647");
