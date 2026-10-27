@@ -1,4 +1,4 @@
-import { ObservationContext } from "./observationContext";
+import { ViewIdentityContext } from "./viewIdentityContext";
 import { useContext, useState, type MouseEvent } from "react";
 import type { Readout } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
@@ -9,7 +9,7 @@ import type { TipRow } from "../lib/threads";
  * the whole surface, so a target with thousands of threads mounts one card.
  */
 export function useReadout(selection = "") {
-  const { key } = useContext(ObservationContext);
+  const { key } = useContext(ViewIdentityContext);
   const context = `${key}|${selection}`;
   const [seen, setSeen] = useState(context);
   const [readout, setReadout] = useState<

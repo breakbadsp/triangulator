@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { useState } from "react";
 import { Help, HelpPortalTarget, setHoverHelp } from "./Help";
 import { HelpGuideProvider, PageHelp } from "./HelpGuide";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { TimeChart } from "../components/TimeChart";
 import { ThreadDrawer } from "../components/ThreadDrawer";
 import { emptySeries } from "../lib/series";
@@ -44,7 +44,7 @@ function Fixture({
     threads: [{ tid: 7, name: "worker", generation: 1, state: "running" }],
   };
   return (
-    <ObservationContext value={{ key: scope, recorded: false }}>
+    <ViewIdentityContext value={{ key: scope, recorded: false }}>
       <HelpGuideProvider>
         <header className="topbar">
           <button>Outside</button>
@@ -82,7 +82,7 @@ function Fixture({
           />
         )}
       </HelpGuideProvider>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 function explain(label = "CPU source") {

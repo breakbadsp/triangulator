@@ -1,4 +1,4 @@
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import {
   createContext,
   useContext,
@@ -74,7 +74,7 @@ export function Help({
   id?: string;
   readout?: Readout;
 }) {
-  const { key: observation, recorded } = useContext(ObservationContext);
+  const { key: observation, recorded } = useContext(ViewIdentityContext);
   const [seen, setSeen] = useState(observation);
   const guide = useContext(GuideContext);
   const active = useContext(HelpEnabled) && !guide?.request;

@@ -1,5 +1,5 @@
 import { GuideContext } from "../help/guideContext";
-import { ObservationContext } from "../hooks/observationContext";
+import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { useContext } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, getJson } from "../api/client";
@@ -91,7 +91,7 @@ function History({
   const [request, setRequest] = useState<HistoryRequest | null>(null);
   const [result, setResult] = useState<HistoryResult | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
-  const observation = useContext(ObservationContext);
+  const observation = useContext(ViewIdentityContext);
   const mode = observation.recorded ? "recorded" : "live";
   const [previousMode, setPreviousMode] = useState(mode);
   const enteringRecording = mode === "recorded" && previousMode === "live";
@@ -215,7 +215,7 @@ function History({
     );
   }
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{ ...observation, key: `${observation.key}|history|${selection}` }}
     >
       <div className="card" id="history">
@@ -464,7 +464,7 @@ function History({
           </div>
         </details>
       </div>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
 function HistoryHeading({
@@ -573,7 +573,7 @@ export function ThreadDrawer({
       ? (series.cpu.get(selected.tid) ?? [])
       : [];
   return (
-    <ObservationContext
+    <ViewIdentityContext
       value={{
         key: `${context ?? ""}|thread|${String(selected?.session)}|${String(selected?.tid)}|${String(selected?.generation)}`,
         recorded,
@@ -694,6 +694,6 @@ export function ThreadDrawer({
           </div>
         </aside>
       </HelpEnabled>
-    </ObservationContext>
+    </ViewIdentityContext>
   );
 }
