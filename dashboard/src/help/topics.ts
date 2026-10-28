@@ -386,12 +386,11 @@ const topics = {
     reading:
       "Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
     limits:
-      "Tiles do not run trend rules or memory-map layout rules. Each refresh reads the latest live view of every target, so a large number of targets costs more network traffic than one dashboard.",
+      "Tiles do not run trend rules or memory-map layout rules. Each refresh returns the latest live view of every target in one response, so a large number of targets makes that response larger than one dashboard needs.",
     related: ["fleet-tile", "target-switch", "assessment"],
-    source:
-      "Collector: `/api/targets` and `/api/live?target=host/id` for each target",
+    source: "Collector: `/api/fleet`",
     sourceDetail:
-      "The page reads the target list, then the latest live view of each target, at most 4 at a time, every 5 seconds.",
+      "The page makes one `/api/fleet` request every 5 seconds. It returns the target list and the latest live view of each target from one publication.",
   },
   overview: {
     title: "Process overview",
