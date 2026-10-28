@@ -1,7 +1,13 @@
 import { useContext } from "react";
 import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import type { ViewMode } from "../lib/assess";
-import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
+import {
+  useMemo,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import type { LiveResponse, MemorySummary, PressureScope } from "../api/types";
 import { Help } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
@@ -131,14 +137,9 @@ export function MemoryMap({
     <ViewIdentityContext
       value={{
         ...context,
-        key: JSON.stringify([
-          context.key,
-          m?.layout_id,
-          m?.flags,
-          m?.stale,
-          memory.layout?.id,
-          memory.layout?.flags,
-        ]),
+        // One process: a new layout of it must not release a held
+        // snapshot. Help that reads a layout is keyed by the shown layout.
+        key: JSON.stringify([context.key, memory.key]),
       }}
     >
       <section id="memory-map" className="block">
@@ -209,6 +210,21 @@ export function MemoryMap({
           </Fold>
         </div>
       </section>
+    </ViewIdentityContext>
+  );
+}
+
+/**
+ * Help that describes a layout closes when the shown layout changes. A held
+ * snapshot keeps its layout, so its open help stays.
+ */
+function ShownLayout({ id, children }: { id: string; children: ReactNode }) {
+  const context = useContext(ViewIdentityContext);
+  return (
+    <ViewIdentityContext
+      value={{ ...context, key: JSON.stringify([context.key, id]) }}
+    >
+      {children}
     </ViewIdentityContext>
   );
 }
@@ -420,87 +436,89 @@ function AddressMap({
     hold.holding && model.rows.length > 0,
   );
   return (
-    <div className="card" {...hold.handlers}>
-      <div className="card-head">
-        <div>
-          <Help topic="amap" as="div">
-            <h3>
-              Address space{" "}
-              <span
-                id="memory-region-count"
-                className="muted"
-                style={{ fontWeight: 400 }}
-              >
-                {shown.count}
-              </span>
-            </h3>
-          </Help>
-          <p>
-            High addresses at the top. Unmapped spaces between mappings are
-            shortened.
-          </p>
-        </div>
-      </div>
-      <Help topic="amap" as="div" readout={readout ?? undefined}>
-        <div id="memory-amap" className="amap">
-          {shown.items ? (
-            shown.items.map((item, index) =>
-              item.gap ? (
-                <GapRow key={`gap|${String(index)}`} text={item.text} />
-              ) : (
-                <BarRow
-                  key={item.bar.key}
-                  item={item}
-                  pressed={item.bar.key === selected}
-                  onSelect={onSelect}
-                  onMove={(event) => {
-                    show(
-                      event,
-                      `bar|${shown.layoutId}|${item.bar.key}`,
-                      item.name,
-                      [
-                        {
-                          color: item.color,
-                          value: item.range,
-                          label: "Addresses",
-                        },
-                        {
-                          color: item.color,
-                          value: item.members,
-                          label: "Mappings",
-                        },
-                      ],
-                      stamp,
-                    );
-                  }}
-                  onLeave={clear}
-                />
-              ),
-            )
-          ) : (
-            <p className="muted">
-              No layout yet. It arrives with the next memory-map sample.
+    <ShownLayout id={shown.layoutId}>
+      <div className="card" {...hold.handlers}>
+        <div className="card-head">
+          <div>
+            <Help topic="amap" as="div">
+              <h3>
+                Address space{" "}
+                <span
+                  id="memory-region-count"
+                  className="muted"
+                  style={{ fontWeight: 400 }}
+                >
+                  {shown.count}
+                </span>
+              </h3>
+            </Help>
+            <p>
+              High addresses at the top. Unmapped spaces between mappings are
+              shortened.
             </p>
-          )}
+          </div>
         </div>
-      </Help>
-      <Help topic="amap" as="div">
-        <div className="legend">
-          {LEGEND.map(([color, label]) => (
-            <span key={label}>
-              <i className="sw" style={{ background: color }} />
-              {label}
-            </span>
-          ))}
-        </div>
-      </Help>
-      <p className="mem-hint">
-        The darker part of a bar is its size on a log scale, from 4 KB to the
-        largest bar. Adjacent mappings of the same kind are joined into one bar.
-        Mapped is not resident: a bar can be large and use little RAM. Click a
-        bar to zoom.
-      </p>
-    </div>
+        <Help topic="amap" as="div" readout={readout ?? undefined}>
+          <div id="memory-amap" className="amap">
+            {shown.items ? (
+              shown.items.map((item, index) =>
+                item.gap ? (
+                  <GapRow key={`gap|${String(index)}`} text={item.text} />
+                ) : (
+                  <BarRow
+                    key={item.bar.key}
+                    item={item}
+                    pressed={item.bar.key === selected}
+                    onSelect={onSelect}
+                    onMove={(event) => {
+                      show(
+                        event,
+                        `bar|${shown.layoutId}|${item.bar.key}`,
+                        item.name,
+                        [
+                          {
+                            color: item.color,
+                            value: item.range,
+                            label: "Addresses",
+                          },
+                          {
+                            color: item.color,
+                            value: item.members,
+                            label: "Mappings",
+                          },
+                        ],
+                        stamp,
+                      );
+                    }}
+                    onLeave={clear}
+                  />
+                ),
+              )
+            ) : (
+              <p className="muted">
+                No layout yet. It arrives with the next memory-map sample.
+              </p>
+            )}
+          </div>
+        </Help>
+        <Help topic="amap" as="div">
+          <div className="legend">
+            {LEGEND.map(([color, label]) => (
+              <span key={label}>
+                <i className="sw" style={{ background: color }} />
+                {label}
+              </span>
+            ))}
+          </div>
+        </Help>
+        <p className="mem-hint">
+          The darker part of a bar is its size on a log scale, from 4 KB to the
+          largest bar. Adjacent mappings of the same kind are joined into one
+          bar. Mapped is not resident: a bar can be large and use little RAM.
+          Click a bar to zoom.
+        </p>
+      </div>
+    </ShownLayout>
   );
 }
 function GapRow({ text }: { text: string }) {
@@ -602,192 +620,198 @@ function Zoom({
   );
   const shownRow = shown.row;
   return (
-    <div className="grid">
-      <div className="card" {...hold.handlers}>
-        <div className="card-head">
-          <div>
-            <Help topic="memzoom" as="div">
-              <h3>
-                Zoom:{" "}
-                <code id="memory-zoom-name">
-                  {shownRow ? memoryRowName(shownRow) : "—"}
-                </code>
-              </h3>
-            </Help>
-            <p id="memory-zoom-sub" className="mono">
-              {shownRow
-                ? `${hex(shownRow.lo)} – ${hex(shownRow.hi)} · ${memoryPerms(shownRow)}${memoryGrows(shownRow.cat)}`
-                : ""}
-            </p>
+    <ShownLayout id={shown.layoutId}>
+      <div className="grid">
+        <div className="card" {...hold.handlers}>
+          <div className="card-head">
+            <div>
+              <Help topic="memzoom" as="div">
+                <h3>
+                  Zoom:{" "}
+                  <code id="memory-zoom-name">
+                    {shownRow ? memoryRowName(shownRow) : "—"}
+                  </code>
+                </h3>
+              </Help>
+              <p id="memory-zoom-sub" className="mono">
+                {shownRow
+                  ? `${hex(shownRow.lo)} – ${hex(shownRow.hi)} · ${memoryPerms(shownRow)}${memoryGrows(shownRow.cat)}`
+                  : ""}
+              </p>
+            </div>
           </div>
-        </div>
-        <dl id="memory-zoom-facts" className="facts four">
-          {shown.facts.map(([label, value]) => (
-            <Help key={label} topic={topicOf(label, "memzoom")} as="div">
-              <dt className="help-fact">{label}</dt>
-              <dd>{value}</dd>
-            </Help>
-          ))}
-        </dl>
-        <p
-          id="memory-grid-caption"
-          className="muted"
-          style={{ fontSize: 12, margin: "14px 0 6px" }}
-        >
-          {shown.grid ? shown.grid.caption : "No layout yet."}
-          {shown.grid?.margin && (
-            <>
-              <br />
-              <Help topic="heapmargin">Heap display margin</Help>
-              <span>{shown.grid.margin}</span>
-            </>
-          )}
-        </p>
-        {shown.grid && shownRow && (
-          <Help topic="memzoom" as="div" readout={grid.readout ?? undefined}>
-            <div
-              id="memory-grid"
-              className="pagegrid"
-              onMouseLeave={grid.clear}
-            >
-              {shown.grid.cells.map((cell, index) => {
-                const key = String(index);
-                if (cell.kind === "pad") return <i key={key} className="pad" />;
-                const region = cell.kind === "region";
-                return (
-                  <i
-                    key={key}
-                    className={
-                      region
-                        ? [
-                            cell.cat === "guard" ? "cell-guard" : "",
-                            cell.isNew ? "cell-new" : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ") || undefined
-                        : `cell-${cell.kind}`
-                    }
-                    style={
-                      region
-                        ? ({ "--kind": kindColor(cell.cat) } as CSSProperties)
-                        : undefined
-                    }
-                    onMouseMove={(event) => {
-                      grid.show(
-                        event,
-                        `cell|${shown.layoutId}|${shownRow.key}|${String(shown.displayLo)}|${key}`,
-                        region ? cell.name : cell.label,
+          <dl id="memory-zoom-facts" className="facts four">
+            {shown.facts.map(([label, value]) => (
+              <Help key={label} topic={topicOf(label, "memzoom")} as="div">
+                <dt className="help-fact">{label}</dt>
+                <dd>{value}</dd>
+              </Help>
+            ))}
+          </dl>
+          <p
+            id="memory-grid-caption"
+            className="muted"
+            style={{ fontSize: 12, margin: "14px 0 6px" }}
+          >
+            {shown.grid ? shown.grid.caption : "No layout yet."}
+            {shown.grid?.margin && (
+              <>
+                <br />
+                <Help topic="heapmargin">Heap display margin</Help>
+                <span>{shown.grid.margin}</span>
+              </>
+            )}
+          </p>
+          {shown.grid && shownRow && (
+            <Help topic="memzoom" as="div" readout={grid.readout ?? undefined}>
+              <div
+                id="memory-grid"
+                className="pagegrid"
+                onMouseLeave={grid.clear}
+              >
+                {shown.grid.cells.map((cell, index) => {
+                  const key = String(index);
+                  if (cell.kind === "pad")
+                    return <i key={key} className="pad" />;
+                  const region = cell.kind === "region";
+                  return (
+                    <i
+                      key={key}
+                      className={
                         region
                           ? [
-                              {
-                                color: kindColor(cell.cat),
-                                value: cell.address,
-                                label: "Address",
-                              },
+                              cell.cat === "guard" ? "cell-guard" : "",
+                              cell.isNew ? "cell-new" : "",
                             ]
-                          : [],
-                        stamp,
-                      );
-                    }}
+                              .filter(Boolean)
+                              .join(" ") || undefined
+                          : `cell-${cell.kind}`
+                      }
+                      style={
+                        region
+                          ? ({ "--kind": kindColor(cell.cat) } as CSSProperties)
+                          : undefined
+                      }
+                      onMouseMove={(event) => {
+                        grid.show(
+                          event,
+                          `cell|${shown.layoutId}|${shownRow.key}|${String(shown.displayLo)}|${key}`,
+                          region ? cell.name : cell.label,
+                          region
+                            ? [
+                                {
+                                  color: kindColor(cell.cat),
+                                  value: cell.address,
+                                  label: "Address",
+                                },
+                              ]
+                            : [],
+                          stamp,
+                        );
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </Help>
+          )}
+          <Help topic="memzoom" as="div">
+            <div id="memory-grid-legend" className="legend">
+              {shown.grid?.legend.map((item) => (
+                <span key={item.label}>
+                  <i
+                    className={`sw ${item.className}`}
+                    style={item.color ? { background: item.color } : undefined}
                   />
-                );
-              })}
+                  {item.label}
+                </span>
+              ))}
             </div>
           </Help>
-        )}
-        <Help topic="memzoom" as="div">
-          <div id="memory-grid-legend" className="legend">
-            {shown.grid?.legend.map((item) => (
-              <span key={item.label}>
-                <i
-                  className={`sw ${item.className}`}
-                  style={item.color ? { background: item.color } : undefined}
-                />
-                {item.label}
-              </span>
+          <p className="mem-hint">Cells show mappings, not resident pages.</p>
+          <div id="memory-charts" className="mem-charts">
+            {shown.charts.map((chart) => (
+              <ZoomChart key={chart.title} chart={chart} />
             ))}
           </div>
-        </Help>
-        <p className="mem-hint">Cells show mappings, not resident pages.</p>
-        <div id="memory-charts" className="mem-charts">
-          {shown.charts.map((chart) => (
-            <ZoomChart key={chart.title} chart={chart} />
-          ))}
-        </div>
-        <p className="mem-hint">
-          Boundary offsets start at the first available sample. History covers
-          up to 15 minutes.
-        </p>
-        <p className="mem-hint">
-          <Help topic="threadstacks">Thread stacks</Help> can keep a fixed
-          reserved size while residency changes.
-        </p>
-        <details
-          id="memory-region-details"
-          open={regionsOpen}
-          onToggle={(event) => {
-            onRegionsOpen(event.currentTarget.open);
-          }}
-        >
-          <summary id="memory-regions-summary" className="help-label">
-            <Help topic="memregions">Member regions</Help>
-          </summary>
-          <div className="table-wrap" style={{ maxHeight: 260, marginTop: 12 }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    <Help topic="memregions">Region</Help>
-                  </th>
-                  <th>
-                    <Help topic="memregions">Start</Help>
-                  </th>
-                  <th className="num">
-                    <Help topic="memregions">Size</Help>
-                  </th>
-                  <th>
-                    <Help topic="memregions">Perms</Help>
-                  </th>
-                  <th className="num">
-                    <Help topic="vmas">VMAs</Help>
-                  </th>
-                </tr>
-              </thead>
-              <Help
-                topic="memregions"
-                as="tbody"
-                id="memory-regions"
-                readout={regions.readout ?? undefined}
-              >
-                {shown.members.map((item) => (
-                  <tr key={item.key}>
-                    <td
-                      onMouseMove={(event) => {
-                        if (shownRow && item.path)
-                          regions.show(
-                            event,
-                            `region|${shownRow.key}|${item.start}|name`,
-                            item.path,
-                            [],
-                            stamp,
-                          );
-                      }}
-                      onMouseLeave={regions.clear}
-                    >
-                      {item.name}
-                    </td>
-                    <td className="mono">{item.start}</td>
-                    <td className="num">{item.size}</td>
-                    <td className="mono">{item.permissions}</td>
-                    <td className="num">{item.vmas}</td>
+          <p className="mem-hint">
+            Boundary offsets start at the first available sample. History covers
+            up to 15 minutes.
+          </p>
+          <p className="mem-hint">
+            <Help topic="threadstacks">Thread stacks</Help> can keep a fixed
+            reserved size while residency changes.
+          </p>
+          <details
+            id="memory-region-details"
+            open={regionsOpen}
+            onToggle={(event) => {
+              onRegionsOpen(event.currentTarget.open);
+            }}
+          >
+            <summary id="memory-regions-summary" className="help-label">
+              <Help topic="memregions">Member regions</Help>
+            </summary>
+            <div
+              className="table-wrap"
+              style={{ maxHeight: 260, marginTop: 12 }}
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      <Help topic="memregions">Region</Help>
+                    </th>
+                    <th>
+                      <Help topic="memregions">Start</Help>
+                    </th>
+                    <th className="num">
+                      <Help topic="memregions">Size</Help>
+                    </th>
+                    <th>
+                      <Help topic="memregions">Perms</Help>
+                    </th>
+                    <th className="num">
+                      <Help topic="vmas">VMAs</Help>
+                    </th>
                   </tr>
-                ))}
-              </Help>
-            </table>
-          </div>
-        </details>
+                </thead>
+                <Help
+                  topic="memregions"
+                  as="tbody"
+                  id="memory-regions"
+                  readout={regions.readout ?? undefined}
+                >
+                  {shown.members.map((item) => (
+                    <tr key={item.key}>
+                      <td
+                        onMouseMove={(event) => {
+                          if (shownRow && item.path)
+                            regions.show(
+                              event,
+                              `region|${shownRow.key}|${item.start}|name`,
+                              item.path,
+                              [],
+                              stamp,
+                            );
+                        }}
+                        onMouseLeave={regions.clear}
+                      >
+                        {item.name}
+                      </td>
+                      <td className="mono">{item.start}</td>
+                      <td className="num">{item.size}</td>
+                      <td className="mono">{item.permissions}</td>
+                      <td className="num">{item.vmas}</td>
+                    </tr>
+                  ))}
+                </Help>
+              </table>
+            </div>
+          </details>
+        </div>
       </div>
-    </div>
+    </ShownLayout>
   );
 }
 

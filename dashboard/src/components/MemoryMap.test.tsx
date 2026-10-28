@@ -384,3 +384,34 @@ test("a map under the pointer before its first layout shows the layout when it a
   ).toBeDefined();
   expect(factValue("Size (mapped)")).toBe("1.0 MiB");
 });
+
+test("QA-098 a held map keeps its layout across a new layout of the same process", async () => {
+  const heapBar = () =>
+    screen.getByRole("button", { name: /^\[heap\]/ }).textContent;
+  const { rerender } = render(<Harness live={processView({ heap: 4096 })} />);
+  await settle();
+  expect(heapBar()).toContain("4.0 KiB");
+  const map = byId("memory-amap").closest(".card") as Element;
+  fireEvent.mouseEnter(map);
+  fireEvent.mouseMove(screen.getByRole("button", { name: /^\[heap\]/ }), {
+    clientX: 20,
+    clientY: 20,
+  });
+  await act(() => vi.advanceTimersByTimeAsync(HELP_DELAY));
+  expect(screen.getByRole("dialog").textContent).toContain("– 0x555500401000");
+
+  rerender(<Harness live={processView({ seq: 2, heap: 8192 })} />);
+  await settle();
+  expect(heapBar()).toContain("4.0 KiB");
+  expect(screen.getByRole("dialog").textContent).toContain("– 0x555500401000");
+
+  // The new layout shows on release, and the help of the old one closes.
+  fireEvent.mouseLeave(map);
+  expect(heapBar()).toContain("8.0 KiB");
+  expect(screen.queryAllByRole("dialog")).toEqual([]);
+
+  fireEvent.mouseEnter(map);
+  rerender(<Harness live={processView({ pid: 2, seq: 3, heap: 0x3000 })} />);
+  await settle();
+  expect(heapBar()).toContain("12.0 KiB");
+});
