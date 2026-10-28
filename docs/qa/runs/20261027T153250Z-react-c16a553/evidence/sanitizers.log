@@ -1,0 +1,76 @@
+make check-asan
+make[1]: Entering directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make check SANITIZER=address
+make[2]: Entering directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+cd dashboard && npm run check
+
+> triangulator-dashboard@0.0.0 check
+> tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-pure-parity.mjs
+
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all  -std=c++23 -pthread -fsanitize=address,undefined -c sampler/main.cpp -o build/triangulator-sampler.o
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -Ibuild  -std=c++23 -pthread -fsanitize=address,undefined -c collector/main.cpp -o build/triangulator-collector.o
+Checking formatting...
+All matched files use Prettier code style!
+
+ RUN  v5.0.5 /home/daksh/src/triangulator-qa-react-full-c16a553/dashboard
+
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all  -std=c++23 -pthread -fsanitize=address,undefined -c metrics/main.cpp -o build/triangulator-socket-report.o
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 -pthread -fsanitize=address,undefined -c examples/buggy-workload/buggy_workload.cpp -o build/buggy-workload.o
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 -pthread -fsanitize=address,undefined -c tests/benchmark_target.cpp -o build/benchmark-target.o
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 -pthread -fsanitize=address,undefined -c tests/benchmark_victim.cpp -o build/benchmark-victim.o
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all  -std=c++23 -pthread -fsanitize=address,undefined -c tests/benchmark_sampling.cpp -o build/benchmark-sampling.o
+ ❯ src/Replay.test.tsx (35 tests | 2 failed) 62961ms
+   × recorded mixes and readouts keep Other and No access distinct while panels are held 5153ms
+   × recorded custom thread history ends at the recording and preserves the custom inputs for return 5320ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/Replay.test.tsx > recorded mixes and readouts keep Other and No access distinct while panels are held
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:652:1
+    650| });
+    651|
+    652| test("recorded mixes and readouts keep Other and No access distinct wh…
+       | ^
+    653|   await open();
+    654|   fireEvent.focus(byId("search"));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/Replay.test.tsx > recorded custom thread history ends at the recording and preserves the custom inputs for return
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:728:1
+    726| });
+    727|
+    728| test("recorded custom thread history ends at the recording and preserv…
+       | ^
+    729|   await open();
+    730|   fireEvent.click(element("#threads tr[data-tid]"));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 47 passed (48)
+      Tests  2 failed | 367 passed (369)
+   Start at  21:15:53
+   Duration  64.86s (tests 52%, environment 40%, setup 6%, import 2%, worker 1%)
+
+Environment  jsdom was created 48 times · 96.91s total, 40% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+make[2]: *** [Makefile:231: dashboard-check] Error 1
+make[2]: *** Waiting for unfinished jobs....
+make[2]: Leaving directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make[1]: *** [Makefile:237: check-asan] Error 2
+make[1]: Leaving directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make: *** [Makefile:244: check-sanitizers] Error 2

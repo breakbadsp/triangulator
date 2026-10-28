@@ -1,0 +1,5 @@
+[bugbench    0.0s] fd-leak: open() without close() until EMFILE (pid 32604, 160 s)
+[bugbench   74.3s] open failed: Too many open files (retrying forever)
+[bugbench   74.5s] open failed: Too many open files (retrying forever)
+[bugbench   74.8s] open failed: Too many open files (retrying forever)
+[bugbench   74.9s] done
