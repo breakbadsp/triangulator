@@ -8,7 +8,9 @@ import {
   selectRecording,
   returnToLive,
   dismissFinal,
+  observationReducer,
 } from "./observation";
+import { emptySeries } from "./series";
 export function frame(
   at: number,
   session = "old",
@@ -148,5 +150,59 @@ describe("replay boundaries", () => {
   it("treats only the last selectable step as Live with fractional endpoints", () => {
     expect(timelineAtLive(999, 1000.5, 1)).toBe(false);
     expect(timelineAtLive(1000, 1000.5, 1)).toBe(true);
+  });
+});
+describe("observation events", () => {
+  it("ignores a repeated live event, as StrictMode replays effects", () => {
+    const view = frame(2000, "live");
+    const once = observationReducer(initialObservations("host/app"), {
+      type: "live",
+      view,
+      now: 2000,
+      restored: emptySeries,
+    });
+    const twice = observationReducer(once, {
+      type: "live",
+      view,
+      now: 2000,
+      restored: emptySeries,
+    });
+    expect(twice).toBe(once);
+    expect(twice.live?.series.points).toHaveLength(1);
+  });
+  it("restores a kept last target once for its session", () => {
+    const view = frame(1500, "gone");
+    const event = {
+      type: "last-target",
+      session: "gone",
+      view,
+      restored: emptySeries,
+    } as const;
+    const restored = observationReducer(initialObservations("host/app"), event);
+    expect(restored.final?.view.health.session).toBe("gone");
+    expect(observationReducer(restored, event)).toBe(restored);
+  });
+  it("keeps a recording's sockets and layout out of a recorded view", () => {
+    let state = observationReducer(initialObservations("host/app"), {
+      type: "live",
+      view: frame(2000, "live"),
+      now: 2000,
+      restored: emptySeries,
+    });
+    state = observationReducer(state, {
+      type: "recording",
+      view: frame(1000),
+      resources: [],
+    });
+    const recorded = state.recorded;
+    state = observationReducer(state, {
+      type: "reads",
+      reads: {
+        sockets: { available: false, reason: "none" },
+        socketPolled: true,
+        socketError: new Error("late"),
+      },
+    });
+    expect(state.recorded).toBe(recorded);
   });
 });
