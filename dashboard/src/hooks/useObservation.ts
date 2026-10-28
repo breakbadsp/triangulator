@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -22,15 +23,12 @@ import type {
   WatchRule,
 } from "../api/types";
 import { asResourcePoints } from "../lib/assess/memory";
-import { memoryReducer, type MemoryAction } from "../lib/memoryView";
+import type { MemoryAction } from "../lib/memoryView";
 import {
   displayed,
   initialObservations,
-  receiveLive,
-  selectRecording,
-  returnToLive,
-  dismissFinal,
-  restoreFinal,
+  observationReducer,
+  type FrozenView,
   type Observation,
 } from "../lib/observation";
 import { restoreSeries, threadsEntry } from "../lib/series";
@@ -100,55 +98,47 @@ export function useObservation(
   latest: { view: LiveResponse; now: number } | undefined,
   range: number,
 ) {
-  const [state, setState] = useState(() => {
-    // Before any cache read: a switch from another target clears them here.
+  const [next, dispatch] = useReducer(
+    observationReducer,
+    target,
+    initialObservations,
+  );
+  // Before any cache read: a switch from another target clears them here.
+  // The live event below reads the caches in a later effect of this commit.
+  useLayoutEffect(() => {
     settleArrival(target);
-    return initialObservations(target);
-  });
-  const [restoredOnce, setRestoredOnce] = useState(false);
-  let next = state;
-  if (
-    latest &&
-    (latest.view !== state.latest?.view || latest.now !== state.latest.now)
-  ) {
-    if (!restoredOnce) {
-      setRestoredOnce(true);
-      const frozen = parseFrozen(
+  }, [target]);
+  const restoredOnce = useRef(false);
+  useLayoutEffect(() => {
+    if (!latest) return;
+    let frozen: FrozenView | undefined;
+    if (!restoredOnce.current) {
+      restoredOnce.current = true;
+      const kept = parseFrozen(
         read("triangulator:frozen", target),
         latest.view.health.session,
       );
-      if (frozen) {
-        next = restoreFinal(
-          next,
-          frozen.live,
-          frozen.at,
-          frozen.layout,
-          restored(target, frozen.live.health.session),
-        );
-        if (frozen.exit && next.final)
-          next = {
-            ...next,
-            final: {
-              ...next.final,
-              mode: { kind: "final", exit: frozen.exit },
-              view: { ...next.final.view, exit: frozen.exit },
-            },
-          };
-      } else
+      if (kept)
+        frozen = {
+          ...kept,
+          exit: kept.exit ?? null,
+          series: restored(target, kept.live.health.session),
+        };
+      else
         try {
           sessionStorage.removeItem(storageKey("triangulator:frozen", target));
         } catch {
           /* Storage is blocked. */
         }
     }
-    next = receiveLive(
-      next,
-      latest.view,
-      latest.now,
-      restored(target, latest.view.health.session),
-    );
-  }
-  if (next !== state) setState(next);
+    dispatch({
+      type: "live",
+      view: latest.view,
+      now: latest.now,
+      restored: restored(target, latest.view.health.session),
+      frozen,
+    });
+  }, [target, latest]);
   const current = useRef(next);
   useLayoutEffect(() => {
     current.current = next;
@@ -236,56 +226,23 @@ export function useObservation(
     loadSockets,
     3000,
   );
-  const [seenReads, setSeenReads] = useState({
-    resources: resourceResult?.data,
-    layout: layoutResult?.data,
-    sockets: socketResult?.data,
-    socketError: socketResult?.error,
-  });
-  if (
-    seenReads.resources !== resourceResult?.data ||
-    seenReads.layout !== layoutResult?.data ||
-    seenReads.sockets !== socketResult?.data ||
-    seenReads.socketError !== socketResult?.error
-  ) {
-    setSeenReads({
-      resources: resourceResult?.data,
-      layout: layoutResult?.data,
-      sockets: socketResult?.data,
-      socketError: socketResult?.error,
+  const resourceData = resourceResult?.data;
+  const layoutData = layoutResult?.data;
+  const socketData = socketResult?.data;
+  const socketError = socketResult?.error;
+  const socketPolled = !!socketResult;
+  useLayoutEffect(() => {
+    dispatch({
+      type: "reads",
+      reads: {
+        resources: resourceData,
+        layout: layoutData,
+        sockets: socketData,
+        socketError,
+        socketPolled,
+      },
     });
-    if (shown) {
-      let updated = shown;
-      if (resourceResult?.data)
-        updated = { ...updated, resources: resourceResult.data };
-      if (mode === "live" && layoutResult?.data)
-        updated = {
-          ...updated,
-          memory: memoryReducer(updated.memory, {
-            type: "layout",
-            key: updated.memory.key ?? updated.key,
-            layout: layoutResult.data,
-          }),
-        };
-      if (
-        mode === "live" &&
-        socketResult?.data &&
-        (!socketResult.data.available || socketResult.data.pid === pid)
-      )
-        updated = { ...updated, sockets: socketResult.data };
-      if (mode === "live" && socketResult)
-        updated = { ...updated, socketError: socketResult.error };
-      if (updated !== shown)
-        setState({
-          ...next,
-          [mode === "recorded"
-            ? "recorded"
-            : mode === "final"
-              ? "final"
-              : "live"]: updated,
-        });
-    }
-  }
+  }, [resourceData, layoutData, socketData, socketError, socketPolled]);
   const expected =
     next.latest?.view.health.target_absent === true
       ? next.latest.view.health.last_target?.session
@@ -310,21 +267,16 @@ export function useObservation(
     lastTarget,
     1000,
   );
-  if (keptResult?.data !== undefined && wantFinal) {
-    const view = keptResult.data;
-    const checked = { ...next, checked: [...next.checked, wantFinal] };
-    setState(
-      view?.health.session === wantFinal && view.threads.length
-        ? restoreFinal(
-            checked,
-            view,
-            view.health.last_seen ?? 0,
-            null,
-            restored(target, wantFinal),
-          )
-        : checked,
-    );
-  }
+  const kept = keptResult?.data;
+  useLayoutEffect(() => {
+    if (kept === undefined || !wantFinal) return;
+    dispatch({
+      type: "last-target",
+      session: wantFinal,
+      view: kept,
+      restored: restored(target, wantFinal),
+    });
+  }, [target, kept, wantFinal]);
   const final = next.final;
   useEffect(() => {
     if (!final) return;
@@ -374,10 +326,7 @@ export function useObservation(
     selection.current?.abort();
     const controller = new AbortController();
     selection.current = controller;
-    setState((previous) => ({
-      ...previous,
-      generation: previous.generation + 1,
-    }));
+    dispatch({ type: "invalidate" });
     return controller;
   }
   async function inspect(
@@ -427,7 +376,7 @@ export function useObservation(
       controller.signal.throwIfAborted();
       if (!current.current.recorded)
         save(target, current.current.final ?? current.current.live);
-      setState((previous) => selectRecording(previous, snapshot, points));
+      dispatch({ type: "recording", view: snapshot, resources: points });
       const gap =
         requestedAt - snapshot.recorded_at >
         Math.max(2, (snapshot.recording_interval_s ?? reply.interval_s) * 2);
@@ -445,22 +394,18 @@ export function useObservation(
   }
   function live() {
     invalidate();
-    setState((previous) =>
-      returnToLive(
-        previous,
-        restored(target, previous.latest?.view.health.session),
-      ),
-    );
+    dispatch({
+      type: "return-to-live",
+      restored: restored(target, current.current.latest?.view.health.session),
+    });
     setNote(LIVE_NOTE);
   }
   function dismiss() {
     invalidate();
-    setState((previous) =>
-      dismissFinal(
-        previous,
-        restored(target, previous.latest?.view.health.session),
-      ),
-    );
+    dispatch({
+      type: "dismiss-final",
+      restored: restored(target, current.current.latest?.view.health.session),
+    });
     setUnsaved(false);
     try {
       sessionStorage.removeItem(storageKey("triangulator:frozen", target));
@@ -469,31 +414,10 @@ export function useObservation(
     }
   }
   function memory(action: MemoryAction) {
-    setState((previous) => {
-      const observation = displayed(previous);
-      if (!observation) return previous;
-      let value = memoryReducer(observation.memory, action);
-      if (observation.mode.kind === "recorded")
-        value = { ...value, history: [], heapSpan: null, previous: null };
-      return {
-        ...previous,
-        [observation.mode.kind === "recorded"
-          ? "recorded"
-          : observation.mode.kind === "final"
-            ? "final"
-            : "live"]: { ...observation, memory: value },
-      };
-    });
+    dispatch({ type: "memory", action });
   }
   const rules = useCallback((value: readonly WatchRule[] | null) => {
-    setState((previous) =>
-      previous.live &&
-      !previous.final &&
-      !previous.recorded &&
-      previous.live.watchRules !== value
-        ? { ...previous, live: { ...previous.live, watchRules: value } }
-        : previous,
-    );
+    dispatch({ type: "watch-rules", rules: value });
   }, []);
   return {
     observation: shown,
