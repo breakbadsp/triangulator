@@ -257,11 +257,12 @@ try {
   );
   onPaused = async ({ requestId }) => {
     const reply = await send("Fetch.getResponseBody", { requestId });
-    const view = JSON.parse(
+    const fleet = JSON.parse(
       reply.base64Encoded
         ? Buffer.from(reply.body, "base64").toString()
         : reply.body,
     );
+    const view = fleet.live[mover];
     const main = view.threads.find((thread) => thread.tid === view.health.pid);
     view.threads = [
       { ...main, cpu_pct: 99, run_delay_pct: 0, state: "running" },
@@ -270,16 +271,11 @@ try {
       requestId,
       responseCode: 200,
       responseHeaders: [{ name: "Content-Type", value: "application/json" }],
-      body: Buffer.from(JSON.stringify(view)).toString("base64"),
+      body: Buffer.from(JSON.stringify(fleet)).toString("base64"),
     });
   };
   await send("Fetch.enable", {
-    patterns: [
-      {
-        urlPattern: `*/api/live?target=${encodeURIComponent(mover)}`,
-        requestStage: "Response",
-      },
-    ],
+    patterns: [{ urlPattern: "*/api/fleet", requestStage: "Response" }],
   });
   await until(async () => {
     const after = await evaluate(tileKeys);

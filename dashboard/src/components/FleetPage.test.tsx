@@ -69,6 +69,20 @@ function fleetRespond(url: string): Response {
   throw new Error("Unexpected request: " + url);
 }
 let respond: (url: string) => Response;
+// Builds the one overview reply from the per-target replies of `respond`.
+async function fleetReply() {
+  const list = (await respond("/api/targets").json()) as {
+    targets: readonly { key: string }[];
+  };
+  const live: Record<string, unknown> = {};
+  for (const { key } of list.targets) {
+    const reply = respond(
+      "/api/live?" + new URLSearchParams({ target: key }).toString(),
+    );
+    if (reply.ok) live[key] = await reply.json();
+  }
+  return Response.json({ list, live });
+}
 let requests: string[];
 let hidden: boolean;
 beforeEach(() => {
@@ -90,7 +104,9 @@ beforeEach(() => {
             ? input.href
             : input.url;
       requests.push(url);
-      return Promise.resolve(respond(url));
+      return url === "/api/fleet"
+        ? fleetReply()
+        : Promise.resolve(respond(url));
     }),
   );
 });
@@ -155,7 +171,8 @@ test("overview page shows one tile per target, worst first, and links to each da
       ),
     ),
   ).toBe(false);
-  expect(requests.filter((url) => url === "/api/targets")).toHaveLength(1);
+  expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(1);
+  expect(requests.some((url) => url.startsWith("/api/live"))).toBe(false);
   expect(tiles().map((tile) => link(tile).getAttribute("href"))).toEqual([
     "?target=h%2Fbusy",
     "?target=h%2Fapi",
@@ -179,7 +196,7 @@ test("overview page shows one tile per target, worst first, and links to each da
   const first = tiles()[0];
   await poll();
   expect(tiles()[0]).toBe(first);
-  expect(requests.filter((url) => url === "/api/targets")).toHaveLength(2);
+  expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(2);
 });
 
 test("overview page polls nothing while the tab is hidden and reports a lost collector", async () => {
@@ -206,32 +223,6 @@ test("overview page polls nothing while the tab is hidden and reports a lost col
     "No targets yet. A target appears here when its sampler sends its first data to this collector.",
   );
   expect(document.title).toBe("Targets · Thread monitor");
-});
-
-test("overview page starts no new live request once the tab is hidden mid-batch", async () => {
-  const many = Array.from({ length: 8 }, (_, i) => ({
-    key: "h/t" + String(i),
-    host: "h",
-    id: "t" + String(i),
-    pid: 100 + i,
-    status: "live",
-  }));
-  let started = 0;
-  respond = (url) => {
-    if (url === "/api/targets") return Response.json({ targets: many });
-    if (url === "/api/targets/control")
-      return Response.json({ enabled: false });
-    if (++started === 4) hidden = true;
-    return Response.json(fleetView(1, "x", 1));
-  };
-  await start();
-  expect(requests.filter((url) => url.startsWith("/api/live?"))).toHaveLength(
-    4,
-  );
-  expect(tiles()).toHaveLength(0);
-  hidden = false;
-  await poll();
-  expect(tiles()).toHaveLength(8);
 });
 
 test("overview tile faces show only identity and an accessible assessment dot", async () => {

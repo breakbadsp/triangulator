@@ -2,6 +2,12 @@
 export interface TargetsResponse {
   targets: readonly Target[];
 }
+/** The target list and each target's live view, from one publication. */
+export interface FleetResponse {
+  list: TargetsResponse;
+  /** Unchecked live views by target key; the page parses each one. */
+  live: Readonly<Record<string, unknown>>;
+}
 
 export interface Target {
   key: string;

@@ -183,6 +183,26 @@ class SharedState
     return targets_json_;
   }
 
+  // The target list and each target's live view from one publication, so
+  // the fleet overview needs one request, not one for each target.
+  struct FleetView
+  {
+    std::shared_ptr<const std::string> targets_;
+    std::vector<std::pair<std::string, std::shared_ptr<const std::string>>>
+        live_;
+  };
+  [[nodiscard]] FleetView Fleet()
+  {
+    std::lock_guard lock{mutex_};
+    FleetView fleet{.targets_ = targets_json_, .live_ = {}};
+    fleet.live_.reserve(targets_.size());
+    for (const auto& target : targets_)
+    {
+      fleet.live_.emplace_back(target.key_, target.live_);
+    }
+    return fleet;
+  }
+
  private:
   std::mutex mutex_;
   std::vector<PublishedTarget> targets_;
