@@ -1,0 +1,5 @@
+udp_host="127.0.0.1"
+udp_port=19499
+http_port=19490
+data_dir="/home/daksh/.local/state/triangulator/qa-c16a553/ui-final/fixture/data"
+replay_interval_s=0

@@ -1,0 +1,7 @@
+Set target_process (or target_pid) in /qa/upgrade/triangulator/config/sampler.toml to select the process to monitor.
+Collector configuration is valid
+Collector configuration is valid
+collector started (pid 308152), log: /qa/upgrade/triangulator/logs/collector.log
+Sampler configuration is valid
+sampler started (pid 308177), log: /qa/upgrade/triangulator/logs/sampler.log
+Dashboard address is configured by http_host and http_port in /qa/upgrade/triangulator/config/collector.toml (default: http://127.0.0.1:9401).

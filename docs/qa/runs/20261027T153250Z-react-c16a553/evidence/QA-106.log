@@ -1,0 +1,2 @@
+[bugbench    0.0s] lock-convoy: sleeping while holding one global lock (pid 86480, 160 s)
+[bugbench   72.8s] done

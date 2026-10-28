@@ -1,0 +1,16 @@
+import {chromium} from '../browser/node_modules/playwright/index.mjs';
+import fs from 'node:fs';
+const phase=process.argv[2];
+const out='/home/daksh/.local/state/triangulator/qa-c16a553/compat-checks/browser-'+phase+'.json';
+const b=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const p=await b.newPage({viewport:{width:1280,height:800}});
+const responses=[],errors=[];
+p.on('pageerror',e=>errors.push(String(e)));
+p.on('response',async r=>{if(r.url().includes('/api/live')){try{responses.push({url:r.url(),status:r.status(),body:await r.json()})}catch{}}});
+await p.goto('http://127.0.0.1:19411/?target=omarchy%2Fdefault');
+await p.waitForTimeout(6500);
+const text=await p.locator('body').innerText();
+const result={phase,at:new Date().toISOString(),browser:b.version(),url:p.url(),viewport:{width:1280,height:800},text,errors,responses};
+fs.writeFileSync(out,JSON.stringify(result,null,2));
+console.log(JSON.stringify({phase,head:text.slice(0,130),responses:responses.map(r=>({status:r.status,health:r.body.health,resource:r.body.resources?.interval_s,memory:r.body.memory?.interval_s})),errors}));
+await b.close();
