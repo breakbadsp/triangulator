@@ -112,3 +112,56 @@ test("the current section follows scroll, hidden sections, resize and layout cha
   flush();
   expect(active()).toBe("#overview");
 });
+
+// The browser handles the fragment of a fresh load before React creates the
+// sections, so the page must scroll to the section itself. The header and the
+// sections above grow as data arrives, so it aligns again until the user
+// scrolls.
+for (const [hash, section] of [
+  ["#resources", "resources"],
+  ["#thread=7", null],
+  ["#unknown", null],
+] as const)
+  test(`a fresh load with ${hash} ${section ? "keeps its section in view until the user scrolls" : "scrolls to no section"}`, () => {
+    history.replaceState(null, "", `/?target=t${hash}`);
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    const flush = () => {
+      act(() => {
+        while (frames.length) frames.shift()?.(0);
+      });
+    };
+    const scrolled: string[] = [];
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+      this: Element,
+    ) {
+      scrolled.push(this.id);
+    });
+    const entries = [
+      { id: "timeline", label: "Timeline" },
+      { id: "resources", label: "Resources" },
+    ];
+    render(
+      <>
+        <SectionTabs entries={entries} />
+        <main>
+          {entries.map((entry) => (
+            <section key={entry.id} id={entry.id} />
+          ))}
+        </main>
+      </>,
+    );
+    flush();
+    expect(scrolled).toEqual(section ? [section] : []);
+    fireEvent.resize(window);
+    flush();
+    expect(scrolled).toEqual(section ? [section, section] : []);
+    fireEvent.wheel(window);
+    fireEvent.resize(window);
+    flush();
+    expect(scrolled).toEqual(section ? [section, section] : []);
+  });
