@@ -89,6 +89,7 @@ export async function proveCleanup({
       Home: 36,
       End: 35,
       ArrowDown: 40,
+      Enter: 13,
     }[key];
     await send("Input.dispatchKeyEvent", {
       type: "keyDown",
@@ -96,6 +97,7 @@ export async function proveCleanup({
       code: key,
       modifiers,
       windowsVirtualKeyCode,
+      text: key === "Enter" ? "\r" : undefined,
     });
     await send("Input.dispatchKeyEvent", {
       type: "keyUp",
@@ -147,25 +149,32 @@ export async function proveCleanup({
     });
     await layout();
   };
-  const explain = async (selector, immediate = false) => {
+  // A label opens its guide from its info button: a pointer click, or Enter
+  // with keyboard focus. A chart has no info button: its hover readout card
+  // opens the guide.
+  const explain = async (selector, keyboard = false) => {
     await until(() => evaluate("!document.querySelector('#help-guide')"), "previous guide closes");
     await layout();
-    await evaluate(
-      `(() => {const el=document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');el.scrollIntoView({block:'center'});if(document.activeElement===el)el.blur();el.focus();})()`,
+    const info = await evaluate(
+      `(() => {const help=document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');help.scrollIntoView({block:'center'});const button=help.querySelector(':scope > button.help-info');if(!button)return null;button.dataset.proofInfo='';return true;})()`,
     );
-    if (immediate) await keypress("Enter");
-    await until(
-      () =>
-        evaluate(
-          `!!document.querySelector(${JSON.stringify(selector)}).closest('[data-help]').getAttribute('aria-describedby')`,
-        ),
-      "focused metric card",
-    );
-    const id = await evaluate(
-      `document.querySelector(${JSON.stringify(selector)}).closest('[data-help]').getAttribute('aria-describedby')`,
-    );
-    assert.ok(id, "Focused source has a help card");
-    await click(`[id=${JSON.stringify(id)}] .help-open-guide`);
+    if (info && keyboard) {
+      await evaluate("document.querySelector('[data-proof-info]').focus()");
+      await keypress("Enter");
+    } else if (info) await click("[data-proof-info]");
+    else {
+      const point = await evaluate(
+        `(() => {const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()`,
+      );
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+      await until(
+        () => evaluate("!!document.querySelector('.help-card .help-open-guide')"),
+        "chart readout card",
+      );
+      await click(".help-card .help-open-guide");
+    }
+    await evaluate("document.querySelector('[data-proof-info]')?.removeAttribute('data-proof-info')");
     await until(
       () => evaluate("!!document.querySelector('#help-guide')"),
       "metric guide opens",
@@ -236,24 +245,33 @@ export async function proveCleanup({
     153,
   );
   assert.equal(await evaluate("document.querySelector('main').inert"), true);
-  await keypress("Tab", 8);
-  assert.equal(await evaluate("document.activeElement.id"), "hover-help");
+  // Tab wraps inside the modal guide in both directions.
+  await evaluate(
+    "[...document.querySelectorAll('#help-guide button')].at(-1).focus()",
+  );
   await keypress("Tab");
   assert.equal(
     await evaluate("document.activeElement.getAttribute('aria-label')"),
     "Close metric guide",
   );
-  for (const width of [1199, 1200, 1440, 390]) {
+  await keypress("Tab", 8);
+  assert.equal(
+    await evaluate(
+      "document.activeElement === [...document.querySelectorAll('#help-guide button')].at(-1)",
+    ),
+    true,
+  );
+  for (const width of [759, 760, 1440, 390]) {
     await viewport(width);
     assert.equal(
       await evaluate(
         "document.querySelector('#help-guide').getAttribute('role')",
       ),
-      width < 1200 ? "dialog" : "complementary",
+      width < 760 ? "dialog" : "complementary",
     );
     assert.equal(
       await evaluate("document.querySelector('main').inert"),
-      width < 1200,
+      width < 760,
     );
   }
   await viewport(390, 320);
@@ -304,37 +322,13 @@ export async function proveCleanup({
     assert.notEqual(await evaluate(`document.querySelector('#${heldId} svg').innerHTML`), snapshot.held);
     metricGuides.push({ topic, headers: snapshot.headers, value: snapshot.last, selectedChartHeld: true, otherChartUpdated: true });
   }
-  // Reads stay available when quota prevents writes. Each case starts with
-  // its saved preference and restores the native storage method afterwards.
-  const partialStorage = [];
-  for (const saved of [null, "on", "off"]) {
-    await evaluate(`localStorage.removeItem('triangulator:hover-help');${saved === null ? "" : `localStorage.setItem('triangulator:hover-help', '${saved}');`}`);
-    await explain("#chart-load");
-    await evaluate("window.proofStorageWrite=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('quota','QuotaExceededError')}");
-    await click("#hover-help");
-    const enabled = saved === "off";
-    assert.equal(await evaluate("document.querySelector('#hover-help').checked"), enabled);
-    assert.equal(await evaluate("localStorage.getItem('triangulator:hover-help')"), saved);
-    await keypress("Escape");
-    await explain("#chart-load");
-    assert.equal(await evaluate("document.querySelector('#hover-help').checked"), enabled, "guide reopens with the page choice after a failed write");
-    await keypress("Escape");
-    await evaluate("document.activeElement.blur()");
-    const hover = await evaluate("(()=>{const el=document.querySelector('#chart-load').closest('[data-help]');el.scrollIntoView({block:'center'});const r=el.getBoundingClientRect();return {x:r.left+4,y:r.top+4}})()");
-    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
-    await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...hover });
-    await delay(3100);
-    assert.equal(await evaluate("!!document.querySelector('.help-card')"), enabled, "hover uses the page choice after a failed write");
-    await keypress("Escape");
-    await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
-    await evaluate("Storage.prototype.setItem=window.proofStorageWrite;delete window.proofStorageWrite");
-    await explain("#chart-load", true);
-    if (!enabled) await click("#hover-help");
-    else { await click("#hover-help"); await click("#hover-help"); }
-    assert.equal(await evaluate("localStorage.getItem('triangulator:hover-help')"), "on");
-    await keypress("Escape");
-    partialStorage.push({ saved, enabled, guideReopened: true, hover: true, keyboard: true, successfulWriteRestored: true });
-  }
+  // A label also opens its guide from the keyboard.
+  await explain("#overview-memory .help-label[data-help='rss']", true);
+  assert.equal(
+    await evaluate("document.querySelector('#help-guide-title').textContent"),
+    "Memory (RSS)",
+  );
+  await keypress("Escape");
   await click("#threads tr[data-tid] td:first-child");
   await until(
     () =>
@@ -429,7 +423,7 @@ export async function proveCleanup({
     threadReturn: true,
     frozenChart: true,
     metricGuides,
-    partialStorage,
+    keyboardGuide: true,
     nativeDialog: !!controlBase,
     zoom,
   };
