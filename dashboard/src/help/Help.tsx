@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { createHelpTimer } from "./createHelpTimer";
 import { helpTopics, type HelpTopic, type HelpTopicId } from "./topics";
 import { GuideContext } from "./guideContext";
+import { createHelpCards, HelpCardsContext } from "./helpCards";
 import { date } from "../lib/format";
 import "./help.css";
 
@@ -33,11 +34,6 @@ export interface Readout {
 export const HelpEnabled = createContext(true);
 // Native modal dialogs must contain their help cards in the top layer.
 export const HelpPortalTarget = createContext<HTMLElement | null>(null);
-
-const helpTimers = new Set<{ cancel: (block?: boolean) => void }>();
-export function cancelHelp() {
-  for (const timer of helpTimers) timer.cancel(true);
-}
 
 export function Help(props: {
   topic: HelpTopicId;
@@ -61,6 +57,10 @@ export function Help(props: {
   const active = useContext(HelpEnabled) && !guide?.request;
   const dismissOwner = guide?.dismissOwner;
   const portalTarget = useContext(HelpPortalTarget);
+  // Outside a page provider, for example in a unit test, a card owns itself.
+  const shared = useContext(HelpCardsContext);
+  const [own] = useState(createHelpCards);
+  const cards = shared ?? own;
   const anchor = useRef<HTMLElement>(null);
   useEffect(() => {
     const owner = anchor.current;
@@ -103,22 +103,13 @@ export function Help(props: {
   }
 
   useEffect(() => {
-    helpTimers.add(timer);
-    function escape(event: KeyboardEvent) {
-      if (event.key === "Escape" && timer.active) {
-        // A pending hover can receive Escape before another card's listener.
-        cancelHelp();
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    }
-    document.addEventListener("keydown", escape, true);
+    const remove = cards.add(timer);
     return () => {
-      helpTimers.delete(timer);
-      document.removeEventListener("keydown", escape, true);
+      remove();
       timer.cancel();
     };
-  }, [timer]);
+  }, [cards, timer]);
+  useEffect(() => (shared ? undefined : own.listen()), [shared, own]);
   useEffect(() => {
     if (!shown) return;
     function dismiss(event: PointerEvent) {
