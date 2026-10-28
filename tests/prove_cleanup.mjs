@@ -37,10 +37,16 @@ export async function proveCleanup({
   const longName = "worker-" + "long-process-identity".repeat(18);
   setPaused(async ({ requestId, request }) => {
     const url = new URL(request.url);
-    const data = await (await fetch(url)).json();
-    if (url.pathname === "/api/live") {
-      liveReads++;
-      if (data.threads[0]) {
+    const reply = await (await fetch(url)).json();
+    // The overview reads the target list and live views in one request.
+    const fleet = url.pathname === "/api/fleet";
+    if (url.pathname !== "/api/targets") liveReads++;
+    for (const data of url.pathname === "/api/targets"
+      ? []
+      : fleet
+        ? Object.values(reply.live)
+        : [reply]) {
+      if (data.threads?.[0]) {
         data.threads[0].name = longName;
         data.threads[0].cpu_pct = 99;
       }
@@ -55,9 +61,10 @@ export async function proveCleanup({
         available: true, stale: false, pid: data.health.pid,
         values: { ...data.memory?.values, vm_size_bytes: (512 + liveReads * 8) * 2 ** 20 },
       };
-    } else {
+    }
+    if (url.pathname !== "/api/live") {
       targetReads++;
-      for (const target of data.targets) {
+      for (const target of (fleet ? reply.list : reply).targets) {
         target.host += "-" + "long-host".repeat(18);
       }
     }
@@ -65,11 +72,15 @@ export async function proveCleanup({
       requestId,
       responseCode: 200,
       responseHeaders: [{ name: "Content-Type", value: "application/json" }],
-      body: Buffer.from(JSON.stringify(data)).toString("base64"),
+      body: Buffer.from(JSON.stringify(reply)).toString("base64"),
     });
   });
   await send("Fetch.enable", {
-    patterns: [{ urlPattern: "*/api/live*" }, { urlPattern: "*/api/targets" }],
+    patterns: [
+      { urlPattern: "*/api/live*" },
+      { urlPattern: "*/api/targets" },
+      { urlPattern: "*/api/fleet" },
+    ],
   });
   const keypress = async (key, modifiers = 0) => {
     const windowsVirtualKeyCode = {
@@ -511,15 +522,16 @@ async function proveZoom({ root, profile, targetUrl, stop, longName }) {
         const { requestId, request } = event.params;
         const url = new URL(request.url);
         const body = await (await fetch(url)).json();
-        if (url.pathname === "/api/live") {
-          if (body.threads[0]) {
-            body.threads[0].name = longName;
-            body.threads[0].cpu_pct = 99;
-          }
-        } else {
-          for (const target of body.targets)
+        const fleet = url.pathname === "/api/fleet";
+        if (url.pathname !== "/api/targets")
+          for (const view of fleet ? Object.values(body.live) : [body])
+            if (view.threads?.[0]) {
+              view.threads[0].name = longName;
+              view.threads[0].cpu_pct = 99;
+            }
+        if (url.pathname !== "/api/live")
+          for (const target of (fleet ? body.list : body).targets)
             target.host += "-" + "long-host".repeat(18);
-        }
         await send("Fetch.fulfillRequest", {
           requestId,
           responseCode: 200,
@@ -534,6 +546,7 @@ async function proveZoom({ root, profile, targetUrl, stop, longName }) {
       patterns: [
         { urlPattern: "*/api/live*" },
         { urlPattern: "*/api/targets" },
+        { urlPattern: "*/api/fleet" },
       ],
     });
     await send("Page.navigate", { url: targetUrl });

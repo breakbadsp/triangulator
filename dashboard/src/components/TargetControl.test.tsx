@@ -99,6 +99,8 @@ beforeEach(() => {
       reads.push(url);
       if (url === "/api/targets/control") return Response.json(control);
       if (url === "/api/targets") return Response.json({ targets });
+      if (url === "/api/fleet")
+        return Response.json({ list: { targets }, live: {} });
       return Response.json({
         health: { pid: 10, last_seen: Date.now() / 1000 },
         threads: [],
