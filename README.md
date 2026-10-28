@@ -230,9 +230,9 @@ recorded execution result.
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
-| PASSED | 90 | - |
+| PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
-| BLOCKED | 13 | QA-009, QA-016, QA-023, QA-052, QA-066, QA-067, QA-068, QA-069, QA-079, QA-086, QA-097, QA-104, QA-109 |
+| BLOCKED | 14 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-066, QA-067, QA-068, QA-069, QA-079, QA-086, QA-097, QA-104, QA-109 |
 | NOT_RUN | 1 | QA-007 |
 | **Total** | **116** | |
 <!-- qa-summary:end -->
