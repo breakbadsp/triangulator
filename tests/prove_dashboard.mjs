@@ -372,6 +372,40 @@ try {
     "Monitor",
     "Settings",
   ]);
+  // A fresh load of a section fragment: the browser handles the fragment
+  // before React creates the sections, so the page scrolls to it itself.
+  const targetUrl = `${base}/?${new URLSearchParams({ target: target.key })}`;
+  await send("Page.navigate", { url: "about:blank" });
+  await until(() => evaluate("location.href === 'about:blank'"), "blank page");
+  await send("Page.navigate", { url: `${targetUrl}#resources` });
+  await until(
+    () =>
+      evaluate(
+        `location.hash === '#resources' && document.querySelector('#target-name')?.textContent === ${JSON.stringify(expectedName)}`,
+      ),
+    "fresh load with a section fragment",
+  );
+  await delay(1000);
+  const fragment = await evaluate(`({
+    scrollY,
+    top: document.querySelector('#resources').getBoundingClientRect().top,
+    header: document.querySelector('.topbar').getBoundingClientRect().bottom,
+    current: document.querySelector('nav.tabs [aria-current=location]')?.getAttribute('href'),
+  })`);
+  assert.ok(fragment.scrollY > 0, JSON.stringify(fragment));
+  assert.ok(
+    fragment.top >= fragment.header && fragment.top <= fragment.header + 40,
+    JSON.stringify(fragment),
+  );
+  assert.equal(fragment.current, "#resources");
+  await send("Page.navigate", { url: targetUrl });
+  await until(
+    () =>
+      evaluate(
+        `location.hash === '' && document.querySelector('#target-name')?.textContent === ${JSON.stringify(expectedName)} && !!document.querySelector('#chart-load svg polygon')`,
+      ),
+    "plain target page after the fragment check",
+  );
   assert.match(summary.heroLoad, /^\d+\.\d\d$/);
   assert.ok(summary.tiles.includes("Active threads"));
   // The chart is drawn at its host's measured width, not the 600 px default.

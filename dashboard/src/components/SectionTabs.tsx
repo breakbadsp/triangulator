@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Help } from "../help/Help";
 
 export interface Section {
@@ -27,6 +27,26 @@ export function SectionTabs({
   const [current, setCurrent] = useState(
     location.hash.slice(1) || entries[0]?.id,
   );
+  // The browser handles the fragment of a fresh load before React creates
+  // the sections, so it finds none. The page scrolls to that section, and
+  // again each time the header or the sections above it change size, until
+  // the user scrolls. A `#thread=` fragment is not a section; App handles it.
+  const fragment = useRef<string | null>(null);
+  useEffect(() => {
+    const id = location.hash.slice(1);
+    if (!entries.some((section) => section.id === id)) return;
+    fragment.current = id;
+    const events = ["wheel", "touchstart", "keydown", "pointerdown"];
+    function release() {
+      fragment.current = null;
+    }
+    for (const name of events) addEventListener(name, release, true);
+    return () => {
+      for (const name of events) removeEventListener(name, release, true);
+    };
+    // Only the fragment of the first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!entries.length) return;
     let frame: number | undefined;
@@ -41,6 +61,8 @@ export function SectionTabs({
         "--header-offset",
         `${String(line)}px`,
       );
+      if (fragment.current)
+        document.getElementById(fragment.current)?.scrollIntoView();
       let active = entries[0]?.id;
       for (const section of entries) {
         const element = document.getElementById(section.id);

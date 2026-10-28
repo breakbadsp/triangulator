@@ -244,10 +244,10 @@
 
 ## QA-020: Current section tab
 
-- Revision: 2
+- Revision: 3
 - Driver: judged
 - Test: Navigate every section by pointer, keyboard, scrolling, direct URL, reload, Back, and Forward. Repeat in both themes, narrow width, and during layout changes, including guide open, close, and resize.
-- Expected: Exactly one visible section has the highlight and `aria-current="location"`. Settings is current at the page bottom. Help does not block navigation. The current tab follows the visible section, including the last section at the bottom. Header offsets follow sticky and narrow layouts. Hash and target query navigation stay correct.
+- Expected: Exactly one visible section has the highlight and `aria-current="location"`. Settings is current at the page bottom. Help does not block navigation. The current tab follows the visible section, including the last section at the bottom. Header offsets follow sticky and narrow layouts. Hash and target query navigation stay correct. A fresh load of a section URL, such as `/?target=<key>#resources`, opens at that section below the header and stays there while the data loads.
 
 ## QA-021: Dashboard HTTP server animation
 
