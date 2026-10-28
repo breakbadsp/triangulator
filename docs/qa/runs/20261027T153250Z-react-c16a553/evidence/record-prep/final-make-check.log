@@ -1,0 +1,68 @@
+cd dashboard && npm run check
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c sampler/main.cpp -o build/triangulator-sampler.o
+
+> triangulator-dashboard@0.0.0 check
+> tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-pure-parity.mjs
+
+cd dashboard && npm run build
+
+> triangulator-dashboard@0.0.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 84 modules transformed.
+rendering chunks...
+[plugin vite:singlefile] 
+
+[plugin vite:singlefile] Inlining: index-CFFtZc5D.js
+[plugin vite:singlefile] Inlining: style-Co1-foEo.css
+computing gzip size...
+dist/index.html  622.97 kB │ gzip: 186.43 kB
+
+✓ built in 395ms
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -static-libstdc++ -static-libgcc -std=c++23 -pthread  -c metrics/main.cpp -o build/triangulator-socket-report.o
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c examples/buggy-workload/buggy_workload.cpp -o build/buggy-workload.o
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/benchmark_target.cpp -o build/benchmark-target.o
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/benchmark_victim.cpp -o build/benchmark-victim.o
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c tests/benchmark_sampling.cpp -o build/benchmark-sampling.o
+Checking formatting...
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/wire_test.cpp -o build/wire-test.o
+All matched files use Prettier code style!
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/sampler_test.cpp -o build/sampler-test.o
+
+ RUN  v5.0.5 /home/daksh/src/triangulator-qa-react-full-c16a553/dashboard
+
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c tests/allocation_test.cpp -o build/allocation-test.o
+mkdir -p build
+c++  -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/collector_allocation_test.cpp -o build/collector-allocation-test.o
+c++: fatal error: Killed signal terminated program cc1plus
+compilation terminated.
+make: *** [Makefile:216: build/collector-allocation-test.o] Error 1
+make: *** Waiting for unfinished jobs....
+
+ Test Files  52 passed (52)
+      Tests  364 passed (364)
+   Start at  07:07:59
+   Duration  52.12s (tests 59%, environment 34%, setup 4%, import 2%, transform 1%)
+
+Environment  jsdom was created 52 times · 74.23s total, 34% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+PASS: RSS growth control and unavailable-row process boundary match the pinned oracle.
+PASS: 2400 old/new memory map steps with 576 layout fetches; 25072 displayed-value comparisons; 144 compatible historical layout checks.
+PASS: 670 old/new resource/socket displayed-value and note comparisons.
+PASS: 724 old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, 400 thread map readings, and 10 restores; repeated calls are isolated.
+PASS: 21 old/new replay and final transitions, 100 live steps and 11 recording selections.
+PASS: 600 old/new past-assessment episode and slot comparisons.
+PASS: assesshistory and historyfilters text matches the pinned page word for word.

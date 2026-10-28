@@ -1,0 +1,124 @@
+make check-asan
+make[1]: Entering directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make check SANITIZER=address
+make[2]: Entering directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+cd dashboard && npm run check
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 build/triangulator-sampler.o -fsanitize=address,undefined  -pthread -o build/triangulator-sampler
+
+> triangulator-dashboard@0.0.0 check
+> tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-pure-parity.mjs
+
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -Ibuild -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 build/triangulator-collector.o -fsanitize=address,undefined  -pthread -lsqlite3 -o build/triangulator-collector
+Checking formatting...
+All matched files use Prettier code style!
+
+ RUN  v5.0.5 /home/daksh/src/triangulator-qa-react-full-c16a553/dashboard
+
+mkdir -p build
+c++ -DTRIANGULATOR_SANITIZER -O2 -flto -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -std=c++23 build/triangulator-socket-report.o -fsanitize=address,undefined  -pthread -lsqlite3 -o build/triangulator-socket-report
+ ❯ src/Replay.test.tsx (35 tests | 6 failed) 71916ms
+   × recorded panels share the selected clock, rates and identity; return preserves live trends and controls 6733ms
+   × newer selection and return reject late snapshot successes and errors 5222ms
+   × returning to Live cancels a pending refresh of recording bounds 7114ms
+   × Previous retains Live when fresh recording bounds are empty or fail 7230ms
+   × confirmed absence freezes panels, survives restart, and final Settings counts current threads 5381ms
+   × an exit during replay freezes saved live analysis; dismissal leaves the recording open 5165ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/Replay.test.tsx > recorded panels share the selected clock, rates and identity; return preserves live trends and controls
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:244:1
+    242| });
+    243|
+    244| test("recorded panels share the selected clock, rates and identity; re…
+       | ^
+    245|   await open();
+    246|   fireEvent.click(element('[data-map-window="300"]'));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/Replay.test.tsx > newer selection and return reject late snapshot successes and errors
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:336:1
+    334| });
+    335|
+    336| test("newer selection and return reject late snapshot successes and er…
+       | ^
+    337|   await open();
+    338|   const old = deferred();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/Replay.test.tsx > returning to Live cancels a pending refresh of recording bounds
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:379:1
+    377| });
+    378|
+    379| test("returning to Live cancels a pending refresh of recording bounds"…
+       | ^
+    380|   await open();
+    381|   const bounds = deferred();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/Replay.test.tsx > Previous retains Live when fresh recording bounds are empty or fail
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:391:1
+    389| });
+    390|
+    391| test("Previous retains Live when fresh recording bounds are empty or f…
+       | ^
+    392|   await open();
+    393|   pending.set("/api/replay", () =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  src/Replay.test.tsx > confirmed absence freezes panels, survives restart, and final Settings counts current threads
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:457:1
+    455| });
+    456|
+    457| test("confirmed absence freezes panels, survives restart, and final Se…
+       | ^
+    458|   await open();
+    459|   current = frame(2001);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  src/Replay.test.tsx > an exit during replay freezes saved live analysis; dismissal leaves the recording open
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/Replay.test.tsx:503:1
+    501| });
+    502|
+    503| test("an exit during replay freezes saved live analysis; dismissal lea…
+       | ^
+    504|   await open();
+    505|   await previous();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed | 47 passed (48)
+      Tests  6 failed | 363 passed (369)
+   Start at  21:48:17
+   Duration  75.32s (tests 66%, environment 27%, setup 4%, import 2%, transform 1%)
+
+Environment  jsdom was created 48 times · 95.14s total, 27% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+make[2]: *** [Makefile:231: dashboard-check] Error 1
+make[2]: *** Waiting for unfinished jobs....
+make[2]: Leaving directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make[1]: *** [Makefile:237: check-asan] Error 2
+make[1]: Leaving directory '/home/daksh/src/triangulator-qa-react-full-c16a553'
+make: *** [Makefile:244: check-sanitizers] Error 2

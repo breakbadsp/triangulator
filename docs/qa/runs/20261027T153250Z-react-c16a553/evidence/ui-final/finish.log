@@ -1,0 +1,169 @@
+START QA-121 real-collector-no-alerts
+PASSED QA-121 real-collector-no-alerts
+START QA-028 native-identity-affinity
+PASSED QA-028 native-identity-affinity
+START QA-029 native-trend-controls
+AssertionError [ERR_ASSERTION]: The input did not match the regular expression /trend.*not shown|live.*trend|recorded|Historical/i. Input:
+
+'Summary\n' +
+  '\n' +
+  'qa-ui-native · 1 threads. Trends kept in this tab since 01:37:50 AM.\n' +
+  '\n' +
+  '1 min\n' +
+  '5 min\n' +
+  '15 min\n' +
+  'Assessment\n' +
+  'Something is struggling\n' +
+  'as of 01:37:50 AM\n' +
+  '\n' +
+  '1 of 1 threads are waiting: 1 sleep. No thread is using noticeable CPU.\n' +
+  '\n' +
+  '▲\n' +
+  'The app is not keeping up reading 127.0.0.1:38453\n' +
+  'Receive buffer 99.6% full with 207.2 KB unread; 2 packets dropped. 23 more sockets likewise.\n' +
+  '▲\n' +
+  '96 UDP datagrams dropped: receive buffers full\n' +
+  'A UDP reader in the target’s namespace is too slow or its SO_RCVBUF is too small (net.core.rmem_max caps it).\n' +
+  '!\n' +
+  'Part of the process is swapped out\n' +
+  '124.8 MiB in swap next to 3.9 MiB resident. Touching it costs a major fault.\n' +
+  'Active threads\n' +
+  '1\n' +
+  'of 1 · 0 idle for 10 s+\n' +
+  'Context switches\n' +
+  '1/s\n' +
+  '1.4/s per active thread\n' +
+  'Disk & syscall I/O\n' +
+  '0 B/s\n' +
+  'read 0 B/s · write 0 B/s\n' +
+  'Thread churn\n' +
+  '+0 / −0\n' +
+  'lower bound · seen starting / ending, last minute\n' +
+  'Process load\n' +
+  '\n' +
+  'Running, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.\n' +
+  '\n' +
+  '—\n' +
+  '1-minute load\n' +
+  '5 min\n' +
+  '—\n' +
+  '15 min\n' +
+  '—\n' +
+  'On CPU now\n' +
+  '0.00 cores\n' +
+  'Waiting for CPU\n' +
+  'negligible\n' +
+  'Busiest thread\n' +
+  'all idle\n' +
+  'Memory use\n' +
+  '\n' +
+  'Physical memory and mapped address space.\n' +
+  '\n' +
+  'Resident memory (RSS)\n' +
+  '3.9 MiB\n' +
+  'Virtual size (VmSize)\n' +
+  '134.3 MiB\n' +
+  'Process details\n' +
+  '\n' +
+  'What the target is. The sampler reads these once when it starts watching the process.\n' +
+  '\n' +
+  'Command line\n' +
+  './qa-ui-native /qa/ui-final/native.py\n' +
+  'Executable\n' +
+  '/qa/ui-final/qa-ui-native\n' +
+  'Working directory\n' +
+  '/qa/ui-final\n' +
+  'Started\n' +
+  '10/27/2026, 8:49:16 PM · up 4.8 h\n' +
+  'Parent process\n' +
+  'PID 1\n' +
+  'User & group\n' +
+  'UID 0 · GID 0\n' +
+  'Allowed CPUs\n' +
+  '2-3'
+
+    at file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:14:823
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:14:1
+FAILED QA-029 native-trend-controls
+START QA-098 native-map-grid-holds
+locator.innerHTML: Timeout 8000ms exceeded.
+Call log:
+[2m  - waiting for locator('#memory-grid')[22m
+
+    at snap (/home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:15:444)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:15:576
+    at async check (/home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:15:1
+FAILED QA-098 native-map-grid-holds
+START QA-096 native-socket-replacement
+Error: Observation timeout: new PID
+    at until (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/common.mjs:27:145)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:19:476
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:19:1
+FAILED QA-096 native-socket-replacement
+START QA-028 deleted-long-arguments
+cp: cannot create regular file '/qa/ui-final/qa-ui-launch': Text file busy
+Error: Observation timeout: deleted replacement
+    at until (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/common.mjs:27:145)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:20:111
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:20:1
+FAILED QA-028 deleted-long-arguments
+START QA-028 restricted-paths
+Error: Observation timeout: restricted replacement
+    at until (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/common.mjs:27:145)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:21:99
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:21:1
+FAILED QA-028 restricted-paths
+START QA-029 disabled-memory-map
+PASSED QA-029 disabled-memory-map
+START QA-095 missing-rate
+PASSED QA-095 missing-rate
+START QA-037 sent-write-recorded-thresholds
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  {
+    'exited-text': '',
+    'hero-cpu': '0.25 cores',
+    'hero-load': '—',
+    'history-status': 'Checked 2 recordings back to 10/28/2026, 1:27:24 AM (the oldest recording). 99 checked times had no recording. Showing 0 of 0 findings.',
+...
+    'threads-live': 'State / block typeAll1Running1Wait channel (kernel function the thread is blocked in)All1—1ThreadGroupState / wait channelLast ~10 sCPURun delaySwitches/sRead/sWrite/sMaj. faults/sCoreworker-100TID 42workersRunning25.0%·2.0···3',
++   'watch-editor': 'From the config file (collector.toml).Thread name prefixWakes at least every (ms)Matching threads nowRemove0No live thread name starts with this prefix.✕Add ruleSaveReset to config fileSaved and applied.',
+-   'watch-editor': 'From the config file (collector.toml).Thread name prefixWakes at least every (ms)Matching threads nowRemove0No live thread name starts with this prefix.✕Add ruleUnsaved edits. They apply only after you select Save.SaveDiscard editsReset to config fileSaving…',
+    findings: '✓No problems detectedNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now. No memory-map warnings detected in the available samples.',
+    resources: "Pressure, limits & socketsResource stalls, remaining capacity, and socket queues. Updated just now.15 min1 h6 h24 hI/O pressure—full — · hostMemory pressure—full — · hostCPU pressure—full — · hostMemory (RSS)8.0 MBpeak — · swap —Open files121.2% of limit 1024 · ? socketsDisk I/O60 B/sread 50 B/s · write 10 B/s (block layer)Queued in sockets—unread — · unsent —Network drops—connections and packets, namespace-wideTCP retransmits—namespace-widePressure stalls (PSI)Time lost waiting for CPU, memory, or I/O. Peaks per interval.Target's cgroupWhole host0.0%2.5%5.0%01:14:04 AM01:21:34 AM01:29:04 AMCPU some—Memory some—I/O some—ResourceCgroup someCgroup fullHost someHost fullCPU————Memory————I/O————Limits & headroomHow close the process and the kernel are to limits that make calls fail (EMFILE) or shrink buffers.Open files12 / 1024Max SO_RCVBUF (rmem_max)—Max SO_SNDBUF (wmem_max)—Max listen backlog (somaxconn)—TCP sockets in namespace—Bytes waiting in the target's socketsReceive: waiting for the app. Send: waiting for the peer or network.0 B1000 B2.0 KB01:14:04 AM01:21:34 AM01:29:04 AMReceive queue (unread)0 BSend queue (unsent)0 B0 TCP · 0 UDP · 0 UNIX · 0 established · 0 close-wait · 0 listeningNetwork stack drops & errorsCounters for the target’s network namespace, shared by every process in it. Rows that grew recently are highlighted; hover a row for what it means.CounterRate (/s)In rangeTotalFullest sockets (0 of 0 reported)Sockets ranked by buffer use in the latest sample. Only sockets with data, drops or retransmitsSocketLocal → peerRecv-QReceive bufferSend-QSend bufferDropsRTTRetransWhat it meansThe target has no sockets the sampler could list.Sample undefined · every 1 s · ? sockets listed. Part of this sample was lost in transit; some sockets may be missing."
+  }
+
+    at file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:26:584
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:26:1
+FAILED QA-037 sent-write-recorded-thresholds
+START QA-028 recorded-runtime-final-runtime
+PASSED QA-028 recorded-runtime-final-runtime
+START QA-039 earlier-scroll-loading-error-retry
+locator.waitFor: Error: strict mode violation: locator('.help-card') resolved to 2 elements:
+    1) <aside id="_r_a_" role="dialog" class="help-card" aria-label="Past assessments">…</aside> aka getByRole('dialog', { name: 'Past assessments' })
+    2) <aside id="_r_9_" role="dialog" class="help-card" aria-label="Timeline and recorded views">…</aside> aka getByRole('dialog', { name: 'Timeline and recorded views' })
+
+Call log:
+[2m  - waiting for locator('.help-card') to be visible[22m
+
+    at hover (/home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:11:147)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:30:1444
+    at async check (/home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:30:1
+FAILED QA-039 earlier-scroll-loading-error-retry
+START QA-039 bounds-gaps-missing-empty
+Error: Observation timeout: mode Live
+    at until (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/common.mjs:27:145)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:31:221
+    at async check (file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:9:137)
+    at async file:///home/daksh/.local/state/triangulator/qa-c16a553/ui-final/finish.mjs:31:1
+FAILED QA-039 bounds-gaps-missing-empty
+DONE

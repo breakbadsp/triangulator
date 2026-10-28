@@ -1,0 +1,54 @@
+START QA-037 settle-sampled-thresholds
+PASSED QA-037 settle-sampled-thresholds
+START QA-057 explicit-range-counts
+PASSED QA-057 explicit-range-counts
+START QA-096 whole-host-scope-summary
+PASSED QA-096 whole-host-scope-summary
+START QA-039 interrupted-period-retry
+PASSED QA-039 interrupted-period-retry
+START QA-039 help-controls-gaps
+PASSED QA-039 help-controls-gaps
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.hover: Timeout 7000ms exceeded.
+Call log:
+[2m  - waiting for locator('#memory-amap button').first()[22m
+[2m    - locator resolved to <button type="button" aria-pressed="true" class="arow on-dark">…</button>[22m
+[2m  - attempting hover action[22m
+[2m    2 × waiting for element to be visible and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying hover action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible and stable[22m
+[2m      - element is not visible[22m
+[2m    - retrying hover action[22m
+[2m      - waiting 100ms[22m
+[2m    13 × waiting for element to be visible and stable[22m
+[2m       - element is not visible[22m
+[2m     - retrying hover action[22m
+[2m       - waiting 500ms[22m
+
+    at /home/daksh/.local/state/triangulator/qa-c16a553/ui-final/closing.mjs:19:180 {
+  log: [
+    "  - waiting for locator('#memory-amap button').first()",
+    '    - locator resolved to <button type="button" aria-pressed="true" class="arow on-dark">…</button>',
+    '  - attempting hover action',
+    '    2 × waiting for element to be visible and stable',
+    '      - element is not visible',
+    '    - retrying hover action',
+    '    - waiting 20ms',
+    '    2 × waiting for element to be visible and stable',
+    '      - element is not visible',
+    '    - retrying hover action',
+    '      - waiting 100ms',
+    '    13 × waiting for element to be visible and stable',
+    '       - element is not visible',
+    '     - retrying hover action',
+    '       - waiting 500ms'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v26.8.1

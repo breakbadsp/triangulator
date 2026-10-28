@@ -1,0 +1,6 @@
+Collector configuration is valid
+collector (pid 308152) ignored SIGTERM; sending SIGKILL
+collector stopped (pid 308152)
+Collector configuration is valid
+collector started (pid 309304), log: /qa/upgrade/triangulator/logs/collector.log
+Dashboard ready at http://127.0.0.1:19411/ (reload open tabs to load a changed page)

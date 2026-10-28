@@ -1,0 +1,2 @@
+[bugbench    0.0s] tcp-slow: slow consumer, fast producer over TCP (pid 49932, 160 s)
+[bugbench   75.5s] done

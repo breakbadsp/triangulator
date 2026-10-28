@@ -1,0 +1,2 @@
+[bugbench    0.0s] major-faults: random mmap reads of an uncached file (pid 44189, 160 s)
+[bugbench   76.6s] done

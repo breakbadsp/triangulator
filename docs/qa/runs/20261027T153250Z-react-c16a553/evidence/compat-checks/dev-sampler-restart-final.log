@@ -1,0 +1,5 @@
+Sampler configuration is valid
+sampler stopped (pid 308177)
+sampler (pid 308177) ignored SIGTERM; sending SIGKILL
+Sampler configuration is valid
+sampler started (pid 310487), log: /qa/upgrade/triangulator/logs/sampler.log
