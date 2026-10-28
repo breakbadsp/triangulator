@@ -45,7 +45,8 @@ const browser = spawn(
 );
 let diagnostics = "",
   socket,
-  sequence = 0;
+  sequence = 0,
+  dropNoData = async () => undefined;
 const pending = new Map(),
   failures = [],
   cases = [],
@@ -266,6 +267,8 @@ try {
     }
     if (message.method === "Runtime.exceptionThrown")
       exceptions.push(message.params.exceptionDetails);
+    if (message.method === "Fetch.requestPaused")
+      void dropNoData(message.params).catch((error) => exceptions.push(error));
   });
   await send("Page.enable");
   await send("Runtime.enable");
@@ -305,6 +308,25 @@ try {
   await send("Network.enable");
   await send("Network.setBlockedURLs", {
     urls: [base + "/api/live?target=" + encodeURIComponent(noDataKey)],
+  });
+  // The overview reads every live view in one reply; drop the silent one.
+  dropNoData = async ({ requestId }) => {
+    const reply = await send("Fetch.getResponseBody", { requestId });
+    const fleet = JSON.parse(
+      reply.base64Encoded
+        ? Buffer.from(reply.body, "base64").toString()
+        : reply.body,
+    );
+    delete fleet.live[noDataKey];
+    await send("Fetch.fulfillRequest", {
+      requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
+      body: Buffer.from(JSON.stringify(fleet)).toString("base64"),
+    });
+  };
+  await send("Fetch.enable", {
+    patterns: [{ urlPattern: "*/api/fleet", requestStage: "Response" }],
   });
   const colors = {
     critical: "rgb(208, 59, 59)",

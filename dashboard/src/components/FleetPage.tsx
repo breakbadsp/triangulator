@@ -4,7 +4,7 @@ import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
 import { parseLive } from "../api/replay";
-import type { LiveResponse, TargetsResponse } from "../api/types";
+import type { FleetResponse, LiveResponse } from "../api/types";
 import { HelpGuideProvider, PageHelp } from "../help/HelpGuide";
 import { Help } from "../help/Help";
 import { usePoll } from "../hooks/usePoll";
@@ -25,38 +25,21 @@ import { TopBar } from "./TopBar";
 import "./fleet.css";
 
 async function loadFleet(signal: AbortSignal) {
-  const [{ targets }, control] = await Promise.all([
-    getJson<TargetsResponse>("/api/targets", signal),
+  const [{ list, live }, control] = await Promise.all([
+    getJson<FleetResponse>("/api/fleet", signal),
     readTargetControl(signal),
   ]);
   const views = new Map<string, LiveResponse | null>();
-  let next = 0;
-  async function worker() {
-    while (next < targets.length && !document.hidden && !signal.aborted) {
-      const target = targets[next++];
-      if (!target) return;
-      try {
-        views.set(
-          target.key,
-          parseLive(
-            await getJson<unknown>(
-              "/api/live?" +
-                new URLSearchParams({ target: target.key }).toString(),
-              signal,
-            ),
-          ),
-        );
-      } catch {
-        views.set(target.key, null);
-      }
+  for (const target of list.targets) {
+    try {
+      views.set(target.key, parseLive(live[target.key]));
+    } catch {
+      views.set(target.key, null);
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(4, targets.length) }, worker),
-  );
   return {
     control,
-    targets,
+    targets: list.targets,
     views: views as ReadonlyMap<string, LiveResponse | null>,
     now: Date.now() / 1000,
   };

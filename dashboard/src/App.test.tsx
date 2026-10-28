@@ -34,6 +34,8 @@ const live: LiveResponse = {
   },
   threads: [{ tid: 42, name: "worker" }],
 };
+// The overview reads the target list and every live view in one request.
+const fleet = { list: targets, live: { "host/worker": live } };
 beforeEach(() => {
   localStorage.clear();
 });
@@ -53,9 +55,11 @@ test.each(["/", "/?target=host%2Fworker"])(
       .mockImplementation((input) =>
         Promise.resolve(
           Response.json(
-            typeof input === "string" && input.startsWith("/api/targets")
-              ? targets
-              : live,
+            input === "/api/fleet"
+              ? fleet
+              : typeof input === "string" && input.startsWith("/api/targets")
+                ? targets
+                : live,
           ),
         ),
       );
@@ -75,9 +79,7 @@ test.each(["/", "/?target=host%2Fworker"])(
       expect(
         fetchMock.mock.calls.every(
           (call) =>
-            call[0] === "/api/targets" ||
-            call[0] === "/api/targets/control" ||
-            call[0] === "/api/live?target=host%2Fworker",
+            call[0] === "/api/fleet" || call[0] === "/api/targets/control",
         ),
       ).toBe(true);
     }
@@ -101,7 +103,11 @@ test("restores and saves the theme under the existing key", async () => {
     "fetch",
     vi
       .fn<typeof fetch>()
-      .mockImplementation(() => Promise.resolve(Response.json(targets))),
+      .mockImplementation((input) =>
+        Promise.resolve(
+          Response.json(input === "/api/fleet" ? fleet : targets),
+        ),
+      ),
   );
   localStorage.setItem("triangulator:theme", "dark");
   render(<App />);
@@ -152,7 +158,11 @@ test("uses a safe default when stored theme data is invalid", async () => {
     "fetch",
     vi
       .fn<typeof fetch>()
-      .mockImplementation(() => Promise.resolve(Response.json(targets))),
+      .mockImplementation((input) =>
+        Promise.resolve(
+          Response.json(input === "/api/fleet" ? fleet : targets),
+        ),
+      ),
   );
   localStorage.setItem("triangulator:theme", "invalid");
   render(<App />);

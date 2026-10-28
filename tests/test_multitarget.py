@@ -139,6 +139,11 @@ class MultiTargetCollectorTests(CollectorCase):
                 self.assertEqual([thread["tid"] for thread in view["threads"]], [expected])
         self.assertEqual(self.fetch("/api/live")["health"]["pid"], 456,
                          "the first key by host and id is the default")
+        fleet = self.fetch("/api/fleet")
+        self.assertEqual({target["key"] for target in fleet["list"]["targets"]},
+                         set(fleet["live"]), "one live view for each listed target")
+        self.assertEqual(fleet["live"]["host-a/orders"]["health"]["pid"], 123)
+        self.assertEqual(fleet["live"]["host-a/billing"]["health"]["pid"], 456)
         for path in ("/api/live", "/api/last-target", "/api/memory-map",
                      "/api/history?start=0&end=1", "/api/resources",
                      "/api/replay", "/api/socket-io?pid=1"):
