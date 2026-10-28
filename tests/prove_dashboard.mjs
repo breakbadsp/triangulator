@@ -215,30 +215,48 @@ try {
     { saved: "dark", background: "rgb(9, 9, 10)" },
   );
   await send("Page.bringToFront");
-  await evaluate("document.querySelector('[data-help=appearance]').focus()");
-
+  // Help opens only from an info button, as a side guide. Focus on a label
+  // opens nothing.
+  await evaluate("document.querySelector('#theme').focus()");
+  await delay(400);
+  assert.equal(await evaluate("document.querySelector('#help-guide, .help-card')"), null);
+  await evaluate(
+    "document.querySelector('button.help-info[data-help=appearance]').click()",
+  );
   await until(
-    () => evaluate("!!document.querySelector('[role=dialog]')"),
-    "focused help card",
+    () =>
+      evaluate(
+        "document.querySelector('#help-guide-title')?.textContent === 'Color theme'",
+      ),
+    "appearance guide",
   );
   const help = await evaluate(
-    "({position:getComputedStyle(document.querySelector('[role=dialog]')).position,left:document.querySelector('[role=dialog]').style.left,links:document.querySelector('[role=dialog]').querySelectorAll('a').length})",
+    "({role:document.querySelector('#help-guide').getAttribute('role'),position:getComputedStyle(document.querySelector('#help-guide')).position,focus:document.activeElement.id})",
   );
-  assert.equal(help.position, "fixed");
-  assert.ok(help.left.endsWith("px"));
-  assert.equal(help.links, 1);
+  assert.deepEqual(help, {
+    role: "complementary",
+    position: "fixed",
+    focus: "help-guide-title",
+  });
   const helpHash = await evaluate("location.hash");
-  await evaluate("document.querySelector('[role=dialog] a[href=\"#help-page\"]').click()");
-  assert.equal(await evaluate("document.querySelector('[role=dialog] h2').textContent"), "How to read this page");
+  await evaluate(
+    "[...document.querySelectorAll('#help-guide button[data-help=page]')].find((node) => node.textContent === 'All topics').click()",
+  );
+  assert.equal(
+    await evaluate("document.querySelector('#help-guide-title').textContent"),
+    "How to read this page",
+  );
   assert.equal(await evaluate("location.hash"), helpHash);
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
     key: "Escape",
     code: "Escape",
   });
-  assert.equal(
-    await evaluate("document.querySelector('[role=dialog]') === null"),
-    true,
+  assert.deepEqual(
+    await evaluate(
+      "({guide: document.querySelector('#help-guide') === null, focus: document.activeElement.matches('button.help-info[data-help=appearance]')})",
+    ),
+    { guide: true, focus: true },
   );
   // Chromium drops focus without a blur event when a focused node moves.
   // Make the last tile serious, so React moves the tiles after it, and check
@@ -507,6 +525,30 @@ try {
     await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
     await delay(300);
   }
+  // Help opens from the info button of a label, as the metric guide.
+  async function openGuide(selector) {
+    await evaluate(
+      `(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.scrollIntoView({block:'center'}); node.click(); })()`,
+    );
+    await until(
+      () => evaluate("!!document.querySelector('#help-guide-title')"),
+      `guide from ${selector}`,
+    );
+    return evaluate(
+      "({title: document.querySelector('#help-guide-title').textContent, text: document.querySelector('#help-guide').textContent, focus: document.activeElement.id})",
+    );
+  }
+  async function closeGuide() {
+    await send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Escape",
+      code: "Escape",
+    });
+    await until(
+      () => evaluate("document.querySelector('#help-guide') === null"),
+      "guide closes",
+    );
+  }
   async function hover(selector) {
     const point = await evaluate(`(() => {
       const node = document.querySelector(${JSON.stringify(selector)});
@@ -702,8 +744,8 @@ try {
     await evaluate("document.querySelectorAll('#cores .core').length"),
     4,
   );
-  // Check each Threads topic with real focus. The metric topics retain their
-  // source descriptions. Column labels reuse those topics.
+  // Open each Threads topic from its info button. The metric topics retain
+  // their limits. Column labels reuse those topics.
   const threadHelp = [];
   for (const topic of [
     "states",
@@ -721,18 +763,12 @@ try {
     "faults",
     "active",
   ]) {
-    await escapeHelp();
-    await evaluate(
-      `(() => { const node = document.querySelector('#threads-section [data-help="${topic}"]'); node.scrollIntoView({block:'center'}); node.focus(); })()`,
+    const guide = await openGuide(
+      `#threads-section button.help-info[data-help="${topic}"]`,
     );
-    await until(
-      () => evaluate("!!document.querySelector('[role=dialog] h2')"),
-      `help for ${topic}`,
-    );
-    const text = await evaluate(
-      "document.querySelector('[role=dialog]').textContent",
-    );
-    assert.ok(text.includes("Limits."), topic);
+    assert.equal(guide.focus, "help-guide-title", topic);
+    assert.ok(guide.text.includes("Measurement limits"), topic);
+    await closeGuide();
     threadHelp.push(topic);
   }
   await escapeHelp();
@@ -748,54 +784,23 @@ try {
     "thread drawer and real history response",
   );
   assert.equal(await evaluate("location.hash"), "#thread=7001");
-  // Keep History focused while an earlier Help instance has a pending hover.
-  await evaluate(
-    "document.querySelector('#history [data-help=history]').focus()",
+  // The History guide opens over the drawer. The first Escape closes only
+  // the guide.
+  const historyGuide = await openGuide(
+    "#history button.help-info[data-help=history]",
   );
-  await until(() => evaluate("!!document.querySelector('.help-card h2')"), "focused History help");
-  assert.deepEqual(
-    await evaluate(
-      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
-    ),
-    ["History"],
-  );
-  await hover("#drawer-close");
-  await until(
-    () => evaluate("document.querySelector('#drawer-close').matches(':hover')"),
-    "Close thread details receives the hover",
-  );
-  assert.deepEqual(
-    await evaluate(
-      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
-    ),
-    ["History"],
-    "Escape precedes the Close thread details dwell",
-  );
+  assert.equal(historyGuide.title, "History");
   assert.equal(
-    await evaluate("document.activeElement.dataset.help"),
-    "history",
-  );
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "Escape",
-    code: "Escape",
-  });
-  assert.equal(
-    await evaluate("document.querySelectorAll('.help-card').length"),
-    0,
-    "Escape dismisses focused History help despite an earlier pending hover",
-  );
-  assert.equal(
-    await evaluate("!!document.querySelector('#drawer.open')"),
+    await evaluate("!!document.querySelector('#help-back-thread')"),
     true,
   );
-  await delay(1300);
+  await closeGuide();
   assert.deepEqual(
     await evaluate(
-      "[...document.querySelectorAll('.help-card h2')].map(node => node.textContent)",
+      "({drawer: !!document.querySelector('#drawer.open'), focus: document.activeElement.matches('#history button.help-info[data-help=history]')})",
     ),
-    [],
-    "Escape cancels pending help without reopening the focused card",
+    { drawer: true, focus: true },
+    "Escape closes the History guide and keeps the drawer",
   );
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
@@ -1318,20 +1323,11 @@ try {
     "sockettotal",
     "messages",
   ]) {
-    await escapeHelp();
-    await evaluate(
-      `(() => { const node = document.querySelector('#resources [data-help="${topic}"], #socket-panel [data-help="${topic}"]'); node.scrollIntoView({block:'center'}); node.focus(); })()`,
+    const guide = await openGuide(
+      `#resources button.help-info[data-help="${topic}"], #socket-panel button.help-info[data-help="${topic}"]`,
     );
-    await until(
-      () => evaluate("!!document.querySelector('[role=dialog] h2')"),
-      `help for ${topic}`,
-    );
-    assert.ok(
-      (
-        await evaluate("document.querySelector('[role=dialog]').textContent")
-      ).includes("Limits."),
-      topic,
-    );
+    assert.ok(guide.text.includes("Measurement limits"), topic);
+    await closeGuide();
     resources.help.push(topic);
   }
   await escapeHelp();
@@ -1832,35 +1828,34 @@ finally:
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await click("#fleet-add");
   await until(() => evaluate("document.querySelector('#target-settings')?.matches(':modal')"), "native modal top layer");
-  await evaluate("document.querySelector('#target-id').closest('[data-help]').focus()");
-  await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Target ID\"]')"), "modal ID help");
+  // The metric guide opens inside the modal dialog from an info button.
+  const guideFor = (field) =>
+    `document.querySelector('${field}').closest('[data-help]').querySelector('button.help-info')`;
+  await click(`#target-settings [data-help="target-id"] > button.help-info`);
+  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Target ID'"), "modal ID guide");
   const modalHelp = await evaluate(`(() => {
     const dialog = document.querySelector('#target-settings');
-    const card = dialog.querySelector('.help-card[aria-label="Target ID"]');
-    const r = card.getBoundingClientRect();
+    const guide = dialog.querySelector('#help-guide');
+    const r = guide.getBoundingClientRect();
     document.querySelector('#fleet-search').focus();
-    return {inside:card.closest('dialog')===dialog,focusInside:dialog.contains(document.activeElement),clamped:r.top>=0&&r.bottom<=innerHeight};
+    return {inside:guide.closest('dialog')===dialog,focusInside:dialog.contains(document.activeElement),clamped:r.top>=0&&r.bottom<=innerHeight};
   })()`);
   assert.deepEqual(modalHelp, { inside: true, focusInside: true, clamped: true });
   const addHit = await evaluate(`(() => {
-    const dialog = document.querySelector('#target-settings');
-    const bounds = dialog.getBoundingClientRect();
     const button = document.querySelector('#target-save');
     const r = button.getBoundingClientRect();
-    return {space: Math.max(bounds.left - 16, innerWidth - bounds.right - 16),
-      hit: button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))};
+    return button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
   })()`);
-  assert.ok(addHit.space >= 200, "space beside the dialog for Help");
-  assert.equal(addHit.hit, true, "Add target remains clickable while Help is open");
-  await click('#target-settings .help-card[aria-label="Target ID"] a[href="#help-manage-targets"]');
-  await until(() => evaluate("!!document.querySelector('#target-settings .help-card[aria-label=\"Manage targets\"]')"), "modal related help link");
+  assert.equal(addHit, true, "Add target remains clickable while the guide is open");
+  await click('#target-settings #help-guide .help-related button[data-help="manage-targets"]');
+  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Manage targets'"), "modal related guide topic");
   await escapeTargetHelp();
-  assert.equal(await evaluate("document.querySelector('#target-settings').matches(':modal') && !document.querySelector('#target-settings .help-card')"), true);
-  // Help remains interactive in the top layer. Close by a real pointer click.
-  await evaluate("document.querySelector('#target-input').closest('[data-help]').focus()");
-  await until(() => evaluate("!!document.querySelector('#target-settings .help-close')"), "modal input help");
-  await click("#target-settings .help-close");
-  assert.equal(await evaluate("document.querySelector('#target-settings .help-card') === null"), true);
+  assert.equal(await evaluate("document.querySelector('#target-settings').matches(':modal') && !document.querySelector('#help-guide')"), true);
+  // The guide remains interactive in the top layer. Close by a real pointer click.
+  await evaluate(`${guideFor('#target-input')}.click()`);
+  await until(() => evaluate("!!document.querySelector('#target-settings #help-guide')"), "modal input guide");
+  await click('#target-settings #help-guide button[aria-label="Close metric guide"]');
+  assert.equal(await evaluate("document.querySelector('#help-guide') === null && document.querySelector('#target-settings').matches(':modal')"), true);
   await send("Emulation.clearDeviceMetricsOverride");
   await typeInto("#target-id", "proof");
   await escapeTargetHelp();

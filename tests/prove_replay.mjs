@@ -335,7 +335,10 @@ export async function proveReplay({
     );
     // Past assessments: the first period checks the real recordings on load
     // and leaves the live view and tab storage alone.
-    await until(() => scanHolds.length === 1, "held scan resource read");
+    // The first memory layout starts the scan again (usePastAssessments), so
+    // a scan that started before the layout leaves one aborted read.
+    await until(() => scanHolds.length >= 1, "held scan resource read");
+    assert.ok(scanHolds.length <= 2, `scan reads: ${scanHolds.length}`);
     const heldLive = [];
     holds.set("/api/live", heldLive);
     // Exercise the browser's Stay path while the scan has an unfinished read.
@@ -372,7 +375,10 @@ export async function proveReplay({
       Storage.prototype.clear = function(...args) { window.scanStorageWrites.push(['clear']); return clear.apply(this, args); };
     })()`);
     holdScan = false;
-    for (const item of scanHolds) await send("Fetch.continueRequest", item);
+    // Only the read of the current scan is still open in the page.
+    for (const item of scanHolds.slice(0, -1))
+      await send("Fetch.continueRequest", item).catch(() => undefined);
+    await send("Fetch.continueRequest", scanHolds.at(-1));
     await until(
       async () => (await text("history-status"))?.startsWith("Checked "),
       "first past-assessment period",
@@ -418,7 +424,7 @@ export async function proveReplay({
     };
     // 101 one-second slots from first to last; only the two recordings count.
     assert.equal(pastAssessments.scanReads, 101);
-    assert.equal(pastAssessments.periodReads, 1);
+    assert.equal(pastAssessments.periodReads, scanHolds.length);
     assert.match(
       pastAssessments.status,
       /^Checked 2 recordings back to .* \(the oldest recording\)\. 99 checked times had no recording\. Showing \d+ of \d+ findings?\.$/,
@@ -434,7 +440,8 @@ export async function proveReplay({
       ),
       JSON.stringify(pastAssessments.storageKeys),
     );
-    // Each new Past assessments label opens its own topic on hover.
+    // Each new Past assessments label opens its own topic from the info
+    // button of its help.
     const helpTitles = {};
     await click('details[data-fold="past"] > summary');
     for (const [selector, title] of [
@@ -445,33 +452,27 @@ export async function proveReplay({
       ["#timeline-marks", "Past assessments"],
       ['details[data-fold="past"] h3', "Past assessments"],
     ]) {
-      if (!title) continue;
-      const point = await evaluate(`(async () => {
-        const node = document.querySelector(${JSON.stringify(selector)});
-        node.scrollIntoView({ block: 'center', behavior: 'instant' });
-        await new Promise(requestAnimationFrame);
-        await new Promise(requestAnimationFrame);
-        const b = [...node.getClientRects()].find(rect => rect.width && rect.height);
-        return { x: b.left + Math.min(10, b.width / 2), y: b.top + b.height / 2 };
+      const info = await evaluate(`(() => {
+        const help = document.querySelector(${JSON.stringify(selector)}).closest('[data-help]');
+        const button = help?.querySelector(':scope > button.help-info');
+        if (!button) return help?.outerHTML.slice(0, 200) ?? 'no help';
+        button.scrollIntoView({ block: 'center', behavior: 'instant' });
+        button.click();
+        return '';
       })()`);
-      assert.ok(await evaluate(`(() => {
-        const node = document.querySelector(${JSON.stringify(selector)});
-        return node.contains(document.elementFromPoint(${point.x}, ${point.y}));
-      })()`), `visible hover target ${selector}: ${JSON.stringify(point)} over ${await evaluate(`document.elementFromPoint(${point.x}, ${point.y})?.outerHTML.slice(0, 300)`)}`);
-      await send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+      assert.equal(info, "", `info button for ${selector}`);
       await until(
         async () =>
           (await evaluate(
-            "document.querySelector('[role=dialog]')?.textContent ?? ''",
-          )).includes(title),
-        `help for ${selector} at ${JSON.stringify(point)} over ${await evaluate(`(() => { const e = document.elementFromPoint(${point.x}, ${point.y}); return e ? e.outerHTML.slice(0, 200) : 'none'; })()`)} open=${await evaluate("document.querySelector('details[data-fold=past]').open")}`,
+            "document.querySelector('#help-guide-title')?.textContent",
+          )) === title,
+        `guide for ${selector}`,
       );
       helpTitles[selector] = title;
-      await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 });
       await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
       await until(
-        async () => !(await evaluate("!!document.querySelector('[role=dialog]')")),
-        `help closed for ${selector}`,
+        async () => !(await evaluate("!!document.querySelector('#help-guide')")),
+        `guide closed for ${selector}`,
       );
     }
     pastAssessments.helpTitles = helpTitles;
@@ -1101,12 +1102,15 @@ for path in pathlib.Path(sys.argv[1]).glob('*.sqlite3'):
     assert.ok(rowAgreement.assessment.includes(rowAgreement.detail));
     assert.equal(rowAgreement.marks.length, 2);
     assert.ok(rowAgreement.marks.every(label=>label.startsWith(rowAgreement.title)));
-    // Each mark has a keyboard-accessible help card owned by its episode.
+    // Each mark has an info button that opens its guide from the keyboard.
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
-    await evaluate("document.querySelector('#timeline-marks .mark-help').focus()");
-    await until(() => evaluate("!!document.querySelector('[role=dialog][aria-label=\"Past assessments\"]')"), "mark keyboard help");
+    assert.equal(await evaluate("(() => { const button = document.querySelector('#timeline-marks .mark-help > button.help-info'); button.focus(); return document.activeElement === button; })()"), true);
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await until(() => evaluate("document.querySelector('#help-guide-title')?.textContent === 'Past assessments'"), "mark keyboard guide");
     pastAssessments.rowAgreement = rowAgreement;
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape" });
+    await until(() => evaluate("document.querySelector('#help-guide') === null"), "mark guide closes");
     current = frame(now + 7200.9);
     await until(() => evaluate(`Number(document.querySelector('#timeline-range').max) === ${current.health.last_seen}`), "fractional collector clock on Timeline");
     const nativeEndpoint = await evaluate(`(() => {
