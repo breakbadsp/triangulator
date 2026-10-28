@@ -705,6 +705,30 @@ class DashboardServer
     RespondJson(p_connection, 200, *p_result);
   }
 
+  // {"list": <the /api/targets reply>, "live": {<key>: <its /api/live>}}.
+  // The views are already JSON, so they are copied, not parsed again.
+  [[nodiscard]] static std::string FleetJson(
+      const SharedState::FleetView& p_fleet)
+  {
+    std::string body = R"({"list":)";
+    body += *p_fleet.targets_;
+    body += R"(,"live":{)";
+    bool first = true;
+    for (const auto& [key, live] : p_fleet.live_)
+    {
+      if (!first)
+      {
+        body += ',';
+      }
+      first = false;
+      DumpString(key, body);
+      body += ':';
+      body += *live;
+    }
+    body += "}}";
+    return body;
+  }
+
   void Get(const HttpConnection& p_connection, const Request& p_request)
   {
     const auto target_key = QueryValue(p_request.query_, "target");
@@ -714,6 +738,7 @@ class DashboardServer
     // endpoints that read one target's data reject an unknown target.
     const bool reads_target = p_request.path_ != "/" &&
                               p_request.path_ != "/api/targets" &&
+                              p_request.path_ != "/api/fleet" &&
                               p_request.path_ != "/api/targets/control" &&
                               p_request.path_ != "/api/target";
     if (reads_target && target_key && !target)
@@ -748,6 +773,10 @@ class DashboardServer
     else if (p_request.path_ == "/api/targets")
     {
       Respond(p_connection, 200, *state_.Targets(), "application/json");
+    }
+    else if (p_request.path_ == "/api/fleet")
+    {
+      Respond(p_connection, 200, FleetJson(state_.Fleet()), "application/json");
     }
     else if (p_request.path_ == "/api/targets/control")
     {

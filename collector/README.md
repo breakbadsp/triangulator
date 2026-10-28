@@ -123,7 +123,9 @@ runs in the periodic refresh. The released target disappears from
 `/api/targets`; its stored history remains. A sampler that returns later takes
 a free slot as a new session.
 
-Use `GET /api/targets` to list targets. Add `?target=<host>/<id>` to API
+Use `GET /api/targets` to list targets. `GET /api/fleet` returns that list
+and the live view of each target from one publication, so the overview needs
+one request each poll. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
 return HTTP 404. `/api/socket-io` is scoped to one target too: with
