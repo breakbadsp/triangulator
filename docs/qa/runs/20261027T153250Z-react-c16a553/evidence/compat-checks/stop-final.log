@@ -1,0 +1,4 @@
+sampler stopped (pid 310487)
+sampler (pid 310487) ignored SIGTERM; sending SIGKILL
+collector stopped (pid 309304)
+collector (pid 309304) ignored SIGTERM; sending SIGKILL
