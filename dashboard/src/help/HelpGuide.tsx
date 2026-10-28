@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { ViewIdentityContext } from "../hooks/viewIdentityContext";
 import { date } from "../lib/format";
-import { cancelHelp } from "./Help";
+import { createHelpCards, HelpCardsContext } from "./helpCards";
 import {
   captureGuideChart,
   GuideContext,
@@ -41,11 +41,16 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
   const title = useRef<HTMLHeadingElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const [modal, setModal] = useState(() => innerWidth < 760);
-  const close = useCallback((focus = true) => {
-    cancelHelp();
-    setReturnFocus(focus);
-    setRequest(null);
-  }, []);
+  const [cards] = useState(createHelpCards);
+  useEffect(() => cards.listen(), [cards]);
+  const close = useCallback(
+    (focus = true) => {
+      cards.cancelAll();
+      setReturnFocus(focus);
+      setRequest(null);
+    },
+    [cards],
+  );
   const dismissOwner = useCallback(
     (owner: HTMLElement) => {
       const opener = current.current?.opener;
@@ -60,7 +65,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       portal: HTMLElement | null = null,
       readout?: Readout,
     ) => {
-      cancelHelp();
+      cards.cancelAll();
       setReturnFocus(false);
       const ancestors: HTMLElement[] = [];
       for (
@@ -92,7 +97,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
             : undefined,
       });
     },
-    [],
+    [cards],
   );
   useLayoutEffect(() => {
     const previous = current.current;
@@ -202,149 +207,136 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
     setRequest((previous) => previous && { ...previous, topic });
   };
   return (
-    <GuideContext value={{ request, open, close, dismissOwner }}>
-      {children}
-      {request &&
-        content &&
-        createPortal(
-          <>
-            {modal && (
-              <div
-                id="help-scrim"
-                onClick={() => {
-                  close();
-                }}
-              />
-            )}
-            <aside
-              id="help-guide"
-              ref={guide}
-              role={modal ? "dialog" : "complementary"}
-              aria-modal={modal || undefined}
-              aria-labelledby="help-guide-title"
-            >
-              <div className="help-guide-head">
-                <div className="help-guide-top">
-                  <span>METRIC GUIDE</span>
-                  <button
-                    type="button"
-                    aria-label="Close metric guide"
-                    data-help="page"
-                    onClick={() => {
-                      close();
-                    }}
-                  >
-                    Close ×
-                  </button>
-                </div>
-                {request.drawer && (
-                  <button
-                    id="help-back-thread"
-                    aria-label="Back to thread"
-                    type="button"
-                    data-help="thread"
-                    onClick={() => {
-                      close();
-                    }}
-                  >
-                    ← Back to thread
-                  </button>
-                )}
-                <h2 id="help-guide-title" ref={title} tabIndex={-1}>
-                  {content.title}
-                </h2>
-              </div>
-              <div id="help-guide-body" ref={body} key={request.topic}>
-                <p className="muted">{content.scope}</p>
-                <p className="help-intro">
-                  <CodeText text={content.meaning} />
-                </p>
-                {request.readout && request.topic === request.originalTopic && (
-                  <section className="help-example">
-                    <h3>{request.readout.title}</h3>
-                    {request.readout.rows.map((row) => (
-                      <p key={row.label}>
-                        {row.label}:{" "}
-                        {row.value === "—" ? "Not available" : row.value}
-                      </p>
-                    ))}
-                    <p>At {date(request.readout.stamp)}</p>
-                  </section>
-                )}
-                {content.example && (
-                  <section className="help-example">
-                    <h3>Example</h3>
-                    <p>
-                      <CodeText text={content.example} />
-                    </p>
-                  </section>
-                )}
-                <section>
-                  <h3>How to read it</h3>
-                  <p>
-                    <CodeText text={content.reading} />
-                  </p>
-                </section>
-                <section>
-                  <h3>Measurement limits</h3>
-                  <p>
-                    <CodeText text={content.limits} />
-                  </p>
-                </section>
-                {content.sourceDetail && (
-                  <section>
-                    <h3>Source</h3>
-                    <p>
-                      <CodeText text={content.sourceDetail} />
-                    </p>
-                  </section>
-                )}
-                {request.chart && request.topic === request.originalTopic && (
-                  <details data-help={request.topic}>
-                    <summary>View chart data</summary>
-                    {request.chart.rows.length === 0 ? (
-                      <p>No chart samples are available in this view.</p>
-                    ) : (
-                      <div className="help-data">
-                        <table>
-                          <thead>
-                            <tr>
-                              {request.chart.headers.map((header) => (
-                                <th key={header}>{header}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {request.chart.rows.map((row, index) => (
-                              <tr key={index}>
-                                {row.map((value, cell) => (
-                                  <td key={cell}>{value}</td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </details>
-                )}
-                <nav aria-label="Related metrics" className="help-related">
-                  {content.related.map((topic) => (
+    <HelpCardsContext value={cards}>
+      <GuideContext value={{ request, open, close, dismissOwner }}>
+        {children}
+        {request &&
+          content &&
+          createPortal(
+            <>
+              {modal && (
+                <div
+                  id="help-scrim"
+                  onClick={() => {
+                    close();
+                  }}
+                />
+              )}
+              <aside
+                id="help-guide"
+                ref={guide}
+                role={modal ? "dialog" : "complementary"}
+                aria-modal={modal || undefined}
+                aria-labelledby="help-guide-title"
+              >
+                <div className="help-guide-head">
+                  <div className="help-guide-top">
+                    <span>METRIC GUIDE</span>
                     <button
-                      key={topic}
                       type="button"
-                      data-help={topic}
+                      aria-label="Close metric guide"
+                      data-help="page"
                       onClick={() => {
-                        navigate(topic);
+                        close();
                       }}
                     >
-                      {helpTopics[topic].title}
+                      Close ×
                     </button>
-                  ))}
-                </nav>
-                {request.topic === "page" ? (
-                  <nav className="help-topics" aria-label="All topics">
-                    {helpTopicIds.map((topic) => (
+                  </div>
+                  {request.drawer && (
+                    <button
+                      id="help-back-thread"
+                      aria-label="Back to thread"
+                      type="button"
+                      data-help="thread"
+                      onClick={() => {
+                        close();
+                      }}
+                    >
+                      ← Back to thread
+                    </button>
+                  )}
+                  <h2 id="help-guide-title" ref={title} tabIndex={-1}>
+                    {content.title}
+                  </h2>
+                </div>
+                <div id="help-guide-body" ref={body} key={request.topic}>
+                  <p className="muted">{content.scope}</p>
+                  <p className="help-intro">
+                    <CodeText text={content.meaning} />
+                  </p>
+                  {request.readout &&
+                    request.topic === request.originalTopic && (
+                      <section className="help-example">
+                        <h3>{request.readout.title}</h3>
+                        {request.readout.rows.map((row) => (
+                          <p key={row.label}>
+                            {row.label}:{" "}
+                            {row.value === "—" ? "Not available" : row.value}
+                          </p>
+                        ))}
+                        <p>At {date(request.readout.stamp)}</p>
+                      </section>
+                    )}
+                  {content.example && (
+                    <section className="help-example">
+                      <h3>Example</h3>
+                      <p>
+                        <CodeText text={content.example} />
+                      </p>
+                    </section>
+                  )}
+                  <section>
+                    <h3>How to read it</h3>
+                    <p>
+                      <CodeText text={content.reading} />
+                    </p>
+                  </section>
+                  <section>
+                    <h3>Measurement limits</h3>
+                    <p>
+                      <CodeText text={content.limits} />
+                    </p>
+                  </section>
+                  {content.sourceDetail && (
+                    <section>
+                      <h3>Source</h3>
+                      <p>
+                        <CodeText text={content.sourceDetail} />
+                      </p>
+                    </section>
+                  )}
+                  {request.chart && request.topic === request.originalTopic && (
+                    <details data-help={request.topic}>
+                      <summary>View chart data</summary>
+                      {request.chart.rows.length === 0 ? (
+                        <p>No chart samples are available in this view.</p>
+                      ) : (
+                        <div className="help-data">
+                          <table>
+                            <thead>
+                              <tr>
+                                {request.chart.headers.map((header) => (
+                                  <th key={header}>{header}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {request.chart.rows.map((row, index) => (
+                                <tr key={index}>
+                                  {row.map((value, cell) => (
+                                    <td key={cell}>{value}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </details>
+                  )}
+                  <nav aria-label="Related metrics" className="help-related">
+                    {content.related.map((topic) => (
                       <button
                         key={topic}
                         type="button"
@@ -357,23 +349,39 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
                       </button>
                     ))}
                   </nav>
-                ) : (
-                  <button
-                    type="button"
-                    data-help="page"
-                    onClick={() => {
-                      navigate("page");
-                    }}
-                  >
-                    All topics
-                  </button>
-                )}
-              </div>
-            </aside>
-          </>,
-          request.portal ?? document.body,
-        )}
-    </GuideContext>
+                  {request.topic === "page" ? (
+                    <nav className="help-topics" aria-label="All topics">
+                      {helpTopicIds.map((topic) => (
+                        <button
+                          key={topic}
+                          type="button"
+                          data-help={topic}
+                          onClick={() => {
+                            navigate(topic);
+                          }}
+                        >
+                          {helpTopics[topic].title}
+                        </button>
+                      ))}
+                    </nav>
+                  ) : (
+                    <button
+                      type="button"
+                      data-help="page"
+                      onClick={() => {
+                        navigate("page");
+                      }}
+                    >
+                      All topics
+                    </button>
+                  )}
+                </div>
+              </aside>
+            </>,
+            request.portal ?? document.body,
+          )}
+      </GuideContext>
+    </HelpCardsContext>
   );
 }
 
