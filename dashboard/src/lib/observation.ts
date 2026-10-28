@@ -9,6 +9,7 @@ import type { ResourcePoint } from "./assess/memory";
 import {
   initialMemory,
   memoryReducer,
+  type MemoryAction,
   memoryResources,
   type MemoryState,
 } from "./memoryView";
@@ -241,4 +242,157 @@ export function restoreFinal(
     { ...state, live: { ...observation, memory } },
     { ...observation, memory },
   );
+}
+
+/** A frozen view kept in the tab, restored with the first live reply. */
+export interface FrozenView {
+  live: LiveResponse;
+  at: number;
+  layout: MemoryLayout | null;
+  exit: LiveResponse["exit"];
+  series: Series;
+}
+/** The newest reads of the displayed observation's scoped polls. */
+export interface ScopedReads {
+  resources?: readonly ResourcePoint[];
+  layout?: MemoryLayout;
+  sockets?: SocketReport;
+  socketError?: Error;
+  /** False before the socket poll starts, so its error is not cleared. */
+  socketPolled: boolean;
+}
+// Storage reads happen in the hook. Each event carries what it read, so the
+// reducer stays pure.
+export type ObservationEvent =
+  | {
+      type: "live";
+      view: LiveResponse;
+      now: number;
+      restored: Series;
+      frozen?: FrozenView;
+    }
+  | { type: "reads"; reads: ScopedReads }
+  | {
+      type: "last-target";
+      session: string;
+      view: LiveResponse | null;
+      restored: Series;
+    }
+  | {
+      type: "recording";
+      view: LiveResponse & { recorded_at: number };
+      resources: readonly ResourcePoint[];
+    }
+  | { type: "return-to-live"; restored: Series }
+  | { type: "dismiss-final"; restored: Series }
+  | { type: "invalidate" }
+  | { type: "memory"; action: MemoryAction }
+  | { type: "watch-rules"; rules: readonly WatchRule[] | null };
+
+const slot = (observation: Observation) =>
+  observation.mode.kind === "recorded"
+    ? "recorded"
+    : observation.mode.kind === "final"
+      ? "final"
+      : "live";
+
+function applyReads(state: Observations, reads: ScopedReads): Observations {
+  const shown = displayed(state);
+  if (!shown) return state;
+  const live = shown.mode.kind === "live";
+  let updated = shown;
+  if (reads.resources) updated = { ...updated, resources: reads.resources };
+  if (live && reads.layout)
+    updated = {
+      ...updated,
+      memory: memoryReducer(updated.memory, {
+        type: "layout",
+        key: updated.memory.key ?? updated.key,
+        layout: reads.layout,
+      }),
+    };
+  if (
+    live &&
+    reads.sockets &&
+    (!reads.sockets.available || reads.sockets.pid === shown.view.health.pid)
+  )
+    updated = { ...updated, sockets: reads.sockets };
+  if (live && reads.socketPolled && updated.socketError !== reads.socketError)
+    updated = { ...updated, socketError: reads.socketError };
+  return updated === shown ? state : { ...state, [slot(shown)]: updated };
+}
+
+export function observationReducer(
+  state: Observations,
+  event: ObservationEvent,
+): Observations {
+  switch (event.type) {
+    case "live": {
+      if (event.view === state.latest?.view && event.now === state.latest.now)
+        return state;
+      let next = state;
+      const frozen = event.frozen;
+      if (frozen) {
+        next = restoreFinal(
+          next,
+          frozen.live,
+          frozen.at,
+          frozen.layout,
+          frozen.series,
+        );
+        if (frozen.exit && next.final)
+          next = {
+            ...next,
+            final: {
+              ...next.final,
+              mode: { kind: "final", exit: frozen.exit },
+              view: { ...next.final.view, exit: frozen.exit },
+            },
+          };
+      }
+      return receiveLive(next, event.view, event.now, event.restored);
+    }
+    case "reads":
+      return applyReads(state, event.reads);
+    case "last-target": {
+      if (state.checked.includes(event.session)) return state;
+      const checked = {
+        ...state,
+        checked: [...state.checked, event.session],
+      };
+      const view = event.view;
+      return view?.health.session === event.session && view.threads.length
+        ? restoreFinal(
+            checked,
+            view,
+            view.health.last_seen ?? 0,
+            null,
+            event.restored,
+          )
+        : checked;
+    }
+    case "recording":
+      return selectRecording(state, event.view, event.resources);
+    case "return-to-live":
+      return returnToLive(state, event.restored);
+    case "dismiss-final":
+      return dismissFinal(state, event.restored);
+    case "invalidate":
+      return { ...state, generation: state.generation + 1 };
+    case "memory": {
+      const observation = displayed(state);
+      if (!observation) return state;
+      let memory = memoryReducer(observation.memory, event.action);
+      if (observation.mode.kind === "recorded")
+        memory = { ...memory, history: [], heapSpan: null, previous: null };
+      return { ...state, [slot(observation)]: { ...observation, memory } };
+    }
+    case "watch-rules":
+      return state.live &&
+        !state.final &&
+        !state.recorded &&
+        state.live.watchRules !== event.rules
+        ? { ...state, live: { ...state.live, watchRules: event.rules } }
+        : state;
+  }
 }
