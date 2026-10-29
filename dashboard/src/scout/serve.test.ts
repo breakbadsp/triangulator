@@ -162,6 +162,9 @@ test("status_now gives the Targets page assessment with data completeness, using
   expect(run.status).toBe(0);
   expect(run.replies.map((reply) => reply.id)).toEqual([1, 2, 3, 4]);
   expect(run.replies[1]?.result?.tools?.map((tool) => tool.name)).toEqual([
+    "timeseries",
+    "top_threads",
+    "compare",
     "list_targets",
     "status_now",
     "list_incidents",

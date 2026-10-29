@@ -16,7 +16,8 @@ then give the item to one agent), `Accepted` (design agreed, not built).
 
 ### REQ-0001: Agent access to incident history
 
-Status: Accepted (design agreed, implementation pending). Priority: Highest.
+Status: Implemented for the approved four-step scope. Priority: Highest.
+The runbook, long-term tier, read-only SQL, `list_sessions`, and `correlate` remain open.
 
 #### Need
 

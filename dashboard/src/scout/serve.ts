@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { readScoutConfig } from "./config";
+import { historyTools } from "./history-tools";
 import { getIncident, listIncidents } from "./incident-tools";
 import { handle, parseError, type Tool } from "./mcp";
 import { LIMITS, listTargets, parseFleet, statusNow, ToolError } from "./tools";
@@ -78,6 +79,7 @@ function scoutTools(collectorUrl: () => string): Tool[] {
   };
   const now = () => Date.now() / 1000;
   return [
+    ...historyTools((path) => getJson(`${collectorUrl()}${path}`)),
     {
       name: "list_targets",
       description:
