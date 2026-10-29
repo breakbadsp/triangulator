@@ -13,6 +13,8 @@
 | QA-123 | NOT_RUN | - | - | - |
 | QA-124 | NOT_RUN | - | - | - |
 | QA-125 | NOT_RUN | - | - | - |
+| QA-126 | NOT_RUN | - | - | - |
+| QA-127 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -724,3 +726,15 @@
 - Driver: judged
 - Test: Use mixed local and remote samplers, with identical claimed host names where practical. Connect from another host with network_target_control off, then on. Add an exact name in list mode. Inspect Remove confirmation for a multi-instance exact name. Try Remove for a pattern-selected instance, for an instance renamed to another listed name, and direct POSTs naming a remote target or a different ID. Restart after an Add.
 - Expected: Network writes are off by default. Opt-in permits testing changes only on the verified local runtime sampler. Add needs no ID in list mode and survives restart. Remove warns that all instances of the name stop. Patterns and renamed instances require a host-side edit, and no rule changes. Remote, unknown, and mismatched targets cannot be removed. Other rules stay unchanged. Help explains production ownership and the unauthenticated opt-in.
+
+## QA-126: tri-scout with Claude Code
+
+- Driver: judged
+- Test: Install a package without `tri-scout`, then start it and open the dashboard. Run `make scout`. Register it with `claude mcp add tri -- node <path>/tri-scout.mjs serve`. Ask Claude Code whether a monitored process has a problem now, with `[scout] enabled = false`, then with `true`. While a session runs, set the switch to `false` and ask again. Start a CPU-bound owned process as a target.
+- Expected: Without `tri-scout`, start, stop, and the dashboard show no error, warning, or AI control. With the switch off, the `tri` server does not start and Claude Code gets no data. With it on, the answer names the CPU-bound target with the verdict and findings that the Targets page shows, and states data gaps. After the edit to `false`, the next tool call fails and the server exits.
+
+## QA-127: tri-scout with Codex
+
+- Driver: judged
+- Test: Repeat QA-126 with Codex. Register the server with `codex mcp add tri -- node <path>/tri-scout.mjs serve`. Also register it through `ssh <collector-host> node <path>/tri-scout.mjs serve` from another machine.
+- Expected: The results are the same as in QA-126. The `ssh` registration gives the same answers.

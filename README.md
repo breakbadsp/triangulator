@@ -122,6 +122,38 @@ Past assessments check selected recordings in the browser. They can miss brief
 problems and are computed again after a page reload.
 [Recording and replay limits](docs/measurement-limits.md#sampling-and-history)
 
+## Ask an AI agent
+
+`tri-scout` is an optional program that gives an LLM client, such as Claude
+Code or Codex, read-only tools for the monitored processes. The client asks
+the LLM. Triangulator holds no API key and calls no LLM. `make all`,
+`make release`, and the packages do not contain `tri-scout`.
+
+1. Build it on the collector host. It needs Node.js 24 or later:
+   `make scout` writes `build/tri-scout.mjs`.
+2. Set the switch in `~/triangulator/config/collector.toml`:
+
+   ```toml
+   [scout]
+   enabled = true
+   ```
+
+3. Register it with your client:
+
+   ```sh
+   claude mcp add tri -- node /path/to/tri-scout.mjs serve
+   codex mcp add tri -- node /path/to/tri-scout.mjs serve
+   ```
+
+   From another machine, use `ssh collector-host node /path/to/tri-scout.mjs serve`
+   as the command.
+
+Then ask, for example, "Is something wrong with my processes now?". The tools
+are `list_targets` and `status_now`. `status_now` gives the same verdicts and
+findings as the **Targets** page, and states data gaps. With
+`enabled = false` (the default), `tri-scout` exits with status 2 and sends no
+request. `--config <path>` selects another `collector.toml`.
+
 ## Performance
 
 <p align="center">
@@ -233,8 +265,8 @@ recorded execution result.
 | PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
 | BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
-| NOT_RUN | 4 | QA-123, QA-124, QA-125, QA-007 |
-| **Total** | **117** | |
+| NOT_RUN | 6 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-007 |
+| **Total** | **119** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
