@@ -35,6 +35,7 @@
 #include "http_connection.hpp"
 #include "json.hpp"
 #include "log.hpp"
+#include "peer.hpp"
 #include "replay.hpp"
 #include "shared_state.hpp"
 #include "storage.hpp"
@@ -809,39 +810,108 @@ class DashboardServer
     }
   }
 
+  // The exact name that a Remove deletes from process_names: the target ID
+  // without its ".N" suffix. Empty for a legacy target table. Error: a
+  // Remove that would not stop this process, so it is refused.
+  [[nodiscard]] static std::expected<std::string, std::string> RuleName(
+      const PublishedTarget& p_target)
+  {
+    const auto flags = p_target.flags_;
+    if ((flags &
+         (target_wire::kNameSelected | target_wire::kPatternSelected)) == 0)
+    {
+      return std::string{};
+    }
+    if ((flags & target_wire::kPatternSelected) != 0)
+    {
+      return std::unexpected(
+          "A process pattern also selects this process, so Remove would not "
+          "stop it. Edit process_patterns in sampler.toml on the host.");
+    }
+    return std::string{target_wire::RuleName(p_target.id_, flags)};
+  }
+
   void Target(const HttpConnection& p_connection,
               const std::optional<std::string>& p_target,
               bool p_multiple = false)
   {
-    // Local development control only. Remote deployments keep their existing
-    // sampler-side administration, with no new runtime dependency.
-    const auto loopback = [](const std::string& p_host)
-    {
-      const auto ip = NormalizeIp(p_host);
-      return ip && (ip->starts_with("127.") || *ip == "::1");
-    };
-    if (!loopback(config_.http_host_) ||
-        !std::ranges::all_of(config_.sampler_ips_, loopback))
+    // Test control of the sampler on this host. Its configuration on disk
+    // selects production targets; remote samplers are never changed here.
+    const auto client = p_connection.Client();
+    if (!config_.network_target_control_ &&
+        !(client && IsLoopback(PeerAddress(*client).View())))
     {
       RespondJson(p_connection, p_target ? 403 : 200,
                   JsonObject{{"enabled", false},
                              {"error",
-                              "target control is available for a local sampler "
-                              "on a loopback dashboard"}});
+                              "Target changes from other hosts are off. Set "
+                              "network_target_control = true in the collector "
+                              "configuration to allow them (testing only; "
+                              "there is no authentication)."}});
       return;
     }
+    std::optional<std::string> request = p_target;
     // Take the sessions of the target being removed before the sampler
     // changes, so the removal cannot reach a session announced afterwards.
     std::vector<std::uint64_t> removed_sessions;
     if (p_multiple && p_target)
     {
-      const auto change = ParseJson(*p_target);
+      auto change = ParseJson(*p_target);
       const auto* action = change ? change->Find("action") : nullptr;
       const auto* id = change ? change->Find("id") : nullptr;
-      if (action && action->IsString() && action->AsString() == "remove" &&
-          id && id->IsString())
+      if (action && action->IsString() && action->AsString() == "remove")
       {
-        removed_sessions = state_.SessionsForId(id->AsString());
+        if (change->Find("check"))
+        {
+          RespondJson(p_connection, 400,
+                      JsonObject{{"error", "only an add can be checked"}});
+          return;
+        }
+        const auto* key = change->Find("key");
+        const auto target = key && key->IsString()
+                                ? state_.Select(key->AsString())
+                                : std::nullopt;
+        if (!target || !target->local_)
+        {
+          RespondJson(p_connection, 403,
+                      JsonObject{{"error",
+                                  "This target's sampler is not on the "
+                                  "collector host. Edit sampler.toml on the "
+                                  "monitored host."}});
+          return;
+        }
+        if (!id || !id->IsString() || id->AsString() != target->id_)
+        {
+          RespondJson(p_connection, 409,
+                      JsonObject{{"error", "Target ID and key differ"}});
+          return;
+        }
+        const auto rule = RuleName(*target);
+        if (!rule)
+        {
+          RespondJson(p_connection, 409, JsonObject{{"error", rule.error()}});
+          return;
+        }
+        if (rule->empty() && id && id->IsString())
+        {
+          removed_sessions = state_.LocalSessionsForId(id->AsString());
+        }
+        else
+        {
+          const auto* requested_rule = change->Find("rule");
+          if (!requested_rule || !requested_rule->IsString() ||
+              requested_rule->AsString() != *rule)
+          {
+            RespondJson(
+                p_connection, 409,
+                JsonObject{
+                    {"error", "Target rule changed; reload the target list"}});
+            return;
+          }
+          // Discovered targets: the sampler releases every instance of the
+          // name itself, so only the rule changes.
+          request = DumpJson(JsonObject{{"action", "remove"}, {"name", *rule}});
+        }
       }
       // The collector drops targets beyond max_targets without a trace, so
       // refuse the add before the sampler configuration changes.
@@ -861,7 +931,7 @@ class DashboardServer
       }
     }
     auto result = RunTargetControl(config_.udp_host_, config_.udp_port_,
-                                   p_target, p_multiple, config_.max_targets_);
+                                   request, p_multiple, config_.max_targets_);
     if (!result)
     {
       RespondJson(p_connection, 503, JsonObject{{"error", result.error()}});

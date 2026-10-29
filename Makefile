@@ -188,7 +188,7 @@ build/sampler-test: build/sampler-test.o build/compiler_ok Makefile build/build_
 
 # Normal builds use static linkage to count libc and libstdc++ allocations.
 # Sanitizer builds use the runtime allocation hook.
-build/allocation-test.o: tests/allocation_test.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/allocation-test.o: tests/allocation_test.cpp sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
 	mkdir -p build
 	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
 

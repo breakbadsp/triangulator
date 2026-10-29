@@ -175,6 +175,9 @@ struct Config
   std::vector<WatchRule> watches_;
   std::int64_t max_live_samples_ = 1'000'000;
   std::int64_t max_targets_ = 8;
+  // Target changes from a non-loopback dashboard client. Off by default:
+  // the dashboard has no authentication. The sampler must still be local.
+  bool network_target_control_ = false;
   // A target slot silent for longer than this is released for reuse.
   double target_idle_expiry_s_ = 600;
   std::optional<std::string> sampler_ip_;
@@ -330,6 +333,14 @@ namespace detail
     {
       return std::unexpected(status.error());
     }
+  }
+  if (const auto* network = root.Find("network_target_control"))
+  {
+    if (!network->IsBool())
+    {
+      return std::unexpected("network_target_control must be true or false");
+    }
+    config.network_target_control_ = network->AsBool();
   }
   if (const auto* store_raw = root.Find("store_raw"))
   {

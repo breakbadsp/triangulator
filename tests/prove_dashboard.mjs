@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -1551,6 +1551,7 @@ finally:
   controlBase = controlInfo.url;
   const controlUrl = `${controlBase}/api/targets/control`;
   const targetList = async () => (await (await fetch(controlUrl)).json()).targets;
+  const fleetTargetList = async () => (await (await fetch(`${controlBase}/api/targets`)).json()).targets;
   await until(async () => (await targetList())?.length === 1, "local configured target");
   const originalConfig = await readFile(controlInfo.config, "utf8");
   const targetWrites = [];
@@ -1672,7 +1673,7 @@ finally:
   await click('[aria-label="Remove target proof"]');
   await until(async () => (await targetList()).length === 1, "real Remove in sampler config");
   await until(() => evaluate("!document.querySelector('[aria-label=\"Remove target proof\"]')"), "removed tile after refresh");
-  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", id: "proof", target: String(controlInfo.pid) }]);
+  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", key: `${(await fleetTargetList())[0].host}/proof`, id: "proof", target: String(controlInfo.pid) }]);
   assert.equal(confirmations.length, 4);
   assert.equal(await evaluate("document.querySelector('[aria-label=\"Remove target default\"]').disabled"), true);
   for (const entry of targetWrites) {
@@ -1685,11 +1686,29 @@ finally:
   const guardRequest = async (headers) => fetch(`${controlBase}/api/targets`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ action: "remove", id: "default" }) });
   assert.equal((await guardRequest({})).status, 403);
   assert.equal((await guardRequest({ "X-Triangulator": "1", Origin: "https://untrusted.invalid" })).status, 403);
-  assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 400);
+  assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 403);
   assert.equal(await readFile(controlInfo.config, "utf8"), currentConfig);
+  // Discovery controls use the real sampler file, with two matching PIDs.
+  const discoveryConfig = currentConfig.split("[[target]]")[0] +
+    `process_names=["${controlInfo.name}"]\nprocess_patterns=["${controlInfo.name}*"]\n`;
+  await writeFile(controlInfo.config, discoveryConfig);
+  await until(async () => (await fleetTargetList()).filter((target) => target.pid !== 0).length === 2, "two discovered process instances");
+  await until(() => evaluate("[...document.querySelectorAll('.ft-remove')].length === 2 && [...document.querySelectorAll('.ft-remove')].every(button => button.disabled)"), "pattern Remove is disabled in the real browser");
+  await click("#fleet-add");
+  await until(() => evaluate("!!document.querySelector('#target-settings')"), "discovery Add dialog");
+  assert.equal(await evaluate("document.querySelector('#target-id') === null"), true);
+  await typeInto("#target-input", "proof-wait");
+  await escapeTargetHelp();
+  await click("#target-save");
+  await until(async () => (await fleetTargetList()).some((target) => target.id === "proof-wait" && target.pid === 0), "persistent waiting rule");
+  await until(() => evaluate("document.body.textContent.includes('Waiting for a process named proof-wait')"), "explicit waiting tile");
+  await click('[aria-label="Remove target proof-wait"]');
+  await until(async () => !(await fleetTargetList()).some((target) => target.id === "proof-wait"), "exact rule Remove");
+  assert.equal((await readFile(controlInfo.config, "utf8")).includes('"proof-wait"'), false);
+  assert.match(confirmations.at(-1), /Every process named proof-wait stops being monitored/);
   assert.equal(await evaluate("document.querySelector('[id*=alert], [data-help=alerts]') === null"), true);
   assert.equal(requests.some((url) => url.includes("/api/alert-settings")), false);
-  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,400], hiddenAlerts: true };
+  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,403], hiddenAlerts: true };
 
   const { proveCleanup } = await import("./prove_cleanup.mjs");
   const cleanup = await proveCleanup({ root, profile, base, controlBase, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });

@@ -10,6 +10,9 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-123 | NOT_RUN | - | - | - |
+| QA-124 | NOT_RUN | - | - | - |
+| QA-125 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -703,3 +706,21 @@
 - Driver: judged
 - Test: Delay snapshot, resource, memory-layout, thread-history, and watch reads. Change recording, return Live, change target, or close the page before delivery. Repeat with request errors, no-thread new sessions, absence during replay, restart, late matching and unrelated exits, last-target failure/wrong session/empty replies, reload, and blocked or full tab storage. Keep focus and pointer holds on controls and Help during transitions.
 - Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory refresh stops. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
+
+## QA-123: Discovery, waiting, and capacity
+
+- Driver: judged
+- Test: Configure one exact name and one overlapping glob. Start with no matches, then start two owned processes with that name. Add more than max_targets matches. Exit and restart one process. Remove the exact rule while the glob remains, then reverse that edit.
+- Expected: Waiting is explicit. Each process has a separate tile and session. Overlaps never duplicate it. Rule edits preserve selected sessions. Capacity shows excluded matches and keeps existing processes. A restart has a new session. Inspect contextual help for waiting and capacity.
+
+## QA-124: Configuration reload and persistence
+
+- Driver: judged
+- Test: Edit sampler.toml in place. Replace it atomically. Write invalid syntax, then replace with valid syntax during a directory event burst. Move and restore the parent directory. Send SIGHUP. Restart the sampler.
+- Expected: Valid rules apply within the documented scan and reload delays. Invalid files keep the previous selection. Watch recovery applies the current file within 10 seconds plus scan delay. Restart preserves the file's selection. Unchanged instances retain sessions through target-only edits.
+
+## QA-125: Local testing controls from a remote browser
+
+- Driver: judged
+- Test: Use mixed local and remote samplers, with identical claimed host names where practical. Connect from another host with network_target_control off, then on. Add an exact name in list mode. Inspect Remove confirmation for a multi-instance exact name. Try Remove for a pattern-selected instance and direct POSTs naming a remote target or a different ID. Restart after an Add.
+- Expected: Network writes are off by default. Opt-in permits testing changes only on the verified local runtime sampler. Add needs no ID in list mode and survives restart. Remove warns that all instances of the name stop. Patterns require a host-side edit. Remote, unknown, and mismatched targets cannot be removed. Other rules stay unchanged. Help explains production ownership and the unauthenticated opt-in.

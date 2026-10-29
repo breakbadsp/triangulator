@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
@@ -13,6 +14,8 @@
 #include <vector>
 
 #include "../sampler/budget.hpp"
+#include "../sampler/config_watch.hpp"
+#include "../sampler/discovery.hpp"
 #include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
@@ -200,6 +203,291 @@ void TestMultipleTargetConfig()
     many += std::format("[[target]]\nid=t{}\npid=1\n", index);
     Require(ParseConfig(many).has_value() == (index < 16),
             "fixed target count");
+  }
+}
+
+// The discovery lists: multi-line arrays with comments, and each rule that
+// the requirement rejects, including a mix with the legacy selectors.
+void TestDiscoveryConfig()
+{
+  const auto parsed = ParseConfig(
+      "collector=127.0.0.1:9400\nprocess_names = [\n  \"orders-api\",  # "
+      "one\n  \"billing\",\n]\nprocess_patterns = [\"worker-*\", \"a,b?\"]\n"
+      "max_targets = 3\n");
+  Require(parsed && parsed->Discovers(), "discovery lists parse");
+  Require(parsed->process_names_ ==
+              std::vector<std::string>{"orders-api", "billing"},
+          "a name per list entry, comments and a trailing comma allowed");
+  Require(
+      parsed->process_patterns_ == std::vector<std::string>{"worker-*", "a,b?"},
+      "a comma inside quotes belongs to the pattern");
+  Require(parsed->max_targets_ == 3 && parsed->targets_.empty(),
+          "max_targets, and no target tables");
+  Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"x\"]")
+                  ->max_targets_ == 8,
+          "eight slots by default");
+  for (const auto text :
+       {"process_names=[\"a\"]\ntarget_process=b",
+        "target_pid=1\nprocess_patterns=[\"a*\"]",
+        "process_names=[\"a\"]\n[[target]]\nid=b\npid=1",
+        "process_names=[\"web content\"]", "process_names=[\"..\"]",
+        "process_names=[\"0123456789abcdef\"]", "process_names=[\"a\",\"a\"]",
+        "process_patterns=[\"plain\"]", "process_patterns=[\"[ab]*\"]",
+        "process_patterns=[\"a\\\\*\"]",
+        "process_patterns=[\"0123456789abcde*\"]", "process_names=[\"a\"",
+        "process_names=\"a\"", "process_names=[a]",
+        "process_names=[\"a\"\n\"b\"]", "process_names=[\"a\" \"b\"]",
+        "process_names=[\"a\"]\nmax_targets=17",
+        "process_names=[\"a\"]\nmax_targets=0", "target_pid=1\nmax_targets=2"})
+  {
+    Require(!ParseConfig(std::string{"collector=127.0.0.1:9400\n"} + text),
+            text);
+  }
+  const auto mixed = ParseConfig(
+      "collector=127.0.0.1:9400\ntarget_pid=1\nprocess_names=[\"a\"]");
+  Require(!mixed && mixed.error().find("target_pid or target_process") !=
+                        std::string::npos,
+          "the error names the conflicting settings");
+  std::string many = "collector=127.0.0.1:9400\nprocess_names=[";
+  for (int index = 0; index < 16; ++index)
+  {
+    many += std::format("\"n{}\",", index);
+  }
+  Require(ParseConfig(many + "]").has_value(), "16 rules");
+  Require(!ParseConfig(many + "]\nprocess_patterns=[\"x*\"]"),
+          "at most 16 rules");
+}
+
+// Glob rules from the requirement: '*' any bytes, '?' one byte, exact and
+// case-sensitive over the whole name.
+void TestGlobMatch()
+{
+  Require(GlobMatch("worker-*", "worker-") && GlobMatch("worker-*", "worker-7"),
+          "* matches an empty or longer tail");
+  Require(
+      !GlobMatch("worker-*", "Worker-7") && !GlobMatch("worker-*", "xworker-7"),
+      "case-sensitive, whole name");
+  Require(GlobMatch("w?rk*r", "wxrkr") && GlobMatch("w?rk*r", "work-er-r"),
+          "? and backtracking *");
+  Require(!GlobMatch("w?rk", "wrk") && !GlobMatch("a*b", "ab-c"),
+          "? needs one byte; the end must match");
+  Require(GlobMatch("*", "") && GlobMatch("**a**", "xay"), "repeated stars");
+  Require(IdBase("web content").data() == std::string_view{"web_content"} &&
+              IdBase(".").data() == std::string_view{"_"} &&
+              IdBase("a.b-c_9").data() == std::string_view{"a.b-c_9"},
+          "ID bytes");
+}
+
+// Overflow and a lost watch must make a reload pending: a dropped event
+// can be the one for the file.
+void TestConfigWatchEvents()
+{
+  const auto event = [](std::uint32_t p_mask, std::string_view p_name)
+  {
+    std::vector<std::byte> bytes(sizeof(inotify_event) + 16);
+    inotify_event header{};
+    header.mask = p_mask;
+    header.len = 16;
+    std::memcpy(bytes.data(), &header, sizeof(header));
+    std::memcpy(bytes.data() + sizeof(header), p_name.data(), p_name.size());
+    return bytes;
+  };
+  const auto parse = [](const std::vector<std::byte>& p_bytes)
+  {
+    return ParseWatchEvents(p_bytes, "sampler.toml");
+  };
+  Require(parse(event(IN_CLOSE_WRITE, "sampler.toml")).changed_ &&
+              parse(event(IN_MOVED_TO, "sampler.toml")).changed_,
+          "an edit and an atomic rename");
+  Require(!parse(event(IN_CLOSE_WRITE, "other.toml")).changed_ &&
+              !parse(event(IN_MOVED_TO, "sampler.toml.swp")).changed_,
+          "other files are ignored");
+  const auto overflow = parse(event(IN_Q_OVERFLOW, ""));
+  Require(overflow.changed_ && !overflow.lost_, "overflow reloads");
+  for (const auto mask : {IN_IGNORED, IN_DELETE_SELF, IN_MOVE_SELF})
+  {
+    const auto lost = parse(event(mask, ""));
+    Require(lost.changed_ && lost.lost_,
+            "a lost watch reloads and is set up again");
+  }
+  auto two = event(IN_CLOSE_WRITE, "other");
+  const auto second = event(IN_CLOSE_WRITE, "sampler.toml");
+  two.insert(two.end(), second.begin(), second.end());
+  Require(parse(two).changed_, "the file event after another one");
+  auto cut = event(IN_CLOSE_WRITE, "other");
+  cut.resize(cut.size() - 4);
+  Require(parse(cut).changed_, "a cut record counts as a change");
+}
+
+// The design-review edit table: an instance keeps its slot, ID, and
+// selection changes while any rule selects it. This process is the
+// instance; its name is sampler-test.
+void TestDiscoveryTransitions()
+{
+  const auto config =
+      [](std::vector<std::string> p_names, std::vector<std::string> p_patterns)
+  {
+    Config result;
+    result.process_names_ = std::move(p_names);
+    result.process_patterns_ = std::move(p_patterns);
+    result.max_targets_ = 3;
+    return result;
+  };
+  const auto scan = [](Discovery& p_discovery, const Config& p_config)
+  {
+    for (int tick = 0; tick < 10'000; ++tick)
+    {
+      const auto done = p_discovery.Scan(p_config, Nanoseconds{tick});
+      Require(done.has_value(), "scan");
+      if (*done)
+      {
+        return;
+      }
+    }
+    Require(false, "the pass ends");
+  };
+  const auto self = [](Discovery& p_discovery) -> DiscoverySlot&
+  {
+    for (auto& slot : p_discovery.Used())
+    {
+      if (slot.identity_.pid_ == ::getpid())
+      {
+        return slot;
+      }
+    }
+    throw std::runtime_error("this process was not admitted");
+  };
+  Discovery discovery;
+  const auto both = config({"sampler-test", "absent-name"}, {"sampler-t*"});
+  discovery.Configure(both);
+  scan(discovery, both);
+  auto& slot = self(discovery);
+  Require(slot.state_ == SlotState::Running &&
+              std::string_view{slot.id_.data()} == "sampler-test" &&
+              slot.selection_ ==
+                  (target_wire::kNameSelected | target_wire::kPatternSelected),
+          "an exact name takes its waiting slot");
+  const auto& waiting = discovery.Used()[1];
+  Require(waiting.state_ == SlotState::Waiting &&
+              std::string_view{waiting.id_.data()} == "absent-name",
+          "a name with no process waits under its own ID");
+  slot.reassigned_ = false;
+  const auto pattern_only = config({}, {"sampler-t*"});
+  discovery.Configure(pattern_only);
+  Require(&self(discovery) == &slot && slot.state_ == SlotState::Running &&
+              !slot.reassigned_ &&
+              slot.selection_ == target_wire::kPatternSelected,
+          "removing the name keeps the instance that the pattern selects");
+  Require(discovery.Used()[1].state_ == SlotState::Releasing &&
+              (discovery.Flags(1) & target_wire::kReleased) != 0,
+          "the removed name's waiting slot is released");
+  const auto name_only = config({"sampler-test"}, {});
+  discovery.Configure(name_only);
+  Require(&self(discovery) == &slot && !slot.reassigned_ &&
+              slot.selection_ == target_wire::kNameSelected &&
+              std::ranges::count(discovery.Used(), SlotState::Waiting,
+                                 &DiscoverySlot::state_) == 0,
+          "adding the name keeps the instance; no second slot for it");
+  discovery.End(name_only, 0);
+  Require(slot.state_ == SlotState::Waiting &&
+              std::string_view{slot.id_.data()} == "sampler-test",
+          "an ended instance of a configured name waits under its ID");
+  scan(discovery, name_only);
+  Require(slot.state_ == SlotState::Running && !slot.reassigned_,
+          "the next process with that name takes the same slot");
+  discovery.Configure(config({}, {"zz*"}));
+  Require(slot.state_ == SlotState::Releasing,
+          "an instance that no rule selects is released");
+  for (int tick = 0; tick < kReleaseTicks; ++tick)
+  {
+    Require((discovery.Flags(0) & target_wire::kReleased) != 0,
+            "each release tick announces the release");
+    discovery.StepRelease(0);
+  }
+  Require(slot.state_ == SlotState::Free, "then the slot is free");
+}
+
+// Capacity: admitted instances stay, extra matches are counted, and IDs of
+// one name get suffixes. Children named disc-child match the pattern.
+void TestDiscoveryCapacity()
+{
+  std::array<pid_t, 3> children{};
+  for (auto& child : children)
+  {
+    child = ::fork();
+    Require(child >= 0, "fork");
+    if (child == 0)
+    {
+      // A failed check exits the test; the child must not stay.
+      ::prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0);
+      ::prctl(PR_SET_NAME, "disc-child", 0, 0, 0);
+      ::pause();
+      ::_exit(0);
+    }
+  }
+  // The children set their names after fork; wait until all have.
+  for (int attempt = 0; attempt < 500; ++attempt)
+  {
+    const auto named = std::ranges::count_if(
+        children,
+        [](pid_t p_child)
+        {
+          std::ifstream comm{std::format("/proc/{}/comm", p_child)};
+          std::string name;
+          std::getline(comm, name);
+          return name == "disc-child";
+        });
+    if (named == static_cast<std::ptrdiff_t>(children.size()))
+    {
+      break;
+    }
+    ::usleep(2000);
+  }
+  Config config;
+  config.process_patterns_ = {"disc-c*"};
+  config.max_targets_ = 2;
+  char root[] = "/tmp/discovery-order-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "discovery fixture directory");
+  // Entry creation order deliberately differs from admission order. Numeric
+  // entries still refer to real child PIDs when their comm/stat is read.
+  for (auto child = children.rbegin(); child != children.rend(); ++child)
+  {
+    std::ofstream{std::format("{}/{}", root, *child)};
+  }
+  for (int index = 0; index < 1200; ++index)
+  {
+    std::ofstream{std::format("{}/entry-{}", root, index)};
+  }
+  Discovery discovery{root};
+  discovery.Configure(config);
+  bool done = false;
+  for (int tick = 0; !done && tick < 10'000; ++tick)
+  {
+    const auto scanned = discovery.Scan(config, Nanoseconds{tick});
+    Require(scanned.has_value(), "scan");
+    done = *scanned;
+    if (tick < 2)
+    {
+      Require(!done, "one tick cannot examine more than 512 entries");
+    }
+    else
+    {
+      Require(done, "1205 entries complete in three bounded ticks");
+    }
+  }
+  std::filesystem::remove_all(root);
+  const auto slots = discovery.Used();
+  Require(std::string_view{slots[0].id_.data()} == "disc-child" &&
+              std::string_view{slots[1].id_.data()} == "disc-child.2" &&
+              target_wire::Ordinal(discovery.Flags(1)) == 2,
+          "one name, two instances: an ID suffix and its ordinal");
+  Require(slots[0].identity_.pid_ < slots[1].identity_.pid_ &&
+              discovery.Excluded() == 1,
+          "admission in PID order; the third match is excluded");
+  for (const auto child : children)
+  {
+    ::kill(child, SIGKILL);
+    ::waitpid(child, nullptr, 0);
   }
 }
 
@@ -1547,6 +1835,11 @@ int main()
     TestParsing();
     TestConfig();
     TestMultipleTargetConfig();
+    TestDiscoveryConfig();
+    TestGlobMatch();
+    TestConfigWatchEvents();
+    TestDiscoveryTransitions();
+    TestDiscoveryCapacity();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();
@@ -1565,7 +1858,8 @@ int main()
     TestExitMessages();
     TestExitStatus();
     std::puts(
-        "C++ sampler tests passed (parsing, configuration, wire compatibility, "
+        "C++ sampler tests passed (parsing, configuration, discovery, wire "
+        "compatibility, "
         "RAII, descriptor budget, resource parsing and probe, memory map, "
         "process identity, exit messages and status)");
   }

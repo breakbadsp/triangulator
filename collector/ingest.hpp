@@ -30,6 +30,7 @@
 #include "exits.hpp"
 #include "log.hpp"
 #include "memory.hpp"
+#include "peer.hpp"
 #include "process.hpp"
 #include "protocol.hpp"
 #include "resources.hpp"
@@ -39,22 +40,6 @@ namespace triangulator::collector
 {
 
 // A peer address as text, such as "10.0.0.1" or "::1".
-using PeerText = FixedText<INET6_ADDRSTRLEN>;
-
-[[nodiscard]] inline PeerText PeerAddress(const sockaddr_storage& p_peer)
-{
-  std::array<char, INET6_ADDRSTRLEN> buffer{};
-  const void* address =
-      p_peer.ss_family == AF_INET6
-          ? static_cast<const void*>(
-                &reinterpret_cast<const sockaddr_in6&>(p_peer).sin6_addr)
-          : static_cast<const void*>(
-                &reinterpret_cast<const sockaddr_in&>(p_peer).sin_addr);
-  ::inet_ntop(p_peer.ss_family, address, buffer.data(),
-              static_cast<socklen_t>(buffer.size()));
-  return PeerText{buffer.data()};
-}
-
 class Ingest
 {
  public:

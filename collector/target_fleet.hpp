@@ -115,6 +115,11 @@ class TargetFleet final
       ++bad_packets_;
       return {};
     }
+    if (announcement && (announcement->flags_ & target_wire::kReleased) != 0)
+    {
+      Release(p_peer, *announcement, p_now);
+      return {};
+    }
     // A recovered session lost the legacy sender key to another session of
     // the same sampler, as after a collector restart. That session still
     // holds the key, so the recovered one must not adopt it.
@@ -330,6 +335,31 @@ class TargetFleet final
         slot->active_ = false;
         slot->visible_ = false;
       }
+    }
+  }
+
+  // A discovered target ended or no rule selects it any more. Its slot is
+  // freed now: idle expiry would hold it for minutes during churn. Only
+  // this session is freed; a delayed release cannot remove a replacement.
+  void Release(const PeerText& p_peer, const target_wire::Packet& p_packet,
+               double p_now)
+  {
+    for (auto& slot : slots_)
+    {
+      if (slot->active_ && slot->peer_ == p_peer &&
+          slot->session_ == p_packet.session_)
+      {
+        Retire(slot->peer_, slot->session_);
+        slot->monitor_.Close();
+        slot->resources_.Drain(p_now, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
+    // Later ticks of the released session must not take a slot again.
+    if (!IsRetired(p_peer, p_packet.session_))
+    {
+      Retire(p_peer, p_packet.session_);
     }
   }
 

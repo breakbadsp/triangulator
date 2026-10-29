@@ -1,15 +1,23 @@
 import { getJson } from "./client";
 
 export type ManagedTarget = { id: string; target: string };
+/** "tables": [[target]] tables with IDs. "names": discovery lists. */
+export type ControlMode = "tables" | "names";
 export type TargetControl =
-  | { enabled: false }
+  | { enabled: false; reason: string }
   | {
       enabled: true;
       host: string;
+      mode: ControlMode;
       targets: ManagedTarget[] | null;
       error: string;
     };
-export type TargetChange = ManagedTarget & { action: "add" | "remove" };
+export type TargetChange =
+  | ({ action: "add" } & ManagedTarget)
+  | { action: "add"; target: string }
+  | { action: "remove"; key: string; id: string; target: string }
+  /** A discovered target: Remove deletes its exact name from process_names. */
+  | { action: "remove"; key: string; id: string; rule: string };
 export type ProcessCandidate = {
   pid: number;
   user: string;
@@ -43,10 +51,16 @@ const candidate = (value: unknown): value is ProcessCandidate =>
       Number.isFinite(value.started_at)));
 
 export function parseTargetControl(value: unknown): TargetControl {
-  if (!record(value) || value.enabled !== true) return { enabled: false };
+  if (!record(value) || value.enabled !== true)
+    return {
+      enabled: false,
+      reason:
+        record(value) && typeof value.error === "string" ? value.error : "",
+    };
   return {
     enabled: true,
     host: typeof value.host === "string" ? value.host : "",
+    mode: value.mode === "names" ? "names" : "tables",
     targets:
       Array.isArray(value.targets) && value.targets.every(managed)
         ? value.targets
@@ -62,7 +76,7 @@ export async function readTargetControl(
       await getJson<unknown>("/api/targets/control", signal),
     );
   } catch {
-    return { enabled: false };
+    return { enabled: false, reason: "" };
   }
 }
 export async function changeTargets(

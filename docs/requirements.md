@@ -251,3 +251,10 @@ Status: Open.
 
 Make `bug-lab/run-lab.sh` capture QA-120 after `SIGCONT`, so the run shows
 the recovered state (ISS-11 in PR #121).
+
+### REQ-0024: Local target configuration and discovery
+
+Status: Implemented. Source identifier: REQ-TARGET-001 in PR194.
+
+The requirement and acceptance criteria are in
+[Local configuration and discovery](multi-target-design.md#req-0024-local-configuration-and-discovery).
