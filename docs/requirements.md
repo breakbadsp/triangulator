@@ -91,6 +91,44 @@ answer these questions from the collected data:
   throttling in the window.
 - The collector receive path and the sampler have no new work.
 
+#### Design (PR #202)
+
+- **Questions come from the user's LLM client.** The user asks Claude Code
+  or Codex. The client calls read-only MCP tools. Triangulator holds no API
+  key, calls no LLM, and has no chat in the dashboard.
+- **One optional program, `tri-scout`.** `tri` is short for triage or
+  triangulation. It is TypeScript on the newest Node LTS (24 or later), in
+  `dashboard/src/scout/`. It imports the dashboard incident rules in
+  `dashboard/src/lib/assess`, so the dashboard and the agent give the same
+  verdicts. `make scout` builds one file, `build/tri-scout.mjs`, with no
+  runtime `node_modules`. It has two modes:
+  - `tri-scout scan`: a long-running process on the collector host. It reads
+    every recording in the day files in read-only mode, applies the rules,
+    and stores incidents in `data/scout/incidents.sqlite3`. It checks every
+    recording, not the Timeline sample of at most 120 recordings per period,
+    so it does not miss a short incident.
+  - `tri-scout serve`: the MCP server, on stdio. The client starts it, on the
+    collector host or through `ssh`. Register it as `tri`, for example
+    `claude mcp add tri -- node /opt/triangulator/tri-scout.mjs serve`.
+- **Tools:** `list_targets`, `status_now`, `list_incidents`, `get_incident`,
+  `timeseries`, `top_threads`, and `compare`. Each result has a size limit
+  and states data completeness.
+- **Optional deploy.** `make all`, `make release`, and the sampler and
+  collector packages do not contain `tri-scout`. It is a separate release
+  file. `scripts/start.sh` starts `tri-scout scan` only when the file is
+  present and the switch is on, and says nothing when the file is absent.
+- **Switch.** `[scout] enabled` in `collector.toml`, `false` by default. When
+  it is off, both modes exit with status 2 at start. `serve` reads it again
+  on each tool call and `scan` on each pass. The collector ignores the table.
+- **Safety.** No collector, sampler, `common/`, or day-file format changes.
+  `serve` sends only GET requests that the dashboard already sends. The
+  day files use WAL, so a reader does not block the collector writer.
+- **Delivery:** (1) switch, `list_targets`, `status_now`; (2) `scan` and the
+  incident store; (3) `list_incidents`, `get_incident`; (4) `timeseries`,
+  `top_threads`, `compare`, and the release file.
+- **Not in this series:** `list_sessions`, `correlate`, read-only SQL, the
+  runbook, and the long-term tier.
+
 ## Target configuration
 
 ### REQ-0024: Local target configuration and discovery
