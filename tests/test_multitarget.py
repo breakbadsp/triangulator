@@ -751,3 +751,5 @@ class MultiTargetSamplerTests(unittest.TestCase):
         self.receiver.settimeout(1)
         changed = self.collect_sessions([0], sessions, changed=True)
         self.assertNotEqual(changed, sessions)
+        self.assertEqual(self.collect_sessions([0], changed), changed,
+                         "the next tick also uses the new rate")

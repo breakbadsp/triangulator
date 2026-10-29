@@ -130,6 +130,14 @@ class ConfigWatch final
     last_reload_ = p_now;
   }
 
+  // A rate-limited reload must wake the loop even at the 0.2 Hz tick rate.
+  [[nodiscard]] Nanoseconds Deadline(Nanoseconds p_tick) const noexcept
+  {
+    return pending_ && reloaded_
+               ? std::min(p_tick, last_reload_ + kMinReloadInterval)
+               : p_tick;
+  }
+
   [[nodiscard]] bool Watching() const noexcept
   {
     return watching_;
@@ -143,7 +151,8 @@ class ConfigWatch final
   std::array<char, 256> name_{};
   FileDescriptor descriptor_;
   bool watching_ = false;
-  bool pending_ = false;
+  // The initial read can precede watch setup. Reconcile that gap once.
+  bool pending_ = true;
   bool reloaded_ = false;
   Nanoseconds last_reload_{0};
   Nanoseconds next_setup_{0};

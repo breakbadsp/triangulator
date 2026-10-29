@@ -319,6 +319,71 @@ void TestConfigWatchEvents()
   Require(parse(cut).changed_, "a cut record counts as a change");
 }
 
+// An edit after the initial read and before watch setup must be reloaded.
+void TestConfigWatchStartupEdit()
+{
+  char root[] = "/tmp/config-startup-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "startup fixture directory");
+  const auto path = std::filesystem::path{root} / "sampler.toml";
+  const auto write = [&](std::string_view p_name)
+  {
+    std::ofstream file{path};
+    file << "collector=\"127.0.0.1:9400\"\nprocess_names=[\"" << p_name
+         << "\"]\n";
+  };
+  write("before");
+  auto initial = LoadConfig(path.c_str());
+  Require(initial.has_value(), "initial config loads");
+  write("after");
+  ConfigWatch watch{path.c_str()};
+  RateLimitedLogger logger;
+  Require(watch.Poll(false, Nanoseconds{0}, logger),
+          "startup edit queues authoritative reload without another event");
+  const auto current = LoadConfig(path.c_str());
+  Require(current && current->settings_.process_names_[0] == "after",
+          "authoritative read sees startup edit");
+  watch.Reloaded(Nanoseconds{0});
+  Require(!watch.Poll(false, 1s, logger), "startup reload completes once");
+  watch.Reloaded(1s);
+  Require(!watch.Poll(true, 1100ms, logger), "reload burst is rate limited");
+  Require(watch.Deadline(6s) == 2s,
+          "pending reload wakes before a minimum-rate sampling deadline");
+  std::filesystem::remove_all(root);
+}
+
+// Reload must use the current comm even before a scan sees a rename.
+void TestDiscoveryRenameBeforeReload()
+{
+  std::array<char, 16> original{};
+  Require(::prctl(PR_GET_NAME, original.data()) == 0, "save test name");
+  Require(::prctl(PR_SET_NAME, "rename-before") == 0, "initial test name");
+  Config config;
+  config.process_names_ = {"rename-before"};
+  config.max_targets_ = 1;
+  Discovery discovery;
+  discovery.Configure(config);
+  bool done = false;
+  for (int step = 0; step < 100 && !done; ++step)
+  {
+    const auto result = discovery.Scan(config, Nanoseconds{step});
+    Require(result.has_value(), "rename fixture scan");
+    done = *result;
+  }
+  auto& slot = discovery.Used()[0];
+  Require(done && slot.state_ == SlotState::Running, "rename fixture admitted");
+  const auto identity = slot.identity_;
+  const auto id = slot.id_;
+  slot.reassigned_ = false;
+  Require(::prctl(PR_SET_NAME, "rename-after") == 0, "rename before reload");
+  config.process_names_ = {"rename-after"};
+  discovery.Configure(config);
+  Require(slot.state_ == SlotState::Running && slot.identity_ == identity &&
+              slot.id_ == id && !slot.reassigned_ &&
+              Text(slot.name_) == "rename-after",
+          "rename then reload keeps the selected identity and ID");
+  Require(::prctl(PR_SET_NAME, original.data()) == 0, "restore test name");
+}
+
 // The design-review edit table: an instance keeps its slot, ID, and
 // selection changes while any rule selects it. This process is the
 // instance; its name is sampler-test.
@@ -1838,6 +1903,8 @@ int main()
     TestDiscoveryConfig();
     TestGlobMatch();
     TestConfigWatchEvents();
+    TestConfigWatchStartupEdit();
+    TestDiscoveryRenameBeforeReload();
     TestDiscoveryTransitions();
     TestDiscoveryCapacity();
     TestSharedDescriptorBudget();

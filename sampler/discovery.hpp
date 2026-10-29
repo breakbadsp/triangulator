@@ -128,11 +128,9 @@ class Discovery final
       }
       if (slot.state_ == SlotState::Running)
       {
-        slot.selection_ = Selection(p_config, Text(slot.name_));
-        if (slot.selection_ == 0)
-        {
-          Release(slot, kReleaseTicks);
-        }
+        // Reload can arrive before the next scan observes a comm change.
+        // Keep the session on read failure and reconcile on the next pass.
+        (void)Examine(p_config, slot.identity_.pid_);
       }
       else if (slot.state_ == SlotState::Waiting)
       {
@@ -196,7 +194,7 @@ class Discovery final
         return true;
       }
       const auto pid = ParseNumber<int>(*entry);
-      if (!pid || *pid <= 0 || Follows(*pid))
+      if (!pid || *pid <= 0)
       {
         continue;
       }
@@ -297,17 +295,6 @@ class Discovery final
     return false;
   }
 
-  // A slot follows this PID already, so its name needs no read.
-  [[nodiscard]] bool Follows(int p_pid) noexcept
-  {
-    return std::ranges::any_of(Used(),
-                               [p_pid](const DiscoverySlot& p_slot)
-                               {
-                                 return p_slot.identity_.pid_ == p_pid &&
-                                        p_slot.state_ != SlotState::Free;
-                               });
-  }
-
   // Reads one process name, and admits the process when a rule selects it
   // and a slot is available. Error: errno when descriptors ran out.
   [[nodiscard]] std::expected<void, int> Examine(const Config& p_config,
@@ -328,11 +315,38 @@ class Discovery final
     {
       name->remove_suffix(1);
     }
-    if (name->empty() || name->size() > kMaxRuleBytes)
+    if (name->size() > kMaxRuleBytes)
     {
       return {};
     }
-    const auto selection = Selection(p_config, *name);
+    const auto selection =
+        name->empty() ? std::uint8_t{0} : Selection(p_config, *name);
+    for (auto& slot : Used())
+    {
+      if (slot.state_ == SlotState::Free || slot.identity_.pid_ != p_pid)
+      {
+        continue;
+      }
+      if (slot.state_ == SlotState::Running)
+      {
+        const auto identity = FindTarget(TargetPid{p_pid});
+        if (!identity)
+        {
+          return std::unexpected(identity.error());
+        }
+        if (*identity == slot.identity_)
+        {
+          slot.name_ = {};
+          std::ranges::copy(*name, slot.name_.begin());
+          slot.selection_ = selection;
+          if (selection == 0)
+          {
+            Release(slot, kReleaseTicks);
+          }
+        }
+      }
+      return {};
+    }
     if (selection == 0)
     {
       return {};

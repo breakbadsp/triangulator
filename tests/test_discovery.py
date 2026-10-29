@@ -1,5 +1,7 @@
 """Run the real sampler against safe, named process fixtures and real UDP."""
 import os
+import json
+import sys
 from pathlib import Path
 import signal
 import socket
@@ -10,6 +12,7 @@ import time
 import unittest
 
 from test_sampler_control import start_named, stop
+from test_multitarget import CollectorCase
 from wire import decode
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,10 +32,11 @@ class DiscoveryTests(unittest.TestCase):
         self.name = f'd199-{os.getpid()}'
         self.latest = {}
         self.ticks = {}
+        self.releases = []
 
-    def write(self, rules, atomic=False):
+    def write(self, rules, atomic=False, rate=10):
         text = (f'collector="127.0.0.1:{self.receiver.getsockname()[1]}"\n'
-                'rate_hz=10\ncpu_budget_pct=100\nresource_interval_s=0\nmemory_interval_s=0\n' + rules)
+                f'rate_hz={rate}\ncpu_budget_pct=100\nresource_interval_s=0\nmemory_interval_s=0\n' + rules)
         path = self.path.with_suffix('.new') if atomic else self.path
         path.write_text(text)
         if atomic:
@@ -61,6 +65,7 @@ class DiscoveryTests(unittest.TestCase):
                 key = fields[-2].split(b'\0')[0].decode()
                 self.assertTrue(key, 'announcements must not expose unused slots')
                 if fields[3] & 1:
+                    self.releases.append((key, fields[5]))
                     if key in self.latest and self.latest[key]['session'] == fields[5]:
                         del self.latest[key]
                 else:
@@ -136,6 +141,75 @@ class DiscoveryTests(unittest.TestCase):
         self.write(f'process_names=["{self.name}"]\nmax_targets=2\n')
         self.until(lambda: len(self.latest) == 2 and 'default' not in self.latest)
 
+    def test_capacity_grow_shrink_keeps_survivors_and_releases_old_sessions(self):
+        children = [self.child() for _ in range(3)]
+        rules = f'process_patterns=["{self.name}*"]\n'
+        self.write(rules + 'max_targets=2\n')
+        self.start()
+        self.until(lambda: len(self.latest) == 2)
+        before = {k: v['session'] for k, v in self.latest.items()}
+        self.write(rules + 'max_targets=3\n')
+        self.until(lambda: len(self.latest) == 3)
+        for key, session in before.items():
+            self.assertEqual(self.latest[key]['session'], session)
+        removed = next((k, v['session']) for k, v in self.latest.items()
+                       if v['pid'] == children[2].pid)
+        self.write(rules + 'max_targets=2\n')
+        self.until(lambda: removed in self.releases)
+        self.assertNotIn(removed[0], self.latest)
+        for key, session in before.items():
+            self.assertEqual(self.latest[key]['session'], session)
+
+    def test_capacity_shrink_releases_removed_original_session(self):
+        children = [self.child() for _ in range(3)]
+        rules = f'process_patterns=["{self.name}*"]\n'
+        self.write(rules + 'max_targets=3\n')
+        self.start()
+        self.until(lambda: len(self.latest) == 3)
+        before = {k: v.copy() for k, v in self.latest.items()}
+        removed = next((k, v['session']) for k, v in before.items()
+                       if v['pid'] == children[2].pid)
+        self.write(rules + 'max_targets=2\n')
+        self.until(lambda: removed in self.releases)
+        for key, value in before.items():
+            if key != removed[0]:
+                self.assertEqual(self.latest[key]['session'], value['session'])
+
+    def rename_child(self, destination):
+        code = ("import signal,sys,time; "
+                "signal.signal(signal.SIGUSR1, lambda *_: open('/proc/self/comm','w').write(sys.argv[2])); "
+                "open('/proc/self/comm','w').write(sys.argv[1]); time.sleep(60)")
+        child = subprocess.Popen([sys.executable, '-c', code, self.name, destination])
+        self.addCleanup(stop, child)
+        deadline = time.monotonic() + 3
+        while Path(f'/proc/{child.pid}/comm').read_text().strip() != self.name:
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(0.01)
+        return child
+
+    def test_rename_to_selected_name_keeps_identity_and_session(self):
+        child = self.rename_child("renamed-worker")
+        self.write(f'process_names=["{self.name}"]\nprocess_patterns=["renamed-*"]\n')
+        self.start()
+        self.until(lambda: self.latest.get(self.name, {}).get('pid') == child.pid)
+        session = self.latest[self.name]['session']
+        child.send_signal(signal.SIGUSR1)
+        self.until(lambda: self.latest[self.name]['flags'] & 6 == 4)
+        self.assertEqual(self.latest[self.name]['session'], session)
+        self.write('process_patterns=["renamed-*"]\n')
+        self.receive(1.2)
+        self.assertEqual(self.latest[self.name]['session'], session)
+
+    def test_rename_to_unselected_name_releases_session(self):
+        child = self.rename_child("unselected")
+        self.write(f'process_patterns=["{self.name}*"]\n')
+        self.start()
+        self.until(lambda: self.latest.get(self.name, {}).get('pid') == child.pid)
+        session = self.latest[self.name]['session']
+        child.send_signal(signal.SIGUSR1)
+        self.until(lambda: (self.name, session) in self.releases)
+        self.assertNotIn(self.name, self.latest)
+
     def test_directory_watch_recovery(self):
         self.write('process_names=["d199-before"]\n')
         self.start()
@@ -153,6 +227,30 @@ class DiscoveryTests(unittest.TestCase):
         self.receive(10.5)
         self.write('process_names=["d199-recovered"]\n')
         self.until(lambda: 'd199-recovered' in self.latest)
+
+
+class DiscoveryCollectorReloadTests(CollectorCase):
+    MAX_TARGETS = 2
+
+    def test_full_collector_rule_and_global_reload_releases_original_session(self):
+        names = [f'r199-{os.getpid()}-{suffix}' for suffix in ('a', 'b', 'c')]
+        for name in names:
+            self.addCleanup(stop, start_named(name))
+        config = self.directory / 'sampler.toml'
+        def write(selected, rate):
+            config.write_text(f'collector="127.0.0.1:{self.udp_port}"\n'
+                              f'rate_hz={rate}\ncpu_budget_pct=100\n'
+                              'resource_interval_s=0\nmemory_interval_s=0\nmax_targets=2\n'
+                              f'process_names={json.dumps(selected)}\n')
+        write(names[:2], 10)
+        sampler = subprocess.Popen([ROOT / 'build/triangulator-sampler', config],
+                                   stderr=subprocess.DEVNULL)
+        self.addCleanup(stop, sampler)
+        def ids():
+            return {key.split('/')[-1] for key in self.targets()}
+        self.wait_for(lambda: ids() == set(names[:2]))
+        write([names[0], names[2]], 5)
+        self.wait_for(lambda: ids() == {names[0], names[2]})
 
 
 if __name__ == '__main__':

@@ -644,6 +644,9 @@ class Sampler final
     auto last_cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
     while (!stop_requested)
     {
+      // A control wake can precede the tick deadline. Start its tick here
+      // so the old deadline cannot delay sampling after a rate increase.
+      deadline = std::min(deadline, ClockNow(CLOCK_MONOTONIC));
       const bool signal = reload_requested != 0;
       reload_requested = 0;
       if (watch.Poll(signal, ClockNow(CLOCK_MONOTONIC), logger_))
@@ -696,7 +699,7 @@ class Sampler final
       {
         deadline += interval * ((end - deadline) / interval + 1);
       }
-      SleepUntil(deadline);
+      SleepUntil(watch.Deadline(deadline));
     }
     return {};
   }
@@ -737,8 +740,26 @@ class Sampler final
         before.collector_ == after.collector_ &&
         before.status_fallback_ == after.status_fallback_ &&
         before.resource_interval_s_ == after.resource_interval_s_ &&
-        before.memory_interval_s_ == after.memory_interval_s_ &&
-        before.max_targets_ == after.max_targets_;
+        before.memory_interval_s_ == after.memory_interval_s_;
+    // Release through the old endpoint, while the actual sessions still exist.
+    // Configure() can erase slots above a reduced discovery capacity.
+    for (std::size_t index = 0; index < pool_.size(); ++index)
+    {
+      if ((!keep_sessions || !after.Discovers() ||
+           index >= after.max_targets_) &&
+          discovery_.Used()[index].state_ != SlotState::Free)
+      {
+        pool_[index]->Release();
+      }
+    }
+    for (auto& target : targets_)
+    {
+      if (!keep_sessions || after.Discovers() ||
+          !std::ranges::contains(after.targets_, target->Settings()))
+      {
+        target->Release();
+      }
+    }
     config_ = std::move(*next);
     if (!keep_sessions)
     {
@@ -883,19 +904,19 @@ class Sampler final
   [[nodiscard]] std::expected<void, std::string> PreparePool(
       bool p_keep_sessions)
   {
-    for (auto& target : targets_)
-    {
-      target->Release();
-    }
     targets_.clear();
     discovery_.Configure(config_.settings_);
-    if (p_keep_sessions && pool_.size() == config_.settings_.max_targets_)
+    if (!p_keep_sessions)
     {
-      return {};
+      pool_.clear();
     }
-    pool_.clear();
+    if (pool_.size() > config_.settings_.max_targets_)
+    {
+      pool_.resize(config_.settings_.max_targets_);
+    }
     pool_.reserve(config_.settings_.max_targets_);
-    for (std::size_t index = 0; index < config_.settings_.max_targets_; ++index)
+    for (std::size_t index = pool_.size();
+         index < config_.settings_.max_targets_; ++index)
     {
       auto sampler = std::make_unique<TargetSampler>(config_, TargetConfig{},
                                                      budget_, logger_, host_);
@@ -907,7 +928,10 @@ class Sampler final
     }
     for (auto& slot : discovery_.Used())
     {
-      slot.reassigned_ = slot.state_ != SlotState::Free;
+      if (!p_keep_sessions)
+      {
+        slot.reassigned_ = slot.state_ != SlotState::Free;
+      }
     }
     heavy_cursor_ = 0;
     return {};
@@ -919,13 +943,6 @@ class Sampler final
     if (config_.settings_.Discovers())
     {
       return PreparePool(p_keep_sessions);
-    }
-    for (std::size_t index = 0; index < pool_.size(); ++index)
-    {
-      if (discovery_.Used()[index].state_ != SlotState::Free)
-      {
-        pool_[index]->Release();
-      }
     }
     pool_.clear();
     discovery_ = Discovery{};
