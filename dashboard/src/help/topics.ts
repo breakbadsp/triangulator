@@ -108,7 +108,7 @@ const topics = {
     example:
       "Select Previous to inspect the latest recorded process state. Select Live or Back to live to return to the retained live or final view.",
     reading:
-      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, live socket observations, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout. Release the handle at the left end to also check an earlier period, which stretches the bar further back.",
+      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout. Release the handle at the left end to also check an earlier period, which stretches the bar further back.",
     limits:
       "A gap, missing recording, invalid reply, or read error keeps the last successful view. The collector clock can be ahead of this browser. Recording can be disabled. This Timeline does not play automatically.",
     related: ["assesshistory", "exited", "history", "memmap", "collsettings"],
@@ -130,7 +130,7 @@ const topics = {
     related: ["timeline", "exitreason", "health", "collsettings"],
     source: "Sampler absence and collector /api/last-target, /api/live",
     sourceDetail:
-      "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout and socket refresh stop.",
+      "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout refresh stops.",
   },
   "target-pid": {
     title: "Matching processes",

@@ -153,7 +153,7 @@
 
 - Driver: judged
 - Test: With two recorded times available, select a live map window and custom thread-history range. Open a thread, select Previous from Live, step both recordings, open a recorded thread, and return to Live. Preview a Timeline time without release, then select it.
-- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, socket observations, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
+- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
 
 ## QA-006: Package upgrade preserves configuration and history
 
@@ -702,4 +702,4 @@
 
 - Driver: judged
 - Test: Delay snapshot, resource, memory-layout, thread-history, and watch reads. Change recording, return Live, change target, or close the page before delivery. Repeat with request errors, no-thread new sessions, absence during replay, restart, late matching and unrelated exits, last-target failure/wrong session/empty replies, reload, and blocked or full tab storage. Keep focus and pointer holds on controls and Help during transitions.
-- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory and socket refresh stop. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
+- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory refresh stops. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
