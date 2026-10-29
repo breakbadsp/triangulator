@@ -222,3 +222,174 @@ test("finishes an older batch before it advances into the next day", () => {
   db.close();
   next.close();
 });
+
+test("skips invalid recordings and continues through later rows and roots", () => {
+  const { dir, db, put } = fixture();
+  put(1, true);
+  put(2, true);
+  db.prepare("UPDATE process_snapshot SET snapshot='{}' WHERE ts=2").run();
+  db.prepare("INSERT INTO process_snapshot VALUES(3,NULL)").run();
+  db.prepare("INSERT INTO process_snapshot VALUES(3.5,'{')").run();
+  db.prepare("INSERT INTO process_snapshot VALUES('invalid','{}')").run();
+  put(4, true);
+  const other = join(
+    dir,
+    "targets",
+    Buffer.from("host/other").toString("hex"),
+    "replay",
+  );
+  mkdirSync(other, { recursive: true });
+  const next = new DatabaseSync(join(other, "2026-10-29.sqlite3"));
+  next.exec("CREATE TABLE process_snapshot(ts REAL PRIMARY KEY,snapshot TEXT)");
+  next
+    .prepare("INSERT INTO process_snapshot VALUES(5,?)")
+    .run(
+      db.prepare("SELECT snapshot FROM process_snapshot WHERE ts=4").get()
+        ?.snapshot ?? "",
+    );
+  const store = openIncidentStore(join(dir, "scout/incidents.sqlite3"));
+  const logs: string[] = [];
+  scanPass(dir, store, -1, (line) => logs.push(line));
+  expect(logs).toHaveLength(3);
+  expect(
+    store
+      .prepare("SELECT last,count FROM incident WHERE target='legacy'")
+      .get(),
+  ).toMatchObject({ last: 4, count: 2 });
+  expect(
+    store.prepare("SELECT last FROM incident WHERE target='host/other'").get()
+      ?.last,
+  ).toBe(5);
+  scanPass(dir, store, 5, (line) => logs.push(line));
+  expect(logs).toHaveLength(3);
+  expect(
+    store
+      .prepare("SELECT count(*) AS n FROM incident WHERE target='legacy'")
+      .get()?.n,
+  ).toBe(0);
+  store.close();
+  next.close();
+  db.close();
+});
+
+test("keeps cursors and incident continuity separate for two roots of one target", () => {
+  const { dir, db, put } = fixture();
+  put(1, true);
+  const resources = new DatabaseSync(join(dir, "1970-01-01.sqlite3"));
+  resources.exec(
+    "CREATE TABLE session_target(session TEXT,host TEXT,target TEXT); INSERT INTO session_target VALUES('s','host','same'); CREATE TABLE resource_sample(ts REAL,pid INTEGER,session TEXT,elapsed_s REAL,rss_bytes REAL)",
+  );
+  resources.close();
+  const other = join(
+    dir,
+    "targets",
+    Buffer.from("host/same").toString("hex"),
+    "replay",
+  );
+  mkdirSync(other, { recursive: true });
+  const next = new DatabaseSync(join(other, "2026-10-29.sqlite3"));
+  next.exec("CREATE TABLE process_snapshot(ts REAL PRIMARY KEY,snapshot TEXT)");
+  next
+    .prepare("INSERT INTO process_snapshot VALUES(2,?)")
+    .run(
+      db.prepare("SELECT snapshot FROM process_snapshot WHERE ts=1").get()
+        ?.snapshot ?? "",
+    );
+  const path = join(dir, "scout/incidents.sqlite3");
+  let store = openIncidentStore(path);
+  scanPass(dir, store, -1);
+  const before = store
+    .prepare("SELECT first,last,count,active FROM incident ORDER BY first")
+    .all();
+  scanPass(dir, store, -1);
+  expect(
+    store
+      .prepare("SELECT first,last,count,active FROM incident ORDER BY first")
+      .all(),
+  ).toEqual(before);
+  store.close();
+  put(3, true);
+  store = openIncidentStore(path);
+  scanPass(dir, store, -1);
+  expect(
+    store
+      .prepare("SELECT first,last,count,active FROM incident ORDER BY first")
+      .all(),
+  ).toEqual([
+    { first: 1, last: 3, count: 2, active: 1 },
+    { first: 2, last: 2, count: 1, active: 1 },
+  ]);
+  store.close();
+  next.close();
+  db.close();
+});
+
+test("continues other sources and retention when a source database is unreadable", () => {
+  const { dir, db, put } = fixture();
+  put(1, true);
+  const other = join(
+    dir,
+    "targets",
+    Buffer.from("host/other").toString("hex"),
+    "replay",
+  );
+  mkdirSync(other, { recursive: true });
+  const next = new DatabaseSync(join(other, "2026-10-29.sqlite3"));
+  next.exec("CREATE TABLE process_snapshot(ts REAL PRIMARY KEY,snapshot TEXT)");
+  next
+    .prepare("INSERT INTO process_snapshot VALUES(5,?)")
+    .run(
+      db.prepare("SELECT snapshot FROM process_snapshot WHERE ts=1").get()
+        ?.snapshot ?? "",
+    );
+  const store = openIncidentStore(join(dir, "scout/incidents.sqlite3"));
+  scanPass(dir, store, -1);
+  db.exec("DROP TABLE process_snapshot");
+  next
+    .prepare(
+      "INSERT INTO process_snapshot SELECT 6,snapshot FROM process_snapshot WHERE ts=5",
+    )
+    .run();
+  const logs: string[] = [];
+  scanPass(dir, store, 5, (line) => logs.push(line));
+  expect(logs).toHaveLength(1);
+  expect(logs[0]).toContain("tri-scout source");
+  expect(store.prepare("SELECT target,last,count FROM incident").all()).toEqual(
+    [{ target: "host/other", last: 6, count: 2 }],
+  );
+  store.close();
+  next.close();
+  db.close();
+});
+
+test("migrates an existing store without losing cursor progress or incident continuity", () => {
+  const { dir, db, put } = fixture();
+  put(1, true);
+  const path = join(dir, "incidents.sqlite3");
+  let store = openIncidentStore(path);
+  scanPass(dir, store, -1);
+  const original = store.prepare("SELECT id,key FROM incident").get();
+  store.exec(`ALTER TABLE incident DROP COLUMN source;
+    ALTER TABLE cursor RENAME TO new_cursor;
+    CREATE TABLE cursor(target TEXT PRIMARY KEY,ts REAL NOT NULL,source TEXT NOT NULL);
+    INSERT INTO cursor SELECT target,ts,source FROM new_cursor;
+    DROP TABLE new_cursor;`);
+  store.close();
+  store = openIncidentStore(path);
+  scanPass(dir, store, -1);
+  expect(store.prepare("SELECT count,source FROM incident").all()).toEqual([
+    { count: 1, source: "legacy" },
+  ]);
+  put(2, true);
+  scanPass(dir, store, -1);
+  expect(store.prepare("SELECT id,key FROM incident").get()).toEqual(original);
+  expect(
+    store.prepare("SELECT first,last,count FROM incident").get(),
+  ).toMatchObject({ first: 1, last: 2, count: 2 });
+  store.prepare("INSERT INTO cursor VALUES('legacy',2,'host/other')").run();
+  store.close();
+  store = openIncidentStore(path);
+  expect(store.prepare("SELECT count(*) AS n FROM cursor").get()?.n).toBe(2);
+  store.close();
+  db.close();
+});
