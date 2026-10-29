@@ -19,6 +19,8 @@
 | QA-129 | NOT_RUN | - | - | - |
 | QA-130 | NOT_RUN | - | - | - |
 | QA-131 | NOT_RUN | - | - | - |
+| QA-132 | NOT_RUN | - | - | - |
+| QA-133 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -769,3 +771,17 @@
 - Driver: judged
 - Test: Call both incident tools before scan creates a store. Repeat while scan writes, with more than 20 incidents, with large rule evidence, and with invalid window bounds and IDs. Set enabled=false before the next incident call.
 - Expected: A missing store says tri-scout scan has not run and creates no file. Concurrent reads leave scan usable. Each result stays within 16 KiB, lists at most 20 incidents, states completeness, and reports omissions. Invalid inputs give tool errors. The off switch blocks the next call and exits 2. No incident call sends an HTTP request or changes the store.
+
+## QA-132: tri-scout historical metrics
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Download the separate release asset. Register it with Claude Code and Codex. Ask for CPU and I/O history, top threads, and a comparison of two windows. Include a restart, a reused TID, missing recordings, invalid rollups, and sampler throttling. Request a thread series using a returned lifetime token. Request n=100 and a small step over a long window.
+- Expected: The tools use GET requests with target, session, tid, start, and end for history. Each result is at most 16 KiB, with at most 100 points or 20 ranked threads. Lifetime tokens separate sessions and TID reuse. Invalid rollups do not enter means. The answer states discovery limits, missing samples, truncation, and unknown coverage and throttle history. Compare gives the same four metrics and B minus A.
+
+## QA-133: tri-scout optional release and history switch
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Inspect the sampler and collector release archives and the separate tri-scout asset. Run each history tool with invalid bounds, metric, step, n, target, and thread token. Set enabled=false during an MCP session and request history again.
+- Expected: Neither archive contains tri-scout. The separate file runs with Node 24 or later and no node_modules. Invalid inputs give tool errors. The off switch blocks the next call, sends no request, and exits 2.

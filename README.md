@@ -129,7 +129,8 @@ Code or Codex, read-only tools for the monitored processes. The client asks
 the LLM. Triangulator holds no API key and calls no LLM. `make all`,
 `make release`, and the packages do not contain `tri-scout`.
 
-1. Build it on the collector host. It needs Node.js 24 or later:
+1. Download `tri-scout.mjs` from the [latest release](https://github.com/breakbadsp/triangulator/releases/latest/download/tri-scout.mjs)
+   to the collector host. Install Node.js 24 or later. To build from source,
    `make scout` writes `build/tri-scout.mjs`.
 2. Set the switch in `~/triangulator/config/collector.toml`:
 
@@ -147,6 +148,21 @@ the LLM. Triangulator holds no API key and calls no LLM. `make all`,
 
    From another machine, use `ssh collector-host node /path/to/tri-scout.mjs serve`
    as the command.
+
+The history tools are `timeseries(target, thread?, metric, window, step?)`,
+`top_threads(target, metric, window, n)`, and `compare(target, window_a, window_b)`.
+Use an exact target key from `list_targets`. Windows use inclusive start and
+exclusive end in Unix seconds. Metrics are `cpu_pct`, `run_delay_pct`,
+`read_bps`, and `write_bps`. Values are rollup means. Target values sum
+simultaneous thread values. Compare returns each metric for both windows
+and the absolute change, B minus A. Timeseries has at most 100 bucket means;
+step is seconds and increases as needed. Top threads caps n at 20 and returns
+opaque lifetime tokens for use as thread selectors. Separate sessions and
+reused TIDs have separate tokens. Each result stays within 16 KiB and reports
+omissions and unknown coverage. Discovery inspects at most 64 recordings and
+64 session/thread pairs per window. Threads absent from those recordings
+can be missed. Invalid rollups do not enter means. Missing samples, collector
+truncation, and unknown sampler throttle history are explicit.
 
 Then ask, for example, "Is something wrong with my processes now?". The tools
 are `list_targets` and `status_now`. `status_now` gives the same verdicts and
@@ -290,8 +306,8 @@ recorded execution result.
 | PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
 | BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
-| NOT_RUN | 10 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-007 |
-| **Total** | **123** | |
+| NOT_RUN | 12 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-007 |
+| **Total** | **125** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
