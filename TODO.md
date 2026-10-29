@@ -9,7 +9,6 @@ Open items, by ID. Details, status, and the ID rules are in
 
 ## Diagnostic accuracy
 
-- [REQ-0002](docs/requirements.md#req-0002-sampler-session-in-resource-rows): Sampler session in resource rows
 - [REQ-0003](docs/requirements.md#req-0003-thread-count-history): Thread-count history
 - [REQ-0004](docs/requirements.md#req-0004-switchess-label): Switches/s label
 - [REQ-0005](docs/requirements.md#req-0005-deadlock-and-lock-convoy-severity): Deadlock and lock-convoy severity
@@ -35,7 +34,6 @@ Open items, by ID. Details, status, and the ID rules are in
 
 ## Targets overview page
 
-- [REQ-0016](docs/requirements.md#req-0016-overview-filters): Overview filters
 - [REQ-0017](docs/requirements.md#req-0017-previous-and-next-target-shortcuts): Previous and next target shortcuts
 - [REQ-0018](docs/requirements.md#req-0018-trend-rules-on-tiles): Trend rules on tiles
 - [REQ-0019](docs/requirements.md#req-0019-overview-cost-with-many-targets): Overview cost with many targets
@@ -44,5 +42,4 @@ Open items, by ID. Details, status, and the ID rules are in
 ## Release QA
 
 - [REQ-0021](docs/requirements.md#req-0021-package-upgrade-test): Package upgrade test
-- [REQ-0022](docs/requirements.md#req-0022-retest-after-prs-122-and-123): Retest after PRs #122 and #123
 - [REQ-0023](docs/requirements.md#req-0023-bug-lab-capture-after-sigcont): Bug lab capture after SIGCONT
