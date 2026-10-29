@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { expect, test } from "vitest";
 import { serve } from "./serve";
+import { historyTools } from "./history-tools";
+import { object } from "../api/replay";
 
 function snapshot(at: number, session: string) {
   return {
@@ -269,3 +271,103 @@ test("history tools use real GET history requests, isolate lifetimes, bound resu
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test.each(["session", "generation", "session with different TID"])(
+  "target history excludes transition totals for %s at one timestamp",
+  async (transition) => {
+    const session = transition.startsWith("session") ? "202" : "101";
+    const tid = transition === "session with different TID" ? 9 : 7;
+    const partial = {
+      ...row(10),
+      samples: 5,
+      expected_samples: 5,
+      cpu_pct: 100,
+    };
+    function response(path: string) {
+      const url = new URL(path, "http://localhost");
+      if (url.pathname === "/api/fleet")
+        return {
+          list: {
+            targets: [{ key: "host/worker", id: "worker", host: "host" }],
+          },
+          live: {},
+        };
+      if (url.pathname === "/api/replay") {
+        const at = Number(url.searchParams.get("at"));
+        if (url.searchParams.get("direction") === "at")
+          return snapshot(11, "101");
+        if (at < 16) {
+          const next = snapshot(16, session);
+          next.snapshot.threads = [
+            { tid, name: "worker", generation: 2 },
+            { tid: 8, name: "peer", generation: 1 },
+          ];
+          return next;
+        }
+        return { first: 11, last: 16, interval_s: 10, snapshot: null };
+      }
+      if (url.pathname === "/api/history") {
+        const currentTid = Number(url.searchParams.get("tid"));
+        const currentSession = url.searchParams.get("session");
+        const rows =
+          currentTid === 8
+            ? [{ ...row(20), cpu_pct: 10 }]
+            : currentSession === "101" && currentTid === 7
+              ? transition === "generation"
+                ? [
+                    partial,
+                    { ...partial, generation: 2 },
+                    { ...row(20, 2), cpu_pct: 30 },
+                  ]
+                : [partial]
+              : [
+                  { ...partial, generation: 2 },
+                  { ...row(20, 2), cpu_pct: 30 },
+                ];
+        return { rows, limit: 2000, truncated: false };
+      }
+      throw Error(`Unexpected request: ${path}`);
+    }
+    const tools = historyTools((path) => Promise.resolve(response(path)));
+    function resultRows(text: string): unknown[] {
+      const result: unknown = JSON.parse(text);
+      if (!object(result) || !Array.isArray(result.rows))
+        throw Error("Missing result rows");
+      return result.rows;
+    }
+    const series = tools.find((tool) => tool.name === "timeseries");
+    const compare = tools.find((tool) => tool.name === "compare");
+    const top = tools.find((tool) => tool.name === "top_threads");
+    if (!series || !compare || !top) throw Error("Missing history tool");
+    const args = {
+      target: "host/worker",
+      metric: "cpu_pct",
+      window: { start: 10, end: 30 },
+      step: 10,
+    };
+    expect(resultRows(await series.run(args))).toEqual([
+      { at: 10, mean: null },
+      { at: 20, mean: 40 },
+    ]);
+    const compared = resultRows(
+      await compare.run({
+        target: args.target,
+        window_a: { start: 10, end: 20 },
+        window_b: { start: 20, end: 30 },
+      }),
+    );
+    expect(compared).toEqual([
+      { metric: "cpu_pct", a: null, b: 40, change: null },
+      { metric: "run_delay_pct", a: null, b: 4, change: null },
+      { metric: "read_bps", a: null, b: 80, change: null },
+      { metric: "write_bps", a: null, b: 160, change: null },
+    ]);
+    const ranked = resultRows(await top.run({ ...args, n: 10 }));
+    const lifetime = ranked.find((item) => object(item) && item.mean === 100);
+    if (!object(lifetime) || typeof lifetime.thread !== "string")
+      throw Error("Missing lifetime token");
+    expect(
+      resultRows(await series.run({ ...args, thread: lifetime.thread })),
+    ).toEqual([{ at: 10, mean: 100 }]);
+  },
+);

@@ -169,6 +169,7 @@ async function history(
       sampler_throttling: "unknown",
       gaps: [
         "Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.",
+        "Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.",
       ],
     },
   };
@@ -272,13 +273,26 @@ export function historyTools(get: (path: string) => Promise<unknown>): Tool[] {
           "Unknown target. Use an exact key from list_targets.",
         );
       const a = await history(get, args.target, window);
-      // Target totals sum simultaneous thread values before taking a mean.
+      // Stored transition rows do not establish duration or overlap.
+      // Sum only one sampler session and one lifetime per TID at each timestamp.
       const totals = (lifetimes: Lifetime[]) => {
-        const rows = new Map<number, Row>();
+        const rows = new Map<
+          number,
+          { row: Row; session: string; tids: Set<number> }
+        >();
         for (const lifetime of lifetimes)
           for (const row of lifetime.rows) {
             if (!row.usable) continue;
-            let total = rows.get(row.ts);
+            const existing = rows.get(row.ts);
+            let total = existing?.row;
+            if (existing) {
+              if (
+                existing.session !== lifetime.session ||
+                existing.tids.has(lifetime.tid)
+              )
+                existing.row.usable = false;
+              existing.tids.add(lifetime.tid);
+            }
             if (!total) {
               total = {
                 ...row,
@@ -289,13 +303,17 @@ export function historyTools(get: (path: string) => Promise<unknown>): Tool[] {
                   write_bps: null,
                 },
               };
-              rows.set(row.ts, total);
+              rows.set(row.ts, {
+                row: total,
+                session: lifetime.session,
+                tids: new Set([lifetime.tid]),
+              });
             }
             for (const key of METRICS)
               if (row.values[key] !== null)
                 total.values[key] = (total.values[key] ?? 0) + row.values[key];
           }
-        return [...rows.values()];
+        return [...rows.values()].map((item) => item.row);
       };
       if (other) {
         const b = await history(get, args.target, other);
