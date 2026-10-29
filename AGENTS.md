@@ -20,7 +20,7 @@ needs the owner's explicit approval first.
 - Run exactly one sampler process on each host. It monitors every target on
   that host. Never add a sampler per target. The optional eBPF
   `socket_sampler/` is the one existing second process: it is opt-in, and
-  whether it stays is an open owner decision (design, open question 1).
+  whether it stays is an open owner decision (REQ-0013 in `docs/requirements.md`).
 - Keep the sampler single-threaded: one loop on a monotonic deadline. Add no
   threads, thread pools, or async runtimes.
 - Keep it lean: after startup or reload, the steady-state tick path does no

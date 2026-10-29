@@ -9,5 +9,5 @@
 - The owner approved automatic throttling on 2026-10-20, with a default budget of 1% of one CPU core. This is the approved exception to raw-counter-only sampling.
 - Keep the optional eBPF observer separate while its future is undecided. Merging it would make the ordinary sampler privileged.
 - Open: keep or remove that second process; decide whether limited access to other users' targets is sufficient.
-- Track unresolved budget and blocking-read choices in [TODO](../TODO.md).
+- Track unresolved budget and blocking-read choices in [requirements](requirements.md) (REQ-0009 to REQ-0013).
 - Configuration and behavior: [sampler README](../sampler/README.md#multiple-targets), [collector README](../collector/README.md#per-target-settings).

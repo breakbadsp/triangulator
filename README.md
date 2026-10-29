@@ -93,7 +93,7 @@ Use unique target IDs. Keep at least one target. See
   <img src="docs/assets/architecture.svg" alt="The sampler reads /proc and sends UDP to the collector. The collector stores SQLite day files and serves the dashboard over HTTP. Alerting is not connected." width="100%">
 </p>
 
-[Design decisions](docs/design-decisions.md) ·
+[Design decisions](docs/design-decisions.md) · [Requirements](docs/requirements.md) ·
 [Sampler impact](docs/target-impact.md) ·
 [Sampler](sampler/README.md) · [Collector and API](collector/README.md)
 
