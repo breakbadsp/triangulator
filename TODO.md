@@ -15,6 +15,8 @@
 
 ## Production monitoring
 
+- [ ] Implement [REQ-TARGET-001: local target configuration and discovery](docs/multi-target-design.md#req-target-001-local-configuration-and-discovery).
+  Keep dashboard target changes available only for a verified local sampler.
 - [ ] Add host CPU and memory context: per-core CPU, steal time, runnable
   load, available memory, swap activity, and reclaim.
 - [ ] Monitor available bytes and free inodes on configured filesystems,
