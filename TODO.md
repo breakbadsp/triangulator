@@ -1,4 +1,8 @@
 # TODO
 
-No open items. Requirement ID rules are in
+Open items, in priority order. Details, status, and the ID rules are in
 [Requirements and pending work](docs/requirements.md).
+
+## Highest priority
+
+- [REQ-0001](docs/requirements.md#req-0001-agent-access-to-incident-history): Agent access to incident history (design accepted; implementation pending)

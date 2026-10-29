@@ -12,6 +12,85 @@ renumber an ID; gaps are expected.
 Status values: `Open` (ready for work), `Owner decision` (decide first,
 then give the item to one agent), `Accepted` (design agreed, not built).
 
+## Incident analysis
+
+### REQ-0001: Agent access to incident history
+
+Status: Accepted (design agreed, implementation pending). Priority: Highest.
+
+#### Need
+
+A production incident support team uses AI agents to find incidents, find
+their root cause, find workarounds, and explain incidents. The agents must
+answer these questions from the collected data:
+
+- Was there an issue on a given day? What was it?
+- Is something wrong now? What is the possible cause?
+- When did it start? Is it still active? Is it getting worse?
+- Which target, process, or thread is affected? Which other targets are affected?
+- Is the cause in the application or in the host (for example, a noisy
+  neighbour or pressure on the whole host)?
+- Which resource is involved: CPU, scheduler, memory, I/O, or network?
+- Did a process crash, restart, or get killed by OOM?
+- What changed compared with the last good period?
+- Did this happen before?
+- Is the data complete enough for the answer?
+
+#### Decisions
+
+- Agents read history and a short summary of current state. They do not
+  read the live stream: an agent step takes seconds, and raw ticks cost
+  many tokens for little information.
+- Incidents are found once, by a program, and stored as episodes. Agents do
+  not find incidents again from raw metrics on each question. That would be
+  slow, would cost many tokens, and could give different answers each time.
+- The collector and its SQLite day files do not change. All new parts are
+  separate programs that read the day files or the HTTP API, as
+  `AGENTS.md` requires.
+- No columnar database now. The questions need episodes, not faster scans.
+  The collector appends small rows with autocommit, and columnar formats are
+  slow for that. DuckDB also adds a dependency and allows only one writer.
+  If analysis over many days becomes slow, use DuckDB to read the SQLite day
+  files directly, or a nightly Parquet export by a separate program.
+- Deploys, configuration changes, and application logs stay outside
+  Triangulator. The agent combines the Triangulator tools with other tools
+  for that data.
+
+#### Scope
+
+1. **Episode detector.** A separate program reads the day files and writes
+   episodes: start, end, target, kind, severity, top contributing threads,
+   comparison with a baseline, and references to the raw rows. Kinds include
+   CPU saturation, run-queue delay, memory pressure or major faults, I/O
+   stall, PSI pressure, process exit or OOM, thread stall, and socket
+   backlog. Decide whether the alerting program is this detector, so that
+   one rule set serves both alerts and agents.
+2. **Agent tools.** One read-only program, for example an MCP server, with:
+   - `list_targets`, `list_sessions`
+   - `episodes(window)`, `episode_detail(id)`
+   - `current_status()`: open episodes, and recent minutes compared with a
+     baseline
+   - `correlate(episode)`: first signal to move, contributing threads,
+     exits, PSI, and changes compared with the last good period
+   - `compare(window_a, window_b)`, `top_threads(metric, window, n)`
+   - `timeseries(target, thread, metric, window, step)`, downsampled in the
+     tool
+   - read-only SQL with a row limit, and a schema glossary
+3. **Runbook.** For each episode kind: likely causes and workarounds.
+4. **Long-term tier.** Episodes and 1-minute rollups kept longer than the
+   7-day raw retention, for recurrence and trend questions.
+
+#### Acceptance criteria
+
+- An agent answers "was there an issue on day X, and what was it?" with
+  one episode query, without reading raw rows.
+- Tools hide day-file sharding, rows with `valid = 0`, `generation`, and
+  TID reuse. A thread identity is never mixed across sessions.
+- Every tool result has a size limit.
+- Every answer states data completeness: gaps, invalid samples, and sampler
+  throttling in the window.
+- The collector receive path and the sampler have no new work.
+
 ## Target configuration
 
 ### REQ-0024: Local target configuration and discovery
