@@ -1,9 +1,12 @@
 // tri-scout serve: the MCP server on stdio. It reads the [scout] switch at
 // start and before each tool call, and sends only GET requests, one at a
 // time, to endpoints that the dashboard already reads.
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { readScoutConfig } from "./config";
+import { getIncident, listIncidents } from "./incident-tools";
 import { handle, parseError, type Tool } from "./mcp";
 import { LIMITS, listTargets, parseFleet, statusNow, ToolError } from "./tools";
 
@@ -65,6 +68,10 @@ export async function serve(options: ServeOptions): Promise<number> {
 }
 
 function scoutTools(collectorUrl: () => string): Tool[] {
+  const storePath = join(
+    process.env.TRIANGULATOR_HOME ?? join(homedir(), "triangulator"),
+    "data/scout/incidents.sqlite3",
+  );
   const fleet = async () => {
     const base = collectorUrl();
     return parseFleet(await getJson(`${base}/api/fleet`));
@@ -103,6 +110,54 @@ function scoutTools(collectorUrl: () => string): Tool[] {
           throw new ToolError("target must be a string.");
         return statusNow(await fleet(), now(), target);
       },
+    },
+    {
+      name: "list_incidents",
+      description:
+        "Was there an issue in a given time window? List overlapping incidents, newest first, with target, kind, severity, summary, ID, and data completeness. At most 20 incidents and 16 KiB; omitted_incidents states the remainder. Open means active at the last scan. An empty result does not prove complete coverage.",
+      inputSchema: {
+        type: "object",
+        required: ["window"],
+        properties: {
+          target: {
+            type: "string",
+            description:
+              "Exact target key, or legacy for unmapped recordings. Omit for all targets.",
+          },
+          window: {
+            type: "object",
+            required: ["start", "end"],
+            properties: {
+              start: {
+                type: "number",
+                minimum: 0,
+                description: "Inclusive Unix seconds.",
+              },
+              end: {
+                type: "number",
+                description: "Exclusive Unix seconds, greater than start.",
+              },
+            },
+          },
+        },
+      },
+      run: (args) => Promise.resolve(listIncidents(storePath, args)),
+    },
+    {
+      name: "get_incident",
+      description:
+        "Read one stored incident: observation timeline, stored rule evidence, identified contributing threads, and data completeness. The store has no per-sample timeline or contributor ranking. At most 16 KiB; omitted_fields states removed evidence.",
+      inputSchema: {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: {
+            type: "string",
+            description: "The exact incident ID from list_incidents.",
+          },
+        },
+      },
+      run: (args) => Promise.resolve(getIncident(storePath, args)),
     },
   ];
 }

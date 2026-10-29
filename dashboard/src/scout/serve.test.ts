@@ -164,6 +164,8 @@ test("status_now gives the Targets page assessment with data completeness, using
   expect(run.replies[1]?.result?.tools?.map((tool) => tool.name)).toEqual([
     "list_targets",
     "status_now",
+    "list_incidents",
+    "get_incident",
   ]);
   const status = JSON.parse(resultText(run.replies[2])) as {
     targets: {
