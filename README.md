@@ -159,8 +159,25 @@ from every recording. `scripts/start.sh collector` also starts it when the
 built file is present and the switch is on. It writes only to
 `$TRIANGULATOR_HOME/data/scout/incidents.sqlite3`. Set `[scout] retention_days`
 to change the 90-day default. Each pass reads the switch again. An edit to
-`false` stops the scan at its next pass. Incident query tools are planned
-for step 3.
+`false` stops the scan at its next pass.
+
+Ask "Was there an issue on 2026-10-29, and what was it?". One
+`list_incidents` call with `window: {start: 1793232000, end: 1793318400}`
+checks that UTC day. Bounds are Unix seconds; start is inclusive and end
+is exclusive. An optional `target` selects an exact stored target key.
+Results include overlapping incidents, newest first, with start, end or
+open state, target, kind, severity, short summary, and ID. Use
+`get_incident` with that ID for the stored rule evidence, first/worst/last
+observation timeline, and any thread identified by the rule.
+
+Both tools open the store read-only while scan writes. A missing store
+explains that `tri-scout scan` has not run. Results stay within 16 KiB,
+with at most 20 listed incidents, and report omissions. They state unknown
+data completeness because the store has no coverage, packet-loss, access,
+or throttle history. An empty list does not prove that no issue occurred.
+The store has no per-sample timeline or contributor ranking. Open means
+active at the last scan, and an end is the last finding time, not a
+confirmed recovery time.
 
 ## Performance
 
@@ -273,8 +290,8 @@ recorded execution result.
 | PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
 | BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
-| NOT_RUN | 8 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-007 |
-| **Total** | **121** | |
+| NOT_RUN | 10 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-007 |
+| **Total** | **123** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

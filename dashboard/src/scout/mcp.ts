@@ -15,8 +15,12 @@ export interface Tool {
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const INSTRUCTIONS =
-  "Triangulator monitors Linux processes and their threads. Call status_now " +
-  "first: it gives each target's verdict and findings, worst first, as the " +
+  "Triangulator monitors Linux processes and their threads. For a past-day " +
+  "question, call list_incidents with the day's start and exclusive end in " +
+  "Unix seconds. It answers the question in one call. Use get_incident for " +
+  "stored evidence. State unknown incident coverage and all omissions. " +
+  "For current status, call status_now: it gives each target's verdict and " +
+  "findings, worst first, as the " +
   "Triangulator dashboard shows them. Each target has a data object. State " +
   "its gaps in the answer: a target that is not live, an unreadable view, " +
   "limited access (no I/O or wait channels), a throttled sampler, packet " +

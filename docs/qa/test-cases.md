@@ -17,6 +17,8 @@
 | QA-127 | NOT_RUN | - | - | - |
 | QA-128 | NOT_RUN | - | - | - |
 | QA-129 | NOT_RUN | - | - | - |
+| QA-130 | NOT_RUN | - | - | - |
+| QA-131 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -752,3 +754,18 @@
 - Status: NOT_RUN
 - Test: Start a collector package without the scout artifact. Repeat with the artifact and the switch off, then on. Run scan directly with the switch off in a fresh runtime directory. While scan runs, set the switch off. Run `python3 tests/prove_scout.py` after `make all scout`.
 - Expected: An absent artifact causes no scout message. The off switch creates no scout file and direct scan exits 2. The on switch starts one scanner. An edit to off stops it on the next pass. Concurrent scan reads cause no collector write error, and both the recording cursor and resource rows advance.
+
+
+## QA-130: tri-scout incident questions
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Enable scout. Run scan on a day with a short recorded CPU incident. Ask Claude Code or Codex, "Was there an issue on that day, and what was it?". Inspect the MCP calls. Request details for a returned incident ID. Repeat with an exact target key, an empty window, and an incident still active at the last scan.
+- Expected: One list_incidents call answers the day question with overlapping incidents, newest first, and start, end or open state, target, kind, severity, summary, and ID. get_incident gives stored rule evidence, first/worst/last observations, and the thread identified by the rule. The answer states unknown coverage, unavailable contributor rankings, and omissions. It does not claim that an empty window proves no issue occurred.
+
+## QA-131: tri-scout incident query limits and switch
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Call both incident tools before scan creates a store. Repeat while scan writes, with more than 20 incidents, with large rule evidence, and with invalid window bounds and IDs. Set enabled=false before the next incident call.
+- Expected: A missing store says tri-scout scan has not run and creates no file. Concurrent reads leave scan usable. Each result stays within 16 KiB, lists at most 20 incidents, states completeness, and reports omissions. Invalid inputs give tool errors. The off switch blocks the next call and exits 2. No incident call sends an HTTP request or changes the store.
