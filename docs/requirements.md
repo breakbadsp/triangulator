@@ -5,13 +5,12 @@ This file is the one list of requirements and unresolved work. The
 constraints: [limits](measurement-limits.md).
 
 Each item has a permanent ID, `REQ-NNNN`. Give a new item the next free
-number, and add it to the TODO index. Never reuse or renumber an ID. When
-an item is done or dropped, keep its entry, set its status to `Done` or
-`Withdrawn`, and remove it from the TODO index.
+number, and add it to the TODO index. When an item is done or no longer
+needed, remove it from this file and from the TODO index. Never reuse or
+renumber an ID; gaps are expected.
 
 Status values: `Open` (ready for work), `Owner decision` (decide first,
-then give the item to one agent), `Accepted` (design agreed, not built),
-`Done`, `Withdrawn`.
+then give the item to one agent), `Accepted` (design agreed, not built).
 
 ## Incident analysis
 
@@ -93,13 +92,6 @@ answer these questions from the collected data:
 - The collector receive path and the sampler have no new work.
 
 ## Diagnostic accuracy
-
-### REQ-0002: Sampler session in resource rows
-
-Status: Open.
-
-Return the sampler session with each `/api/resources` row so RSS trends
-distinguish process restarts and reused PIDs.
 
 ### REQ-0003: Thread-count history
 
@@ -218,16 +210,7 @@ Document required kernel features and behavior when they are unavailable.
 
 ## Targets overview page
 
-The dashboard opens on the Targets overview: one tile per target. Work for
-this page goes to the `feature/fleet-overview` branch first.
-
-### REQ-0016: Overview filters
-
-Status: Open.
-
-Add a filter box and severity filters when there are more than about 12
-tiles, and keep the filter in the URL so a support link shows the same
-view.
+The dashboard opens on the Targets overview: one tile per target.
 
 ### REQ-0017: Previous and next target shortcuts
 
@@ -269,14 +252,6 @@ collector host.
 Status: Open.
 
 Test package upgrades (QA-006) when a second release is available.
-
-### REQ-0022: Retest after PRs #122 and #123
-
-Status: Open.
-
-Retest QA-004, QA-060, QA-071, and the QA-005 replay drawer (ISS-3 in PR
-#121) on a build that has PRs #122 and #123. Retest QA-068 step 3
-(collector-only restart).
 
 ### REQ-0023: Bug lab capture after SIGCONT
 
