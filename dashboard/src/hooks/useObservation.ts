@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { getJson, ApiError } from "../api/client";
+import { getJson } from "../api/client";
 import { settleArrival } from "../api/viewStorage";
 import {
   parseBounds,
@@ -19,7 +19,6 @@ import type {
   LiveResponse,
   MemoryLayout,
   ResourceHistory,
-  SocketReport,
   WatchRule,
 } from "../api/types";
 import { asResourcePoints } from "../lib/assess/memory";
@@ -200,49 +199,17 @@ export function useObservation(
     loadLayout,
     1000,
   );
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-conversion
-  const pid = Number(shown?.view.health.pid ?? 0);
-  const loadSockets = useCallback(
-    async (signal: AbortSignal): Promise<SocketReport> => {
-      try {
-        return await getJson<SocketReport>(
-          `/api/socket-io?pid=${String(pid)}`,
-          signal,
-        );
-      } catch (cause) {
-        if (cause instanceof ApiError && cause.status === 404)
-          return {
-            available: false,
-            reason:
-              "This collector does not support socket observations. Use the C++ collector.",
-          };
-        throw cause;
-      }
-    },
-    [pid],
-  );
-  const socketResult = useScopedPoll(
-    mode === "live" && pid ? scope : null,
-    loadSockets,
-    3000,
-  );
   const resourceData = resourceResult?.data;
   const layoutData = layoutResult?.data;
-  const socketData = socketResult?.data;
-  const socketError = socketResult?.error;
-  const socketPolled = !!socketResult;
   useLayoutEffect(() => {
     dispatch({
       type: "reads",
       reads: {
         resources: resourceData,
         layout: layoutData,
-        sockets: socketData,
-        socketError,
-        socketPolled,
       },
     });
-  }, [resourceData, layoutData, socketData, socketError, socketPolled]);
+  }, [resourceData, layoutData]);
   const expected =
     next.latest?.view.health.target_absent === true
       ? next.latest.view.health.last_target?.session

@@ -255,7 +255,6 @@ test("recorded panels share the selected clock, rates and identity; return prese
   expect(byId("target-name").textContent).toBe("old-worker");
   expect(byId("hero-load").textContent).toBe("—");
   expect(byId("hero-cpu").textContent).toBe("0.25 cores");
-  expect(byId("socket-panel").hidden).toBe(true);
   expect(byId("chart-load").closest("[hidden]")).not.toBeNull();
   expect(byId("chart-states").closest("[hidden]")).not.toBeNull();
   expect(byId("watch-editor").closest("[hidden]")).not.toBeNull();
@@ -313,14 +312,14 @@ test("recorded panels share the selected clock, rates and identity; return prese
   ]);
 });
 
-test("recorded mode stops layout, socket and watch reads, including editor retries", async () => {
+test("recorded mode stops layout and watch reads, including editor retries", async () => {
   await open();
   await previous();
   const count = requests.length;
   current = frame(2010, "replacement", 77);
   await tick(12000);
   const paths = requests.slice(count).map((url) => url.pathname);
-  for (const path of ["/api/socket-io", "/api/memory-map", "/api/watches"])
+  for (const path of ["/api/memory-map", "/api/watches"])
     expect(paths).not.toContain(path);
   expect(paths).toContain("/api/live");
   expect(paths).toContain("/api/targets");
@@ -473,9 +472,6 @@ test("confirmed absence freezes panels, survives restart, and final Settings cou
   await tick(10000);
   expect(byId("target-name").textContent).toBe("live-worker");
   expect(byId("exited-text").textContent).toContain("new process (PID 77)");
-  expect(
-    requests.slice(finalRequests).map((url) => url.pathname),
-  ).not.toContain("/api/socket-io");
   expect(
     requests.slice(finalRequests).map((url) => url.pathname),
   ).not.toContain("/api/memory-map");
@@ -795,27 +791,6 @@ test.each([
     expect(byId("drawer").getAttribute("aria-hidden")).toBe("true");
   },
 );
-
-test("live socket read errors retain the report and stale status; final mode stops refresh", async () => {
-  await open();
-  expect(byId("socket-status").textContent).toBe("Not available");
-  pending.set("/api/socket-io", () =>
-    Promise.resolve(Response.json({}, { status: 503 })),
-  );
-  await tick(3000);
-  expect(byId("socket-status").textContent).toBe("Report unavailable · stale");
-  expect(byId("socket-empty").textContent).toContain("No observer");
-  current = absent();
-  await tick();
-  const count = requests.filter(
-    (url) => url.pathname === "/api/socket-io",
-  ).length;
-  await tick(6000);
-  expect(
-    requests.filter((url) => url.pathname === "/api/socket-io"),
-  ).toHaveLength(count);
-  expect(byId("socket-status").textContent).toBe("Report unavailable · stale");
-});
 
 test("a recording at zero keeps the resource range end at zero", async () => {
   first = last = 0;

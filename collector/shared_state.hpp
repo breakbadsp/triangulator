@@ -32,7 +32,6 @@ struct PublishedTarget
   std::shared_ptr<WatchSettings> watches_;
   double replay_interval_s_ = 1;
   bool legacy_replay_ = false;
-  std::optional<std::string> socket_observer_;
   std::uint32_t pid_ = 0;
   std::string peer_;
 };

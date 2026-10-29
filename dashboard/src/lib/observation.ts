@@ -1,9 +1,4 @@
-import type {
-  LiveResponse,
-  MemoryLayout,
-  SocketReport,
-  WatchRule,
-} from "../api/types";
+import type { LiveResponse, MemoryLayout, WatchRule } from "../api/types";
 import type { ViewMode } from "./assess";
 import type { ResourcePoint } from "./assess/memory";
 import {
@@ -23,8 +18,6 @@ export interface Observation {
   series: Series;
   memory: MemoryState;
   resources: readonly ResourcePoint[];
-  sockets?: SocketReport;
-  socketError?: Error;
   watchRules: readonly WatchRule[] | null;
 }
 export interface Observations {
@@ -85,8 +78,6 @@ export function observe(
       },
     }),
     resources: same ? previous.resources : [],
-    sockets: same ? previous.sockets : undefined,
-    socketError: same ? previous.socketError : undefined,
     watchRules: same ? previous.watchRules : null,
   };
 }
@@ -256,10 +247,6 @@ export interface FrozenView {
 export interface ScopedReads {
   resources?: readonly ResourcePoint[];
   layout?: MemoryLayout;
-  sockets?: SocketReport;
-  socketError?: Error;
-  /** False before the socket poll starts, so its error is not cleared. */
-  socketPolled: boolean;
 }
 // Storage reads happen in the hook. Each event carries what it read, so the
 // reducer stays pure.
@@ -311,14 +298,6 @@ function applyReads(state: Observations, reads: ScopedReads): Observations {
         layout: reads.layout,
       }),
     };
-  if (
-    live &&
-    reads.sockets &&
-    (!reads.sockets.available || reads.sockets.pid === shown.view.health.pid)
-  )
-    updated = { ...updated, sockets: reads.sockets };
-  if (live && reads.socketPolled && updated.socketError !== reads.socketError)
-    updated = { ...updated, socketError: reads.socketError };
   return updated === shown ? state : { ...state, [slot(shown)]: updated };
 }
 

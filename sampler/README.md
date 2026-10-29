@@ -12,8 +12,7 @@ The sampler must keep its overhead on the target host negligible. Run exactly
 one sampler on each host, and keep it single-threaded. See
 [Sampler constraints](../AGENTS.md#sampler-constraints) and the
 [multi-target design](../docs/multi-target-design.md).
-One sampler monitors several targets and their threads. The optional eBPF socket observer is a separate, opt-in
-process; see [socket observer startup](../scripts/watch-sockets.sh).
+One sampler monitors several targets and their threads.
 
 ## Quick start
 

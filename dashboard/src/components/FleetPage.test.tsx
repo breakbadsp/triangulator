@@ -166,7 +166,7 @@ test("overview page shows one tile per target, worst first, and links to each da
   expect(document.documentElement.dataset.page).toBe("fleet");
   expect(
     requests.some((url) =>
-      /^\/api\/(live|replay|resources|socket-io|watches)$|^\/api\/(replay|resources)\?/.test(
+      /^\/api\/(live|replay|resources|watches)$|^\/api\/(replay|resources)\?/.test(
         url,
       ),
     ),

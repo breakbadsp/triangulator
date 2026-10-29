@@ -10,7 +10,6 @@ import { MemoryMap } from "./components/MemoryMap";
 import { Monitor } from "./components/Monitor";
 import { ProcessExit, ProcessInfo } from "./components/ProcessCards";
 import { Resources, type ResourceRange } from "./components/Resources";
-import { SocketIO } from "./components/SocketIO";
 import { Summary, type ChartWindow } from "./components/Summary";
 import { ThreadDrawer } from "./components/ThreadDrawer";
 import { Threads } from "./components/Threads";
@@ -232,14 +231,6 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
             onRange={setResourceRange}
             scope={pressureScope}
             onScope={setPressureScope}
-          />
-          <SocketIO
-            external
-            view={view}
-            context={context}
-            mode={mode}
-            heldReport={observation?.sockets}
-            heldError={observation?.socketError}
           />
           <MemoryMap
             mode={mode}

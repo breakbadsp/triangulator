@@ -30,7 +30,6 @@
 
 ## Sockets and process exits
 
-- Socket decisions: see [socket I/O design](socket-ingress-design.md#decisions).
 - Never treat a futex wait as proof of deadlock. An idle worker can have the same kernel wait channel.
 - Treat kernel logs as optional exit evidence. Broad kernel-log access changes host policy and must not be required for monitoring.
 

@@ -21,11 +21,6 @@
 ## Sockets
 
 - Diagnostics describe queues and transport state, not per-thread application consumption. The sampler must share the target's network namespace.
-- eBPF counts successful operation results on supported paths. A successful send does not prove delivery or processing.
-- Peeks, error-queue reads, unsupported paths, and work in another process are excluded. Truncation follows the kernel return length.
-- Message completion needs an application marker. Without one, the value is unavailable.
-- Lost map updates make totals lower bounds. Concurrent snapshots are not atomic process-wide observations.
-- Exact coverage: [socket.bpf.cpp](../socket_sampler/socket.bpf.cpp) and [loader](../socket_sampler/main.cpp).
 
 ## Process exits
 

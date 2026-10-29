@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Shared code for set-target.sh, set-rate.sh and watch-sockets.sh.
+"""Shared code for set-target.sh and set-rate.sh.
 
 Usage: sampler_control.py <set-target NAME|PID | set-target-id ID NAME|PID |
                            add-target ID NAME|PID | remove-target ID |
-                           set-rate HZ | resolve-pid NAME|PID | collector>
+                           set-rate HZ>
 
 set-target and set-rate edit the running sampler's config in place and send
 SIGHUP. The new file is first checked by the running sampler binary itself
 (`/proc/PID/exe --check-config`), so it is validated by the same parser that
-reloads it. resolve-pid and collector print values for watch-sockets.sh.
+reloads it.
 """
 
 import fcntl
@@ -143,18 +143,6 @@ def unique_process_named(name):
     if len(matches) > 1:
         raise AmbiguousNameError(name, matches)
     return matches[0] if matches else None
-
-
-def resolve_pid(target):
-    """The PID of target (a PID or an exact, unique process name)."""
-    pid = parse_pid(target)
-    if pid is not None:
-        require_process(pid)
-        return pid
-    pid = unique_process_named(target)
-    if pid is None:
-        raise ControlError(f"no running process named {target}")
-    return pid
 
 
 def read_setting(text, key):
@@ -495,21 +483,6 @@ def set_rate(root, text):
     sampler, config = update_config(root, re.compile(r"\s*rate_hz\s*="), setting)
     print(f"Updated {config}: {setting} ({1000 / rate:g} ms between thread samples)")
     print(f"Requested reload of sampler {sampler}; a successful reload starts a new session.")
-    print("Socket observation still reports once per second.")
-
-
-def collector(root):
-    """Use the runtime config only when the sampler is absent or stopped."""
-    try:
-        sampler = running_sampler(root)
-        config = sampler[1] if sampler is not None else runtime_directory() / "config/sampler.toml"
-        endpoint = read_setting(config.read_text(), "collector")
-    except (ControlError, OSError) as error:
-        raise ControlError(f"cannot read the collector endpoint: {error}; pass --collector IP:PORT") from None
-    if not endpoint:
-        raise ControlError(f"no collector in {config}; pass --collector IP:PORT")
-    print(f"Collector {endpoint} from {config}", file=sys.stderr)
-    print(endpoint)
 
 
 def main(argv):
@@ -525,18 +498,15 @@ def main(argv):
         "add-target": (2, lambda target_id, target: edit_target_set(ROOT, {"action": "add", "id": target_id, "target": target})),
         "remove-target": (1, lambda target_id: edit_target_set(ROOT, {"action": "remove", "id": target_id})),
         "set-rate": (1, lambda rate: set_rate(ROOT, rate)),
-        "resolve-pid": (1, lambda target: print(resolve_pid(target))),
-        "collector": (0, lambda: collector(ROOT)),
     }
     name = argv[1] if len(argv) > 1 else ""
     if name not in commands or len(argv) != commands[name][0] + 2:
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return 2
-    prefix = "watch-sockets" if name in ("resolve-pid", "collector") else name
     try:
         commands[name][1](*argv[2:])
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
-        print(f"{prefix}: {error}", file=sys.stderr)
+        print(f"{name}: {error}", file=sys.stderr)
         return 1
     return 0
 

@@ -69,7 +69,6 @@
 | QA-063 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-064 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-065 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-066 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-067 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-068 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-069 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -100,7 +99,6 @@
 | QA-094 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-095 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-096 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-097 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-098 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-099 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-100 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -155,7 +153,7 @@
 
 - Driver: judged
 - Test: With two recorded times available, select a live map window and custom thread-history range. Open a thread, select Previous from Live, step both recordings, open a recorded thread, and return to Live. Preview a Timeline time without release, then select it.
-- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, socket observations, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
+- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
 
 ## QA-006: Package upgrade preserves configuration and history
 
@@ -186,7 +184,7 @@
 
 - Driver: judged
 - Test: Open the wire-format HTML through both README links. Select all protocols, encode headers, and test 1, 10, 11, and 56 threads. Drop summaries and region parts, set 50% loss, and pause/resume.
-- Expected: Headers are 48/64/64/80 B; rows are 112/160/64/80 B. TMON uses 1/1/2/6 chunks. TRES needs a summary; TVMA needs complete region parts and keeps its old layout when incomplete. TSIO counts received datagrams. Drops log once; no script errors occur.
+- Expected: Headers are 48/64/64 B; rows are 112/160/64 B. TMON uses 1/1/2/6 chunks. TRES needs a summary; TVMA needs complete region parts and keeps its old layout when incomplete. Drops log once; no script errors occur.
 
 ## QA-011: Memory zoom page size and units
 
@@ -307,7 +305,7 @@
 
 - Driver: scripted
 - Test: Install supported sanitizer tools. Run `make -j2 check-sanitizers` from a clean checkout; inspect both logs. Then run `make check` and `make check SANITIZER=thread STATIC=1`.
-- Expected: Address/undefined and thread modes each run six C++ tests plus Python and dashboard tests. Allocation counts are zero. Findings fail the command. Normal checks pass; static sanitizer mode fails before compilation. Privileged eBPF remains opt-in.
+- Expected: Address/undefined and thread modes each run five C++ tests plus Python and dashboard tests. Allocation counts are zero. Findings fail the command. Normal checks pass; static sanitizer mode fails before compilation.
 
 ## QA-032: Named periodic workers match configured wake intervals
 
@@ -486,12 +484,6 @@
 - Driver: scripted
 - Test: With two named targets, run `scripts/set-target.sh ID NAME|PID`, `--add`, `--remove`, rate control, and `--help`. Try invalid/duplicate IDs and removing the last target.
 - Expected: Valid commands reload the same sampler. Selector changes affect only their target; rate changes keep all target IDs. Invalid input and help preserve configuration.
-
-## QA-066: Socket reports across hosts
-
-- Driver: judged
-- Test: Use optional socket observers on two hosts, including matching local target IDs. Query live and stored reports for each.
-- Expected: Reports distinguish host, target, session, and observer. No counters are mixed. Record BLOCKED when required hosts or tracing support are absent.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
@@ -681,12 +673,6 @@
 - Test: Monitor a target with resource sampling on, open sockets, and network activity. Hold the pointer on a Pressure stalls table cell, a Network stack drops & errors row, and a Fullest sockets cell for 10 s each, then move into each card. Focus the Fullest sockets checkbox, scroll the table, and clear the checkbox. Select 1 h, then 6 h; change the pressure scope to Whole host. Restart the target process while the pointer holds the sockets table.
 - Expected: Under the pointer and in its card, rows, values, and readouts do not change; after the pointer leaves, each panel shows the latest sample, and active network counters move first. The checkbox keeps focus, the table returns to the top, and the filter applies at once. Range and scope changes clear chart readouts, refresh the charts and In range at once, and change the Summary findings that use pressure and RSS history. After the restart, no row of the old process remains, and the panel waits for a sample of the new process.
 
-## QA-097: Socket I/O panel states, filters, and observer changes
-
-- Driver: judged
-- Test: Monitor a target with the optional socket observer and a completion marker. Check Received, Sent, and Messages processed, a socket kind, and a thread search. Hold the pointer on a breakdown cell for 10 s, then press Escape twice. Scroll the breakdown, then type in the search. Open What is measured · setup. Stop the observer, restart it, and restart the target process. Repeat without the observer and with a collector build that has no socket endpoint.
-- Expected: Cards and chart show the whole process; filters change only the breakdown, keep focus, and start it at the top. Messages processed disables Socket kind, and Received restores the kind if it still exists. A held row and its card do not change during polls; the first Escape closes the card and the second does nothing else. Retired thread generations are separate rows, and no row opens a thread drawer. Observer silent, Observation ended, lower-bound, and cached states are named. After an observer or process restart, no row or card of the old one remains. The setup details stay open. Without the observer, the panel names the reason.
-
 ## QA-098: Memory map stays still under the pointer and resets for a new process
 
 - Driver: judged
@@ -716,4 +702,4 @@
 
 - Driver: judged
 - Test: Delay snapshot, resource, memory-layout, thread-history, and watch reads. Change recording, return Live, change target, or close the page before delivery. Repeat with request errors, no-thread new sessions, absence during replay, restart, late matching and unrelated exits, last-target failure/wrong session/empty replies, reload, and blocked or full tab storage. Keep focus and pointer holds on controls and Help during transitions.
-- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory and socket refresh stop. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
+- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory refresh stops. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.

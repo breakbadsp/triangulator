@@ -30,13 +30,13 @@
 #include <vector>
 
 #include "../common/fd.hpp"
+#include "../sampler/parsing.hpp"
 #include "config.hpp"
 #include "http_connection.hpp"
 #include "json.hpp"
 #include "log.hpp"
 #include "replay.hpp"
 #include "shared_state.hpp"
-#include "socket_report.hpp"
 #include "storage.hpp"
 #include "target_control.hpp"
 #include "watch.hpp"
@@ -281,20 +281,14 @@ class DashboardServer
       : config_(p_config),
         state_(p_state),
         watches_(std::move(p_watches)),
-        listener_(std::move(p_listener)),
-        socket_reports_(p_config.data_dir_)
+        listener_(std::move(p_listener))
   {
   }
 
-  // Starts the socket report worker and the serving thread. std::jthread
-  // reports failure (no resources for another thread) by throwing; this and
-  // SocketReportBridge::Start() are the places it is caught.
+  // Starts the serving thread. std::jthread reports failure (no resources
+  // for another thread) by throwing; this is the place it is caught.
   [[nodiscard]] std::expected<void, std::string> Start()
   {
-    if (auto started = socket_reports_.Start(); !started)
-    {
-      return started;
-    }
     try
     {
       thread_ = std::jthread(
@@ -340,7 +334,6 @@ class DashboardServer
   FileDescriptor listener_;
   std::atomic<bool> stopped_ = false;
   std::jthread thread_;
-  SocketReportBridge socket_reports_;
   struct Worker
   {
     std::jthread thread_;
@@ -797,60 +790,6 @@ class DashboardServer
         return;
       }
       RespondJson(p_connection, 200, settings->Describe());
-    }
-    else if (p_request.path_ == "/api/socket-io")
-    {
-      const auto pid_text =
-          QueryValue(p_request.query_, "pid")
-              .value_or(target ? std::to_string(target->pid_) : "0");
-      const auto pid = triangulator::ParseNumber<std::uint32_t>(pid_text);
-      auto observer = QueryValue(p_request.query_, "observer").value_or("");
-      if (!pid || (!observer.empty() &&
-                   !triangulator::ParseNumber<unsigned long long>(observer)))
-      {
-        Respond(p_connection, 400, R"({"error":"invalid pid or observer"})",
-                "application/json");
-        return;
-      }
-      if (target && (target_key || !QueryValue(p_request.query_, "pid")))
-      {
-        if (*pid != target->pid_ ||
-            (target->socket_observer_ && !observer.empty() &&
-             observer != *target->socket_observer_))
-        {
-          RespondJson(
-              p_connection, 400,
-              JsonObject{
-                  {"error",
-                   "PID or observer does not belong to the selected target"}});
-          return;
-        }
-        if (target->socket_observer_)
-        {
-          observer = *target->socket_observer_;
-        }
-        else if (target->pid_ == 0 || state_.PidShared(target->key_, *pid))
-        {
-          // No observer has reported for this target since the collector
-          // started. Stored observations are keyed by PID and observer only,
-          // so without a binding they identify this target only by a unique
-          // PID.
-          RespondJson(
-              p_connection, 200,
-              JsonObject{
-                  {"available", false},
-                  {"reason",
-                   target->pid_ == 0
-                       ? "No socket observations: the target process is "
-                         "not running."
-                       : "No socket observations for this target. Another "
-                         "target has the same PID; its socket observer must "
-                         "report before the collector can tell them apart."}});
-          return;
-        }
-      }
-      const auto report = socket_reports_.Request(*pid, observer);
-      Respond(p_connection, 200, *report, "application/json");
     }
     else if (p_request.path_ == "/api/replay")
     {

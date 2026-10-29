@@ -93,23 +93,23 @@ class TargetLookupTests(unittest.TestCase):
         try:
             self.assertTrue(Path(f"/proc/{thread.native_id}/stat").exists())
             with self.assertRaisesRegex(sampler_control.ControlError, f"thread ID of process {os.getpid()}"):
-                sampler_control.resolve_pid(str(thread.native_id))
+                sampler_control.require_process(thread.native_id)
         finally:
             release.set()
             thread.join()
-        self.assertEqual(sampler_control.resolve_pid(str(os.getpid())), os.getpid())
+        sampler_control.require_process(os.getpid())
         with self.assertRaisesRegex(sampler_control.ControlError, "no running process"):
-            sampler_control.resolve_pid(str(2**31 - 1))
+            sampler_control.require_process(2**31 - 1)
 
     def test_names_must_be_unique(self):
         name = f"tc-{os.getpid()}"
         first = start_named(name)
         try:
-            self.assertEqual(sampler_control.resolve_pid(name), first.pid)
+            self.assertEqual(sampler_control.unique_process_named(name), first.pid)
             second = start_named(name)
             try:
                 with self.assertRaisesRegex(sampler_control.ControlError, str(sorted([first.pid, second.pid]))):
-                    sampler_control.resolve_pid(name)
+                    sampler_control.unique_process_named(name)
                 # The dashboard lists the matching processes so the user can pick one.
                 with self.assertRaises(sampler_control.AmbiguousNameError) as caught:
                     sampler_control.unique_process_named(name)
@@ -618,55 +618,6 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(changed.returncode, 1)
         self.assertIn("not this repo's sampler", changed.stderr)
         self.assertIsNone(self.target.poll(), "the other program must not be signalled")
-
-    def test_collector_follows_the_running_sampler(self):
-        (self.runtime / "config/sampler.toml").write_text(
-            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
-        custom = self.real / "custom.toml"
-        custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
-        command = [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"]
-        found = subprocess.run(command, capture_output=True, text=True, timeout=5)
-        self.assertEqual(found.returncode, 0, found.stderr)
-        self.assertEqual(found.stdout, "10.0.0.5:9400\n", found.stderr)
-        sampler = self.start_sampler(custom)
-        found = subprocess.run(command, capture_output=True, text=True, timeout=5)
-        self.assertEqual(found.returncode, 0, found.stderr)
-        self.assertEqual(found.stdout, f"127.0.0.1:{self.port}\n", found.stderr)
-        stop(sampler)
-        found = subprocess.run(command, capture_output=True, text=True, timeout=5)
-        self.assertEqual(found.returncode, 0, found.stderr)
-        self.assertEqual(found.stdout, "10.0.0.5:9400\n", found.stderr)
-
-    def test_collector_does_not_fall_back_when_running_config_disappears(self):
-        # A live sampler keeps its loaded endpoint even after its file is removed.
-        (self.runtime / "config/sampler.toml").write_text(
-            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
-        custom = self.real / "custom.toml"
-        custom.write_text(f"target_pid = {self.target.pid}\ncollector = 127.0.0.1:{self.port}\n")
-        sampler = self.start_sampler(custom)
-        self.receive_until(lambda value: value.pid == self.target.pid)
-        custom.unlink()
-
-        found = subprocess.run(
-            [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
-            capture_output=True, text=True, timeout=5)
-        self.assertIsNone(sampler.poll())
-        self.assertEqual(found.returncode, 1)
-        self.assertEqual(found.stdout, "")
-        self.assertIn(str(custom), found.stderr)
-        self.assertIn("pass --collector IP:PORT", found.stderr)
-
-    def test_collector_does_not_fall_back_when_pidfile_points_to_another_program(self):
-        (self.runtime / "config/sampler.toml").write_text(
-            f"target_pid = {self.target.pid}\ncollector = \"10.0.0.5:9400\"\n")
-        (self.runtime / "run/sampler.pid").write_text(f"{self.target.pid}\n")
-        found = subprocess.run(
-            [sys.executable, str(self.link / "scripts/sampler_control.py"), "collector"],
-            capture_output=True, text=True, timeout=5)
-        self.assertEqual(found.returncode, 1)
-        self.assertEqual(found.stdout, "")
-        self.assertIn("not this repo's sampler", found.stderr)
-        self.assertIn("pass --collector IP:PORT", found.stderr)
 
 
 if __name__ == "__main__":

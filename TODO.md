@@ -25,7 +25,6 @@ Open items, by ID. Details, status, and the ID rules are in
 - [REQ-0010](docs/requirements.md#req-0010-default-rate-and-budget-for-larger-targets): Default rate and budget for larger targets
 - [REQ-0011](docs/requirements.md#req-0011-over-budget-at-the-minimum-rate): Over budget at the minimum rate
 - [REQ-0012](docs/requirements.md#req-0012-tick-path-blocking-exceptions): Tick-path blocking exceptions
-- [REQ-0013](docs/requirements.md#req-0013-future-of-the-ebpf-socket-sampler): Future of the eBPF socket sampler
 
 ## Deployment dependencies
 

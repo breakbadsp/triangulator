@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "../common/resource_wire.hpp"
-#include "../socket_sampler/protocol.hpp"
 #include "bounded.hpp"
 #include "exits.hpp"
 #include "json.hpp"
@@ -54,16 +53,6 @@ CREATE TABLE IF NOT EXISTS alert_event (
  detail TEXT NOT NULL, status TEXT NOT NULL, severity TEXT NOT NULL,
  session TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS socket_observation (
- received REAL NOT NULL, observer TEXT NOT NULL, pid INTEGER NOT NULL,
- sequence INTEGER NOT NULL, part INTEGER NOT NULL, parts INTEGER NOT NULL,
- packet BLOB NOT NULL, PRIMARY KEY(observer, sequence, part)
-);
-CREATE INDEX IF NOT EXISTS socket_latest ON socket_observation(pid, received);
-CREATE INDEX IF NOT EXISTS socket_heartbeat_pid
- ON socket_observation(pid, received) WHERE part=0;
-CREATE INDEX IF NOT EXISTS socket_heartbeat_received
- ON socket_observation(received) WHERE part=0;
 CREATE TABLE IF NOT EXISTS raw_sample (
  ts REAL NOT NULL, session TEXT NOT NULL, tid INTEGER NOT NULL, sample TEXT NOT NULL
 );
@@ -699,45 +688,6 @@ class Storage
     return Run(file.database_.get(), file.raw_.get());
   }
 
-  // Socket snapshots are always retained independently of store_raw.
-  // Only raw observations are ingested here; the separate report helper reads
-  // WAL.
-  [[nodiscard]] SqliteResult Socket(
-      double p_received, const socket_metrics::Observation& p_observation,
-      std::span<const std::byte> p_packet)
-  {
-    auto connection = Connection(p_received);
-    if (!connection)
-    {
-      return std::unexpected(std::move(connection.error()));
-    }
-    DayFile& file = connection->get();
-    if (auto begun = Begin(file); !begun)
-    {
-      return begun;
-    }
-    auto* statement = file.socket_.get();
-    FixedText<24> observer;
-    AppendUnsigned(observer, p_observation.observer_);
-    Binder{statement}
-        .Add(p_received)
-        .Add(observer.View())
-        .Add(std::int64_t{p_observation.pid_})
-        .Add(static_cast<std::int64_t>(p_observation.sequence_))
-        .Add(std::int64_t{p_observation.index_})
-        .Add(std::int64_t{p_observation.count_});
-    if (auto bound =
-            Check(file.database_.get(),
-                  ::sqlite3_bind_blob(statement, 7, p_packet.data(),
-                                      static_cast<int>(p_packet.size()),
-                                      SQLITE_STATIC));
-        !bound)
-    {
-      return bound;
-    }
-    return Run(file.database_.get(), statement);
-  }
-
   // One row per ended process. ts is when the sampler noticed the exit;
   // messages are the kernel log lines, one per line; wait_status is NULL
   // when the sampler could not read it.
@@ -886,7 +836,6 @@ class Storage
     Database database_;
     Statement rollup_;
     Statement raw_;
-    Statement socket_;
     Statement resource_;
     Statement exit_;
     Statement target_;
@@ -1072,14 +1021,6 @@ class Storage
       return std::unexpected(std::move(raw.error()));
     }
     file.raw_ = std::move(*raw);
-    auto socket = Prepare(
-        database,
-        "INSERT OR IGNORE INTO socket_observation VALUES (?,?,?,?,?,?,?)");
-    if (!socket)
-    {
-      return std::unexpected(std::move(socket.error()));
-    }
-    file.socket_ = std::move(*socket);
     auto resource = Prepare(database, ResourceInsertSql());
     if (!resource)
     {
