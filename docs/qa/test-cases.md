@@ -15,6 +15,8 @@
 | QA-125 | NOT_RUN | - | - | - |
 | QA-126 | NOT_RUN | - | - | - |
 | QA-127 | NOT_RUN | - | - | - |
+| QA-128 | NOT_RUN | - | - | - |
+| QA-129 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -738,3 +740,15 @@
 - Driver: judged
 - Test: Repeat QA-126 with Codex. Register the server with `codex mcp add tri -- node <path>/tri-scout.mjs serve`. Also register it through `ssh <collector-host> node <path>/tri-scout.mjs serve` from another machine.
 - Expected: The results are the same as in QA-126. The `ssh` registration gives the same answers.
+
+## QA-128: tri-scout scan incident history
+
+- Status: NOT_RUN
+- Test: Enable scout and run `node build/tri-scout.mjs scan` on the collector host. Record a 30 s CPU saturation incident between two older Timeline sample slots. Restart the scanner during another incident. Inspect `data/scout/incidents.sqlite3`. Set `retention_days = 1` and include an incident older than one day.
+- Expected: The store contains the short incident. Restart keeps one incident with the correct first and last times and sample count. Retention deletes the old incident. The collector day files stay unchanged by scout.
+
+## QA-129: tri-scout scan switch and optional startup
+
+- Status: NOT_RUN
+- Test: Start a collector package without the scout artifact. Repeat with the artifact and the switch off, then on. Run scan directly with the switch off in a fresh runtime directory. While scan runs, set the switch off. Run `python3 tests/prove_scout.py` after `make all scout`.
+- Expected: An absent artifact causes no scout message. The off switch creates no scout file and direct scan exits 2. The on switch starts one scanner. An edit to off stops it on the next pass. Concurrent scan reads cause no collector write error, and both the recording cursor and resource rows advance.

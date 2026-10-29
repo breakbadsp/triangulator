@@ -11,6 +11,22 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$root/scripts/runtime.sh"
 collector_bin="$bin_dir/triangulator-collector"
 
+# The optional bundle owns TOML parsing, including the fail-closed switch.
+start_scout() {
+    local bundle="$root/build/tri-scout.mjs"
+    [[ -f "$bundle" ]] || bundle="$bin_dir/tri-scout.mjs"
+    [[ -f "$bundle" ]] || return 0
+    node "$bundle" check-enabled --config "$config" || return 0
+    if [[ -f "$run_dir/scout.pid" ]] && kill -0 "$(<"$run_dir/scout.pid")" 2>/dev/null; then
+        return 0
+    fi
+    if [[ "$bundle" != "$bin_dir/tri-scout.mjs" ]]; then
+        cp "$bundle" "$bin_dir/tri-scout.mjs.tmp.$$"
+        mv "$bin_dir/tri-scout.mjs.tmp.$$" "$bin_dir/tri-scout.mjs"
+    fi
+    (cd "$runtime_dir"; nohup node "$bin_dir/tri-scout.mjs" scan --config "$config" >>"$log_dir/scout.log" 2>&1 & echo $! >"$run_dir/scout.pid")
+}
+
 if [[ $# -eq 0 ]]; then
     cd "$root"
     # Check the build tools first, so a missing one leaves no half-made setup.
@@ -98,6 +114,7 @@ pidfile="$run_dir/$app.pid"
 log="$log_dir/$app.log"
 
 if [[ -f "$pidfile" ]] && kill -0 "$(<"$pidfile")" 2>/dev/null; then
+    [[ "$app" != collector ]] || start_scout
     echo "$app already running (pid $(<"$pidfile"))" >&2
     exit 0
 fi
@@ -116,6 +133,7 @@ echo $! >"$pidfile"
 
 sleep 0.5
 if kill -0 "$(<"$pidfile")" 2>/dev/null; then
+    [[ "$app" != collector ]] || start_scout
     echo "$app started (pid $(<"$pidfile")), log: $log"
 else
     echo "$app failed to start; see $log" >&2
