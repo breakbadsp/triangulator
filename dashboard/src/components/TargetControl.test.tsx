@@ -472,7 +472,7 @@ test("discovery distinguishes waiting and capacity and blocks pattern and remote
                 local: true,
                 rule: "worker",
                 name_selected: true,
-                pattern_selected: true,
+                other_rule_selected: true,
                 excluded: 2,
               },
               {

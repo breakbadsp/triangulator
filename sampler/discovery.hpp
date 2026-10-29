@@ -48,7 +48,7 @@ struct DiscoverySlot
   std::array<char, 32> id_{};
   std::uint8_t ordinal_ = 0;  // N of an "name.N" ID; 0 without a suffix
   std::uint8_t selection_ =
-      0;  // target_wire kNameSelected and kPatternSelected
+      0;  // target_wire kNameSelected and kOtherRuleSelected
   std::uint8_t release_ticks_ = 0;
   bool reassigned_ = false;  // a new ID: the sampler must start a new session
 };
@@ -73,7 +73,7 @@ struct DiscoverySlot
                             return GlobMatch(p_pattern, p_name);
                           }))
   {
-    selection |= target_wire::kPatternSelected;
+    selection |= target_wire::kOtherRuleSelected;
   }
   return selection;
 }
@@ -245,9 +245,19 @@ class Discovery final
     const auto& slot = slots_[p_index];
     const bool released = slot.state_ == SlotState::Releasing &&
                           slot.release_ticks_ <= kReleaseTicks;
+    const auto ordinal =
+        static_cast<std::uint8_t>(slot.ordinal_ << target_wire::kOrdinalShift);
+    auto selection = slot.selection_;
+    // The collector removes the exact name in the ID. A renamed process keeps
+    // its ID but another name selects it, so that Remove must be refused.
+    if ((selection & target_wire::kNameSelected) != 0 &&
+        Text(slot.name_) !=
+            target_wire::RuleName(target_wire::Text(slot.id_), ordinal))
+    {
+      selection = target_wire::kOtherRuleSelected;
+    }
     return static_cast<std::uint8_t>(
-        slot.selection_ | (released ? target_wire::kReleased : 0) |
-        (slot.ordinal_ << target_wire::kOrdinalShift));
+        selection | (released ? target_wire::kReleased : 0) | ordinal);
   }
 
   [[nodiscard]] std::span<DiscoverySlot> Used() noexcept

@@ -306,7 +306,7 @@ class ScriptTests(unittest.TestCase):
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             entries = self.api("/api/targets")[1]["targets"]
-            if all(not item.get("pattern_selected") for item in entries):
+            if all(not item.get("other_rule_selected") for item in entries):
                 break
             time.sleep(0.05)
         self.assertEqual(self.api("/api/targets", {**remove, "rule": "other-rule"}, headers)[0], 409)
@@ -332,6 +332,52 @@ class ScriptTests(unittest.TestCase):
                 break
             time.sleep(0.05)
         self.assertEqual({item["pid"] for item in entries}, {0, *(p.pid for p in children)})
+
+    def test_renamed_instance_remove_never_edits_another_rule(self):
+        # The ID names the rule that admitted the process. After a rename,
+        # another exact name selects it, so no Remove may change the config.
+        self.start_dashboard()
+        alpha, beta = f"ra-{os.getpid()}", f"rb-{os.getpid()}"
+        code = ("import signal,sys,time; "
+                "signal.signal(signal.SIGUSR1, lambda *_: open('/proc/self/comm','w').write(sys.argv[2])); "
+                "open('/proc/self/comm','w').write(sys.argv[1]); time.sleep(60)")
+        child = subprocess.Popen([sys.executable, "-c", code, alpha, beta])
+        self.addCleanup(stop, child)
+        config = self.runtime / "config/sampler.toml"
+        base = f'collector="127.0.0.1:{self.port}"\nrate_hz=10\n'
+        config.write_text(base + f'process_names=["{alpha}"]\n')
+        self.start_sampler(config)
+
+        def target(predicate):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                entries = self.api("/api/targets")[1]["targets"]
+                found = [item for item in entries if item["pid"] == child.pid]
+                if found and predicate(found[0]):
+                    return found[0]
+                time.sleep(0.05)
+            self.fail(f"no matching target in {entries}")
+
+        admitted = target(lambda item: item["id"] == alpha and item.get("rule") == alpha)
+        headers = {"X-Triangulator": "1"}
+        remove = {"action": "remove", "key": admitted["key"], "id": alpha}
+        config.write_text(base + f'process_names=["{alpha}","{beta}"]\n')
+        time.sleep(0.5)
+        child.send_signal(signal.SIGUSR1)
+        while Path(f"/proc/{child.pid}/comm").read_text().strip() != beta:
+            time.sleep(0.01)
+        for rules in ([alpha, beta], [beta]):
+            config.write_text(base + "process_names=[" + ",".join(f'"{n}"' for n in rules) + "]\n")
+            # One discovery pass reads the new name.
+            time.sleep(1.5)
+            original = config.read_text()
+            for rule in (alpha, beta):
+                status, result = self.api("/api/targets", {**remove, "rule": rule}, headers)
+                self.assertEqual(status, 409, result)
+                self.assertEqual(config.read_text(), original)
+            renamed = target(lambda item: True)
+            self.assertEqual((renamed["id"], renamed["session"], renamed.get("rule")),
+                             (alpha, admitted["session"], None))
 
     def test_cli_target_ids_add_remove_and_global_rate(self):
         config = self.runtime / "config/sampler.toml"

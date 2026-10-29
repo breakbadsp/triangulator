@@ -26,9 +26,10 @@ export interface Target {
   cpu_budget_pct?: number | null;
   /** Its packets come from a loopback address: the collector host's sampler. */
   local?: boolean;
-  /** Discovery rules that select it: an exact name or a pattern. */
+  /** Discovery rules that select it: the exact name in its ID, or another
+   * rule (a pattern, or another name after a rename). */
   name_selected?: boolean;
-  pattern_selected?: boolean;
+  other_rule_selected?: boolean;
   /** The exact process name that selects it, without an ID suffix. */
   rule?: string | null;
   /** Matching processes that its sampler could not admit. */

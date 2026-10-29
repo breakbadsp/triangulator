@@ -381,6 +381,9 @@ void TestDiscoveryRenameBeforeReload()
               slot.id_ == id && !slot.reassigned_ &&
               Text(slot.name_) == "rename-after",
           "rename then reload keeps the selected identity and ID");
+  // The ID still names the old rule, so the collector must refuse a Remove.
+  Require(discovery.Flags(0) == target_wire::kOtherRuleSelected,
+          "a renamed instance is not selected by the name in its ID");
   Require(::prctl(PR_SET_NAME, original.data()) == 0, "restore test name");
 }
 
@@ -429,8 +432,8 @@ void TestDiscoveryTransitions()
   auto& slot = self(discovery);
   Require(slot.state_ == SlotState::Running &&
               std::string_view{slot.id_.data()} == "sampler-test" &&
-              slot.selection_ ==
-                  (target_wire::kNameSelected | target_wire::kPatternSelected),
+              slot.selection_ == (target_wire::kNameSelected |
+                                  target_wire::kOtherRuleSelected),
           "an exact name takes its waiting slot");
   const auto& waiting = discovery.Used()[1];
   Require(waiting.state_ == SlotState::Waiting &&
@@ -441,7 +444,7 @@ void TestDiscoveryTransitions()
   discovery.Configure(pattern_only);
   Require(&self(discovery) == &slot && slot.state_ == SlotState::Running &&
               !slot.reassigned_ &&
-              slot.selection_ == target_wire::kPatternSelected,
+              slot.selection_ == target_wire::kOtherRuleSelected,
           "removing the name keeps the instance that the pattern selects");
   Require(discovery.Used()[1].state_ == SlotState::Releasing &&
               (discovery.Flags(1) & target_wire::kReleased) != 0,

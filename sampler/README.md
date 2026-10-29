@@ -164,7 +164,8 @@ Dashboard Add and Remove are local testing controls. Add in list mode needs
 one exact name and persists in this file. Remove deletes that exact-name
 rule and stops every matching instance. A pattern that also selects the name
 blocks Remove. Edit patterns on the monitored host. The collector and helper
-both check this restriction. Legacy table controls keep their existing form.
+both check this restriction. A rename after admission also blocks Remove: the
+ID keeps the old name, so the collector cannot name the current rule. Legacy table controls keep their existing form.
 Upgrade the collector first: discovery uses the two TTGT reserved bytes for
 selection, release, and a capped excluded count. Legacy packets keep zeroes.
 UDP is lossy: five release notices reduce loss but cannot guarantee delivery.

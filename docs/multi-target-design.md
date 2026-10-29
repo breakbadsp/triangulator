@@ -126,7 +126,9 @@ process_patterns = ["worker-*"]
   pass completion. Existing instances are never evicted. `/proc` directory
   enumeration order is not an admission-order guarantee.
 - Remove deletes an exact-name rule and stops every instance of that name.
-  A matching pattern blocks Remove. The helper checks the current file again.
+  A matching pattern blocks Remove. So does a rename: the process keeps the
+  ID of its old name, so the ID no longer names the rule that selects it.
+  The helper checks the current file again.
   Other rules stay unchanged. Removing the last name leaves a valid empty list.
 - Network target mutations need `network_target_control = true` on the
   collector. It is off by default. Sampler locality is a separate mandatory

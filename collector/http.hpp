@@ -818,15 +818,16 @@ class DashboardServer
   {
     const auto flags = p_target.flags_;
     if ((flags &
-         (target_wire::kNameSelected | target_wire::kPatternSelected)) == 0)
+         (target_wire::kNameSelected | target_wire::kOtherRuleSelected)) == 0)
     {
       return std::string{};
     }
-    if ((flags & target_wire::kPatternSelected) != 0)
+    if ((flags & target_wire::kOtherRuleSelected) != 0)
     {
       return std::unexpected(
-          "A process pattern also selects this process, so Remove would not "
-          "stop it. Edit process_patterns in sampler.toml on the host.");
+          "Another rule selects this process (a process pattern, or another "
+          "name after a rename), so Remove would not stop it. Edit "
+          "sampler.toml on the host.");
     }
     return std::string{target_wire::RuleName(p_target.id_, flags)};
   }

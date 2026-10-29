@@ -118,8 +118,8 @@ function TileRemove({
   const discovered = tile.discovered;
   if (!discovered && (control.mode !== "tables" || !managed)) return null;
   const blocked = discovered
-    ? discovered.pattern || !discovered.rule
-      ? "A process pattern also selects this process, so Remove would not stop it. Edit process_patterns in sampler.toml on the host."
+    ? discovered.otherRule || !discovered.rule
+      ? "Another rule selects this process (a process pattern, or another name after a rename), so Remove would not stop it. Edit sampler.toml on the host."
       : ""
     : (control.targets?.length ?? 0) <= 1
       ? "Keep at least one target."
@@ -151,7 +151,7 @@ function TileRemove({
       >
         Remove
       </button>
-      {discovered?.pattern && <small className="muted">{blocked}</small>}
+      {discovered?.otherRule && <small className="muted">{blocked}</small>}
     </Help>
   );
 }

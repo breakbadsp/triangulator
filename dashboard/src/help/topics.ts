@@ -187,7 +187,7 @@ const topics = {
     example:
       "With process_names, enter orders-api once to monitor all its instances. No target ID is needed.",
     reading:
-      "Each change needs confirmation and persists in the local configuration. Remove deletes the exact-name rule and stops every instance of that name. A pattern-selected process cannot be removed here; edit process_patterns on its host.",
+      "Each change needs confirmation and persists in the local configuration. Remove deletes the exact-name rule and stops every instance of that name. A process that a pattern selects, or that was renamed after it was admitted, cannot be removed here; edit sampler.toml on its host.",
     limits:
       "Remote samplers cannot be changed here. A non-loopback browser client also needs network_target_control = true on the collector. This testing option is off by default and has no authentication. Legacy target tables require at least one target.",
     related: ["target-id", "target-switch", "fleet-capacity"],

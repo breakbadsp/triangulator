@@ -358,9 +358,9 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
             {"local", IsLoopback(slot.peer_.View())},
             {"name_selected", (announced.flags_ &
                                triangulator::target_wire::kNameSelected) != 0},
-            {"pattern_selected",
-             (announced.flags_ & triangulator::target_wire::kPatternSelected) !=
-                 0},
+            {"other_rule_selected",
+             (announced.flags_ &
+              triangulator::target_wire::kOtherRuleSelected) != 0},
             {"rule",
              (announced.flags_ & triangulator::target_wire::kNameSelected) != 0
                  ? Json(std::string{triangulator::target_wire::RuleName(
