@@ -154,6 +154,14 @@ findings as the **Targets** page, and states data gaps. With
 `enabled = false` (the default), `tri-scout` exits with status 2 and sends no
 request. `--config <path>` selects another `collector.toml`.
 
+On the collector host, run `node build/tri-scout.mjs scan` to store incidents
+from every recording. `scripts/start.sh collector` also starts it when the
+built file is present and the switch is on. It writes only to
+`$TRIANGULATOR_HOME/data/scout/incidents.sqlite3`. Set `[scout] retention_days`
+to change the 90-day default. Each pass reads the switch again. An edit to
+`false` stops the scan at its next pass. Incident query tools are planned
+for step 3.
+
 ## Performance
 
 <p align="center">
@@ -265,8 +273,8 @@ recorded execution result.
 | PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
 | BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
-| NOT_RUN | 6 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-007 |
-| **Total** | **119** | |
+| NOT_RUN | 8 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-007 |
+| **Total** | **121** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·

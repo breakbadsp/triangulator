@@ -1,9 +1,10 @@
 // tri-scout: optional read-only tools for an LLM client (REQ-0001).
 // Build with `make scout`; run with `node build/tri-scout.mjs serve`.
-import { defaultConfigPath } from "./config";
+import { defaultConfigPath, readScoutConfig } from "./config";
+import { scan } from "./scan";
 import { serve } from "./serve";
 
-const USAGE = "usage: tri-scout serve [--config <collector.toml>]";
+const USAGE = "usage: tri-scout <serve|scan> [--config <collector.toml>]";
 
 async function main(args: readonly string[]): Promise<number> {
   const [mode, ...rest] = args;
@@ -13,10 +14,20 @@ async function main(args: readonly string[]): Promise<number> {
       : rest.length === 0
         ? defaultConfigPath(process.env)
         : null;
-  if (mode !== "serve" || configPath === null) {
+  if (
+    (mode !== "serve" && mode !== "scan" && mode !== "check-enabled") ||
+    configPath === null
+  ) {
     process.stderr.write(USAGE + "\n");
     return 1;
   }
+  if (mode === "check-enabled")
+    return readScoutConfig(configPath).kind === "on" ? 0 : 2;
+  if (mode === "scan")
+    return scan({
+      configPath,
+      log: (line) => process.stderr.write(line + "\n"),
+    });
   const status = await serve({
     configPath,
     input: process.stdin,

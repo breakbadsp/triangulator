@@ -8,7 +8,13 @@ import { parse } from "smol-toml";
  * file that cannot turn the switch on gives "off", so tri-scout fails closed.
  */
 export type ScoutConfig =
-  { kind: "off"; reason: string } | { kind: "on"; collectorUrl: string };
+  | { kind: "off"; reason: string }
+  | {
+      kind: "on";
+      collectorUrl: string;
+      dataDir: string;
+      retentionDays: number;
+    };
 
 export function defaultConfigPath(env: NodeJS.ProcessEnv): string {
   const home = env.TRIANGULATOR_HOME ?? join(homedir(), "triangulator");
@@ -43,7 +49,22 @@ export function parseScoutConfig(text: string): ScoutConfig {
     return off("http_host must be a host name or address");
   if (!Number.isInteger(port) || Number(port) < 1 || Number(port) > 65535)
     return off("http_port must be 1..65535");
-  return { kind: "on", collectorUrl: url(host, Number(port)) };
+  const retentionDays = scout.retention_days ?? 90;
+  if (
+    typeof retentionDays !== "number" ||
+    !Number.isSafeInteger(retentionDays) ||
+    retentionDays < 1
+  )
+    return off("[scout] retention_days must be a positive integer");
+  const dataDir = root.data_dir ?? "./data";
+  if (typeof dataDir !== "string" || !dataDir)
+    return off("data_dir must be a path");
+  return {
+    kind: "on",
+    collectorUrl: url(host, Number(port)),
+    dataDir,
+    retentionDays,
+  };
 }
 
 // A collector that listens on every address also answers on loopback.

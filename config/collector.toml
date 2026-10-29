@@ -31,6 +31,7 @@ max_live_samples = 1000000
 # at start and sends no request. The collector ignores this table.
 [scout]
 enabled = false
+retention_days = 90
 
 # The collector uses only window_s, the rollup window (5-10 s). Everything else
 # here, and deadman_url above, is for the alerting module (alerting/), which is
