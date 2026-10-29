@@ -183,14 +183,6 @@ Decide on the two tick-path exceptions that wait for owner review: the
 `sock_diag` dump (up to 1 s per `recv`, no total time limit). Keep them, or
 give them a time budget.
 
-### REQ-0013: Future of the eBPF socket sampler
-
-Status: Owner decision.
-
-The optional eBPF `socket_sampler/` is the one second process on a host.
-Decide whether it stays. It stays separate while undecided, because a merge
-would make the ordinary sampler privileged.
-
 ## Deployment dependencies
 
 ### REQ-0014: Sampler impact on RHEL production hosts

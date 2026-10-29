@@ -417,13 +417,12 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.dirty_ = false;
           slot.next_health_ = now + 10;
         }
-        published.push_back({key, std::string{slot.host_.View()},
-                             std::string{slot.id_.View()}, slot.session_,
-                             slot.replay_root_, slot.state_.Live(),
-                             slot.state_.LastTarget(), slot.state_.MemoryMap(),
-                             slot.watches_, slot.config_.replay_interval_s_,
-                             slot.legacy_replay_, fleet.SocketObserver(slot),
-                             slot.pid_, std::string{slot.peer_.View()}});
+        published.push_back(
+            {key, std::string{slot.host_.View()}, std::string{slot.id_.View()},
+             slot.session_, slot.replay_root_, slot.state_.Live(),
+             slot.state_.LastTarget(), slot.state_.MemoryMap(), slot.watches_,
+             slot.config_.replay_interval_s_, slot.legacy_replay_, slot.pid_,
+             std::string{slot.peer_.View()}});
       }
       if (published.empty())
       {

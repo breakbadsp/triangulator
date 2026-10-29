@@ -31,8 +31,7 @@ pack() {
         [[ -x "$root/build/$binary" ]] || { echo "missing build/$binary; run make release first" >&2; rm -rf "$stage"; return 1; }
         cp -p "$root/build/$binary" "$package/bin/"
     done
-    # Control scripts are shared. watch-sockets.sh is left out: it needs the
-    # privileged socket observer, which no package ships.
+    # Control scripts are shared.
     for script in runtime.sh start.sh stop.sh restart.sh set-target.sh set-rate.sh sampler_control.py; do
         cp -p "$root/scripts/$script" "$package/scripts/"
     done
@@ -47,4 +46,4 @@ pack() {
 }
 
 pack sampler triangulator-sampler
-pack collector triangulator-collector triangulator-socket-report
+pack collector triangulator-collector

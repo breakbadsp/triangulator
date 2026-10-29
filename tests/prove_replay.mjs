@@ -153,43 +153,6 @@ export async function proveReplay({
       },
     ],
   };
-  const values = {
-    total: "10000",
-    current: 11,
-    average: 10,
-    minimum: 1,
-    maximum: 20,
-  };
-  const metrics = { input: values, output: values, messages: values };
-  const sockets = {
-    available: true,
-    observer: "proof",
-    pid: 42,
-    process_start: "77",
-    messages_enabled: false,
-    stale: false,
-    stopped: false,
-    losses: "0",
-    lower_bound: false,
-    duration: 60,
-    updated: now,
-    gaps: 0,
-    truncated: false,
-    rate_windows: 6,
-    coverage: "full",
-    totals: metrics,
-    rows: [
-      {
-        tid: 42,
-        name: "worker-200",
-        thread_start: "1",
-        kind: "tcp",
-        kind_id: 1,
-        metrics,
-      },
-    ],
-    history: [],
-  };
   let watchRevision = "r1",
     watchRules = [{ prefix: "worker-200", wake_ms: 500 }];
   const watchInfo = () => ({
@@ -244,7 +207,7 @@ export async function proveReplay({
     );
   const facts = () =>
     evaluate(
-      `({ name: document.querySelector('#target-name').textContent, meta: document.querySelector('#target-meta').textContent, cpu: document.querySelector('#hero-cpu').textContent, load: document.querySelector('#hero-load').textContent, rss: document.querySelector('#overview-rss').textContent, process: document.querySelector('#process-facts').textContent, health: JSON.parse(document.querySelector('#diagnostics').textContent), assessment: document.querySelector('#findings').textContent, threads: document.querySelector('#threads-live').textContent, resources: document.querySelector('#resources').textContent, memory: document.querySelector('#memory-map').textContent, socketHidden: document.querySelector('#socket-panel').hidden, socket: document.querySelector('#socket-cards')?.textContent, settings: document.querySelector('#collector-settings').textContent, recordedSettings: !!document.querySelector('#watch-recorded-readonly'), mapWindow: document.querySelector('[data-map-window][aria-pressed=true]')?.dataset.mapWindow, drawer: document.querySelector('#drawer').getAttribute('aria-hidden') })`,
+      `({ name: document.querySelector('#target-name').textContent, meta: document.querySelector('#target-meta').textContent, cpu: document.querySelector('#hero-cpu').textContent, load: document.querySelector('#hero-load').textContent, rss: document.querySelector('#overview-rss').textContent, process: document.querySelector('#process-facts').textContent, health: JSON.parse(document.querySelector('#diagnostics').textContent), assessment: document.querySelector('#findings').textContent, threads: document.querySelector('#threads-live').textContent, resources: document.querySelector('#resources').textContent, memory: document.querySelector('#memory-map').textContent, settings: document.querySelector('#collector-settings').textContent, recordedSettings: !!document.querySelector('#watch-recorded-readonly'), mapWindow: document.querySelector('[data-map-window][aria-pressed=true]')?.dataset.mapWindow, drawer: document.querySelector('#drawer').getAttribute('aria-hidden') })`,
     );
   const charts = () => evaluate("[...document.querySelectorAll('#overview svg, #threads-section svg, #resources svg, #memory-map svg')].map(node => node.outerHTML)");
   try {
@@ -303,7 +266,6 @@ export async function proveReplay({
         return fulfill(requestId, lastTarget ?? { available: false });
       if (url.pathname === "/api/memory-map")
         return fulfill(requestId, liveLayout);
-      if (url.pathname === "/api/socket-io") return fulfill(requestId, sockets);
       if (url.pathname === "/api/watches") {
         if (request.method === "POST") watchRevision = "r2";
         return fulfill(requestId, watchInfo());
@@ -322,10 +284,6 @@ export async function proveReplay({
     });
     await send("Page.navigate", { url: `${base}/?target=` });
     await mode("Live");
-    await until(
-      async () => (await text("socket-cards"))?.includes("11"),
-      "live observer report",
-    );
     await until(
       () =>
         evaluate(
@@ -494,7 +452,6 @@ export async function proveReplay({
     assert.equal(recordedFacts.name, "worker-100");
     assert.equal(recordedFacts.cpu, "0.25 cores");
     assert.equal(recordedFacts.load, "—");
-    assert.equal(recordedFacts.socketHidden, true);
     assert.equal(recordedFacts.mapWindow, "0");
     assert.equal(recordedFacts.recordedSettings, true);
     assert.equal(recordedFacts.health.session, "100");
@@ -511,7 +468,7 @@ export async function proveReplay({
     holds.delete("/api/live");
     for (const item of lateLive) await fulfill(item.requestId, current);
     await delay(2200);
-    for (const path of ["/api/socket-io", "/api/memory-map", "/api/watches"])
+    for (const path of ["/api/memory-map", "/api/watches"])
       assert.equal(
         log.slice(recordedRequests).some((r) => r.path === path),
         false,
@@ -879,7 +836,7 @@ export async function proveReplay({
     assert.equal(
       log
         .slice(finalRequestStart)
-        .some((r) => ["/api/socket-io", "/api/memory-map"].includes(r.path)),
+        .some((r) => r.path === "/api/memory-map"),
       false,
     );
     // Final settings count the replacement process; the assessment stays final.

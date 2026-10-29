@@ -40,7 +40,7 @@ install_runtime_binary() {
         mv -f "$destination.tmp.$$" "$destination"
     fi
     local script
-    for script in runtime.sh start.sh stop.sh restart.sh watch-sockets.sh set-target.sh set-rate.sh sampler_control.py; do
+    for script in runtime.sh start.sh stop.sh restart.sh set-target.sh set-rate.sh sampler_control.py; do
         source="$root/scripts/$script"
         destination="$runtime_dir/scripts/$script"
         [[ "$source" != "$destination" && -e "$source" ]] || continue
@@ -50,9 +50,5 @@ install_runtime_binary() {
     if [[ -f "$root/Makefile" ]]; then
         cp -p "$root/config/sampler.toml" "$root/config/collector.toml" "$runtime_dir/templates/"
         cp -p "$root/deploy/triangulator-sampler.service" "$root/deploy/triangulator-collector.service" "$runtime_dir/services/"
-    fi
-    if [[ "$app" == collector && -x "$root/build/triangulator-socket-report" ]]; then
-        cp -p "$root/build/triangulator-socket-report" "$bin_dir/triangulator-socket-report.tmp.$$"
-        mv -f "$bin_dir/triangulator-socket-report.tmp.$$" "$bin_dir/triangulator-socket-report"
     fi
 }

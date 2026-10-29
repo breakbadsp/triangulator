@@ -24,8 +24,6 @@ on:
       - common/**
       - sampler/**
       - collector/**
-      - metrics/**
-      - socket_sampler/**
       - scripts/**
       - tests/**
       - config/**

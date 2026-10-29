@@ -53,15 +53,14 @@ scripts/stop.sh
 make -j2 check LDLIBS=-lm 2>&1 | tee /reports/check.log
 
 mkdir -p /reports/normal
-cp build/triangulator-{sampler,collector,socket-report} /reports/normal/
+cp build/triangulator-{sampler,collector} /reports/normal/
 for binary in /reports/normal/*; do
     readelf -lW "$binary"
     readelf -dW "$binary"
 done > /reports/normal-linkage.txt
 
-# Both programs must print usage for --help and exit with status 0.
+# The sampler must print usage for --help and exit with status 0.
 build/triangulator-sampler --help > /reports/sampler-help.log
-build/triangulator-socket-report --help > /reports/socket-report-help.log
 
 if [[ ${RUN_STATIC_TESTS:-1} == 0 ]]; then
     echo 'Static-release checks run nightly and on manual runs.'
@@ -80,7 +79,7 @@ grep -q 'make sqlite-amalgamation' /reports/release-without-amalgamation.log
 make sqlite-amalgamation
 make -j2 release SQLITE_SOURCE=build/sqlite/sqlite3.c
 make -j2 check STATIC=1 SQLITE_SOURCE=build/sqlite/sqlite3.c 2>&1 | tee /reports/release-check.log
-cp build/triangulator-{sampler,collector,socket-report} /reports/release/
+cp build/triangulator-{sampler,collector} /reports/release/
 for binary in /reports/release/*; do
     readelf -lW "$binary"
     readelf -dW "$binary"

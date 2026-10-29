@@ -507,8 +507,6 @@ const {
   networkRows,
   resourceCoverage,
 } = load(resolve(dashboard, "src/lib/resourceView.ts"));
-const { socketValue, socketRows, socketStatus, socketCoverage, socketChart } =
-  load(resolve(dashboard, "src/lib/socketView.ts"));
 function sink(text = "") {
   return {
     textContent: text,
@@ -768,112 +766,13 @@ for (let index = 0; index < 60; index++) {
   );
   viewComparisons++;
 }
-const metricValues = {
-  total: "12345",
-  current: null,
-  average: 0,
-  minimum: 0,
-  maximum: 90,
-};
-for (const metric of ["input", "output", "messages"]) {
-  for (const value of [null, 0, 10, 10000, "12345"])
-    for (const rate of [false, true]) {
-      assert.equal(
-        socketValue(value, metric, rate),
-        runInNewContext(oracle + "\nsocketValue(value,rate)", {
-          socketMetric: metric,
-          value,
-          rate,
-          Intl,
-        }),
-      );
-      viewComparisons++;
-    }
-  for (const flags of [
-    {},
-    { stopped: true },
-    { stale: true },
-    { refresh_error: true },
-    { lower_bound: true, losses: "9", truncated: true, read_error: true },
-  ]) {
-    const data = {
-      available: true,
-      pid: 42,
-      observer: "99",
-      process_start: "98",
-      duration: 60,
-      updated: 1000,
-      messages_enabled: true,
-      coverage: "Observed paths.",
-      rate_windows: 10,
-      gaps: 2,
-      totals: { [metric]: metricValues },
-      rows: [
-        {
-          tid: 3,
-          thread_start: "8",
-          name: "worker",
-          kind: "TCP",
-          kind_id: metric === "messages" ? 6 : 1,
-          metrics: { [metric]: metricValues },
-        },
-      ],
-      history: [
-        { ts: 1, [metric]: null },
-        { ts: 2, [metric]: 0 },
-      ],
-      ...flags,
-    };
-    const elements = new Map();
-    const context = {
-      socketData: data,
-      socketMetric: metric,
-      element: (id) => {
-        if (!elements.has(id)) elements.set(id, sink());
-        return elements.get(id);
-      },
-      node: (tag, text) => sink(text),
-      helpButtonLabel: (text) => sink(text),
-      helpOwns: () => false,
-      topicForText: () => "socketio",
-      timeChart() {},
-      document: { querySelectorAll: () => [] },
-      Intl,
-    };
-    runInNewContext(oracle + "\nrenderSocket()", context);
-    assert.equal(socketStatus(data), elements.get("socket-status").textContent);
-    assert.equal(
-      socketCoverage(data),
-      elements.get("socket-coverage").textContent,
-    );
-    assert.equal(
-      socketChart(data, metric).peak,
-      elements.get("socket-chart-scale").textContent,
-    );
-    const rendered = elements
-      .get("socket-rows")
-      .children[0].children.slice(2)
-      .map((c) => c.textContent);
-    const row = socketRows(data, metric, "", "")[0].metrics[metric];
-    assert.deepEqual(
-      [
-        socketValue(row.total, metric),
-        ...["current", "average", "minimum", "maximum"].map((k) =>
-          socketValue(row[k], metric, true),
-        ),
-      ],
-      rendered,
-    );
-    viewComparisons += 4;
-  }
-}
 const { memoryParity } = await import("./memory-parity.mjs");
 const memoryRun = await memoryParity({ oracle, load, dashboard, resolve });
 log(
   `PASS: ${memoryRun.steps} old/new memory map steps with ${memoryRun.layoutsFetched} layout fetches; ${memoryRun.values} displayed-value comparisons; ${memoryRun.historicalChecks} compatible historical layout checks.`,
 );
 log(
-  `PASS: ${viewComparisons} old/new resource/socket displayed-value and note comparisons.`,
+  `PASS: ${viewComparisons} old/new resource displayed-value and note comparisons.`,
 );
 log(
   `PASS: ${comparisons} old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, ${readings} thread map readings, and ${restores} restores; repeated calls are isolated.`,

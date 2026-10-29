@@ -182,7 +182,7 @@ describe("observation events", () => {
     expect(restored.final?.view.health.session).toBe("gone");
     expect(observationReducer(restored, event)).toBe(restored);
   });
-  it("keeps a recording's sockets and layout out of a recorded view", () => {
+  it("keeps a live layout out of a recorded view", () => {
     let state = observationReducer(initialObservations("host/app"), {
       type: "live",
       view: frame(2000, "live"),
@@ -197,11 +197,7 @@ describe("observation events", () => {
     const recorded = state.recorded;
     state = observationReducer(state, {
       type: "reads",
-      reads: {
-        sockets: { available: false, reason: "none" },
-        socketPolled: true,
-        socketError: new Error("late"),
-      },
+      reads: { layout: { available: false } },
     });
     expect(state.recorded).toBe(recorded);
   });

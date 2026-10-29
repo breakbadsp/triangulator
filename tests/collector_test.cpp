@@ -2646,8 +2646,7 @@ void TestAllowedSenders()
             "datagram handled");
     return bad_total() - before;
   };
-  for (const std::string_view magic :
-       {"TSIO", "TRES", "TVMA", "TEND", "TPIN", "XXXX"})
+  for (const std::string_view magic : {"TRES", "TVMA", "TEND", "TPIN", "XXXX"})
   {
     Require(handle(magic, "10.0.0.1") == 1 && handle(magic, "10.0.0.2") == 1,
             "listed senders are accepted");
