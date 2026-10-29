@@ -3,6 +3,9 @@ udp_host = "0.0.0.0"
 udp_port = 9400
 http_host = "127.0.0.1"
 http_port = 9401
+# Testing only: allow target mutations from non-loopback browser clients.
+# Off by default. There is no authentication. Samplers must still be local.
+network_target_control = false
 sampler_ip = "127.0.0.1"
 # For several sampler hosts, replace sampler_ip with an allowlist:
 # sampler_ips = ["192.0.2.10", "192.0.2.11"]

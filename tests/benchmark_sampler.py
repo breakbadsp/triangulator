@@ -42,7 +42,8 @@ SO_TIMESTAMPNS_NEW = 64
 TIMESPEC = struct.Struct("=qq")
 # The sampler warns once when kernel.dmesg_restrict hides /dev/kmsg. That only
 # removes kernel messages from exit reports; sampling is unaffected.
-KMSG_NOTICE = "triangulator: kernel log (/dev/kmsg) not readable: "
+KMSG_NOTICE = ("triangulator: kernel log (/dev/kmsg) not readable: ",
+               "triangulator: kernel log (/dev/kmsg) not readable (errno ")
 
 
 @contextmanager

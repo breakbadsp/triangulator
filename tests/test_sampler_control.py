@@ -1,4 +1,5 @@
 import os
+import http.client
 import json
 import re
 import shutil
@@ -185,6 +186,7 @@ class ScriptTests(unittest.TestCase):
         collector = subprocess.Popen([str(self.real / "build/triangulator-collector"), str(config)],
                                      stderr=subprocess.DEVNULL)
         self.addCleanup(stop, collector)
+        self.collector = collector
         self.dashboard = f"http://127.0.0.1:{port}"
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
@@ -252,7 +254,7 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual({target["id"] for target in entries}, {"default", "other"})
         default = next(target for target in entries if target["id"] == "default")
         self.assertEqual(default["session"], first["session"])
-        status, result = self.api("/api/targets", {**change, "action": "remove"}, headers)
+        status, result = self.api("/api/targets", {**change, "action": "remove", "key": f"{os.uname().nodename}/other"}, headers)
         self.assertEqual(status, 200, result)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
@@ -262,7 +264,7 @@ class ScriptTests(unittest.TestCase):
             time.sleep(0.05)
         self.assertEqual([target["id"] for target in entries], ["default"])
         self.assertEqual(entries[0]["session"], first["session"])
-        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "default"}, headers)[0], 400)
+        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "default", "key": f"{os.uname().nodename}/default"}, headers)[0], 400)
         self.assertEqual(sampler_control.configured_targets(config.read_text()),
                          [{"id": "default", "target": str(self.target.pid)}])
         # The legacy single-target API must work on the converted config too.
@@ -274,6 +276,108 @@ class ScriptTests(unittest.TestCase):
         self.assertEqual(sampler_control.configured_targets(config.read_text()),
                          [{"id": "default", "target": str(other.pid)}])
         self.assertEqual(self.api("/api/target")[1]["target"], str(other.pid))
+
+    def test_discovery_rule_remove_is_persistent_and_preserves_other_names(self):
+        self.start_dashboard()
+        name = f"ui-{os.getpid()}"
+        children = [start_named(name), start_named(name)]
+        self.addCleanup(stop, *children)
+        config = self.runtime / "config/sampler.toml"
+        base = f'collector="127.0.0.1:{self.port}"\nrate_hz=10\n'
+        rules = f'process_names=["{name}","ui-absent"]\n'
+        config.write_text(base + rules + f'process_patterns=["{name}*"]\n')
+        sampler = self.start_sampler(config)
+        deadline = time.monotonic() + 5
+        entries = []
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if len(entries) == 3:
+                break
+            time.sleep(0.04)
+        self.assertEqual(len(entries), 3)
+        selected = next(item for item in entries if item["pid"] == children[0].pid)
+        absent = next(item for item in entries if item["id"] == "ui-absent")
+        headers = {"X-Triangulator": "1"}
+        remove = {"action": "remove", "key": selected["key"], "id": selected["id"], "rule": name}
+        original = config.read_text()
+        self.assertEqual(self.api("/api/targets", remove, headers)[0], 409)
+        self.assertEqual(config.read_text(), original)
+        config.write_text(base + rules)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if all(not item.get("other_rule_selected") for item in entries):
+                break
+            time.sleep(0.05)
+        self.assertEqual(self.api("/api/targets", {**remove, "rule": "other-rule"}, headers)[0], 409)
+        status, result = self.api("/api/targets", remove, headers)
+        self.assertEqual(status, 200, result)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if len(entries) == 1:
+                break
+            time.sleep(0.05)
+        self.assertEqual([item["id"] for item in entries], ["ui-absent"])
+        self.assertEqual(entries[0]["session"], absent["session"])
+        self.assertNotIn(name, config.read_text())
+        add = {"action": "add", "target": name}
+        self.assertEqual(self.api("/api/targets", add, headers)[0], 200)
+        stop(sampler)
+        self.start_sampler(config)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            entries = self.api("/api/targets")[1]["targets"]
+            if {item["pid"] for item in entries} == {0, *(p.pid for p in children)}:
+                break
+            time.sleep(0.05)
+        self.assertEqual({item["pid"] for item in entries}, {0, *(p.pid for p in children)})
+
+    def test_renamed_instance_remove_never_edits_another_rule(self):
+        # The ID names the rule that admitted the process. After a rename,
+        # another exact name selects it, so no Remove may change the config.
+        self.start_dashboard()
+        alpha, beta = f"ra-{os.getpid()}", f"rb-{os.getpid()}"
+        code = ("import signal,sys,time; "
+                "signal.signal(signal.SIGUSR1, lambda *_: open('/proc/self/comm','w').write(sys.argv[2])); "
+                "open('/proc/self/comm','w').write(sys.argv[1]); time.sleep(60)")
+        child = subprocess.Popen([sys.executable, "-c", code, alpha, beta])
+        self.addCleanup(stop, child)
+        config = self.runtime / "config/sampler.toml"
+        base = f'collector="127.0.0.1:{self.port}"\nrate_hz=10\n'
+        config.write_text(base + f'process_names=["{alpha}"]\n')
+        self.start_sampler(config)
+
+        def target(predicate):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                entries = self.api("/api/targets")[1]["targets"]
+                found = [item for item in entries if item["pid"] == child.pid]
+                if found and predicate(found[0]):
+                    return found[0]
+                time.sleep(0.05)
+            self.fail(f"no matching target in {entries}")
+
+        admitted = target(lambda item: item["id"] == alpha and item.get("rule") == alpha)
+        headers = {"X-Triangulator": "1"}
+        remove = {"action": "remove", "key": admitted["key"], "id": alpha}
+        config.write_text(base + f'process_names=["{alpha}","{beta}"]\n')
+        time.sleep(0.5)
+        child.send_signal(signal.SIGUSR1)
+        while Path(f"/proc/{child.pid}/comm").read_text().strip() != beta:
+            time.sleep(0.01)
+        for rules in ([alpha, beta], [beta]):
+            config.write_text(base + "process_names=[" + ",".join(f'"{n}"' for n in rules) + "]\n")
+            # One discovery pass reads the new name.
+            time.sleep(1.5)
+            original = config.read_text()
+            for rule in (alpha, beta):
+                status, result = self.api("/api/targets", {**remove, "rule": rule}, headers)
+                self.assertEqual(status, 409, result)
+                self.assertEqual(config.read_text(), original)
+            renamed = target(lambda item: True)
+            self.assertEqual((renamed["id"], renamed["session"], renamed.get("rule")),
+                             (alpha, admitted["session"], None))
 
     def test_cli_target_ids_add_remove_and_global_rate(self):
         config = self.runtime / "config/sampler.toml"
@@ -323,8 +427,8 @@ class ScriptTests(unittest.TestCase):
         self.assertFalse(data["enabled"])
         change = {"action": "add", "id": "other", "target": "1"}
         status, data = self.api("/api/targets", change, {"X-Triangulator": "1"})
-        self.assertEqual(status, 403)
-        self.assertFalse(data["enabled"])
+        self.assertEqual(status, 400)
+        self.assertTrue(data["enabled"])
 
     def test_sixth_target_over_capacity_is_refused_until_a_slot_frees(self):
         # QA-078. The collector holds five targets; a sixth must not disturb them.
@@ -362,7 +466,7 @@ class ScriptTests(unittest.TestCase):
         targets = self.api("/api/targets")[1]
         self.assertEqual(targets["capacity_drops"], 0)
         self.assertEqual({entry["id"]: entry["session"] for entry in targets["targets"]}, sessions)
-        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "t4"}, headers)[0], 200)
+        self.assertEqual(self.api("/api/targets", {"action": "remove", "id": "t4", "key": f"{os.uname().nodename}/t4"}, headers)[0], 200)
         wait_ids(["t0", "t1", "t2", "t3"])
         # Two adds back to back at four targets. The paused sampler cannot
         # reload, so the collector still publishes four targets when the
@@ -469,7 +573,7 @@ class ScriptTests(unittest.TestCase):
         self.start_dashboard()
         status, data = self.api("/api/target")
         self.assertEqual(status, 200)
-        self.assertTrue(data["enabled"])
+        self.assertFalse(data["enabled"])
         self.assertIn("not running", data["error"])
         config = self.runtime / "config/sampler.toml"
         original = f'target_pid = {self.target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{self.port}"\n'
@@ -491,13 +595,54 @@ class ScriptTests(unittest.TestCase):
         self.assertIn("different collector", data["error"])
         self.assertEqual(config.read_text(), original.replace(str(self.port), str(self.port + 1)))
 
-    def test_dashboard_control_is_disabled_on_public_listener(self):
+    def test_network_control_is_opt_in_and_sampler_stays_local(self):
         self.start_dashboard(http_host="0.0.0.0")
-        status, data = self.api("/api/target")
-        self.assertEqual(status, 200)
-        self.assertFalse(data["enabled"])
-        status, _ = self.api("/api/target", {"target": "x"}, {"X-Triangulator": "1"})
-        self.assertEqual(status, 403)
+        config = self.runtime / "config/sampler.toml"
+        config.write_text(f'target_pid={self.target.pid}\ncollector="127.0.0.1:{self.port}"\n')
+        self.start_sampler(config)
+        self.wait_live(lambda health: health.get("pid") == self.target.pid)
+        # A wildcard listener still accepts a loopback client.
+        self.assertTrue(self.api("/api/targets/control")[1]["enabled"])
+        with socket.socket(type=socket.SOCK_DGRAM) as route:
+            route.connect(("192.0.2.1", 9))
+            address = route.getsockname()[0]
+        self.assertFalse(address.startswith("127."))
+        def remote(path, body=None):
+            client = http.client.HTTPConnection("127.0.0.1", int(self.dashboard.rsplit(":", 1)[1]),
+                                                source_address=(address, 0), timeout=10)
+            try:
+                client.request("POST" if body else "GET", path,
+                               json.dumps(body) if body else None,
+                               {"X-Triangulator": "1"})
+                response = client.getresponse()
+                return response.status, json.loads(response.read())
+            finally:
+                client.close()
+        original = config.read_text()
+        for path, body in (("/api/target", {"target": "d199-network"}),
+                           ("/api/targets", {"action": "add", "id": "net", "target": "d199-network"})):
+            self.assertEqual(remote(path, body)[0], 403)
+            self.assertEqual(config.read_text(), original)
+        collector_config = self.runtime / "config/collector.toml"
+        # Collector settings apply at startup. Restart the test collector with opt-in.
+        collector = self.collector
+        stop(collector)
+        collector_config.write_text(collector_config.read_text() + "network_target_control=true\n")
+        self.collector = subprocess.Popen([self.real / "build/triangulator-collector", collector_config],
+                                         stderr=subprocess.DEVNULL)
+        self.addCleanup(stop, self.collector)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                enabled = remote("/api/targets/control")[1].get("enabled")
+                if enabled:
+                    break
+            except OSError:
+                pass
+            time.sleep(0.03)
+        self.assertTrue(enabled)
+        self.assertEqual(remote("/api/targets", {"action": "add", "id": "net", "target": "d199-network"})[0], 200)
+        self.assertIn('d199-network', config.read_text())
 
     def test_dashboard_reads_split_body_and_rejects_oversized_requests(self):
         self.start_dashboard()

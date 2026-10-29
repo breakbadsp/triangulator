@@ -149,21 +149,51 @@ const topics = {
     sourceDetail:
       "The helper finds every process whose name equals the entered name, as the sampler does, and returns each PID with its user, start time (`/proc/PID/stat` field 22 and `btime`), and command line.",
   },
+  "fleet-waiting": {
+    title: "Waiting for a process",
+    scope: "Configured exact name",
+    meaning:
+      "The name is configured but no running process is admitted for it.",
+    example: "orders-api appears when a process with that Linux name starts.",
+    reading:
+      "Discovery continues without a reload. Each instance gets its own tile.",
+    limits:
+      "Linux keeps 15 bytes of the name. A stale tile instead means that samples stopped arriving.",
+    related: ["manage-targets", "fleet-capacity"],
+    source: "Sampler discovery and absent heartbeat",
+    sourceDetail: "A waiting slot sends an absent heartbeat with PID zero.",
+  },
+  "fleet-capacity": {
+    title: "Target capacity",
+    scope: "Sampler and collector limits",
+    meaning:
+      "Some matching processes cannot be monitored because a target limit is reached.",
+    example:
+      "3 excluded matches means three processes found by the last completed scan had no sampler slot.",
+    reading:
+      "Increase max_targets on the monitored host or narrow the rules. Check the collector limit too.",
+    limits:
+      "Existing instances stay admitted. The sampler count is capped at 255 and can lag by one scan pass. Collector capacity_drops counts rejected packets, not unique processes.",
+    related: ["fleet-waiting", "manage-targets"],
+    source: "TTGT excluded count and collector capacity_drops",
+    sourceDetail:
+      "Both programs preallocate target slots. The sampler reports excluded matches after each completed bounded pass.",
+  },
   "manage-targets": {
     title: "Manage targets",
-    scope: "Targets overview · local sampler · every viewer",
+    scope: "Local testing · every viewer",
     meaning:
-      "Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.",
+      "The sampler.toml file on each monitored host owns production selection. Dashboard Add and Remove are for testing with a verified local sampler.",
     example:
-      "Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.",
+      "With process_names, enter orders-api once to monitor all its instances. No target ID is needed.",
     reading:
-      "Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.",
+      "Each change needs confirmation and persists in the local configuration. Remove deletes the exact-name rule and stops every instance of that name. A process that a pattern selects, or that was renamed after it was admitted, cannot be removed here; edit sampler.toml on its host.",
     limits:
-      "Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.",
-    related: ["target-id", "target-switch", "target"],
-    source: "Sampler configuration and the local control helper",
+      "Remote samplers cannot be changed here. A non-loopback browser client also needs network_target_control = true on the collector. This testing option is off by default and has no authentication. Legacy target tables require at least one target.",
+    related: ["target-id", "target-switch", "fleet-capacity"],
+    source: "Local control helper, kernel packet source, and sampler.toml",
     sourceDetail:
-      "The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.",
+      "The helper verifies the runtime sampler executable, user, and loopback collector endpoint. The API checks the selected target's kernel source address. Host names do not grant access. The sampler validates a full file before reload.",
   },
   "target-id": {
     title: "Target ID",

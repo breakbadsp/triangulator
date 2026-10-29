@@ -6,9 +6,10 @@ import {
 } from "./targetControl";
 afterEach(() => vi.unstubAllGlobals());
 test("the control boundary rejects malformed lists and hides unavailable replies", async () => {
-  expect(parseTargetControl(null)).toEqual({ enabled: false });
+  expect(parseTargetControl(null)).toEqual({ enabled: false, reason: "" });
   expect(parseTargetControl({ enabled: "true", targets: [] })).toEqual({
     enabled: false,
+    reason: "",
   });
   expect(
     parseTargetControl({
@@ -16,12 +17,19 @@ test("the control boundary rejects malformed lists and hides unavailable replies
       host: "h",
       targets: [{ id: "one", target: 1 }],
     }),
-  ).toEqual({ enabled: true, host: "h", targets: null, error: "" });
+  ).toEqual({
+    enabled: true,
+    host: "h",
+    mode: "tables",
+    targets: null,
+    error: "",
+  });
   expect(
     parseTargetControl({ enabled: true, error: "sampler stopped" }),
   ).toEqual({
     enabled: true,
     host: "",
+    mode: "tables",
     targets: null,
     error: "sampler stopped",
   });
@@ -33,11 +41,13 @@ test("the control boundary rejects malformed lists and hides unavailable replies
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
     expect(await readTargetControl(new AbortController().signal)).toEqual({
       enabled: false,
+      reason: "",
     });
   }
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
   expect(await readTargetControl(new AbortController().signal)).toEqual({
     enabled: false,
+    reason: "",
   });
 });
 test("the write boundary parses candidate and applied error fields without trusting malformed data", async () => {

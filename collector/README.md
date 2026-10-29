@@ -164,3 +164,12 @@ has its own file.
 The collector loads at most 1,024 saved target watch files at startup. New
 settings use configuration rules until saved. `/api/targets` reports watch
 settings limit hits. File reads do not run during target discovery.
+
+Target testing controls verify the local runtime sampler executable, user,
+and loopback collector endpoint. Remove also requires a target whose UDP
+packets have a kernel-reported loopback source. Host names do not grant
+access. Both target POST routes require a loopback HTTP client unless
+`network_target_control = true` is set. This option is off by default and
+has no authentication. Enable it only for testing on a trusted network.
+The browser can then be remote; the sampler must still be local. Remote
+samplers require edits to `sampler.toml` on their hosts.

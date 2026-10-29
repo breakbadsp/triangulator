@@ -7,9 +7,23 @@ let write: (body: Record<string, unknown>) => Response | Promise<Response>;
 let calls: { body: Record<string, unknown>; options: RequestInit }[];
 let reads: string[];
 const targets = [
-  { key: "h/api", host: "h", id: "api", pid: 10, status: "live" },
-  { key: "h/busy", host: "h", id: "busy", pid: 20, status: "live" },
-  { key: "other/api", host: "other", id: "api", pid: 30, status: "live" },
+  { key: "h/api", host: "h", id: "api", pid: 10, local: true, status: "live" },
+  {
+    key: "h/busy",
+    host: "h",
+    id: "busy",
+    pid: 20,
+    local: true,
+    status: "live",
+  },
+  {
+    key: "other/api",
+    host: "other",
+    id: "api",
+    pid: 30,
+    local: false,
+    status: "live",
+  },
 ];
 const configured = [
   { id: "api", target: "10" },
@@ -161,7 +175,7 @@ test("Remove uses the configured selector only on the local host and protects th
   fireEvent.click(screen.getByRole("button", { name: "Remove target busy" }));
   await tick();
   expect(calls.map((call) => call.body)).toEqual([
-    { action: "remove", id: "busy", target: "20" },
+    { action: "remove", key: "h/busy", id: "busy", target: "20" },
   ]);
   expect(confirm).toHaveBeenCalledExactlyOnceWith(
     "Remove busy? This changes monitoring for every viewer.",
@@ -177,7 +191,7 @@ test("Remove uses the configured selector only on the local host and protects th
       name: "Remove target api",
     }).disabled,
   ).toBe(true);
-  control = { enabled: true, host: "elsewhere", targets: configured };
+  control = { enabled: false, error: "local sampler verification failed" };
   await poll();
   expect(screen.queryByRole("button", { name: /^Remove target/ })).toBeNull();
 });
@@ -192,7 +206,7 @@ test("Add and Remove share a synchronous guard, including programmatic submits",
   fireEvent.submit(el("target-form"));
   fireEvent.submit(el("target-form"));
   expect(calls.map((call) => call.body)).toEqual([
-    { action: "remove", id: "busy", target: "20" },
+    { action: "remove", key: "h/busy", id: "busy", target: "20" },
   ]);
   await act(async () => {
     pending.resolve(Response.json({ message: "Removed." }));
@@ -306,7 +320,7 @@ test("polls refresh Remove while preserving dirty inputs, candidates and status"
   expect(status()).toBe(before);
   control = { enabled: false, error: "remote dashboard" };
   await poll();
-  expect(document.getElementById("fleet-add")).toBeNull();
+  expect(el("fleet-add").hasAttribute("disabled")).toBe(true);
   expect(status()).toBe(before);
   expect(screen.queryByRole("button", { name: /^Remove target/ })).toBeNull();
   expect(el("target-save").hasAttribute("disabled")).toBe(true);
@@ -414,4 +428,96 @@ test("dialog Help opens its guide inside the modal and closes with it", async ()
   expect(guide && el("target-settings").contains(guide)).toBe(true);
   fireEvent.click(el("target-cancel"));
   expect(document.getElementById("help-guide")).toBeNull();
+});
+
+test("discovery Add needs only a name and explains all matching instances", async () => {
+  control = { enabled: true, mode: "names", host: "h", targets: [] };
+  await start();
+  open();
+  expect(document.getElementById("target-id")).toBeNull();
+  fireEvent.change(el("target-input"), { target: { value: "orders-api" } });
+  await submit();
+  expect(calls.map((call) => call.body)).toEqual([
+    { action: "add", target: "orders-api", check: true },
+    { action: "add", target: "orders-api" },
+  ]);
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(
+    "Add the process name orders-api? Every process with this name is monitored. This changes monitoring for every viewer.",
+  );
+});
+
+test("discovery distinguishes waiting and capacity and blocks pattern and remote Remove", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) => {
+      if (input === "/api/targets/control")
+        return Promise.resolve(
+          Response.json({
+            enabled: true,
+            mode: "names",
+            host: "h",
+            targets: [],
+          }),
+        );
+      return Promise.resolve(
+        Response.json({
+          list: {
+            targets: [
+              {
+                key: "h/worker",
+                host: "h",
+                id: "worker",
+                pid: 10,
+                status: "live",
+                local: true,
+                rule: "worker",
+                name_selected: true,
+                other_rule_selected: true,
+                excluded: 2,
+              },
+              {
+                key: "h/wait",
+                host: "h",
+                id: "wait",
+                pid: 0,
+                status: "absent",
+                local: true,
+                rule: "wait",
+                name_selected: true,
+              },
+              {
+                key: "h/remote",
+                host: "h",
+                id: "remote",
+                pid: 20,
+                status: "live",
+                local: false,
+                rule: "remote",
+                name_selected: true,
+              },
+            ],
+          },
+          live: {},
+        }),
+      );
+    }),
+  );
+  await start();
+  expect(screen.getByText("Waiting for a process named wait")).toBeTruthy();
+  expect(
+    screen.getByText(/2 matching processes on h are not monitored/),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole<HTMLButtonElement>("button", {
+      name: "Remove target worker",
+    }).disabled,
+  ).toBe(true);
+  expect(
+    screen.queryByRole("button", { name: "Remove target remote" }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Remove target wait" }));
+  await tick();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(
+    "Remove the process name wait? Every process named wait stops being monitored. This changes monitoring for every viewer.",
+  );
 });

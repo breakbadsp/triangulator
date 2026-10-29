@@ -6,9 +6,11 @@ import { ago } from "../lib/format";
 export function TargetDialog({
   editor,
   enabled,
+  names = false,
 }: {
   editor: ReturnType<typeof useTargetControl>;
   enabled: boolean;
+  names?: boolean;
 }) {
   const [openedAt] = useState(() => Date.now() / 1000);
   const [dialog, setDialog] = useState<HTMLDialogElement | null>(null);
@@ -16,11 +18,13 @@ export function TargetDialog({
   useEffect(() => {
     if (!dialog) return;
     dialog.showModal();
-    dialog.querySelector<HTMLInputElement>("#target-id")?.focus();
+    dialog
+      .querySelector<HTMLInputElement>(names ? "#target-input" : "#target-id")
+      ?.focus();
     return () => {
       dialog.close();
     };
-  }, [dialog]);
+  }, [dialog, names]);
   useEffect(() => {
     if (form.candidates.length)
       dialog?.querySelector<HTMLSelectElement>("#target-pid")?.focus();
@@ -44,9 +48,10 @@ export function TargetDialog({
         <Help key={key + "title"} topic="manage-targets" as="div">
           <h2 id="target-dialog-title">Add target</h2>
           <p className="muted">
-            Monitor one more process with the local sampler. The change applies
-            to every viewer. A process name follows the process when it
-            restarts; a PID does not.
+            {names
+              ? "Monitor every process with this exact Linux name. Linux keeps 15 bytes of a name. The local sampler configuration owns production selection."
+              : "Monitor one more process with the local sampler. A process name follows a restart; a PID does not."}{" "}
+            The change applies to every viewer.
           </p>
         </Help>
         <form
@@ -57,32 +62,36 @@ export function TargetDialog({
             editor.add();
           }}
         >
-          <Help key={key + "id"} topic="target-id">
-            <label htmlFor="target-id">Target ID</label>
-            <input
-              id="target-id"
-              maxLength={31}
-              pattern="[A-Za-z0-9_.\-]+"
-              required
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="e.g. orders"
-              disabled={busy}
-              value={form.id}
-              onChange={(event) => {
-                editor.edit("id", event.currentTarget.value);
-              }}
-            />
-          </Help>
+          {!names && (
+            <Help key={key + "id"} topic="target-id">
+              <label htmlFor="target-id">Target ID</label>
+              <input
+                id="target-id"
+                maxLength={31}
+                pattern="[A-Za-z0-9_.\-]+"
+                required
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="e.g. orders"
+                disabled={busy}
+                value={form.id}
+                onChange={(event) => {
+                  editor.edit("id", event.currentTarget.value);
+                }}
+              />
+            </Help>
+          )}
           <Help key={key + "process"} topic="manage-targets">
-            <label htmlFor="target-input">Process name or PID</label>
+            <label htmlFor="target-input">
+              {names ? "Exact process name" : "Process name or PID"}
+            </label>
             <input
               id="target-input"
               name="target"
               required
               autoComplete="off"
               spellCheck={false}
-              placeholder="e.g. ghostty or 1234"
+              placeholder={names ? "e.g. orders-api" : "e.g. ghostty or 1234"}
               disabled={busy}
               value={form.target}
               onChange={(event) => {

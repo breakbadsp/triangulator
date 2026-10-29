@@ -520,7 +520,7 @@ class ResourceProbe
     diag_.reset();  // reopen next time, in case the socket is the problem
     p_sample.flags_ = p_sample.flags_ | Flags::SocketDiagFailed;
     logger_.Warn("sock_diag {} failed: {}; socket queues omitted", p_step,
-                 std::strerror(p_error));
+                 p_error);
   }
 
   // Socket totals and TCP state counts start at zero.

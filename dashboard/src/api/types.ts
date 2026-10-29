@@ -1,6 +1,9 @@
 // These fields come from collector/main.cpp and Engine::Snapshot.
 export interface TargetsResponse {
   targets: readonly Target[];
+  /** Packets dropped because the collector had max_targets targets. */
+  capacity_drops?: number;
+  max_targets?: number;
 }
 /** The target list and each target's live view, from one publication. */
 export interface FleetResponse {
@@ -21,6 +24,16 @@ export interface Target {
   effective_rate_hz?: number | null;
   sampler_cpu_pct?: number | null;
   cpu_budget_pct?: number | null;
+  /** Its packets come from a loopback address: the collector host's sampler. */
+  local?: boolean;
+  /** Discovery rules that select it: the exact name in its ID, or another
+   * rule (a pattern, or another name after a rename). */
+  name_selected?: boolean;
+  other_rule_selected?: boolean;
+  /** The exact process name that selects it, without an ID suffix. */
+  rule?: string | null;
+  /** Matching processes that its sampler could not admit. */
+  excluded?: number;
 }
 
 export interface LiveResponse {

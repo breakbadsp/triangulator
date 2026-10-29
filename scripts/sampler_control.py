@@ -12,6 +12,7 @@ reloads it.
 """
 
 import fcntl
+from fnmatch import fnmatchcase
 import ipaddress
 import json
 import math
@@ -352,7 +353,7 @@ def dashboard_target(root, host, port, target=None):
                 raise ControlError("use Manage targets for this multi-target sampler")
             result = {"enabled": True, "target": selected["target"]}
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
-        result = {"enabled": True, "error": str(error)}
+        result = {"enabled": target is not None, "error": str(error)}
     print(json.dumps(result))
 
 
@@ -384,8 +385,90 @@ def replace_targets(text, targets):
     return output
 
 
+RULE_LISTS = ("process_names", "process_patterns")
+RULE_NAME = re.compile(r"[A-Za-z0-9_.-]{1,15}")
+
+
+def strip_comment(line):
+    quoted = False
+    for index, character in enumerate(line):
+        if character == '"':
+            quoted = not quoted
+        elif character == "#" and not quoted:
+            return line[:index]
+    return line
+
+
+def rule_list(text, key):
+    """(items, first line, last line) of a list setting, or None without it.
+
+    Read with the sampler's rules: a list can span lines, with comments. An
+    item cannot contain a closing bracket, as the sampler rejects one.
+    """
+    lines = text.split("\n")
+    for start, line in enumerate(lines):
+        name, separator, value = strip_comment(line).partition("=")
+        if not separator or name.strip(" \t\r") != key:
+            continue
+        body, end = value.strip(), start
+        while "]" not in body and end + 1 < len(lines):
+            end += 1
+            body += " " + strip_comment(lines[end]).strip()
+        return re.findall(r'"([^"]*)"', body), start, end
+    return None
+
+
+def replace_rule_list(text, key, items):
+    """Write a list setting with one item per line, so adding a name is one line."""
+    block = [f"{key} = ["] + [f'  "{item}",' for item in items] + ["]"] if items else [f"{key} = []"]
+    found = rule_list(text, key)
+    lines = text.split("\n")
+    if found is None:
+        if lines and lines[-1] == "":
+            lines.pop()
+        return "\n".join(lines + block) + "\n"
+    _, start, end = found
+    return "\n".join(lines[:start] + block + lines[end + 1:])
+
+
+def discovers(text):
+    return any(rule_list(text, key) is not None for key in RULE_LISTS)
+
+
+def change_rule_set(text, change):
+    """Add or remove one exact process name; patterns are edited on the host."""
+    if not isinstance(change, dict) or set(change) - {"action", "id", "target", "name", "key", "rule"}:
+        raise ControlError("expected an action and a process name")
+    names = (rule_list(text, "process_names") or ([],))[0]
+    patterns = (rule_list(text, "process_patterns") or ([],))[0]
+    action = change.get("action")
+    if action == "add":
+        name = change.get("target")
+        if not isinstance(name, str) or not RULE_NAME.fullmatch(name) or name in (".", ".."):
+            raise ControlError("enter an exact process name of 1..15 letters, digits, dots, "
+                               "underscores, or hyphens; Linux keeps 15 bytes of a process name")
+        if name in names:
+            raise ControlError(f"{name} is already in process_names")
+        if len(names) + len(patterns) >= 16:
+            raise ControlError("at most 16 process names and patterns are permitted")
+        names.append(name)
+    elif action == "remove":
+        name = change.get("name")
+        if name not in names:
+            raise ControlError("this process name is no longer configured; reload the target list")
+        if any(fnmatchcase(name, pattern) for pattern in patterns):
+            raise ControlError("a process pattern also selects this name; edit process_patterns on the host")
+        names.remove(name)
+    else:
+        raise ControlError("action must be add or remove")
+    return replace_rule_list(text, "process_names", names)
+
+
 def change_target_set(text, change, max_targets=None):
-    if not isinstance(change, dict) or set(change) - {"action", "id", "target"}:
+    if discovers(text):
+        return change_rule_set(text, change)
+    # The dashboard also sends the target key, which the collector checks.
+    if not isinstance(change, dict) or set(change) - {"action", "id", "target", "key"}:
         raise ControlError("expected an action, target id, and selector")
     action, target_id = change.get("action"), change.get("id")
     if not isinstance(target_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,31}", target_id) or target_id in (".", ".."):
@@ -451,12 +534,18 @@ def dashboard_targets(root, host, port, max_targets, body=None):
         if sampler is None:
             raise ControlError("the sampler is not running; start it with scripts/start.sh")
         require_local_collector(sampler[1], (host, port))
-        result = {"enabled": True, "host": os.uname().nodename,
-                  "targets": configured_targets(sampler[1].read_text())}
+        text = sampler[1].read_text()
+        result = {"enabled": True, "host": os.uname().nodename}
+        if discovers(text):
+            result.update(mode="names", targets=[],
+                          names=(rule_list(text, "process_names") or ([],))[0],
+                          patterns=(rule_list(text, "process_patterns") or ([],))[0])
+        else:
+            result.update(mode="tables", targets=configured_targets(text))
         if body is not None and not check:
             result["message"] = "Reload requested. The target change applies to every viewer."
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
-        result = {"enabled": True, "error": str(error)}
+        result = {"enabled": body is not None, "error": str(error)}
         if isinstance(error, TargetLimitError):
             result["at_limit"] = True
         if isinstance(error, AmbiguousNameError):

@@ -120,6 +120,37 @@ class CollectorCase(unittest.TestCase):
 
 
 class MultiTargetCollectorTests(CollectorCase):
+    def test_release_cannot_remove_a_new_session_or_reappear_from_delayed_data(self):
+        def release(session):
+            packet = bytearray(announce(session, "worker"))
+            packet[6] = 1 | 4
+            return packet
+        self.send(announce(101, "worker"))
+        self.send(tick(101))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        self.send(announce(202, "worker"))
+        self.send(tick(202))
+        self.wait_for(lambda: self.fetch("/api/targets")["targets"][0]["session"] == "202")
+        self.send(release(101))
+        self.send(tick(101))
+        time.sleep(0.2)
+        self.assertEqual(self.fetch("/api/targets")["targets"][0]["session"], "202")
+        self.send(release(202))
+        self.wait_for(lambda: self.targets() == set())
+        self.send(announce(202, "worker"))
+        self.send(tick(202))
+        time.sleep(0.2)
+        self.assertEqual(self.targets(), set())
+
+    def test_remote_target_remove_refuses_claimed_local_hostname_and_mismatched_id(self):
+        # Both peers are loopback here. A key/ID mismatch must fail before helper writes.
+        self.send(announce(101, "worker"))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        status, _ = self.post("/api/targets", {"action": "remove", "key": "host-a/worker", "id": "other"}, "")
+        self.assertEqual(status, 409)
+        status, _ = self.post("/api/targets", {"action": "remove", "key": "remote/worker", "id": "worker"}, "")
+        self.assertEqual(status, 403)
+
     def test_interleaved_targets_reordered_announce_and_session_replacement(self):
         self.send(announce(101, "orders", pid=123))
         self.send(tick(101))
@@ -490,6 +521,28 @@ class UnsortedSenderListTests(CollectorCase):
         self.wait_for(lambda: self.replay_targets(data / "replay") == {"host-b/default"})
 
 
+class MixedLocalityTests(CollectorCase):
+    def test_kernel_source_controls_locality_not_claimed_host(self):
+        with socket.socket(type=socket.SOCK_DGRAM) as route:
+            route.connect(("192.0.2.1", 9))
+            address = route.getsockname()[0]
+        self.stop()
+        self.config.write_text(self.config.read_text().replace(self.SAMPLER_IPS,
+            f'sampler_ips=["127.0.0.1","{address}"]\n'))
+        self.start()
+        self.send(announce(101, "local", host="claimed-host"))
+        with socket.socket(type=socket.SOCK_DGRAM) as remote:
+            remote.bind((address, 0))
+            remote.sendto(announce(202, "remote", host="claimed-host"), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: len(self.targets()) == 2)
+        entries = {entry["id"]: entry for entry in self.fetch("/api/targets")["targets"]}
+        self.assertTrue(entries["local"]["local"])
+        self.assertFalse(entries["remote"]["local"])
+        status, _ = self.post("/api/targets", {"action": "remove", "id": "remote", "key": "claimed-host/remote"}, "")
+        self.assertEqual(status, 403)
+        self.assertEqual(len(self.targets()), 2)
+
+
 class UnpinnedCollectorTests(CollectorCase):
     SAMPLER_IPS = ""
 
@@ -698,3 +751,5 @@ class MultiTargetSamplerTests(unittest.TestCase):
         self.receiver.settimeout(1)
         changed = self.collect_sessions([0], sessions, changed=True)
         self.assertNotEqual(changed, sessions)
+        self.assertEqual(self.collect_sessions([0], changed), changed,
+                         "the next tick also uses the new rate")

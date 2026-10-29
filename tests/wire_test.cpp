@@ -575,7 +575,7 @@ void TestTargetAnnouncement()
         invalid.version_ = 2;
         break;
       case 1:
-        invalid.reserved_[0] = 1;
+        invalid.flags_ = 1 << target_wire::kOrdinalShift;
         break;
       case 2:
         invalid.effective_millihz_ = 0;
@@ -593,6 +593,18 @@ void TestTargetAnnouncement()
     Require(!target_wire::Decode(wire::AsBytes(invalid)),
             "invalid announcement rejected");
   }
+  const auto legacy = wire::AsBytes(packet);
+  Require(legacy[6] == std::byte{0} && legacy[7] == std::byte{0},
+          "legacy reserved bytes remain zero");
+  packet.flags_ = target_wire::kReleased | target_wire::kNameSelected |
+                  (2 << target_wire::kOrdinalShift);
+  packet.excluded_ = 255;
+  target_wire::SetText(packet.target_, "orders.2");
+  const auto discovered = target_wire::Decode(wire::AsBytes(packet));
+  Require(discovered && discovered->flags_ == packet.flags_ &&
+              discovered->excluded_ == 255 &&
+              target_wire::RuleName("orders.2", packet.flags_) == "orders",
+          "discovery flags, capacity, release and suffix round trip");
   packet.access_ = target_wire::Access::Limited;
   Require(target_wire::Decode(wire::AsBytes(packet)).has_value(),
           "limited access is valid");

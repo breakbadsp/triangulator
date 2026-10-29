@@ -34,6 +34,8 @@ struct PublishedTarget
   bool legacy_replay_ = false;
   std::uint32_t pid_ = 0;
   std::string peer_;
+  std::uint8_t flags_ = 0;  // target_wire flags of the last announcement
+  bool local_ = false;      // its packets come from a loopback address
 };
 
 // The latest /api/live, /api/last-target and /api/memory-map payloads,
@@ -75,16 +77,17 @@ class SharedState
     return memory_map_;
   }
 
-  // The sessions currently published for a target ID, on any host. A removal
-  // request takes them before it asks the sampler, so it names exactly the
-  // sessions the operator saw.
-  [[nodiscard]] std::vector<std::uint64_t> SessionsForId(std::string_view p_id)
+  // The sessions currently published for a target ID of the local sampler.
+  // A removal request takes them before it asks the sampler, so it names
+  // exactly the sessions the operator saw, and never a remote target's.
+  [[nodiscard]] std::vector<std::uint64_t> LocalSessionsForId(
+      std::string_view p_id)
   {
     std::lock_guard lock{mutex_};
     std::vector<std::uint64_t> sessions;
     for (const auto& target : targets_)
     {
-      if (target.id_ == p_id)
+      if (target.id_ == p_id && target.local_)
       {
         sessions.push_back(target.session_);
       }
