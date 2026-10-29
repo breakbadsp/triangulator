@@ -42,34 +42,6 @@ class TargetFleet final
     }
     const std::string_view magic{reinterpret_cast<const char*>(p_data.data()),
                                  4};
-    if (magic == "TSIO")
-    {
-      if (const auto observation = socket_metrics::Decode(p_data))
-      {
-        auto binding = std::ranges::find_if(
-            socket_bindings_,
-            [&](const SocketBinding& p_binding)
-            {
-              return p_binding.active_ && p_binding.peer_ == p_peer &&
-                     p_binding.pid_ == observation->pid_;
-            });
-        if (binding == socket_bindings_.end())
-        {
-          binding = std::ranges::find(socket_bindings_, false,
-                                      &SocketBinding::active_);
-          if (binding == socket_bindings_.end())
-          {
-            binding = socket_bindings_.begin() +
-                      static_cast<std::ptrdiff_t>(socket_position_++ %
-                                                  socket_bindings_.size());
-            ++capacity_drops_;
-          }
-        }
-        *binding = {true, p_peer, observation->pid_, observation->observer_,
-                    p_now};
-      }
-      return slots_.front()->ingest_.Handle(p_data, p_peer, p_now);
-    }
     std::uint64_t session = 0;
     std::optional<std::uint32_t> pid;
     std::optional<target_wire::Packet> announcement;
@@ -141,6 +113,11 @@ class TargetFleet final
     else
     {
       ++bad_packets_;
+      return {};
+    }
+    if (announcement && (announcement->flags_ & target_wire::kReleased) != 0)
+    {
+      Release(p_peer, *announcement, p_now);
       return {};
     }
     // A recovered session lost the legacy sender key to another session of
@@ -333,24 +310,6 @@ class TargetFleet final
     return sink_.Status();
   }
 
-  [[nodiscard]] std::optional<std::string> SocketObserver(
-      const TargetSlot& p_slot) const
-  {
-    const SocketBinding* latest = nullptr;
-    for (const auto& binding : socket_bindings_)
-    {
-      if (binding.active_ && binding.peer_ == p_slot.peer_ &&
-          binding.pid_ == p_slot.pid_ && p_slot.pid_ != 0 &&
-          binding.received_ >= p_slot.first_seen_ &&
-          (!latest || binding.received_ > latest->received_))
-      {
-        latest = &binding;
-      }
-    }
-    return latest ? std::optional{std::to_string(latest->observer_)}
-                  : std::nullopt;
-  }
-
   // Retires the sessions of a target the operator removed. Only a slot whose
   // current session is in p_sessions is affected: a replacement with the same
   // ID is a new session and stays.
@@ -376,6 +335,31 @@ class TargetFleet final
         slot->active_ = false;
         slot->visible_ = false;
       }
+    }
+  }
+
+  // A discovered target ended or no rule selects it any more. Its slot is
+  // freed now: idle expiry would hold it for minutes during churn. Only
+  // this session is freed; a delayed release cannot remove a replacement.
+  void Release(const PeerText& p_peer, const target_wire::Packet& p_packet,
+               double p_now)
+  {
+    for (auto& slot : slots_)
+    {
+      if (slot->active_ && slot->peer_ == p_peer &&
+          slot->session_ == p_packet.session_)
+      {
+        Retire(slot->peer_, slot->session_);
+        slot->monitor_.Close();
+        slot->resources_.Drain(p_now, true);
+        slot->active_ = false;
+        slot->visible_ = false;
+      }
+    }
+    // Later ticks of the released session must not take a slot again.
+    if (!IsRetired(p_peer, p_packet.session_))
+    {
+      Retire(p_peer, p_packet.session_);
     }
   }
 
@@ -449,16 +433,6 @@ class TargetFleet final
     // Set when a legacy sender's session was replaced by another session.
     bool inferred_ = false;
   };
-  struct SocketBinding
-  {
-    bool active_ = false;
-    PeerText peer_;
-    std::uint32_t pid_ = 0;
-    std::uint64_t observer_ = 0;
-    double received_ = 0;
-  };
-  std::array<SocketBinding, 128> socket_bindings_{};
-  std::size_t socket_position_ = 0;
   const Config& config_;
   Storage& storage_;
   StorageSink& sink_;

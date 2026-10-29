@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -367,7 +367,6 @@ try {
     "Summary",
     "Threads",
     "Resources",
-    "Sockets",
     "Memory",
     "Monitor",
     "Settings",
@@ -907,107 +906,24 @@ try {
   assert.equal(await evaluate("document.activeElement.id"), "search");
   await send("Fetch.disable");
   onPaused = () => undefined;
-  // Phase 6: Resources and Socket I/O on the real collector and page. The
-  // first socket request reaches the collector; the fixture has no observer.
-  await until(
-    () =>
-      requests.some(
-        (url) =>
-          new URL(url).pathname === "/api/socket-io" &&
-          new URL(url).searchParams.get("pid") === String(live.health.pid) &&
-          new URL(url).searchParams.get("target") === target.key,
-      ),
-    "socket report request for the selected target",
+  // Phase 6: Resources on the real collector and page.
+  const sectionTabs = await evaluate(
+    "[...document.querySelectorAll('nav.tabs a')].map((link) => link.textContent)",
   );
-  await until(
-    () =>
-      evaluate(
-        "document.querySelector('#socket-panel #socket-status')?.textContent === 'Not available'",
-      ),
-    "real collector socket answer",
-  );
-  const socketEntry = await evaluate(`({
-    panel: !!document.querySelector('section#socket-panel'),
-    empty: document.querySelector('#socket-empty').textContent,
-    tabs: [...document.querySelectorAll('nav.tabs a')].map((link) => link.textContent),
-    resourcesEmpty: document.querySelector('#resources-empty')?.textContent,
-  })`);
-  assert.equal(socketEntry.panel, true);
-  assert.ok(socketEntry.empty.length > 0, JSON.stringify(socketEntry));
-  assert.deepEqual(socketEntry.tabs, [
+  assert.deepEqual(sectionTabs, [
     "Timeline",
     "Summary",
     "Threads",
     "Resources",
-    "Sockets",
     "Memory",
     "Monitor",
     "Settings",
   ]);
-  // From here the test answers live and socket requests, so every state is
+  // From here the test answers live requests, so every state is
   // deterministic. Resource history still comes from the collector.
-  let liveSession = "600001",
-    resourceTick = 0,
-    netActive = false,
-    socketPolls = 0,
-    socketBody = null,
-    holdSocket = false;
-  const heldSockets = [];
-  const socketValues = (total, current = 5) => ({
-    total,
-    current,
-    average: 2,
-    minimum: 0,
-    maximum: 9,
-  });
-  const socketRow = (tid, name, kindId, total, start = "1") => ({
-    tid,
-    name,
-    thread_start: start,
-    kind: kindId === 6 ? "Application marker" : "TCP IPv4",
-    kind_id: kindId,
-    metrics: {
-      input: socketValues(total),
-      output: socketValues("0", 0),
-      messages: socketValues(kindId === 6 ? total : "0"),
-    },
-  });
-  const socketReport = (extra = {}) => ({
-    available: true,
-    observer: "900",
-    pid: live.health.pid,
-    process_start: "800",
-    messages_enabled: true,
-    stale: false,
-    stopped: false,
-    losses: "0",
-    lower_bound: false,
-    duration: 60,
-    updated: Date.now() / 1000,
-    gaps: 0,
-    truncated: false,
-    rate_windows: 10,
-    coverage: "Observed socket paths only.",
-    totals: {
-      input: socketValues("4096", null),
-      output: socketValues("0", 0),
-      messages: socketValues("3"),
-    },
-    rows: [
-      socketRow(43, "reader", 1, "1024"),
-      socketRow(43, "reader", 1, "3072", "2"),
-      socketRow(45, "worker", 6, "3"),
-      ...Array.from({ length: 40 }, (_, index) =>
-        socketRow(100 + index, `pool-${String(index)}`, 1, String(index)),
-      ),
-    ],
-    history: [
-      { ts: Date.now() / 1000 - 2, input: 10, output: 0, messages: null },
-      { ts: Date.now() / 1000 - 1, input: null, output: 0, messages: null },
-    ],
-    ...extra,
-  });
-  socketBody = socketReport();
+  const liveSession = "600001";
+  let resourceTick = 0,
+    netActive = false;
   const resourceSample = () => ({
     available: true,
     session: liveSession,
@@ -1045,27 +961,7 @@ try {
         : { delta: 0, per_s: 0, total: 4 },
     },
   });
-  onPaused = async ({ requestId, request }) => {
-    const path = new URL(request.url).pathname;
-    if (path === "/api/socket-io") {
-      socketPolls++;
-      if (holdSocket) {
-        holdSocket = false;
-        heldSockets.push(requestId);
-        return;
-      }
-      const reply =
-        typeof socketBody === "number"
-          ? { status: socketBody, body: { error: "not found" } }
-          : { status: 200, body: socketBody };
-      await send("Fetch.fulfillRequest", {
-        requestId,
-        responseCode: reply.status,
-        responseHeaders: [{ name: "Content-Type", value: "application/json" }],
-        body: Buffer.from(JSON.stringify(reply.body)).toString("base64"),
-      });
-      return;
-    }
+  onPaused = async ({ requestId }) => {
     const reply = await send("Fetch.getResponseBody", { requestId });
     const view = JSON.parse(
       reply.base64Encoded
@@ -1084,178 +980,12 @@ try {
   await send("Fetch.enable", {
     patterns: [
       { urlPattern: "*/api/live?*", requestStage: "Response" },
-      { urlPattern: "*/api/socket-io?*", requestStage: "Request" },
     ],
   });
-  const socketPoll = async (description) => {
-    const before = socketPolls;
-    await until(() => socketPolls > before + 1, description);
-    await delay(100);
-  };
   await until(
-    () =>
-      evaluate(
-        "!!document.querySelector('[data-socket-metric=\"messages\"]') && !!document.querySelector('#resource-tiles .tile')",
-      ),
-    "available socket report and resource sample",
+    () => evaluate("!!document.querySelector('#resource-tiles .tile')"),
+    "resource sample",
   );
-  const rowIds =
-    "[...document.querySelectorAll('#socket-rows tr[data-row]')].map((row) => row.dataset.row)";
-  const card = (title) =>
-    `[...document.querySelectorAll('#socket-cards .tile')].find((tile) => tile.querySelector('.label').textContent === ${JSON.stringify(title)}).querySelector('.value').textContent`;
-  const sockets = {
-    messagesOffered: true,
-    unknownCurrent: await evaluate(card("Current rate")),
-    generations: (await evaluate(rowIds)).filter((id) =>
-      id.startsWith("900|800|43|"),
-    ),
-  };
-  assert.equal(sockets.unknownCurrent, "—");
-  assert.deepEqual(sockets.generations, ["900|800|43|2|1", "900|800|43|1|1"]);
-  await evaluate(
-    "document.querySelector('[data-socket-metric=\"output\"]').click()",
-  );
-  sockets.measuredZero = await evaluate(card("Current rate"));
-  assert.equal(sockets.measuredZero, "0 B /s");
-  await evaluate(
-    "document.querySelector('[data-socket-metric=\"messages\"]').click()",
-  );
-  sockets.messages = await evaluate(
-    `({kindDisabled: document.querySelector('#socket-kind').disabled, rows: ${rowIds}})`,
-  );
-  assert.deepEqual(sockets.messages, {
-    kindDisabled: true,
-    rows: ["900|800|45|1|6"],
-  });
-  await evaluate(
-    "document.querySelector('[data-socket-metric=\"input\"]').click()",
-  );
-  // Focus and scroll survive polls; a filter starts the table at its top.
-  await evaluate(
-    "document.querySelector('#socket-rows').closest('.table-wrap').scrollTop = 120; document.querySelector('#socket-search').focus()",
-  );
-  await socketPoll("socket polls with focus and scroll");
-  sockets.focusAndScroll = await evaluate(
-    "({focus: document.activeElement.id, scroll: document.querySelector('#socket-rows').closest('.table-wrap').scrollTop})",
-  );
-  assert.deepEqual(sockets.focusAndScroll, {
-    focus: "socket-search",
-    scroll: 120,
-  });
-  await send("Input.insertText", { text: "pool-3" });
-  sockets.filtered = await evaluate(
-    `({focus: document.activeElement.id, scroll: document.querySelector('#socket-rows').closest('.table-wrap').scrollTop, rows: ${rowIds}.length})`,
-  );
-  assert.deepEqual(sockets.filtered, {
-    focus: "socket-search",
-    scroll: 0,
-    rows: 11,
-  });
-  await evaluate(`(() => {
-    const node = document.querySelector('#socket-search');
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(node, '');
-    node.dispatchEvent(new Event('input', { bubbles: true }));
-    node.blur();
-  })()`);
-  // Observer states, each from a fresh report.
-  sockets.states = {};
-  for (const [name, body] of [
-    ["silent", socketReport({ stale: true })],
-    ["ended", socketReport({ stopped: true })],
-    ["lowerBound", socketReport({ lower_bound: true, losses: "12" })],
-    ["cached", socketReport({ refresh_error: true })],
-    ["unavailable", { available: false, reason: "No socket observations." }],
-    ["noEndpoint", 404],
-  ]) {
-    socketBody = body;
-    await socketPoll(`socket state ${name}`);
-    sockets.states[name] = await evaluate(
-      "[document.querySelector('#socket-status').textContent, document.querySelector('#socket-empty')?.textContent ?? '']",
-    );
-  }
-  assert.deepEqual(sockets.states, {
-    silent: ["Observer silent", ""],
-    ended: ["Observation ended", ""],
-    lowerBound: ["Incomplete · lower-bound totals", ""],
-    cached: ["Report refresh failed · cached", ""],
-    unavailable: ["Not available", "No socket observations."],
-    noEndpoint: [
-      "Not available",
-      "This collector does not support socket observations. Use the C++ collector.",
-    ],
-  });
-  socketBody = socketReport();
-  await until(
-    () => evaluate("!!document.querySelector('#socket-rows tr[data-row]')"),
-    "socket rows again",
-  );
-  // A held row keeps its readout across polls; Escape dismisses it.
-  await escapeHelp();
-  await hover('#socket-rows tr[data-row="900|800|43|2|1"] td:nth-child(3)');
-  await until(
-    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
-    "socket total readout",
-  );
-  const heldCard = await evaluate(
-    "document.querySelector('[role=dialog]').textContent",
-  );
-  socketBody = socketReport({ rows: [socketRow(46, "fresh", 1, "1")] });
-  await socketPoll("polls under a held socket row");
-  sockets.held = await evaluate(
-    `({rows: ${rowIds}.length, card: document.querySelector('[role=dialog]')?.textContent})`,
-  );
-  assert.equal(sockets.held.rows, 42);
-  assert.equal(sockets.held.card, heldCard);
-  assert.ok(heldCard.includes("3072"), heldCard);
-  // A process restart while the row is held drops the old rows at once,
-  // and a late answer for the old session never shows.
-  holdSocket = true;
-  await until(() => heldSockets.length === 1, "pending old-session report");
-  socketBody = socketReport({
-    observer: "901",
-    process_start: "801",
-    rows: [socketRow(47, "restarted", 1, "1")],
-  });
-  liveSession = "600002";
-  await until(
-    () => evaluate(`JSON.stringify(${rowIds}) === '["901|801|47|1|1"]'`),
-    "new session report",
-  );
-  try {
-    await send("Fetch.fulfillRequest", {
-      requestId: heldSockets[0],
-      responseCode: 200,
-      responseHeaders: [{ name: "Content-Type", value: "application/json" }],
-      body: Buffer.from(JSON.stringify(socketReport())).toString("base64"),
-    });
-  } catch {
-    // The page already aborted the old request.
-  }
-  await delay(300);
-  sockets.restart = await evaluate(
-    `({rows: ${rowIds}, scope: document.querySelector('#socket-scope').textContent, oldCards: [...document.querySelectorAll('.help-card')].filter((node) => node.textContent.includes('3072')).length})`,
-  );
-  assert.deepEqual(sockets.restart.rows, ["901|801|47|1|1"]);
-  assert.ok(
-    sockets.restart.scope.endsWith("observer 901"),
-    sockets.restart.scope,
-  );
-  assert.equal(sockets.restart.oldCards, 0);
-  await hover('#socket-rows tr[data-row="901|801|47|1|1"] td:nth-child(3)');
-  await until(
-    () => evaluate("!!document.querySelector('[role=dialog] .help-readout')"),
-    "readout after restart",
-  );
-  await send("Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "Escape",
-    code: "Escape",
-  });
-  sockets.escape = await evaluate(
-    "document.querySelectorAll('.help-card').length",
-  );
-  assert.equal(sockets.escape, 0);
-  await escapeHelp();
 
   // Resources: the range refreshes at once, scoped to the selected target.
   await evaluate("document.querySelector('[data-res-range=\"3600\"]').click()");
@@ -1352,13 +1082,9 @@ try {
     "netdrops",
     "recvq",
     "coverage",
-    "socketio",
-    "rates",
-    "sockettotal",
-    "messages",
   ]) {
     const guide = await openGuide(
-      `#resources button.help-info[data-help="${topic}"], #socket-panel button.help-info[data-help="${topic}"]`,
+      `#resources button.help-info[data-help="${topic}"]`,
     );
     assert.ok(guide.text.includes("Measurement limits"), topic);
     await closeGuide();
@@ -1775,7 +1501,7 @@ try {
   priorProof = {
     embeddedBytesEqual: true, csp, fleet, reorder: { focusKey, mover, ...reorder },
     theme: { saved: "dark", background: "rgb(9, 9, 10)" }, help, selected, summary,
-    readout, restored, threads, socketEntry, sockets, resources, memory, watch,
+    readout, restored, threads, sectionTabs, resources, memory, watch,
   };
   }
 
@@ -1825,6 +1551,7 @@ finally:
   controlBase = controlInfo.url;
   const controlUrl = `${controlBase}/api/targets/control`;
   const targetList = async () => (await (await fetch(controlUrl)).json()).targets;
+  const fleetTargetList = async () => (await (await fetch(`${controlBase}/api/targets`)).json()).targets;
   await until(async () => (await targetList())?.length === 1, "local configured target");
   const originalConfig = await readFile(controlInfo.config, "utf8");
   const targetWrites = [];
@@ -1946,7 +1673,7 @@ finally:
   await click('[aria-label="Remove target proof"]');
   await until(async () => (await targetList()).length === 1, "real Remove in sampler config");
   await until(() => evaluate("!document.querySelector('[aria-label=\"Remove target proof\"]')"), "removed tile after refresh");
-  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", id: "proof", target: String(controlInfo.pid) }]);
+  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", key: `${(await fleetTargetList())[0].host}/proof`, id: "proof", target: String(controlInfo.pid) }]);
   assert.equal(confirmations.length, 4);
   assert.equal(await evaluate("document.querySelector('[aria-label=\"Remove target default\"]').disabled"), true);
   for (const entry of targetWrites) {
@@ -1959,11 +1686,29 @@ finally:
   const guardRequest = async (headers) => fetch(`${controlBase}/api/targets`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ action: "remove", id: "default" }) });
   assert.equal((await guardRequest({})).status, 403);
   assert.equal((await guardRequest({ "X-Triangulator": "1", Origin: "https://untrusted.invalid" })).status, 403);
-  assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 400);
+  assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 403);
   assert.equal(await readFile(controlInfo.config, "utf8"), currentConfig);
+  // Discovery controls use the real sampler file, with two matching PIDs.
+  const discoveryConfig = currentConfig.split("[[target]]")[0] +
+    `process_names=["${controlInfo.name}"]\nprocess_patterns=["${controlInfo.name}*"]\n`;
+  await writeFile(controlInfo.config, discoveryConfig);
+  await until(async () => (await fleetTargetList()).filter((target) => target.pid !== 0).length === 2, "two discovered process instances");
+  await until(() => evaluate("[...document.querySelectorAll('.ft-remove')].length === 2 && [...document.querySelectorAll('.ft-remove')].every(button => button.disabled)"), "pattern Remove is disabled in the real browser");
+  await click("#fleet-add");
+  await until(() => evaluate("!!document.querySelector('#target-settings')"), "discovery Add dialog");
+  assert.equal(await evaluate("document.querySelector('#target-id') === null"), true);
+  await typeInto("#target-input", "proof-wait");
+  await escapeTargetHelp();
+  await click("#target-save");
+  await until(async () => (await fleetTargetList()).some((target) => target.id === "proof-wait" && target.pid === 0), "persistent waiting rule");
+  await until(() => evaluate("document.body.textContent.includes('Waiting for a process named proof-wait')"), "explicit waiting tile");
+  await click('[aria-label="Remove target proof-wait"]');
+  await until(async () => !(await fleetTargetList()).some((target) => target.id === "proof-wait"), "exact rule Remove");
+  assert.equal((await readFile(controlInfo.config, "utf8")).includes('"proof-wait"'), false);
+  assert.match(confirmations.at(-1), /Every process named proof-wait stops being monitored/);
   assert.equal(await evaluate("document.querySelector('[id*=alert], [data-help=alerts]') === null"), true);
   assert.equal(requests.some((url) => url.includes("/api/alert-settings")), false);
-  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,400], hiddenAlerts: true };
+  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,403], hiddenAlerts: true };
 
   const { proveCleanup } = await import("./prove_cleanup.mjs");
   const cleanup = await proveCleanup({ root, profile, base, controlBase, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });

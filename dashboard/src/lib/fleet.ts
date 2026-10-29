@@ -13,6 +13,12 @@ export interface TileModel {
   verdict: string;
   search: string;
   card: { proc: string; findings: readonly Finding[]; more: number } | null;
+  /** Its sampler runs on the collector host, so local test control applies. */
+  local: boolean;
+  /** How Remove applies to a discovered target, or null for a target table. */
+  discovered: { rule: string | null; otherRule: boolean } | null;
+  /** A configured name with no process: the tile says what it waits for. */
+  waiting: string | null;
 }
 
 export function tileModel(
@@ -35,6 +41,18 @@ export function tileModel(
     level,
     verdict: level === "unknown" ? "No data" : VERDICTS[level],
     search: (name + " " + target.key).toLowerCase(),
+    local: target.local === true,
+    discovered:
+      target.name_selected || target.other_rule_selected
+        ? {
+            rule: target.rule ?? null,
+            otherRule: target.other_rule_selected === true,
+          }
+        : null,
+    waiting:
+      target.status === "absent" && target.name_selected && target.rule
+        ? target.rule
+        : null,
     card: findings.some((item) => item.level !== "info")
       ? {
           proc: [

@@ -26,10 +26,10 @@ class RuntimeTests(unittest.TestCase):
         self.runtime = self.home / "triangulator"
         self.environment = {**os.environ, "HOME": str(self.home)}
         self.environment.pop("TRIANGULATOR_HOME", None)
-        for name in ("triangulator-sampler", "triangulator-collector", "triangulator-socket-report"):
+        for name in ("triangulator-sampler", "triangulator-collector"):
             shutil.copy2(ROOT / "build" / name, self.source / "build" / name)
         for name in ("start.sh", "stop.sh", "restart.sh", "runtime.sh", "set-rate.sh",
-                     "set-target.sh", "watch-sockets.sh", "sampler_control.py"):
+                     "set-target.sh", "sampler_control.py"):
             shutil.copy2(ROOT / "scripts" / name, self.source / "scripts" / name)
         for name in ("triangulator-sampler.service", "triangulator-collector.service"):
             shutil.copy2(ROOT / "deploy" / name, self.source / "deploy" / name)
@@ -75,7 +75,7 @@ class RuntimeTests(unittest.TestCase):
     def test_default_layout_preserves_configs_and_controls_installed_sampler(self):
         self.start()
         for path in ("config/sampler.toml", "config/collector.toml", "bin/triangulator-sampler",
-                     "bin/triangulator-collector", "bin/triangulator-socket-report",
+                     "bin/triangulator-collector",
                      "logs/sampler.log", "logs/collector.log", "run/sampler.pid", "run/collector.pid"):
             self.assertTrue((self.runtime / path).exists(), path)
         self.assertFalse((self.source / ".run").exists())
@@ -91,11 +91,6 @@ class RuntimeTests(unittest.TestCase):
         result = self.command("start.sh")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(config.read_text(), before)
-        helper = subprocess.run(
-            ["python3", str(self.runtime / "scripts/sampler_control.py"), "collector"],
-            env=self.environment, capture_output=True, text=True, timeout=5)
-        self.assertEqual(helper.returncode, 0, helper.stderr)
-        self.assertEqual(helper.stdout, f"127.0.0.1:{self.udp_port}\n")
         restarted = subprocess.run([str(self.runtime / "scripts/restart.sh"), "all"],
                                    env=self.environment, capture_output=True, text=True, timeout=20)
         self.assertEqual(restarted.returncode, 0, restarted.stdout + restarted.stderr)

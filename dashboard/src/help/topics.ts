@@ -24,7 +24,7 @@ const topics = {
     related: ["cpu", "pressure", "health"],
     source: "`/proc` and `/sys/fs/cgroup` → sampler → collector → this page",
     sourceDetail:
-      "The sampler runs on the target host as the target user. It reads `/proc` and `/sys/fs/cgroup` files and sends the raw counters over UDP. The collector turns counters into rates, stores history, and serves this page through `/api/…` endpoints. This page computes load, assessments, and findings. The optional eBPF observer adds socket bytes and messages. The Source section of each topic names its file.",
+      "The sampler runs on the target host as the target user. It reads `/proc` and `/sys/fs/cgroup` files and sends the raw counters over UDP. The collector turns counters into rates, stores history, and serves this page through `/api/…` endpoints. This page computes load, assessments, and findings. The Source section of each topic names its file.",
   },
   "target-attention": {
     title: "Other targets need attention",
@@ -108,7 +108,7 @@ const topics = {
     example:
       "Select Previous to inspect the latest recorded process state. Select Live or Back to live to return to the retained live or final view.",
     reading:
-      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, live socket observations, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout. Release the handle at the left end to also check an earlier period, which stretches the bar further back.",
+      "Recorded values use the recording time and process identity. State and CPU rates come from the snapshot. Live averages, live trend charts, and Settings edits are unavailable. Thread history ends at the recording time. A compatible cached memory layout is labelled latest and is not a recorded layout. Release the handle at the left end to also check an earlier period, which stretches the bar further back.",
     limits:
       "A gap, missing recording, invalid reply, or read error keeps the last successful view. The collector clock can be ahead of this browser. Recording can be disabled. This Timeline does not play automatically.",
     related: ["assesshistory", "exited", "history", "memmap", "collsettings"],
@@ -130,7 +130,7 @@ const topics = {
     related: ["timeline", "exitreason", "health", "collsettings"],
     source: "Sampler absence and collector /api/last-target, /api/live",
     sourceDetail:
-      "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout and socket refresh stop.",
+      "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout refresh stops.",
   },
   "target-pid": {
     title: "Matching processes",
@@ -149,21 +149,51 @@ const topics = {
     sourceDetail:
       "The helper finds every process whose name equals the entered name, as the sampler does, and returns each PID with its user, start time (`/proc/PID/stat` field 22 and `btime`), and command line.",
   },
+  "fleet-waiting": {
+    title: "Waiting for a process",
+    scope: "Configured exact name",
+    meaning:
+      "The name is configured but no running process is admitted for it.",
+    example: "orders-api appears when a process with that Linux name starts.",
+    reading:
+      "Discovery continues without a reload. Each instance gets its own tile.",
+    limits:
+      "Linux keeps 15 bytes of the name. A stale tile instead means that samples stopped arriving.",
+    related: ["manage-targets", "fleet-capacity"],
+    source: "Sampler discovery and absent heartbeat",
+    sourceDetail: "A waiting slot sends an absent heartbeat with PID zero.",
+  },
+  "fleet-capacity": {
+    title: "Target capacity",
+    scope: "Sampler and collector limits",
+    meaning:
+      "Some matching processes cannot be monitored because a target limit is reached.",
+    example:
+      "3 excluded matches means three processes found by the last completed scan had no sampler slot.",
+    reading:
+      "Increase max_targets on the monitored host or narrow the rules. Check the collector limit too.",
+    limits:
+      "Existing instances stay admitted. The sampler count is capped at 255 and can lag by one scan pass. Collector capacity_drops counts rejected packets, not unique processes.",
+    related: ["fleet-waiting", "manage-targets"],
+    source: "TTGT excluded count and collector capacity_drops",
+    sourceDetail:
+      "Both programs preallocate target slots. The sampler reports excluded matches after each completed bounded pass.",
+  },
   "manage-targets": {
     title: "Manage targets",
-    scope: "Targets overview · local sampler · every viewer",
+    scope: "Local testing · every viewer",
     meaning:
-      "Add or remove monitored targets on the sampler host. Add target at the end of the tiles opens a dialog; Remove on a tile removes that target.",
+      "The sampler.toml file on each monitored host owns production selection. Dashboard Add and Remove are for testing with a verified local sampler.",
     example:
-      "Select Add target, enter the target ID orders and the exact process name orders-api, and confirm.",
+      "With process_names, enter orders-api once to monitor all its instances. No target ID is needed.",
     reading:
-      "Each change asks for confirmation and applies to every viewer. A process name follows the process when it restarts; a PID does not. Remove appears only on tiles of the local sampler, and not when only one target is left.",
+      "Each change needs confirmation and persists in the local configuration. Remove deletes the exact-name rule and stops every instance of that name. A process that a pattern selects, or that was renamed after it was admitted, cannot be removed here; edit sampler.toml on its host.",
     limits:
-      "Control requires a local sampler and a dashboard bound to a loopback address. Keep at least one target. The collector holds at most max_targets targets. An add beyond that limit is refused with an error; remove a target first.",
-    related: ["target-id", "target-switch", "target"],
-    source: "Sampler configuration and the local control helper",
+      "Remote samplers cannot be changed here. A non-loopback browser client also needs network_target_control = true on the collector. This testing option is off by default and has no authentication. Legacy target tables require at least one target.",
+    related: ["target-id", "target-switch", "fleet-capacity"],
+    source: "Local control helper, kernel packet source, and sampler.toml",
     sourceDetail:
-      "The helper edits `[[target]]` tables, validates the new file with the running sampler, and sends SIGHUP. It checks the sampler user and collector endpoint.",
+      "The helper verifies the runtime sampler executable, user, and loopback collector endpoint. The API checks the selected target's kernel source address. Host names do not grant access. The sampler validates a full file before reload.",
   },
   "target-id": {
     title: "Target ID",
@@ -309,8 +339,7 @@ const topics = {
     scope: "Sampler · milliseconds",
     meaning: "The configured time between thread samples.",
     example: "200 ms corresponds to five samples per second.",
-    reading:
-      "Resource samples and the optional socket observer have separate reporting intervals.",
+    reading: "Resource samples have a separate reporting interval.",
     limits:
       "Short events between samples can be missed. A shorter interval increases sampling overhead.",
     related: ["health", "history"],
@@ -405,7 +434,7 @@ const topics = {
     related: ["load", "cpu", "health"],
     source: "Thread samples from `/proc/PID/task/TID/`, summed",
     sourceDetail:
-      "The tiles sum the values of the threads: CPU and faults from `stat`, run delay and switches from `schedstat`, read and write bytes from `io`, and states from `stat` and `wchan`. Socket bytes come from the optional eBPF observer.",
+      "The tiles sum the values of the threads: CPU and faults from `stat`, run delay and switches from `schedstat`, read and write bytes from `io`, and states from `stat` and `wchan`.",
   },
   assessment: {
     title: "Assessment",
@@ -457,11 +486,10 @@ const topics = {
     meaning:
       "Traffic counted by the sampled read- and write-family system-call counters.",
     example: "1 KiB/s is 1,024 bytes counted per elapsed second.",
-    reading:
-      "Use the resource Disk I/O panel for block-layer activity. Use Socket I/O for explicitly observed socket operations.",
+    reading: "Use the resource Disk I/O panel for block-layer activity.",
     limits:
       "These counters do not cover every receive API and are not a measure of bytes transferred by the disk device.",
-    related: ["disk", "socketio"],
+    related: ["disk"],
     source: "`/proc/PID/task/TID/io`: rchar, wchar",
     sourceDetail:
       "Each sample, the sampler reads the rchar and wchar lines of `/proc/PID/task/TID/io`: bytes passed to read- and write-family system calls, including sockets, pipes, and cached files. The collector divides the change by the time between samples. Process values sum the threads. The file is readable only when the sampler runs as the target user. Check it yourself: `cat /proc/PID/task/TID/io`.",
@@ -1269,7 +1297,7 @@ const topics = {
       "At the soft limit, open(), accept(), and socket() can fail with EMFILE. Compare growth with expected workload.",
     limits:
       "The hard limit restricts changes to the soft limit. An unknown limit is not unlimited.",
-    related: ["limits", "socketio"],
+    related: ["limits"],
     source: "`/proc/PID/fd` count; `/proc/PID/limits`: Max open files",
     sourceDetail:
       "With each resource sample, the sampler counts the entries of `/proc/PID/fd` and reads the Max open files line (soft and hard) of `/proc/PID/limits`. Check it yourself: `ls /proc/PID/fd | wc -l`.",
@@ -1502,10 +1530,10 @@ const topics = {
     reading:
       "Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.",
     limits: "Do not treat gaps or unreadable values as zero activity.",
-    related: ["health", "socketio"],
+    related: ["health"],
     source: "Flags sent with each sample",
     sourceDetail:
-      "The sampler and the socket observer mark data they could not read completely, such as a cut socket list or an unreadable file. The collector marks samples as stale when they are old.",
+      "The sampler marks data it could not read completely, such as a cut socket list or an unreadable file. The collector marks samples as stale when they are old.",
   },
   "net-listen_overflows": {
     title: "Accept queue overflows",
@@ -1892,90 +1920,6 @@ const topics = {
       "`/proc/PID/net/dev` transmit errs, summed over interfaces except lo",
     sourceDetail:
       "With each resource sample, the sampler reads `/proc/PID/net/dev` transmit errs, summed over interfaces except lo. The file describes the network namespace of the target. Now and In range use changes of this cumulative counter; Total is the counter itself.",
-  },
-  socketio: {
-    title: "Socket I/O & message processing",
-    scope: "Optional observer · target process",
-    meaning:
-      "Traffic measured by observed socket operations, with optional application completion counts.",
-    example: "",
-    reading:
-      "The cards and chart cover the whole process. Thread and socket-kind filters affect the breakdown only, which includes retired threads.",
-    limits:
-      "Received/sent bytes exclude peeks, failed operations, and UDP. A receive call can contain part of a message or many messages.",
-    related: ["received", "sent", "messages"],
-    source: "Optional eBPF observer: kernel tracepoints and a uprobe",
-    sourceDetail:
-      "The optional eBPF socket observer attaches to the kernel tracepoints sock_recv_length and sock_send_length. It counts, for each thread of the target, the bytes of successful socket receives and sends in kernel maps, and reports them to the collector once a second. Message counts come from a uprobe on the application marker function. Loading it needs privileges. The collector shows the observer that last reported the selected target's PID from the same sampler host. After a collector restart, it shows the stored observations of that PID until an observer reports, unless another target has the same PID.",
-  },
-  received: {
-    title: "Socket received",
-    scope: "Observed successful socket operations · bytes",
-    meaning: "Successful byte counts returned by observed receive operations.",
-    example: "",
-    reading:
-      "Compare the rate with message completions when application markers are enabled.",
-    limits:
-      "Coverage is specific to the observer. Receive calls and byte counts do not define application messages.",
-    related: ["socketio", "messages"],
-    source: "eBPF: tracepoint sock_recv_length",
-    sourceDetail:
-      "The optional eBPF observer adds the byte count of each successful receive on a target socket, from the sock_recv_length kernel tracepoint. Peeks and failed calls are not counted.",
-  },
-  sent: {
-    title: "Socket sent",
-    scope: "Observed successful socket operations · bytes",
-    meaning: "Bytes accepted by observed socket send operations.",
-    example: "",
-    reading: "Compare sent and received rates with queue use.",
-    limits: "Acceptance by the socket does not prove delivery to the peer.",
-    related: ["socketio", "sendq"],
-    source: "eBPF: tracepoint sock_send_length",
-    sourceDetail:
-      "The optional eBPF observer adds the byte count of each successful send on a target socket, from the sock_send_length kernel tracepoint. Failed calls are not counted.",
-  },
-  messages: {
-    title: "Messages processed",
-    scope: "Application completion markers",
-    meaning:
-      "Calls to an explicit application marker, one per successfully processed message.",
-    example: "",
-    reading:
-      "A configured completion marker is required. Compare completions with byte rates to understand workload changes.",
-    limits: "Message counts are never inferred from read calls or byte counts.",
-    related: ["socketio", "received"],
-    source: "eBPF uprobe on the application marker function",
-    sourceDetail:
-      "The optional eBPF observer attaches a uprobe to the marker function named when it starts, and counts each call. The application calls the marker once for each message it has finished.",
-  },
-  sockettotal: {
-    title: "Socket total",
-    scope: "Process or breakdown · cumulative bytes",
-    meaning:
-      "The cumulative number of bytes moved by these sockets since monitoring began. It only grows; the rate columns show how fast.",
-    example: "1.5 GB means about 1.5 gigabytes moved in total, not per second.",
-    reading:
-      "Compare it with the rate columns to see whether past traffic or current traffic dominates.",
-    limits: "Lost counter updates can make the total a lower bound.",
-    related: ["rates", "coverage", "socketio"],
-    source: "eBPF observer byte counters",
-    sourceDetail:
-      "The cumulative bytes counted by the optional eBPF observer (see Socket received and Socket sent) since it started observing.",
-  },
-  rates: {
-    title: "Socket rates",
-    scope: "Process or breakdown · per second",
-    meaning:
-      "Current, average, minimum, and maximum rates over their labeled observation windows.",
-    example: "",
-    reading:
-      "Average covers the monitoring period. Recent min/max cover valid nominal one-second windows in the most recent 60 intervals; covered idle windows count as zero.",
-    limits:
-      "Gaps are excluded. Lost counter updates can make totals lower bounds and averages unavailable.",
-    related: ["coverage", "socketio"],
-    source: "Collector: change of the eBPF observer counters",
-    sourceDetail:
-      "The collector divides the change of the observer counters by the time between reports, and keeps the minimum and maximum over the most recent 60 intervals.",
   },
   memmap: {
     title: "Memory map",

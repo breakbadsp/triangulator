@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <chrono>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <system_error>
@@ -29,6 +30,19 @@ class HttpConnection final
         stopped_(p_stopped),
         read_deadline_(std::chrono::steady_clock::now() + kTimeout)
   {
+  }
+
+  // The client's address, as the kernel reports it.
+  [[nodiscard]] std::optional<sockaddr_storage> Client() const
+  {
+    sockaddr_storage peer{};
+    socklen_t length = sizeof(peer);
+    if (::getpeername(socket_.Get(), reinterpret_cast<sockaddr*>(&peer),
+                      &length) != 0)
+    {
+      return std::nullopt;
+    }
+    return peer;
   }
 
   [[nodiscard]] std::expected<std::size_t, std::error_code> Read(

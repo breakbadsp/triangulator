@@ -4,21 +4,20 @@
 - Give each target its own session. This preserves existing packet and process-lifetime semantics.
 - Share sampling intervals across targets. Per-target rates would complicate the single loop.
 - Keep selection in each browser tab. The collector has no shared current target.
-- Open the dashboard on a Targets overview: one tile per target with the Assessment verdict of its latest live view, worst first. Keep Add target and Remove for local testing. See [REQ-TARGET-001](#req-target-001-local-configuration-and-discovery). Tiles run the same rules in the browser; rules that need a trend kept in a tab do not run on tiles.
+- Open the dashboard on a Targets overview: one tile per target with the Assessment verdict of its latest live view, worst first. Use local testing controls there. See [REQ-0024](#req-0024-local-configuration-and-discovery). Tiles run the same rules in the browser; rules that need a trend kept in a tab do not run on tiles.
 - Preserve single-target configuration and stored history during upgrades.
 - The owner approved automatic throttling on 2026-10-20, with a default budget of 1% of one CPU core. This is the approved exception to raw-counter-only sampling.
-- Keep the optional eBPF observer separate while its future is undecided. Merging it would make the ordinary sampler privileged.
-- Open: keep or remove that second process; decide whether limited access to other users' targets is sufficient.
-- Track unresolved budget and blocking-read choices in [TODO](../TODO.md).
+- Open: decide whether limited access to other users' targets is sufficient.
+- Track unresolved budget and blocking-read choices in [requirements](requirements.md) (REQ-0009 to REQ-0012).
 - Configuration and behavior: [sampler README](../sampler/README.md#multiple-targets), [collector README](../collector/README.md#per-target-settings).
 
-## REQ-TARGET-001: Local configuration and discovery
+## REQ-0024: Local configuration and discovery
 
-Status: planned. This section defines the required behavior. It does not
-describe implemented configuration syntax. Today, a configured name follows
-one unique process, including a process that starts after the sampler.
-Multiple matches make that target unresolved. Configuration changes require
-`SIGHUP`.
+Source identifier: REQ-TARGET-001 in PR194.
+
+Status: implemented. This section is the requirement source. See the
+[sampler operations](../sampler/README.md#local-discovery) for syntax, bounds,
+and reload behavior.
 
 ### Configuration on the monitored host
 
@@ -28,7 +27,7 @@ Multiple matches make that target unresolved. Configuration changes require
 - Keep target selection in `sampler.toml`. Adding an exact process name must
   require only one list entry. Require no target ID, PID, script, or repeated
   table for this common operation. Derive identifiers for discovered targets.
-- Use the following proposed syntax. Exact names are the default. Patterns
+- Use the following syntax. Exact names are the default. Patterns
   are optional and explicit. Do not use approximate spelling matches or
   require regular expressions.
 
@@ -116,6 +115,21 @@ process_patterns = ["worker-*"]
 - Add contextual help and manual QA cases with the implementation. Leave
   unexecuted cases `NOT_RUN`. Run the required checks and overhead tests.
 
-Before implementation, resolve the glob syntax, identifier format, discovery
-interval, capacity admission order, and local Remove behavior for patterns.
-Keep these decisions in this section.
+### Implementation decisions
+
+- Globs use whole-name, case-sensitive `*` and `?`. Brackets and escapes are
+  rejected. Names use 1..15 portable ID bytes; patterns permit other comm bytes.
+- Instance IDs are the sanitized comm name, then `.2`, `.3`, and so on.
+  Admission fixes the ID for the instance lifetime. Overlap edits keep it.
+- One pass starts no more often than once a second. Each tick examines at most
+  512 directory entries. Fixed candidate storage selects the lowest PIDs at
+  pass completion. Existing instances are never evicted. `/proc` directory
+  enumeration order is not an admission-order guarantee.
+- Remove deletes an exact-name rule and stops every instance of that name.
+  A matching pattern blocks Remove. So does a rename: the process keeps the
+  ID of its old name, so the ID no longer names the rule that selects it.
+  The helper checks the current file again.
+  Other rules stay unchanged. Removing the last name leaves a valid empty list.
+- Network target mutations need `network_target_control = true` on the
+  collector. It is off by default. Sampler locality is a separate mandatory
+  check for loopback and network clients.

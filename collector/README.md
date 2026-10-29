@@ -78,7 +78,7 @@ On a process page, **Summary** starts with Assessment, then key measurements, pr
 memory use. Assessment shows up to eight findings, most severe first. Select
 **Show … more findings** to read the rest.
 
-The section links are **Summary**, **Threads**, **Resources**, **Sockets**,
+The section links are **Summary**, **Threads**, **Resources**,
 **Memory**, **Monitor**, and **Settings**. Open **Timeline** below the Summary
 charts for recordings and **Past assessments**. Settings currently edits only
 [watched-thread rules](../config/collector.toml).
@@ -128,14 +128,7 @@ and the live view of each target from one publication, so the overview needs
 one request each poll. Add `?target=<host>/<id>` to API
 requests to select one target. Without this parameter, the collector uses a
 `default` target if present, then the first key by host and ID. Unknown keys
-return HTTP 404. `/api/socket-io` is scoped to one target too: with
-`?target=`, or with neither `?target=` nor `pid` (the default target), it uses
-that target's PID and the socket observer that last reported that PID from the
-same sender. A `pid` or `observer` of another target returns HTTP 400. Until
-an observer reports in this collector run, for example after a restart with the
-observer stopped, it reads the stored observations of the target's PID, unless
-another target has the same PID. A request with `pid` and no `?target=` keeps
-the lookup by `pid` and `observer`. Replay files
+return HTTP 404. Replay files
 have a separate directory for each announced target. Only the `default` target
 of one fixed sender keeps `data_dir/replay`: the smallest address in
 `sampler_ips`, or the first sender the collector heard when the list is empty.
@@ -171,3 +164,12 @@ has its own file.
 The collector loads at most 1,024 saved target watch files at startup. New
 settings use configuration rules until saved. `/api/targets` reports watch
 settings limit hits. File reads do not run during target discovery.
+
+Target testing controls verify the local runtime sampler executable, user,
+and loopback collector endpoint. Remove also requires a target whose UDP
+packets have a kernel-reported loopback source. Host names do not grant
+access. Both target POST routes require a loopback HTTP client unless
+`network_target_control = true` is set. This option is off by default and
+has no authentication. Enable it only for testing on a trusted network.
+The browser can then be remote; the sampler must still be local. Remote
+samplers require edits to `sampler.toml` on their hosts.

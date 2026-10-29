@@ -24,3 +24,16 @@ cpu_budget_pct = 1.0
 # [[target]]
 # id = "billing"
 # pid = 1234
+
+# Production discovery: remove target_process/target_pid and all [[target]]
+# tables before enabling these lists. Add an exact name with one list entry.
+# Linux /proc/PID/comm keeps only 15 bytes, not the command line.
+# process_names = [
+#   "orders-api",
+#   "billing",
+# ]
+# Optional whole-name globs: * matches any bytes; ? matches one byte.
+# process_patterns = ["worker-*"]
+# Preallocated instance slots, 1..16 (default 8). Keep at least one slot per
+# configured exact name. Each matching PID/start time gets its own session.
+# max_targets = 8

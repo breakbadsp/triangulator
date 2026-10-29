@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { readTargetControl } from "../api/targetControl";
+import { readTargetControl, type TargetControl } from "../api/targetControl";
 import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
@@ -40,9 +40,34 @@ async function loadFleet(signal: AbortSignal) {
   return {
     control,
     targets: list.targets,
+    capacity: capacityNotices(list),
     views: views as ReadonlyMap<string, LiveResponse | null>,
     now: Date.now() / 1000,
   };
+}
+
+/** Matching processes that a sampler, or the collector, could not admit. */
+function capacityNotices(list: FleetResponse["list"]): string[] {
+  const excluded = new Map<string, number>();
+  for (const target of list.targets)
+    if (target.excluded)
+      excluded.set(
+        target.host,
+        Math.max(excluded.get(target.host) ?? 0, target.excluded),
+      );
+  const notices = [...excluded].map(
+    ([host, count]) =>
+      `${count >= 255 ? "255 or more" : String(count)} matching processes on ${host} are not monitored: all of its sampler's max_targets slots are in use.`,
+  );
+  if (
+    list.capacity_drops &&
+    list.max_targets &&
+    list.targets.length >= list.max_targets
+  )
+    notices.push(
+      `The collector is at its limit of ${String(list.max_targets)} targets (max_targets in the collector configuration). Data from further targets is dropped.`,
+    );
+  return notices;
 }
 
 function readFilter(): FleetFilter {
@@ -78,12 +103,68 @@ const STATUS_LABELS = [
   "No data",
 ];
 
+/** Remove on a tile of the local sampler; never on a remote sampler's. */
+function TileRemove({
+  tile,
+  control,
+  editor,
+}: {
+  tile: TileModel;
+  control: TargetControl;
+  editor: ReturnType<typeof useTargetControl>;
+}) {
+  if (!control.enabled || !tile.local) return null;
+  const managed = control.targets?.find((entry) => entry.id === tile.id);
+  const discovered = tile.discovered;
+  if (!discovered && (control.mode !== "tables" || !managed)) return null;
+  const blocked = discovered
+    ? discovered.otherRule || !discovered.rule
+      ? "Another rule selects this process (a process pattern, or another name after a rename), so Remove would not stop it. Edit sampler.toml on the host."
+      : ""
+    : (control.targets?.length ?? 0) <= 1
+      ? "Keep at least one target."
+      : "";
+  return (
+    <Help
+      key={tile.key + "remove"}
+      topic="manage-targets"
+      as="div"
+      className="ft-foot"
+    >
+      <button
+        className="ft-remove"
+        type="button"
+        aria-label={"Remove target " + tile.id}
+        title={blocked || undefined}
+        disabled={editor.busy || !!blocked}
+        onClick={() => {
+          if (discovered?.rule)
+            void editor.change({
+              action: "remove",
+              key: tile.key,
+              id: tile.id,
+              rule: discovered.rule,
+            });
+          else if (managed)
+            void editor.change({ action: "remove", key: tile.key, ...managed });
+        }}
+      >
+        Remove
+      </button>
+      {discovered?.otherRule && <small className="muted">{blocked}</small>}
+    </Help>
+  );
+}
+
 export function FleetPage() {
   // The overview is a snapshot, so it may pause in a hidden tab. The target
   // page must not: its charts and findings are built from every 1 Hz reply,
   // and a pause would leave a gap in them.
   const fleet = usePoll(loadFleet, 5000, { pauseWhenHidden: true });
-  const control = fleet.data?.control ?? { enabled: false as const };
+  const control = fleet.data?.control ?? {
+    enabled: false as const,
+    reason: "",
+  };
   const editor = useTargetControl(control, fleet.refresh);
   const [filter, setFilter] = useState(readFilter);
   const [density, setDensity] = useState(readDensity);
@@ -256,6 +337,11 @@ export function FleetPage() {
             {editor.form.status}
           </p>
         </Help>
+        {fleet.data?.capacity.map((notice) => (
+          <Help key={notice} topic="fleet-capacity" as="div">
+            <p className="fleet-capacity warn">{notice}</p>
+          </Help>
+        ))}
         {/* React DOM puts focus back on a focused tile link that a reorder moves
             (restoreSelection after each commit); tests/prove_dashboard.mjs checks it in Chromium. */}
         <div id="fleet-grid" className="fleet-grid" data-density={density}>
@@ -298,32 +384,17 @@ export function FleetPage() {
               >
                 {tile.host} · {tile.id}
               </Help>
-              {control.enabled &&
-                tile.host === control.host &&
-                control.targets?.find((entry) => entry.id === tile.id) && (
-                  <Help
-                    key={tile.key + "remove"}
-                    topic="manage-targets"
-                    as="div"
-                    className="ft-foot"
-                  >
-                    <button
-                      className="ft-remove"
-                      type="button"
-                      aria-label={"Remove target " + tile.id}
-                      disabled={editor.busy || control.targets.length <= 1}
-                      onClick={() => {
-                        const managed = control.targets?.find(
-                          (entry) => entry.id === tile.id,
-                        );
-                        if (managed)
-                          void editor.change({ action: "remove", ...managed });
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </Help>
-                )}
+              {tile.waiting && (
+                <Help
+                  key={tile.key + "waiting"}
+                  topic="fleet-waiting"
+                  as="div"
+                  className="ft-waiting muted"
+                >
+                  Waiting for a process named {tile.waiting}
+                </Help>
+              )}
+              <TileRemove tile={tile} control={control} editor={editor} />
               {tile.card && (
                 <div className="ft-card">
                   <div className="ft-proc">{tile.card.proc}</div>
@@ -348,7 +419,7 @@ export function FleetPage() {
               )}
             </article>
           ))}
-          {control.enabled && (
+          {(control.enabled || control.reason) && (
             <Help
               key="fleet-add"
               topic="manage-targets"
@@ -360,13 +431,20 @@ export function FleetPage() {
                 className="fleet-add"
                 type="button"
                 aria-haspopup="dialog"
-                disabled={editor.busy}
+                aria-describedby={control.enabled ? undefined : "fleet-add-off"}
+                disabled={editor.busy || !control.enabled}
                 onClick={() => {
                   editor.open();
                 }}
               >
                 <span aria-hidden="true">+</span>Add target
               </button>
+              {!control.enabled && (
+                <small id="fleet-add-off" className="muted">
+                  {control.reason} To change a remote sampler, edit sampler.toml
+                  on its host.
+                </small>
+              )}
             </Help>
           )}
         </div>
@@ -393,6 +471,7 @@ export function FleetPage() {
           key={editor.form.generation}
           editor={editor}
           enabled={control.enabled}
+          names={control.enabled && control.mode === "names"}
         />
       )}
     </HelpGuideProvider>

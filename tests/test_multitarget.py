@@ -120,6 +120,37 @@ class CollectorCase(unittest.TestCase):
 
 
 class MultiTargetCollectorTests(CollectorCase):
+    def test_release_cannot_remove_a_new_session_or_reappear_from_delayed_data(self):
+        def release(session):
+            packet = bytearray(announce(session, "worker"))
+            packet[6] = 1 | 4
+            return packet
+        self.send(announce(101, "worker"))
+        self.send(tick(101))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        self.send(announce(202, "worker"))
+        self.send(tick(202))
+        self.wait_for(lambda: self.fetch("/api/targets")["targets"][0]["session"] == "202")
+        self.send(release(101))
+        self.send(tick(101))
+        time.sleep(0.2)
+        self.assertEqual(self.fetch("/api/targets")["targets"][0]["session"], "202")
+        self.send(release(202))
+        self.wait_for(lambda: self.targets() == set())
+        self.send(announce(202, "worker"))
+        self.send(tick(202))
+        time.sleep(0.2)
+        self.assertEqual(self.targets(), set())
+
+    def test_remote_target_remove_refuses_claimed_local_hostname_and_mismatched_id(self):
+        # Both peers are loopback here. A key/ID mismatch must fail before helper writes.
+        self.send(announce(101, "worker"))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        status, _ = self.post("/api/targets", {"action": "remove", "key": "host-a/worker", "id": "other"}, "")
+        self.assertEqual(status, 409)
+        status, _ = self.post("/api/targets", {"action": "remove", "key": "remote/worker", "id": "worker"}, "")
+        self.assertEqual(status, 403)
+
     def test_interleaved_targets_reordered_announce_and_session_replacement(self):
         self.send(announce(101, "orders", pid=123))
         self.send(tick(101))
@@ -146,7 +177,7 @@ class MultiTargetCollectorTests(CollectorCase):
         self.assertEqual(fleet["live"]["host-a/billing"]["health"]["pid"], 456)
         for path in ("/api/live", "/api/last-target", "/api/memory-map",
                      "/api/history?start=0&end=1", "/api/resources",
-                     "/api/replay", "/api/socket-io?pid=1"):
+                     "/api/replay"):
             with self.subTest(path=path):
                 joiner = "&" if "?" in path else "?"
                 with self.assertRaises(urllib.error.HTTPError) as error:
@@ -291,62 +322,6 @@ class MultiTargetCollectorTests(CollectorCase):
             second.sendto(announce(222, "orders", pid=456), ("127.0.0.1", self.udp_port))
             second.sendto(tick(222, pid=456), ("127.0.0.1", self.udp_port))
         self.wait_for(lambda: self.fetch("/api/live?target=host-a/orders")["health"]["pid"] == 456)
-
-    def test_socket_reports_with_the_same_pid_are_isolated_by_sender(self):
-        from test_socket_metrics import packet as socket_packet
-        self.send(announce(111, "orders", pid=50))
-        self.send(tick(111, pid=50))
-        with socket.socket(type=socket.SOCK_DGRAM) as second:
-            second.bind(("127.0.0.2", 0))
-            second.sendto(announce(222, "billing", host="host-b", pid=50), ("127.0.0.1", self.udp_port))
-            second.sendto(tick(222, pid=50), ("127.0.0.1", self.udp_port))
-            self.wait_for(lambda: len(self.fetch("/api/targets")["targets"]) == 2)
-            for sequence in range(2):
-                wall = time.time()
-                for index in range(2):
-                    self.send(socket_packet(sequence, index, observer=91, wall=wall, input_bytes=100 * sequence if index else 0))
-                    second.sendto(socket_packet(sequence, index, observer=92, wall=wall,
-                        input_bytes=1000 * sequence if index else 0), ("127.0.0.1", self.udp_port))
-            self.wait_for(lambda: self.fetch("/api/socket-io?target=host-a/orders").get("totals", {}).get("input", {}).get("total") == "100")
-            self.wait_for(lambda: self.fetch("/api/socket-io?target=host-b/billing").get("totals", {}).get("input", {}).get("total") == "1000")
-        with self.assertRaises(urllib.error.HTTPError) as error:
-            self.fetch("/api/socket-io?target=host-a/orders&observer=92")
-        self.assertEqual(error.exception.code, 400)
-        error.exception.close()
-
-    def test_stored_socket_reports_survive_a_collector_restart(self):
-        # The socket observer stops, then the collector restarts. The target
-        # announces again, but no TSIO binds an observer to it. Its stored
-        # observations must stay available through ?target= and through a
-        # bare call, which uses the default target as other endpoints do.
-        from test_socket_metrics import packet as socket_packet
-        self.send(announce(111, "default", pid=50))
-        self.send(tick(111, pid=50))
-        self.wait_for(lambda: self.targets() == {"host-a/default"})
-        for sequence in range(2):
-            wall = time.time()
-            for index in range(2):
-                self.send(socket_packet(sequence, index, observer=91, wall=wall,
-                                        input_bytes=100 * sequence if index else 0))
-        self.wait_for(lambda: self.fetch("/api/socket-io?target=host-a/default").get("totals", {})
-                      .get("input", {}).get("total") == "100")
-        self.restart()
-        self.send(announce(222, "default", pid=50))
-        self.send(tick(222, pid=50))
-        self.wait_for(lambda: self.targets() == {"host-a/default"})
-        for path in ("/api/socket-io?target=host-a/default&pid=50", "/api/socket-io"):
-            with self.subTest(path=path):
-                self.wait_for(lambda: self.fetch(path).get("totals", {}).get("input", {}).get("total") == "100")
-                self.assertEqual(self.fetch(path)["observer"], "91")
-        # A second target with the same PID and no observer binding makes the
-        # stored PID ambiguous, so neither target claims those observations.
-        with socket.socket(type=socket.SOCK_DGRAM) as second:
-            second.bind(("127.0.0.2", 0))
-            second.sendto(announce(333, "billing", host="host-b", pid=50), ("127.0.0.1", self.udp_port))
-            second.sendto(tick(333, pid=50), ("127.0.0.1", self.udp_port))
-        self.wait_for(lambda: self.targets() == {"host-a/default", "host-b/billing"})
-        for key in ("host-a/default", "host-b/billing"):
-            self.wait_for(lambda: self.fetch(f"/api/socket-io?target={key}")["available"] is False)
 
     def test_capacity_and_bad_announcements_are_counted(self):
         for session in range(1, 6):
@@ -544,6 +519,28 @@ class UnsortedSenderListTests(CollectorCase):
             self.assertEqual(self.fetch(f"/api/watches?target={host}/default")["rules"][0]["prefix"], prefix)
         self.assertEqual(self.fetch("/api/watches?target=host-b/default")["rules"][0]["prefix"], "target-201")
         self.wait_for(lambda: self.replay_targets(data / "replay") == {"host-b/default"})
+
+
+class MixedLocalityTests(CollectorCase):
+    def test_kernel_source_controls_locality_not_claimed_host(self):
+        with socket.socket(type=socket.SOCK_DGRAM) as route:
+            route.connect(("192.0.2.1", 9))
+            address = route.getsockname()[0]
+        self.stop()
+        self.config.write_text(self.config.read_text().replace(self.SAMPLER_IPS,
+            f'sampler_ips=["127.0.0.1","{address}"]\n'))
+        self.start()
+        self.send(announce(101, "local", host="claimed-host"))
+        with socket.socket(type=socket.SOCK_DGRAM) as remote:
+            remote.bind((address, 0))
+            remote.sendto(announce(202, "remote", host="claimed-host"), ("127.0.0.1", self.udp_port))
+        self.wait_for(lambda: len(self.targets()) == 2)
+        entries = {entry["id"]: entry for entry in self.fetch("/api/targets")["targets"]}
+        self.assertTrue(entries["local"]["local"])
+        self.assertFalse(entries["remote"]["local"])
+        status, _ = self.post("/api/targets", {"action": "remove", "id": "remote", "key": "claimed-host/remote"}, "")
+        self.assertEqual(status, 403)
+        self.assertEqual(len(self.targets()), 2)
 
 
 class UnpinnedCollectorTests(CollectorCase):
@@ -754,3 +751,5 @@ class MultiTargetSamplerTests(unittest.TestCase):
         self.receiver.settimeout(1)
         changed = self.collect_sessions([0], sessions, changed=True)
         self.assertNotEqual(changed, sessions)
+        self.assertEqual(self.collect_sessions([0], changed), changed,
+                         "the next tick also uses the new rate")

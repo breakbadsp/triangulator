@@ -242,7 +242,7 @@ export async function proveCleanup({
   await click("#page-help");
   assert.equal(
     await evaluate("document.querySelectorAll('.help-topics button').length"),
-    153,
+    149,
   );
   assert.equal(await evaluate("document.querySelector('main').inert"), true);
   // Tab wraps inside the modal guide in both directions.
@@ -380,7 +380,8 @@ export async function proveCleanup({
         ),
       "native Add target modal",
     );
-    await explain("#target-id");
+    const field = await evaluate("document.querySelector('#target-id') ? '#target-id' : '#target-input'");
+    await explain(field);
     assert.equal(
       await evaluate(
         "document.querySelector('#help-guide').closest('dialog').id",
@@ -417,7 +418,7 @@ export async function proveCleanup({
   return {
     widths,
     shortViewport: short,
-    guideTopics: 153,
+    guideTopics: 149,
     guideResize: true,
     modalFocus: true,
     threadReturn: true,

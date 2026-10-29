@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <expected>
@@ -37,10 +38,22 @@ struct TargetConfig
   bool operator==(const TargetConfig&) const = default;
 };
 
+// Limits of the discovery lists. A rule or a process name has at most 15
+// bytes, the Linux comm limit; longer text could never match.
+inline constexpr std::size_t kMaxRules = target_wire::kMaxTargets;
+inline constexpr std::size_t kMaxRuleBytes = 15;
+
 struct Config
 {
   TargetSelector target_ = TargetPid{0};
   std::vector<TargetConfig> targets_;
+  // Discovery rules. They are empty in a legacy configuration, which uses
+  // target_ and targets_ instead.
+  std::vector<std::string> process_names_;
+  std::vector<std::string> process_patterns_;
+  // Preallocated discovery slots. Each one costs about 0.5 MB of memory.
+  std::size_t max_targets_ = 8;
+  bool discovery_lists_ = false;
   double rate_hz_ = 5.0;
   double cpu_budget_pct_ = 1.0;
   std::string collector_;
@@ -52,6 +65,11 @@ struct Config
   // files); 0 turns them off.
   int memory_interval_s_ = 30;
 
+  [[nodiscard]] bool Discovers() const noexcept
+  {
+    return discovery_lists_ || !process_names_.empty() ||
+           !process_patterns_.empty();
+  }
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {
     return std::chrono::duration_cast<Nanoseconds>(
@@ -64,14 +82,172 @@ struct Config
   }
 };
 
+// '*' matches any bytes, '?' matches one byte, and every other byte matches
+// itself. One backtrack point keeps the work at most name x pattern steps
+// for these 15-byte strings, with no allocation.
+[[nodiscard]] constexpr bool GlobMatch(std::string_view p_pattern,
+                                       std::string_view p_name) noexcept
+{
+  std::size_t pattern = 0;
+  std::size_t name = 0;
+  std::size_t star = std::string_view::npos;
+  std::size_t star_name = 0;
+  while (name < p_name.size())
+  {
+    if (pattern < p_pattern.size() &&
+        (p_pattern[pattern] == '?' || p_pattern[pattern] == p_name[name]))
+    {
+      ++pattern;
+      ++name;
+    }
+    else if (pattern < p_pattern.size() && p_pattern[pattern] == '*')
+    {
+      star = pattern++;
+      star_name = name;
+    }
+    else if (star != std::string_view::npos)
+    {
+      pattern = star + 1;
+      name = ++star_name;
+    }
+    else
+    {
+      return false;
+    }
+  }
+  while (pattern < p_pattern.size() && p_pattern[pattern] == '*')
+  {
+    ++pattern;
+  }
+  return pattern == p_pattern.size();
+}
+
+// Reads the quoted strings of a TOML array body, without its brackets. A
+// comma inside quotes belongs to the string; a trailing comma is allowed.
+[[nodiscard]] inline std::expected<std::vector<std::string>, std::string>
+ParseStringArray(std::string_view p_key, std::string_view p_items)
+{
+  std::vector<std::string> items;
+  std::size_t index = 0;
+  while (index < p_items.size())
+  {
+    const char character = p_items[index];
+    if (character == ' ' || character == '\t')
+    {
+      ++index;
+      continue;
+    }
+    if (character != '"')
+    {
+      return std::unexpected(
+          std::format("{} must be a list of quoted strings", p_key));
+    }
+    const auto end = p_items.find('"', index + 1);
+    if (end == std::string_view::npos)
+    {
+      return std::unexpected(
+          std::format("{} has an unterminated string", p_key));
+    }
+    items.emplace_back(p_items.substr(index + 1, end - index - 1));
+    index = end + 1;
+    while (index < p_items.size() &&
+           (p_items[index] == ' ' || p_items[index] == '\t'))
+    {
+      ++index;
+    }
+    if (index < p_items.size())
+    {
+      if (p_items[index] != ',')
+      {
+        return std::unexpected(
+            std::format("{} items must be separated by commas", p_key));
+      }
+      ++index;
+    }
+  }
+  return items;
+}
+
+[[nodiscard]] inline std::expected<void, std::string> ValidateRules(
+    const Config& p_config)
+{
+  if (p_config.process_names_.size() + p_config.process_patterns_.size() >
+      kMaxRules)
+  {
+    return std::unexpected(std::format(
+        "process_names and process_patterns permit at most {} entries",
+        kMaxRules));
+  }
+  for (const auto& name : p_config.process_names_)
+  {
+    // A name is also its target ID, so it uses the ID bytes. Select other
+    // names with a pattern, such as "Web?Content".
+    if (!target_wire::ValidName(name, kMaxRuleBytes))
+    {
+      return std::unexpected(std::format(
+          "process name \"{}\" must contain 1..15 letters, digits, dots, "
+          "underscores, or hyphens (Linux keeps 15 bytes of a process name; "
+          "use process_patterns for other names)",
+          name));
+    }
+    if (std::ranges::count(p_config.process_names_, name) > 1)
+    {
+      return std::unexpected(
+          std::format("process name \"{}\" is listed twice", name));
+    }
+  }
+  for (const auto& pattern : p_config.process_patterns_)
+  {
+    if (pattern.empty() || pattern.size() > kMaxRuleBytes ||
+        pattern.find_first_of(std::string_view{"[]\\\0", 4}) !=
+            std::string::npos)
+    {
+      return std::unexpected(std::format(
+          "process pattern \"{}\" must contain 1..15 bytes without [, ], "
+          "or a backslash",
+          pattern));
+    }
+    if (pattern.find_first_of("*?") == std::string::npos)
+    {
+      return std::unexpected(std::format(
+          "process pattern \"{}\" has no * or ?; list it in process_names",
+          pattern));
+    }
+    if (std::ranges::count(p_config.process_patterns_, pattern) > 1)
+    {
+      return std::unexpected(
+          std::format("process pattern \"{}\" is listed twice", pattern));
+    }
+  }
+  return {};
+}
+
 [[nodiscard]] inline std::expected<Config, std::string> ParseConfig(
     std::string_view p_contents)
 {
   Config config;
   bool target_set = false;
   bool in_target = false;
-  std::array<std::string_view, 8> keys{};
+  std::array<std::string_view, 12> keys{};
   std::size_t key_count = 0;
+  bool max_targets_set = false;
+  // A multi-line array: its key and the item text read so far.
+  std::string_view array_key;
+  std::string array_items;
+  const auto finish_array =
+      [&config](std::string_view p_key,
+                std::string_view p_items) -> std::expected<void, std::string>
+  {
+    config.discovery_lists_ = true;
+    auto items = ParseStringArray(p_key, p_items);
+    if (!items)
+    {
+      return std::unexpected(items.error());
+    }
+    (p_key == "process_names" ? config.process_names_
+                              : config.process_patterns_) = std::move(*items);
+    return {};
+  };
   while (!p_contents.empty())
   {
     const auto end = p_contents.find('\n');
@@ -102,6 +278,26 @@ struct Config
     line = Trim(line);
     if (line.empty())
     {
+      continue;
+    }
+    if (!array_key.empty())
+    {
+      const auto close = line.find(']');
+      array_items += ' ';
+      array_items += line.substr(0, close);
+      if (close == std::string_view::npos)
+      {
+        continue;
+      }
+      if (!Trim(line.substr(close + 1)).empty())
+      {
+        return std::unexpected("unexpected text after ]");
+      }
+      if (auto finished = finish_array(array_key, array_items); !finished)
+      {
+        return std::unexpected(finished.error());
+      }
+      array_key = {};
       continue;
     }
     if (line == "[[target]]")
@@ -137,6 +333,30 @@ struct Config
       return std::unexpected("too many configuration keys");
     }
     keys[key_count++] = key;
+    if (!in_target && (key == "process_names" || key == "process_patterns"))
+    {
+      if (!value.starts_with('['))
+      {
+        return std::unexpected(std::format("{} must be a list", key));
+      }
+      const auto close = value.find(']');
+      if (close == std::string_view::npos)
+      {
+        array_key = key;
+        array_items = value.substr(1);
+        continue;
+      }
+      if (!Trim(value.substr(close + 1)).empty())
+      {
+        return std::unexpected("unexpected text after ]");
+      }
+      if (auto finished = finish_array(key, value.substr(1, close - 1));
+          !finished)
+      {
+        return std::unexpected(finished.error());
+      }
+      continue;
+    }
     if (value.size() >= 2 && value.front() == '"' && value.back() == '"')
     {
       value = value.substr(1, value.size() - 2);
@@ -261,6 +481,16 @@ struct Config
       }
       config.resource_interval_s_ = *seconds;
     }
+    else if (key == "max_targets")
+    {
+      const auto count = ParseNumber<std::size_t>(value);
+      if (!count || *count < 1 || *count > target_wire::kMaxTargets)
+      {
+        return std::unexpected("max_targets must be 1..16");
+      }
+      config.max_targets_ = *count;
+      max_targets_set = true;
+    }
     else if (key == "memory_interval_s")
     {
       const auto seconds = ParseNumber<int>(value);
@@ -275,6 +505,33 @@ struct Config
     {
       return std::unexpected(std::format("unknown configuration key: {}", key));
     }
+  }
+  if (!array_key.empty())
+  {
+    return std::unexpected(std::format("{} has no closing ]", array_key));
+  }
+  if (config.Discovers())
+  {
+    if (target_set || in_target)
+    {
+      return std::unexpected(std::format(
+          "process_names and process_patterns cannot be combined with {}",
+          in_target ? "[[target]] tables" : "target_pid or target_process"));
+    }
+    if (auto valid = ValidateRules(config); !valid)
+    {
+      return std::unexpected(valid.error());
+    }
+    if (config.collector_.empty())
+    {
+      return std::unexpected("collector is required");
+    }
+    return config;
+  }
+  if (max_targets_set)
+  {
+    return std::unexpected(
+        "max_targets applies only to process_names and process_patterns");
   }
   if (in_target)
   {
@@ -383,6 +640,8 @@ struct RuntimeConfig
   double effective_rate_hz_ = 0;
   std::uint64_t sampler_cpu_ns_ = 0;
   std::uint64_t sampler_elapsed_ns_ = 0;
+  // Matching processes that discovery could not admit, for announcements.
+  std::uint8_t excluded_ = 0;
 
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {

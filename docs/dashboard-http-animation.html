@@ -132,7 +132,6 @@ See how the HTTP workers serve the page, read live snapshots, and query stored h
     <tr><td><code>GET /api/history</code></td><td>SQLite thread summaries. Validates session, TID, and time range. Returns at most 2,000 rows.</td></tr>
     <tr><td><code>GET /api/resources</code></td><td>Stored resource samples, combined into time buckets.</td></tr>
     <tr><td><code>GET /api/replay</code></td><td>Recorded snapshots and time bounds from replay files.</td></tr>
-    <tr><td><code>GET /api/socket-io</code></td><td>Report from <code>SocketReportBridge</code>, which has a separate worker.</td></tr>
     <tr><td><code>GET /api/target</code><br><code>POST /api/target</code></td><td>Local sampler target control. POST requires the dashboard header and validates the origin when supplied.</td></tr>
   </tbody></table>
   <p>Invalid requests return 400. Unknown GET paths return 404. Unsupported methods return 501. Empty speculative connections close without a response.</p>

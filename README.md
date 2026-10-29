@@ -12,7 +12,7 @@
   <a href="https://github.com/breakbadsp/triangulator/releases">Downloads</a>
 </p>
 
-Monitor a Linux process, its threads, CPU demand, wait channels, memory, and socket I/O.
+Monitor a Linux process, its threads, CPU demand, wait channels, memory, and sockets.
 Inspect live activity or return to a recorded moment.
 One sampler monitors several targets on each host. See the
 [multi-target decisions](docs/multi-target-design.md).
@@ -27,7 +27,7 @@ The animation shows an earlier layout. The current dashboard opens on
 **Targets**: one tile per monitored process, with its assessment. Select a
 tile to open that process on **Summary**: Assessment, key measurements,
 process load, and memory use.
-Use the section links for **Threads**, **Resources**, **Sockets**, **Memory**,
+Use the section links for **Threads**, **Resources**, **Memory**,
 **Monitor**, and **Settings**. Open **Timeline** below the summary charts for
 recordings and past assessments.
 
@@ -93,7 +93,7 @@ Use unique target IDs. Keep at least one target. See
   <img src="docs/assets/architecture.svg" alt="The sampler reads /proc and sends UDP to the collector. The collector stores SQLite day files and serves the dashboard over HTTP. Alerting is not connected." width="100%">
 </p>
 
-[Design decisions](docs/design-decisions.md) ·
+[Design decisions](docs/design-decisions.md) · [Requirements](docs/requirements.md) ·
 [Sampler impact](docs/target-impact.md) ·
 [Sampler](sampler/README.md) · [Collector and API](collector/README.md)
 
@@ -232,9 +232,9 @@ recorded execution result.
 | --- | ---: | --- |
 | PASSED | 89 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
-| BLOCKED | 14 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-066, QA-067, QA-068, QA-069, QA-079, QA-086, QA-097, QA-104, QA-109 |
-| NOT_RUN | 1 | QA-007 |
-| **Total** | **116** | |
+| BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
+| NOT_RUN | 4 | QA-123, QA-124, QA-125, QA-007 |
+| **Total** | **117** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
@@ -258,10 +258,9 @@ recorded execution result.
 - On one host, run `~/triangulator/scripts/start.sh`, then `~/triangulator/scripts/set-target.sh PID`.
 - For separate hosts, set the sampler's collector address and the collector's allowed sampler address in their active configuration. Set `clock_ticks` from `getconf CLK_TCK` on the sampler host.
 - Keep HTTP on loopback. For remote access, use `ssh -L 9401:127.0.0.1:9401 USER@COLLECTOR_HOST` and open <http://127.0.0.1:9401>.
-- Service examples: [deploy](deploy/). Optional socket observer: [startup script](scripts/watch-sockets.sh).
+- Service examples: [deploy](deploy/).
 
-**Limits:** Socket observation requires optional eBPF setup. Message counts require an application marker.
-[Alert delivery](alerting/README.md) is not connected. UDP and HTTP have no authentication;
+**Limits:** [Alert delivery](alerting/README.md) is not connected. UDP and HTTP have no authentication;
 use loopback HTTP and the SSH tunnel above.
 
 [MIT license](LICENSE)

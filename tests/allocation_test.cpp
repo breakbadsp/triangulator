@@ -6,17 +6,26 @@
 // (operator new) and from libc functions such as opendir. Sanitizer builds
 // use the runtime allocation hook instead of replacing its allocator.
 
+#include <fcntl.h>
+#include <sys/prctl.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 
 #include "../sampler/budget.hpp"
+#include "../sampler/config_watch.hpp"
+#include "../sampler/discovery.hpp"
 #include "../sampler/memory.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
+
+#define TRIANGULATOR_SAMPLER_TEST
+#include "../sampler/main.cpp"
 
 namespace
 {
@@ -79,6 +88,104 @@ void Require(bool p_condition, const char* p_message)
   }
 }
 
+// Scans until a pass ends. Each call starts a pass: its time is past the
+// discovery interval of the last one.
+void ScanPass(Discovery& p_discovery, const Config& p_config)
+{
+  static Nanoseconds now{0};
+  now += 2 * kDiscoveryInterval;
+  for (int step = 0; step < 10'000; ++step)
+  {
+    const auto done = p_discovery.Scan(p_config, now + Nanoseconds{step});
+    Require(done.has_value(), "discovery scan");
+    if (*done)
+    {
+      return;
+    }
+  }
+  Require(false, "discovery pass ends");
+}
+
+// Reads actual emitted ticks. The queue is bounded by the few SampleTick
+// calls made between reads; other packet types are ignored.
+[[nodiscard]] std::uint64_t ReadSession(const FileDescriptor& p_receiver)
+{
+  std::array<std::byte, 8192> bytes{};
+  std::uint64_t session = 0;
+  for (int packet = 0; packet < 32; ++packet)
+  {
+    const auto count =
+        ::recv(p_receiver.Get(), bytes.data(), bytes.size(), MSG_DONTWAIT);
+    if (count < 0)
+    {
+      break;
+    }
+    if (count >= static_cast<ssize_t>(sizeof(wire::Header)) &&
+        std::memcmp(bytes.data(), "TMON", 4) == 0)
+    {
+      session = wire::FromBytes<wire::Header>(
+                    std::span{bytes}.first(sizeof(wire::Header)))
+                    .session_;
+    }
+  }
+  Require(session != 0, "an emitted sampling session");
+  return session;
+}
+
+[[nodiscard]] pid_t StartChild()
+{
+  const auto child = ::fork();
+  Require(child >= 0, "fork");
+  if (child == 0)
+  {
+    // A failed check exits the test; the child must not stay.
+    ::prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0);
+    ::prctl(PR_SET_NAME, "alloc-child", 0, 0, 0);
+    ::pause();
+    ::_exit(0);
+  }
+  return child;
+}
+
+// One arrival and exit: two children arrive, one is admitted and one is
+// excluded at full capacity, then the admitted one exits and its slot is
+// released and freed, as the sampler loop does.
+void StepDiscovery(Discovery& p_discovery, const Config& p_config,
+                   TargetSampler& p_sampler)
+{
+  const std::array children{StartChild(), StartChild()};
+  // A child sets its name after fork; give it time before the pass.
+  ::usleep(20'000);
+  ScanPass(p_discovery, p_config);
+  const auto slots = p_discovery.Used();
+  Require(slots[0].state_ == SlotState::Running &&
+              slots[0].identity_.pid_ == ::getpid(),
+          "this process by name");
+  Require(slots[1].state_ == SlotState::Running && p_discovery.Excluded() == 1,
+          "one child admitted, one excluded");
+  Require(p_sampler.Assign("alloc-child.16").has_value(), "slot assignment");
+  Require(p_sampler.SampleTick(slots[1].identity_, ClockNow(CLOCK_MONOTONIC))
+              .has_value(),
+          "real child sample");
+  for (const auto child : children)
+  {
+    ::kill(child, SIGKILL);
+    ::waitpid(child, nullptr, 0);
+  }
+  const auto found = FindTarget(TargetPid{slots[1].identity_.pid_});
+  Require(found && *found != slots[1].identity_, "the child ended");
+  Require(
+      p_sampler.SampleTick(std::nullopt, ClockNow(CLOCK_MONOTONIC)).has_value(),
+      "real child exit");
+  p_discovery.End(p_config, 1);
+  while (slots[1].state_ == SlotState::Releasing)
+  {
+    Require(p_discovery.Flags(1) != 0, "release flags");
+    p_discovery.StepRelease(1);
+  }
+  Require(slots[1].state_ == SlotState::Free, "the slot is free again");
+}
+
 }  // namespace
 
 int main()
@@ -110,11 +217,74 @@ int main()
   CpuBudget cpu_budget{5, 1};
   const std::array<TargetConfig, 2> selected_targets{
       {{"self", by_pid}, {"name", by_name}}};
+  // Discovery with two slots: this process by name, and children that a
+  // pattern selects. The second child finds no slot, so it is excluded.
+  Config discovery_config;
+  discovery_config.process_names_ = {"allocation-test"};
+  discovery_config.process_patterns_ = {"alloc-child*"};
+  discovery_config.max_targets_ = 2;
+  Discovery discovery;
+  discovery.Configure(discovery_config);
+  char watch_directory[] = "/tmp/allocation-watch-XXXXXX";
+  Require(::mkdtemp(watch_directory) != nullptr, "watch directory");
+  const FixedString watched{"{}/sampler.toml", watch_directory};
+  ConfigWatch watch{watched.View()};
+  RuntimeConfig runtime;
+  FileDescriptor receiver{
+      ::socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0)};
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  Require(::bind(receiver.Get(), reinterpret_cast<sockaddr*>(&address),
+                 sizeof(address)) == 0,
+          "receiver bind");
+  socklen_t address_size = sizeof(address);
+  Require(::getsockname(receiver.Get(), reinterpret_cast<sockaddr*>(&address),
+                        &address_size) == 0,
+          "receiver port");
+  runtime.settings_.collector_ =
+      std::format("127.0.0.1:{}", ntohs(address.sin_port));
+  auto endpoint = MakeEndpoint(runtime.settings_.collector_);
+  Require(endpoint.has_value(), "UDP endpoint");
+  runtime.endpoint_ = std::move(*endpoint);
+  DescriptorBudget budget{1024};
+  const std::array<char, 64> host{'t', 'e', 's', 't'};
+  auto sampler = std::make_unique<TargetSampler>(runtime, TargetConfig{},
+                                                 budget, logger, host);
+  Require(sampler->Initialize().has_value(), "real sampler startup");
+  Require(watch.Watching(), "config watch");
 
   // Sampling, for several ticks.
   const auto before = allocation_count;
   for (int tick = 0; tick < 3; ++tick)
   {
+    StepDiscovery(discovery, discovery_config, *sampler);
+    // Slot assignment, sampling, exit, and reassignment run production code.
+    Require(sampler->Assign("allocation-test.16").has_value(),
+            "slot assignment");
+    const auto identity = FindTarget(by_pid);
+    Require(identity.has_value(), "identity");
+    Require(
+        sampler->SampleTick(*identity, ClockNow(CLOCK_MONOTONIC)).has_value(),
+        "sample");
+    const auto old_session = ReadSession(receiver);
+    auto reused = **identity;
+    ++reused.starttime_;
+    Require(sampler->SampleTick(reused, ClockNow(CLOCK_MONOTONIC)).has_value(),
+            "same PID, different start time");
+    Require(ReadSession(receiver) != old_session,
+            "PID reuse starts a different session");
+    Require(sampler->SampleTick(std::nullopt, ClockNow(CLOCK_MONOTONIC))
+                .has_value(),
+            "end");
+    {
+      const FileDescriptor file{::open(
+          watched.CStr(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600)};
+      Require(file && ::write(file.Get(), "x", 1) == 1, "config write");
+    }
+    Require(watch.Poll(false, Nanoseconds{tick} * 2'000'000'000, logger),
+            "an edit makes a reload pending");
+    watch.Reloaded(Nanoseconds{tick} * 2'000'000'000);
     const auto target = FindTarget(by_pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
     Require(FindTarget(by_name).has_value(), "lookup by name");

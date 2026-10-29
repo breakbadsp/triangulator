@@ -347,9 +347,9 @@ class KernelLog
     if (error_ == EPERM || error_ == EACCES)
     {
       p_logger.Warn(
-          "kernel log ({}) not readable: {}; exit reports will have no "
+          "kernel log ({}) not readable (errno {}); exit reports will have no "
           "kernel messages. Set kernel.dmesg_restrict = 0 to allow it",
-          p_path, std::strerror(error_));
+          p_path, error_);
     }
   }
 

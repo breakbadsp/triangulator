@@ -18,9 +18,7 @@ Every sampler change must keep these rules. A change that cannot keep them
 needs the owner's explicit approval first.
 
 - Run exactly one sampler process on each host. It monitors every target on
-  that host. Never add a sampler per target. The optional eBPF
-  `socket_sampler/` is the one existing second process: it is opt-in, and
-  whether it stays is an open owner decision (design, open question 1).
+  that host. Never add a sampler per target.
 - Keep the sampler single-threaded: one loop on a monotonic deadline. Add no
   threads, thread pools, or async runtimes.
 - Keep it lean: after startup or reload, the steady-state tick path does no
@@ -116,5 +114,5 @@ These skills are manual-only. Repository rules govern checks and delivery.
 
 - Check command for the merge gate: `make check`. Formatter: `make format`.
 - Sensitive paths, which always get the full review: `sampler/`,
-  `socket_sampler/`, `collector/`, `common/`, `Makefile`, `deploy/`,
+  `collector/`, `common/`, `Makefile`, `deploy/`,
   `.github/`, `.claude/`, `AGENTS.md`, and `docs/loomflow.md`.

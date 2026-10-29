@@ -10,7 +10,6 @@ export const sections: readonly Section[] = [
   { id: "overview", label: "Summary" },
   { id: "threads-section", label: "Threads" },
   { id: "resources", label: "Resources" },
-  { id: "socket-panel", label: "Sockets" },
   { id: "memory-map", label: "Memory" },
   { id: "monitor", label: "Monitor" },
   { id: "collector-settings", label: "Settings" },

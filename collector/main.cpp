@@ -354,7 +354,19 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
              static_cast<double>(announced.budget_basis_points_) / 100},
             {"throttle_reason",
              throttled ? Json("Sampler CPU use exceeded its configured budget")
-                       : Json()}});
+                       : Json()},
+            {"local", IsLoopback(slot.peer_.View())},
+            {"name_selected", (announced.flags_ &
+                               triangulator::target_wire::kNameSelected) != 0},
+            {"other_rule_selected",
+             (announced.flags_ &
+              triangulator::target_wire::kOtherRuleSelected) != 0},
+            {"rule",
+             (announced.flags_ & triangulator::target_wire::kNameSelected) != 0
+                 ? Json(std::string{triangulator::target_wire::RuleName(
+                       slot.id_.View(), announced.flags_)})
+                 : Json()},
+            {"excluded", static_cast<std::int64_t>(announced.excluded_)}});
         // A timer refresh changes health at silence thresholds without
         // rebuilding every target snapshot on every collector refresh.
         if (slot.dirty_ || now >= slot.next_health_ ||
@@ -417,13 +429,13 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
           slot.dirty_ = false;
           slot.next_health_ = now + 10;
         }
-        published.push_back({key, std::string{slot.host_.View()},
-                             std::string{slot.id_.View()}, slot.session_,
-                             slot.replay_root_, slot.state_.Live(),
-                             slot.state_.LastTarget(), slot.state_.MemoryMap(),
-                             slot.watches_, slot.config_.replay_interval_s_,
-                             slot.legacy_replay_, fleet.SocketObserver(slot),
-                             slot.pid_, std::string{slot.peer_.View()}});
+        published.push_back(
+            {key, std::string{slot.host_.View()}, std::string{slot.id_.View()},
+             slot.session_, slot.replay_root_, slot.state_.Live(),
+             slot.state_.LastTarget(), slot.state_.MemoryMap(), slot.watches_,
+             slot.config_.replay_interval_s_, slot.legacy_replay_, slot.pid_,
+             std::string{slot.peer_.View()}, slot.announcement_.flags_,
+             IsLoopback(slot.peer_.View())});
       }
       if (published.empty())
       {
@@ -449,6 +461,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
                            JsonObject{{"targets", std::move(descriptions)},
                                       {"bad_packets", fleet.bad_packets_},
                                       {"capacity_drops", fleet.capacity_drops_},
+                                      {"max_targets", config.max_targets_},
                                       {"watch_settings_limit_hits",
                                        target_watches.limit_hits_}});
       storage_ok = sink.Status();

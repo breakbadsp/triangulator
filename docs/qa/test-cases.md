@@ -10,6 +10,9 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-123 | NOT_RUN | - | - | - |
+| QA-124 | NOT_RUN | - | - | - |
+| QA-125 | NOT_RUN | - | - | - |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -69,7 +72,6 @@
 | QA-063 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-064 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-065 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-066 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-067 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-068 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-069 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -100,7 +102,6 @@
 | QA-094 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-095 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-096 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-097 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-098 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-099 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-100 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -155,7 +156,7 @@
 
 - Driver: judged
 - Test: With two recorded times available, select a live map window and custom thread-history range. Open a thread, select Previous from Live, step both recordings, open a recorded thread, and return to Live. Preview a Timeline time without release, then select it.
-- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, socket observations, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
+- Expected: Previous from Live opens the newest recording. Only release or change selects a time. All panels use its session, PID, values, and clock. History presets end at the recording time. Live averages, charts, and Settings actions are unavailable in recorded mode. Return closes the drawer and restores live trends, filters, map window, and valid history inputs.
 
 ## QA-006: Package upgrade preserves configuration and history
 
@@ -186,7 +187,7 @@
 
 - Driver: judged
 - Test: Open the wire-format HTML through both README links. Select all protocols, encode headers, and test 1, 10, 11, and 56 threads. Drop summaries and region parts, set 50% loss, and pause/resume.
-- Expected: Headers are 48/64/64/80 B; rows are 112/160/64/80 B. TMON uses 1/1/2/6 chunks. TRES needs a summary; TVMA needs complete region parts and keeps its old layout when incomplete. TSIO counts received datagrams. Drops log once; no script errors occur.
+- Expected: Headers are 48/64/64 B; rows are 112/160/64 B. TMON uses 1/1/2/6 chunks. TRES needs a summary; TVMA needs complete region parts and keeps its old layout when incomplete. Drops log once; no script errors occur.
 
 ## QA-011: Memory zoom page size and units
 
@@ -307,7 +308,7 @@
 
 - Driver: scripted
 - Test: Install supported sanitizer tools. Run `make -j2 check-sanitizers` from a clean checkout; inspect both logs. Then run `make check` and `make check SANITIZER=thread STATIC=1`.
-- Expected: Address/undefined and thread modes each run six C++ tests plus Python and dashboard tests. Allocation counts are zero. Findings fail the command. Normal checks pass; static sanitizer mode fails before compilation. Privileged eBPF remains opt-in.
+- Expected: Address/undefined and thread modes each run five C++ tests plus Python and dashboard tests. Allocation counts are zero. Findings fail the command. Normal checks pass; static sanitizer mode fails before compilation.
 
 ## QA-032: Named periodic workers match configured wake intervals
 
@@ -486,12 +487,6 @@
 - Driver: scripted
 - Test: With two named targets, run `scripts/set-target.sh ID NAME|PID`, `--add`, `--remove`, rate control, and `--help`. Try invalid/duplicate IDs and removing the last target.
 - Expected: Valid commands reload the same sampler. Selector changes affect only their target; rate changes keep all target IDs. Invalid input and help preserve configuration.
-
-## QA-066: Socket reports across hosts
-
-- Driver: judged
-- Test: Use optional socket observers on two hosts, including matching local target IDs. Query live and stored reports for each.
-- Expected: Reports distinguish host, target, session, and observer. No counters are mixed. Record BLOCKED when required hosts or tracing support are absent.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
@@ -681,12 +676,6 @@
 - Test: Monitor a target with resource sampling on, open sockets, and network activity. Hold the pointer on a Pressure stalls table cell, a Network stack drops & errors row, and a Fullest sockets cell for 10 s each, then move into each card. Focus the Fullest sockets checkbox, scroll the table, and clear the checkbox. Select 1 h, then 6 h; change the pressure scope to Whole host. Restart the target process while the pointer holds the sockets table.
 - Expected: Under the pointer and in its card, rows, values, and readouts do not change; after the pointer leaves, each panel shows the latest sample, and active network counters move first. The checkbox keeps focus, the table returns to the top, and the filter applies at once. Range and scope changes clear chart readouts, refresh the charts and In range at once, and change the Summary findings that use pressure and RSS history. After the restart, no row of the old process remains, and the panel waits for a sample of the new process.
 
-## QA-097: Socket I/O panel states, filters, and observer changes
-
-- Driver: judged
-- Test: Monitor a target with the optional socket observer and a completion marker. Check Received, Sent, and Messages processed, a socket kind, and a thread search. Hold the pointer on a breakdown cell for 10 s, then press Escape twice. Scroll the breakdown, then type in the search. Open What is measured · setup. Stop the observer, restart it, and restart the target process. Repeat without the observer and with a collector build that has no socket endpoint.
-- Expected: Cards and chart show the whole process; filters change only the breakdown, keep focus, and start it at the top. Messages processed disables Socket kind, and Received restores the kind if it still exists. A held row and its card do not change during polls; the first Escape closes the card and the second does nothing else. Retired thread generations are separate rows, and no row opens a thread drawer. Observer silent, Observation ended, lower-bound, and cached states are named. After an observer or process restart, no row or card of the old one remains. The setup details stay open. Without the observer, the panel names the reason.
-
 ## QA-098: Memory map stays still under the pointer and resets for a new process
 
 - Driver: judged
@@ -716,4 +705,22 @@
 
 - Driver: judged
 - Test: Delay snapshot, resource, memory-layout, thread-history, and watch reads. Change recording, return Live, change target, or close the page before delivery. Repeat with request errors, no-thread new sessions, absence during replay, restart, late matching and unrelated exits, last-target failure/wrong session/empty replies, reload, and blocked or full tab storage. Keep focus and pointer holds on controls and Help during transitions.
-- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory and socket refresh stop. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
+- Expected: A late success or error cannot replace the selected observation or its Help. Missing and invalid recordings keep the last successful view. New empty sessions settle for ten seconds. Confirmed absence retains the last populated view. A matching session and PID alone can add an exit. A restart cannot replace a final view. During replay, Show live dismisses the final view and leaves the recording open. Recorded resource reads end at the selected time; memory refresh stops. Replay and history never enter live buffers or pagehide storage. Settings drafts and revision guards survive return. Checked and dismissed last-target sessions do not reopen.
+
+## QA-123: Discovery, waiting, and capacity
+
+- Driver: judged
+- Test: Configure one exact name and one overlapping glob. Start with no matches, then start two owned processes with that name. Add more than max_targets matches. Exit and restart one process. Remove the exact rule while the glob remains, then reverse that edit.
+- Expected: Waiting is explicit. Each process has a separate tile and session. Overlaps never duplicate it. Rule edits preserve selected sessions. Capacity shows excluded matches and keeps existing processes. A restart has a new session. Inspect contextual help for waiting and capacity.
+
+## QA-124: Configuration reload and persistence
+
+- Driver: judged
+- Test: Edit sampler.toml in place. Replace it atomically. Write invalid syntax, then replace with valid syntax during a directory event burst. Move and restore the parent directory. Send SIGHUP. Restart the sampler.
+- Expected: Valid rules apply within the documented scan and reload delays. Invalid files keep the previous selection. Watch recovery applies the current file within 10 seconds plus scan delay. Restart preserves the file's selection. Unchanged instances retain sessions through target-only edits.
+
+## QA-125: Local testing controls from a remote browser
+
+- Driver: judged
+- Test: Use mixed local and remote samplers, with identical claimed host names where practical. Connect from another host with network_target_control off, then on. Add an exact name in list mode. Inspect Remove confirmation for a multi-instance exact name. Try Remove for a pattern-selected instance, for an instance renamed to another listed name, and direct POSTs naming a remote target or a different ID. Restart after an Add.
+- Expected: Network writes are off by default. Opt-in permits testing changes only on the verified local runtime sampler. Add needs no ID in list mode and survives restart. Remove warns that all instances of the name stop. Patterns and renamed instances require a host-side edit, and no rule changes. Remote, unknown, and mismatched targets cannot be removed. Other rules stay unchanged. Help explains production ownership and the unauthenticated opt-in.

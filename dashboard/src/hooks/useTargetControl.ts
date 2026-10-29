@@ -76,6 +76,17 @@ function reduce(state: Form, event: Event): Form {
   }
 }
 
+/** The question before a change, which applies to every viewer. */
+function confirmation(change: TargetChange) {
+  const scope = "This changes monitoring for every viewer.";
+  if (change.action === "remove")
+    return "rule" in change
+      ? `Remove the process name ${change.rule}? Every process named ${change.rule} stops being monitored. ${scope}`
+      : `Remove ${change.id}? ${scope}`;
+  if ("id" in change) return `Add ${change.id}? ${scope}`;
+  return `Add the process name ${change.target}? Every process with this name is monitored. ${scope}`;
+}
+
 export function useTargetControl(control: TargetControl, refresh: () => void) {
   const [form, dispatch] = useReducer(reduce, initial);
   const [busy, setBusy] = useState(false);
@@ -132,11 +143,7 @@ export function useTargetControl(control: TargetControl, refresh: () => void) {
         });
         return;
       }
-      if (
-        !confirm(
-          `${change.action === "add" ? "Add " : "Remove "}${change.id}? This changes monitoring for every viewer.`,
-        )
-      ) {
+      if (!confirm(confirmation(change))) {
         dispatch({ type: "status", message: "" });
         return;
       }
@@ -165,12 +172,13 @@ export function useTargetControl(control: TargetControl, refresh: () => void) {
       >,
     ) {
       const candidates = change.action === "add" ? result.candidates : [];
+      const name = change.action === "add" ? change.target : "";
       dispatch({
         type: "status",
         bad: true,
         candidates,
         message: candidates.length
-          ? `${String(result.total)} processes are named ${change.target}${result.total > candidates.length ? `; the first ${String(candidates.length)} are listed` : ""}. Select one to monitor it by PID.`
+          ? `${String(result.total)} processes are named ${name}${result.total > candidates.length ? `; the first ${String(candidates.length)} are listed` : ""}. Select one to monitor it by PID.`
           : result.message,
       });
       if (result.applied) refresh();
@@ -180,6 +188,19 @@ export function useTargetControl(control: TargetControl, refresh: () => void) {
     if (inFlight.current) return;
     const id = form.id.trim(),
       target = form.target.trim();
+    if (control.enabled && control.mode === "names") {
+      if (!/^[A-Za-z0-9_.-]{1,15}$/.test(target) || /^\.\.?$/.test(target)) {
+        dispatch({
+          type: "status",
+          message:
+            "Enter an exact process name of 1 to 15 letters, digits, dots, underscores, or hyphens.",
+          bad: true,
+        });
+        return;
+      }
+      void change({ action: "add", target });
+      return;
+    }
     if (
       !/^[A-Za-z0-9_.-]{1,31}$/.test(id) ||
       id === "." ||
