@@ -143,8 +143,7 @@ export function listIncidents(
   const target = targetInput(args.target);
   return readStore(path, (store) => {
     const data = completeness(store, target);
-    const where =
-      "first<? AND (active=1 OR last>=?) AND (? IS NULL OR target=?)";
+    const where = "first<? AND last>=? AND (? IS NULL OR target=?)";
     const params = [window.end, window.start, target ?? null, target ?? null];
     const total = store
       .prepare(`SELECT count(*) AS n FROM incident WHERE ${where}`)

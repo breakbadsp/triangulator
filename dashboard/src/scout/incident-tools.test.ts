@@ -168,6 +168,34 @@ test("answers a day question in one call, returns full stored evidence, and read
   ).toEqual([]);
 });
 
+test("active incidents overlap only their stored observation interval", () => {
+  const { data, path, store, put, base } = fixture();
+  put(61, 99);
+  put(90, 99);
+  scanPass(data, store, -1);
+
+  const observed = result(listIncidents(path, windowFor(base + 70, base + 80)));
+  expect(observed.incidents).toHaveLength(1);
+  expect(observed.incidents[0]).toMatchObject({
+    start: base + 61,
+    end: null,
+    open: true,
+    last_observed: base + 90,
+  });
+  expect(
+    result(listIncidents(path, windowFor(base + 90, base + 91))).incidents,
+  ).toHaveLength(1);
+  expect(
+    result(listIncidents(path, windowFor(base, base + 61))).incidents,
+  ).toEqual([]);
+
+  for (const start of [base + 91, base + 86400]) {
+    const later = result(listIncidents(path, windowFor(start)));
+    expect(later.incidents).toEqual([]);
+    expect(later.omitted_incidents).toBe(0);
+  }
+});
+
 test("missing store gives scan instructions without creating a file; invalid input is rejected", () => {
   const { home, base } = fixture();
   const path = join(home, "missing/incidents.sqlite3");
