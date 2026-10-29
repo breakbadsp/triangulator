@@ -26,6 +26,12 @@ replay_interval_s = 1
 max_live_samples = 1000000
 # deadman_url = "https://your-heartbeat-service.example/your-token"
 
+# tri-scout: optional read-only tools for an LLM client such as Claude Code or
+# Codex (README, "Ask an AI agent"). Off by default. When off, tri-scout exits
+# at start and sends no request. The collector ignores this table.
+[scout]
+enabled = false
+
 # The collector uses only window_s, the rollup window (5-10 s). Everything else
 # here, and deadman_url above, is for the alerting module (alerting/), which is
 # not wired up yet; the collector logs a warning that it ignores them.

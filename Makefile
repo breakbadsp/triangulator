@@ -78,7 +78,7 @@ CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp
 
-.PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release sqlite-amalgamation dashboard-check FORCE
+.PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release scout sqlite-amalgamation dashboard-check FORCE
 all: build/triangulator-sampler build/triangulator-collector
 
 # Rebuild when link mode, compiler or flags change, including after release.
@@ -226,6 +226,11 @@ build/collector-test: build/collector-test.o $(SQLITE_OBJECT) build/compiler_ok 
 CPP_TESTS := build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test
 dashboard-check: dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run check
+
+# Optional: tri-scout, the read-only MCP tools for an LLM client (REQ-0001).
+# all and release do not build it, so a deploy without it has no AI part.
+scout: dashboard/node_modules/.package-lock.json
+	cd dashboard && npm run build:scout
 
 check: dashboard-check all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
 	python3 tests/run_checks.py $(CPP_TESTS)

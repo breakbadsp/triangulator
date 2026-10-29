@@ -9,5 +9,6 @@ globalThis.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 };
-// jsdom does not scroll.
-Element.prototype.scrollIntoView = () => undefined;
+// jsdom does not scroll. Node-environment tests (src/scout) have no DOM.
+if (typeof Element !== "undefined")
+  Element.prototype.scrollIntoView = () => undefined;
