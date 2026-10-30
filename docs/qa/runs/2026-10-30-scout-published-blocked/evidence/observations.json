@@ -1,0 +1,40 @@
+{
+  "target_version": "v0.1.0",
+  "tested_scout_version": "unavailable",
+  "platform": "Linux-7.2.8-9-omarchy-x86_64-with-glibc2.44",
+  "release_source_revision": "188d0b5c6ef83df0c2ec5175cd944c550ba11801",
+  "artifact_url": "https://github.com/breakbadsp/triangulator/releases/latest/download/tri-scout.mjs",
+  "artifact_http_status": 404,
+  "asset_inventory": "release.json",
+  "scout_sha256": null,
+  "downloaded_packages": [],
+  "browser_status": {
+    "available": false,
+    "tabId": null
+  },
+  "scenarios": {
+    "healthy": "BLOCKED: scout artifact unavailable",
+    "cpu-spin": "BLOCKED: scout artifact unavailable",
+    "cpu-oversub": "BLOCKED: scout artifact unavailable",
+    "cpu-throttle": "BLOCKED: scout artifact unavailable",
+    "yield-storm": "BLOCKED: scout artifact unavailable",
+    "lock-convoy": "BLOCKED: scout artifact unavailable",
+    "deadlock": "BLOCKED: scout artifact unavailable",
+    "mem-leak": "BLOCKED: scout artifact unavailable",
+    "mem-oom": "BLOCKED: scout artifact unavailable",
+    "vm-bloat": "BLOCKED: scout artifact unavailable",
+    "fd-leak": "BLOCKED: scout artifact unavailable",
+    "disk-sync": "BLOCKED: scout artifact unavailable",
+    "major-faults": "BLOCKED: scout artifact unavailable",
+    "tcp-slow": "BLOCKED: scout artifact unavailable",
+    "udp-drop": "BLOCKED: scout artifact unavailable",
+    "close-wait": "BLOCKED: scout artifact unavailable",
+    "listen-full": "BLOCKED: scout artifact unavailable",
+    "thread-churn": "BLOCKED: scout artifact unavailable",
+    "thread-leak": "BLOCKED: scout artifact unavailable",
+    "stopped": "BLOCKED: scout artifact unavailable"
+  },
+  "executed_behavior_cases": 0,
+  "confirmed_product_bugs": 0,
+  "detection_delays": "not measured"
+}
