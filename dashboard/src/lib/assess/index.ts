@@ -12,6 +12,7 @@ import {
   family,
   isIdle,
   futexShare,
+  futexWaitSecs,
   kernelShare,
   threadLabel,
 } from "../threads";
@@ -36,13 +37,6 @@ export interface AssessInput {
   memoryLayout: MemoryLayout | null;
   memoryHistory: readonly { t: number; mf: number | null }[];
   pressureScope: "cgroup" | "host";
-}
-function idleSecs(thread: Thread, series: Series, mode: ViewMode) {
-  if (mode.kind === "recorded") return null;
-  const seen = series.seen.get(thread.tid);
-  return isNum(seen?.futexSince)
-    ? (series.lastTick || thread.last_sample || 0) - seen.futexSince
-    : null;
 }
 // Major faults per second: the thread samples when they have it (in a
 // recording, the recorded ones), else the difference of the last two live
@@ -89,11 +83,7 @@ function memoryOverviewFindings(input: AssessInput) {
   ).filter((item) => item.level !== "info" && item.level !== "good");
 }
 const STUCK_FUTEX_S = 30;
-export function lockHints(
-  threads: readonly Thread[],
-  series: Series,
-  mode: ViewMode,
-) {
+export function lockHints(threads: readonly Thread[]) {
   const found: Finding[] = [],
     current = threads.filter((thread) => !thread.stale),
     families = new Map<string, Thread[]>();
@@ -106,17 +96,14 @@ export function lockHints(
   // family with an active member is a pool with spare workers; four or more
   // stuck in one family look like an idle pool. Neither is reported.
   const parked = (thread: Thread) =>
-    thread.state === "futex" &&
-    isIdle(thread) &&
-    futexShare(thread) === 1 &&
-    (idleSecs(thread, series, mode) ?? 0) >= STUCK_FUTEX_S;
+    (futexWaitSecs(thread) ?? 0) >= STUCK_FUTEX_S;
   const stuck = current.filter((thread) => {
     const kin = families.get(family(thread.name)) ?? [];
     return parked(thread) && kin.every(isIdle) && kin.filter(parked).length < 4;
   });
   if (stuck.length >= 2 && current.some((thread) => !isIdle(thread))) {
     const least = Math.min(
-      ...stuck.map((thread) => idleSecs(thread, series, mode) ?? 0),
+      ...stuck.map((thread) => futexWaitSecs(thread) ?? 0),
     );
     found.push({
       type: "threads",
@@ -432,7 +419,7 @@ export function assess(input: AssessInput) {
         { tid: top.tid },
       );
   }
-  findings.push(...lockHints(threads, series, mode));
+  findings.push(...lockHints(threads));
   findings.push(...assessResources(live.resources, now));
   // Memory-map findings join too. One about the same topic as a finding above
   // (major faults) is not repeated: the more severe wording stays, with the

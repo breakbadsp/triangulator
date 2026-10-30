@@ -68,6 +68,26 @@ const { asResourcePoints, rssTrend } = load(
 );
 const canonical = (value) => JSON.parse(JSON.stringify(value));
 let comparisons = 0;
+// Intended change (QA-107): the stuck-futex hint reads the collector's
+// last_ran, not the tab's futexSince, so it also works without tab history.
+// The old page gets the same wait as its futexSince; it gave no hint in a
+// recording, so that one finding is not compared there.
+const STUCK_HINT = /threads have waited on a futex for over/;
+const futexSeen = (input) =>
+  new Map(
+    input.view.threads
+      .filter((thread) => typeof thread.last_ran === "number")
+      .map((thread) => [
+        thread.tid,
+        {
+          first: thread.last_ran,
+          active: null,
+          generation: thread.generation,
+          ...input.series.seen.get(thread.tid),
+          futexSince: thread.last_ran,
+        },
+      ]),
+  );
 function check(input) {
   const oldFindings = JSON.parse(
     runInNewContext(oracle + "\nJSON.stringify(assess(live.threads,buffer))", {
@@ -78,7 +98,7 @@ function check(input) {
       frozenExit: () => input.mode.exit,
       buffer: input.series.points,
       lastTick: input.series.lastTick,
-      threadSeen: input.series.seen,
+      threadSeen: futexSeen(input),
       watchRules: input.watchRules,
       resourceHistory: { rows: input.resourcePoints },
       replayResources: input.resourcePoints,
@@ -89,8 +109,11 @@ function check(input) {
   );
   // The design gives the old untyped healthy finding its monitor type.
   for (const finding of oldFindings) finding.type ??= "monitor";
+  const findings = assess(input).filter(
+    (item) => input.mode.kind !== "recorded" || !STUCK_HINT.test(item.title),
+  );
   assert.deepEqual(
-    canonical(assess(input)),
+    canonical(findings),
     oldFindings,
     `Assessment parity case ${comparisons}`,
   );
@@ -292,7 +315,7 @@ for (const mode of [
             seen: new Map(
               threads.map((thread) => [
                 thread.tid,
-                { first: 900, active: null, futexSince: 900, generation: 1 },
+                { first: 900, active: null, generation: 1 },
               ]),
             ),
           },
@@ -354,7 +377,12 @@ const seriesValue = (series, withLoad = false) =>
         }),
     lastTick: series.lastTick,
     ids: series.ids ? [...series.ids].sort() : null,
-    seen: [...series.seen],
+    // futexSince left the series (QA-107); the old page still keeps it.
+    seen: [...series.seen].map(([tid, seen]) => {
+      const copy = { ...seen };
+      delete copy.futexSince;
+      return [tid, copy];
+    }),
     ...(withLoad ? { load: series.load } : {}),
     cpu: [...series.cpu].map(([tid, samples]) => [
       tid,
@@ -458,9 +486,14 @@ for (let i = 0; i < 400; i++) {
   const live = seriesView(i);
   if (i % 40 === 39) {
     runInContext("saveBuffer()", oldLive);
+    // futexSince left the series (QA-107); compare the rest of the entry.
+    const entry = (text) =>
+      JSON.stringify(text, (key, value) =>
+        key === "futexSince" ? undefined : value,
+      );
     assert.equal(
-      JSON.stringify(threadsEntry(series)),
-      stored.get("triangulator:threads:h/t"),
+      entry(threadsEntry(series)),
+      entry(JSON.parse(stored.get("triangulator:threads:h/t") ?? "null")),
       `Saved threads entry parity step ${i}`,
     );
     runInContext("loadBuffer(bufferSession)", oldLive);
@@ -855,6 +888,11 @@ log(
   `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
 );
 
+// Intended change (QA-107): long futex waits now run on recordings.
+const STUCK_HELP = [
+  "(thread growth, thread churn, long futex waits) and the watch rule with no thread do not run.",
+  "(thread growth, thread churn) and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time in each recording.",
+];
 // The history explanations retain the pinned text. Automatic label aliases
 // are retired; internal callers use type-checked topic IDs.
 const topics = load(resolve(dashboard, "src/help/topics.ts")).helpTopics;
@@ -886,11 +924,13 @@ for (const id of ["assesshistory", "historyfilters"]) {
       canonical(
         fields[i] === "related"
           ? values[i].map((value) => (value === "replay" ? "timeline" : value))
-          : values[i],
+          : fields[i] === "limits"
+            ? values[i].replace(STUCK_HELP[0], STUCK_HELP[1])
+            : values[i],
       ),
       `Help ${id}.${fields[i]}`,
     );
 }
 log(
-  "PASS: assesshistory and historyfilters text matches the pinned page word for word.",
+  "PASS: assesshistory and historyfilters text matches the pinned page word for word, except the stated QA-107 change.",
 );

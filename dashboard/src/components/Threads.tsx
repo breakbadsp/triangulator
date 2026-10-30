@@ -416,7 +416,7 @@ export function Threads({
   const familyData = useHeld({ threads, stamp }, familyHold.holding);
   // The chips and the table hold together, as `#threads-live` did.
   const tableData = useHeld({ view, threads, series }, tableHold.holding);
-  const table = threadRows(tableData.threads, threadView, tableData.series);
+  const table = threadRows(tableData.threads, threadView);
   const showTable = () => {
     document
       .getElementById("thread-details")

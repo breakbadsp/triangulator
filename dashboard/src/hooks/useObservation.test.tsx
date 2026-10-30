@@ -39,7 +39,7 @@ const entry = (name: string) =>
   JSON.parse(sessionStorage.getItem(`${name}:h/w`) ?? "null") as {
     session: string;
     points?: { t: number }[];
-    seen?: [number, { futexSince?: number | null }][];
+    seen?: [number, { first: number }][];
   } | null;
 
 test("the tab saves every 5th point and the latest series when the page hides", () => {
@@ -55,7 +55,7 @@ test("the tab saves every 5th point and the latest series when the page hides", 
   expect(entry("triangulator:buffer")?.points?.map((point) => point.t)).toEqual(
     [1, 2, 3, 4, 5, 6, 7],
   );
-  expect(entry("triangulator:threads")?.seen?.[0]?.[1].futexSince).toBe(1);
+  expect(entry("triangulator:threads")?.seen?.[0]?.[1].first).toBe(1);
   expect(result.current?.points).toHaveLength(7);
 });
 
@@ -71,8 +71,8 @@ test("a reload restores points and thread observations of the same session", () 
   const third = live(3);
   const { result } = renderHook(() => useSeries("h/w", third));
   expect(result.current?.points.map((point) => point.t)).toEqual([1, 2, 3]);
-  // The futex wait started at the first tick, before the reload.
-  expect(result.current?.seen.get(1)?.futexSince).toBe(1);
+  // The thread was first seen at the first tick, before the reload.
+  expect(result.current?.seen.get(1)?.first).toBe(1);
   // The map's averages survive the reload; the live CPU chart starts again.
   expect(result.current?.avg.get(1)?.samples).toEqual([[1, 0]]);
   expect(result.current?.since).toBe(1);
