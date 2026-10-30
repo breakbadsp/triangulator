@@ -13,14 +13,14 @@
 | QA-123 | NOT_RUN | - | - | - |
 | QA-124 | NOT_RUN | - | - | - |
 | QA-125 | NOT_RUN | - | - | - |
-| QA-126 | NOT_RUN | - | - | - |
-| QA-127 | NOT_RUN | - | - | - |
-| QA-128 | NOT_RUN | - | - | - |
-| QA-129 | NOT_RUN | - | - | - |
-| QA-130 | NOT_RUN | - | - | - |
-| QA-131 | NOT_RUN | - | - | - |
-| QA-132 | NOT_RUN | - | - | - |
-| QA-133 | NOT_RUN | - | - | - |
+| QA-126 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-127 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-128 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-129 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-130 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-131 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-132 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
+| QA-133 | BLOCKED | unavailable | [Run](runs/2026-10-30-scout-published-blocked/index.md) | [Evidence](runs/2026-10-30-scout-published-blocked/evidence/results.json) |
 | QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
 | QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
