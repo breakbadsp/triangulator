@@ -989,7 +989,8 @@ class DashboardServer
   {
     std::optional<TargetFilter> filter_;
     std::filesystem::path replay_root_;
-    // Also read data_dir/replay: a "default" target may have owned it.
+    // Also read this target's frames in data_dir/replay: a "default" target
+    // may have owned it. Frames of other targets there are skipped.
     bool merge_legacy_ = false;
     double replay_interval_s_ = 1;
   };
@@ -1090,9 +1091,11 @@ class DashboardServer
     if (p_target.merge_legacy_ &&
         p_target.replay_root_ != std::filesystem::path{config_.data_dir_})
     {
+      const auto key = p_target.filter_->host_ + "/" + p_target.filter_->id_;
       replay = MergeReplay(
           std::move(replay),
-          collector::Replay(config_.data_dir_, {at, direction}), direction);
+          collector::Replay(config_.data_dir_, {at, direction, key}),
+          direction);
     }
     // The stored view is sent as written; parsing and re-encoding a
     // multi-megabyte view would hold up every other dashboard request.

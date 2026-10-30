@@ -1006,8 +1006,8 @@ void TestThreadCounts()
   const auto counts = [&](double p_now)
   {
     std::vector<std::pair<double, std::int64_t>> result;
-    for (const auto& entry :
-         Field(fixture.monitor_.Snapshot(p_now, {}), "thread_counts").AsArray())
+    const auto snapshot = fixture.monitor_.Snapshot(p_now, {});
+    for (const auto& entry : Field(snapshot, "thread_counts").AsArray())
     {
       result.emplace_back(entry.AsArray()[0].AsNumber() - 1'700'000'000,
                           entry.AsArray()[1].AsInt());
@@ -1471,6 +1471,43 @@ void TestRecorderTargetChange()
   Require(merged.first_ == 1 && merged.last_ == 30 &&
               merged.snapshot_ == R"({"recorded_at":25})",
           "default replay keeps legacy bounds and the newest selected frame");
+}
+
+// A target key keeps only that target's frames, in the snapshot and in the
+// bounds, even when another target recorded the newest and the oldest frames.
+void TestReplayTargetFilter()
+{
+  TempDirectory directory;
+  auto writer = ReplayWriter::Create(ReplayDirectory(directory.Path()), 7);
+  Require(writer.has_value(), "the shared writer opens");
+  for (const auto& [time, target] :
+       {std::pair{1'700'006'410, "host-a/default"},
+        std::pair{1'700'006'420, "host-b/default"},
+        std::pair{1'700'006'430, "host-a/default"}})
+  {
+    Require(
+        writer
+            ->Write(time, std::format(R"({{"recorded_at":{},"target":"{}"}})",
+                                      time, target))
+            .has_value(),
+        "a frame is written");
+  }
+  const auto only_b =
+      Replay(directory.Path(), {1'700'006'440, "at", "host-b/default"});
+  Require(only_b.first_ == 1'700'006'420 && only_b.last_ == 1'700'006'420,
+          "the bounds hold only the frames of the target");
+  Require(
+      only_b.snapshot_ && only_b.snapshot_->find("host-b") != std::string::npos,
+      "the newest frame at the time is the target's, not host-a's");
+  Require(!Replay(directory.Path(), {1'700'006'430, "next", "host-b/default"})
+               .snapshot_,
+          "no later frame of the target");
+  const auto none =
+      Replay(directory.Path(), {1'700'006'440, "at", "host-c/default"});
+  Require(!none.first_ && !none.last_ && !none.snapshot_,
+          "a target without frames finds none");
+  Require(Replay(directory.Path(), {}).last_ == 1'700'006'430,
+          "no key reads every frame");
 }
 
 // Omitted settings enable raw storage and recording; explicit values disable
@@ -3055,6 +3092,7 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestRecorderTargetChange();
+    TestReplayTargetFilter();
     TestReplayIntervalOverride();
     TestReplayConfig();
     TestWatchConfig();

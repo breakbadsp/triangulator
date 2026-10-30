@@ -490,27 +490,39 @@ class MultiTargetCollectorTests(CollectorCase):
             self.send(tick(101, sequence=sequence))
             self.send(tick(202, pid=456, sequence=sequence))
             time.sleep(0.2)
-        for sequence in range(8, 12):  # Only host-b, so its frame is the newest.
+        for sequence in range(8, 12):  # Only host-b records for a while.
             self.send(tick(202, pid=456, sequence=sequence))
             time.sleep(0.2)
         self.wait_for(lambda: self.replay_targets(own) == {"host-b/default"})
+        # host-a keeps running after host-b stops, so its frames are the newest.
+        for sequence in range(8, 28):
+            self.send(tick(101, sequence=sequence))
+            time.sleep(0.2)
         self.restart()
         self.assertEqual(self.targets(), set())
 
-        def recorded(directory):
-            times = []
+        def all_frames(directory):
+            frames = []
             for path in directory.glob("*.sqlite3"):
                 with sqlite3.connect(path) as database:
-                    times += [ts for ts, snapshot in database.execute(
-                        "SELECT ts,snapshot FROM process_snapshot")
-                        if json.loads(snapshot)["target"] == "host-b/default"]
-            return times
+                    frames += [(ts, json.loads(snapshot)) for ts, snapshot in
+                               database.execute("SELECT ts,snapshot FROM process_snapshot")]
+            return frames
+
+        def recorded(directory):
+            return [ts for ts, snapshot in all_frames(directory)
+                    if snapshot["target"] == "host-b/default"]
         after = self.fetch("/api/replay?target=host-b/default")
         self.assertEqual(after["first"], min(recorded(replay)), "the earlier part is kept")
         self.assertEqual(after["last"], max(recorded(own)), "the later part is kept")
-        for at in (after["first"], after["last"]):
+        newest_a = max(ts for ts, snapshot in all_frames(replay)
+                       if snapshot["target"] == "host-a/default")
+        self.assertGreater(newest_a, after["last"], "host-a recorded the newest frame")
+        for at in (after["first"], after["last"], newest_a):
             frame = self.fetch(f"/api/replay?target=host-b/default&at={at}")["snapshot"]
             self.assertEqual(frame["target"], "host-b/default")
+        nxt = self.fetch(f"/api/replay?target=host-b/default&at={after['last']}&direction=next")
+        self.assertIsNone(nxt["snapshot"], "host-a frames are not host-b's next frame")
         rows = self.fetch("/api/history?target=host-b/default&session=202&tid=456"
                           f"&start={time.time() - 600}&end={time.time()}")["rows"]
         self.assertIsInstance(rows, list)
