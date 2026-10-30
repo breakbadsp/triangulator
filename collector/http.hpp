@@ -725,6 +725,29 @@ class DashboardServer
 
   void Get(const HttpConnection& p_connection, const Request& p_request)
   {
+    const auto& path = p_request.path_;
+    if (path == "/api/replay" || path == "/api/history" ||
+        path == "/api/resources")
+    {
+      const auto stored = StoredTargetFor(p_request);
+      if (!stored)
+      {
+        RespondJson(p_connection, 404, JsonObject{{"error", "unknown target"}});
+      }
+      else if (path == "/api/replay")
+      {
+        Replay(p_connection, p_request, *stored);
+      }
+      else if (path == "/api/history")
+      {
+        History(p_connection, p_request, *stored);
+      }
+      else
+      {
+        Resources(p_connection, p_request, *stored);
+      }
+      return;
+    }
     const auto target_key = QueryValue(p_request.query_, "target");
     const auto target = state_.Select(target_key.value_or(""));
     // The dashboard document and the target list must load even when the
@@ -791,18 +814,6 @@ class DashboardServer
         return;
       }
       RespondJson(p_connection, 200, settings->Describe());
-    }
-    else if (p_request.path_ == "/api/replay")
-    {
-      Replay(p_connection, p_request);
-    }
-    else if (p_request.path_ == "/api/history")
-    {
-      History(p_connection, p_request);
-    }
-    else if (p_request.path_ == "/api/resources")
-    {
-      Resources(p_connection, p_request);
     }
     else
     {
@@ -973,21 +984,65 @@ class DashboardServer
     RespondJson(p_connection, code, *result);
   }
 
-  [[nodiscard]] std::optional<TargetFilter> SelectedFilter(
+  // What a read of stored data uses for one target.
+  struct StoredTarget
+  {
+    std::optional<TargetFilter> filter_;
+    std::filesystem::path replay_root_;
+    // Also read data_dir/replay: a "default" target may have owned it.
+    bool merge_legacy_ = false;
+    double replay_interval_s_ = 1;
+  };
+
+  // The selected published target; else, for a "host/id" key, a target with
+  // stored data whose sampler has not registered since the collector started
+  // (IsRecordedTarget). Legacy ownership can have moved between "default"
+  // targets, so a recorded "default" target reads both replay roots.
+  // nullopt: the key names no target.
+  [[nodiscard]] std::optional<StoredTarget> StoredTargetFor(
       const Request& p_request)
   {
-    const auto target =
-        state_.Select(QueryValue(p_request.query_, "target").value_or(""));
-    return target ? std::optional{TargetFilter{
-                        target->host_, target->id_,
-                        target->id_ == "default" ? target->peer_ : "",
-                        target->legacy_replay_}}
-                  : std::nullopt;
+    const auto key = QueryValue(p_request.query_, "target");
+    if (const auto target = state_.Select(key.value_or("")))
+    {
+      return StoredTarget{
+          .filter_ = TargetFilter{target->host_, target->id_,
+                                  target->id_ == "default" ? target->peer_ : "",
+                                  target->legacy_replay_},
+          .replay_root_ = target->replay_root_,
+          .merge_legacy_ = target->legacy_replay_,
+          .replay_interval_s_ = target->replay_interval_s_};
+    }
+    const std::filesystem::path data_dir{config_.data_dir_};
+    if (!key)
+    {
+      return StoredTarget{.filter_ = std::nullopt,
+                          .replay_root_ = data_dir,
+                          .merge_legacy_ = false,
+                          .replay_interval_s_ = config_.replay_interval_s_};
+    }
+    const auto slash = key->find('/');
+    if (slash == std::string::npos)
+    {
+      return std::nullopt;
+    }
+    const std::string host{key->substr(0, slash)};
+    const std::string id{key->substr(slash + 1)};
+    if (!IsRecordedTarget(data_dir, host, id))
+    {
+      return std::nullopt;
+    }
+    return StoredTarget{
+        .filter_ = TargetFilter{host, id, "", false},
+        .replay_root_ = TargetDataRoot(data_dir, *key),
+        .merge_legacy_ = id == "default",
+        .replay_interval_s_ = ReplayInterval(config_, host, id)};
   }
 
   // Stored resource samples between start and end (default: the last 15
   // minutes), combined into at most about 1,000 buckets.
-  void Resources(const HttpConnection& p_connection, const Request& p_request)
+  void Resources(const HttpConnection& p_connection, const Request& p_request,
+                 const StoredTarget& p_target)
   {
     const auto end_text = QueryValue(p_request.query_, "end");
     const auto end = end_text ? PythonFloat(*end_text) : WallNow();
@@ -1005,9 +1060,8 @@ class DashboardServer
       return;
     }
     const double bucket = std::max(1.0, std::ceil((*end - *start) / 1000));
-    auto history =
-        collector::ResourceHistory(config_.data_dir_, *start, *end, bucket,
-                                   200'000, SelectedFilter(p_request));
+    auto history = collector::ResourceHistory(
+        config_.data_dir_, *start, *end, bucket, 200'000, p_target.filter_);
     RespondJson(p_connection, 200,
                 JsonObject{{"rows", std::move(history.rows_)},
                            {"bucket_s", bucket},
@@ -1015,7 +1069,8 @@ class DashboardServer
                            {"read_error", history.read_error_}});
   }
 
-  void Replay(const HttpConnection& p_connection, const Request& p_request)
+  void Replay(const HttpConnection& p_connection, const Request& p_request,
+              const StoredTarget& p_target)
   {
     const auto at_text = QueryValue(p_request.query_, "at");
     const auto at = at_text ? PythonFloat(*at_text) : std::nullopt;
@@ -1031,14 +1086,9 @@ class DashboardServer
               "application/json");
       return;
     }
-    const auto selected =
-        state_.Select(QueryValue(p_request.query_, "target").value_or(""));
-    auto replay =
-        collector::Replay(selected ? selected->replay_root_
-                                   : std::filesystem::path{config_.data_dir_},
-                          {at, direction});
-    if (selected && selected->legacy_replay_ &&
-        selected->replay_root_ != std::filesystem::path{config_.data_dir_})
+    auto replay = collector::Replay(p_target.replay_root_, {at, direction});
+    if (p_target.merge_legacy_ &&
+        p_target.replay_root_ != std::filesystem::path{config_.data_dir_})
     {
       replay = MergeReplay(
           std::move(replay),
@@ -1051,13 +1101,13 @@ class DashboardServer
         std::format(R"({{"first":{},"last":{},"interval_s":{},)"
                     R"("snapshot":{}}})",
                     DumpJson(Json(replay.first_)), DumpJson(Json(replay.last_)),
-                    DumpJson(Json(selected ? selected->replay_interval_s_
-                                           : config_.replay_interval_s_)),
+                    DumpJson(Json(p_target.replay_interval_s_)),
                     replay.snapshot_.value_or("null")),
         "application/json");
   }
 
-  void History(const HttpConnection& p_connection, const Request& p_request)
+  void History(const HttpConnection& p_connection, const Request& p_request,
+               const StoredTarget& p_target)
   {
     const auto invalid = [&]
     {
@@ -1102,7 +1152,7 @@ class DashboardServer
     }
     auto rows = collector::History(
         config_.data_dir_, *session, tid, *start, *end, 2000,
-        QueryValue(p_request.query_, "target") ? SelectedFilter(p_request)
+        QueryValue(p_request.query_, "target") ? p_target.filter_
                                                : std::nullopt);
     const bool truncated = rows.size() == 2000;
     RespondJson(p_connection, 200,

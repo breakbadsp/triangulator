@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { object, parseReplay } from "../api/replay";
 import type { Tool } from "./mcp";
-import { LIMITS, parseFleet, ToolError } from "./tools";
+import { LIMITS, ToolError } from "./tools";
 
 const METRICS = ["cpu_pct", "run_delay_pct", "read_bps", "write_bps"] as const;
 type Metric = (typeof METRICS)[number];
@@ -267,11 +267,8 @@ export function historyTools(get: (path: string) => Promise<unknown>): Tool[] {
         name === "compare" ? args.window_a : args.window,
       );
       const other = name === "compare" ? windowInput(args.window_b) : null;
-      const fleet = parseFleet(await get("/api/fleet"));
-      if (!fleet.targets.some((target) => target.key === args.target))
-        throw new ToolError(
-          "Unknown target. Use an exact key from list_targets.",
-        );
+      // The collector answers for a target with stored data even before its
+      // sampler registers again after a restart, and 404 for an unknown key.
       const a = await history(get, args.target, window);
       // Stored transition rows do not establish duration or overlap.
       // Sum only one sampler session and one lifetime per TID at each timestamp.

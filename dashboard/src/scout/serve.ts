@@ -186,6 +186,15 @@ async function getJson(url: string): Promise<unknown> {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // The read endpoints answer 404 {"error":"unknown target"} for a key that
+  // names no published or recorded target.
+  if (response.status === 404) {
+    const body: unknown = await response.json().catch(() => null);
+    if (isObject(body) && body.error === "unknown target")
+      throw new ToolError(
+        "Unknown target. Use an exact key from list_targets or list_incidents.",
+      );
+  }
   if (!response.ok)
     throw new ToolError(
       `The collector answered ${String(response.status)} for ${new URL(url).pathname}.`,

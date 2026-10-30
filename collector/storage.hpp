@@ -1130,6 +1130,38 @@ inline void BindTarget(Binder& p_binder, const TargetFilter& p_target,
       .Add(include_unmapped);
 }
 
+// Whether a day file in p_directory maps a session to this host and target
+// ID: the collector stored data for the target, even if its sampler has not
+// registered since the collector started. Unreadable files are skipped.
+[[nodiscard]] inline bool IsRecordedTarget(
+    const std::filesystem::path& p_directory, std::string_view p_host,
+    std::string_view p_id)
+{
+  for (const auto& path : DayFiles(p_directory))
+  {
+    auto database = OpenDatabase(path, true);
+    if (!database || !HasTargetMappings(database->get()))
+    {
+      continue;
+    }
+    ::sqlite3_busy_timeout(database->get(), 2000);
+    auto statement = Prepare(
+        database->get(),
+        "SELECT 1 FROM session_target WHERE host=? AND target=? LIMIT 1");
+    if (!statement)
+    {
+      continue;
+    }
+    Binder binder{statement->get()};
+    binder.Add(p_host).Add(p_id);
+    if (::sqlite3_step(statement->get()) == SQLITE_ROW)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Up to p_limit rollup rows for one thread from one day file, oldest first.
 [[nodiscard]] inline std::expected<JsonArray, std::string> DayHistory(
     const std::filesystem::path& p_path, std::string_view p_session,

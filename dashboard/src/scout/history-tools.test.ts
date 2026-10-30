@@ -39,20 +39,17 @@ function row(ts: number, generation = 1, valid = 1) {
 test("history tools use real GET history requests, isolate lifetimes, bound results, and check the switch", async () => {
   const requests: { method: string | undefined; url: URL }[] = [];
   let many = false;
+  // As after a collector restart: no sampler has registered host/worker
+  // again, but the collector answers for its stored data, and 404 for a key
+  // with no data.
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "", "http://localhost");
     requests.push({ method: req.method, url });
     res.setHeader("content-type", "application/json");
-    if (url.pathname === "/api/fleet")
-      res.end(
-        JSON.stringify({
-          list: {
-            targets: [{ key: "host/worker", id: "worker", host: "host" }],
-          },
-          live: {},
-        }),
-      );
-    else if (url.pathname === "/api/replay") {
+    if (url.searchParams.get("target") !== "host/worker") {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: "unknown target" }));
+    } else if (url.pathname === "/api/replay") {
       const at = Number(url.searchParams.get("at"));
       if (url.searchParams.get("direction") === "at") {
         res.end(
@@ -230,6 +227,14 @@ test("history tools use real GET history requests, isolate lifetimes, bound resu
       expect(url.searchParams.has("end")).toBe(true);
     }
     expect(requests.every((r) => r.method === "GET")).toBe(true);
+    expect(requests.some((r) => r.url.pathname === "/api/fleet")).toBe(false);
+    const unknown = await call("timeseries", {
+      target: "host/nope",
+      window,
+      metric: "cpu_pct",
+    });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.content[0]?.text).toContain("Unknown target.");
     many = true;
     const capped = await call("top_threads", {
       target: "host/worker",
@@ -285,13 +290,6 @@ test.each(["session", "generation", "session with different TID"])(
     };
     function response(path: string) {
       const url = new URL(path, "http://localhost");
-      if (url.pathname === "/api/fleet")
-        return {
-          list: {
-            targets: [{ key: "host/worker", id: "worker", host: "host" }],
-          },
-          live: {},
-        };
       if (url.pathname === "/api/replay") {
         const at = Number(url.searchParams.get("at"));
         if (url.searchParams.get("direction") === "at")
