@@ -1,0 +1,14 @@
+{
+  "revision": "bdc16008f565d552d8195bb08baf9a279b0a887c",
+  "http_port": 49889,
+  "udp_port": 51820,
+  "node": "v26.8.1",
+  "platform": "Linux omarchy 7.2.8-9-omarchy #1 SMP PREEMPT_DYNAMIC Sat, 17 Oct 2026 22:09:33 +0000 x86_64 GNU/Linux",
+  "started": 1793332718.7706914,
+  "hashes": {
+    "build/tri-scout.mjs": "aec054b6ac3d016e4cc5ba2b7ca49c571ac486719389d8cb909d005713523145",
+    "build/triangulator-sampler": "b761fcced651a1d45a026db9a4d013211d48ed7402434e48f899c3113408b32a",
+    "build/triangulator-collector": "1e1179314255f19ff41d88ff0ee39e344756d08fad7922d6cc9fbeef6769e301",
+    "bug-lab/bugbench.c": "fff0b3f7cad6e5e9ce4eefeb866f4345ad70b9f442ebaf4769c5326531b91fbf"
+  }
+}

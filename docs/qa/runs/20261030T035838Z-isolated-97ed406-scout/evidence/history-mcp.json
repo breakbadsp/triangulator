@@ -1,0 +1,1796 @@
+[
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "qa-history",
+          "version": "1"
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "tri",
+          "version": "0.1.0"
+        },
+        "instructions": "Triangulator monitors Linux processes and their threads. For a past-day question, call list_incidents with the day's start and exclusive end in Unix seconds. It answers the question in one call. Use get_incident for stored evidence. State unknown incident coverage and all omissions. For current status, call status_now: it gives each target's verdict and findings, worst first, as the Triangulator dashboard shows them. Each target has a data object. State its gaps in the answer: a target that is not live, an unreadable view, limited access (no I/O or wait channels), a throttled sampler, packet loss, or an old last sample."
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793332724.1674242,\"mean\":0},{\"at\":1793332729.1674242,\"mean\":0},{\"at\":1793332734.1674242,\"mean\":0},{\"at\":1793332739.1674242,\"mean\":0},{\"at\":1793332744.1674242,\"mean\":0},{\"at\":1793332749.1674242,\"mean\":0},{\"at\":1793332754.1674242,\"mean\":0},{\"at\":1793332759.1674242,\"mean\":0.6000177655646567},{\"at\":1793332764.1674242,\"mean\":0.2000005529219204},{\"at\":1793332769.1674242,\"mean\":0},{\"at\":1793332774.1674242,\"mean\":0},{\"at\":1793332779.1674242,\"mean\":0},{\"at\":1793332784.1674242,\"mean\":0},{\"at\":1793332789.1674242,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":2,\"rows\":[{\"thread\":\"2521d2edd73b49d11bebd71f\",\"mean\":0.014286137275348968},{\"thread\":\"ddf9b65eb3d86dbd8d622017\",\"mean\":0.014286137275348968},{\"thread\":\"9adcbb6050289de43ed80bda\",\"mean\":0.014286137275348968}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.05714416560618408,\"change\":0},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.09400610571697114,\"change\":0},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332794.2582161,\"end\":1793332864.2993631},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793332794.2582161,\"mean\":98.99981752316108},{\"at\":1793332799.2582161,\"mean\":99.60056889866392},{\"at\":1793332804.2582161,\"mean\":99.59951206186945},{\"at\":1793332809.2582161,\"mean\":99.40001703757036},{\"at\":1793332814.2582161,\"mean\":99.600510531871},{\"at\":1793332819.2582161,\"mean\":99.7992747587247},{\"at\":1793332824.2582161,\"mean\":99.600864993719},{\"at\":1793332829.2582161,\"mean\":99.79949060337204},{\"at\":1793332834.2582161,\"mean\":99.79922813306679},{\"at\":1793332839.2582161,\"mean\":98.60074070840811},{\"at\":1793332844.2582161,\"mean\":99.79981315450567},{\"at\":1793332849.2582161,\"mean\":99.60010563605029},{\"at\":1793332854.2582161,\"mean\":96.2001149398542},{\"at\":1793332859.2582161,\"mean\":99.77832392016043}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332794.2582161,\"end\":1793332864.2993631},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":2,\"rows\":[{\"thread\":\"c059dbc75d1cd8bf510a1629\",\"mean\":99.2984559214998},{\"thread\":\"78f3af1c58f86cc2de56e701\",\"mean\":0},{\"thread\":\"5a84d96d2504dc18b74ce48b\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793332794.2582161,\"end\":1793332864.2993631},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":99.2984559214998,\"change\":99.2413117558936},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.41144788081243255,\"change\":0.3174417750954614},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332864.2996476,\"end\":1793332934.3449173},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":19,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793332864.2996476,\"mean\":199.00051612763764},{\"at\":1793332869.2996476,\"mean\":198.60075301470764},{\"at\":1793332874.2996476,\"mean\":199.19891038177977},{\"at\":1793332879.2996476,\"mean\":199.99952968087757},{\"at\":1793332884.2996476,\"mean\":199.3883957553724},{\"at\":1793332889.2996476,\"mean\":195.60980067671827},{\"at\":1793332894.2996476,\"mean\":199.00199909455304},{\"at\":1793332899.2996476,\"mean\":199.60012255401426},{\"at\":1793332904.2996476,\"mean\":199.39993806716117},{\"at\":1793332909.2996476,\"mean\":199.40015581070404},{\"at\":1793332914.2996476,\"mean\":199.3980812326683},{\"at\":1793332919.2996476,\"mean\":199.80146698191777},{\"at\":1793332924.2996476,\"mean\":199.4004216921586},{\"at\":1793332929.2996476,\"mean\":199.33336562501717}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332864.2996476,\"end\":1793332934.3449173},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":19,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":16,\"rows\":[{\"thread\":\"307d024715ef44622fb2b4ad\",\"mean\":12.149209548491678},{\"thread\":\"4303858022663a0c50f468a9\",\"mean\":11.847620099343933},{\"thread\":\"be1eb7f580b92516e416ca14\",\"mean\":11.846033254023565}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793332864.2996476,\"end\":1793332934.3449173},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":19,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":199.0809611925205,\"change\":199.02381702691432},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":1600.2813673117091,\"change\":1600.1873612059921},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332934.3456736,\"end\":1793333004.3840587},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793332934.3456736,\"mean\":199.801380867165},{\"at\":1793332939.3456736,\"mean\":199.59974056018712},{\"at\":1793332944.3456736,\"mean\":199.59891366244156},{\"at\":1793332949.3456736,\"mean\":199.5997468282164},{\"at\":1793332954.3456736,\"mean\":199.60035592685827},{\"at\":1793332959.3456736,\"mean\":199.59982882383525},{\"at\":1793332964.3456736,\"mean\":199.7999652347739},{\"at\":1793332969.3456736,\"mean\":199.60003461077014},{\"at\":1793332974.3456736,\"mean\":199.600037604794},{\"at\":1793332979.3456736,\"mean\":199.801078406039},{\"at\":1793332984.3456736,\"mean\":199.79894526054716},{\"at\":1793332989.3456736,\"mean\":199.39993726978773},{\"at\":1793332994.3456736,\"mean\":199.79991528442343},{\"at\":1793332999.3456736,\"mean\":200.00015013319222}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793332934.3456736,\"end\":1793333004.3840587},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":2,\"rows\":[{\"thread\":\"dc39c761642213b5f5f00586\",\"mean\":49.973016566084524},{\"thread\":\"3b35e61ba29808fbf59a6b87\",\"mean\":49.91428628682246},{\"thread\":\"cc2e622841de456021bfa082\",\"mean\":49.90000033704715}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793332934.3456736,\"end\":1793333004.3840587},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":199.68571646235938,\"change\":199.6285722967532},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":200.02320079989977,\"change\":199.9291946941828},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333004.3845656,\"end\":1793333074.4302547},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":9,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333004.3845656,\"mean\":0},{\"at\":1793333009.3845656,\"mean\":1.5999691036349386},{\"at\":1793333014.3845656,\"mean\":1.600030890833931},{\"at\":1793333019.3845656,\"mean\":1.5999990582378538},{\"at\":1793333024.3845656,\"mean\":1.6000003305637025},{\"at\":1793333029.3845656,\"mean\":1.600002687680393},{\"at\":1793333034.3845656,\"mean\":1.0000003250025804},{\"at\":1793333039.3845656,\"mean\":1.1999763911857657},{\"at\":1793333044.3845656,\"mean\":0.9999988949986277},{\"at\":1793333049.3845656,\"mean\":1.5997184783463507},{\"at\":1793333054.3845656,\"mean\":1.6002841467723863},{\"at\":1793333059.3845656,\"mean\":1.6000377836153137},{\"at\":1793333064.3845656,\"mean\":1.3999909899381577},{\"at\":1793333069.3845656,\"mean\":0.888842911612951}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333004.3845656,\"end\":1793333074.4302547},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":9,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":6,\"rows\":[{\"thread\":\"bdf610c9c814acef1b8562f5\",\"mean\":0.17301532819374257},{\"thread\":\"eff1b800578bbbcae2a12027\",\"mean\":0.17301506292216415},{\"thread\":\"47e54fd847c30d96e63dcc55\",\"mean\":0.17301504249353625}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333004.3845656,\"end\":1793333074.4302547},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":9,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":1.3063465708873536,\"change\":1.2492024052811694},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.12506411069459963,\"change\":0.031058004977628492},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333074.430843,\"end\":1793333144.4754767},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":8,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333074.430843,\"mean\":0},{\"at\":1793333079.430843,\"mean\":0},{\"at\":1793333084.430843,\"mean\":0},{\"at\":1793333089.430843,\"mean\":0},{\"at\":1793333094.430843,\"mean\":0},{\"at\":1793333099.430843,\"mean\":0},{\"at\":1793333104.430843,\"mean\":0},{\"at\":1793333109.430843,\"mean\":0},{\"at\":1793333114.430843,\"mean\":0.20000725054272897},{\"at\":1793333119.430843,\"mean\":0},{\"at\":1793333124.430843,\"mean\":0},{\"at\":1793333129.430843,\"mean\":0},{\"at\":1793333134.430843,\"mean\":0},{\"at\":1793333139.430843,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333074.430843,\"end\":1793333144.4754767},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":8,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":1,\"rows\":[{\"thread\":\"ce1c23d5c320422e3e12e6ee\",\"mean\":0.014286232181623499},{\"thread\":\"03a9e1c70d311809a3355c81\",\"mean\":0},{\"thread\":\"d2a6429bd1df18dd3f502f7a\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333074.430843,\"end\":1793333144.4754767},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":8,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.014286232181623499,\"change\":-0.04285793342456058},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.0037856161164406123,\"change\":-0.09022048960053053},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333144.4760857,\"end\":1793333214.5550654},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333144.4760857,\"mean\":0.1999892415783157},{\"at\":1793333149.4760857,\"mean\":0.20000945428721756},{\"at\":1793333154.4760857,\"mean\":0.4000006351210948},{\"at\":1793333159.4760857,\"mean\":0.1999899696234284},{\"at\":1793333164.4760857,\"mean\":0.4000150301646336},{\"at\":1793333169.4760857,\"mean\":0.39998547356712233},{\"at\":1793333174.4760857,\"mean\":0.4000002712804801},{\"at\":1793333179.4760857,\"mean\":0.20000726802375848},{\"at\":1793333184.4760857,\"mean\":0.6000062687441933},{\"at\":1793333189.4760857,\"mean\":0.2000034189389595},{\"at\":1793333194.4760857,\"mean\":0.3999743633222545},{\"at\":1793333199.4760857,\"mean\":0.20001122466999383},{\"at\":1793333204.4760857,\"mean\":0.3999965999494608},{\"at\":1793333209.4760857,\"mean\":0.40000926597553194}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333144.4760857,\"end\":1793333214.5550654},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"f65a46d3e7b07aeeb9615cda\",\"mean\":0.3142854568332177},{\"thread\":\"aab16629d2746f8d72b065e3\",\"mean\":0.014285863541528412},{\"thread\":\"4ab39234b59aefef04176aa9\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333144.4760857,\"end\":1793333214.5550654},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.32857132037474607,\"change\":0.271427154768562},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.007687761571608178,\"change\":-0.08631834414536296},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333214.556613,\"end\":1793333284.6344876},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333214.556613,\"mean\":1.6000185413292654},{\"at\":1793333219.556613,\"mean\":0},{\"at\":1793333224.556613,\"mean\":0},{\"at\":1793333229.556613,\"mean\":0},{\"at\":1793333234.556613,\"mean\":0},{\"at\":1793333239.556613,\"mean\":0},{\"at\":1793333244.556613,\"mean\":0},{\"at\":1793333249.556613,\"mean\":0},{\"at\":1793333254.556613,\"mean\":0},{\"at\":1793333259.556613,\"mean\":0},{\"at\":1793333264.556613,\"mean\":0},{\"at\":1793333269.556613,\"mean\":0},{\"at\":1793333274.556613,\"mean\":0},{\"at\":1793333279.556613,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333214.556613,\"end\":1793333284.6344876},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"eef5aefb80450f7814ab581c\",\"mean\":0.1142870386663761},{\"thread\":\"681ad5840d3256793b9f66dc\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333214.556613,\"end\":1793333284.6344876},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.1142870386663761,\"change\":0.05714287306019202},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.0018877671515662403,\"change\":-0.0921183385654049},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":30.242895407657695,\"change\":30.242895407657695}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333284.6354375,\"end\":1793333354.684199},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333284.6354375,\"mean\":0},{\"at\":1793333289.6354375,\"mean\":0},{\"at\":1793333294.6354375,\"mean\":0},{\"at\":1793333299.6354375,\"mean\":0},{\"at\":1793333304.6354375,\"mean\":0},{\"at\":1793333309.6354375,\"mean\":0},{\"at\":1793333314.6354375,\"mean\":0},{\"at\":1793333319.6354375,\"mean\":0.20000775170054952},{\"at\":1793333324.6354375,\"mean\":0},{\"at\":1793333329.6354375,\"mean\":0},{\"at\":1793333334.6354375,\"mean\":0},{\"at\":1793333339.6354375,\"mean\":0},{\"at\":1793333344.6354375,\"mean\":0},{\"at\":1793333349.6354375,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333284.6354375,\"end\":1793333354.684199},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"33dab06805446acfcb0e6b71\",\"mean\":0.01428626797861068},{\"thread\":\"c4d7e8ff04909d86bd48a6ce\",\"mean\":0},{\"thread\":\"a6f4400bd5f28b7ce44e0410\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333284.6354375,\"end\":1793333354.684199},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.01428626797861068,\"change\":-0.0428578976275734},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.00367484579614308,\"change\":-0.09033125992082806},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333354.6851776,\"end\":1793333424.7554564},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333354.6851776,\"mean\":197.1531869488585},{\"at\":1793333359.6851776,\"mean\":198.60109032019602},{\"at\":1793333364.6851776,\"mean\":198.1997129277957},{\"at\":1793333369.6851776,\"mean\":198.79968653285943},{\"at\":1793333374.6851776,\"mean\":198.40027839535796},{\"at\":1793333379.6851776,\"mean\":198.40019542337086},{\"at\":1793333384.6851776,\"mean\":198.5995221298441},{\"at\":1793333389.6851776,\"mean\":198.40033577260576},{\"at\":1793333394.6851776,\"mean\":198.59999225477253},{\"at\":1793333399.6851776,\"mean\":198.39978664123115},{\"at\":1793333404.6851776,\"mean\":198.20021195585923},{\"at\":1793333409.6851776,\"mean\":198.8006457436664},{\"at\":1793333414.6851776,\"mean\":198.19903270982803},{\"at\":1793333419.6851776,\"mean\":198.40009086631676}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333354.6851776,\"end\":1793333424.7554564},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":3,\"rows\":[{\"thread\":\"5a8c5cce237e7f877e77f33a\",\"mean\":50.06978766483144},{\"thread\":\"96461ae5fda58f6fad7a09cb\",\"mean\":49.884088410084324},{\"thread\":\"1df72a58d1f8fcc71e5044f3\",\"mean\":49.214250840259346}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333354.6851776,\"end\":1793333424.7554564},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":198.368126330183,\"change\":198.3109821645768},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":200.1351080615287,\"change\":200.04110195581174},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":16102912970.259,\"change\":16102912970.259}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333424.756539,\"end\":1793333494.8163629},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333424.756539,\"mean\":196.2221045343499},{\"at\":1793333429.756539,\"mean\":192.00011999987117},{\"at\":1793333434.756539,\"mean\":193.99985275434562},{\"at\":1793333439.756539,\"mean\":192.399945127521},{\"at\":1793333444.756539,\"mean\":193.8001550401765},{\"at\":1793333449.756539,\"mean\":192.59993678907142},{\"at\":1793333454.756539,\"mean\":193.99993054794768},{\"at\":1793333459.756539,\"mean\":192.60027911670093},{\"at\":1793333464.756539,\"mean\":192.18826998041155},{\"at\":1793333469.756539,\"mean\":193.81160241573411},{\"at\":1793333474.756539,\"mean\":192.60015388734945},{\"at\":1793333479.756539,\"mean\":194.20007064957414},{\"at\":1793333484.756539,\"mean\":192.19988725567214},{\"at\":1793333489.756539,\"mean\":192.40010101082217}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333424.756539,\"end\":1793333494.8163629},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":1,\"rows\":[{\"thread\":\"b9abcae586cad9880fee86cf\",\"mean\":96.57937431571072},{\"thread\":\"a8793c4cb828f8a2b7434c68\",\"mean\":96.47936729431731},{\"thread\":\"0ebccf273c2b2aef3b0875d6\",\"mean\":0.14285904576825834}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333424.756539,\"end\":1793333494.8163629},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":193.2158863649677,\"change\":193.1587421993615},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.8923435521922378,\"change\":0.7983374464752667},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":7669686.618905458,\"change\":7669686.618905458}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333494.8175926,\"end\":1793333564.8743117},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333494.8175926,\"mean\":0},{\"at\":1793333499.8175926,\"mean\":0},{\"at\":1793333504.8175926,\"mean\":0},{\"at\":1793333509.8175926,\"mean\":0},{\"at\":1793333514.8175926,\"mean\":0},{\"at\":1793333519.8175926,\"mean\":0},{\"at\":1793333524.8175926,\"mean\":0},{\"at\":1793333529.8175926,\"mean\":0},{\"at\":1793333534.8175926,\"mean\":0},{\"at\":1793333539.8175926,\"mean\":0},{\"at\":1793333544.8175926,\"mean\":0},{\"at\":1793333549.8175926,\"mean\":0},{\"at\":1793333554.8175926,\"mean\":0},{\"at\":1793333559.8175926,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333494.8175926,\"end\":1793333564.8743117},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"053b7302484288a158fef003\",\"mean\":0},{\"thread\":\"3f41fee6a421ada11e30a824\",\"mean\":0},{\"thread\":\"02add5bc3b6ee1a85b48f732\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333494.8175926,\"end\":1793333564.8743117},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0,\"change\":-0.05714416560618408},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.0018802022054031692,\"change\":-0.09212590351156798},{\"metric\":\"read_bps\",\"a\":0,\"b\":19703.226107480656,\"change\":19703.226107480656},{\"metric\":\"write_bps\",\"a\":0,\"b\":18724.58544002884,\"change\":18724.58544002884}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333564.8756,\"end\":1793333634.9303606},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333564.8756,\"mean\":1.8000023846441342},{\"at\":1793333569.8756,\"mean\":1.7999941068184255},{\"at\":1793333574.8756,\"mean\":2.20003171345532},{\"at\":1793333579.8756,\"mean\":1.7999724416986966},{\"at\":1793333584.8756,\"mean\":2.0000295992431734},{\"at\":1793333589.8756,\"mean\":1.7999851357185288},{\"at\":1793333594.8756,\"mean\":1.9999804045945868},{\"at\":1793333599.8756,\"mean\":2.000027054762899},{\"at\":1793333604.8756,\"mean\":1.8000078437143938},{\"at\":1793333609.8756,\"mean\":1.7999988638442197},{\"at\":1793333614.8756,\"mean\":2.0000031536029086},{\"at\":1793333619.8756,\"mean\":1.9999986528078786},{\"at\":1793333624.8756,\"mean\":1.799999788671291},{\"at\":1793333629.8756,\"mean\":1.7999960522475156}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333564.8756,\"end\":1793333634.9303606},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"ca6ebe54caee3c7927f6e355\",\"mean\":1.900001942558855},{\"thread\":\"c841fa98c90c5486be7dbc02\",\"mean\":0},{\"thread\":\"1f528d72d834cb1cd9f4d3c7\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333564.8756,\"end\":1793333634.9303606},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":1.900001942558855,\"change\":1.8428577769526708},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.3825295867081181,\"change\":0.28852348099114694},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333634.931826,\"end\":1793333704.994364},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":4,\"missing_samples\":36,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333638.931826,\"mean\":0},{\"at\":1793333643.931826,\"mean\":0.2000003614003781},{\"at\":1793333648.931826,\"mean\":0},{\"at\":1793333653.931826,\"mean\":0},{\"at\":1793333658.931826,\"mean\":0.19998863276560036},{\"at\":1793333663.931826,\"mean\":0},{\"at\":1793333668.931826,\"mean\":0.20000632776060073},{\"at\":1793333673.931826,\"mean\":0.19998931741011106},{\"at\":1793333678.931826,\"mean\":0},{\"at\":1793333683.931826,\"mean\":0.20001377890978386},{\"at\":1793333688.931826,\"mean\":0},{\"at\":1793333693.931826,\"mean\":0.20000132800845263},{\"at\":1793333698.931826,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333634.931826,\"end\":1793333704.994364},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":4,\"missing_samples\":36,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":1,\"rows\":[{\"thread\":\"99ffbb4fd09fb4ce12cd8cf2\",\"mean\":0.0769238791419089},{\"thread\":\"6988a5b490419d8892558a6d\",\"mean\":0.01538379364693162},{\"thread\":\"b9c8113cc12cc3d8ea2aff67\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333634.931826,\"end\":1793333704.994364},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":4,\"missing_samples\":36,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.09230767278884053,\"change\":0.03516350718265645},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.01231172345771444,\"change\":-0.08169438225925671},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":62.230731727743404,\"change\":62.230731727743404}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333704.9959652,\"end\":1793333775.0646908},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":6,\"missing_samples\":54,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333708.9959652,\"mean\":0},{\"at\":1793333713.9959652,\"mean\":0},{\"at\":1793333718.9959652,\"mean\":0},{\"at\":1793333723.9959652,\"mean\":0},{\"at\":1793333728.9959652,\"mean\":0},{\"at\":1793333733.9959652,\"mean\":0},{\"at\":1793333738.9959652,\"mean\":0.2000013042489369},{\"at\":1793333743.9959652,\"mean\":0},{\"at\":1793333748.9959652,\"mean\":0},{\"at\":1793333753.9959652,\"mean\":0},{\"at\":1793333758.9959652,\"mean\":0},{\"at\":1793333763.9959652,\"mean\":0},{\"at\":1793333768.9959652,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333704.9959652,\"end\":1793333775.0646908},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":6,\"missing_samples\":54,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":3,\"rows\":[{\"thread\":\"e1f31ccbfadab934190a4416\",\"mean\":0.015384715711456684},{\"thread\":\"4e4209eb449a8531551b5b45\",\"mean\":0},{\"thread\":\"c9c05d45aef2e7c659d74ed2\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333704.9959652,\"end\":1793333775.0646908},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":6,\"missing_samples\":54,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.015384715711456684,\"change\":-0.04175944989472739},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.01796893474657296,\"change\":-0.07603717097039818},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333775.0671813,\"end\":1793333845.1286485},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":48,\"missing_samples\":432,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333779.0671813,\"mean\":0.7999951059484367},{\"at\":1793333784.0671813,\"mean\":0.400000000721775},{\"at\":1793333789.0671813,\"mean\":0.6000007718380691},{\"at\":1793333794.0671813,\"mean\":0.6000006500417424},{\"at\":1793333799.0671813,\"mean\":0.20000002852059376},{\"at\":1793333804.0671813,\"mean\":0.5999885656570366},{\"at\":1793333809.0671813,\"mean\":0.6000001364399523},{\"at\":1793333814.0671813,\"mean\":0.6000051478039687},{\"at\":1793333819.0671813,\"mean\":0.3999956835666806},{\"at\":1793333824.0671813,\"mean\":0.6000115706232206},{\"at\":1793333829.0671813,\"mean\":0.39998700706118534},{\"at\":1793333834.0671813,\"mean\":0.6000070938841028},{\"at\":1793333839.0671813,\"mean\":0.40000951022634196}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333775.0671813,\"end\":1793333845.1286485},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":48,\"missing_samples\":432,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[{\"thread\":\"a399208aa6070febdaccebe0\",\"mean\":0.5076924020656247},{\"thread\":\"981109c82d920659f63d4bcb\",\"mean\":0.0153846188830757},{\"thread\":\"8f69c3d47866d683ca3bbda8\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333775.0671813,\"end\":1793333845.1286485},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":48,\"missing_samples\":432,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.5230770209487005,\"change\":0.4659328553425164},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.40879247053133333,\"change\":0.3147863648143622},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333845.1303673,\"end\":1793334010.374084},\"step\":1.6524371671676636,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":15,\"missing_samples\":171,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[{\"at\":1793333848.4352417,\"mean\":0},{\"at\":1793333853.392553,\"mean\":0},{\"at\":1793333858.3498647,\"mean\":0},{\"at\":1793333863.307176,\"mean\":0},{\"at\":1793333869.9169247,\"mean\":0},{\"at\":1793333874.8742363,\"mean\":0},{\"at\":1793333879.8315477,\"mean\":0.39999758297408194},{\"at\":1793333884.7888594,\"mean\":0},{\"at\":1793333889.7461708,\"mean\":0},{\"at\":1793333894.7034824,\"mean\":0},{\"at\":1793333899.6607938,\"mean\":0},{\"at\":1793333904.6181054,\"mean\":0},{\"at\":1793333909.5754168,\"mean\":0},{\"at\":1793333914.5327282,\"mean\":0.19999653561919556},{\"at\":1793333919.4900398,\"mean\":0},{\"at\":1793333924.4473512,\"mean\":0},{\"at\":1793333929.4046628,\"mean\":0},{\"at\":1793333934.3619742,\"mean\":0.1999923677709831},{\"at\":1793333939.3192859,\"mean\":0},{\"at\":1793333944.2765973,\"mean\":0},{\"at\":1793333949.233909,\"mean\":0.19999980924087146},{\"at\":1793333954.1912203,\"mean\":0},{\"at\":1793333959.148532,\"mean\":0},{\"at\":1793333964.1058433,\"mean\":0},{\"at\":1793333969.0631547,\"mean\":0},{\"at\":1793333974.0204663,\"mean\":0.19999525771312535},{\"at\":1793333978.9777777,\"mean\":0},{\"at\":1793333983.9350893,\"mean\":0.19999851329076715},{\"at\":1793333988.8924007,\"mean\":0},{\"at\":1793333993.8497124,\"mean\":0},{\"at\":1793333998.8070238,\"mean\":0},{\"at\":1793334003.7643354,\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793333845.1303673,\"end\":1793334010.374084},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":15,\"missing_samples\":171,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":57,\"rows\":[{\"thread\":\"bf74bad1dcabe5fedda496ed\",\"mean\":0.024999801551183597},{\"thread\":\"76c90b6c2f8face99159050f\",\"mean\":0.0206891867921086},{\"thread\":\"2f6517df1bc01fe252457c3c\",\"mean\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793333845.1303673,\"end\":1793334010.374084},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":15,\"missing_samples\":171,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":0.043749377081532016,\"change\":-0.013394788524652063},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":0.009521970154155901,\"change\":-0.08448413556281524},{\"metric\":\"read_bps\",\"a\":0,\"b\":0,\"change\":0},{\"metric\":\"write_bps\",\"a\":0,\"b\":0,\"change\":0}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793334010.3760471,\"end\":1793334085.4451225},\"step\":1,\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"rows\":[],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"metric\":\"cpu_pct\",\"window\":{\"start\":1793334010.3760471,\"end\":1793334085.4451225},\"data\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"unlisted_threads\":0,\"rows\":[],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window_a\":{\"start\":1793332724.1674242,\"end\":1793332794.2579932},\"window_b\":{\"start\":1793334010.3760471,\"end\":1793334085.4451225},\"data\":{\"a\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":5,\"history_truncated\":false,\"discovery_limited\":false,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]},\"b\":{\"completeness\":\"unknown\",\"invalid_rollups\":0,\"missing_samples\":0,\"history_truncated\":false,\"discovery_limited\":true,\"sampler_throttling\":\"unknown\",\"gaps\":[\"Only threads present in inspected recordings can be discovered. Missing recordings and unreadable history are not reported by the collector. Missing samples can include packet loss or sampler throttling. History cannot prove complete window coverage.\",\"Target totals exclude timestamps that contain different lifetimes of one thread or different sampler runs; stored rows cannot establish overlap.\"]}},\"rows\":[{\"metric\":\"cpu_pct\",\"a\":0.05714416560618408,\"b\":null,\"change\":null},{\"metric\":\"run_delay_pct\",\"a\":0.09400610571697114,\"b\":null,\"change\":null},{\"metric\":\"read_bps\",\"a\":0,\"b\":null,\"change\":null},{\"metric\":\"write_bps\",\"a\":0,\"b\":null,\"change\":null}],\"omitted_rows\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  }
+]

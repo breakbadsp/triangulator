@@ -1,0 +1,1796 @@
+[
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "qa-history",
+          "version": "1"
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "tri",
+          "version": "0.1.0"
+        },
+        "instructions": "Triangulator monitors Linux processes and their threads. For a past-day question, call list_incidents with the day's start and exclusive end in Unix seconds. It answers the question in one call. Use get_incident for stored evidence. State unknown incident coverage and all omissions. For current status, call status_now: it gives each target's verdict and findings, worst first, as the Triangulator dashboard shows them. Each target has a data object. State its gaps in the answer: a target that is not live, an unreadable view, limited access (no I/O or wait channels), a throttled sampler, packet loss, or an old last sample."
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332794.2582161,
+            "end": 1793332864.2993631
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332864.2996476,
+            "end": 1793332934.3449173
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793332934.3456736,
+            "end": 1793333004.3840587
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333004.3845656,
+            "end": 1793333074.4302547
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333074.430843,
+            "end": 1793333144.4754767
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333144.4760857,
+            "end": 1793333214.5550654
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333214.556613,
+            "end": 1793333284.6344876
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333284.6354375,
+            "end": 1793333354.684199
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333354.6851776,
+            "end": 1793333424.7554564
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333424.756539,
+            "end": 1793333494.8163629
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333494.8175926,
+            "end": 1793333564.8743117
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333564.8756,
+            "end": 1793333634.9303606
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333634.931826,
+            "end": 1793333704.994364
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333704.9959652,
+            "end": 1793333775.0646908
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333775.0671813,
+            "end": 1793333845.1286485
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793333845.1303673,
+            "end": 1793334010.374084
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "method": "tools/call",
+      "params": {
+        "name": "top_threads",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          },
+          "n": 3
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "method": "tools/call",
+      "params": {
+        "name": "compare",
+        "arguments": {
+          "target": "omarchy/default",
+          "metric": "cpu_pct",
+          "window_a": {
+            "start": 1793332724.1674242,
+            "end": 1793332794.2579932
+          },
+          "window_b": {
+            "start": 1793334010.3760471,
+            "end": 1793334085.4451225
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Unknown target. Use an exact key from list_targets."
+          }
+        ],
+        "isError": true
+      }
+    }
+  }
+]
