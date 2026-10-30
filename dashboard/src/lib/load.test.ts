@@ -113,9 +113,7 @@ test("old or invalid saved average state is seeded from retained points", () => 
 });
 
 test("a restore takes thread observations from the threads entry of the same session", () => {
-  const seen = [
-    [1, { first: 900, active: null, generation: 1, futexSince: 950 }],
-  ];
+  const seen = [[1, { first: 900, active: null, generation: 1 }]];
   expect([
     ...restoreSeries(null, { session: "s", since: 0, avg: [], seen }, "s").seen,
   ]).toEqual(seen);

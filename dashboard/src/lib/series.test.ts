@@ -81,7 +81,7 @@ test("ingest preserves its inputs, counts thread generations, and resets on a ne
     ],
   });
   expect(second.points.at(-1)).toMatchObject({ born: 1, died: 1 });
-  expect(first.seen.get(1)).toMatchObject({ first: 1000, futexSince: 1000 });
+  expect(first.seen.get(1)).toMatchObject({ first: 1000 });
   expect(second.seen.get(1)).toMatchObject({ first: 1001 });
   const reset = ingest(second, {
     ...a,

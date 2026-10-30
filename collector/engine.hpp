@@ -198,6 +198,12 @@ inline constexpr std::size_t kMaxRetiredSessions = 128;
 inline constexpr std::size_t kMaxLossEntries = 4096;
 // Threads tracked at once. This is the most a tick can describe.
 inline constexpr std::size_t kMaxTrackedThreads = wire::kMaxThreads;
+// The thread count history in the live view: the smallest count in each
+// 5 s step of the last 300 s, plus the current step. The dashboard's
+// thread-growth rule reads it, so a view alone (a recording, the Targets
+// page, tri-scout) has the trend that a live tab used to build itself.
+inline constexpr double kThreadCountStepS = 5;
+inline constexpr std::size_t kThreadCountSteps = 61;
 
 // Turns sampler datagrams into per-thread state, rollup rows and the live
 // dashboard snapshot. Alerting is not done here: it is a separate program
@@ -254,6 +260,8 @@ class Monitor
       session_text_.Clear();
       AppendUnsigned(session_text_, *session_);
       ClearThreads();
+      thread_counts_.fill({});
+      newest_step_ = -1;
       ++epoch_;
       for (auto& tick : ticks_)
       {
@@ -511,7 +519,8 @@ class Monitor
           {"generation", thread.generation_}});
     }
     return JsonObject{{"threads", std::move(threads)},
-                      {"groups", std::move(groups)}};
+                      {"groups", std::move(groups)},
+                      {"thread_counts", ThreadCountsJson()}};
   }
 
   void Close()
@@ -598,6 +607,13 @@ class Monitor
     std::uint64_t seen_ = 0;
   };
 
+  // The smallest thread count seen in one kThreadCountStepS step.
+  struct ThreadCount
+  {
+    std::int64_t step_ = -1;  // -1: unused
+    std::size_t count_ = 0;
+  };
+
   // Thread ids in order, each with the slot that holds its state.
   struct ThreadRef
   {
@@ -651,6 +667,53 @@ class Monitor
   // Samples of threads that did not fit in the thread table.
   std::int64_t dropped_samples_ = 0;
   std::int64_t raw_count_ = 0;
+  // Ring indexed by step % kThreadCountSteps; newest_step_ is the latest.
+  std::array<ThreadCount, kThreadCountSteps> thread_counts_{};
+  std::int64_t newest_step_ = -1;
+
+  void RecordThreadCount(double p_wall) noexcept
+  {
+    const auto step =
+        static_cast<std::int64_t>(std::floor(p_wall / kThreadCountStepS));
+    // A wall clock that steps back past the history would reuse the slot
+    // of a newer step.
+    if (step < 0 ||
+        step <= newest_step_ - static_cast<std::int64_t>(kThreadCountSteps))
+    {
+      return;
+    }
+    auto& entry =
+        thread_counts_[static_cast<std::size_t>(step) % kThreadCountSteps];
+    if (entry.step_ != step)
+    {
+      entry = {.step_ = step, .count_ = index_.Size()};
+    }
+    entry.count_ = std::min(entry.count_, index_.Size());
+    newest_step_ = std::max(newest_step_, step);
+  }
+
+  // [[step start, count], ...], oldest first, for the steps that have one.
+  [[nodiscard]] Json ThreadCountsJson() const
+  {
+    JsonArray counts;
+    const auto steps = static_cast<std::int64_t>(kThreadCountSteps);
+    for (auto step = newest_step_ - steps + 1; step <= newest_step_; ++step)
+    {
+      if (step < 0)
+      {
+        continue;
+      }
+      const auto& entry =
+          thread_counts_[static_cast<std::size_t>(step) % kThreadCountSteps];
+      if (entry.step_ == step)
+      {
+        counts.emplace_back(
+            JsonArray{Json(static_cast<double>(step) * kThreadCountStepS),
+                      Json(static_cast<std::int64_t>(entry.count_))});
+      }
+    }
+    return counts;
+  }
 
   [[nodiscard]] bool IsRetired(std::uint64_t p_session) const noexcept
   {
@@ -1006,6 +1069,7 @@ class Monitor
           return monotonic - p_thread.latest_.monotonic_ >
                  std::max(10.0, 3 * interval_);
         });
+    RecordThreadCount(wall);
     PruneRaw(monotonic);
   }
 

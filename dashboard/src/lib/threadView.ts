@@ -1,7 +1,7 @@
 import type { Thread } from "../api/types";
 import { duration, isNum } from "./format";
 import type { Series } from "./series";
-import { STATES, isIdle, stateLabels } from "./threads";
+import { STATES, futexWaitSecs, isIdle, stateLabels } from "./threads";
 
 // What the thread table shows, and which thread the drawer shows. Each action
 // is one of the old page's handlers (777cf3a: setActivity, renderChips,
@@ -229,11 +229,7 @@ const sortValue: Record<
   major_faults_per_s: (thread) => thread.major_faults_per_s ?? -1,
 };
 /** The rows, the activity counts, and the idle summary of the thread table. */
-export function threadRows(
-  threads: readonly Thread[],
-  view: ThreadView,
-  series: Series,
-) {
+export function threadRows(threads: readonly Thread[], view: ThreadView) {
   const base = threads.filter((thread) =>
       matches(thread, view, { activity: true }),
     ),
@@ -246,18 +242,7 @@ export function threadRows(
     )
       .map(([state, count]) => `${String(count)} ${state.toLowerCase()}`)
       .join(", ");
-    const longest = Math.max(
-      0,
-      ...idle
-        .filter((thread) => thread.state === "futex")
-        .map((thread) => {
-          const since = series.seen.get(thread.tid)?.futexSince;
-          return isNum(since)
-            ? (series.lastTick || thread.last_sample || 0) - since
-            : null;
-        })
-        .filter(isNum),
-    );
+    const longest = Math.max(0, ...idle.map(futexWaitSecs).filter(isNum));
     idleSummary =
       `${String(idle.length)} idle thread${idle.length > 1 ? "s" : ""} hidden (${waits}).` +
       (longest >= STUCK_FUTEX_S

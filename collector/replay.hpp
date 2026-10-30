@@ -382,6 +382,10 @@ struct ReplayQuery
 {
   std::optional<double> at_;
   std::string_view direction_ = "at";
+  // "host/id": read only the frames recorded for this target. Empty: every
+  // frame. The frame text holds the key as a top-level `"target"` member;
+  // the same quoted text cannot occur inside a string, which DumpJson escapes.
+  std::string_view target_ = {};
 };
 
 // Opens a replay day file read-only for one query.
@@ -397,10 +401,11 @@ struct ReplayQuery
 }
 
 // Runs a one-row query and returns its first column. nullopt when there is
-// no row, the value is NULL or the file can't be read.
+// no row, the value is NULL or the file can't be read. The query binds p_at,
+// then p_match, each only when given.
 [[nodiscard]] inline std::optional<Json> ReadOne(
     const std::filesystem::path& p_path, std::string_view p_sql,
-    std::optional<double> p_at = std::nullopt)
+    std::optional<double> p_at = std::nullopt, std::string_view p_match = {})
 {
   auto database = OpenReplayDay(p_path);
   if (!database)
@@ -412,9 +417,14 @@ struct ReplayQuery
   {
     return std::nullopt;
   }
+  Binder binder{statement->get()};
   if (p_at)
   {
-    Binder{statement->get()}.Add(*p_at);
+    binder.Add(*p_at);
+  }
+  if (!p_match.empty())
+  {
+    binder.Add(p_match);
   }
   if (::sqlite3_step(statement->get()) != SQLITE_ROW)
   {
@@ -438,16 +448,22 @@ struct ReplayQuery
 {
   auto files = DayFiles(ReplayDirectory(p_data_dir));
   ReplayResult result;
+  const std::string match =
+      p_query.target_.empty()
+          ? std::string{}
+          : R"("target":)" + DumpJson(Json(p_query.target_));
+  const std::string condition =
+      match.empty() ? "" : " AND instr(snapshot, ?)>0";
   if (p_query.at_)
   {
     const bool next = p_query.direction_ == "next";
-    const auto sql = next ? "SELECT snapshot FROM process_snapshot WHERE ts>? "
-                            "ORDER BY ts LIMIT 1"
-                     : p_query.direction_ == "previous"
-                         ? "SELECT snapshot FROM process_snapshot WHERE ts<? "
-                           "ORDER BY ts DESC LIMIT 1"
-                         : "SELECT snapshot FROM process_snapshot WHERE ts<=? "
-                           "ORDER BY ts DESC LIMIT 1";
+    const auto sql =
+        "SELECT snapshot FROM process_snapshot WHERE ts" +
+        std::string{next                               ? ">?"
+                    : p_query.direction_ == "previous" ? "<?"
+                                                       : "<=?"} +
+        condition +
+        (next ? " ORDER BY ts LIMIT 1" : " ORDER BY ts DESC LIMIT 1");
     const auto day = DayName(UtcDay(*p_query.at_));
     const auto search = [&](auto p_begin, auto p_end)
     {
@@ -458,7 +474,7 @@ struct ReplayQuery
         {
           continue;
         }
-        auto found = ReadOne(*iterator, sql, p_query.at_);
+        auto found = ReadOne(*iterator, sql, p_query.at_, match);
         // The collector wrote the text with DumpJson; a row that isn't a
         // JSON object is damage, and that file is skipped.
         if (found && found->IsString() && found->AsString().starts_with('{'))
@@ -480,7 +496,9 @@ struct ReplayQuery
   // After the snapshot, so the bounds include it even while recording.
   for (const auto& path : files)
   {
-    if (auto first = ReadOne(path, "SELECT min(ts) FROM process_snapshot");
+    if (auto first = ReadOne(
+            path, "SELECT min(ts) FROM process_snapshot WHERE 1" + condition,
+            std::nullopt, match);
         first && first->IsNumber())
     {
       result.first_ = first->AsNumber();
@@ -489,7 +507,10 @@ struct ReplayQuery
   }
   for (auto iterator = files.rbegin(); iterator != files.rend(); ++iterator)
   {
-    if (auto last = ReadOne(*iterator, "SELECT max(ts) FROM process_snapshot");
+    if (auto last =
+            ReadOne(*iterator,
+                    "SELECT max(ts) FROM process_snapshot WHERE 1" + condition,
+                    std::nullopt, match);
         last && last->IsNumber())
     {
       result.last_ = last->AsNumber();
@@ -499,8 +520,9 @@ struct ReplayQuery
   return result;
 }
 
-// The primary default target can also read recordings from before target
-// directories existed. Other targets never read that legacy directory.
+// A recorded default target can also read its frames in the legacy
+// directory (Replay with the target key filters them). Other targets never
+// read that directory.
 [[nodiscard]] inline ReplayResult MergeReplay(ReplayResult p_primary,
                                               ReplayResult p_legacy,
                                               std::string_view p_direction)

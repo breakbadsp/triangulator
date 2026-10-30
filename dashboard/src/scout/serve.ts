@@ -9,7 +9,15 @@ import { readScoutConfig } from "./config";
 import { historyTools } from "./history-tools";
 import { getIncident, listIncidents } from "./incident-tools";
 import { handle, parseError, type Tool } from "./mcp";
-import { LIMITS, listTargets, parseFleet, statusNow, ToolError } from "./tools";
+import {
+  LIMITS,
+  listTargets,
+  parseFleet,
+  parseResources,
+  RESOURCE_SPAN_S,
+  statusNow,
+  ToolError,
+} from "./tools";
 
 /** The exit status when the switch is off. */
 export const DISABLED = 2;
@@ -93,7 +101,8 @@ function scoutTools(collectorUrl: () => string): Tool[] {
       description:
         "Is something wrong now? Gives each target's verdict (critical, " +
         "serious, warning, info, good, or unknown) and its findings, worst " +
-        "first: the same assessment as the dashboard Targets page. Each " +
+        "first: the same assessment as the dashboard target page, with " +
+        "RSS growth from stored resource samples. Each " +
         `target has at most ${String(LIMITS.findings)} findings and a data object that ` +
         "states data completeness.",
       inputSchema: {
@@ -110,7 +119,15 @@ function scoutTools(collectorUrl: () => string): Tool[] {
         const target = args.target;
         if (target !== undefined && typeof target !== "string")
           throw new ToolError("target must be a string.");
-        return statusNow(await fleet(), now(), target);
+        const at = now();
+        return statusNow(await fleet(), at, target, async (key) =>
+          parseResources(
+            await getJson(
+              `${collectorUrl()}/api/resources?${new URLSearchParams({ target: key, start: String(at - RESOURCE_SPAN_S), end: String(at) })}`,
+            ),
+            at,
+          ),
+        );
       },
     },
     {
@@ -169,6 +186,15 @@ async function getJson(url: string): Promise<unknown> {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // The read endpoints answer 404 {"error":"unknown target"} for a key that
+  // names no published or recorded target.
+  if (response.status === 404) {
+    const body: unknown = await response.json().catch(() => null);
+    if (isObject(body) && body.error === "unknown target")
+      throw new ToolError(
+        "Unknown target. Use an exact key from list_targets or list_incidents.",
+      );
+  }
   if (!response.ok)
     throw new ToolError(
       `The collector answered ${String(response.status)} for ${new URL(url).pathname}.`,

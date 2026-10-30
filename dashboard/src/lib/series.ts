@@ -1,6 +1,6 @@
 import type { LiveResponse } from "../api/types";
 import { isNum } from "./format";
-import { STATES, isIdle, futexShare } from "./threads";
+import { STATES, isIdle } from "./threads";
 export interface Point {
   t: number;
   cpu: number | null;
@@ -29,7 +29,6 @@ export interface ThreadSeen {
   first: number;
   active: number | null;
   generation?: number;
-  futexSince?: number | null;
 }
 /** One live CPU sample of a thread, for its sparkline and drawer chart. */
 export interface CpuSample {
@@ -141,8 +140,7 @@ const isSeenEntry = (value: unknown): value is [number, ThreadSeen] => {
     isRecord(seen) &&
     isNum(seen.first) &&
     isNumOrNull(seen.active) &&
-    (seen.generation == null || isNum(seen.generation)) &&
-    (seen.futexSince == null || isNum(seen.futexSince))
+    (seen.generation == null || isNum(seen.generation))
   );
 };
 const isAvgEntry = (value: unknown): value is [number, unknown[]] => {
@@ -273,14 +271,6 @@ export function ingest(series: Series, view: LiveResponse): Series {
       previous && previous.generation === thread.generation
         ? { ...previous }
         : { first: tick, active: null, generation: thread.generation };
-    if (
-      !thread.stale &&
-      thread.state === "futex" &&
-      isIdle(thread) &&
-      futexShare(thread) === 1
-    )
-      observation.futexSince ??= tick;
-    else observation.futexSince = null;
     if (!isIdle(thread)) {
       point.active = (point.active ?? 0) + 1;
       observation.active = tick;

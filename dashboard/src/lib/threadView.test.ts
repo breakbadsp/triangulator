@@ -1,7 +1,5 @@
 import { expect, test } from "vitest";
 import type { Thread } from "../api/types";
-import { emptySeries, ingest } from "./series";
-import { view } from "./test-fixtures";
 import {
   chips,
   initialThreadView,
@@ -79,41 +77,30 @@ test("rows sort by the chosen column, then by TID, and the counts ignore activit
     thread(4),
   ];
   const io = { ...initialThreadView, sort: "io" as const };
-  const table = threadRows(threads, io, emptySeries);
+  const table = threadRows(threads, io);
   expect(table.rows.map((row) => row.tid)).toEqual([1, 3, 2]);
   expect(table.counts).toEqual({ active: 3, idle: 1, all: 4 });
   expect(table.count).toBe("(3 of 4)");
   expect(
-    threadRows(threads, { ...initialThreadView, sort: "name" }, emptySeries)
-      .rows[0]?.name,
+    threadRows(threads, { ...initialThreadView, sort: "name" }).rows[0]?.name,
   ).toBe("alpha");
 });
 
 test("the idle summary names the hidden waits and a long futex wait", () => {
-  let series = emptySeries;
-  for (const t of [100, 120, 140])
-    series = ingest(
-      series,
-      view({
-        threads: [
-          thread(1, { last_sample: t }),
-          thread(2, { last_sample: t, state: "sleep", wchan: "hrtimer" }),
-        ],
-      }),
-    );
+  // The collector last saw thread 1 run 40 s before its newest sample.
   const threads = [
-    thread(1, { last_sample: 140 }),
-    thread(2, { last_sample: 140, state: "sleep" }),
+    thread(1, { last_sample: 140, last_ran: 100 }),
+    thread(2, { last_sample: 140, last_ran: 100, state: "sleep" }),
   ];
-  const table = threadRows(threads, initialThreadView, series);
+  const table = threadRows(threads, initialThreadView);
   expect(table.idleSummary).toBe(
     "2 idle threads hidden (1 futex wait, 1 sleep). Longest futex wait: over 40 s.",
   );
   expect(table.empty).toBe("Every thread is idle right now.");
   expect(
-    threadRows(threads, { ...initialThreadView, search: "none" }, series).empty,
+    threadRows(threads, { ...initialThreadView, search: "none" }).empty,
   ).toBe("No threads match these filters.");
-  expect(threadRows([], initialThreadView, series).empty).toBe(
+  expect(threadRows([], initialThreadView).empty).toBe(
     "No threads reported yet.",
   );
 });

@@ -143,6 +143,19 @@ function view(value: unknown, live: boolean): LiveResponse {
       "name group state wchan",
       "stale",
     );
+  if (
+    value.thread_counts !== undefined &&
+    !(
+      Array.isArray(value.thread_counts) &&
+      value.thread_counts.every(
+        (entry) =>
+          Array.isArray(entry) &&
+          entry.length === 2 &&
+          entry.every((item) => number(item)),
+      )
+    )
+  )
+    throw Error("Invalid recorded thread counts.");
   sample(value.resources);
   sample(value.memory);
   if (

@@ -473,6 +473,66 @@ class MultiTargetCollectorTests(CollectorCase):
                     self.restart()
         self.assertEqual(self.replay_targets(replay), {"host-a/default"})
 
+    def test_restarted_collector_serves_history_of_a_target_not_yet_registered(self):
+        # host-b/default first owns data_dir/replay. host-a/default then
+        # arrives from the same sender and takes it over, so host-b records
+        # into its target directory. After a restart no sampler registers,
+        # but host-b's history before and after the change stays readable.
+        replay = self.directory / "data" / "replay"
+        own = self.directory / "data" / "targets" / b"host-b/default".hex() / "replay"
+        self.send(announce(202, "default", host="host-b", pid=456))
+        for sequence in range(4):
+            self.send(tick(202, pid=456, sequence=sequence))
+            time.sleep(0.2)
+        self.wait_for(lambda: self.replay_targets(replay) == {"host-b/default"})
+        self.send(announce(101, "default", host="host-a"))
+        for sequence in range(4, 8):
+            self.send(tick(101, sequence=sequence))
+            self.send(tick(202, pid=456, sequence=sequence))
+            time.sleep(0.2)
+        for sequence in range(8, 12):  # Only host-b records for a while.
+            self.send(tick(202, pid=456, sequence=sequence))
+            time.sleep(0.2)
+        self.wait_for(lambda: self.replay_targets(own) == {"host-b/default"})
+        # host-a keeps running after host-b stops, so its frames are the newest.
+        for sequence in range(8, 28):
+            self.send(tick(101, sequence=sequence))
+            time.sleep(0.2)
+        self.restart()
+        self.assertEqual(self.targets(), set())
+
+        def all_frames(directory):
+            frames = []
+            for path in directory.glob("*.sqlite3"):
+                with sqlite3.connect(path) as database:
+                    frames += [(ts, json.loads(snapshot)) for ts, snapshot in
+                               database.execute("SELECT ts,snapshot FROM process_snapshot")]
+            return frames
+
+        def recorded(directory):
+            return [ts for ts, snapshot in all_frames(directory)
+                    if snapshot["target"] == "host-b/default"]
+        after = self.fetch("/api/replay?target=host-b/default")
+        self.assertEqual(after["first"], min(recorded(replay)), "the earlier part is kept")
+        self.assertEqual(after["last"], max(recorded(own)), "the later part is kept")
+        newest_a = max(ts for ts, snapshot in all_frames(replay)
+                       if snapshot["target"] == "host-a/default")
+        self.assertGreater(newest_a, after["last"], "host-a recorded the newest frame")
+        for at in (after["first"], after["last"], newest_a):
+            frame = self.fetch(f"/api/replay?target=host-b/default&at={at}")["snapshot"]
+            self.assertEqual(frame["target"], "host-b/default")
+        nxt = self.fetch(f"/api/replay?target=host-b/default&at={after['last']}&direction=next")
+        self.assertIsNone(nxt["snapshot"], "host-a frames are not host-b's next frame")
+        rows = self.fetch("/api/history?target=host-b/default&session=202&tid=456"
+                          f"&start={time.time() - 600}&end={time.time()}")["rows"]
+        self.assertIsInstance(rows, list)
+        self.assertIn("rows", self.fetch("/api/resources?target=host-b/default"))
+        for key in ("host-x/default", "host-b/other", "no-slash"):
+            with self.subTest(key=key), self.assertRaises(urllib.error.HTTPError) as error:
+                self.fetch(f"/api/replay?target={key}")
+            self.assertEqual(error.exception.code, 404)
+            error.exception.close()
+
     def test_replaced_session_keeps_its_target_mapping(self):
         self.send(announce(101, "orders"))
         self.send(tick(101))

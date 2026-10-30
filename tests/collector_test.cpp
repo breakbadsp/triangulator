@@ -989,6 +989,52 @@ void TestLastRan()
               1'700'000'003, "fallback: a voluntary switch is a run");
 }
 
+// Checks thread_counts in the live view: the smallest thread count of each
+// 5 s step, oldest first, at most 61 steps, and none from an older session.
+void TestThreadCounts()
+{
+  MonitorFixture fixture;
+  auto second = MakeRecord();
+  second.tid_ = 43;
+  for (std::uint32_t sequence = 0; sequence < 10; ++sequence)
+  {
+    fixture.Feed(MakePacket(sequence, sequence < 7
+                                          ? std::vector{MakeRecord()}
+                                          : std::vector{MakeRecord(), second}));
+  }
+  // [[step start, count], ...] as offsets from 1'700'000'000.
+  const auto counts = [&](double p_now)
+  {
+    std::vector<std::pair<double, std::int64_t>> result;
+    const auto snapshot = fixture.monitor_.Snapshot(p_now, {});
+    for (const auto& entry : Field(snapshot, "thread_counts").AsArray())
+    {
+      result.emplace_back(entry.AsArray()[0].AsNumber() - 1'700'000'000,
+                          entry.AsArray()[1].AsInt());
+    }
+    return result;
+  };
+  using Counts = std::vector<std::pair<double, std::int64_t>>;
+  Require(counts(1'700'000'009) == Counts{{0, 1}, {5, 1}},
+          "each step keeps its smallest count");
+  fixture.Feed(MakePacket(10, {MakeRecord(), second}));
+  Require(counts(1'700'000'010) == Counts{{0, 1}, {5, 1}, {10, 2}},
+          "a new step starts at the current count");
+  for (std::uint32_t sequence = 11; sequence <= 400; ++sequence)
+  {
+    fixture.Feed(sequence, MakeRecord());
+  }
+  const auto history = counts(1'700'000'400);
+  Require(history.size() == kThreadCountSteps, "the history keeps 61 steps");
+  RequireNear(history.front().first, 100,
+              "the oldest step is 300 s before the newest");
+  auto packet = MakePacket(401);
+  packet.session_ = 2;
+  fixture.Feed(packet);
+  Require(counts(1'700'000'401) == Counts{{400, 1}},
+          "a new session starts a new history");
+}
+
 // Checks wake_ms in the live view: it follows the current rules and the
 // thread's current name, so a rename or a rule change shows at once
 // without the thread being treated as new.
@@ -1425,6 +1471,43 @@ void TestRecorderTargetChange()
   Require(merged.first_ == 1 && merged.last_ == 30 &&
               merged.snapshot_ == R"({"recorded_at":25})",
           "default replay keeps legacy bounds and the newest selected frame");
+}
+
+// A target key keeps only that target's frames, in the snapshot and in the
+// bounds, even when another target recorded the newest and the oldest frames.
+void TestReplayTargetFilter()
+{
+  TempDirectory directory;
+  auto writer = ReplayWriter::Create(ReplayDirectory(directory.Path()), 7);
+  Require(writer.has_value(), "the shared writer opens");
+  for (const auto& [time, target] :
+       {std::pair{1'700'006'410, "host-a/default"},
+        std::pair{1'700'006'420, "host-b/default"},
+        std::pair{1'700'006'430, "host-a/default"}})
+  {
+    Require(
+        writer
+            ->Write(time, std::format(R"({{"recorded_at":{},"target":"{}"}})",
+                                      time, target))
+            .has_value(),
+        "a frame is written");
+  }
+  const auto only_b =
+      Replay(directory.Path(), {1'700'006'440, "at", "host-b/default"});
+  Require(only_b.first_ == 1'700'006'420 && only_b.last_ == 1'700'006'420,
+          "the bounds hold only the frames of the target");
+  Require(
+      only_b.snapshot_ && only_b.snapshot_->find("host-b") != std::string::npos,
+      "the newest frame at the time is the target's, not host-a's");
+  Require(!Replay(directory.Path(), {1'700'006'430, "next", "host-b/default"})
+               .snapshot_,
+          "no later frame of the target");
+  const auto none =
+      Replay(directory.Path(), {1'700'006'440, "at", "host-c/default"});
+  Require(!none.first_ && !none.last_ && !none.snapshot_,
+          "a target without frames finds none");
+  Require(Replay(directory.Path(), {}).last_ == 1'700'006'430,
+          "no key reads every frame");
 }
 
 // Omitted settings enable raw storage and recording; explicit values disable
@@ -2994,6 +3077,7 @@ int main()
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();
+    TestThreadCounts();
     TestThreadWakeMs();
     TestWatchSettingsSaveAndReset();
     TestWatchDirectorySync();
@@ -3008,6 +3092,7 @@ int main()
     TestReplaySkipsUnreadableFiles();
     TestSnapshotRecorder();
     TestRecorderTargetChange();
+    TestReplayTargetFilter();
     TestReplayIntervalOverride();
     TestReplayConfig();
     TestWatchConfig();

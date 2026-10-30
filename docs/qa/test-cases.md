@@ -632,7 +632,7 @@
 - Case revision: 2.
 - Driver: judged
 - Test: Tab through tiles and their Remove and help buttons. Wait for two polls with focus on each. Press Enter on a tile link. Open the `fleet` and `fleet-tile` help.
-- Expected: Focus is visible and survives polls. Enter opens the target. The dot and target link expose the assessment to assistive technology. Both help topics open and say that tiles do not run trend rules. Tile help describes the minimal face and says that the dot shows assessment, not sampler activity. It directs users to the card or dashboard for process details.
+- Expected: Focus is visible and survives polls. Enter opens the target. The dot and target link expose the assessment to assistive technology. Both help topics open and say that tiles do not run the thread churn rule or memory-map layout rules. Tile help describes the minimal face and says that the dot shows assessment, not sampler activity. It directs users to the card or dashboard for process details.
 
 ## QA-089: Select one of several processes with the same name
 
@@ -776,8 +776,8 @@
 
 - Status: NOT_RUN
 - Driver: judged
-- Test: Download the separate release asset. Register it with Claude Code and Codex. Ask for CPU and I/O history, top threads, and a comparison of two windows. Include a restart, a reused TID, missing recordings, invalid rollups, and sampler throttling. Request a thread series using a returned lifetime token. Request n=100 and a small step over a long window.
-- Expected: The tools use GET requests with target, session, tid, start, and end for history. Each result is at most 16 KiB, with at most 100 points or 20 ranked threads. Lifetime tokens separate sessions and TID reuse. Invalid rollups do not enter means. The answer states discovery limits, missing samples, truncation, and unknown coverage and throttle history. Compare gives the same four metrics and B minus A.
+- Test: Download the separate release asset. Register it with Claude Code and Codex. Ask for CPU and I/O history, top threads, and a comparison of two windows. Include a restart, a reused TID, missing recordings, invalid rollups, and sampler throttling. Request a thread series using a returned lifetime token. Request n=100 and a small step over a long window. Restart the collector with no sampler running, then ask for the history of a recorded target, including a `default` target whose recordings span a legacy ownership change, and of an unknown key.
+- Expected: The tools use GET requests with target, session, tid, start, and end for history. After the restart, history of a recorded target works before its sampler registers again and includes both sides of the ownership change; an unknown key gives an Unknown target error. Each result is at most 16 KiB, with at most 100 points or 20 ranked threads. Lifetime tokens separate sessions and TID reuse. Invalid rollups do not enter means. The answer states discovery limits, missing samples, truncation, and unknown coverage and throttle history. Compare gives the same four metrics and B minus A.
 
 ## QA-133: tri-scout optional release and history switch
 

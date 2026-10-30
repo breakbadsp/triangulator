@@ -1,12 +1,14 @@
 import { assert, expect, test } from "vitest";
 import type { Resources } from "../../api/types";
-import { assess, threadGrowth } from "./index";
-import { emptySeries } from "../series";
+import { assess, fleetAssessment, threadGrowth } from "./index";
 import type { Point } from "../series";
 import { resources, view } from "../test-fixtures";
 import { input, point } from "./test-input";
 const countsAt = (seconds: number, count: (i: number) => number) =>
   Array.from({ length: seconds }, (_, i) => point(1000 + i, count(i)));
+// The collector's thread_counts for these points.
+const counted = (points: readonly Point[]) =>
+  points.map((item) => [item.t, item.n] as const);
 function growthEver(points: readonly Point[]) {
   for (let i = 1; i <= points.length; i++)
     if (threadGrowth(points.slice(0, i))) return i;
@@ -14,9 +16,7 @@ function growthEver(points: readonly Point[]) {
 }
 test("a steady thread leak is flagged with its rate, count and cgroup headroom", () => {
   const points = countsAt(180, (i) => 4 + Math.floor(i * 4));
-  const findings = assess(
-    input(view(), { series: { ...emptySeries, points } }),
-  );
+  const findings = assess(input(view({ thread_counts: counted(points) })));
   const finding = findings.find(
     (item) => item.title === "Thread count keeps growing",
   );
@@ -49,9 +49,12 @@ test("thread growth escalates when the cgroup limit is close", () => {
   const points = countsAt(150, (i) => 4 + i * 4);
   const run = (pids: NonNullable<Resources["cgroup_limits"]>["pids"]) =>
     assess(
-      input(view({ resources: resources({ cgroup_limits: { pids } }) }), {
-        series: { ...emptySeries, points },
-      }),
+      input(
+        view({
+          resources: resources({ cgroup_limits: { pids } }),
+          thread_counts: counted(points),
+        }),
+      ),
     ).find((item) => item.title === "Thread count keeps growing");
   assert.strictEqual(run({ current: 604, max: 100000 })?.level, "warning");
   assert.match(
@@ -111,4 +114,19 @@ test("pools warming up, restarts, churn and noise are not thread growth", () => 
     ]),
     null,
   );
+});
+
+test("QA-119: a fleet view alone shows thread growth from the collector's counts", () => {
+  // The collector's 5 s steps over 165 s of a leak of 2 threads/s.
+  const thread_counts = Array.from(
+    { length: 34 },
+    (_, i) => [1000 + i * 5, 10 + i * 10] as const,
+  );
+  const titles = (counts: typeof thread_counts) =>
+    fleetAssessment(view({ thread_counts: counts }), 1170)?.findings.map(
+      (item) => item.title,
+    );
+  expect(titles(thread_counts)).toContain("Thread count keeps growing");
+  // A view without the history (an older collector) makes no claim.
+  expect(titles([])).not.toContain("Thread count keeps growing");
 });

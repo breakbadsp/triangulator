@@ -1,8 +1,11 @@
-// The read-only tools that tri-scout serves. Each one is a pure function of
-// one /api/fleet reply, so the verdicts are the ones the Targets page shows.
+// The read-only tools that tri-scout serves. Each one reads one /api/fleet
+// reply; status_now also reads each target's stored resource samples, so its
+// verdicts are the ones the target page shows.
 import { parseLive } from "../api/replay";
 import type { LiveResponse, Target, TargetsResponse } from "../api/types";
+import type { ResourceRow } from "../api/types";
 import { fleetAssessment } from "../lib/assess";
+import { asResourcePoints, type ResourcePoint } from "../lib/assess/memory";
 import { LEVEL_ORDER, VERDICTS, type Finding } from "../lib/findings";
 import { fleetName } from "../lib/target";
 
@@ -72,25 +75,64 @@ export function listTargets(fleet: Fleet, now: number): string {
   }));
 }
 
-/** The Targets page verdict and findings for one target, or for all. */
-export function statusNow(fleet: Fleet, now: number, key?: string): string {
+/** Seconds of stored resource samples that status_now reads, as the scanner. */
+export const RESOURCE_SPAN_S = 360;
+
+/** Checks an /api/resources reply where it enters tri-scout. */
+export function parseResources(value: unknown, end: number): ResourcePoint[] {
+  if (
+    !isObject(value) ||
+    !Array.isArray(value.rows) ||
+    !value.rows.every(
+      (row: unknown) =>
+        isObject(row) &&
+        typeof row.ts === "number" &&
+        typeof row.pid === "number",
+    )
+  )
+    throw new ToolError(
+      "The collector sent an /api/resources reply without rows.",
+    );
+  const rows = value.rows as ResourceRow[];
+  return asResourcePoints(rows.filter((row) => row.ts <= end));
+}
+
+/**
+ * The target page verdict and findings for one target, or for all. The
+ * stored resource samples of each target feed the RSS growth rule, as on the
+ * target page and in the scanner.
+ */
+export async function statusNow(
+  fleet: Fleet,
+  now: number,
+  key: string | undefined,
+  resourcesOf: (key: string) => Promise<readonly ResourcePoint[]>,
+): Promise<string> {
   const selected = key === undefined ? fleet.targets : [pick(fleet, key)];
-  const rows = selected
-    .map((target) => {
-      const view = fleet.views.get(target.key) ?? null;
-      const assessment = fleetAssessment(view, now);
-      const findings = assessment?.findings ?? [];
-      return {
-        key: target.key,
-        name: fleetName(target, view ?? undefined),
-        level: assessment?.level ?? "unknown",
-        verdict: assessment ? VERDICTS[assessment.level] : "No data",
-        findings: findings.slice(0, LIMITS.findings).map(finding),
-        omitted_findings: Math.max(0, findings.length - LIMITS.findings),
-        data: completeness(target, view, now),
-      };
-    })
-    .sort((a, b) => rank(a.level) - rank(b.level));
+  const rows = [];
+  for (const target of selected) {
+    const view = fleet.views.get(target.key) ?? null;
+    let points: readonly ResourcePoint[] = [];
+    let readable = view !== null;
+    if (view)
+      try {
+        points = await resourcesOf(target.key);
+      } catch {
+        readable = false;
+      }
+    const assessment = fleetAssessment(view, now, points);
+    const findings = assessment?.findings ?? [];
+    rows.push({
+      key: target.key,
+      name: fleetName(target, view ?? undefined),
+      level: assessment?.level ?? "unknown",
+      verdict: assessment ? VERDICTS[assessment.level] : "No data",
+      findings: findings.slice(0, LIMITS.findings).map(finding),
+      omitted_findings: Math.max(0, findings.length - LIMITS.findings),
+      data: { ...completeness(target, view, now), resource_history: readable },
+    });
+  }
+  rows.sort((a, b) => rank(a.level) - rank(b.level));
   return capped(rows, (targets, omitted) => ({
     checked_at: now,
     targets,
