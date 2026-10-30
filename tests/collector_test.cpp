@@ -989,6 +989,52 @@ void TestLastRan()
               1'700'000'003, "fallback: a voluntary switch is a run");
 }
 
+// Checks thread_counts in the live view: the smallest thread count of each
+// 5 s step, oldest first, at most 61 steps, and none from an older session.
+void TestThreadCounts()
+{
+  MonitorFixture fixture;
+  auto second = MakeRecord();
+  second.tid_ = 43;
+  for (std::uint32_t sequence = 0; sequence < 10; ++sequence)
+  {
+    fixture.Feed(MakePacket(sequence, sequence < 7
+                                          ? std::vector{MakeRecord()}
+                                          : std::vector{MakeRecord(), second}));
+  }
+  // [[step start, count], ...] as offsets from 1'700'000'000.
+  const auto counts = [&](double p_now)
+  {
+    std::vector<std::pair<double, std::int64_t>> result;
+    for (const auto& entry :
+         Field(fixture.monitor_.Snapshot(p_now, {}), "thread_counts").AsArray())
+    {
+      result.emplace_back(entry.AsArray()[0].AsNumber() - 1'700'000'000,
+                          entry.AsArray()[1].AsInt());
+    }
+    return result;
+  };
+  using Counts = std::vector<std::pair<double, std::int64_t>>;
+  Require(counts(1'700'000'009) == Counts{{0, 1}, {5, 1}},
+          "each step keeps its smallest count");
+  fixture.Feed(MakePacket(10, {MakeRecord(), second}));
+  Require(counts(1'700'000'010) == Counts{{0, 1}, {5, 1}, {10, 2}},
+          "a new step starts at the current count");
+  for (std::uint32_t sequence = 11; sequence <= 400; ++sequence)
+  {
+    fixture.Feed(sequence, MakeRecord());
+  }
+  const auto history = counts(1'700'000'400);
+  Require(history.size() == kThreadCountSteps, "the history keeps 61 steps");
+  RequireNear(history.front().first, 100,
+              "the oldest step is 300 s before the newest");
+  auto packet = MakePacket(401);
+  packet.session_ = 2;
+  fixture.Feed(packet);
+  Require(counts(1'700'000'401) == Counts{{400, 1}},
+          "a new session starts a new history");
+}
+
 // Checks wake_ms in the live view: it follows the current rules and the
 // thread's current name, so a rename or a rule change shows at once
 // without the thread being treated as new.
@@ -2994,6 +3040,7 @@ int main()
     TestFallbackHasNoRunDelay();
     TestSequenceWrapIsNotPacketLoss();
     TestLastRan();
+    TestThreadCounts();
     TestThreadWakeMs();
     TestWatchSettingsSaveAndReset();
     TestWatchDirectorySync();

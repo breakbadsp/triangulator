@@ -59,6 +59,8 @@ export interface LiveResponse {
   threads: readonly Thread[];
   /** Thread count by config group. */
   groups?: Readonly<Record<string, number>>;
+  /** [step start, smallest thread count] for each 5 s step of the last 300 s. */
+  thread_counts?: readonly (readonly [number, number])[];
   resources?: Resources;
   memory?: MemorySummary;
   exit?: ProcessExit | null;

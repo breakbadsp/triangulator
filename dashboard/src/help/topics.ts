@@ -79,7 +79,7 @@ const topics = {
     reading:
       "Rows are newest first. Each shows the worst level it reached, when it was first and last seen, its type, and how many checked recordings had it. Select a row to move the whole dashboard to its worst moment: the Assessment card then shows the same finding and the row shows its detail. Scroll to the end of the list, select Load earlier, or release the timeline at its left end to check an earlier period; each is twice as long as the one before, up to 6 hours. While live, newer recordings are added every 15 seconds.",
     limits:
-      "Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: rules that need trends kept in a live tab (thread growth, thread churn) and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time in each recording. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.",
+      "Each period checks up to 120 recordings, so older periods are checked more coarsely: a problem that starts and ends between two of them is not listed, and its first and last times are accurate only to the step. Recording gaps end a row. Each recording is judged on its own: the thread churn rule, which needs trends kept in a live tab, and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time, and thread growth uses the collector's thread counts for the 300 s before each recording. Resident memory growth uses the stored resource samples before each recording, combined into coarser steps for long periods. The main-stack rule runs only while the recording’s memory map is still the newest one. Nothing is stored: a reload checks again. Every checked recording is downloaded, about 330 KB each with 1,000 threads.",
     related: ["timeline", "assessment", "historyfilters"],
     source: "Recordings from `/api/replay`, checked in this page",
     sourceDetail:
@@ -248,7 +248,7 @@ const topics = {
     reading:
       "Point at a problem tile, or move keyboard focus to it, for up to four findings with details and the process PID. Open the tile for all findings, CPU, memory, thread counts, update times, access limits, and sampler throttle status.",
     limits:
-      "Tiles do not run trend rules for thread growth or thread churn, or memory-map layout rules. Long futex waits use the collector's last-ran time, so tiles show them. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.",
+      "Tiles do not run the thread churn trend rule or memory-map layout rules. Long futex waits use the collector's last-ran time, and thread growth uses the collector's thread counts for the last 300 s, so tiles show them. The dashboard can show more findings. A focused tile keeps its last values until focus leaves and the next refresh runs.",
     related: [
       "fleet",
       "assessment",

@@ -365,7 +365,9 @@ export function assess(input: AssessInput) {
       "High thread churn",
       `At least ${String(born)} threads started and ${String(died)} ended in the last minute (threads that start and exit between samples are not counted). Short-lived threads cost creation time; consider a pool.`,
     );
-  const growth = threadGrowth(points);
+  const growth = threadGrowth(
+    (live.thread_counts ?? []).map(([t, n]) => ({ t, n })),
+  );
   if (growth) {
     const pids = live.resources?.available
         ? live.resources.cgroup_limits?.pids
@@ -487,9 +489,10 @@ export function assessRecorded(
 export function fleetAssessment(
   view: LiveResponse | null | undefined,
   now: number,
+  resourcePoints: readonly ResourcePoint[] = [],
 ) {
   if (!view?.health) return null;
-  const findings = assessRecorded(view, now, [])
+  const findings = assessRecorded(view, now, resourcePoints)
     .filter((item) => item.level !== "good")
     .sort(
       (a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level),

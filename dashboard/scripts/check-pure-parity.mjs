@@ -109,7 +109,18 @@ function check(input) {
   );
   // The design gives the old untyped healthy finding its monitor type.
   for (const finding of oldFindings) finding.type ??= "monitor";
-  const findings = assess(input).filter(
+  // Thread growth reads the collector's thread_counts; give it the counts of
+  // the tab series that the old page read.
+  const counted = {
+    ...input,
+    view: {
+      ...input.view,
+      thread_counts: input.series.points
+        .filter((point) => typeof point.n === "number")
+        .map((point) => [point.t, point.n]),
+    },
+  };
+  const findings = assess(counted).filter(
     (item) => input.mode.kind !== "recorded" || !STUCK_HINT.test(item.title),
   );
   assert.deepEqual(
@@ -888,10 +899,11 @@ log(
   `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
 );
 
-// Intended change (QA-107): long futex waits now run on recordings.
+// Intended change (QA-107, QA-119): long futex waits and thread growth now
+// run on recordings.
 const STUCK_HELP = [
-  "(thread growth, thread churn, long futex waits) and the watch rule with no thread do not run.",
-  "(thread growth, thread churn) and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time in each recording.",
+  "rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run.",
+  "the thread churn rule, which needs trends kept in a live tab, and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time, and thread growth uses the collector's thread counts for the 300 s before each recording.",
 ];
 // The history explanations retain the pinned text. Automatic label aliases
 // are retired; internal callers use type-checked topic IDs.
@@ -932,5 +944,5 @@ for (const id of ["assesshistory", "historyfilters"]) {
     );
 }
 log(
-  "PASS: assesshistory and historyfilters text matches the pinned page word for word, except the stated QA-107 change.",
+  "PASS: assesshistory and historyfilters text matches the pinned page word for word, except the stated QA-107 and QA-119 change.",
 );
