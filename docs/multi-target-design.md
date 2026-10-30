@@ -4,7 +4,7 @@
 - Give each target its own session. This preserves existing packet and process-lifetime semantics.
 - Share sampling intervals across targets. Per-target rates would complicate the single loop.
 - Keep selection in each browser tab. The collector has no shared current target.
-- Open the dashboard on a Targets overview: one tile per target with the Assessment verdict of its latest live view, worst first. Use local testing controls there. See [REQ-0024](#req-0024-local-configuration-and-discovery). Tiles run the same rules in the browser; rules that need a trend kept in a tab do not run on tiles.
+- Open the dashboard on a Targets overview: one tile per target with the Assessment verdict of its latest live view, worst first. Use local testing controls there. See [REQ-0024](#req-0024-local-configuration-and-discovery). Tiles run the same rules in the browser; the thread churn rule and the memory-map layout rules need history kept in a tab, so they do not run on tiles.
 - Preserve single-target configuration and stored history during upgrades.
 - The owner approved automatic throttling on 2026-10-20, with a default budget of 1% of one CPU core. This is the approved exception to raw-counter-only sampling.
 - Open: decide whether limited access to other users' targets is sufficient.

@@ -74,7 +74,7 @@ test("an entry that this page saved restores unchanged", () => {
       session: "s",
       since: 1,
       avg: [[1, [null, 10, 5]]],
-      seen: [[1, { first: 1, active: null, futexSince: null }]],
+      seen: [[1, { first: 1, active: null }]],
     },
     "s",
   );

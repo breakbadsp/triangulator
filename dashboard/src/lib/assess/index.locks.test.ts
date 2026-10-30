@@ -1,31 +1,16 @@
 import { assert, expect, test } from "vitest";
 import type { Thread } from "../../api/types";
-import { assess, lockHints } from "./index";
-import { emptySeries, ingest } from "../series";
-import type { Series } from "../series";
+import { assess, fleetAssessment, lockHints } from "./index";
 import { lockThread, view } from "../test-fixtures";
 import { input } from "./test-input";
-function observed(threads: readonly Thread[], age: number): Series {
-  return {
-    ...emptySeries,
-    lastTick: 1000,
-    seen: new Map(
-      threads.map((thread) => [
-        thread.tid,
-        {
-          first: 1000 - age,
-          active: null,
-          futexSince: 1000 - age,
-          generation: 0,
-        },
-      ]),
-    ),
-  };
-}
+// The collector last saw each thread run `age` seconds before its sample.
+const waited = (threads: readonly Thread[], age: number) =>
+  threads.map((thread) => ({
+    ...thread,
+    last_ran: (thread.last_sample ?? 0) - age,
+  }));
 const hintsFor = (threads: readonly Thread[], age: number) =>
-  lockHints(threads, observed(threads, age), { kind: "live" }).map(
-    (item) => item.title + "|" + item.detail,
-  );
+  lockHints(waited(threads, age)).map((item) => item.title + "|" + item.detail);
 test("threads stuck on a futex while others run raise a hint, not a verdict", () => {
   const beat = lockThread(1, "misc-heartbeat", "sleep", { cpu: 0.2, sw: 2 });
   const stuck = [
@@ -40,11 +25,9 @@ test("threads stuck on a futex while others run raise a hint, not a verdict", ()
   );
   assert.match(hints[0] ?? "", /worker-a \(2\), worker-b \(3\)/);
   expect(
-    assess(
-      input(view({ threads: [beat, ...stuck] }), {
-        series: observed([beat, ...stuck], 45),
-      }),
-    ).map((item) => item.level),
+    assess(input(view({ threads: waited([beat, ...stuck], 45) }))).map(
+      (item) => item.level,
+    ),
   ).toEqual(["good", "info"]);
   // Not long enough yet, or only one thread, or nothing else running: quiet.
   assert.deepEqual(hintsFor([beat, ...stuck], 20), []);
@@ -73,13 +56,13 @@ test("idle pool workers on a futex stay quiet", () => {
     lockThread(tid, `timer-${String(tid)}x`, "sleep"),
   );
   assert.deepEqual(hintsFor([main, ...sleepers], 600), []);
-  // No history in the tab (for example in replay) means no claim.
+  // Without the collector's last_ran, the wait time is unknown: no claim.
   const threads = [
     main,
     lockThread(7, "a", "futex"),
     lockThread(8, "b", "futex"),
   ];
-  expect(lockHints(threads, emptySeries, { kind: "live" })).toHaveLength(0);
+  expect(lockHints(threads)).toHaveLength(0);
 });
 
 test("many futex waiters that keep waking with little CPU raise a convoy hint", () => {
@@ -127,30 +110,20 @@ test("many futex waiters that keep waking with little CPU raise a convoy hint", 
   );
 });
 
-test("futex duration excludes earlier sleep and resets after a state change", () => {
+test("QA-107: a recorded or fleet view alone shows the stuck-thread hint", () => {
+  // The QA-107 view: two workers parked on a futex for 66 s, 0 switches/s,
+  // while a heartbeat thread keeps running. No browser history exists.
   const threads = [
-    lockThread(1, "heartbeat", "running", { cpu: 5 }),
-    lockThread(2, "worker-a", "sleep"),
-    lockThread(3, "worker-b", "sleep"),
+    { ...lockThread(1, "misc-heartbeat", "sleep", { sw: 2 }), last_ran: 1000 },
+    { ...lockThread(2, "worker-a", "futex"), last_ran: 934 },
+    { ...lockThread(3, "worker-b", "futex"), last_ran: 934 },
   ];
-  let series = emptySeries;
-  let current = threads;
-  const feed = (time: number, state: string) => {
-    current = threads.map((thread) =>
-      thread.tid === 1
-        ? { ...thread, last_sample: time }
-        : { ...thread, last_sample: time, state, state_mix: { [state]: 20 } },
-    );
-    series = ingest(series, view({ threads: current }));
-  };
-  feed(1000, "sleep");
-  feed(1060, "sleep");
-  feed(1061, "futex");
-  feed(1080, "futex");
-  expect(lockHints(current, series, { kind: "live" })).toHaveLength(0);
-  feed(1091, "futex");
-  expect(lockHints(current, series, { kind: "live" })).toHaveLength(1);
-  feed(1092, "sleep");
-  feed(1093, "futex");
-  expect(lockHints(current, series, { kind: "live" })).toHaveLength(0);
+  const fleet = fleetAssessment(view({ threads }), 1000);
+  expect(fleet?.findings.map((item) => item.title)).toEqual([
+    "2 threads have waited on a futex for over 66 s while other threads are active",
+  ]);
+  // A worker that ran 10 s ago has not waited long enough.
+  expect(
+    lockHints(threads.map((thread) => ({ ...thread, last_ran: 990 }))),
+  ).toHaveLength(0);
 });

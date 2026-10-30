@@ -8,6 +8,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, expect, test } from "vitest";
 import type { LiveResponse, Target } from "../api/types";
 import { fleetAssessment } from "../lib/assess";
+import { memorySummary } from "../lib/test-fixtures";
 import { serve } from "./serve";
 
 interface Reply {
@@ -60,13 +61,20 @@ function live(cpu: number): LiveResponse {
   };
 }
 
-/** A collector stand-in that records each request it gets. */
-async function collector(fleet: object) {
+/**
+ * A collector stand-in that records each request it gets. It answers
+ * /api/resources with `resources` and every other path with `fleet`.
+ */
+async function collector(fleet: object, resources: object = { rows: [] }) {
   const requests: string[] = [];
   server = createServer((request, response) => {
     requests.push(`${String(request.method)} ${String(request.url)}`);
     response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify(fleet));
+    response.end(
+      JSON.stringify(
+        String(request.url).startsWith("/api/resources?") ? resources : fleet,
+      ),
+    );
   });
   await new Promise<void>((resolve) => server?.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -141,7 +149,7 @@ test("with the switch off, tri-scout exits 2, answers nothing, and sends no requ
   expect(requests).toEqual([]);
 });
 
-test("status_now gives the Targets page assessment with data completeness, using GET only", async () => {
+test("status_now gives the target page assessment with data completeness, using GET only", async () => {
   const busy = live(99);
   const { port, requests } = await collector({
     list: { targets: [target("idle"), target("orders", { throttled: true })] },
@@ -193,10 +201,63 @@ test("status_now gives the Targets page assessment with data completeness, using
     packet_loss_pct: 0.5,
     sample_interval_ms: 200,
     session: "s1",
+    resource_history: true,
   });
   expect(run.replies[3]?.result?.isError).toBe(true);
   expect(resultText(run.replies[3])).toContain("Unknown target nope");
-  expect(requests).toEqual(["GET /api/fleet", "GET /api/fleet"]);
+  expect(requests.map((request) => request.split("&")[0])).toEqual([
+    "GET /api/fleet",
+    "GET /api/resources?target=idle",
+    "GET /api/resources?target=orders",
+    "GET /api/fleet",
+  ]);
+});
+
+test("QA-108: status_now reports RSS growth from the stored resource samples", async () => {
+  // 120 s of RSS that rises 8 MiB/s, as the scanner and the target page read it.
+  const at = now();
+  const rows = Array.from({ length: 24 }, (_, index) => ({
+    ts: at - 115 + index * 5,
+    pid: 7,
+    elapsed_s: 5,
+    rss_bytes: (100 + 40 * index) * 2 ** 20,
+  }));
+  const leak: LiveResponse = {
+    ...live(1),
+    resources: {
+      available: true,
+      memory: { rss: rows.at(-1)?.rss_bytes ?? null, anon: 1 },
+    },
+    memory: memorySummary({}, { pid: 7 }),
+  };
+  const titles = async (resources: object) => {
+    const { port, requests } = await collector(
+      { list: { targets: [target("leak")] }, live: { leak } },
+      resources,
+    );
+    const run = await session(config(enabled(port)), [call(1, "status_now")]);
+    server?.close();
+    const status = JSON.parse(resultText(run.replies[0])) as {
+      targets: { findings: { title: string }[]; data: object }[];
+    };
+    return {
+      titles: status.targets[0]?.findings.map((item) => item.title),
+      data: status.targets[0]?.data,
+      requests,
+    };
+  };
+  const growing = await titles({ rows });
+  expect(growing.titles).toContain("Resident memory grows without a plateau");
+  const [, query] = growing.requests[1]?.split("?") ?? [];
+  const params = new URLSearchParams(query);
+  expect(params.get("target")).toBe("leak");
+  expect(Number(params.get("end")) - Number(params.get("start"))).toBe(360);
+  // An unreadable reply leaves the rule without data, and says so.
+  const unreadable = await titles({});
+  expect(unreadable.titles).not.toContain(
+    "Resident memory grows without a plateau",
+  );
+  expect(unreadable.data).toMatchObject({ resource_history: false });
 });
 
 test("each result stays inside the size limit and says what it left out", async () => {
