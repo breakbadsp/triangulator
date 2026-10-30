@@ -1,0 +1,616 @@
+[
+  {
+    "time": 1793332190.1617289,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "qa-scout-bugbench",
+          "version": "1"
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "tri",
+          "version": "0.1.0"
+        },
+        "instructions": "Triangulator monitors Linux processes and their threads. For a past-day question, call list_incidents with the day's start and exclusive end in Unix seconds. It answers the question in one call. Use get_incident for stored evidence. State unknown incident coverage and all omissions. For current status, call status_now: it gives each target's verdict and findings, worst first, as the Triangulator dashboard shows them. Each target has a data object. State its gaps in the answer: a target that is not live, an unreadable view, limited access (no I/O or wait channels), a throttled sampler, packet loss, or an old last sample."
+      }
+    }
+  },
+  {
+    "time": 1793332190.162173,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "name": "timeseries",
+            "description": "timeseries: historical rollup means for cpu_pct, run_delay_pct, read_bps, write_bps. Threads have opaque lifetime tokens. Coverage and sampler throttling can be unknown; state all gaps. Means weight rollup rows equally. At most 16 KiB, 100 time points or 20 ranked threads. Discovery inspects at most 64 recordings and 64 session/thread pairs.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "target",
+                "metric",
+                "window"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string"
+                },
+                "thread": {
+                  "type": "string",
+                  "description": "Opaque thread token from top_threads; omit for target totals."
+                },
+                "metric": {
+                  "enum": [
+                    "cpu_pct",
+                    "run_delay_pct",
+                    "read_bps",
+                    "write_bps"
+                  ]
+                },
+                "window": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_a": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_b": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "step": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Bucket seconds; increased to keep at most 100 points."
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Capped at 20."
+                }
+              }
+            }
+          },
+          {
+            "name": "top_threads",
+            "description": "top_threads: historical rollup means for cpu_pct, run_delay_pct, read_bps, write_bps. Threads have opaque lifetime tokens. Coverage and sampler throttling can be unknown; state all gaps. Means weight rollup rows equally. At most 16 KiB, 100 time points or 20 ranked threads. Discovery inspects at most 64 recordings and 64 session/thread pairs.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "target",
+                "metric",
+                "window",
+                "n"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string"
+                },
+                "thread": {
+                  "type": "string",
+                  "description": "Opaque thread token from top_threads; omit for target totals."
+                },
+                "metric": {
+                  "enum": [
+                    "cpu_pct",
+                    "run_delay_pct",
+                    "read_bps",
+                    "write_bps"
+                  ]
+                },
+                "window": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_a": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_b": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "step": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Bucket seconds; increased to keep at most 100 points."
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Capped at 20."
+                }
+              }
+            }
+          },
+          {
+            "name": "compare",
+            "description": "compare: historical rollup means for cpu_pct, run_delay_pct, read_bps, write_bps. Threads have opaque lifetime tokens. Coverage and sampler throttling can be unknown; state all gaps. Means weight rollup rows equally. At most 16 KiB, 100 time points or 20 ranked threads. Discovery inspects at most 64 recordings and 64 session/thread pairs.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "target",
+                "window_a",
+                "window_b"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string"
+                },
+                "thread": {
+                  "type": "string",
+                  "description": "Opaque thread token from top_threads; omit for target totals."
+                },
+                "metric": {
+                  "enum": [
+                    "cpu_pct",
+                    "run_delay_pct",
+                    "read_bps",
+                    "write_bps"
+                  ]
+                },
+                "window": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_a": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "window_b": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds."
+                    }
+                  }
+                },
+                "step": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Bucket seconds; increased to keep at most 100 points."
+                },
+                "n": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Capped at 20."
+                }
+              }
+            }
+          },
+          {
+            "name": "list_targets",
+            "description": "List the processes that Triangulator monitors, with the key to pass to other tools, the host, PID, command, and data completeness.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          {
+            "name": "status_now",
+            "description": "Is something wrong now? Gives each target's verdict (critical, serious, warning, info, good, or unknown) and its findings, worst first: the same assessment as the dashboard Targets page. Each target has at most 20 findings and a data object that states data completeness.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "description": "A target key or ID from list_targets. Omit it for all targets."
+                }
+              }
+            }
+          },
+          {
+            "name": "list_incidents",
+            "description": "Was there an issue in a given time window? List overlapping incidents, newest first, with target, kind, severity, summary, ID, and data completeness. At most 20 incidents and 16 KiB; omitted_incidents states the remainder. Open means active at the last scan. An empty result does not prove complete coverage.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "window"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "description": "Exact target key, or legacy for unmapped recordings. Omit for all targets."
+                },
+                "window": {
+                  "type": "object",
+                  "required": [
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "start": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Inclusive Unix seconds."
+                    },
+                    "end": {
+                      "type": "number",
+                      "description": "Exclusive Unix seconds, greater than start."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "get_incident",
+            "description": "Read one stored incident: observation timeline, stored rule evidence, identified contributing threads, and data completeness. The store has no per-sample timeline or contributor ranking. At most 16 KiB; omitted_fields states removed evidence.",
+            "inputSchema": {
+              "type": "object",
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The exact incident ID from list_incidents."
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "time": 1793332190.1628788,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "list_incidents",
+        "arguments": {
+          "window": {
+            "start": 0,
+            "end": 1793332190.1623635
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"error\":\"tri-scout scan has not run: the incident store is missing. Run tri-scout scan on the collector host.\",\"data\":{\"completeness\":\"unknown\",\"gaps\":[\"The store does not retain recording coverage, packet loss, access, or throttle history. An empty list does not prove that no issue occurred.\",\"Timeline contains first, worst, and last observations, not every sample. End time is the last finding, not a confirmed recovery time. Open means active at the last scan.\",\"Only the thread identified by the stored rule is available; contributor ranking is not stored.\"],\"store_available\":false}}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "time": 1793332193.2019217,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "status_now",
+        "arguments": {}
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"checked_at\":1793332193.201,\"targets\":[],\"omitted_targets\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "time": 1793332193.2051597,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "list_targets",
+        "arguments": {}
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"targets\":[],\"omitted_targets\":0}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "time": 1793332193.2063262,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "list_incidents",
+        "arguments": {
+          "window": {
+            "start": 0,
+            "end": 1793332193.2053983
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"window\":{\"start\":0,\"end\":1793332193.2053983},\"incidents\":[],\"omitted_incidents\":0,\"data\":{\"completeness\":\"unknown\",\"gaps\":[\"The store does not retain recording coverage, packet loss, access, or throttle history. An empty list does not prove that no issue occurred.\",\"Timeline contains first, worst, and last observations, not every sample. End time is the last finding, not a confirmed recovery time. Open means active at the last scan.\",\"Only the thread identified by the stored rule is available; contributor ranking is not stored.\"],\"store_available\":true,\"scan_progress\":{\"oldest_cursor\":null,\"newest_cursor\":null,\"sources\":0}}}"
+          }
+        ],
+        "isError": false
+      }
+    }
+  },
+  {
+    "time": 1793332193.2067769,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "list_incidents",
+        "arguments": {
+          "window": {
+            "start": 2,
+            "end": 1
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "window needs finite Unix seconds: 0 <= start < end <= 8640000000000. The end is exclusive."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "time": 1793332193.2073221,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "get_incident",
+        "arguments": {
+          "id": "invalid"
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "id must be an incident ID from list_incidents."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "time": 1793332193.2079692,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "timeseries",
+        "arguments": {
+          "target": "",
+          "metric": "invalid",
+          "window": {
+            "start": 2,
+            "end": 1
+          }
+        }
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "target must be an exact target key, at most 1024 bytes."
+          }
+        ],
+        "isError": true
+      }
+    }
+  },
+  {
+    "time": 1793332193.2088017,
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "status_now",
+        "arguments": {}
+      }
+    },
+    "reply": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "tri-scout is disabled ([scout] enabled = false). Set [scout] enabled = true in /tmp/tri-scout-source-97ed406-mcp-final/collector.toml to use it."
+          }
+        ],
+        "isError": true
+      }
+    }
+  }
+]

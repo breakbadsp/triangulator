@@ -1,0 +1,114 @@
+{
+  "QA-101": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-102": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-103": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-104": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-105": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-106": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-107": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-108": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-109": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-110": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-111": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-112": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-113": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-114": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-115": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-116": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-117": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-118": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-119": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-120": {
+    "status": "BLOCKED",
+    "observation": "Existing user sampler PID 1531596 prevents isolated collection under the one-sampler constraint. Scenario not launched; detection delay and false positives unmeasured."
+  },
+  "QA-126": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-127": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-128": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-129": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-130": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-131": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-132": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  },
+  "QA-133": {
+    "status": "BLOCKED",
+    "observation": "Partial direct MCP checks only. No isolated sampled target; complete case expectations were not executed. See scope and MCP evidence."
+  }
+}

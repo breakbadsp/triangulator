@@ -303,10 +303,10 @@ recorded execution result.
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
-| PASSED | 89 | - |
+| PASSED | 71 | - |
 | FAILED | 12 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098 |
-| BLOCKED | 12 | QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-104, QA-109 |
-| NOT_RUN | 12 | QA-123, QA-124, QA-125, QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-007 |
+| BLOCKED | 38 | QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-101, QA-102, QA-103, QA-104, QA-105, QA-106, QA-107, QA-108, QA-109, QA-110, QA-111, QA-112, QA-113, QA-114, QA-115, QA-116, QA-117, QA-118, QA-119, QA-120 |
+| NOT_RUN | 4 | QA-123, QA-124, QA-125, QA-007 |
 | **Total** | **125** | |
 <!-- qa-summary:end -->
 
