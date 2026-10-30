@@ -1,0 +1,11 @@
+{
+  "url": "http://127.0.0.1:56939/",
+  "title": "Targets · Thread monitor",
+  "visibleText": "All targets\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\n+\nAdd target\nthe local sampler sends to a different collector; use scripts/set-target.sh on its host To change a remote sampler, edit sampler.toml on its host.\n\nNo targets yet. A target appears here when its sampler sends its first data to this collector.\n\nHow to read this page",
+  "consoleEntries": [],
+  "viewport": {
+    "mimeType": "image/png",
+    "width": 1280,
+    "height": 800
+  }
+}

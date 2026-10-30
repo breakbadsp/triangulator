@@ -1,0 +1,52 @@
+mkdir -p build
+cd dashboard && npm ci
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c sampler/main.cpp -o build/triangulator-sampler.o
+
+added 225 packages, and audited 226 packages in 2s
+
+56 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+cd dashboard && npm run build
+
+> triangulator-dashboard@0.0.0 build
+> tsc --noEmit && vite build
+
+cd dashboard && npm run build:scout
+
+> triangulator-dashboard@0.0.0 build:scout
+> tsc --noEmit && vite build --config vite.scout.config.ts
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 82 modules transformed.
+rendering chunks...
+[plugin vite:singlefile] 
+
+[plugin vite:singlefile] Inlining: index-oNBVs0dS.js
+[plugin vite:singlefile] Inlining: style-aOXUMMkD.css
+computing gzip size...
+dist/index.html  611.09 kB │ gzip: 183.21 kB
+
+✓ built in 226ms
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/triangulator-sampler.o  -static -pthread -o build/triangulator-sampler
+vite v8.3.5 building ssr environment for production...
+transforming...
+✓ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+../build/tri-scout.mjs  129.67 kB │ gzip: 35.52 kB
+
+✓ built in 38ms
+mkdir -p build
+od -An -v -tu1 dashboard/dist/index.html > build/dashboard_html.inc.od
+sed 's/^ *//; s/ *$//; s/  */,/g; s/$/,/' build/dashboard_html.inc.od > build/dashboard_html.inc.tmp
+mv build/dashboard_html.inc.tmp build/dashboard_html.inc
+rm -f build/dashboard_html.inc.od
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -Ibuild -static-libstdc++ -static-libgcc -std=c++23 -pthread  -c collector/main.cpp -o build/triangulator-collector.o
+mkdir -p build
+c++  -Ibuild -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/triangulator-collector.o  -static-libstdc++ -static-libgcc -pthread -lsqlite3 -o build/triangulator-collector

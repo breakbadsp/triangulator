@@ -1,0 +1,82 @@
+{
+  "QA-101": {
+    "status": "PASSED",
+    "observation": "healthy: Healthy control had no resource-fault finding or stored incident. First MCP finding: none during observation."
+  },
+  "QA-102": {
+    "status": "BLOCKED",
+    "observation": "cpu-spin: Saturation finding and high worker-hot CPU appeared in MCP and browser. The required thread-detail interaction was not completed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-103": {
+    "status": "PASSED",
+    "observation": "cpu-oversub: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-104": {
+    "status": "BLOCKED",
+    "observation": "cpu-throttle: Delegated cgroup setup returned EBUSY. CPU quota fixture was not launched. First MCP finding: none during observation."
+  },
+  "QA-105": {
+    "status": "BLOCKED",
+    "observation": "yield-storm: CPU-wait finding observed. Two-CPU affinity split four yield workers; saturated-thread prerequisite was not established. One namespace-wide TCP retransmission warning was unrelated to this socket-free fixture. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-106": {
+    "status": "PASSED",
+    "observation": "lock-convoy: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-107": {
+    "status": "FAILED",
+    "observation": "deadlock: Two worker threads remained in futex wait with zero switches and an active heartbeat. No live finding or stored incident appeared through 70 s. First MCP finding: none during observation."
+  },
+  "QA-108": {
+    "status": "FAILED",
+    "observation": "mem-leak: Dashboard showed sustained RSS growth and a memory incident was stored. Live MCP stayed Healthy with no finding through 70 s. Dashboard/MCP parity failed. First MCP finding: none during observation."
+  },
+  "QA-109": {
+    "status": "BLOCKED",
+    "observation": "mem-oom: Delegated cgroup setup returned EBUSY. Memory-limited fixture was not launched. First MCP finding: none during observation."
+  },
+  "QA-110": {
+    "status": "PASSED",
+    "observation": "vm-bloat: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-111": {
+    "status": "BLOCKED",
+    "observation": "fd-leak: Real descriptors reached 91.7% and live MCP became critical at 70 s. Complete dashboard expectations were not captured before fixture replacement. First MCP finding: 60 s (10 s polling resolution)."
+  },
+  "QA-112": {
+    "status": "BLOCKED",
+    "observation": "disk-sync: Fixture ran 70 s. Final writers were running; required uninterruptible I/O stalls were not established. CPU findings were observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-113": {
+    "status": "BLOCKED",
+    "observation": "major-faults: Major faults and kernel saturation were detected in MCP and browser. Related I/O-stall expectation was not established. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-114": {
+    "status": "PASSED",
+    "observation": "tcp-slow: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-115": {
+    "status": "PASSED",
+    "observation": "udp-drop: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-116": {
+    "status": "PASSED",
+    "observation": "close-wait: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-117": {
+    "status": "PASSED",
+    "observation": "listen-full: Expected finding and relevant dashboard state observed. First MCP finding: 10 s (10 s polling resolution)."
+  },
+  "QA-118": {
+    "status": "BLOCKED",
+    "observation": "thread-churn: Fixture ran 70 s. Dashboard displayed lower bound for churn. Required help disclosure was not opened; no complete UI pass. First MCP finding: none during observation."
+  },
+  "QA-119": {
+    "status": "FAILED",
+    "observation": "thread-leak: Thread count grew to hundreds over 165 s. Dashboard warned about growth and scanner stored a thread incident. Live MCP stayed Healthy. Sampler throttling was disclosed. First MCP finding: none during observation."
+  },
+  "QA-120": {
+    "status": "PASSED",
+    "observation": "stopped: Five stopped threads detected by 50 s (within 5 s of SIGSTOP). After SIGCONT, fresh samples returned Healthy within 5 s. First MCP finding: 50 s (10 s polling resolution)."
+  }
+}

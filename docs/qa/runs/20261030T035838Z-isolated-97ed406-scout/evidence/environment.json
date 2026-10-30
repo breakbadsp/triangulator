@@ -1,0 +1,7 @@
+{
+  "compiler": "gcc (GCC) 16.2.1 20260810",
+  "binary_identity": "build/triangulator-sampler:   ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=c1c289d5aceaaea4d6fddd5fa1fd6d3919275976, for GNU/Linux 4.4.0, not stripped\nbuild/triangulator-collector: ELF 64-bit LSB pie executable, x86-64, version 1 (GNU/Linux), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=ae8527af6df66f8666ce572f7d61d3a8b798a9b2, for GNU/Linux 4.4.0, not stripped\n",
+  "host_sampler_exe": "/home/daksh/triangulator/bin/triangulator-sampler",
+  "product_diff": "",
+  "namespace_probe": "    PID COMMAND\n      1 ps\n"
+}

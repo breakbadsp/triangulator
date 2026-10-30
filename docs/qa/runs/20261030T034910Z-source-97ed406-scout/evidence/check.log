@@ -1,0 +1,300 @@
+cd dashboard && npm run check
+
+> triangulator-dashboard@0.0.0 check
+> tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-pure-parity.mjs
+
+Checking formatting...
+All matched files use Prettier code style!
+
+ RUN  v5.0.5 /home/daksh/.t3/worktrees/triangulator/t3-9f0f0407/dashboard
+
+
+ Test Files  55 passed (55)
+      Tests  386 passed (386)
+   Start at  09:19:55
+   Duration  20.19s (tests 54%, environment 35%, setup 5%, transform 4%, import 2%)
+
+Environment  jsdom was created 55 times · 29.84s total, 35% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+PASS: RSS growth control and unavailable-row process boundary match the pinned oracle.
+PASS: 2400 old/new memory map steps with 576 layout fetches; 25072 displayed-value comparisons; 144 compatible historical layout checks.
+PASS: 580 old/new resource displayed-value and note comparisons.
+PASS: 724 old/new assessment comparisons, including D1; 400 series steps in replay mode; 400 live steps with the load average, per-thread CPU, 400 thread map readings, and 10 restores; repeated calls are isolated.
+PASS: 21 old/new replay and final transitions, 100 live steps and 11 recording selections.
+PASS: 600 old/new past-assessment episode and slot comparisons.
+PASS: assesshistory and historyfilters text matches the pinned page word for word.
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c examples/buggy-workload/buggy_workload.cpp -o build/buggy-workload.o
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/buggy-workload.o  -pthread -pthread -o build/buggy-workload
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/benchmark_target.cpp -o build/benchmark-target.o
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/benchmark-target.o  -pthread -pthread -o build/benchmark-target
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/benchmark_victim.cpp -o build/benchmark-victim.o
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/benchmark-victim.o  -pthread -pthread -o build/benchmark-victim
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c tests/benchmark_sampling.cpp -o build/benchmark-sampling.o
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/benchmark-sampling.o  -static -pthread -o build/benchmark-sampling
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/wire_test.cpp -o build/wire-test.o
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/wire-test.o  -pthread -o build/wire-test
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/sampler_test.cpp -o build/sampler-test.o
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/sampler-test.o  -pthread -o build/sampler-test
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -static -std=c++23 -pthread  -c tests/allocation_test.cpp -o build/allocation-test.o
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/allocation-test.o  -static \
+	-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc -pthread -o build/allocation-test
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/collector_allocation_test.cpp -o build/collector-allocation-test.o
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/collector-allocation-test.o  -static-libstdc++ -static-libgcc -pthread -lsqlite3 -o build/collector-allocation-test
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 -pthread  -c tests/collector_test.cpp -o build/collector-test.o
+mkdir -p build
+c++  -O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23 build/collector-test.o  -Wl,--wrap=fsync -pthread -lsqlite3 -o build/collector-test
+python3 tests/run_checks.py build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test
+wire tests passed (thread, resource, memory-map, process-identity and exit-report round trips, rejection)
+triangulator: descriptor limit allows keeping files open for 1 threads; others reopen their /proc files every tick
+triangulator: kernel log backlog not fully read in 0 ms; the exit report of PID 1234 may miss the newest messages
+C++ sampler tests passed (parsing, configuration, discovery, wire compatibility, RAII, descriptor budget, resource parsing and probe, memory map, process identity, exit messages and status)
+triangulator: kernel log (/dev/kmsg) not readable (errno 1); exit reports will have no kernel messages. Set kernel.dmesg_restrict = 0 to allow it
+heap allocations after startup: 0
+2026-10-30 09:21:18,113 INFO Pinned sampler source to 10.0.0.1
+2026-10-30 09:21:18,117 INFO Pinned sampler source to 10.0.0.1
+store_raw = false
+  thread datagrams (decode, ticks, rows) 0
+  resource datagrams (decode, rows)    0
+  memory-map datagrams (decode, layout) 0
+  process-info datagrams (decode, keep) 0
+  Storage::Flush                       0
+  total                                0 (warm-up: 2094)
+  SQLite allocations (separate)        46 (not in the total)
+store_raw = true
+  thread datagrams (decode, ticks, rows) 0
+  resource datagrams (decode, rows)    0
+  memory-map datagrams (decode, layout) 0
+  process-info datagrams (decode, keep) 0
+  Storage::Flush                       0
+  total                                0 (warm-up: 233)
+  SQLite allocations (separate)        130 (not in the total)
+target routing: 0 allocations
+collector allocation test passed: 0 allocations
+2026-10-30 09:21:18,212 WARNING Dashboard recording failed, will keep trying: cannot create /tmp/collector-test-dbj111/file/data/replay: Not a directory
+2026-10-30 09:21:18,223 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,227 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,230 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,235 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,236 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,239 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,240 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,242 INFO Pinned sampler source to 127.0.0.1
+2026-10-30 09:21:18,243 INFO Pinned sampler source to 127.0.0.1
+C++ collector tests passed (decoding, classification, ticks, sessions, rollups, storage, health, resource samples, memory map, exit reports, process info, watch rules)
+test_disabled_rule_never_opens_and_disabling_resolves_open_alerts (test_alerting.AlertEngineTests.test_disabled_rule_never_opens_and_disabling_resolves_open_alerts) ... ok
+test_immediate_rules_open_and_resolve_at_once (test_alerting.AlertEngineTests.test_immediate_rules_open_and_resolve_at_once) ... ok
+test_open_alerts_are_reminded_after_reminder_secs (test_alerting.AlertEngineTests.test_open_alerts_are_reminded_after_reminder_secs) ... ok
+test_opens_after_sustained_windows_and_resolves_after_clear_windows (test_alerting.AlertEngineTests.test_opens_after_sustained_windows_and_resolves_after_clear_windows) ... ok
+test_recovered_alert_from_removed_rule_closes_quietly (test_alerting.AlertEngineTests.test_recovered_alert_from_removed_rule_closes_quietly) ... ok
+test_recovery_restores_open_alerts_without_notifying_again (test_alerting.AlertEngineTests.test_recovery_restores_open_alerts_without_notifying_again) ... ok
+test_retiring_a_thread_resolves_only_its_alerts (test_alerting.AlertEngineTests.test_retiring_a_thread_resolves_only_its_alerts) ... ok
+test_unknown_condition_restarts_the_streak (test_alerting.AlertEngineTests.test_unknown_condition_restarts_the_streak) ... ok
+test_dashboard_ranges_apply_to_toml_values (test_alerting.AlertSettingsTests.test_dashboard_ranges_apply_to_toml_values) ... ok
+test_delivery_destinations_are_optional_but_checked (test_alerting.AlertSettingsTests.test_delivery_destinations_are_optional_but_checked) ... ok
+test_every_rule_defaults_to_enabled (test_alerting.AlertSettingsTests.test_every_rule_defaults_to_enabled) ... ok
+test_merge_validates_without_modifying_current_settings (test_alerting.AlertSettingsTests.test_merge_validates_without_modifying_current_settings) ... ok
+test_webhook_receives_each_event_as_json (test_alerting.DeliveryTests.test_webhook_receives_each_event_as_json) ... ok
+test_default_capture_reaches_thread_growth_and_uses_bench_pid (test_bug_lab.BugLabRunnerTests.test_default_capture_reaches_thread_growth_and_uses_bench_pid) ... ok
+test_failed_capture_stops_scenario (test_bug_lab.BugLabRunnerTests.test_failed_capture_stops_scenario) ... ok
+test_interrupt_stops_capture_and_scenario (test_bug_lab.BugLabRunnerTests.test_interrupt_stops_capture_and_scenario) ... ok
+test_invalid_capture_delay_starts_no_scenario (test_bug_lab.BugLabRunnerTests.test_invalid_capture_delay_starts_no_scenario) ... ok
+test_fixture_builds_when_headers_lack_madv_pageout (test_bugbench_session.CommandTest.test_fixture_builds_when_headers_lack_madv_pageout) ... ok
+test_invalid_arguments_do_not_create_a_session (test_bugbench_session.CommandTest.test_invalid_arguments_do_not_create_a_session) ... ok
+test_path_command_installs_and_lists_real_scenarios (test_bugbench_session.CommandTest.test_path_command_installs_and_lists_real_scenarios) ... ok
+test_path_symlink_supports_help_and_status_outside_checkout (test_bugbench_session.CommandTest.test_path_symlink_supports_help_and_status_outside_checkout) ... ok
+test_failed_launch_does_not_advance_position (test_bugbench_session.SessionTest.test_failed_launch_does_not_advance_position) ... ok
+test_launch_stops_owned_service_and_sets_oom_limit (test_bugbench_session.SessionTest.test_launch_stops_owned_service_and_sets_oom_limit) ... ok
+test_navigation_reads_saved_position_and_preserves_boundaries (test_bugbench_session.SessionTest.test_navigation_reads_saved_position_and_preserves_boundaries) ... ok
+test_bad_duration_does_not_run_forever (test_buggy_workload.BuggyWorkloadTests.test_bad_duration_does_not_run_forever) ... ok
+test_capture_interrupt_stops_browser_and_removes_profile (test_buggy_workload.BuggyWorkloadTests.test_capture_interrupt_stops_browser_and_removes_profile) ... ok
+test_capture_interrupt_stops_the_scenario (test_buggy_workload.BuggyWorkloadTests.test_capture_interrupt_stops_the_scenario) ... ok
+test_deadlock_reaches_both_lock_waits (test_buggy_workload.BuggyWorkloadTests.test_deadlock_reaches_both_lock_waits) ... ok
+test_runner_preserves_base_and_selects_its_pid (test_buggy_workload.BuggyWorkloadTests.test_runner_preserves_base_and_selects_its_pid) ... ok
+test_scenarios_can_run_at_the_same_time (test_buggy_workload.BuggyWorkloadTests.test_scenarios_can_run_at_the_same_time) ... ok
+test_storage_preserves_base_directory (test_buggy_workload.BuggyWorkloadTests.test_storage_preserves_base_directory) ... ok
+test_build_options_do_not_require_cmp (test_build.BuildOptionsTests.test_build_options_do_not_require_cmp) ... ok
+test_build_options_ignore_a_failing_cmp (test_build.BuildOptionsTests.test_build_options_ignore_a_failing_cmp) ... ok
+test_invalid_sanitizer_and_static_sanitizer_fail_early (test_build.BuildOptionsTests.test_invalid_sanitizer_and_static_sanitizer_fail_early) ... ok
+test_required_thread_library_preserves_custom_libraries (test_build.BuildOptionsTests.test_required_thread_library_preserves_custom_libraries) ... ok
+test_same_options_preserve_the_timestamp_and_new_options_replace_them (test_build.BuildOptionsTests.test_same_options_preserve_the_timestamp_and_new_options_replace_them) ... ok
+test_sanitizer_mode_changes_update_build_options (test_build.BuildOptionsTests.test_sanitizer_mode_changes_update_build_options) ... ok
+test_sanitizer_modes_replace_static_linkage_and_preserve_warnings (test_build.BuildOptionsTests.test_sanitizer_modes_replace_static_linkage_and_preserve_warnings) ... ok
+test_sanitizer_options_do_not_inherit_the_outer_static_build (test_build.BuildOptionsTests.test_sanitizer_options_do_not_inherit_the_outer_static_build) ... ok
+test_cache_wraps_compilation_only (test_build.ObjectReuseTests.test_cache_wraps_compilation_only) ... ok
+test_header_and_compiler_flag_changes_recompile (test_build.ObjectReuseTests.test_header_and_compiler_flag_changes_recompile) ... ok
+test_link_library_change_relinks_without_recompiling (test_build.ObjectReuseTests.test_link_library_change_relinks_without_recompiling) ... ok
+test_sqlite_reuse_ignores_cpp_flags_but_checks_c_flags (test_build.ObjectReuseTests.test_sqlite_reuse_ignores_cpp_flags_but_checks_c_flags) ... ok
+test_full_installation_uses_a_fresh_base_image (test_ci_image.CIImageTests.test_full_installation_uses_a_fresh_base_image) ... ok
+test_runner_slots_build_one_shared_image (test_ci_image.CIImageTests.test_runner_slots_build_one_shared_image) ... ok
+test_warm_image_is_reused_and_toolchain_changes_invalidate_it (test_ci_image.CIImageTests.test_warm_image_is_reused_and_toolchain_changes_invalidate_it) ... ok
+test_a_different_pr_or_failed_run_is_not_reused (test_ci_reuse.CIReuseTests.test_a_different_pr_or_failed_run_is_not_reused) ... ok
+test_code_tests_build_config_and_markdown_fixtures_require_checks (test_ci_reuse.CIReuseTests.test_code_tests_build_config_and_markdown_fixtures_require_checks) ... ok
+test_documentation_merge_reuses_the_passing_inputs (test_ci_reuse.CIReuseTests.test_documentation_merge_reuses_the_passing_inputs) ... ok
+test_documentation_update_reuses_a_passing_run (test_ci_reuse.CIReuseTests.test_documentation_update_reuses_a_passing_run) ... ok
+test_manual_dispatch_runs_without_querying_history (test_ci_reuse.CIReuseTests.test_manual_dispatch_runs_without_querying_history) ... ok
+test_missing_commit_history_runs_the_checks (test_ci_reuse.CIReuseTests.test_missing_commit_history_runs_the_checks) ... ok
+test_new_base_code_requires_checks_even_when_head_is_unchanged (test_ci_reuse.CIReuseTests.test_new_base_code_requires_checks_even_when_head_is_unchanged) ... ok
+test_unavailable_github_history_runs_the_checks (test_ci_reuse.CIReuseTests.test_unavailable_github_history_runs_the_checks) ... ok
+test_corrupt_cached_archive_is_downloaded_again (test_compiler_cache.CompilerCacheTests.test_corrupt_cached_archive_is_downloaded_again) ... ok
+test_download_with_wrong_hash_is_rejected (test_compiler_cache.CompilerCacheTests.test_download_with_wrong_hash_is_rejected) ... ok
+test_verified_cached_archive_needs_no_download (test_compiler_cache.CompilerCacheTests.test_verified_cached_archive_needs_no_download) ... ok
+test_connection_limit_refuses_overload_and_recovers (test_dashboard_concurrency.DashboardConcurrencyTests.test_connection_limit_refuses_overload_and_recovers) ... ok
+test_only_one_editor_can_save_a_revision (test_dashboard_concurrency.DashboardConcurrencyTests.test_only_one_editor_can_save_a_revision) ... ok
+test_request_deadline_covers_trickled_headers_and_body (test_dashboard_concurrency.DashboardConcurrencyTests.test_request_deadline_covers_trickled_headers_and_body) ... ok
+test_shutdown_interrupts_pending_connections (test_dashboard_concurrency.DashboardConcurrencyTests.test_shutdown_interrupts_pending_connections) ... ok
+test_twenty_viewers_continue_with_idle_and_partial_connections (test_dashboard_concurrency.DashboardConcurrencyTests.test_twenty_viewers_continue_with_idle_and_partial_connections) ... ok
+test_full_collector_rule_and_global_reload_releases_original_session (test_discovery.DiscoveryCollectorReloadTests.test_full_collector_rule_and_global_reload_releases_original_session) ... ok
+test_arrivals_overlap_reload_invalid_replace_exit_restart_and_sighup (test_discovery.DiscoveryTests.test_arrivals_overlap_reload_invalid_replace_exit_restart_and_sighup) ... ok
+test_capacity_and_empty_reload (test_discovery.DiscoveryTests.test_capacity_and_empty_reload) ... ok
+test_capacity_grow_shrink_keeps_survivors_and_releases_old_sessions (test_discovery.DiscoveryTests.test_capacity_grow_shrink_keeps_survivors_and_releases_old_sessions) ... ok
+test_capacity_shrink_releases_removed_original_session (test_discovery.DiscoveryTests.test_capacity_shrink_releases_removed_original_session) ... ok
+test_directory_watch_recovery (test_discovery.DiscoveryTests.test_directory_watch_recovery) ... ok
+test_rename_to_selected_name_keeps_identity_and_session (test_discovery.DiscoveryTests.test_rename_to_selected_name_keeps_identity_and_session) ... ok
+test_rename_to_unselected_name_releases_session (test_discovery.DiscoveryTests.test_rename_to_unselected_name_releases_session) ... ok
+test_http_port_in_use_stops_at_startup (test_monitor.CppCollectorIntegrationTests.test_http_port_in_use_stops_at_startup) ... ok
+test_sampler_cpp_collector_dashboard_and_history_without_alerting (test_monitor.CppCollectorIntegrationTests.test_sampler_cpp_collector_dashboard_and_history_without_alerting) ... ok
+test_shipped_collector_config_passes_validation (test_monitor.CppCollectorIntegrationTests.test_shipped_collector_config_passes_validation) ... ok
+test_storage_write_failure_stops_the_collector (test_monitor.CppCollectorIntegrationTests.test_storage_write_failure_stops_the_collector) ... ok
+test_unusable_data_dir_stops_at_startup (test_monitor.CppCollectorIntegrationTests.test_unusable_data_dir_stops_at_startup) ... ok
+test_watch_rules_api_guards_save_and_reset (test_monitor.CppCollectorIntegrationTests.test_watch_rules_api_guards_save_and_reset)
+/api/watches: the POST guards of /api/target, all-or-nothing saves, reset, and the saved file. ... ok
+test_low_descriptor_limit_keeps_every_thread_and_one_session (test_monitor.DescriptorLimitTests.test_low_descriptor_limit_keeps_every_thread_and_one_session)
+Caching 4 descriptors per thread must not exhaust RLIMIT_NOFILE and make a live target look absent. ... ok
+test_resource_sample_describes_the_target (test_monitor.ResourceSampleTests.test_resource_sample_describes_the_target) ... /usr/lib/python3.14/unittest/case.py:704: ResourceWarning: unclosed file <_io.TextIOWrapper name=8 encoding='UTF-8'>
+  function, args, kwargs = self._cleanups.pop()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_resource_samples_can_be_turned_off (test_monitor.ResourceSampleTests.test_resource_samples_can_be_turned_off) ... ok
+test_check_config_uses_the_sampler_parser_and_does_not_sample (test_monitor.SamplerTests.test_check_config_uses_the_sampler_parser_and_does_not_sample) ... ok
+test_default_and_explicit_rates_reach_the_wire (test_monitor.SamplerTests.test_default_and_explicit_rates_reach_the_wire) ... ok
+test_help_does_not_require_a_config_or_send_samples (test_monitor.SamplerTests.test_help_does_not_require_a_config_or_send_samples) ... ok
+test_named_target_chunking_thread_names_and_descriptor_cleanup (test_monitor.SamplerTests.test_named_target_chunking_thread_names_and_descriptor_cleanup) ... ok
+test_real_proc_wire_format_reload_and_absent_heartbeat (test_monitor.SamplerTests.test_real_proc_wire_format_reload_and_absent_heartbeat) ... ok
+test_replacement_takes_over_a_released_slot_at_full_capacity (test_multitarget.IdleExpiryTests.test_replacement_takes_over_a_released_slot_at_full_capacity) ... ok
+test_kernel_source_controls_locality_not_claimed_host (test_multitarget.MixedLocalityTests.test_kernel_source_controls_locality_not_claimed_host) ... ok
+test_capacity_and_bad_announcements_are_counted (test_multitarget.MultiTargetCollectorTests.test_capacity_and_bad_announcements_are_counted) ... ok
+test_delayed_announce_moves_the_provisional_owner_out_of_the_legacy_directory (test_multitarget.MultiTargetCollectorTests.test_delayed_announce_moves_the_provisional_owner_out_of_the_legacy_directory) ... ok
+test_interleaved_targets_reordered_announce_and_session_replacement (test_multitarget.MultiTargetCollectorTests.test_interleaved_targets_reordered_announce_and_session_replacement) ... ok
+test_legacy_recording_owner_ignores_arrival_order (test_multitarget.MultiTargetCollectorTests.test_legacy_recording_owner_ignores_arrival_order) ... ok
+test_legacy_sampler_uses_default_and_sender_list_is_enforced (test_multitarget.MultiTargetCollectorTests.test_legacy_sampler_uses_default_and_sender_list_is_enforced) ... ok
+test_legacy_samplers_record_replay_separately (test_multitarget.MultiTargetCollectorTests.test_legacy_samplers_record_replay_separately) ... ok
+test_lost_announce_applies_the_renamed_targets_replay_interval (test_multitarget.MultiTargetCollectorTests.test_lost_announce_applies_the_renamed_targets_replay_interval) ... ok
+test_lost_initial_announce_preserves_the_default_last_view (test_multitarget.MultiTargetCollectorTests.test_lost_initial_announce_preserves_the_default_last_view) ... ok
+test_release_cannot_remove_a_new_session_or_reappear_from_delayed_data (test_multitarget.MultiTargetCollectorTests.test_release_cannot_remove_a_new_session_or_reappear_from_delayed_data) ... ok
+test_remote_target_remove_refuses_claimed_local_hostname_and_mismatched_id (test_multitarget.MultiTargetCollectorTests.test_remote_target_remove_refuses_claimed_local_hostname_and_mismatched_id) ... ok
+test_reordered_slot_reuse_keeps_the_last_view_identity (test_multitarget.MultiTargetCollectorTests.test_reordered_slot_reuse_keeps_the_last_view_identity) ... ok
+test_replaced_session_keeps_its_target_mapping (test_multitarget.MultiTargetCollectorTests.test_replaced_session_keeps_its_target_mapping) ... ok
+test_replay_interval_can_be_disabled_for_one_target (test_multitarget.MultiTargetCollectorTests.test_replay_interval_can_be_disabled_for_one_target) ... ok
+test_restart_with_reversed_arrival_keeps_the_legacy_owner (test_multitarget.MultiTargetCollectorTests.test_restart_with_reversed_arrival_keeps_the_legacy_owner) ... ok
+test_restarted_collector_rebinds_default_and_second_target (test_multitarget.MultiTargetCollectorTests.test_restarted_collector_rebinds_default_and_second_target) ... ok
+test_reused_slot_forgets_its_announced_identity (test_multitarget.MultiTargetCollectorTests.test_reused_slot_forgets_its_announced_identity) ... ok
+test_sessions_heard_before_announcements_both_recover (test_multitarget.MultiTargetCollectorTests.test_sessions_heard_before_announcements_both_recover) ... ok
+test_upgraded_legacy_sampler_keeps_its_replay_directory (test_multitarget.MultiTargetCollectorTests.test_upgraded_legacy_sampler_keeps_its_replay_directory) ... ok
+test_watch_rules_are_isolated_and_survive_restart (test_multitarget.MultiTargetCollectorTests.test_watch_rules_are_isolated_and_survive_restart) ... ok
+test_zero_legacy_session_and_allowed_sender_address_change (test_multitarget.MultiTargetCollectorTests.test_zero_legacy_session_and_allowed_sender_address_change) ... ok
+test_cpu_budget_changes_wire_interval_without_changing_sessions (test_multitarget.MultiTargetSamplerTests.test_cpu_budget_changes_wire_interval_without_changing_sessions) ... ok
+test_heavy_scans_rotate_with_at_most_one_scan_per_tick (test_multitarget.MultiTargetSamplerTests.test_heavy_scans_rotate_with_at_most_one_scan_per_tick) ... ok
+test_one_process_keeps_unmodified_sessions_on_target_reload (test_multitarget.MultiTargetSamplerTests.test_one_process_keeps_unmodified_sessions_on_target_reload) ... ok
+test_reload_interrupts_the_minimum_rate_sleep (test_multitarget.MultiTargetSamplerTests.test_reload_interrupts_the_minimum_rate_sleep) ... ok
+test_stop_interrupts_the_minimum_rate_sleep (test_multitarget.MultiTargetSamplerTests.test_stop_interrupts_the_minimum_rate_sleep) ... ok
+test_second_sender_cannot_share_the_legacy_directory (test_multitarget.UnpinnedCollectorTests.test_second_sender_cannot_share_the_legacy_directory) ... ok
+test_legacy_watch_file_and_replay_follow_the_legacy_owner (test_multitarget.UnsortedSenderListTests.test_legacy_watch_file_and_replay_follow_the_legacy_owner) ... ok
+test_all_three_once_with_full_defaults (test_nightly_dispatch.NightlyDispatchTest.test_all_three_once_with_full_defaults) ... ok
+test_before_three_has_no_side_effects (test_nightly_dispatch.NightlyDispatchTest.test_before_three_has_no_side_effects) ... ok
+test_damaged_state_fails_closed (test_nightly_dispatch.NightlyDispatchTest.test_damaged_state_fails_closed) ... ok
+test_dry_run_has_no_state_or_submissions (test_nightly_dispatch.NightlyDispatchTest.test_dry_run_has_no_state_or_submissions) ... ok
+test_existing_schedule_suppresses_only_its_workflow (test_nightly_dispatch.NightlyDispatchTest.test_existing_schedule_suppresses_only_its_workflow) ... ok
+test_full_manual_suppresses_almalinux (test_nightly_dispatch.NightlyDispatchTest.test_full_manual_suppresses_almalinux) ... ok
+test_lean_manual_does_not_suppress_full_almalinux (test_nightly_dispatch.NightlyDispatchTest.test_lean_manual_does_not_suppress_full_almalinux) ... ok
+test_process_lock_blocks_submission (test_nightly_dispatch.NightlyDispatchTest.test_process_lock_blocks_submission) ... ok
+test_uncertain_submission_is_not_retried_and_other_successes_remain (test_nightly_dispatch.NightlyDispatchTest.test_uncertain_submission_is_not_retried_and_other_successes_remain) ... ok
+test_case_procedures_do_not_require_result_rows (test_qa_summary.QaSummaryTests.test_case_procedures_do_not_require_result_rows) ... ok
+test_every_status_is_counted (test_qa_summary.QaSummaryTests.test_every_status_is_counted) ... ok
+test_recorded_results_are_consistent (test_qa_summary.QaSummaryTests.test_recorded_results_are_consistent) ... ok
+test_default_layout_preserves_configs_and_controls_installed_sampler (test_runtime.RuntimeTests.test_default_layout_preserves_configs_and_controls_installed_sampler) ... ok
+test_override_keeps_runtime_files_inside_the_selected_directory (test_runtime.RuntimeTests.test_override_keeps_runtime_files_inside_the_selected_directory) ... ok
+test_clock_going_backwards_is_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_clock_going_backwards_is_rejected) ... ok
+test_failed_sampler_stops_the_workload (test_sampler_benchmark.SamplerBenchmarkTests.test_failed_sampler_stops_the_workload) ... ok
+test_incomplete_duplicate_and_lost_ticks_are_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_incomplete_duplicate_and_lost_ticks_are_rejected) ... ok
+test_invalid_target_count (test_sampler_benchmark.SamplerBenchmarkTests.test_invalid_target_count) ... ok
+test_kernel_timestamp_and_complete_sample (test_sampler_benchmark.SamplerBenchmarkTests.test_kernel_timestamp_and_complete_sample) ... ok
+test_late_tick_is_counted_not_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_late_tick_is_counted_not_rejected) ... ok
+test_nonfinite_duration_is_rejected (test_sampler_benchmark.SamplerBenchmarkTests.test_nonfinite_duration_is_rejected) ... ok
+test_real_busy_target_and_all_rates (test_sampler_benchmark.SamplerBenchmarkTests.test_real_busy_target_and_all_rates) ... ok
+test_target_thread_count_after_warmup (test_sampler_benchmark.SamplerBenchmarkTests.test_target_thread_count_after_warmup) ... ok
+test_thread_matrix_and_partial_packet (test_sampler_benchmark.SamplerBenchmarkTests.test_thread_matrix_and_partial_packet) ... ok
+test_committed_page_and_infographic_match_the_renderer (test_sampler_benchmark_page.BenchmarkPageTests.test_committed_page_and_infographic_match_the_renderer) ... ok
+test_incomplete_duplicate_and_missing_trials_are_rejected (test_sampler_benchmark_page.BenchmarkPageTests.test_incomplete_duplicate_and_missing_trials_are_rejected) ... ok
+test_invalid_observations_are_rejected (test_sampler_benchmark_page.BenchmarkPageTests.test_invalid_observations_are_rejected) ... ok
+test_percentiles_pool_samples_instead_of_averaging_trials (test_sampler_benchmark_page.BenchmarkPageTests.test_percentiles_pool_samples_instead_of_averaging_trials) ... ok
+test_rendered_snapshot_escapes_metadata_and_keeps_exact_data (test_sampler_benchmark_page.BenchmarkPageTests.test_rendered_snapshot_escapes_metadata_and_keeps_exact_data) ... ok
+test_sample_count_must_match (test_sampler_benchmark_page.BenchmarkPageTests.test_sample_count_must_match) ... ok
+test_global_rate_is_inserted_before_target_tables (test_sampler_control.ConfigTextTests.test_global_rate_is_inserted_before_target_tables) ... ok
+test_read_setting_follows_the_sampler_rules (test_sampler_control.ConfigTextTests.test_read_setting_follows_the_sampler_rules) ... ok
+test_replace_setting_keeps_position_comments_and_line_endings (test_sampler_control.ConfigTextTests.test_replace_setting_keeps_position_comments_and_line_endings) ... ok
+test_target_tables_preserve_globals_and_validate_set_changes (test_sampler_control.ConfigTextTests.test_target_tables_preserve_globals_and_validate_set_changes) ... ok
+test_cli_target_ids_add_remove_and_global_rate (test_sampler_control.ScriptTests.test_cli_target_ids_add_remove_and_global_rate) ... ok
+test_dashboard_adds_and_removes_targets_without_resetting_the_default (test_sampler_control.ScriptTests.test_dashboard_adds_and_removes_targets_without_resetting_the_default) ... ok
+test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector (test_sampler_control.ScriptTests.test_dashboard_changes_ipv4_sampler_target_on_dual_stack_collector) ... ok
+test_dashboard_changes_pid_name_and_absent_target (test_sampler_control.ScriptTests.test_dashboard_changes_pid_name_and_absent_target) ... ok
+test_dashboard_control_is_hidden_without_the_optional_helper (test_sampler_control.ScriptTests.test_dashboard_control_is_hidden_without_the_optional_helper) ... ok
+test_dashboard_named_target_follows_restart_and_survives_reopening (test_sampler_control.ScriptTests.test_dashboard_named_target_follows_restart_and_survives_reopening) ... ok
+test_dashboard_reads_split_body_and_rejects_oversized_requests (test_sampler_control.ScriptTests.test_dashboard_reads_split_body_and_rejects_oversized_requests) ... ok
+test_dashboard_requires_local_same_origin_write_and_live_sampler (test_sampler_control.ScriptTests.test_dashboard_requires_local_same_origin_write_and_live_sampler) ... ok
+test_discovery_rule_remove_is_persistent_and_preserves_other_names (test_sampler_control.ScriptTests.test_discovery_rule_remove_is_persistent_and_preserves_other_names) ... ok
+test_network_control_is_opt_in_and_sampler_stays_local (test_sampler_control.ScriptTests.test_network_control_is_opt_in_and_sampler_stays_local) ... ok
+test_rate_and_target_reload_in_place (test_sampler_control.ScriptTests.test_rate_and_target_reload_in_place) ... ok
+test_rejected_changes_leave_the_config_unchanged (test_sampler_control.ScriptTests.test_rejected_changes_leave_the_config_unchanged) ... ok
+test_renamed_instance_remove_never_edits_another_rule (test_sampler_control.ScriptTests.test_renamed_instance_remove_never_edits_another_rule) ... ok
+test_sixth_target_over_capacity_is_refused_until_a_slot_frees (test_sampler_control.ScriptTests.test_sixth_target_over_capacity_is_refused_until_a_slot_frees) ... ok
+test_stale_pidfile_and_other_programs_are_refused (test_sampler_control.ScriptTests.test_stale_pidfile_and_other_programs_are_refused) ... ok
+test_target_control_refuses_a_remote_sender_list (test_sampler_control.ScriptTests.test_target_control_refuses_a_remote_sender_list) ... ok
+test_tracked_example_config_is_not_edited (test_sampler_control.ScriptTests.test_tracked_example_config_is_not_edited) ... ok
+test_names_must_be_unique (test_sampler_control.TargetLookupTests.test_names_must_be_unique) ... ok
+test_thread_ids_and_missing_pids_are_rejected (test_sampler_control.TargetLookupTests.test_thread_ids_and_missing_pids_are_rejected) ... ok
+test_comparison_rejects_incomplete_or_different_settings (test_sampling_benchmark.SamplingBenchmarkTests.test_comparison_rejects_incomplete_or_different_settings) ... ok
+test_known_percentiles_and_throughput (test_sampling_benchmark.SamplingBenchmarkTests.test_known_percentiles_and_throughput) ... ok
+test_real_sampler_functions_at_all_thread_counts (test_sampling_benchmark.SamplingBenchmarkTests.test_real_sampler_functions_at_all_thread_counts) ... ok
+test_discarded_child_report_fails_an_otherwise_successful_suite (test_sanitizer_checks.SanitizerChecksTests.test_discarded_child_report_fails_an_otherwise_successful_suite) ... No next scenario.
+Sanitizer reports: /tmp/tmphxwybwrb/build/sanitizer-reports/thread/run-punuu6xi
+ok
+test_empty_report_directory_passes (test_sanitizer_checks.SanitizerChecksTests.test_empty_report_directory_passes) ... ok
+test_native_test_failure_stops_the_suite (test_sanitizer_checks.SanitizerChecksTests.test_native_test_failure_stops_the_suite) ... ok
+test_required_runtime_options_follow_caller_options (test_sanitizer_checks.SanitizerChecksTests.test_required_runtime_options_follow_caller_options) ... ok
+test_core_archives_exclude_scout (test_scout_release.ScoutReleaseTest.test_core_archives_exclude_scout) ... ok
+test_driver_reports_both_kinds_for_a_small_target (test_slow_samples.SlowSampleBenchmarkTests.test_driver_reports_both_kinds_for_a_small_target) ... ok
+test_missing_target_is_rejected_for_both_sample_kinds (test_slow_samples.SlowSampleBenchmarkTests.test_missing_target_is_rejected_for_both_sample_kinds) ... ok
+test_unknown_sample_kind_is_rejected (test_slow_samples.SlowSampleBenchmarkTests.test_unknown_sample_kind_is_rejected) ... ok
+test_real_sampler_against_the_victim (test_target_impact.DriverTests.test_real_sampler_against_the_victim) ... ok
+test_too_few_cpus_are_reported_before_any_run (test_target_impact.DriverTests.test_too_few_cpus_are_reported_before_any_run) ... ok
+test_an_inconsistent_histogram_is_rejected (test_target_impact.SummaryTests.test_an_inconsistent_histogram_is_rejected) ... ok
+test_cpus_need_one_per_role_and_must_be_allowed (test_target_impact.SummaryTests.test_cpus_need_one_per_role_and_must_be_allowed) ... ok
+test_merge_adds_counts_and_keeps_the_largest_maximum (test_target_impact.SummaryTests.test_merge_adds_counts_and_keeps_the_largest_maximum) ... ok
+test_percentile_is_the_bucket_upper_bound_capped_at_the_maximum (test_target_impact.SummaryTests.test_percentile_is_the_bucket_upper_bound_capped_at_the_maximum) ... ok
+test_zero_durations_have_a_zero_percentile (test_target_impact.SummaryTests.test_zero_durations_have_a_zero_percentile) ... ok
+test_bad_arguments_are_rejected (test_target_impact.VictimTests.test_bad_arguments_are_rejected) ... ok
+test_closing_stdin_before_the_start_line_does_not_hang (test_target_impact.VictimTests.test_closing_stdin_before_the_start_line_does_not_hang) ... ok
+test_failed_thread_creation_exits_instead_of_hanging (test_target_impact.VictimTests.test_failed_thread_creation_exits_instead_of_hanging) ... ok
+test_mappings_files_and_sockets_are_created_before_ready (test_target_impact.VictimTests.test_mappings_files_and_sockets_are_created_before_ready) ... ok
+test_probes_report_and_the_thread_set_stays_constant (test_target_impact.VictimTests.test_probes_report_and_the_thread_set_stays_constant) ... ok
+test_unknown_or_negative_options_are_rejected (test_target_impact.VictimTests.test_unknown_or_negative_options_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 190 tests in 203.081s
+
+OK
