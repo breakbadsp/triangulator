@@ -141,7 +141,8 @@ its ID. A child found only through its parent is never a parent, so
 grandchildren are not monitored unless a rule selects them. A child that a
 rule also selects is collected once. Children of a new parent arrive on the
 next pass. Child-only targets are released when the parent ends, when no
-rule selects the parent any more, or when a pass sees a new PPID. The
+rule selects the parent any more, when a pass sees a new PPID, or when a
+child that lost its own rule is over the limit of 10. The
 dashboard refuses Remove for a child, because the parent's rule selects it.
 
 A scan starts no more often than once a second. Each sampling tick examines

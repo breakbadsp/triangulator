@@ -157,6 +157,7 @@ class Discovery final
     {
       AddWaiting(p_config, name);
     }
+    Reconcile();
     // New rules can match processes that the last pass skipped.
     directory_.reset();
     candidates_ = {};
@@ -196,6 +197,7 @@ class Discovery final
       const auto entry = directory_->Next();
       if (!entry)
       {
+        Reconcile();
         if (auto admitted = AdmitCandidates(p_config); !admitted)
         {
           return Abort(admitted.error(), p_now);
@@ -365,11 +367,9 @@ class Discovery final
         std::ranges::copy(name, slot.name_.begin());
         slot.selection_ = selection;
         slot.parent_ = parent_identity;
-        if (selection == 0)
-        {
-          // No longer a parent: grandchildren are not monitored.
-          ReleaseChildren(identity);
-        }
+        // Reconcile() releases the children of a slot that is no longer a
+        // parent, and the children over the cap, after every slot has the new
+        // rules.
         if (selection == 0 && !parent)
         {
           Release(slot, kReleaseTicks);
@@ -490,6 +490,44 @@ class Discovery final
       }
       slot.parent_ = {};
       if (slot.state_ == SlotState::Running && slot.selection_ == 0)
+      {
+        Release(slot, kReleaseTicks);
+      }
+    }
+  }
+
+  // Runs after every running slot has its current rule selection. A
+  // child-only target stays only while a rule selects its parent and the
+  // parent has at most kMaxChildrenPerParent of them, the lowest slots first.
+  // A target that a rule selects keeps its slot and session.
+  void Reconcile()
+  {
+    const auto slots = Used();
+    for (std::size_t index = 0; index < slots.size(); ++index)
+    {
+      auto& slot = slots[index];
+      if (slot.state_ != SlotState::Running || slot.parent_.pid_ == 0)
+      {
+        continue;
+      }
+      const auto* parent = Parent(slot.parent_.pid_);
+      if (!parent || parent->identity_ != slot.parent_)
+      {
+        slot.parent_ = {};
+        if (slot.selection_ == 0)
+        {
+          Release(slot, kReleaseTicks);
+        }
+        continue;
+      }
+      const auto earlier = static_cast<std::size_t>(std::ranges::count_if(
+          slots.first(index),
+          [&slot](const DiscoverySlot& p_other)
+          {
+            return p_other.state_ == SlotState::Running &&
+                   p_other.selection_ == 0 && p_other.parent_ == slot.parent_;
+          }));
+      if (slot.selection_ == 0 && earlier >= kMaxChildrenPerParent)
       {
         Release(slot, kReleaseTicks);
       }
