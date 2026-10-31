@@ -180,6 +180,19 @@ void ServePaced(httplib::Response& p_response)
       });
 }
 
+// 8 MiB chunks from the start, so the write blocks when the client does not
+// read.
+void ServeStall(httplib::Response& p_response)
+{
+  p_response.set_content_provider(
+      64U << 20, "text/plain",
+      [](std::size_t, std::size_t, httplib::DataSink& p_sink)
+      {
+        static const std::string kChunk(8U << 20, 'z');
+        return p_sink.write(kChunk.data(), kChunk.size());
+      });
+}
+
 // A server whose handler answers with what it saw.
 class TestServer
 {
@@ -192,6 +205,11 @@ class TestServer
               if (p_request.target == "/paced")
               {
                 ServePaced(p_response);
+                return;
+              }
+              if (p_request.target == "/stall")
+              {
+                ServeStall(p_response);
                 return;
               }
               p_response.set_content(
@@ -423,6 +441,20 @@ void TestTotalWriteDeadline()
           "stop took 1 s or more");
 }
 
+// Stop() ends a response write that is blocked on a client that does not
+// read, long before the 5 s write deadline.
+void TestStopDuringBlockedWrite()
+{
+  TestServer server;
+  const auto socket = Connect(server.Port());
+  Send(socket, "GET /stall HTTP/1.1\r\nHost: t\r\n\r\n");
+  std::this_thread::sleep_for(std::chrono::milliseconds{500});
+  const auto stop_started = Clock::now();
+  server.Server().Stop();
+  Require(Clock::now() - stop_started < std::chrono::seconds{1},
+          "stop did not end a blocked response write within 1 s");
+}
+
 // Responses that the library writes itself carry the same policy
 // headers as handler responses.
 void TestPolicyHeaders()
@@ -549,12 +581,13 @@ int main()
     TestTotalReadDeadline();
     TestFormBodyAndExpect();
     TestTotalWriteDeadline();
+    TestStopDuringBlockedWrite();
     std::puts(
         "HTTP server tests passed (bind, policy headers, range, "
         "peer, head "
         "and body limits, connection limit, stop, read deadline, "
         "form body, "
-        "Expect, write deadline)");
+        "Expect, write deadline, stop during write)");
   }
   catch (const std::exception& error)
   {
