@@ -118,8 +118,9 @@ rates, and the budget. The collector converts the counters to a percentage.
 The local `sampler.toml` owns production selection. Remove legacy selectors
 before using the discovery lists in [the example](../config/sampler.toml).
 `process_names` selects exact Linux comm names. `process_patterns` optionally
-selects whole names with `*` and `?`, case-sensitive. Brackets and backslashes
-are rejected. Each rule has 1..15 bytes, with at most 16 rules in total.
+selects whole names with `*` and `?`, ignoring ASCII case (`T3*` matches
+`t3code`). Patterns that differ only in case are rejected as duplicates.
+Brackets and backslashes are rejected. Each rule has 1..15 bytes, with at most 16 rules in total.
 Exact names use letters, digits, dots, underscores, and hyphens. Linux keeps
 only 15 bytes of a process name. It does not match the command line.
 Empty lists are valid and keep discovery active. Do not mix lists with

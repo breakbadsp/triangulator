@@ -248,9 +248,16 @@ void TestDiscoveryConfig()
   Require(!mixed && mixed.error().find("target_pid or target_process") !=
                         std::string::npos,
           "the error names the conflicting settings");
-  Require(!ParseConfig(
-              "collector=127.0.0.1:9400\nprocess_patterns=[\"a*\",\"a*\"]"),
-          "a duplicate pattern");
+  Require(
+      !ParseConfig(
+          "collector=127.0.0.1:9400\nprocess_patterns=[\"a*\",\"a*\"]") &&
+          !ParseConfig("collector=127.0.0.1:9400\nprocess_patterns=[\"T3*\","
+                       "\"t3*\"]"),
+      "a duplicate pattern, also one that differs only in case");
+  Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"Web\","
+                      "\"web\"]")
+              .has_value(),
+          "exact names stay case-sensitive");
   std::string many = "collector=127.0.0.1:9400\nprocess_names=[";
   for (int index = 0; index < 16; ++index)
   {
@@ -261,15 +268,15 @@ void TestDiscoveryConfig()
           "at most 16 rules");
 }
 
-// Glob rules from the requirement: '*' any bytes, '?' one byte, exact and
-// case-sensitive over the whole name.
+// Glob rules from the requirement: '*' any bytes, '?' one byte, ASCII
+// case-insensitive over the whole name.
 void TestGlobMatch()
 {
   Require(GlobMatch("worker-*", "worker-") && GlobMatch("worker-*", "worker-7"),
           "* matches an empty or longer tail");
-  Require(
-      !GlobMatch("worker-*", "Worker-7") && !GlobMatch("worker-*", "xworker-7"),
-      "case-sensitive, whole name");
+  Require(GlobMatch("worker-*", "Worker-7") && GlobMatch("T3*", "t3code") &&
+              !GlobMatch("worker-*", "xworker-7"),
+          "ASCII case-insensitive, whole name");
   Require(GlobMatch("w?rk*r", "wxrkr") && GlobMatch("w?rk*r", "work-er-r"),
           "? and backtracking *");
   Require(!GlobMatch("w?rk", "wrk") && !GlobMatch("a*b", "ab-c"),

@@ -82,9 +82,24 @@ struct Config
   }
 };
 
+// ASCII case folding. Process names are bytes, so locale rules do not apply.
+[[nodiscard]] constexpr char FoldCase(char p_character) noexcept
+{
+  return p_character >= 'A' && p_character <= 'Z'
+             ? static_cast<char>(p_character - 'A' + 'a')
+             : p_character;
+}
+
+[[nodiscard]] constexpr bool EqualFoldCase(std::string_view p_left,
+                                           std::string_view p_right) noexcept
+{
+  return std::ranges::equal(p_left, p_right, {}, FoldCase, FoldCase);
+}
+
 // '*' matches any bytes, '?' matches one byte, and every other byte matches
-// itself. One backtrack point keeps the work at most name x pattern steps
-// for these 15-byte strings, with no allocation.
+// itself with ASCII case ignored, so "T3*" matches "t3code". One backtrack
+// point keeps the work at most name x pattern steps for these 15-byte strings,
+// with no allocation.
 [[nodiscard]] constexpr bool GlobMatch(std::string_view p_pattern,
                                        std::string_view p_name) noexcept
 {
@@ -95,7 +110,8 @@ struct Config
   while (name < p_name.size())
   {
     if (pattern < p_pattern.size() &&
-        (p_pattern[pattern] == '?' || p_pattern[pattern] == p_name[name]))
+        (p_pattern[pattern] == '?' ||
+         FoldCase(p_pattern[pattern]) == FoldCase(p_name[name])))
     {
       ++pattern;
       ++name;
@@ -213,7 +229,12 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
           "process pattern \"{}\" has no * or ?; list it in process_names",
           pattern));
     }
-    if (std::ranges::count(p_config.process_patterns_, pattern) > 1)
+    // Patterns that differ only in case select the same processes.
+    if (std::ranges::count_if(p_config.process_patterns_,
+                              [&pattern](const std::string& p_other)
+                              {
+                                return EqualFoldCase(p_other, pattern);
+                              }) > 1)
     {
       return std::unexpected(
           std::format("process pattern \"{}\" is listed twice", pattern));

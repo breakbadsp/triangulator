@@ -117,8 +117,9 @@ process_patterns = ["worker-*"]
 
 ### Implementation decisions
 
-- Globs use whole-name, case-sensitive `*` and `?`. Brackets and escapes are
-  rejected. Names use 1..15 portable ID bytes; patterns permit other comm bytes.
+- Globs use whole-name `*` and `?` and ignore ASCII case, so `T3*` matches
+  `t3code`; patterns that differ only in case are duplicates. Exact names stay
+  case-sensitive. Brackets and escapes are rejected. Names use 1..15 portable ID bytes; patterns permit other comm bytes.
 - Instance IDs are the sanitized comm name, then `.2`, `.3`, and so on.
   Admission fixes the ID for the instance lifetime. Overlap edits keep it.
 - One pass starts no more often than once a second. Each tick examines at most
