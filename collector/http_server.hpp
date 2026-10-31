@@ -28,6 +28,9 @@
     defined(CPPHTTPLIB_BROTLI_SUPPORT) || defined(CPPHTTPLIB_ZSTD_SUPPORT)
 #error "The collector builds cpp-httplib without TLS or compression."
 #endif
+// The library caps form-urlencoded bodies separately. The collector treats
+// every body as raw bytes, so this equals kMaxRequestBodyBytes below.
+#define CPPHTTPLIB_FORM_URL_ENCODED_PAYLOAD_MAX_LENGTH 16384
 #include <httplib.h>
 
 #include "log.hpp"
@@ -70,7 +73,8 @@ class LimitedStream final : public httplib::Stream
 {
  public:
   LimitedStream(socket_t p_socket, const std::atomic<bool>& p_stopping)
-      : inner_(p_socket, kNetworkTimeout.count(), 0, kNetworkTimeout.count(), 0,
+      : stopping_(p_stopping),
+        inner_(p_socket, kNetworkTimeout.count(), 0, kNetworkTimeout.count(), 0,
                std::chrono::duration_cast<std::chrono::milliseconds>(
                    kNetworkTimeout)
                    .count(),
@@ -125,17 +129,26 @@ class LimitedStream final : public httplib::Stream
     {
       write_deadline_ = now + kNetworkTimeout;
     }
-    const auto remaining =
-        std::chrono::duration_cast<std::chrono::microseconds>(*write_deadline_ -
-                                                              now)
-            .count();
-    if (remaining <= 0 ||
-        httplib::detail::select_write(inner_.socket(), remaining / 1'000'000,
-                                      remaining % 1'000'000) <= 0)
+    // The accepted socket is blocking, so send without blocking and wait in
+    // short slices. A slow reader that makes progress cannot pass the total
+    // deadline, and Stop() ends the wait.
+    constexpr time_t kSliceMicroseconds = 100'000;
+    while (!stopping_.load() &&
+           std::chrono::steady_clock::now() < *write_deadline_)
     {
-      return -1;
+      const auto count =
+          ::send(inner_.socket(), p_data, p_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+      if (count >= 0)
+      {
+        return count;
+      }
+      if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+      {
+        return -1;
+      }
+      httplib::detail::select_write(inner_.socket(), 0, kSliceMicroseconds);
     }
-    return inner_.write(p_data, p_size);
+    return -1;
   }
   void get_remote_ip_and_port(std::string& p_ip, int& p_port) const override
   {
@@ -172,6 +185,7 @@ class LimitedStream final : public httplib::Stream
   }
 
  private:
+  const std::atomic<bool>& stopping_;
   httplib::detail::SocketStream inner_;
   bool in_head_ = true;
   std::size_t head_bytes_ = 0;
@@ -441,6 +455,9 @@ class HttpServer final : public httplib::Server
                                    // the library would turn a handler's
                                    // 200 into 416 for an unsatisfiable range.
                                    p_request.ranges.clear();
+                                   // No interim 100: the old transport sent
+                                   // only the final response.
+                                   p_request.headers.erase("Expect");
                                  });
         });
     httplib::detail::drain_and_close_socket(p_socket);
