@@ -248,6 +248,9 @@ void TestDiscoveryConfig()
   Require(!mixed && mixed.error().find("target_pid or target_process") !=
                         std::string::npos,
           "the error names the conflicting settings");
+  Require(!ParseConfig(
+              "collector=127.0.0.1:9400\nprocess_patterns=[\"a*\",\"a*\"]"),
+          "a duplicate pattern");
   std::string many = "collector=127.0.0.1:9400\nprocess_names=[";
   for (int index = 0; index < 16; ++index)
   {
