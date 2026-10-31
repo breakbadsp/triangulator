@@ -187,5 +187,46 @@ class DashboardConcurrencyTests(unittest.TestCase):
         self.assertFalse(file.exists())
 
 
+    def raw(self, request, address="127.0.0.1"):
+        with socket.create_connection((address, self.port), timeout=3) as connection:
+            connection.sendall(request)
+            reply = b""
+            while chunk := connection.recv(65536):
+                reply += chunk
+        head, _, body = reply.partition(b"\r\n\r\n")
+        return int(head.split()[1]), json.loads(body)
+
+    def test_query_keeps_first_non_blank_value_percent_decoding_and_plus(self):
+        # start is "100 " (blank first value skipped, + as space) and end is
+        # "5000" in percent encoding, so the 4,900 s range gives 5 s buckets.
+        # Each rule broken alone makes the range invalid (400).
+        status, data = self.raw(
+            b"GET /api/resources?start=&start=100+&end=%35%30%30%30 HTTP/1.0\r\n\r\n")
+        self.assertEqual((status, data["bucket_s"]), (200, 5))
+
+    def test_target_control_uses_the_socket_peer_not_forwarded_headers(self):
+        # A forwarded address must neither grant control to another host nor
+        # take it from a loopback client.
+        forwarded = (b"X-Forwarded-For: {}\r\nX-Real-IP: {}\r\nForwarded: for={}\r\n")
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            try:
+                probe.connect(("192.0.2.1", 9))
+                local = probe.getsockname()[0]
+            except OSError:
+                local = None
+        self.stop()
+        self.config.write_text(self.config.read_text() + 'http_host="0.0.0.0"\n')
+        self.start()
+        request = b"GET /api/target HTTP/1.0\r\n" + forwarded.replace(b"{}", b"10.1.2.3") + b"\r\n"
+        status, data = self.raw(request)
+        self.assertEqual(status, 200)
+        self.assertNotIn("Target changes from other hosts are off", data.get("error", ""))
+        if local is None or local.startswith("127."):
+            self.skipTest("no non-loopback address on this host")
+        request = b"GET /api/target HTTP/1.0\r\n" + forwarded.replace(b"{}", b"127.0.0.1") + b"\r\n"
+        status, data = self.raw(request, local)
+        self.assertEqual((status, data["enabled"]), (200, False))
+        self.assertIn("Target changes from other hosts are off", data["error"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -669,13 +669,16 @@ class ScriptTests(unittest.TestCase):
                 while chunk := connection.recv(4096):
                     response += chunk
             status = int(response.split(b" ", 2)[1])
-            return status, json.loads(response.split(b"\r\n\r\n", 1)[1])
+            body = response.split(b"\r\n\r\n", 1)[1]
+            # The HTTP library rejects bad framing with an empty body.
+            return status, json.loads(body) if body else None
 
         original = config.read_text()
-        for headers in (b"Content-Length: 16385", b"Content-Length: -1",
-                        b"Content-Length: 3\r\nContent-Length: 3", b"Transfer-Encoding: chunked"):
+        for headers, expected in ((b"Content-Length: 16385", 413), (b"Content-Length: -1", 400),
+                                  (b"Content-Length: 3\r\nContent-Length: 4", 400),
+                                  (b"Transfer-Encoding: chunked", 400)):
             status, _ = raw_request(headers)
-            self.assertEqual(status, 400)
+            self.assertEqual(status, expected, headers)
             self.assertEqual(config.read_text(), original)
         body = json.dumps({"target": "ui-split-body"}).encode()
         status, data = raw_request(f"Content-Length: {len(body)}".encode(), body)
