@@ -31,8 +31,9 @@ enum class Access : std::uint8_t
 // sets the rules that select it, and its ID suffix N (as in "worker.2") in
 // the top bits, so the collector can find the exact name without parsing.
 // kNameSelected: the exact name in the ID selects it. kOtherRuleSelected:
-// another rule selects it, a pattern or, after a rename, another exact name,
-// so a Remove of the ID's name would not stop it.
+// another rule selects it, a pattern, after a rename another exact name, or
+// the rule of its discovered parent, so a Remove of the ID's name would not
+// stop it.
 inline constexpr std::uint8_t kReleased = 1;
 inline constexpr std::uint8_t kNameSelected = 2;
 inline constexpr std::uint8_t kOtherRuleSelected = 4;

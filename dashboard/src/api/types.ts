@@ -27,7 +27,7 @@ export interface Target {
   /** Its packets come from a loopback address: the collector host's sampler. */
   local?: boolean;
   /** Discovery rules that select it: the exact name in its ID, or another
-   * rule (a pattern, or another name after a rename). */
+   * rule (a pattern, another name after a rename, or its parent's rule). */
   name_selected?: boolean;
   other_rule_selected?: boolean;
   /** The exact process name that selects it, without an ID suffix. */

@@ -13,6 +13,7 @@
 | QA-123 | NOT_RUN | - | - | - |
 | QA-124 | NOT_RUN | - | - | - |
 | QA-125 | NOT_RUN | - | - | - |
+| QA-134 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -785,3 +786,10 @@
 - Driver: judged
 - Test: Inspect the sampler and collector release archives and the separate tri-scout asset. Run each history tool with invalid bounds, metric, step, n, target, and thread token. Set enabled=false during an MCP session and request history again.
 - Expected: Neither archive contains tri-scout. The separate file runs with Node 24 or later and no node_modules. Invalid inputs give tool errors. The off switch blocks the next call, sends no request, and exits 2.
+
+## QA-134: Discovered children and case-insensitive patterns
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Configure `process_patterns = ["T3*"]` with a running process named `t3code` that has at least two direct children, one grandchild, and a parent with more than 10 children. Open the fleet page. Try Remove on a child tile. Stop the parent. Add a pattern that differs from another only in case.
+- Expected: `t3code` and its direct children have separate tiles under their own comm names; the grandchild has none. One parent shows at most 10 children; the rest count as excluded. Remove on a child is refused and names the parent's rule. Child tiles are released within a few seconds of the parent stopping. The duplicate pattern is rejected and the previous rules stay.

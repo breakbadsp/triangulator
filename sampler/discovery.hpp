@@ -8,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
 
 #include "config.hpp"
 #include "proc.hpp"
@@ -26,6 +27,9 @@ inline constexpr std::size_t kScanEntriesPerTick = 512;
 // on 5 of them, then the release notice on 5 more. Datagrams can be lost.
 inline constexpr std::uint8_t kReportTicks = 5;
 inline constexpr std::uint8_t kReleaseTicks = 5;
+// Direct children that one parent target can bring in, so that one process
+// with many workers cannot take every slot.
+inline constexpr std::size_t kMaxChildrenPerParent = 10;
 
 enum class SlotState : std::uint8_t
 {
@@ -47,8 +51,12 @@ struct DiscoverySlot
       name_{};  // the process name, or the name a waiting slot waits for
   std::array<char, 32> id_{};
   std::uint8_t ordinal_ = 0;  // N of an "name.N" ID; 0 without a suffix
-  std::uint8_t selection_ =
-      0;  // target_wire kNameSelected and kOtherRuleSelected
+  // The rules that select the process itself: target_wire kNameSelected and
+  // kOtherRuleSelected. Zero for a process that only its parent selects.
+  std::uint8_t selection_ = 0;
+  // The parent target that selects this process as its direct child; pid 0
+  // when there is none. Only a slot that a rule selects can be a parent.
+  TargetIdentity parent_{};
   std::uint8_t release_ticks_ = 0;
   bool reassigned_ = false;  // a new ID: the sampler must start a new session
 };
@@ -123,6 +131,10 @@ class Discovery final
       auto& slot = slots_[index];
       if (index >= capacity_)
       {
+        if (slot.state_ == SlotState::Running)
+        {
+          ReleaseChildren(slot.identity_);
+        }
         slot = {};
         continue;
       }
@@ -145,6 +157,7 @@ class Discovery final
     {
       AddWaiting(p_config, name);
     }
+    Reconcile();
     // New rules can match processes that the last pass skipped.
     directory_.reset();
     candidates_ = {};
@@ -184,6 +197,7 @@ class Discovery final
       const auto entry = directory_->Next();
       if (!entry)
       {
+        Reconcile();
         if (auto admitted = AdmitCandidates(p_config); !admitted)
         {
           return Abort(admitted.error(), p_now);
@@ -212,7 +226,9 @@ class Discovery final
   void End(const Config& p_config, std::size_t p_index)
   {
     auto& slot = slots_[p_index];
+    ReleaseChildren(slot.identity_);
     slot.identity_ = {};
+    slot.parent_ = {};
     slot.selection_ = Selection(p_config, Text(slot.name_));
     const bool other = std::ranges::any_of(
         Used(),
@@ -256,6 +272,11 @@ class Discovery final
     {
       selection = target_wire::kOtherRuleSelected;
     }
+    // A Remove of the child's name would not stop it: its parent selects it.
+    if (slot.parent_.pid_ != 0)
+    {
+      selection |= target_wire::kOtherRuleSelected;
+    }
     return static_cast<std::uint8_t>(
         selection | (released ? target_wire::kReleased : 0) | ordinal);
   }
@@ -276,6 +297,8 @@ class Discovery final
     int pid_ = 0;
     std::uint64_t starttime_ = 0;
     ProcessName name_{};
+    std::uint8_t selection_ = 0;  // zero: only the parent selects it
+    TargetIdentity parent_{};
   };
   FixedString directory_path_;
   std::array<Candidate, target_wire::kMaxTargets * 2> candidates_{};
@@ -286,7 +309,8 @@ class Discovery final
   Nanoseconds next_pass_{0};
   std::uint32_t pass_excluded_ = 0;
   std::uint32_t excluded_ = 0;
-  std::array<char, 64> buffer_{};
+  // A whole /proc/PID/stat line, as FindTarget reads it.
+  std::array<char, 4096> buffer_{};
 
   static void Release(DiscoverySlot& p_slot, std::uint8_t p_ticks)
   {
@@ -305,77 +329,65 @@ class Discovery final
     return false;
   }
 
-  // Reads one process name, and admits the process when a rule selects it
-  // and a slot is available. Error: errno when descriptors ran out.
+  // Reads one /proc/PID/stat line, which has the name, the parent PID, and
+  // the start time, and makes the process a candidate when a rule or a
+  // parent target selects it. Error: errno when descriptors ran out.
   [[nodiscard]] std::expected<void, int> Examine(const Config& p_config,
                                                  int p_pid)
   {
     const auto descriptor =
-        OpenReadonly(FixedString{"/proc/{}/comm", p_pid}.CStr());
+        OpenReadonly(FixedString{"/proc/{}/stat", p_pid}.CStr());
     if (!descriptor && DescriptorsExhausted(errno))
     {
       return std::unexpected(errno);
     }
-    auto name = ReadAtStart(descriptor, buffer_);
-    if (!name)
+    const auto stat = ReadAtStart(descriptor, buffer_).and_then(ParseStat);
+    if (!stat)
     {
       return {};
     }
-    if (name->ends_with('\n'))
-    {
-      name->remove_suffix(1);
-    }
-    if (name->size() > kMaxRuleBytes)
-    {
-      return {};
-    }
+    const bool alive = stat->state_ != 'Z' && stat->state_ != 'X';
+    const TargetIdentity identity{p_pid, stat->starttime_};
+    const auto name = Text(stat->name_);
     const auto selection =
-        name->empty() ? std::uint8_t{0} : Selection(p_config, *name);
+        name.empty() ? std::uint8_t{0} : Selection(p_config, name);
+    const auto* parent = Parent(stat->parent_pid_);
+    const TargetIdentity parent_identity =
+        parent ? parent->identity_ : TargetIdentity{};
     for (auto& slot : Used())
     {
       if (slot.state_ == SlotState::Free || slot.identity_.pid_ != p_pid)
       {
         continue;
       }
-      if (slot.state_ == SlotState::Running)
+      if (slot.state_ == SlotState::Running && alive &&
+          identity == slot.identity_)
       {
-        const auto identity = FindTarget(TargetPid{p_pid});
-        if (!identity)
+        slot.name_ = {};
+        std::ranges::copy(name, slot.name_.begin());
+        slot.selection_ = selection;
+        slot.parent_ = parent_identity;
+        // Reconcile() releases the children of a slot that is no longer a
+        // parent, and the children over the cap, after every slot has the new
+        // rules.
+        if (selection == 0 && !parent)
         {
-          return std::unexpected(identity.error());
-        }
-        if (*identity == slot.identity_)
-        {
-          slot.name_ = {};
-          std::ranges::copy(*name, slot.name_.begin());
-          slot.selection_ = selection;
-          if (selection == 0)
-          {
-            Release(slot, kReleaseTicks);
-          }
+          Release(slot, kReleaseTicks);
         }
       }
       return {};
     }
-    if (selection == 0)
-    {
-      return {};
-    }
-    const auto identity = FindTarget(TargetPid{p_pid});
-    if (!identity)
-    {
-      return std::unexpected(identity.error());
-    }
-    if (!*identity)
+    if (!alive || (selection == 0 && !parent))
     {
       return {};
     }
     ++pass_excluded_;
     // Each waiting name has a reserved candidate. Free slots share a fixed
     // lowest-PID set. Directory enumeration order cannot change admission.
-    Candidate candidate{p_pid, (**identity).starttime_, {}};
-    std::ranges::copy(*name, candidate.name_.begin());
-    if (auto* waiting = Waiting(*name))
+    Candidate candidate{
+        p_pid, stat->starttime_, {}, selection, parent_identity};
+    std::ranges::copy(name, candidate.name_.begin());
+    if (auto* waiting = Waiting(name))
     {
       const auto index = static_cast<std::size_t>(waiting - slots_.data());
       auto& held = candidates_[target_wire::kMaxTargets + index];
@@ -385,6 +397,39 @@ class Discovery final
       }
     }
     auto free_candidates = std::span{candidates_}.first(capacity_);
+    if (selection == 0)
+    {
+      // The per-parent cap applies here, before the bounded set drops
+      // anything, so children over the cap cannot push out a process that
+      // could be admitted.
+      const auto room = ChildRoom(parent_identity);
+      const auto same_parent = [&](const Candidate& p_other)
+      {
+        return p_other.pid_ != 0 && p_other.selection_ == 0 &&
+               p_other.parent_ == parent_identity;
+      };
+      if (room == 0)
+      {
+        return {};
+      }
+      if (static_cast<std::size_t>(
+              std::ranges::count_if(free_candidates, same_parent)) >= room)
+      {
+        auto largest = std::ranges::max_element(
+            free_candidates,
+            [&](const Candidate& p_left, const Candidate& p_right)
+            {
+              // Candidates of the same parent order last, by PID.
+              return std::pair{same_parent(p_left), p_left.pid_} <
+                     std::pair{same_parent(p_right), p_right.pid_};
+            });
+        if (p_pid < largest->pid_)
+        {
+          *largest = candidate;
+        }
+        return {};
+      }
+    }
     const auto empty = std::ranges::find(free_candidates, 0, &Candidate::pid_);
     if (empty != free_candidates.end())
     {
@@ -402,6 +447,93 @@ class Discovery final
     return {};
   }
 
+  // The Running target that a rule selects with this PID: the parent of a
+  // process whose PPID it is. A process that only its parent selects is
+  // never a parent, so grandchildren stay out.
+  [[nodiscard]] const DiscoverySlot* Parent(int p_parent_pid) const noexcept
+  {
+    const auto slots = std::span{slots_}.first(capacity_);
+    const auto found =
+        std::ranges::find_if(slots,
+                             [p_parent_pid](const DiscoverySlot& p_slot)
+                             {
+                               return p_slot.state_ == SlotState::Running &&
+                                      p_slot.selection_ != 0 &&
+                                      p_slot.identity_.pid_ == p_parent_pid;
+                             });
+    return found == slots.end() ? nullptr : &*found;
+  }
+
+  // How many more child-only targets this parent can have.
+  [[nodiscard]] std::size_t ChildRoom(
+      const TargetIdentity& p_parent) const noexcept
+  {
+    const auto children = static_cast<std::size_t>(std::ranges::count_if(
+        std::span{slots_}.first(capacity_),
+        [&p_parent](const DiscoverySlot& p_slot)
+        {
+          return p_slot.state_ == SlotState::Running &&
+                 p_slot.selection_ == 0 && p_slot.parent_ == p_parent;
+        }));
+    return kMaxChildrenPerParent - std::min(children, kMaxChildrenPerParent);
+  }
+
+  // The parent ended or no rule selects it any more. Its child-only targets
+  // go now, not on the next pass; a child that a rule selects stays.
+  void ReleaseChildren(const TargetIdentity& p_parent)
+  {
+    for (auto& slot : Used())
+    {
+      if (slot.parent_.pid_ == 0 || slot.parent_ != p_parent)
+      {
+        continue;
+      }
+      slot.parent_ = {};
+      if (slot.state_ == SlotState::Running && slot.selection_ == 0)
+      {
+        Release(slot, kReleaseTicks);
+      }
+    }
+  }
+
+  // Runs after every running slot has its current rule selection. A
+  // child-only target stays only while a rule selects its parent and the
+  // parent has at most kMaxChildrenPerParent of them, the lowest slots first.
+  // A target that a rule selects keeps its slot and session.
+  void Reconcile()
+  {
+    const auto slots = Used();
+    for (std::size_t index = 0; index < slots.size(); ++index)
+    {
+      auto& slot = slots[index];
+      if (slot.state_ != SlotState::Running || slot.parent_.pid_ == 0)
+      {
+        continue;
+      }
+      const auto* parent = Parent(slot.parent_.pid_);
+      if (!parent || parent->identity_ != slot.parent_)
+      {
+        slot.parent_ = {};
+        if (slot.selection_ == 0)
+        {
+          Release(slot, kReleaseTicks);
+        }
+        continue;
+      }
+      const auto earlier = static_cast<std::size_t>(std::ranges::count_if(
+          slots.first(index),
+          [&slot](const DiscoverySlot& p_other)
+          {
+            return p_other.state_ == SlotState::Running &&
+                   p_other.selection_ == 0 && p_other.parent_ == slot.parent_;
+          }));
+      if (slot.selection_ == 0 && earlier >= kMaxChildrenPerParent)
+      {
+        Release(slot, kReleaseTicks);
+      }
+    }
+  }
+
   [[nodiscard]] std::expected<void, int> AdmitCandidates(const Config& p_config)
   {
     std::ranges::sort(candidates_, {}, &Candidate::pid_);
@@ -413,6 +545,19 @@ class Discovery final
         continue;
       }
       previous = candidate.pid_;
+      // The parent can end or lose its rule during the pass. A child-only
+      // candidate then waits for the next pass.
+      auto admitted_candidate = candidate;
+      const auto* parent = Parent(candidate.parent_.pid_);
+      if (!parent || parent->identity_ != candidate.parent_)
+      {
+        admitted_candidate.parent_ = {};
+      }
+      if (candidate.selection_ == 0 && (admitted_candidate.parent_.pid_ == 0 ||
+                                        ChildRoom(candidate.parent_) == 0))
+      {
+        continue;
+      }
       auto* slot = Waiting(Text(candidate.name_));
       if (!slot)
       {
@@ -422,7 +567,7 @@ class Discovery final
       {
         continue;
       }
-      if (auto admitted = Admit(p_config, *slot, candidate); !admitted)
+      if (auto admitted = Admit(p_config, *slot, admitted_candidate); !admitted)
       {
         return admitted;
       }
@@ -453,6 +598,7 @@ class Discovery final
     slot->state_ = SlotState::Running;
     slot->identity_ = **found;
     slot->selection_ = Selection(p_config, name);
+    slot->parent_ = p_candidate.parent_;
     --pass_excluded_;
     return {};
   }

@@ -118,8 +118,9 @@ rates, and the budget. The collector converts the counters to a percentage.
 The local `sampler.toml` owns production selection. Remove legacy selectors
 before using the discovery lists in [the example](../config/sampler.toml).
 `process_names` selects exact Linux comm names. `process_patterns` optionally
-selects whole names with `*` and `?`, case-sensitive. Brackets and backslashes
-are rejected. Each rule has 1..15 bytes, with at most 16 rules in total.
+selects whole names with `*` and `?`, ignoring ASCII case (`T3*` matches
+`t3code`). Patterns that differ only in case are rejected as duplicates.
+Brackets and backslashes are rejected. Each rule has 1..15 bytes, with at most 16 rules in total.
 Exact names use letters, digits, dots, underscores, and hyphens. Linux keeps
 only 15 bytes of a process name. It does not match the command line.
 Empty lists are valid and keep discovery active. Do not mix lists with
@@ -133,11 +134,25 @@ a waiting tile. A process restart starts a new session. IDs use the comm
 name, replace non-ID bytes with `_`, and append `.2` and higher as needed.
 An ID is fixed for the instance lifetime; it is not an instance count.
 
+Each process that a name or pattern selects is a parent. Its direct
+children (PPID equal to its PID) are also monitored, at most 10 for each
+parent, in the same `max_targets` slots. A child uses its own comm name as
+its ID. A child found only through its parent is never a parent, so
+grandchildren are not monitored unless a rule selects them. A child that a
+rule also selects is collected once. Children of a new parent arrive on the
+next pass. Child-only targets are released when the parent ends, when no
+rule selects the parent any more, when a pass sees a new PPID, or when a
+child that lost its own rule is over the limit of 10. The
+dashboard refuses Remove for a child, because the parent's rule selects it.
+
 A scan starts no more often than once a second. Each sampling tick examines
 at most 512 `/proc` directory entries, each with at most 16 bounded 15-byte
-rule comparisons, one comm read, and one stat read for a match. At pass end,
+rule comparisons, one `/proc/PID/stat` read (name, PPID, and start time),
+and at most 16 PPID comparisons. At pass end,
 at most 32 fixed candidates get one identity check. Admission selects the
-lowest candidate PIDs, with reserved waiting-name slots first. Existing
+lowest candidate PIDs, with reserved waiting-name slots first. A child
+enters the candidates only while its parent is below 10 children, so
+children over that cap cannot push out another match. Existing
 instances stay. Failed identity checks wait for another pass. The last
 complete pass reports excluded matches in sampler logs and announcements.
 The dashboard shows the sampler count, capped at 255, and collector drops.

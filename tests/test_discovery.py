@@ -118,6 +118,24 @@ class DiscoveryTests(unittest.TestCase):
         # Exactly one sampling thread, including reload and churn.
         self.assertEqual(len(list(Path(f'/proc/{self.sampler.pid}/task').iterdir())), 1)
 
+    def test_direct_children_follow_their_parent(self):
+        parent_name = f'{self.name}p'
+        shell = self.directory / parent_name
+        shell.symlink_to('/bin/sh')
+        parent = subprocess.Popen([shell, '-c', 'sleep 60 & sleep 60 & wait'])
+        self.addCleanup(stop, parent)
+        self.write(f'process_names=["{parent_name}"]\n')
+        self.start()
+        self.until(lambda: {'sleep', 'sleep.2'} <= set(self.latest))
+        orphans = [self.latest[key]['pid'] for key in ('sleep', 'sleep.2')]
+        self.addCleanup(lambda: [os.kill(pid, signal.SIGKILL) for pid in orphans
+                                 if Path(f'/proc/{pid}').exists()])
+        self.assertTrue(all(self.latest[key]['flags'] & 6 == 4 for key in ('sleep', 'sleep.2')),
+                        'a child refuses Remove of its own name')
+        parent.kill()
+        parent.wait()
+        self.until(lambda: not {'sleep', 'sleep.2'} & set(self.latest))
+
     def test_capacity_and_empty_reload(self):
         children = [self.child() for _ in range(3)]
         self.write(f'process_patterns=["{self.name}*"]\nmax_targets=2\n')

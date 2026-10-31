@@ -33,8 +33,10 @@ cpu_budget_pct = 1.0
 #   "billing",
 # ]
 # Optional whole-name globs: * matches any bytes; ? matches one byte.
-# Matching is case-sensitive: "T3*" does not match "t3code".
+# Matching ignores ASCII case: "T3*" matches "t3code". Exact names do not.
 # process_patterns = ["worker-*"]
+# Each selected process also brings in its direct children (not
+# grandchildren), at most 10 per process, in the same slots.
 # Preallocated instance slots, 1..16 (default 8). Keep at least one slot per
 # configured exact name. Each matching PID/start time gets its own session.
 # max_targets = 8

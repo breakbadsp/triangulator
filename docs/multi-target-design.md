@@ -117,8 +117,15 @@ process_patterns = ["worker-*"]
 
 ### Implementation decisions
 
-- Globs use whole-name, case-sensitive `*` and `?`. Brackets and escapes are
-  rejected. Names use 1..15 portable ID bytes; patterns permit other comm bytes.
+- Globs use whole-name `*` and `?` and ignore ASCII case, so `T3*` matches
+  `t3code`; patterns that differ only in case are duplicates. Exact names stay
+  case-sensitive. Brackets and escapes are rejected. Names use 1..15 portable ID bytes; patterns permit other comm bytes.
+- Direct children of a rule-selected target are targets too, at most 10 for
+  each parent, in the same slots. The PPID comes from the `/proc/PID/stat`
+  read that replaced the comm read, so the scan costs the same number of
+  reads. A child-only target is never a parent, so a grandchild needs its
+  own rule. It carries `kOtherRuleSelected`, so Remove of its name is
+  refused without a wire change. It is released with its parent.
 - Instance IDs are the sanitized comm name, then `.2`, `.3`, and so on.
   Admission fixes the ID for the instance lifetime. Overlap edits keep it.
 - One pass starts no more often than once a second. Each tick examines at most
