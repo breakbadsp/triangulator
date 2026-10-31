@@ -72,6 +72,7 @@ struct ThreadStat
 {
   std::array<char, 16> name_{};
   char state_{};
+  int parent_pid_{};
   std::uint64_t major_faults_{};
   std::uint64_t utime_{};
   std::uint64_t stime_{};
@@ -108,6 +109,15 @@ struct ThreadStat
         return std::nullopt;
       }
       result.state_ = token.front();
+    }
+    if (field == 4)
+    {
+      const auto value = ParseNumber<int>(token);
+      if (!value)
+      {
+        return std::nullopt;
+      }
+      result.parent_pid_ = *value;
     }
     if (field == 12 || field == 14 || field == 15 || field == 22)
     {

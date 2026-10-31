@@ -836,9 +836,9 @@ class DashboardServer
     if ((flags & target_wire::kOtherRuleSelected) != 0)
     {
       return std::unexpected(
-          "Another rule selects this process (a process pattern, or another "
-          "name after a rename), so Remove would not stop it. Edit "
-          "sampler.toml on the host.");
+          "Another rule selects this process (a process pattern, another "
+          "name after a rename, or the rule that selects its parent), so "
+          "Remove would not stop it. Edit sampler.toml on the host.");
     }
     return std::string{target_wire::RuleName(p_target.id_, flags)};
   }

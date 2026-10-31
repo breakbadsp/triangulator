@@ -42,7 +42,8 @@ void TestParsing()
   std::string stat = "42 (worker ) ( name) S";
   for (int field = 4; field <= 52; ++field)
   {
-    stat += std::format(" {}", field == 12   ? 7
+    stat += std::format(" {}", field == 4    ? 41
+                               : field == 12 ? 7
                                : field == 14 ? 100
                                : field == 15 ? 50
                                : field == 22 ? 12345
@@ -54,7 +55,7 @@ void TestParsing()
   Require(std::string_view{parsed->name_.data()} == "worker ) ( name",
           "comm must use last closing parenthesis");
   Require(parsed->utime_ == 100 && parsed->stime_ == 50 &&
-              parsed->starttime_ == 12345,
+              parsed->starttime_ == 12345 && parsed->parent_pid_ == 41,
           "stat fields must retain their numbering");
   Require(parsed->major_faults_ == 7 && parsed->processor_ == 3,
           "major faults and last CPU");
@@ -562,6 +563,157 @@ void TestDiscoveryCapacity()
   Require(slots[0].identity_.pid_ < slots[1].identity_.pid_ &&
               discovery.Excluded() == 1,
           "admission in PID order; the third match is excluded");
+  for (const auto child : children)
+  {
+    ::kill(child, SIGKILL);
+    ::waitpid(child, nullptr, 0);
+  }
+}
+
+// Forks a sleeping process named p_name that ends with its parent. With
+// p_report, it also forks a grandchild named p_grandchild and writes its PID.
+pid_t SpawnNamed(const char* p_name, const char* p_grandchild = nullptr,
+                 int p_report = -1)
+{
+  const pid_t child = ::fork();
+  Require(child >= 0, "fork");
+  if (child == 0)
+  {
+    ::prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0);
+    ::prctl(PR_SET_NAME, p_name, 0, 0, 0);
+    if (p_grandchild)
+    {
+      const pid_t grandchild = SpawnNamed(p_grandchild);
+      (void)!::write(p_report, &grandchild, sizeof(grandchild));
+    }
+    ::pause();
+    ::_exit(0);
+  }
+  for (int attempt = 0; attempt < 500; ++attempt)
+  {
+    std::ifstream comm{std::format("/proc/{}/comm", child)};
+    std::string name;
+    std::getline(comm, name);
+    if (name == p_name)
+    {
+      break;
+    }
+    ::usleep(2000);
+  }
+  return child;
+}
+
+// Direct children of a target that a rule selects: at most 10 for each
+// parent, no grandchildren, and the cap cannot push out a rule match (D1-1).
+void TestDiscoveryChildren()
+{
+  int report[2]{};
+  Require(::pipe(report) == 0, "pipe");
+  std::vector<pid_t> children;
+  children.push_back(SpawnNamed("disc-kid", "disc-grand", report[1]));
+  pid_t grandchild = 0;
+  Require(::read(report[0], &grandchild, sizeof(grandchild)) ==
+              static_cast<ssize_t>(sizeof(grandchild)),
+          "grandchild PID");
+  ::close(report[0]);
+  ::close(report[1]);
+  while (children.size() < 26)
+  {
+    children.push_back(SpawnNamed("disc-kid"));
+  }
+  char root[] = "/tmp/discovery-children-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "discovery fixture directory");
+  const auto entry = [&root](pid_t p_pid)
+  {
+    std::ofstream{std::format("{}/{}", root, p_pid)};
+  };
+  entry(::getpid());
+  entry(grandchild);
+  std::ranges::for_each(children, entry);
+  Config config;
+  config.process_names_ = {"sampler-test"};
+  config.process_patterns_ = {"other-m*"};
+  config.max_targets_ = 16;
+  Nanoseconds now{0};
+  const auto pass = [&now](Discovery& p_discovery, const Config& p_config)
+  {
+    for (int tick = 0; tick < 100; ++tick)
+    {
+      now += kDiscoveryInterval;
+      const auto done = p_discovery.Scan(p_config, now);
+      Require(done.has_value(), "scan");
+      if (*done)
+      {
+        return;
+      }
+    }
+    Require(false, "the pass ends");
+  };
+  const auto find = [](Discovery& p_discovery, pid_t p_pid) -> DiscoverySlot*
+  {
+    for (auto& slot : p_discovery.Used())
+    {
+      if (slot.state_ != SlotState::Free && slot.identity_.pid_ == p_pid)
+      {
+        return &slot;
+      }
+    }
+    return nullptr;
+  };
+  const auto count = [](Discovery& p_discovery, SlotState p_state)
+  {
+    return std::ranges::count(p_discovery.Used(), p_state,
+                              &DiscoverySlot::state_);
+  };
+  Discovery discovery{root};
+  discovery.Configure(config);
+  pass(discovery, config);
+  Require(count(discovery, SlotState::Running) == 1 &&
+              find(discovery, ::getpid()) != nullptr,
+          "the first pass admits the parent; its children come next pass");
+  pass(discovery, config);
+  Require(
+      count(discovery, SlotState::Running) == 11 && discovery.Excluded() == 16,
+      "ten children for one parent; the others are excluded");
+  // A rule match whose PID is above all 16 excluded children.
+  const pid_t match = SpawnNamed("other-match");
+  entry(match);
+  pass(discovery, config);
+  const auto* matched = find(discovery, match);
+  Require(matched != nullptr && matched->state_ == SlotState::Running &&
+              matched->selection_ == target_wire::kOtherRuleSelected &&
+              count(discovery, SlotState::Running) == 12 &&
+              discovery.Excluded() == 16,
+          "children over the cap do not push out a rule match");
+  Require(find(discovery, grandchild) == nullptr,
+          "a child-only target is not a parent: no grandchildren");
+  const auto first = static_cast<std::size_t>(find(discovery, children[0]) -
+                                              discovery.Used().data());
+  Require(std::string_view{discovery.Used()[first].id_.data()} == "disc-kid" &&
+              discovery.Used()[first].parent_.pid_ == ::getpid() &&
+              (discovery.Flags(first) & (target_wire::kNameSelected |
+                                         target_wire::kOtherRuleSelected)) ==
+                  target_wire::kOtherRuleSelected,
+          "a child keeps its comm ID and refuses Remove of its name");
+  config.process_names_ = {};
+  discovery.Configure(config);
+  Require(find(discovery, children[0])->state_ == SlotState::Releasing &&
+              count(discovery, SlotState::Running) == 1 &&
+              find(discovery, match)->parent_.pid_ == 0,
+          "a released parent releases its child-only targets at once");
+  Discovery ending{root};
+  config.process_names_ = {"sampler-test"};
+  ending.Configure(config);
+  pass(ending, config);
+  pass(ending, config);
+  const auto parent =
+      static_cast<std::size_t>(find(ending, ::getpid()) - ending.Used().data());
+  ending.End(config, parent);
+  Require(count(ending, SlotState::Running) == 1 &&
+              find(ending, match)->state_ == SlotState::Running,
+          "an ended parent releases its child-only targets at once");
+  std::filesystem::remove_all(root);
+  children.push_back(match);
   for (const auto child : children)
   {
     ::kill(child, SIGKILL);
@@ -1920,6 +2072,7 @@ int main()
     TestDiscoveryRenameBeforeReload();
     TestDiscoveryTransitions();
     TestDiscoveryCapacity();
+    TestDiscoveryChildren();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();
