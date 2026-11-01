@@ -21,19 +21,19 @@ struct TargetIdentity
 // the target as neither gone nor present: skip the tick, keep the session.
 using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
 
-// One stat read. Gone means: no /proc entry (ENOENT, or ESRCH from a process
-// that exited after the open), or a zombie or dead state. p_root is /proc,
-// or a test directory in the same layout.
-[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector,
-                                             const char* p_root = "/proc")
+// One stat read. Value: the parsed stat, or nullopt when the process is
+// confirmed gone: no /proc entry (ENOENT, or ESRCH from a process that exited
+// after the open), or a zombie or dead state. Error: see TargetLookup. p_root
+// is /proc, or a test directory in the same layout.
+[[nodiscard]] inline std::expected<std::optional<ThreadStat>, int>
+ReadProcessStat(int p_pid, const char* p_root = "/proc")
 {
-  const int pid = p_selector.value_;
-  if (pid <= 0)
+  if (p_pid <= 0)
   {
     return std::nullopt;
   }
   const auto descriptor =
-      OpenReadonly(FixedString{"{}/{}/stat", p_root, pid}.CStr());
+      OpenReadonly(FixedString{"{}/{}/stat", p_root, p_pid}.CStr());
   if (!descriptor)
   {
     if (errno == ENOENT || errno == ESRCH)
@@ -63,104 +63,22 @@ using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
   {
     return std::nullopt;
   }
-  return TargetIdentity{pid, stat->starttime_};
+  return stat;
 }
 
-// One directory scan resolves all names. Each selected PID then gets one
-// stat read, including the start time used to detect PID reuse.
-[[nodiscard]] inline std::array<TargetLookup, target_wire::kMaxTargets>
-FindTargets(std::span<const TargetConfig> p_targets)
+[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector,
+                                             const char* p_root = "/proc")
 {
-  std::array<TargetLookup, target_wire::kMaxTargets> results{};
-  std::array<int, target_wire::kMaxTargets> pids{};
-  std::array<bool, target_wire::kMaxTargets> ambiguous{};
-  bool names = false;
-  for (std::size_t index = 0; index < p_targets.size(); ++index)
-  {
-    if (std::holds_alternative<TargetPid>(p_targets[index].selector_))
-    {
-      results[index] =
-          FindTarget(std::get<TargetPid>(p_targets[index].selector_));
-    }
-    else
-    {
-      names = true;
-    }
-  }
-  if (!names)
-  {
-    return results;
-  }
-  int lookup_error = 0;
-  Directory directory{"/proc"};
-  if (!directory && DescriptorsExhausted(errno))
-  {
-    lookup_error = errno;
-  }
-  std::array<char, 4096> buffer{};
-  while (directory)
-  {
-    const auto entry = directory.Next();
-    if (!entry)
-    {
-      // An incomplete scan cannot show that a name is absent or unique.
-      lookup_error = entry.error();
-      break;
-    }
-    if (!*entry)
-    {
-      break;
-    }
-    const auto pid = ParseNumber<int>(**entry);
-    if (!pid || *pid <= 0)
-    {
-      continue;
-    }
-    const auto descriptor =
-        OpenReadonly(FixedString{"/proc/{}/comm", *pid}.CStr());
-    if (!descriptor && DescriptorsExhausted(errno))
-    {
-      lookup_error = errno;
-      break;
-    }
-    auto name = ReadAtStart(descriptor, buffer);
-    if (!name)
-    {
-      continue;
-    }
-    if (name->ends_with('\n'))
-    {
-      name->remove_suffix(1);
-    }
-    for (std::size_t index = 0; index < p_targets.size(); ++index)
-    {
-      const auto* selected =
-          std::get_if<TargetName>(&p_targets[index].selector_);
-      if (selected && selected->value_ == *name)
-      {
-        if (pids[index] != 0)
-        {
-          ambiguous[index] = true;
-        }
-        pids[index] = *pid;
-      }
-    }
-  }
-  for (std::size_t index = 0; index < p_targets.size(); ++index)
-  {
-    if (std::holds_alternative<TargetName>(p_targets[index].selector_))
-    {
-      if (lookup_error != 0)
-      {
-        results[index] = std::unexpected(lookup_error);
-      }
-      else if (!ambiguous[index] && pids[index] != 0)
-      {
-        results[index] = FindTarget(TargetPid{pids[index]});
-      }
-    }
-  }
-  return results;
+  return ReadProcessStat(p_selector.value_, p_root)
+      .transform(
+          [&p_selector](const std::optional<ThreadStat>& p_stat)
+          {
+            return p_stat.transform(
+                [&p_selector](const ThreadStat& p_found)
+                {
+                  return TargetIdentity{p_selector.value_, p_found.starttime_};
+                });
+          });
 }
 
 struct DescriptorBudget

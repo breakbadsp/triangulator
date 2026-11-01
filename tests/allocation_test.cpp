@@ -20,6 +20,7 @@
 #include "../sampler/config_watch.hpp"
 #include "../sampler/discovery.hpp"
 #include "../sampler/memory.hpp"
+#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -254,6 +255,7 @@ int main()
   Require(sampler->Initialize().has_value(), "real sampler startup");
   Require(watch.Watching(), "config watch");
 
+  NameLookup names;
   // Sampling, for several ticks.
   const auto before = allocation_count;
   for (int tick = 0; tick < 3; ++tick)
@@ -287,9 +289,14 @@ int main()
     watch.Reloaded(Nanoseconds{tick} * 2'000'000'000);
     const auto target = FindTarget(by_pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
-    const auto targets = FindTargets(selected_targets);
-    Require(targets[0] && *targets[0], "shared target lookup");
-    Require(targets[1].has_value(), "lookup by name");
+    // Twice: a pass, then the check of the PID that it found.
+    for (int lookup = 0; lookup < 2; ++lookup)
+    {
+      const auto targets =
+          names.Find(selected_targets, Nanoseconds{tick} * 2'000'000'000);
+      Require(targets[0] && *targets[0], "shared target lookup");
+      Require(targets[1] && *targets[1], "lookup by name");
+    }
     for (int sample = 0; sample < 100; ++sample)
     {
       cpu_budget.Add(4ms, 200ms);

@@ -17,6 +17,7 @@
 #include "exit_status.hpp"
 #include "kernel_log.hpp"
 #include "memory.hpp"
+#include "name_lookup.hpp"
 #include "proc.hpp"
 #include "process_info.hpp"
 #include "resources.hpp"
@@ -725,6 +726,7 @@ class Sampler final
   std::vector<std::unique_ptr<TargetSampler>> targets_;
   // Discovery mode: one sampler for each slot, made at startup or reload.
   Discovery discovery_;
+  NameLookup names_;
   std::vector<std::unique_ptr<TargetSampler>> pool_;
   std::size_t heavy_cursor_ = 0;
 
@@ -773,6 +775,7 @@ class Sampler final
       }
     }
     config_ = std::move(*next);
+    names_.Restart();
     if (!keep_sessions)
     {
       cpu_budget_ = CpuBudget{config_.settings_.rate_hz_,
@@ -786,11 +789,12 @@ class Sampler final
     return true;
   }
 
-  // A target table: one shared /proc scan resolves every name each tick.
+  // A target table: one shared, bounded /proc pass resolves the names.
   [[nodiscard]] std::expected<void, std::string> SampleConfigured(
       Nanoseconds p_exit_deadline, std::span<bool> p_live)
   {
-    const auto lookups = FindTargets(config_.settings_.targets_);
+    const auto lookups =
+        names_.Find(config_.settings_.targets_, ClockNow(CLOCK_MONOTONIC));
     for (std::size_t index = 0; index < targets_.size(); ++index)
     {
       if (!lookups[index])

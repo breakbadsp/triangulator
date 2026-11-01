@@ -22,6 +22,7 @@
 #include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
+#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -866,7 +867,8 @@ void TestSharedDescriptorBudget()
   const std::array<TargetConfig, 2> targets{
       {{"self", TargetPid{::getpid()}},
        {"absent", TargetName{"absent-xyz-123"}}}};
-  const auto found = FindTargets(targets);
+  NameLookup names;
+  const auto found = names.Find(targets, Nanoseconds{0});
   Require(found[0] && *found[0] && (**found[0]).pid_ == ::getpid(),
           "shared lookup finds PID");
   Require(found[1] && !*found[1], "shared lookup reports an absent name");
@@ -2461,6 +2463,92 @@ void TestUncertainIdentity()
   std::filesystem::remove_all(root);
 }
 
+// A configured name is found by a pass of at most kScanEntriesPerTick
+// entries per tick; only a complete pass decides (PR 215, finding 2).
+void TestNameLookup()
+{
+  char root[] = "/tmp/name-lookup-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "name lookup fixture directory");
+  const auto process = [&root](int p_pid, std::string_view p_name)
+  {
+    const auto directory = std::format("{}/{}", root, p_pid);
+    std::filesystem::create_directories(directory);
+    std::ofstream{directory + "/comm"} << p_name << '\n';
+    std::ofstream{directory + "/stat"} << FakeStat(p_pid, p_name, 'S', 7);
+  };
+  constexpr int kIdle = 3000;
+  for (int pid = 1; pid <= kIdle; ++pid)
+  {
+    process(pid, "idle");
+  }
+  process(5000, "web");
+  const std::array<TargetConfig, 2> targets{
+      {{"web", TargetName{"web"}}, {"other", TargetName{"other"}}}};
+  NameLookup names{root};
+  Nanoseconds now{0};
+  const auto tick = [&]()
+  {
+    now += 100ms;
+    return names.Find(targets, now);
+  };
+  int ticks = 1;
+  auto found = tick();
+  Require(found[0] && !*found[0], "one tick does not finish a large pass");
+  while (!(found[0] && *found[0]) && ticks < 100)
+  {
+    found = tick();
+    ++ticks;
+  }
+  // kIdle + 3 entries (".", ".." and the target), at most 512 per tick.
+  const int pass_ticks = static_cast<int>(
+      (kIdle + 3 + kScanEntriesPerTick - 1) / kScanEntriesPerTick);
+  Require(ticks == pass_ticks && (*found[0])->pid_ == 5000,
+          "the pass is spread over ticks and then finds the name");
+  Require(found[1] && !*found[1], "a name that no process has is absent");
+
+  process(5001, "web");
+  for (int count = 0; count < 5; ++count)
+  {
+    found = tick();
+    Require(found[0] && *found[0],
+            "until the next pass ends, the found PID is kept");
+  }
+  for (int count = 0; count < 30 && found[0] && *found[0]; ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && !*found[0], "a complete pass sees the second process");
+  std::filesystem::remove_all(std::format("{}/5001", root));
+  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && *found[0], "the name is unique again");
+
+  std::ofstream{std::format("{}/5000/stat", root)}
+      << FakeStat(5000, "renamed", 'S', 7);
+  Require(tick()[0] == TargetLookup{std::nullopt},
+          "a rename is seen at the next tick, without a pass");
+  process(5000, "web");
+
+  // A pass that fails keeps the found PID and does not decide the rest.
+  found = tick();
+  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && *found[0], "the renamed-back process is found again");
+  names.Restart();
+  (void)tick();
+  BreakDirectory(OpenDescriptorOf(root));
+  found = tick();
+  Require(found[0] && *found[0] && (*found[0])->pid_ == 5000,
+          "a failed pass keeps the found PID");
+  Require(!found[1] && found[1].error() == ENOTDIR,
+          "a failed pass leaves an unfound name unknown, not absent");
+  std::filesystem::remove_all(root);
+}
+
 int main()
 {
   try
@@ -2480,6 +2568,7 @@ int main()
     TestDiscoveryChildSelectedByReload();
     TestDirectoryReadErrors();
     TestUncertainIdentity();
+    TestNameLookup();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();
