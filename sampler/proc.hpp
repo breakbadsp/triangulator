@@ -245,6 +245,24 @@ class ThreadCache
 
   void Rescan(int p_pid, RateLimitedLogger& p_logger)
   {
+    Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
+    if (!directory)
+    {
+      // The process is gone. Any other failure, such as running out of
+      // descriptors, keeps the cache, and the next tick tries again.
+      if (errno == ENOENT || errno == ESRCH)
+      {
+        Clear();
+      }
+      return;
+    }
+    Rescan(directory, p_logger);
+  }
+
+  // Reconciles the cache with the entries of p_directory, a task directory.
+  // A read error keeps the cache: the entries seen are incomplete.
+  void Rescan(Directory& p_directory, RateLimitedLogger& p_logger)
+  {
     std::array<std::size_t, 8192> lookup{};
     const auto slot_for = [&lookup, this](int p_tid)
     {
@@ -261,20 +279,9 @@ class ThreadCache
       threads_[index].seen_ = false;
       lookup[slot_for(threads_[index].Tid())] = index + 1;
     }
-    Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
-    if (!directory)
-    {
-      // The process is gone. Any other failure, such as running out of
-      // descriptors, keeps the cache, and the next tick tries again.
-      if (errno == ENOENT || errno == ESRCH)
-      {
-        Clear();
-      }
-      return;
-    }
     for (;;)
     {
-      const auto entry = directory.Next();
+      const auto entry = p_directory.Next();
       if (!entry)
       {
         // An incomplete scan does not show which threads ended.

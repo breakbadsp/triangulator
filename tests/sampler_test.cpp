@@ -850,6 +850,67 @@ void TestDiscoveryChildSelectedByReload()
   }
 }
 
+// Makes the next getdents64 on p_descriptor fail with ENOTDIR: a pipe
+// takes the place of the open directory.
+void BreakDirectory(int p_descriptor)
+{
+  int pipe_ends[2]{};
+  Require(::pipe(pipe_ends) == 0, "pipe");
+  Require(::dup2(pipe_ends[0], p_descriptor) == p_descriptor, "dup2");
+  ::close(pipe_ends[0]);
+  ::close(pipe_ends[1]);
+}
+
+// A task directory read that fails part way keeps the cached threads that it
+// did not reach. A later complete scan drops the ones that ended.
+void TestThreadRescanReadFailure()
+{
+  char root[] = "/tmp/rescan-error-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "rescan fixture directory");
+  // More entries than one getdents64 buffer holds, so a read can fail after
+  // some of them were returned.
+  constexpr int kThreads = 600;
+  for (int tid = 1; tid <= kThreads; ++tid)
+  {
+    std::ofstream{std::format("{}/{}", root, tid)};
+  }
+  DescriptorBudget budget{ThreadCache::kReservedDescriptors +
+                              (kThreads + 1) * Thread::kDescriptorsPerThread,
+                          0};
+  ThreadCache cache{budget};
+  RateLimitedLogger logger;
+  {
+    Directory directory{root};
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads &&
+              budget.kept_ == static_cast<std::size_t>(kThreads),
+          "a complete scan caches every thread");
+  constexpr int kEnded = 100;
+  for (int tid = 1; tid <= kEnded; ++tid)
+  {
+    std::filesystem::remove(std::format("{}/{}", root, tid));
+  }
+  {
+    Directory directory{root};
+    Require(directory.Next().has_value(), "the first read succeeds");
+    BreakDirectory(directory.Fd());
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads &&
+              budget.kept_ == static_cast<std::size_t>(kThreads),
+          "a failed scan keeps the threads that it did not reach");
+  {
+    Directory directory{root};
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads - kEnded &&
+              budget.kept_ == static_cast<std::size_t>(kThreads - kEnded),
+          "a complete scan after the failure drops the ended threads");
+  cache.Clear();
+  std::filesystem::remove_all(root);
+}
+
 // Caches for different targets use one descriptor count and release it.
 void TestSharedDescriptorBudget()
 {
@@ -2334,17 +2395,6 @@ int OpenDescriptorOf(const std::string& p_path)
   return -1;
 }
 
-// Makes the next getdents64 on p_descriptor fail with ENOTDIR: a pipe
-// takes the place of the open directory.
-void BreakDirectory(int p_descriptor)
-{
-  int pipe_ends[2]{};
-  Require(::pipe(pipe_ends) == 0, "pipe");
-  Require(::dup2(pipe_ends[0], p_descriptor) == p_descriptor, "dup2");
-  ::close(pipe_ends[0]);
-  ::close(pipe_ends[1]);
-}
-
 // A directory read error is not the end of the directory (PR 215, finding 1).
 void TestDirectoryReadErrors()
 {
@@ -2620,6 +2670,7 @@ int main()
     TestUncertainIdentity();
     TestNameLookup();
     TestResourceDescriptorWalk();
+    TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();
