@@ -400,6 +400,13 @@ class RateLimitedLogger
     StderrSink().Write({message.data(), length});
   }
 
+  // The next Warn() prints even when one was printed in the last 60 s. For
+  // a rare warning that an operator's own action causes and waits for.
+  void AllowNext() noexcept
+  {
+    last_warning_.reset();
+  }
+
  private:
   std::optional<Nanoseconds> last_warning_;
 };

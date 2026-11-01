@@ -12,6 +12,7 @@ import fcntl
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,7 +43,7 @@ import os, sys, time
 print("ready", flush=True)
 sys.stdin.readline()
 os.chdir(sys.argv[1])
-os.execv("/bin/sleep", ["sleep", "60"])
+os.execv(sys.argv[2], ["sleep", "60"])
 """
 
 
@@ -57,7 +58,12 @@ class ProcessInfoTests(unittest.TestCase):
         receiver.settimeout(0.5)
         with tempfile.TemporaryDirectory() as directory, \
                 tempfile.TemporaryDirectory() as moved:
-            target = subprocess.Popen([sys.executable, "-c", CHANGING_TARGET, moved],
+            # A copy with its own name: on some systems sleep is a link to a
+            # multi-call binary, so its exe name would not be "sleep".
+            program = Path(moved) / "exec-target"
+            shutil.copy(shutil.which("sleep"), program)
+            target = subprocess.Popen([sys.executable, "-c", CHANGING_TARGET, moved,
+                                       str(program)],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       text=True, cwd=directory)
             self.assertEqual(target.stdout.readline().strip(), "ready")
@@ -83,9 +89,9 @@ class ProcessInfoTests(unittest.TestCase):
                         target.stdin.flush()
                         changed = True
                 self.assertEqual(len(seen), 2, "two process-info datagrams")
-                self.assertNotEqual(seen[0][0], "/usr/bin/sleep")
+                self.assertNotEqual(Path(seen[0][0]).name, "exec-target")
                 self.assertEqual(seen[0][1], str(Path(directory).resolve()))
-                self.assertEqual(Path(seen[1][0]).name, "sleep")
+                self.assertEqual(Path(seen[1][0]).name, "exec-target")
                 self.assertEqual(seen[1][1], str(Path(moved).resolve()))
             finally:
                 sampler.kill()
@@ -127,6 +133,33 @@ class FullStderrTests(unittest.TestCase):
                 sampler.kill()
                 sampler.wait()
                 os.close(read_end)
+                receiver.close()
+
+
+class RegularFileStderrTests(unittest.TestCase):
+    def test_invalid_edit_warning_is_in_a_regular_file_log_while_running(self):
+        receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        receiver.bind(("127.0.0.1", 0))
+        receiver.settimeout(0.2)
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "sampler.toml"
+            log = Path(directory) / "sampler.log"
+            config.write_text(f'target_pid = {os.getpid()}\nrate_hz = 10\n'
+                              f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+            with log.open("wb") as log_file:
+                sampler = subprocess.Popen([str(BINARY), str(config)],
+                                           stdout=subprocess.DEVNULL, stderr=log_file)
+            try:
+                self.assertGreater(ticks(receiver, 1.5), 5, "the sampler did not start")
+                config.write_text("rate_hz = not a number\n")
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline and not log.read_bytes():
+                    time.sleep(0.1)
+                self.assertIn(b"invalid configuration", log.read_bytes())
+                self.assertIsNone(sampler.poll())
+            finally:
+                sampler.kill()
+                sampler.wait()
                 receiver.close()
 
 

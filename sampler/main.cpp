@@ -676,9 +676,12 @@ class Sampler final
       {
         watch.Reloaded(ClockNow(CLOCK_MONOTONIC));
         // Reload is outside the steady state, so held warnings can be
-        // written now, even when the write blocks.
+        // written now, even when the write blocks. Write them after Reload()
+        // too: its own warning, such as an invalid configuration, must not
+        // wait for the next reload or the exit.
         StderrSink().Flush();
         auto applied = Reload(p_config_path);
+        StderrSink().Flush();
         if (!applied)
         {
           return std::unexpected(applied.error());
@@ -755,6 +758,8 @@ class Sampler final
     auto next = LoadConfig(p_path);
     if (!next)
     {
+      // The operator just edited the file and is looking for this line.
+      logger_.AllowNext();
       logger_.Warn("invalid configuration; keeping the previous one: {}",
                    next.error());
       return false;
