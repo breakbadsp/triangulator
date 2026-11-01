@@ -14,6 +14,7 @@
 | QA-124 | NOT_RUN | - | - | - |
 | QA-125 | NOT_RUN | - | - | - |
 | QA-134 | NOT_RUN | - | - | - |
+| QA-136 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -800,3 +801,10 @@
 - Driver: judged
 - Test: Clone Triangulator in a disposable user account with no `~/ai`. Run `bash scripts/setup-ai.sh`, then start `/loomflow` in Claude Code. Repeat after a new ai-assets `main` commit. Block access to GitHub and start another session. Restore access, change a tracked file in `~/ai`, and retry.
 - Expected: Setup installs the shared files and reports the current ai-assets commit. Each LoomFlow session runs setup before reading the shared command. The next session uses the new commit. Network failure or tracked local edits stop the session with an error. Local edits stay intact.
+
+## QA-136: Assessment verdict help
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Open a target dashboard. Open help on the Assessment verdict badge by pointer, keyboard, and touch. Open its guide.
+- Expected: The help names red as Critical and orange as Serious, and lists the rules for each. It says that warnings alone do not make the badge orange. Related links open Assessment and the other named topics.
