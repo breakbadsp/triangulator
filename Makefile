@@ -67,6 +67,12 @@ CLANG_FORMAT ?= clang-format
 SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COMMON_HEADERS := $(wildcard common/*.hpp)
 COLLECTOR_HEADERS := $(wildcard collector/*.hpp)
+# cpp-httplib v0.64.0 (MIT), unmodified: https://github.com/yhirose/cpp-httplib/tree/v0.64.0
+# httplib.h SHA-256 805169049e6a6e9ba7729d7e01d14ced825029c88a277586602a6b38df4d5357.
+# To upgrade, replace httplib.h and LICENSE and update the version check in
+# collector/http_server.hpp. -isystem keeps the project warnings off its code.
+HTTPLIB_HEADER := third_party/cpp-httplib/httplib.h
+HTTPLIB_FLAGS := -isystem third_party/cpp-httplib
 COLLECTOR_LIBS ?= -lsqlite3
 ifneq ($(strip $(SQLITE_SOURCE)),)
 override CPPFLAGS += -I$(dir $(SQLITE_SOURCE))
@@ -76,7 +82,7 @@ COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
 CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp tests/runtime_threads.hpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
-	tests/wire_test.cpp
+	tests/wire_test.cpp tests/http_server_test.cpp
 
 .PHONY: all check check-asan check-tsan check-sanitizers clean format format-check release scout sqlite-amalgamation dashboard-check FORCE
 all: build/triangulator-sampler build/triangulator-collector
@@ -170,9 +176,9 @@ build/dashboard_html.inc: dashboard/dist/index.html Makefile
 	mv $@.tmp $@
 	rm -f $@.od
 
-build/triangulator-collector.o: collector/main.cpp $(COLLECTOR_HEADERS) $(COMMON_HEADERS) sampler/parsing.hpp build/dashboard_html.inc build/compiler_ok Makefile
+build/triangulator-collector.o: collector/main.cpp $(COLLECTOR_HEADERS) $(HTTPLIB_HEADER) $(COMMON_HEADERS) sampler/parsing.hpp build/dashboard_html.inc build/compiler_ok Makefile
 	mkdir -p build
-	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -Ibuild $(RUNTIME_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(HTTPLIB_FLAGS) $(CXXFLAGS) -Ibuild $(RUNTIME_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
 
 build/triangulator-collector: build/triangulator-collector.o $(SQLITE_OBJECT) build/compiler_ok Makefile build/build_options
 	mkdir -p build
@@ -223,7 +229,15 @@ build/collector-test: build/collector-test.o $(SQLITE_OBJECT) build/compiler_ok 
 	mkdir -p build
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) -Wl,--wrap=fsync $(LDLIBS) $(COLLECTOR_LIBS) -o $@
 
-CPP_TESTS := build/wire-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test
+build/http-server-test.o: tests/http_server_test.cpp collector/http_server.hpp collector/log.hpp $(HTTPLIB_HEADER) $(COMMON_HEADERS) build/compiler_ok Makefile
+	mkdir -p build
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(HTTPLIB_FLAGS) $(CXXFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+
+build/http-server-test: build/http-server-test.o build/compiler_ok Makefile build/build_options
+	mkdir -p build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+
+CPP_TESTS := build/wire-test build/http-server-test build/sampler-test build/allocation-test build/collector-allocation-test build/collector-test
 dashboard-check: dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run check
 

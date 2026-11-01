@@ -57,7 +57,7 @@ unlimited queues or different timeout meanings without an explicit decision.
 | The collector embeds the dashboard and supports a fully static release build. | Compile the library into the collector. Verify the release has no dynamic dependencies. Optional TLS or compression dependencies need an explicit decision. |
 
 Sources: [server and parser](../collector/http.hpp),
-[connection deadlines](../collector/http_connection.hpp),
+[connection limits](../collector/http_server.hpp),
 [startup](../collector/main.cpp), and [release build](../Makefile).
 
 ## HTTP behavior for the library to handle

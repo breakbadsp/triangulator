@@ -163,12 +163,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
   StorageSink sink{storage};
   TargetFleet fleet{config, WallNow(), storage, sink};
   SharedState state;
-  auto listener = Listen(config.http_host_, config.http_port_);
-  if (!listener)
-  {
-    return Stopped(listener.error());
-  }
-  DashboardServer server{config, state, watches, std::move(*listener)};
+  DashboardServer server{config, state, watches};
   if (auto started = server.Start(); !started)
   {
     return Stopped(started.error());
