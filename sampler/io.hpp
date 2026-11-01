@@ -397,4 +397,57 @@ class RateLimitedLogger
   std::optional<Nanoseconds> last_warning_;
 };
 
+// Allows at most 10 lines in any 60 s. A burst limit, not a fixed gap, so a
+// short-lived process still gets its start and end lines while a crash loop
+// cannot flood the log.
+class BurstLimiter
+{
+ public:
+  static constexpr std::size_t kLines = 10;
+
+  [[nodiscard]] bool Allow(Nanoseconds p_now) noexcept
+  {
+    auto& oldest = times_[next_];
+    if (count_ == kLines && p_now - oldest < 60s)
+    {
+      return false;
+    }
+    oldest = p_now;
+    next_ = (next_ + 1) % kLines;
+    count_ = std::min(count_ + 1, kLines);
+    return true;
+  }
+
+ private:
+  std::array<Nanoseconds, kLines> times_{};
+  std::size_t next_ = 0;
+  std::size_t count_ = 0;
+};
+
+// Lines about what the sampler monitors, such as a target's process start and
+// end. Apart from RateLimitedLogger so that these lines and warnings do not
+// hide each other.
+class LifecycleLogger
+{
+ public:
+  template <typename... TArgs>
+  void Log(std::format_string<TArgs...> p_format, TArgs&&... p_args)
+  {
+    if (!limiter_.Allow(ClockNow(CLOCK_MONOTONIC)))
+    {
+      return;
+    }
+    std::array<char, 512> message{};
+    const auto result =
+        std::format_to_n(message.data(), message.size(), p_format,
+                         std::forward<TArgs>(p_args)...);
+    StderrSink().Write(
+        {message.data(),
+         std::min(static_cast<std::size_t>(result.size), message.size())});
+  }
+
+ private:
+  BurstLimiter limiter_;
+};
+
 }  // namespace triangulator

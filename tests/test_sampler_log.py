@@ -65,6 +65,13 @@ class SamplerLogTests(unittest.TestCase):
         started = self.log.text.index("started;")
         self.assertLess(started, self.log.text.index("configuration reloaded"))
 
+    def test_target_start_and_end_are_logged_with_the_process_name(self):
+        pid = self.target.pid
+        self.log.wait_for(rf"^{TIME} triangulator: target \S+: monitoring PID {pid} \(sleep\)$")
+        self.target.kill()
+        self.target.wait()
+        self.log.wait_for(rf"^{TIME} triangulator: target \S+: PID {pid} ended$")
+
 
 if __name__ == "__main__":
     unittest.main()

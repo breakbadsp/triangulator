@@ -173,6 +173,42 @@ struct ExePath
   return boot_wall_ns + since_boot_ns;
 }
 
+// The name for a log line: the base name of the program file, or when the
+// file is hidden, of the first word of the command line, or "?". Characters
+// that are not printable become '?', so a process cannot forge a log line.
+inline constexpr std::size_t kLogNameSize = 48;
+
+[[nodiscard]] inline std::array<char, kLogNameSize> LogName(
+    const process_wire::Packet& p_packet)
+{
+  const auto base_name = [](std::string_view p_path)
+  {
+    return p_path.substr(p_path.rfind('/') + 1);
+  };
+  std::string_view name;
+  if (!process_wire::HasFlag(p_packet.flags_, process_wire::Flags::ExeHidden))
+  {
+    name = base_name(process_wire::Text(p_packet.exe_));
+  }
+  if (name.empty())
+  {
+    const auto command = process_wire::Text(p_packet.command_);
+    name = base_name(command.substr(0, command.find(' ')));
+  }
+  if (name.empty())
+  {
+    name = "?";
+  }
+  std::array<char, kLogNameSize> text{};
+  const auto length = std::min(name.size(), text.size() - 1);
+  for (std::size_t index = 0; index < length; ++index)
+  {
+    const auto character = static_cast<unsigned char>(name[index]);
+    text[index] = character >= 0x20 && character < 0x7f ? name[index] : '?';
+  }
+  return text;
+}
+
 class ProcessInfoProbe
 {
  public:

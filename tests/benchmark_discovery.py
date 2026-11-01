@@ -98,7 +98,7 @@ def run_case(mode, duration, sampler):
                 line = re.sub(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z ", "", line)
                 if line.startswith("triangulator: kernel log (/dev/kmsg) not readable (errno "):
                     continue
-                if re.match(r"triangulator: (triangulator-sampler \S+ started|configuration reloaded); ", line):
+                if re.match(r"triangulator: ((triangulator-sampler \S+ started|configuration reloaded); |target \S+: (monitoring PID \d+ |PID \d+ ended))", line):
                     continue
                 notice = re.fullmatch(r"triangulator: (\d+) matching processes are not monitored: all 8 slots of max_targets are in use", line)
                 if notice:

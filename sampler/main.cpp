@@ -230,6 +230,8 @@ class TargetSampler final
             exit_report_.wait_status_ = *status;
             exit_report_.exit_status_ = exit_wire::ExitStatus::Known;
           }
+          lifecycle_.Log("target {}: PID {} ended", target_.id_,
+                         previous_target_->pid_);
           exit_report_.ended_session_ = session_;
           exit_report_sends_ = kExitReportSends;
           reported = true;
@@ -362,6 +364,12 @@ class TargetSampler final
     }
     process_info_ =
         process_info_probe_.Read(p_target.pid_, p_target.starttime_);
+    if (!monitoring_logged_)
+    {
+      monitoring_logged_ = true;
+      lifecycle_.Log("target {}: monitoring PID {} ({})", target_.id_,
+                     p_target.pid_, process_wire::Text(LogName(process_info_)));
+    }
     process_info_.session_ = session_;
     process_info_.monotonic_ns_ =
         static_cast<std::uint64_t>(p_monotonic.count());
@@ -540,6 +548,7 @@ class TargetSampler final
     next_layout_ = Nanoseconds{0};
     next_process_info_ = Nanoseconds{0};
     next_announcement_ = Nanoseconds{0};
+    monitoring_logged_ = false;
     return {};
   }
 
@@ -604,6 +613,8 @@ class TargetSampler final
   exit_wire::Report exit_report_{};
   int exit_report_sends_ = 0;
   RateLimitedLogger& logger_;
+  LifecycleLogger lifecycle_;
+  bool monitoring_logged_ = false;  // for the current session
   std::array<char, 64> host_{};
   Nanoseconds next_announcement_{0};
   std::optional<TargetIdentity> previous_target_;

@@ -1109,6 +1109,47 @@ void TestTimestamp()
           "a time before the epoch gives the epoch");
 }
 
+void TestBurstLimiter()
+{
+  BurstLimiter limiter;
+  const Nanoseconds start{1'000'000'000};
+  int allowed = 0;
+  for (int line = 0; line < 11; ++line)
+  {
+    allowed += limiter.Allow(start + std::chrono::milliseconds{line}) ? 1 : 0;
+  }
+  Require(allowed == 10, "10 lines in a burst pass and the 11th is dropped");
+  Require(!limiter.Allow(start + 59s), "still limited before 60 s");
+  Require(limiter.Allow(start + 61s), "allowed again after 60 s");
+  Require(limiter.Allow(start + 61s) && limiter.Allow(start + 61s),
+          "the lines of the old burst have left the window");
+}
+
+void TestLogName()
+{
+  const auto name =
+      [](std::string_view p_exe, std::string_view p_command, bool p_hidden)
+  {
+    process_wire::Packet packet;
+    process_wire::CopyEnd(packet.exe_, p_exe);
+    process_wire::CopyStart(packet.command_, p_command);
+    if (p_hidden)
+    {
+      packet.flags_ = process_wire::Flags::ExeHidden;
+    }
+    return std::string{process_wire::Text(LogName(packet))};
+  };
+  Require(name("/usr/bin/python3", "python3 app.py", false) == "python3",
+          "the base name of the program file");
+  Require(name("/usr/bin/python3", "other", true) == "other",
+          "a hidden program file gives the command name");
+  Require(name("", "/opt/app/server --port 1", true) == "server",
+          "the command name is the base name of the first word");
+  Require(name("", "", true) == "?", "no name gives a question mark");
+  Require(name("/bin/a\nb", "", false) == "a?b",
+          "a control character cannot start a new log line");
+}
+
 void TestWarningSink()
 {
   ::signal(SIGPIPE, SIG_IGN);  // as the sampler's InstallSignalHandlers()
@@ -2655,6 +2696,8 @@ int main()
     TestWire();
     TestRaii();
     TestTimestamp();
+    TestBurstLimiter();
+    TestLogName();
     TestWarningSink();
     TestDescriptorBudget();
     TestResourceParsing();

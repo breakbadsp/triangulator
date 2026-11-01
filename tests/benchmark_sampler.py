@@ -48,7 +48,7 @@ KMSG_NOTICE = ("triangulator: kernel log (/dev/kmsg) not readable: ",
 
 
 # Lines that say what the sampler does. They are not warnings.
-ROUTINE_NOTICE = re.compile(r"triangulator: (triangulator-sampler \S+ started|configuration reloaded); ")
+ROUTINE_NOTICE = re.compile(r"triangulator: ((triangulator-sampler \S+ started|configuration reloaded); |target \S+: (monitoring PID \d+ |PID \d+ ended))")
 
 # Each sampler log line starts with a UTC time such as 2026-11-01T18:04:14.548Z.
 LOG_TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z ")
