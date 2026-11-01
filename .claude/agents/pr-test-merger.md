@@ -1,7 +1,8 @@
 ---
 name: pr-test-merger
 description: Runs the local check and CI gate on one pull request, posts the results, and merges only when every gate passes. Makes no code changes.
-effort: medium
+model: sonnet
+effort: high
 tools: Bash, Read, Grep, Glob
 ---
 

@@ -46,14 +46,19 @@ Scope by change
 
 Model split
 - Run scripted cases (Driver: scripted in docs/qa/test-cases.md) and
-  record-keeping on the cheapest suitable model: Haiku, or Terra 6.1 low when
-  Claude is unavailable.
+  record-keeping, which are not coding work, on Haiku, or Terra 6.1 high when
+  Claude is unavailable. Never use Terra at a lower effort.
 - Give a failed or ambiguous case to a stronger model for the verdict: Sonnet,
   or Sol 6.1 medium. Report a mismatch between a case and the design as a
   mismatch. Never pass it silently.
 - Use scripts/qa/ (see scripts/qa/README.md) for setup, browser steps, records,
   and the QA-060 sweep. Do not write a new per-run harness. Do not copy harness
   files into run evidence.
+- Give any coding work to Sonnet 5.5 at high effort or Opus 5.5 at medium
+  effort. This includes code, scripts, code review, and writing automated tests.
+  Never use Terra for it. If one is unavailable, use the other. If both are
+  unavailable, stop and report. Test cases in docs/qa/test-cases.md are
+  documents, not coding work.
 
 Completion
 - Follow the project's worktree, commit, and pull request rules for the record.

@@ -1,5 +1,13 @@
 # Triangulator agent instructions
 
+## Model selection
+
+- For coding work, including code review and writing tests, use Sonnet 5.5 at
+  high effort or Opus 5.5 at medium effort. Never use Terra for coding work.
+  If one is unavailable, use the other. If both are unavailable, stop and report.
+- Use Terra only at high effort. Choose reasoning effort for other models to
+  suit the task. Apply these rules to every role and fallback.
+
 ## Architecture
 
 - Use C++ or Rust for performance-critical code: the sampler, core collector
