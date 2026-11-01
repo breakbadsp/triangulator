@@ -64,6 +64,28 @@ def child(command, **kwargs):
                 stream.close()
 
 
+def read_sampler_log(sampler):
+    """Text that the sampler has written to its stderr pipe so far. On a pipe the
+    sampler writes at once; a regular file would hold its warnings until it
+    exits, so a check made while it runs would pass without proof."""
+    os.set_blocking(sampler.stderr.fileno(), False)
+    chunks = []
+    while True:
+        try:
+            data = os.read(sampler.stderr.fileno(), 65536)
+        except BlockingIOError:
+            break
+        if not data:
+            break
+        chunks.append(data)
+    return b"".join(chunks).decode(errors="replace")
+
+
+def check_sampler_log(text):
+    if any(line and not line.startswith(KMSG_NOTICE) for line in text.splitlines()):
+        raise RuntimeError("sampler logged errors or warnings")
+
+
 def cpu_snapshot(pid, whole_process=False):
     # schedstat reports execution time in nanoseconds. stat clock ticks are
     # too coarse for this sampler. The production sampler has one thread.
@@ -121,7 +143,11 @@ class SampleStream:
         chunks = math.ceil(len(self.thread_ids) / RECORDS_PER_PACKET)
         if (packet.pid != self.target_pid or packet.flags or packet.chunks != chunks
                 or packet.interval_ms != 1000 // self.rate):
-            raise RuntimeError("sampler did not sample the configured target")
+            raise RuntimeError(
+                "sampler did not sample the configured target: "
+                f"pid {packet.pid} (expected {self.target_pid}), flags {packet.flags:#x} "
+                f"(expected 0), chunks {packet.chunks} (expected {chunks}), "
+                f"interval {packet.interval_ms} ms (expected {1000 // self.rate})")
         if self.parts and packet.signature != next(iter(self.parts.values())).signature:
             raise RuntimeError("incomplete thread sample before the next tick")
         if packet.chunk in self.parts:
@@ -263,8 +289,9 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
             f'target_pid = {target.pid}\nrate_hz = {rate}\n'
             f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
             f'status_fallback = false\nresource_interval_s = 5\nmemory_interval_s = {MEMORY_INTERVAL_S}\n')
-        with open(Path(directory) / "sampler.log", "w+") as log, \
-                child([str(binary), str(config)], stdout=subprocess.DEVNULL, stderr=log) as sampler:
+        with child([str(binary), str(config)], stdout=subprocess.DEVNULL,
+                   stderr=subprocess.PIPE) as sampler:
+            log = ""
             try:
                 stream = SampleStream(receiver, target.pid, rate, thread_ids)
                 wait_sample(stream, sampler, target, time.monotonic() + 10)
@@ -280,14 +307,12 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
                 if warmup_s + duration_s > MEMORY_INTERVAL_S and not all(
                         stream.datagrams[kind] for kind in ("TRES", "TVMA")):
                     raise RuntimeError("resource or memory-map samples were missing")
-                log.flush()
-                log.seek(0)
-                if any(line and not line.startswith(KMSG_NOTICE) for line in log.read().splitlines()):
-                    raise RuntimeError("sampler logged errors or warnings")
+                log += read_sampler_log(sampler)
+                check_sampler_log(log)
                 return result
             except (OSError, ValueError, RuntimeError) as error:
-                log.seek(0)
-                raise RuntimeError(f"{error}; sampler log: {log.read().strip()}") from error
+                log += read_sampler_log(sampler)
+                raise RuntimeError(f"{error}; sampler log: {log.strip()}") from error
 
 
 def table(runs):

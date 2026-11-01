@@ -126,6 +126,32 @@ class SamplerBenchmarkTests(unittest.TestCase):
                     for _ in packets:
                         stream.receive()
 
+    def test_wrong_target_error_names_the_packet_fields(self):
+        stream, decoder = self.stream([replace(self.packet(), interval_ms=500, flags=4)])
+        with decoder, self.assertRaises(RuntimeError) as raised:
+            stream.receive()
+        message = str(raised.exception)
+        for field in ("pid 1 (expected 1)", "flags 0x4 (expected 0)", "chunks 2 (expected 2)",
+                      "interval 500 ms (expected 1000)"):
+            self.assertIn(field, message)
+
+    def test_sampler_warning_is_read_while_it_runs(self):
+        # The sampler stays alive after it warns. A log that is read only at
+        # exit, such as a regular file's held warnings, would show nothing.
+        script = "import sys, time; print('warning', file=sys.stderr, flush=True); time.sleep(30)"
+        with benchmark_sampler.child([sys.executable, "-c", script],
+                                     stderr=subprocess.PIPE) as sampler:
+            text = ""
+            deadline = benchmark_sampler.time.monotonic() + 10
+            while "warning" not in text and benchmark_sampler.time.monotonic() < deadline:
+                text += benchmark_sampler.read_sampler_log(sampler)
+                benchmark_sampler.time.sleep(0.05)
+            self.assertIsNone(sampler.poll())
+        with self.assertRaisesRegex(RuntimeError, "logged errors or warnings"):
+            benchmark_sampler.check_sampler_log(text)
+        benchmark_sampler.check_sampler_log(
+            "triangulator: kernel log (/dev/kmsg) not readable (errno 1); exit reports\n")
+
     def test_late_tick_is_counted_not_rejected(self):
         stream, decoder = self.stream([self.packet(), self.packet(chunk=1),
                                       replace(self.packet(sequence=1), monotonic_ns=5 * 10**9),
