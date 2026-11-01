@@ -1068,9 +1068,9 @@ bool Blocking(int p_descriptor)
   return (::fcntl(p_descriptor, F_GETFL) & O_NONBLOCK) == 0;
 }
 
-// A warning never blocks a tick: stderr can be a full pipe that another
-// process also writes, a full socket, a terminal that nobody reads, or a
-// regular file (D1-1). SIGALRM ends the test if a write blocks.
+// A warning never waits for a reader: stderr can be a full pipe that
+// another process also writes, a full socket, or a terminal that nobody
+// reads (D1-1). SIGALRM ends the test if a write blocks.
 void TestWarningSink()
 {
   ::signal(SIGPIPE, SIG_IGN);  // as the sampler's InstallSignalHandlers()
@@ -1093,23 +1093,21 @@ void TestWarningSink()
       }
     }
     ::usleep(100'000);
+    int written = 0;
     for (int count = 0; count < 1000; ++count)
     {
-      sink.Write("pipe full");
+      written += sink.Write("pipe full") ? 1 : 0;
     }
-    Require(sink.Lost() == 1000,
-            "warnings to a full pipe are lost, not waited");
+    Require(written == 0, "warnings to a full pipe are dropped, not waited");
     Require(Blocking(write_end.Get()), "fd 2's own flags are not changed");
     ::kill(writer, SIGKILL);
     ::waitpid(writer, nullptr, 0);
     (void)ReadAvailable(read_end.Get());
-    sink.Write("drained");
-    Require(ReadAvailable(read_end.Get()) ==
-                "triangulator: (1000 earlier warnings were lost) drained\n",
-            "the next written warning counts the lost ones");
+    Require(sink.Write("drained") &&
+                ReadAvailable(read_end.Get()) == "triangulator: drained\n",
+            "a drained pipe takes the next warning");
     read_end.Reset();
-    sink.Write("no reader");
-    Require(sink.Lost() == 1, "a pipe with no reader fails with EPIPE");
+    Require(!sink.Write("no reader"), "a pipe with no reader fails with EPIPE");
   }
   {
     int pair[2]{};
@@ -1121,14 +1119,8 @@ void TestWarningSink()
     {
     }
     WarningSink sink{writer.Get()};
-    sink.Write("socket full");
-    Require(sink.Lost() == 1 && Blocking(writer.Get()),
-            "a full socket loses the warning and keeps its flags");
-    (void)ReadAvailable(reader.Get());
-    sink.Write("socket drained");
-    Require(ReadAvailable(reader.Get())
-                .ends_with("(1 earlier warnings were lost) socket drained\n"),
-            "a drained socket takes the next warning");
+    Require(!sink.Write("socket full") && Blocking(writer.Get()),
+            "a full socket drops the warning and keeps its flags");
   }
   {
     FileDescriptor master{::posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC)};
@@ -1140,12 +1132,13 @@ void TestWarningSink()
     Require(static_cast<bool>(terminal), "terminal end");
     WarningSink sink{terminal.Get()};
     // Nobody reads the master side, so the terminal fills up.
+    bool dropped = false;
     for (int count = 0; count < 2000; ++count)
     {
-      sink.Write("terminal");
+      dropped = !sink.Write("terminal") || dropped;
     }
-    Require(sink.Lost() > 0 && Blocking(terminal.Get()),
-            "a full terminal loses warnings and keeps its flags");
+    Require(dropped && Blocking(terminal.Get()),
+            "a full terminal drops warnings and keeps its flags");
   }
   {
     char path[] = "/tmp/warning-sink-XXXXXX";
@@ -1153,26 +1146,13 @@ void TestWarningSink()
     Require(static_cast<bool>(file), "temporary file");
     ::unlink(path);
     WarningSink sink{file.Get()};
-    for (const auto* message : {"first", "second", "third", "latest"})
-    {
-      sink.Write(message);
-    }
-    struct stat status{};
-    Require(::fstat(file.Get(), &status) == 0 && status.st_size == 0 &&
-                sink.Held() == 4,
-            "a regular file is not written in the steady state");
-    sink.Flush();
+    Require(sink.Write("first") && sink.Write("second"), "file write");
     std::array<char, 1024> text{};
     const auto length = ::pread(file.Get(), text.data(), text.size(), 0);
-    Require(
-        length > 0 &&
-            std::string_view{text.data(), static_cast<std::size_t>(length)} ==
-                "triangulator: first\n"
-                "triangulator: 2 more warnings were held while stderr "
-                "could block\n"
-                "triangulator: latest\n",
-        "Flush() writes the first, a count, and the latest warning");
-    Require(sink.Held() == 0, "Flush() empties the store");
+    Require(length > 0 && std::string_view{text.data(),
+                                           static_cast<std::size_t>(length)} ==
+                              "triangulator: first\ntriangulator: second\n",
+            "a regular file gets each warning at once");
   }
   ::alarm(0);
 }

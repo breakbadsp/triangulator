@@ -657,13 +657,7 @@ class Sampler final
       if (watch.Poll(signal, ClockNow(CLOCK_MONOTONIC), logger_))
       {
         watch.Reloaded(ClockNow(CLOCK_MONOTONIC));
-        // Reload is outside the steady state, so held warnings can be
-        // written now, even when the write blocks. Write them after Reload()
-        // too: its own warning, such as an invalid configuration, must not
-        // wait for the next reload or the exit.
-        StderrSink().Flush();
         auto applied = Reload(p_config_path);
-        StderrSink().Flush();
         if (!applied)
         {
           return std::unexpected(applied.error());
@@ -1066,11 +1060,10 @@ int SamplerMain(int p_argc, char** p_argv)
       return 1;
     }
     // Chooses how warnings are written before the first tick.
-    auto& warnings = triangulator::StderrSink();
+    static_cast<void>(triangulator::StderrSink());
     triangulator::Sampler sampler{std::move(*config),
                                   triangulator::RaiseDescriptorLimit()};
     const auto ran = sampler.Run(config_path);
-    warnings.Flush();
     if (!ran)
     {
       std::fprintf(stderr, "triangulator: %s\n", ran.error().c_str());

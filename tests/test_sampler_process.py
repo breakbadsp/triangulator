@@ -156,7 +156,7 @@ class RegularFileStderrTests(unittest.TestCase):
                 self.assertGreater(ticks(receiver, 1.5), 5, "the sampler did not start")
                 config.write_text("rate_hz = not a number\n")
                 deadline = time.monotonic() + 5
-                while time.monotonic() < deadline and not log.read_bytes():
+                while time.monotonic() < deadline and b"invalid configuration" not in log.read_bytes():
                     time.sleep(0.1)
                 self.assertIn(b"invalid configuration", log.read_bytes())
                 self.assertIsNone(sampler.poll())
