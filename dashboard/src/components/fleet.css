@@ -320,7 +320,12 @@
 }
 .ft-foot {
   display: flex;
+  flex-wrap: wrap;
   margin-top: auto;
+}
+.ft-foot small {
+  flex-basis: 100%;
+  margin-top: 6px;
 }
 .ft-remove {
   position: relative;

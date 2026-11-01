@@ -78,7 +78,7 @@
 | QA-059 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-060 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-061 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-062 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-062 | NOT_RUN | - | - | - |
 | QA-063 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-064 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-065 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -474,10 +474,10 @@
 
 ## QA-062: Manage local targets
 
-- Revision: 2
+- Revision: 3
 - Driver: judged
 - Test: On the Targets overview, use Add target and Remove on tiles to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target. Open a metric guide from the dialog below 1200 px, use related topics and Escape, then complete Add target. Check a remote dashboard and a stopped sampler.
-- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove is disabled on the last target and absent on remote hosts. The guide remains inside the native dialog; its dialog ancestor stays usable. Escape closes the guide before the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
+- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove on the last target, or on a target that a pattern selects, changes nothing and only then shows the reason. Remove is absent on remote hosts. The guide remains inside the native dialog; its dialog ancestor stays usable. Escape closes the guide before the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
 
 ## QA-063: Target access and sampler budget badges
 
