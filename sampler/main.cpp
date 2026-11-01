@@ -17,6 +17,7 @@
 #include "exit_status.hpp"
 #include "kernel_log.hpp"
 #include "memory.hpp"
+#include "name_lookup.hpp"
 #include "proc.hpp"
 #include "process_info.hpp"
 #include "resources.hpp"
@@ -53,6 +54,15 @@ extern "C" void OnSignal(int p_number)
     {
       return std::unexpected(std::error_code{errno, std::generic_category()});
     }
+  }
+  // A warning to a pipe whose reader has gone then fails with EPIPE, and
+  // does not end the sampler.
+  struct sigaction ignore{};
+  ignore.sa_handler = SIG_IGN;
+  ::sigemptyset(&ignore.sa_mask);
+  if (::sigaction(SIGPIPE, &ignore, nullptr) != 0)
+  {
+    return std::unexpected(std::error_code{errno, std::generic_category()});
   }
   return {};
 }
@@ -189,10 +199,10 @@ class TargetSampler final
         const auto ended = ProcessEnded(*previous_target_);
         if (!ended)
         {
-          // Without descriptors the check cannot be made. Keep the old
-          // target and its last tick, skip this tick as for a failed
-          // lookup, and ask again at the next one, so the report is not
-          // lost.
+          // The stat read could not decide, for example for lack of
+          // descriptors or a permission error. Keep the old target and its
+          // last tick, skip this tick as for a failed lookup, and ask again
+          // at the next one: no exit report for a process that may live.
           logger_.Warn(
               "cannot tell whether PID {} ended: {}; tick skipped, will "
               "check again",
@@ -330,10 +340,11 @@ class TargetSampler final
   }
 
   // Sends what the target is (command line, executable, owner and so on).
-  // It is read when the session starts, as it hardly changes, and sent again
-  // every kProcessInfoInterval: datagrams are not acknowledged, and a
-  // collector that started later has not seen it. One small datagram of
-  // cached bytes, so it adds no /proc reads after the first.
+  // It is read again for each send, every kProcessInfoInterval: exec,
+  // chdir, credential and affinity changes keep the PID and start time, so
+  // a copy from the session start can be wrong. Datagrams are not
+  // acknowledged, and a collector that started later has not seen it. One
+  // read costs about 25 us.
   void StepProcessInfo(const TargetIdentity& p_target, Nanoseconds p_monotonic)
   {
     // Half a tick of slack, as for resources.
@@ -341,17 +352,13 @@ class TargetSampler final
     {
       return;
     }
-    if (!process_info_read_)
-    {
-      process_info_ =
-          process_info_probe_.Read(p_target.pid_, p_target.starttime_);
-      process_info_.session_ = session_;
-      process_info_.monotonic_ns_ =
-          static_cast<std::uint64_t>(p_monotonic.count());
-      process_info_.wall_ns_ =
-          static_cast<std::uint64_t>(ClockNow(CLOCK_REALTIME).count());
-      process_info_read_ = true;
-    }
+    process_info_ =
+        process_info_probe_.Read(p_target.pid_, p_target.starttime_);
+    process_info_.session_ = session_;
+    process_info_.monotonic_ns_ =
+        static_cast<std::uint64_t>(p_monotonic.count());
+    process_info_.wall_ns_ =
+        static_cast<std::uint64_t>(ClockNow(CLOCK_REALTIME).count());
     SendPart(process_wire::Encode(process_info_), "process info");
     next_process_info_ =
         NextDeadline(next_process_info_, p_monotonic, kProcessInfoInterval);
@@ -523,7 +530,6 @@ class TargetSampler final
     memory_sequence_ = 0;
     next_memory_ = Nanoseconds{0};
     next_layout_ = Nanoseconds{0};
-    process_info_read_ = false;
     next_process_info_ = Nanoseconds{0};
     next_announcement_ = Nanoseconds{0};
     return {};
@@ -576,7 +582,7 @@ class TargetSampler final
   // many ticks; the collector keeps the first copy that arrives.
   static constexpr int kExitReportSends = 5;
 
-  // How often the cached process info is sent again.
+  // How often the process info is read and sent.
   static constexpr Nanoseconds kProcessInfoInterval =
       std::chrono::seconds{process_wire::kRepeatSeconds};
 
@@ -608,7 +614,6 @@ class TargetSampler final
   Nanoseconds next_layout_{0};
   ProcessInfoProbe process_info_probe_;
   process_wire::Packet process_info_{};
-  bool process_info_read_ = false;  // process_info_ is this session's
   Nanoseconds next_process_info_{0};
 };
 
@@ -713,6 +718,7 @@ class Sampler final
   std::vector<std::unique_ptr<TargetSampler>> targets_;
   // Discovery mode: one sampler for each slot, made at startup or reload.
   Discovery discovery_;
+  NameLookup names_;
   std::vector<std::unique_ptr<TargetSampler>> pool_;
   std::size_t heavy_cursor_ = 0;
 
@@ -728,6 +734,8 @@ class Sampler final
     auto next = LoadConfig(p_path);
     if (!next)
     {
+      // The operator just edited the file and is looking for this line.
+      logger_.AllowNext();
       logger_.Warn("invalid configuration; keeping the previous one: {}",
                    next.error());
       return false;
@@ -761,6 +769,7 @@ class Sampler final
       }
     }
     config_ = std::move(*next);
+    names_.Restart();
     if (!keep_sessions)
     {
       cpu_budget_ = CpuBudget{config_.settings_.rate_hz_,
@@ -774,11 +783,12 @@ class Sampler final
     return true;
   }
 
-  // A target table: one shared /proc scan resolves every name each tick.
+  // A target table: one shared, bounded /proc pass resolves the names.
   [[nodiscard]] std::expected<void, std::string> SampleConfigured(
       Nanoseconds p_exit_deadline, std::span<bool> p_live)
   {
-    const auto lookups = FindTargets(config_.settings_.targets_);
+    const auto lookups =
+        names_.Find(config_.settings_.targets_, ClockNow(CLOCK_MONOTONIC));
     for (std::size_t index = 0; index < targets_.size(); ++index)
     {
       if (!lookups[index])
@@ -1049,9 +1059,12 @@ int SamplerMain(int p_argc, char** p_argv)
                    installed.error().message().c_str());
       return 1;
     }
+    // Chooses how warnings are written before the first tick.
+    static_cast<void>(triangulator::StderrSink());
     triangulator::Sampler sampler{std::move(*config),
                                   triangulator::RaiseDescriptorLimit()};
-    if (auto ran = sampler.Run(config_path); !ran)
+    const auto ran = sampler.Run(config_path);
+    if (!ran)
     {
       std::fprintf(stderr, "triangulator: %s\n", ran.error().c_str());
       return 1;

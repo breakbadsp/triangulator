@@ -1,8 +1,11 @@
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
@@ -19,6 +22,7 @@
 #include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
+#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -846,6 +850,67 @@ void TestDiscoveryChildSelectedByReload()
   }
 }
 
+// Makes the next getdents64 on p_descriptor fail with ENOTDIR: a pipe
+// takes the place of the open directory.
+void BreakDirectory(int p_descriptor)
+{
+  int pipe_ends[2]{};
+  Require(::pipe(pipe_ends) == 0, "pipe");
+  Require(::dup2(pipe_ends[0], p_descriptor) == p_descriptor, "dup2");
+  ::close(pipe_ends[0]);
+  ::close(pipe_ends[1]);
+}
+
+// A task directory read that fails part way keeps the cached threads that it
+// did not reach. A later complete scan drops the ones that ended.
+void TestThreadRescanReadFailure()
+{
+  char root[] = "/tmp/rescan-error-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "rescan fixture directory");
+  // More entries than one getdents64 buffer holds, so a read can fail after
+  // some of them were returned.
+  constexpr int kThreads = 600;
+  for (int tid = 1; tid <= kThreads; ++tid)
+  {
+    std::ofstream{std::format("{}/{}", root, tid)};
+  }
+  DescriptorBudget budget{ThreadCache::kReservedDescriptors +
+                              (kThreads + 1) * Thread::kDescriptorsPerThread,
+                          0};
+  ThreadCache cache{budget};
+  RateLimitedLogger logger;
+  {
+    Directory directory{root};
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads &&
+              budget.kept_ == static_cast<std::size_t>(kThreads),
+          "a complete scan caches every thread");
+  constexpr int kEnded = 100;
+  for (int tid = 1; tid <= kEnded; ++tid)
+  {
+    std::filesystem::remove(std::format("{}/{}", root, tid));
+  }
+  {
+    Directory directory{root};
+    Require(directory.Next().has_value(), "the first read succeeds");
+    BreakDirectory(directory.Fd());
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads &&
+              budget.kept_ == static_cast<std::size_t>(kThreads),
+          "a failed scan keeps the threads that it did not reach");
+  {
+    Directory directory{root};
+    cache.Rescan(directory, logger);
+  }
+  Require(cache.Threads().size() == kThreads - kEnded &&
+              budget.kept_ == static_cast<std::size_t>(kThreads - kEnded),
+          "a complete scan after the failure drops the ended threads");
+  cache.Clear();
+  std::filesystem::remove_all(root);
+}
+
 // Caches for different targets use one descriptor count and release it.
 void TestSharedDescriptorBudget()
 {
@@ -863,7 +928,8 @@ void TestSharedDescriptorBudget()
   const std::array<TargetConfig, 2> targets{
       {{"self", TargetPid{::getpid()}},
        {"absent", TargetName{"absent-xyz-123"}}}};
-  const auto found = FindTargets(targets);
+  NameLookup names;
+  const auto found = names.Find(targets, Nanoseconds{0});
   Require(found[0] && *found[0] && (**found[0]).pid_ == ::getpid(),
           "shared lookup finds PID");
   Require(found[1] && !*found[1], "shared lookup reports an absent name");
@@ -977,6 +1043,118 @@ void TestRaii()
   }
   Require(::fcntl(closed_descriptor, F_GETFD) == -1 && errno == EBADF,
           "destructor closes descriptor");
+}
+
+// Everything readable on p_descriptor now, without waiting. Only for a
+// reading end that the test owns: it sets O_NONBLOCK.
+std::string ReadAvailable(int p_descriptor)
+{
+  ::fcntl(p_descriptor, F_SETFL, ::fcntl(p_descriptor, F_GETFL) | O_NONBLOCK);
+  std::string text;
+  std::array<char, 65536> buffer{};
+  for (;;)
+  {
+    const ssize_t length = ::read(p_descriptor, buffer.data(), buffer.size());
+    if (length <= 0)
+    {
+      return text;
+    }
+    text.append(buffer.data(), static_cast<std::size_t>(length));
+  }
+}
+
+bool Blocking(int p_descriptor)
+{
+  return (::fcntl(p_descriptor, F_GETFL) & O_NONBLOCK) == 0;
+}
+
+// A warning never waits for a reader: stderr can be a full pipe that
+// another process also writes, a full socket, or a terminal that nobody
+// reads (D1-1). SIGALRM ends the test if a write blocks.
+void TestWarningSink()
+{
+  ::signal(SIGPIPE, SIG_IGN);  // as the sampler's InstallSignalHandlers()
+  ::alarm(20);
+  {
+    int pipe_ends[2]{};
+    Require(::pipe(pipe_ends) == 0, "pipe");
+    FileDescriptor read_end{pipe_ends[0]};
+    FileDescriptor write_end{pipe_ends[1]};
+    WarningSink sink{write_end.Get()};
+    // Another writer fills the pipe with blocking writes during the test.
+    const pid_t writer = ::fork();
+    Require(writer >= 0, "fork");
+    if (writer == 0)
+    {
+      const std::array<char, 4096> fill{};
+      for (;;)
+      {
+        (void)::write(pipe_ends[1], fill.data(), fill.size());
+      }
+    }
+    ::usleep(100'000);
+    int written = 0;
+    for (int count = 0; count < 1000; ++count)
+    {
+      written += sink.Write("pipe full") ? 1 : 0;
+    }
+    Require(written == 0, "warnings to a full pipe are dropped, not waited");
+    Require(Blocking(write_end.Get()), "fd 2's own flags are not changed");
+    ::kill(writer, SIGKILL);
+    ::waitpid(writer, nullptr, 0);
+    (void)ReadAvailable(read_end.Get());
+    Require(sink.Write("drained") &&
+                ReadAvailable(read_end.Get()) == "triangulator: drained\n",
+            "a drained pipe takes the next warning");
+    read_end.Reset();
+    Require(!sink.Write("no reader"), "a pipe with no reader fails with EPIPE");
+  }
+  {
+    int pair[2]{};
+    Require(::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0, "socketpair");
+    FileDescriptor reader{pair[0]};
+    FileDescriptor writer{pair[1]};
+    const std::array<char, 4096> fill{};
+    while (::send(writer.Get(), fill.data(), fill.size(), MSG_DONTWAIT) > 0)
+    {
+    }
+    WarningSink sink{writer.Get()};
+    Require(!sink.Write("socket full") && Blocking(writer.Get()),
+            "a full socket drops the warning and keeps its flags");
+  }
+  {
+    FileDescriptor master{::posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC)};
+    Require(
+        master && ::grantpt(master.Get()) == 0 && ::unlockpt(master.Get()) == 0,
+        "pseudo-terminal");
+    FileDescriptor terminal{
+        ::open(::ptsname(master.Get()), O_WRONLY | O_NOCTTY | O_CLOEXEC)};
+    Require(static_cast<bool>(terminal), "terminal end");
+    WarningSink sink{terminal.Get()};
+    // Nobody reads the master side, so the terminal fills up.
+    bool dropped = false;
+    for (int count = 0; count < 2000; ++count)
+    {
+      dropped = !sink.Write("terminal") || dropped;
+    }
+    Require(dropped && Blocking(terminal.Get()),
+            "a full terminal drops warnings and keeps its flags");
+  }
+  {
+    char path[] = "/tmp/warning-sink-XXXXXX";
+    FileDescriptor file{::mkstemp(path)};
+    Require(static_cast<bool>(file), "temporary file");
+    ::unlink(path);
+    WarningSink sink{file.Get()};
+    Require(sink.Write("first") && sink.Write("second"), "file write");
+    std::array<char, 1024> text{};
+    const auto length = ::pread(file.Get(), text.data(), text.size(), 0);
+    Require(length > 0 && std::string_view{text.data(),
+                                           static_cast<std::size_t>(length)} ==
+                              "triangulator: first\ntriangulator: second\n",
+            "a regular file gets each warning at once");
+  }
+  ::alarm(0);
 }
 
 void TestResourceParsing()
@@ -1288,7 +1466,7 @@ std::size_t OpenDescriptors()
 {
   std::size_t count = 0;
   Directory directory{"/proc/self/fd"};
-  while (directory.Next())
+  for (auto entry = directory.Next(); entry && *entry; entry = directory.Next())
   {
     ++count;
   }
@@ -2183,6 +2361,224 @@ void TestExitStatus()
   }
 }
 
+// The descriptor this process has open on p_path, or -1.
+int OpenDescriptorOf(const std::string& p_path)
+{
+  for (const auto& entry : std::filesystem::directory_iterator{"/proc/self/fd"})
+  {
+    std::error_code error;
+    if (std::filesystem::read_symlink(entry.path(), error) == p_path)
+    {
+      return std::stoi(entry.path().filename().string());
+    }
+  }
+  return -1;
+}
+
+// A directory read error is not the end of the directory (PR 215, finding 1).
+void TestDirectoryReadErrors()
+{
+  {
+    Directory directory{"/proc"};
+    Require(static_cast<bool>(directory), "open /proc");
+    BreakDirectory(directory.Fd());
+    const auto entry = directory.Next();
+    Require(!entry && entry.error() == ENOTDIR, "a read error is an error");
+  }
+  {
+    // The directory of a process that exits during the scan is gone.
+    Child child{0};
+    Directory directory{std::format("/proc/{}/task", child.Pid()).c_str()};
+    Require(static_cast<bool>(directory), "open the child's task directory");
+    child.End();
+    child.Reap();
+    const auto entry = directory.Next();
+    Require(!entry && entry.error() == ENOENT,
+            "an exited process's directory is ENOENT, not empty");
+  }
+  {
+    Directory directory{"/proc/self/task"};
+    std::size_t count = 0;
+    for (auto entry = directory.Next(); entry && *entry;
+         entry = directory.Next())
+    {
+      ++count;
+    }
+    Require(count >= 3, "a complete scan ends with nullopt");  // ".", ".."
+  }
+  // A discovery pass that fails part way admits nothing and keeps the last
+  // excluded count; the next complete pass admits.
+  char root[] = "/tmp/discovery-error-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "discovery fixture directory");
+  std::ofstream{std::format("{}/{}", root, ::getpid())};
+  // More than one tick of entries, so the pass spans two Scan() calls.
+  for (std::size_t index = 0; index < 2 * kScanEntriesPerTick; ++index)
+  {
+    std::ofstream{std::format("{}/not-a-pid-{}", root, index)};
+  }
+  Config config;
+  config.process_names_ = {"sampler-test"};
+  config.max_targets_ = 4;
+  Discovery discovery{root};
+  discovery.Configure(config);
+  Nanoseconds now{kDiscoveryInterval};
+  const auto first = discovery.Scan(config, now);
+  Require(first && !*first, "the pass is not finished after one tick");
+  BreakDirectory(OpenDescriptorOf(root));
+  const auto failed = discovery.Scan(config, now);
+  Require(failed && !*failed && CountSlots(discovery, SlotState::Running) == 0,
+          "a failed pass admits nothing");
+  Nanoseconds later = now;
+  RunDiscoveryPass(discovery, config, later);
+  Require(FindSlot(discovery, ::getpid()) != nullptr,
+          "the next complete pass admits the match");
+  std::filesystem::remove_all(root);
+}
+
+// A stat line with state p_state and start time p_start.
+std::string FakeStat(int p_pid, std::string_view p_name, char p_state,
+                     std::uint64_t p_start)
+{
+  std::string stat = std::format("{} ({}) {}", p_pid, p_name, p_state);
+  for (int field = 4; field <= 52; ++field)
+  {
+    stat += std::format(" {}", field == 22 ? p_start : 0);
+  }
+  return stat + "\n";
+}
+
+// A process whose stat cannot be read is neither gone nor present, so no
+// exit is reported for it (PR 215, finding 3). The fake /proc is a test
+// directory, so this also holds when the tests run as root.
+void TestUncertainIdentity()
+{
+  char root[] = "/tmp/identity-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "identity fixture directory");
+  const auto write = [&root](int p_pid, const std::string& p_text)
+  {
+    std::filesystem::create_directory(std::format("{}/{}", root, p_pid));
+    std::ofstream{std::format("{}/{}/stat", root, p_pid)} << p_text;
+  };
+  write(10, FakeStat(10, "alive", 'S', 77));
+  write(11, FakeStat(11, "zombie", 'Z', 77));
+  write(12, "12 (cut");
+  write(13, "");
+  std::filesystem::create_directories(std::format("{}/14/stat", root));
+  const auto find = [&root](int p_pid)
+  {
+    return FindTarget(TargetPid{p_pid}, root);
+  };
+  const auto alive = find(10);
+  Require(alive && *alive && (*alive)->starttime_ == 77, "a live process");
+  Require(find(11) && !*find(11), "a zombie is gone");
+  Require(find(99) && !*find(99), "no /proc entry: gone");
+  Require(!find(12) && find(12).error() == EBADMSG,
+          "an unparseable stat is uncertain");
+  Require(!find(13) && find(13).error() == EIO, "an empty stat is uncertain");
+  Require(!find(14) && find(14).error() == EISDIR, "a read error is uncertain");
+  Require(ProcessEnded({.pid_ = 10, .starttime_ = 77}, root) ==
+              std::expected<bool, int>{false},
+          "a live process has not ended");
+  Require(ProcessEnded({.pid_ = 10, .starttime_ = 78}, root) ==
+              std::expected<bool, int>{true},
+          "a reused PID has ended");
+  Require(ProcessEnded({.pid_ = 99, .starttime_ = 1}, root) ==
+              std::expected<bool, int>{true},
+          "a missing process has ended");
+  for (const int pid : {12, 13, 14})
+  {
+    Require(!ProcessEnded({.pid_ = pid, .starttime_ = 77}, root),
+            "an uncertain read reports no exit");
+  }
+  std::filesystem::remove_all(root);
+}
+
+// A configured name is found by a pass of at most kScanEntriesPerTick
+// entries per tick; only a complete pass decides (PR 215, finding 2).
+void TestNameLookup()
+{
+  char root[] = "/tmp/name-lookup-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "name lookup fixture directory");
+  const auto process = [&root](int p_pid, std::string_view p_name)
+  {
+    const auto directory = std::format("{}/{}", root, p_pid);
+    std::filesystem::create_directories(directory);
+    std::ofstream{directory + "/comm"} << p_name << '\n';
+    std::ofstream{directory + "/stat"} << FakeStat(p_pid, p_name, 'S', 7);
+  };
+  constexpr int kIdle = 3000;
+  for (int pid = 1; pid <= kIdle; ++pid)
+  {
+    process(pid, "idle");
+  }
+  process(5000, "web");
+  const std::array<TargetConfig, 2> targets{
+      {{"web", TargetName{"web"}}, {"other", TargetName{"other"}}}};
+  NameLookup names{root};
+  Nanoseconds now{0};
+  const auto tick = [&]()
+  {
+    now += 100ms;
+    return names.Find(targets, now);
+  };
+  int ticks = 1;
+  auto found = tick();
+  Require(found[0] && !*found[0], "one tick does not finish a large pass");
+  while (!(found[0] && *found[0]) && ticks < 100)
+  {
+    found = tick();
+    ++ticks;
+  }
+  // kIdle + 3 entries (".", ".." and the target), at most 512 per tick.
+  const int pass_ticks = static_cast<int>(
+      (kIdle + 3 + kScanEntriesPerTick - 1) / kScanEntriesPerTick);
+  Require(ticks == pass_ticks && (*found[0])->pid_ == 5000,
+          "the pass is spread over ticks and then finds the name");
+  Require(found[1] && !*found[1], "a name that no process has is absent");
+
+  process(5001, "web");
+  for (int count = 0; count < 5; ++count)
+  {
+    found = tick();
+    Require(found[0] && *found[0],
+            "until the next pass ends, the found PID is kept");
+  }
+  for (int count = 0; count < 30 && found[0] && *found[0]; ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && !*found[0], "a complete pass sees the second process");
+  std::filesystem::remove_all(std::format("{}/5001", root));
+  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && *found[0], "the name is unique again");
+
+  std::ofstream{std::format("{}/5000/stat", root)}
+      << FakeStat(5000, "renamed", 'S', 7);
+  Require(tick()[0] == TargetLookup{std::nullopt},
+          "a rename is seen at the next tick, without a pass");
+  process(5000, "web");
+
+  // A pass that fails keeps the found PID and does not decide the rest.
+  found = tick();
+  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
+  {
+    found = tick();
+  }
+  Require(found[0] && *found[0], "the renamed-back process is found again");
+  names.Restart();
+  (void)tick();
+  BreakDirectory(OpenDescriptorOf(root));
+  found = tick();
+  Require(found[0] && *found[0] && (*found[0])->pid_ == 5000,
+          "a failed pass keeps the found PID");
+  Require(!found[1] && found[1].error() == ENOTDIR,
+          "a failed pass leaves an unfound name unknown, not absent");
+  std::filesystem::remove_all(root);
+}
+
 int main()
 {
   try
@@ -2200,10 +2596,15 @@ int main()
     TestDiscoveryChildren();
     TestDiscoveryChildCapAfterRuleRemoval();
     TestDiscoveryChildSelectedByReload();
+    TestDirectoryReadErrors();
+    TestUncertainIdentity();
+    TestNameLookup();
+    TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();
     TestRaii();
+    TestWarningSink();
     TestDescriptorBudget();
     TestResourceParsing();
     TestMemoryCgroupAndInterfaceParsing();

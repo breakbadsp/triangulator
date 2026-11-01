@@ -134,7 +134,7 @@ class ResourceProbe
  public:
   // Descriptor links read per sample. A process with more descriptors is
   // still counted, but sockets past this many are not matched.
-  static constexpr std::size_t kMaxDescriptorLinks = 65536;
+  static constexpr std::size_t kMaxDescriptorLinks = 4096;
   static constexpr std::size_t kDiagBufferSize = 65536;
 
   // All of the probe's heap storage is allocated here, at startup.
@@ -269,8 +269,21 @@ class ResourceProbe
     std::uint64_t open = 0;
     std::uint64_t sockets = 0;
     std::array<char, 64> link{};
-    while (const auto entry = directory.Next())
+    for (;;)
     {
+      const auto next = directory.Next();
+      if (!next)
+      {
+        // A partial count is not sent as complete; the values stay
+        // unavailable and no socket is matched to the target.
+        socket_fds_.clear();
+        return;
+      }
+      if (!*next)
+      {
+        break;
+      }
+      const auto entry = *next;
       const auto fd = ParseNumber<std::uint32_t>(*entry);
       if (!fd)
       {

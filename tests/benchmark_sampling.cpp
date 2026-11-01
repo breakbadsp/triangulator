@@ -39,7 +39,7 @@ using Records = std::array<wire::Record, wire::kMaxThreads>;
     int p_pid, std::size_t p_thread_count, ThreadCache& p_cache,
     RateLimitedLogger& p_logger, Records& p_records)
 {
-  const auto target = FindTarget(TargetSelector{TargetPid{p_pid}});
+  const auto target = FindTarget(TargetPid{p_pid});
   if (!target || !*target)
   {
     return std::unexpected("target is absent or unreadable");

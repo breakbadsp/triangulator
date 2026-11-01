@@ -30,8 +30,9 @@ import tempfile
 from typing import NamedTuple
 import time
 
-from benchmark_sampler import (KMSG_NOTICE, MEMORY_INTERVAL_S, ROOT, SO_TIMESTAMPNS_NEW,
-                               SampleStream, child, collect, cpu_snapshot, percentile, wait_sample)
+from benchmark_sampler import (MEMORY_INTERVAL_S, ROOT, SO_TIMESTAMPNS_NEW, SampleStream,
+                               check_sampler_log, child, collect, cpu_snapshot, percentile,
+                               read_sampler_log, wait_sample)
 
 VICTIM = ROOT / "build/benchmark-victim"
 # Reads the whole maps file again and again, 4 KiB per read() like the sampler.
@@ -163,10 +164,10 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s, victim_options=()):
             f'status_fallback = false\nresource_interval_s = {resource_interval_s}\n'
             f'memory_interval_s = {memory_interval_s}\n')
         sampler_cpu = by_role[sampler_role]
-        with open(Path(directory) / "sampler.log", "w+") as log, \
-                child([str(binary), str(config)], stdout=subprocess.DEVNULL, stderr=log,
-                      preexec_fn=lambda: (os.sched_setaffinity(0, {sampler_cpu}),
-                                          os.setpriority(os.PRIO_PROCESS, 0, nice))) as sampler:
+        with child([str(binary), str(config)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                   preexec_fn=lambda: (os.sched_setaffinity(0, {sampler_cpu}),
+                                       os.setpriority(os.PRIO_PROCESS, 0, nice))) as sampler:
+            log = ""
             try:
                 stream = SampleStream(receiver, victim.pid, rate, thread_ids)
                 wait_sample(stream, sampler, victim, time.monotonic() + 10)
@@ -180,13 +181,11 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s, victim_options=()):
                 sampler_result = collect(stream, sampler, victim, duration_s,
                                          allow_slow=bool(nice))
                 probes = read_probes(victim, 10)
-                log.flush()
-                log.seek(0)
-                if any(line and not line.startswith(KMSG_NOTICE) for line in log.read().splitlines()):
-                    raise RuntimeError("sampler logged errors or warnings")
+                log += read_sampler_log(sampler)
+                check_sampler_log(log)
             except (OSError, ValueError, RuntimeError) as error:
-                log.seek(0)
-                raise RuntimeError(f"{error}; sampler log: {log.read().strip()}") from error
+                log += read_sampler_log(sampler)
+                raise RuntimeError(f"{error}; sampler log: {log.strip()}") from error
         return {"scenario": name, "probes": probes, "sampler": sampler_result}
 
 

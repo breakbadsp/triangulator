@@ -34,8 +34,9 @@ inline constexpr std::uint8_t kVersion = 1;
 inline constexpr std::size_t kCommandSize = 384;
 inline constexpr std::size_t kPathSize = 160;
 inline constexpr std::size_t kCpuListSize = 48;
-// The same datagram is sent again this often, so a collector that started
-// later, or lost the datagram, still gets it. Datagrams are not acknowledged.
+// The info is read and sent again this often: it can change without a new
+// PID (exec, chdir), and a collector that started later, or lost the
+// datagram, still gets it. Datagrams are not acknowledged.
 inline constexpr std::uint32_t kRepeatSeconds = 10;
 
 // A value the sampler could not read.

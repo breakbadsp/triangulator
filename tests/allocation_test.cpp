@@ -20,6 +20,7 @@
 #include "../sampler/config_watch.hpp"
 #include "../sampler/discovery.hpp"
 #include "../sampler/memory.hpp"
+#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -203,7 +204,7 @@ int main()
     sockets[2 * index + 1] = FileDescriptor{pair[1]};
   }
   const int pid = ::getpid();
-  const TargetSelector by_pid = TargetPid{pid};
+  const TargetPid by_pid{pid};
   const TargetSelector by_name = TargetName{"allocation-test"};
   // One cache keeps /proc files open. The other has no descriptor budget, so
   // its threads build their paths and reopen their files every tick.
@@ -216,7 +217,7 @@ int main()
 
   CpuBudget cpu_budget{5, 1};
   const std::array<TargetConfig, 2> selected_targets{
-      {{"self", by_pid}, {"name", by_name}}};
+      {{"self", TargetSelector{by_pid}}, {"name", by_name}}};
   // Discovery with two slots: this process by name, and children that a
   // pattern selects. The second child finds no slot, so it is excluded.
   Config discovery_config;
@@ -254,6 +255,7 @@ int main()
   Require(sampler->Initialize().has_value(), "real sampler startup");
   Require(watch.Watching(), "config watch");
 
+  NameLookup names;
   // Sampling, for several ticks.
   const auto before = allocation_count;
   for (int tick = 0; tick < 3; ++tick)
@@ -287,9 +289,14 @@ int main()
     watch.Reloaded(Nanoseconds{tick} * 2'000'000'000);
     const auto target = FindTarget(by_pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
-    Require(FindTarget(by_name).has_value(), "lookup by name");
-    const auto targets = FindTargets(selected_targets);
-    Require(targets[0] && *targets[0], "shared target lookup");
+    // Twice: a pass, then the check of the PID that it found.
+    for (int lookup = 0; lookup < 2; ++lookup)
+    {
+      const auto targets =
+          names.Find(selected_targets, Nanoseconds{tick} * 2'000'000'000);
+      Require(targets[0] && *targets[0], "shared target lookup");
+      Require(targets[1] && *targets[1], "lookup by name");
+    }
     for (int sample = 0; sample < 100; ++sample)
     {
       cpu_budget.Add(4ms, 200ms);

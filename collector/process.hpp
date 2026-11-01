@@ -3,9 +3,9 @@
 // Process-info datagrams ("TPIN", common/process_wire.hpp): what the target
 // process is, rather than how it is doing. The collector keeps the newest one
 // for /api/live, so each recorded snapshot carries it and a replayed moment
-// shows the process as it was. It is not stored on its own. The sampler sends
-// the same datagram every process_wire::kRepeatSeconds, so a copy only
-// refreshes it. A late datagram of a retired session is ignored.
+// shows the process as it was. It is not stored on its own. The sampler reads
+// and sends it every process_wire::kRepeatSeconds, so a newer datagram
+// replaces it. A late datagram of a retired session is ignored.
 
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +34,7 @@ class ProcessMonitor
   }
 
   // Keeps p_packet unless it belongs to a retired session. The sampler reads
-  // the info once per session and a new target starts a new session, so the
+  // the info again for each send, and a new target starts a new session, so the
   // first datagram of another session replaces the info and retires the old
   // session, as the thread monitor does. Session order is not taken from
   // wall time: the sampler host's clock can move backward. Allocates nothing.

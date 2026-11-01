@@ -15,171 +15,70 @@ struct TargetIdentity
   bool operator==(const TargetIdentity&) const = default;
 };
 
-// Value: the target, or nullopt when it is absent. Error: errno when the lookup
-// itself failed for lack of file descriptors, so the caller must not treat the
-// target as gone.
+// Value: the target, or nullopt when it is confirmed gone. Error: errno when
+// the read could not decide, such as a permission error, a short or
+// unparseable stat, or no file descriptors left. The caller must then treat
+// the target as neither gone nor present: skip the tick, keep the session.
 using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
 
-[[nodiscard]] inline TargetLookup FindTarget(const TargetSelector& p_selector)
+// One stat read. Value: the parsed stat, or nullopt when the process is
+// confirmed gone: no /proc entry (ENOENT, or ESRCH from a process that exited
+// after the open), or a zombie or dead state. Error: see TargetLookup. p_root
+// is /proc, or a test directory in the same layout.
+[[nodiscard]] inline std::expected<std::optional<ThreadStat>, int>
+ReadProcessStat(int p_pid, const char* p_root = "/proc")
 {
-  int pid = 0;
-  std::array<char, 4096> buffer{};
-  if (const auto* selected = std::get_if<TargetPid>(&p_selector))
-  {
-    pid = selected->value_;
-  }
-  else
-  {
-    const auto& name = std::get<TargetName>(p_selector).value_;
-    Directory directory{"/proc"};
-    if (!directory)
-    {
-      if (DescriptorsExhausted(errno))
-      {
-        return std::unexpected(errno);
-      }
-      return std::nullopt;
-    }
-    while (const auto entry = directory.Next())
-    {
-      const auto candidate = ParseNumber<int>(*entry);
-      if (!candidate || *candidate <= 0)
-      {
-        continue;
-      }
-      const auto descriptor =
-          OpenReadonly(FixedString{"/proc/{}/comm", *candidate}.CStr());
-      if (!descriptor && DescriptorsExhausted(errno))
-      {
-        return std::unexpected(errno);
-      }
-      auto comm = ReadAtStart(descriptor, buffer);
-      if (!comm)
-      {
-        continue;
-      }
-      if (comm->ends_with('\n'))
-      {
-        comm->remove_suffix(1);
-      }
-      if (*comm != name)
-      {
-        continue;
-      }
-      if (pid != 0)
-      {
-        return std::nullopt;
-      }
-      pid = *candidate;
-    }
-  }
-  if (!pid)
+  if (p_pid <= 0)
   {
     return std::nullopt;
   }
   const auto descriptor =
-      OpenReadonly(FixedString{"/proc/{}/stat", pid}.CStr());
-  if (!descriptor && DescriptorsExhausted(errno))
+      OpenReadonly(FixedString{"{}/{}/stat", p_root, p_pid}.CStr());
+  if (!descriptor)
   {
+    if (errno == ENOENT || errno == ESRCH)
+    {
+      return std::nullopt;
+    }
     return std::unexpected(errno);
   }
+  std::array<char, 4096> buffer{};
+  errno = 0;
   const auto contents = ReadAtStart(descriptor, buffer);
-  const auto stat = contents.and_then(ParseStat);
-  if (!stat || stat->state_ == 'Z' || stat->state_ == 'X')
+  if (!contents)
+  {
+    if (errno == ESRCH)
+    {
+      return std::nullopt;
+    }
+    // Empty or longer than the buffer: a stat line is far shorter.
+    return std::unexpected(errno != 0 ? errno : EIO);
+  }
+  const auto stat = ParseStat(*contents);
+  if (!stat)
+  {
+    return std::unexpected(EBADMSG);
+  }
+  if (stat->state_ == 'Z' || stat->state_ == 'X')
   {
     return std::nullopt;
   }
-  return TargetIdentity{pid, stat->starttime_};
+  return stat;
 }
 
-// One directory scan resolves all names. Each selected PID then gets one
-// stat read, including the start time used to detect PID reuse.
-[[nodiscard]] inline std::array<TargetLookup, target_wire::kMaxTargets>
-FindTargets(std::span<const TargetConfig> p_targets)
+[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector,
+                                             const char* p_root = "/proc")
 {
-  std::array<TargetLookup, target_wire::kMaxTargets> results{};
-  std::array<int, target_wire::kMaxTargets> pids{};
-  std::array<bool, target_wire::kMaxTargets> ambiguous{};
-  bool names = false;
-  for (std::size_t index = 0; index < p_targets.size(); ++index)
-  {
-    if (std::holds_alternative<TargetPid>(p_targets[index].selector_))
-    {
-      results[index] = FindTarget(p_targets[index].selector_);
-    }
-    else
-    {
-      names = true;
-    }
-  }
-  if (!names)
-  {
-    return results;
-  }
-  int lookup_error = 0;
-  Directory directory{"/proc"};
-  if (!directory && DescriptorsExhausted(errno))
-  {
-    lookup_error = errno;
-  }
-  std::array<char, 4096> buffer{};
-  while (directory)
-  {
-    const auto entry = directory.Next();
-    if (!entry)
-    {
-      break;
-    }
-    const auto pid = ParseNumber<int>(*entry);
-    if (!pid || *pid <= 0)
-    {
-      continue;
-    }
-    const auto descriptor =
-        OpenReadonly(FixedString{"/proc/{}/comm", *pid}.CStr());
-    if (!descriptor && DescriptorsExhausted(errno))
-    {
-      lookup_error = errno;
-      break;
-    }
-    auto name = ReadAtStart(descriptor, buffer);
-    if (!name)
-    {
-      continue;
-    }
-    if (name->ends_with('\n'))
-    {
-      name->remove_suffix(1);
-    }
-    for (std::size_t index = 0; index < p_targets.size(); ++index)
-    {
-      const auto* selected =
-          std::get_if<TargetName>(&p_targets[index].selector_);
-      if (selected && selected->value_ == *name)
-      {
-        if (pids[index] != 0)
-        {
-          ambiguous[index] = true;
-        }
-        pids[index] = *pid;
-      }
-    }
-  }
-  for (std::size_t index = 0; index < p_targets.size(); ++index)
-  {
-    if (std::holds_alternative<TargetName>(p_targets[index].selector_))
-    {
-      if (lookup_error != 0)
-      {
-        results[index] = std::unexpected(lookup_error);
-      }
-      else if (!ambiguous[index] && pids[index] != 0)
-      {
-        results[index] = FindTarget(TargetPid{pids[index]});
-      }
-    }
-  }
-  return results;
+  return ReadProcessStat(p_selector.value_, p_root)
+      .transform(
+          [&p_selector](const std::optional<ThreadStat>& p_stat)
+          {
+            return p_stat.transform(
+                [&p_selector](const ThreadStat& p_found)
+                {
+                  return TargetIdentity{p_selector.value_, p_found.starttime_};
+                });
+          });
 }
 
 struct DescriptorBudget
@@ -346,6 +245,24 @@ class ThreadCache
 
   void Rescan(int p_pid, RateLimitedLogger& p_logger)
   {
+    Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
+    if (!directory)
+    {
+      // The process is gone. Any other failure, such as running out of
+      // descriptors, keeps the cache, and the next tick tries again.
+      if (errno == ENOENT || errno == ESRCH)
+      {
+        Clear();
+      }
+      return;
+    }
+    Rescan(directory, p_logger);
+  }
+
+  // Reconciles the cache with the entries of p_directory, a task directory.
+  // A read error keeps the cache: the entries seen are incomplete.
+  void Rescan(Directory& p_directory, RateLimitedLogger& p_logger)
+  {
     std::array<std::size_t, 8192> lookup{};
     const auto slot_for = [&lookup, this](int p_tid)
     {
@@ -362,19 +279,23 @@ class ThreadCache
       threads_[index].seen_ = false;
       lookup[slot_for(threads_[index].Tid())] = index + 1;
     }
-    Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
-    if (!directory)
+    for (;;)
     {
-      // Out of descriptors: keep the cache as it is and try again next tick.
-      if (!DescriptorsExhausted(errno))
+      const auto entry = p_directory.Next();
+      if (!entry)
       {
-        Clear();
+        // An incomplete scan does not show which threads ended.
+        if (entry.error() == ENOENT || entry.error() == ESRCH)
+        {
+          Clear();
+        }
+        return;
       }
-      return;
-    }
-    while (const auto entry = directory.Next())
-    {
-      const auto tid = ParseNumber<int>(*entry);
+      if (!*entry)
+      {
+        break;
+      }
+      const auto tid = ParseNumber<int>(**entry);
       if (!tid || *tid <= 0)
       {
         continue;

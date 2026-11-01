@@ -197,6 +197,11 @@ class Discovery final
       const auto entry = directory_->Next();
       if (!entry)
       {
+        // An incomplete pass admits nothing and keeps the last count.
+        return Abort(entry.error(), p_now);
+      }
+      if (!*entry)
+      {
         Reconcile();
         if (auto admitted = AdmitCandidates(p_config); !admitted)
         {
@@ -207,7 +212,7 @@ class Discovery final
         next_pass_ = pass_start_ + kDiscoveryInterval;
         return true;
       }
-      const auto pid = ParseNumber<int>(*entry);
+      const auto pid = ParseNumber<int>(**entry);
       if (!pid || *pid <= 0)
       {
         continue;
@@ -585,7 +590,13 @@ class Discovery final
     const auto found = FindTarget(TargetPid{p_pid});
     if (!found)
     {
-      return std::unexpected(found.error());
+      // Without descriptors the pass stops. Any other uncertain read skips
+      // this candidate only, so one unreadable process cannot stop passes.
+      if (DescriptorsExhausted(found.error()))
+      {
+        return std::unexpected(found.error());
+      }
+      return {};
     }
     if (!*found || (**found).starttime_ != p_candidate.starttime_)
     {

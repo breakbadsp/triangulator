@@ -3,6 +3,8 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -15,6 +17,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <expected>
 #include <format>
 #include <limits>
 #include <optional>
@@ -85,8 +88,10 @@ class Directory
     return fd_.Get();
   }
 
-  // The next entry's name, or nullopt at the end or on a read error.
-  [[nodiscard]] std::optional<std::string_view> Next()
+  // The next entry's name, nullopt at the end, or errno when a read failed.
+  // A failed read is not the end: the entries seen so far are incomplete.
+  // ENOENT means that the directory of an exited process is gone.
+  [[nodiscard]] std::expected<std::optional<std::string_view>, int> Next()
   {
     if (offset_ == length_)
     {
@@ -98,7 +103,11 @@ class Directory
         length = ::syscall(SYS_getdents64, fd_.Get(), buffer_.data(),
                            buffer_.size());
       } while (length < 0 && errno == EINTR);
-      if (length <= 0)
+      if (length < 0)
+      {
+        return std::unexpected(errno);
+      }
+      if (length == 0)
       {
         return std::nullopt;
       }
@@ -188,6 +197,100 @@ using namespace std::chrono_literals;
   return std::chrono::seconds{value.tv_sec} + Nanoseconds{value.tv_nsec};
 }
 
+// Writes warnings to stderr (fd 2) without waiting for a reader. fd 2 often
+// shares its open file description with the shell or supervisor, so its
+// flags are not changed. The way to write is chosen once, at startup:
+// - pipe, FIFO or terminal: a private O_NONBLOCK description of the same
+//   file. A line below PIPE_BUF then goes whole or fails with EAGAIN, also
+//   while other processes write to the pipe;
+// - socket, such as a journald stream: send() with MSG_DONTWAIT;
+// - regular file or another device: a plain write, which only waits for
+//   the page cache. RateLimitedLogger allows one per minute.
+// A line that cannot be written at once is dropped.
+class WarningSink final
+{
+ public:
+  // One line, prefix included. Below PIPE_BUF (4096).
+  static constexpr std::size_t kLineSize = 640;
+
+  explicit WarningSink(int p_descriptor = STDERR_FILENO) noexcept
+      : descriptor_(p_descriptor)
+  {
+    struct stat status{};
+    if (::fstat(p_descriptor, &status) != 0)
+    {
+      return;
+    }
+    if (S_ISSOCK(status.st_mode))
+    {
+      mode_ = Mode::Socket;
+    }
+    else if (S_ISFIFO(status.st_mode) || ::isatty(p_descriptor) == 1)
+    {
+      // O_NOCTTY: opening a terminal must not make it the controlling one.
+      private_.Reset(
+          ::open(FixedString{"/proc/self/fd/{}", p_descriptor}.CStr(),
+                 O_WRONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC));
+      mode_ = private_ ? Mode::Private : Mode::Drop;
+    }
+    else
+    {
+      mode_ = Mode::Plain;
+    }
+  }
+
+  // p_message has no prefix and no newline. False when the line was not
+  // written whole.
+  bool Write(std::string_view p_message) noexcept
+  {
+    std::array<char, kLineSize> line{};
+    const auto result = std::format_to_n(line.data(), line.size() - 1,
+                                         "triangulator: {}", p_message);
+    const auto length =
+        std::min(static_cast<std::size_t>(result.size), line.size() - 1);
+    line[length] = '\n';
+    const std::string_view text{line.data(), length + 1};
+    ssize_t written = -1;
+    switch (mode_)
+    {
+      case Mode::Drop:
+        break;
+      case Mode::Plain:
+        written = ::write(descriptor_, text.data(), text.size());
+        break;
+      case Mode::Private:
+        written = ::write(private_.Get(), text.data(), text.size());
+        break;
+      case Mode::Socket:
+        written = ::send(descriptor_, text.data(), text.size(),
+                         MSG_DONTWAIT | MSG_NOSIGNAL);
+        break;
+    }
+    return written == static_cast<ssize_t>(text.size());
+  }
+
+ private:
+  enum class Mode : std::uint8_t
+  {
+    Drop = 0,  // fd 2 is closed, or a pipe or terminal cannot be reopened
+    Plain,
+    Private,
+    Socket
+  };
+
+  int descriptor_;
+  FileDescriptor private_;
+  Mode mode_ = Mode::Drop;
+};
+
+// The process's one stderr sink. Call it once at startup, before the
+// sampling loop, so its open() is not part of a tick.
+[[nodiscard]] inline WarningSink& StderrSink() noexcept
+{
+  static WarningSink sink;
+  return sink;
+}
+
 class RateLimitedLogger
 {
  public:
@@ -208,8 +311,14 @@ class RateLimitedLogger
                          std::forward<TArgs>(p_args)...);
     const auto length =
         std::min(static_cast<std::size_t>(result.size), message.size());
-    std::fprintf(stderr, "triangulator: %.*s\n", static_cast<int>(length),
-                 message.data());
+    StderrSink().Write({message.data(), length});
+  }
+
+  // The next Warn() prints even when one was printed in the last 60 s. For
+  // a rare warning that an operator's own action causes and waits for.
+  void AllowNext() noexcept
+  {
+    last_warning_.reset();
   }
 
  private:
