@@ -38,6 +38,9 @@ the HTTP listener and workers, embedded page, live snapshots, and SQLite
 history requests.
 Download the HTML file and open it in a browser. It needs no build or network.
 
+[HTTP library requirements](../docs/http-library-requirements.md) lists the
+application rules and resource limits to retain if the HTTP server is replaced.
+
 ## Multiple viewers
 
 Live views share one collector and one monitored target. Changing the target
