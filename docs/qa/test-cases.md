@@ -793,3 +793,10 @@
 - Driver: judged
 - Test: Configure `process_patterns = ["T3*"]` with a running process named `t3code` that has at least two direct children, one grandchild, and a parent with more than 10 children. Open the fleet page. Try Remove on a child tile. Stop the parent. Add a pattern that differs from another only in case.
 - Expected: `t3code` and its direct children have separate tiles under their own comm names; the grandchild has none. One parent shows at most 10 children; the rest count as excluded. Remove on a child is refused and names the parent's rule. Child tiles are released within a few seconds of the parent stopping. The duplicate pattern is rejected and the previous rules stay.
+
+## QA-135: LoomFlow setup on another machine
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Clone Triangulator in a disposable user account with no `~/ai`. Run `bash scripts/setup-ai.sh`, then start `/loomflow` in Claude Code. Repeat after a new ai-assets `main` commit. Block access to GitHub and start another session. Restore access, change a tracked file in `~/ai`, and retry.
+- Expected: Setup installs the shared files and reports the current ai-assets commit. Each LoomFlow session runs setup before reading the shared command. The next session uses the new commit. Network failure or tracked local edits stop the session with an error. Local edits stay intact.
