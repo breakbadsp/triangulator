@@ -1,8 +1,11 @@
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
@@ -977,6 +980,138 @@ void TestRaii()
   }
   Require(::fcntl(closed_descriptor, F_GETFD) == -1 && errno == EBADF,
           "destructor closes descriptor");
+}
+
+// Everything readable on p_descriptor now, without waiting. Only for a
+// reading end that the test owns: it sets O_NONBLOCK.
+std::string ReadAvailable(int p_descriptor)
+{
+  ::fcntl(p_descriptor, F_SETFL, ::fcntl(p_descriptor, F_GETFL) | O_NONBLOCK);
+  std::string text;
+  std::array<char, 65536> buffer{};
+  for (;;)
+  {
+    const ssize_t length = ::read(p_descriptor, buffer.data(), buffer.size());
+    if (length <= 0)
+    {
+      return text;
+    }
+    text.append(buffer.data(), static_cast<std::size_t>(length));
+  }
+}
+
+bool Blocking(int p_descriptor)
+{
+  return (::fcntl(p_descriptor, F_GETFL) & O_NONBLOCK) == 0;
+}
+
+// A warning never blocks a tick: stderr can be a full pipe that another
+// process also writes, a full socket, a terminal that nobody reads, or a
+// regular file (D1-1). SIGALRM ends the test if a write blocks.
+void TestWarningSink()
+{
+  ::signal(SIGPIPE, SIG_IGN);  // as the sampler's InstallSignalHandlers()
+  ::alarm(20);
+  {
+    int pipe_ends[2]{};
+    Require(::pipe(pipe_ends) == 0, "pipe");
+    FileDescriptor read_end{pipe_ends[0]};
+    FileDescriptor write_end{pipe_ends[1]};
+    WarningSink sink{write_end.Get()};
+    // Another writer fills the pipe with blocking writes during the test.
+    const pid_t writer = ::fork();
+    Require(writer >= 0, "fork");
+    if (writer == 0)
+    {
+      const std::array<char, 4096> fill{};
+      for (;;)
+      {
+        (void)::write(pipe_ends[1], fill.data(), fill.size());
+      }
+    }
+    ::usleep(100'000);
+    for (int count = 0; count < 1000; ++count)
+    {
+      sink.Write("pipe full");
+    }
+    Require(sink.Lost() == 1000,
+            "warnings to a full pipe are lost, not waited");
+    Require(Blocking(write_end.Get()), "fd 2's own flags are not changed");
+    ::kill(writer, SIGKILL);
+    ::waitpid(writer, nullptr, 0);
+    (void)ReadAvailable(read_end.Get());
+    sink.Write("drained");
+    Require(ReadAvailable(read_end.Get()) ==
+                "triangulator: (1000 earlier warnings were lost) drained\n",
+            "the next written warning counts the lost ones");
+    read_end.Reset();
+    sink.Write("no reader");
+    Require(sink.Lost() == 1, "a pipe with no reader fails with EPIPE");
+  }
+  {
+    int pair[2]{};
+    Require(::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == 0, "socketpair");
+    FileDescriptor reader{pair[0]};
+    FileDescriptor writer{pair[1]};
+    const std::array<char, 4096> fill{};
+    while (::send(writer.Get(), fill.data(), fill.size(), MSG_DONTWAIT) > 0)
+    {
+    }
+    WarningSink sink{writer.Get()};
+    sink.Write("socket full");
+    Require(sink.Lost() == 1 && Blocking(writer.Get()),
+            "a full socket loses the warning and keeps its flags");
+    (void)ReadAvailable(reader.Get());
+    sink.Write("socket drained");
+    Require(ReadAvailable(reader.Get())
+                .ends_with("(1 earlier warnings were lost) socket drained\n"),
+            "a drained socket takes the next warning");
+  }
+  {
+    FileDescriptor master{::posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC)};
+    Require(
+        master && ::grantpt(master.Get()) == 0 && ::unlockpt(master.Get()) == 0,
+        "pseudo-terminal");
+    FileDescriptor terminal{
+        ::open(::ptsname(master.Get()), O_WRONLY | O_NOCTTY | O_CLOEXEC)};
+    Require(static_cast<bool>(terminal), "terminal end");
+    WarningSink sink{terminal.Get()};
+    // Nobody reads the master side, so the terminal fills up.
+    for (int count = 0; count < 2000; ++count)
+    {
+      sink.Write("terminal");
+    }
+    Require(sink.Lost() > 0 && Blocking(terminal.Get()),
+            "a full terminal loses warnings and keeps its flags");
+  }
+  {
+    char path[] = "/tmp/warning-sink-XXXXXX";
+    FileDescriptor file{::mkstemp(path)};
+    Require(static_cast<bool>(file), "temporary file");
+    ::unlink(path);
+    WarningSink sink{file.Get()};
+    for (const auto* message : {"first", "second", "third", "latest"})
+    {
+      sink.Write(message);
+    }
+    struct stat status{};
+    Require(::fstat(file.Get(), &status) == 0 && status.st_size == 0 &&
+                sink.Held() == 4,
+            "a regular file is not written in the steady state");
+    sink.Flush();
+    std::array<char, 1024> text{};
+    const auto length = ::pread(file.Get(), text.data(), text.size(), 0);
+    Require(
+        length > 0 &&
+            std::string_view{text.data(), static_cast<std::size_t>(length)} ==
+                "triangulator: first\n"
+                "triangulator: 2 more warnings were held while stderr "
+                "could block\n"
+                "triangulator: latest\n",
+        "Flush() writes the first, a count, and the latest warning");
+    Require(sink.Held() == 0, "Flush() empties the store");
+  }
+  ::alarm(0);
 }
 
 void TestResourceParsing()
@@ -2204,6 +2339,7 @@ int main()
     TestCpuBudget();
     TestWire();
     TestRaii();
+    TestWarningSink();
     TestDescriptorBudget();
     TestResourceParsing();
     TestMemoryCgroupAndInterfaceParsing();

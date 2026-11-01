@@ -3,6 +3,8 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -188,6 +190,186 @@ using namespace std::chrono_literals;
   return std::chrono::seconds{value.tv_sec} + Nanoseconds{value.tv_nsec};
 }
 
+// Writes warnings to stderr (fd 2) without blocking the sampling loop. fd 2
+// often shares its open file description with the shell or supervisor, so
+// its flags are not changed. The way to write is chosen once, at startup:
+// - pipe, FIFO or terminal: a private O_NONBLOCK description of the same
+//   file. A pipe write of at most PIPE_BUF bytes then completes or fails
+//   with EAGAIN, also while other processes write to the pipe;
+// - socket, such as a journald stream: send() with MSG_DONTWAIT;
+// - anything else, such as a regular file: no write can be made
+//   non-blocking, so warnings are held in fixed storage and written by
+//   Flush(), which runs only at reload and at exit.
+// A warning that cannot be written is counted, and the next written one
+// says how many were lost.
+class WarningSink final
+{
+ public:
+  // One line, prefix and lost count included. Below PIPE_BUF (4096), so a
+  // pipe takes it whole or not at all.
+  static constexpr std::size_t kLineSize = 640;
+  static constexpr std::size_t kMessageSize = 512;
+
+  explicit WarningSink(int p_descriptor = STDERR_FILENO) noexcept
+      : descriptor_(p_descriptor)
+  {
+    struct stat status{};
+    if (::fstat(p_descriptor, &status) != 0)
+    {
+      return;
+    }
+    if (S_ISSOCK(status.st_mode))
+    {
+      mode_ = Mode::Socket;
+    }
+    else if (S_ISFIFO(status.st_mode) ||
+             (S_ISCHR(status.st_mode) && ::isatty(p_descriptor) == 1))
+    {
+      // O_NOCTTY: opening a terminal must not make it the controlling one.
+      private_.Reset(
+          ::open(FixedString{"/proc/self/fd/{}", p_descriptor}.CStr(),
+                 O_WRONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC));
+      mode_ = private_ ? Mode::NonBlocking : Mode::Hold;
+    }
+  }
+
+  // Steady state: never blocks. p_message has no prefix and no newline.
+  void Write(std::string_view p_message) noexcept
+  {
+    if (mode_ == Mode::Hold)
+    {
+      Hold(p_message);
+      return;
+    }
+    std::array<char, kLineSize> line{};
+    const auto text = Compose(line, p_message);
+    const ssize_t written =
+        mode_ == Mode::Socket
+            ? ::send(descriptor_, text.data(), text.size(),
+                     MSG_DONTWAIT | MSG_NOSIGNAL)
+            : ::write(private_.Get(), text.data(), text.size());
+    if (written < 0)
+    {
+      ++lost_;
+      return;
+    }
+    lost_ = 0;
+    // A terminal or a stream socket can take part of the line. The next
+    // line then starts on a new one.
+    cut_ = static_cast<std::size_t>(written) < text.size();
+  }
+
+  // Reload and exit only: writes the held warnings, and can block.
+  void Flush() noexcept
+  {
+    if (held_ == 0)
+    {
+      return;
+    }
+    std::array<char, kLineSize> line{};
+    WriteAll(Compose(line, Text(first_)));
+    if (held_ > 2)
+    {
+      Message count{};
+      std::format_to_n(count.data(), count.size() - 1,
+                       "{} more warnings were held while stderr could block",
+                       held_ - 2);
+      WriteAll(Compose(line, Text(count)));
+    }
+    if (held_ > 1)
+    {
+      WriteAll(Compose(line, Text(latest_)));
+    }
+    held_ = 0;
+  }
+
+  // Warnings not written since the last written one.
+  [[nodiscard]] std::uint64_t Lost() const noexcept
+  {
+    return lost_;
+  }
+  // Warnings waiting for Flush().
+  [[nodiscard]] std::uint64_t Held() const noexcept
+  {
+    return held_;
+  }
+
+ private:
+  enum class Mode : std::uint8_t
+  {
+    Hold = 0,
+    NonBlocking,
+    Socket
+  };
+  using Message = std::array<char, kMessageSize>;
+
+  [[nodiscard]] static std::string_view Text(const Message& p_message) noexcept
+  {
+    return {p_message.data(), ::strnlen(p_message.data(), p_message.size())};
+  }
+
+  [[nodiscard]] std::string_view Compose(std::span<char, kLineSize> p_line,
+                                         std::string_view p_message) const
+  {
+    const auto start = cut_ ? std::string_view{"\n"} : std::string_view{};
+    const auto result =
+        lost_ == 0
+            ? std::format_to_n(p_line.data(), p_line.size() - 1,
+                               "{}triangulator: {}", start, p_message)
+            : std::format_to_n(p_line.data(), p_line.size() - 1,
+                               "{}triangulator: ({} earlier warnings were "
+                               "lost) {}",
+                               start, lost_, p_message);
+    const auto length =
+        std::min(static_cast<std::size_t>(result.size), p_line.size() - 1);
+    p_line[length] = '\n';
+    return {p_line.data(), length + 1};
+  }
+
+  void Hold(std::string_view p_message) noexcept
+  {
+    auto& slot = held_ == 0 ? first_ : latest_;
+    slot = {};
+    std::ranges::copy(p_message.substr(0, slot.size() - 1), slot.begin());
+    ++held_;
+  }
+
+  void WriteAll(std::string_view p_text) const noexcept
+  {
+    while (!p_text.empty())
+    {
+      const ssize_t written =
+          ::write(descriptor_, p_text.data(), p_text.size());
+      if (written < 0 && errno == EINTR)
+      {
+        continue;
+      }
+      if (written <= 0)
+      {
+        return;
+      }
+      p_text.remove_prefix(static_cast<std::size_t>(written));
+    }
+  }
+
+  int descriptor_;
+  FileDescriptor private_;
+  Mode mode_ = Mode::Hold;
+  std::uint64_t lost_ = 0;
+  bool cut_ = false;
+  std::uint64_t held_ = 0;
+  Message first_{};
+  Message latest_{};
+};
+
+// The process's one stderr sink. Call it once at startup, before the
+// sampling loop, so its open() is not part of a tick.
+[[nodiscard]] inline WarningSink& StderrSink() noexcept
+{
+  static WarningSink sink;
+  return sink;
+}
+
 class RateLimitedLogger
 {
  public:
@@ -208,8 +390,7 @@ class RateLimitedLogger
                          std::forward<TArgs>(p_args)...);
     const auto length =
         std::min(static_cast<std::size_t>(result.size), message.size());
-    std::fprintf(stderr, "triangulator: %.*s\n", static_cast<int>(length),
-                 message.data());
+    StderrSink().Write({message.data(), length});
   }
 
  private:

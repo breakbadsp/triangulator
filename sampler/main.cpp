@@ -54,6 +54,15 @@ extern "C" void OnSignal(int p_number)
       return std::unexpected(std::error_code{errno, std::generic_category()});
     }
   }
+  // A warning to a pipe whose reader has gone then fails with EPIPE, and
+  // does not end the sampler.
+  struct sigaction ignore{};
+  ignore.sa_handler = SIG_IGN;
+  ::sigemptyset(&ignore.sa_mask);
+  if (::sigaction(SIGPIPE, &ignore, nullptr) != 0)
+  {
+    return std::unexpected(std::error_code{errno, std::generic_category()});
+  }
   return {};
 }
 
@@ -652,6 +661,9 @@ class Sampler final
       if (watch.Poll(signal, ClockNow(CLOCK_MONOTONIC), logger_))
       {
         watch.Reloaded(ClockNow(CLOCK_MONOTONIC));
+        // Reload is outside the steady state, so held warnings can be
+        // written now, even when the write blocks.
+        StderrSink().Flush();
         auto applied = Reload(p_config_path);
         if (!applied)
         {
@@ -1049,9 +1061,13 @@ int SamplerMain(int p_argc, char** p_argv)
                    installed.error().message().c_str());
       return 1;
     }
+    // Chooses how warnings are written before the first tick.
+    auto& warnings = triangulator::StderrSink();
     triangulator::Sampler sampler{std::move(*config),
                                   triangulator::RaiseDescriptorLimit()};
-    if (auto ran = sampler.Run(config_path); !ran)
+    const auto ran = sampler.Run(config_path);
+    warnings.Flush();
+    if (!ran)
     {
       std::fprintf(stderr, "triangulator: %s\n", ran.error().c_str());
       return 1;
