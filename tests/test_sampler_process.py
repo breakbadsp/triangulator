@@ -43,7 +43,7 @@ import os, sys, time
 print("ready", flush=True)
 sys.stdin.readline()
 os.chdir(sys.argv[1])
-os.execv(sys.argv[2], ["sleep", "60"])
+os.execv(sys.argv[2], ["exec-target", "-c", "read line"])
 """
 
 
@@ -58,10 +58,13 @@ class ProcessInfoTests(unittest.TestCase):
         receiver.settimeout(0.5)
         with tempfile.TemporaryDirectory() as directory, \
                 tempfile.TemporaryDirectory() as moved:
-            # A copy with its own name: on some systems sleep is a link to a
-            # multi-call binary, so its exe name would not be "sleep".
+            # A copy of an ELF file under its own name. The exe link names
+            # the ELF file that the kernel runs. Do not use sleep: on
+            # AlmaLinux 8 it is a script for /usr/bin/coreutils, so exe is
+            # always "coreutils".
             program = Path(moved) / "exec-target"
-            shutil.copy(shutil.which("sleep"), program)
+            shutil.copy(shutil.which("sh"), program)
+            self.assertEqual(program.read_bytes()[:4], b"\x7fELF", "sh is not an ELF file")
             target = subprocess.Popen([sys.executable, "-c", CHANGING_TARGET, moved,
                                        str(program)],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
