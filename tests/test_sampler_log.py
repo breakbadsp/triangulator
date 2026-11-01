@@ -22,7 +22,7 @@ class SamplerLog:
         self.config = Path(directory) / "sampler.toml"
         self.write_config(target_setting)
         self.process = subprocess.Popen([str(SAMPLER), str(self.config)],
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         os.set_blocking(self.process.stderr.fileno(), False)
         self.text = ""
 
@@ -32,8 +32,9 @@ class SamplerLog:
             'collector = "127.0.0.1:9"\nresource_interval_s = 0\nmemory_interval_s = 0\n')
 
     def read(self):
+        # os.read, not a text wrapper: Python 3.11 fails on a non-blocking text read.
         try:
-            self.text += self.process.stderr.read() or ""
+            self.text += os.read(self.process.stderr.fileno(), 65536).decode()
         except BlockingIOError:
             pass
 
