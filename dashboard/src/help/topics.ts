@@ -817,18 +817,18 @@ const topics = {
   },
   procinfo: {
     title: "Process details",
-    scope: "Target process · read when monitoring starts",
+    scope: "Target process · read every 10 seconds",
     meaning:
       "What the target is: its command line, program file, working directory, start time, parent, owner, and allowed CPUs.",
     example: "",
     reading:
       "Use it to confirm that you are watching the intended process, for example the right instance of a name that runs several times.",
     limits:
-      "The sampler reads these values from /proc when it starts watching a process and sends them again every 10 seconds. It does not read them again, so a later change of directory or CPU affinity does not show. Values the sampler may not read show Not available.",
+      "The sampler reads these values from /proc when it starts watching a process, then again every 10 seconds, and sends each read. A change of program, directory, owner, or CPU affinity can take up to 10 seconds to show. Values the sampler may not read show Not available.",
     related: ["cmdline", "exe", "started"],
     source: "`/proc/PID/cmdline`, `exe`, `cwd`, `stat`, and `status`",
     sourceDetail:
-      "When monitoring starts, the sampler reads `/proc/PID/cmdline`, the links `/proc/PID/exe` and `/proc/PID/cwd`, fields 4 and 22 of `/proc/PID/stat`, and the Uid, Gid, and Cpus_allowed_list lines of `/proc/PID/status`. The topic of each value names its file.",
+      "When monitoring starts and every 10 seconds after that, the sampler reads `/proc/PID/cmdline`, the links `/proc/PID/exe` and `/proc/PID/cwd`, fields 4 and 22 of `/proc/PID/stat`, and the Uid, Gid, and Cpus_allowed_list lines of `/proc/PID/status`. The topic of each value names its file.",
   },
   cmdline: {
     title: "Command line",

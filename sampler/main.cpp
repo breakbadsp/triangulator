@@ -339,10 +339,11 @@ class TargetSampler final
   }
 
   // Sends what the target is (command line, executable, owner and so on).
-  // It is read when the session starts, as it hardly changes, and sent again
-  // every kProcessInfoInterval: datagrams are not acknowledged, and a
-  // collector that started later has not seen it. One small datagram of
-  // cached bytes, so it adds no /proc reads after the first.
+  // It is read again for each send, every kProcessInfoInterval: exec,
+  // chdir, credential and affinity changes keep the PID and start time, so
+  // a copy from the session start can be wrong. Datagrams are not
+  // acknowledged, and a collector that started later has not seen it. One
+  // read costs about 25 us.
   void StepProcessInfo(const TargetIdentity& p_target, Nanoseconds p_monotonic)
   {
     // Half a tick of slack, as for resources.
@@ -350,17 +351,13 @@ class TargetSampler final
     {
       return;
     }
-    if (!process_info_read_)
-    {
-      process_info_ =
-          process_info_probe_.Read(p_target.pid_, p_target.starttime_);
-      process_info_.session_ = session_;
-      process_info_.monotonic_ns_ =
-          static_cast<std::uint64_t>(p_monotonic.count());
-      process_info_.wall_ns_ =
-          static_cast<std::uint64_t>(ClockNow(CLOCK_REALTIME).count());
-      process_info_read_ = true;
-    }
+    process_info_ =
+        process_info_probe_.Read(p_target.pid_, p_target.starttime_);
+    process_info_.session_ = session_;
+    process_info_.monotonic_ns_ =
+        static_cast<std::uint64_t>(p_monotonic.count());
+    process_info_.wall_ns_ =
+        static_cast<std::uint64_t>(ClockNow(CLOCK_REALTIME).count());
     SendPart(process_wire::Encode(process_info_), "process info");
     next_process_info_ =
         NextDeadline(next_process_info_, p_monotonic, kProcessInfoInterval);
@@ -551,7 +548,6 @@ class TargetSampler final
     memory_sequence_ = 0;
     next_memory_ = Nanoseconds{0};
     next_layout_ = Nanoseconds{0};
-    process_info_read_ = false;
     next_process_info_ = Nanoseconds{0};
     next_announcement_ = Nanoseconds{0};
     return {};
@@ -604,7 +600,7 @@ class TargetSampler final
   // many ticks; the collector keeps the first copy that arrives.
   static constexpr int kExitReportSends = 5;
 
-  // How often the cached process info is sent again.
+  // How often the process info is read and sent.
   static constexpr Nanoseconds kProcessInfoInterval =
       std::chrono::seconds{process_wire::kRepeatSeconds};
 
@@ -636,7 +632,6 @@ class TargetSampler final
   Nanoseconds next_layout_{0};
   ProcessInfoProbe process_info_probe_;
   process_wire::Packet process_info_{};
-  bool process_info_read_ = false;  // process_info_ is this session's
   Nanoseconds next_process_info_{0};
 };
 
