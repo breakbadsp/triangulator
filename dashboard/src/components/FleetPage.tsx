@@ -113,6 +113,8 @@ function TileRemove({
   control: TargetControl;
   editor: ReturnType<typeof useTargetControl>;
 }) {
+  // A blocked Remove explains itself only after a click, not on every tile.
+  const [explained, setExplained] = useState(false);
   if (!control.enabled || !tile.local) return null;
   const managed = control.targets?.find((entry) => entry.id === tile.id);
   const discovered = tile.discovered;
@@ -135,10 +137,10 @@ function TileRemove({
         className="ft-remove"
         type="button"
         aria-label={"Remove target " + tile.id}
-        title={blocked || undefined}
-        disabled={editor.busy || !!blocked}
+        disabled={editor.busy}
         onClick={() => {
-          if (discovered?.rule)
+          if (blocked) setExplained(true);
+          else if (discovered?.rule)
             void editor.change({
               action: "remove",
               key: tile.key,
@@ -151,7 +153,11 @@ function TileRemove({
       >
         Remove
       </button>
-      {discovered?.otherRule && <small className="muted">{blocked}</small>}
+      {explained && blocked && (
+        <small className="muted" role="status">
+          {blocked}
+        </small>
+      )}
     </Help>
   );
 }
