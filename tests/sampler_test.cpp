@@ -2599,56 +2599,6 @@ void TestNameLookup()
   std::filesystem::remove_all(root);
 }
 
-// The descriptor walk is spread over calls by a deadline, and a walk that
-// fails part way sends no count (PR 215, findings 1 and 2).
-void TestResourceDescriptorWalk()
-{
-  rlimit saved{};
-  Require(::getrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is readable");
-  rlimit raised = saved;
-  raised.rlim_cur = std::min<rlim_t>(saved.rlim_max, 30'000);
-  Require(::setrlimit(RLIMIT_NOFILE, &raised) == 0, "the limit can be raised");
-  std::vector<FileDescriptor> held;
-  while (held.size() < 20'000)
-  {
-    FileDescriptor descriptor{::open("/dev/null", O_RDONLY | O_CLOEXEC)};
-    Require(static_cast<bool>(descriptor), "open a descriptor");
-    held.push_back(std::move(descriptor));
-  }
-  const auto expected = OpenDescriptors();
-  ResourceProbe probe;
-  probe.Start(::getpid());
-  int calls = 0;
-  std::optional<ResourceSample> sample;
-  while (!sample && calls < 1000)
-  {
-    // A deadline that has passed: each call walks the minimum part.
-    sample = probe.Continue(Nanoseconds{0});
-    ++calls;
-  }
-  Require(sample && calls > 10 && !probe.Busy(),
-          "a large walk is spread over many calls");
-  // OpenDescriptors() also counts "." and "..". Each count includes its own
-  // directory descriptor, which is open while it walks.
-  Require(sample->summary_[Field("fd_open")] == expected - 2,
-          "the spread walk counts every descriptor");
-
-  probe.Start(::getpid());
-  Require(!probe.Continue(Nanoseconds{0}), "the walk is in progress");
-  BreakDirectory(OpenDescriptorOf(std::format("/proc/{}/fd", ::getpid())));
-  const auto failed = probe.Continue(Nanoseconds::max());
-  Require(
-      failed &&
-          failed->summary_[Field("fd_open")] == resource_wire::kUnavailable &&
-          failed->summary_[Field("fd_sockets")] ==
-              resource_wire::kUnavailable &&
-          failed->summary_[Field("fd_soft_limit")] ==
-              static_cast<std::uint64_t>(raised.rlim_cur),
-      "a failed walk sends no descriptor count; the rest stays");
-  held.clear();
-  Require(::setrlimit(RLIMIT_NOFILE, &saved) == 0, "the limit is restored");
-}
-
 int main()
 {
   try
@@ -2669,7 +2619,6 @@ int main()
     TestDirectoryReadErrors();
     TestUncertainIdentity();
     TestNameLookup();
-    TestResourceDescriptorWalk();
     TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();

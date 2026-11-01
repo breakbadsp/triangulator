@@ -165,8 +165,7 @@ class TargetSampler final
              (memory_.Busy() || p_now + config_.Interval() / 2 >= next_memory_);
     }
     return ResourceInterval() > Nanoseconds{0} &&
-           (resources_.Busy() ||
-            p_now + config_.Interval() / 2 >= next_resources_);
+           p_now + config_.Interval() / 2 >= next_resources_;
   }
 
   void StepHeavy(bool p_memory, Nanoseconds p_now)
@@ -181,7 +180,9 @@ class TargetSampler final
     }
     else
     {
-      StepResources(*previous_target_, p_now);
+      SendResources(*previous_target_);
+      next_resources_ =
+          NextDeadline(next_resources_, p_now, ResourceInterval());
     }
   }
 
@@ -481,31 +482,13 @@ class TargetSampler final
 
   // Sends one resource sample: the summary, then the fullest sockets. It
   // shares the thread ticks' session, so the collector can match the two.
-  // As for StepMemory(): a quarter of a tick, at most 50 ms. A target with
-  // many descriptors is walked over several ticks.
-  void StepResources(const TargetIdentity& p_target, Nanoseconds p_monotonic)
-  {
-    const auto deadline = ClockNow(CLOCK_MONOTONIC) +
-                          std::min<Nanoseconds>(config_.Interval() / 4, 50ms);
-    if (!resources_.Busy())
-    {
-      resources_.Start(p_target.pid_);
-      next_resources_ =
-          NextDeadline(next_resources_, p_monotonic, ResourceInterval());
-    }
-    if (const auto sample = resources_.Continue(deadline))
-    {
-      SendResources(p_target, *sample);
-    }
-  }
-
-  void SendResources(const TargetIdentity& p_target,
-                     const ResourceSample& p_sample)
+  void SendResources(const TargetIdentity& p_target)
   {
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
     const auto wall = ClockNow(CLOCK_REALTIME);
+    const auto sample = resources_.Sample(p_target.pid_);
     const resource_wire::Header header{
-        .parts_ = resource_wire::PartCount(p_sample.sockets_.size()),
+        .parts_ = resource_wire::PartCount(sample.sockets_.size()),
         .session_ = session_,
         .sequence_ = resource_sequence_++,
         .monotonic_ns_ = static_cast<std::uint64_t>(monotonic.count()),
@@ -515,18 +498,18 @@ class TargetSampler final
                 .count()),
         .pid_ = static_cast<std::uint32_t>(p_target.pid_),
         .process_start_ = p_target.starttime_,
-        .flags_ = p_sample.flags_,
+        .flags_ = sample.flags_,
     };
     const auto send = [this](std::size_t p_length)
     {
       SendPart(std::span{resource_packet_}.first(p_length), "resource sample");
     };
-    send(resource_wire::EncodeSummary(resource_packet_, header,
-                                      p_sample.summary_, p_sample.cgroup_));
+    send(resource_wire::EncodeSummary(resource_packet_, header, sample.summary_,
+                                      sample.cgroup_));
     for (std::uint8_t part = 1; part < header.parts_; ++part)
     {
       send(resource_wire::EncodeSockets(resource_packet_, header,
-                                        p_sample.sockets_, part));
+                                        sample.sockets_, part));
     }
   }
 
@@ -542,7 +525,6 @@ class TargetSampler final
     session_ = *session;
     sequence_ = 0;
     resource_sequence_ = 0;
-    resources_.Reset();
     next_resources_ = Nanoseconds{0};  // a new session samples at once
     memory_.Reset();
     memory_sequence_ = 0;

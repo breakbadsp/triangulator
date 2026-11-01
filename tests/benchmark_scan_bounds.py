@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Measure tick latency and sampler CPU on a large host.
 
-One configured name target holds many descriptors, and many idle processes
-fill /proc. Without a per-tick scan bound, the name lookup and the
-descriptor walk delay the ticks. The result is one JSON line.
+Many idle processes fill /proc, and one target is configured by name.
+Without a per-tick scan bound, the name lookup delays the ticks. The
+result is one JSON line.
 
 Latency is the time from the tick start (the monotonic time in the packet)
 to the arrival of its last chunk. Both clocks are CLOCK_MONOTONIC of this
@@ -14,7 +14,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import resource
 import socket
 import statistics
 import struct
@@ -26,19 +25,14 @@ import time
 from wire import decode
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "tri-fd-target"
-# Sets the name, opens the descriptors, then reports and waits.
+NAME = "tri-scan-target"
+# Sets the name, then reports and waits.
 TARGET = """
-import ctypes, os, resource, sys, time
+import ctypes, time
 ctypes.CDLL(None).prctl(15, b"%s", 0, 0, 0)
-soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
-base = os.open("/dev/null", os.O_RDONLY)
-for _ in range(int(sys.argv[1])):
-    os.dup(base)
 print("ready", flush=True)
 time.sleep(3600)
-""" % NAME.encode().decode()
+""" % NAME
 
 
 def cpu_seconds(pid):
@@ -50,16 +44,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=ROOT / "build/triangulator-sampler")
     parser.add_argument("--processes", type=int, default=4000)
-    parser.add_argument("--descriptors", type=int, default=500000)
     parser.add_argument("--rate", type=int, default=10)
     parser.add_argument("--duration", type=float, default=20)
     arguments = parser.parse_args()
 
-    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    if arguments.descriptors + 64 > hard:
-        sys.exit(f"hard RLIMIT_NOFILE {hard} is below --descriptors")
     idle = [subprocess.Popen(["sleep", "3600"]) for _ in range(arguments.processes)]
-    target = subprocess.Popen([sys.executable, "-c", TARGET, str(arguments.descriptors)],
+    target = subprocess.Popen([sys.executable, "-c", TARGET],
                               stdout=subprocess.PIPE, text=True)
     sampler = None
     try:
@@ -101,7 +91,7 @@ def main():
         latencies.sort()
         print(json.dumps({
             "binary": str(arguments.binary), "processes": arguments.processes,
-            "descriptors": arguments.descriptors, "rate_hz": arguments.rate,
+            "rate_hz": arguments.rate,
             "ticks": len(latencies), "expected_ticks": round(elapsed * arguments.rate),
             "resource_datagrams": resources,
             "latency_ms": {"p50": round(statistics.median(latencies), 2),

@@ -134,7 +134,7 @@ class ResourceProbe
  public:
   // Descriptor links read per sample. A process with more descriptors is
   // still counted, but sockets past this many are not matched.
-  static constexpr std::size_t kMaxDescriptorLinks = 65536;
+  static constexpr std::size_t kMaxDescriptorLinks = 4096;
   static constexpr std::size_t kDiagBufferSize = 65536;
 
   // All of the probe's heap storage is allocated here, at startup.
@@ -143,83 +143,28 @@ class ResourceProbe
     socket_fds_.reserve(kMaxDescriptorLinks);
   }
 
-  // Starts a sample of p_pid. The descriptor walk is the only part whose
-  // cost the target controls (a process can hold a million descriptors), so
-  // Continue() does it in parts, as the memory-map scan does. The count of a
-  // walk that spans ticks is not one instant: descriptors can open and close
-  // between the parts.
-  void Start(int p_pid)
+  // The result views the probe's storage until the next call.
+  [[nodiscard]] ResourceSample Sample(int p_pid)
   {
-    pid_ = p_pid;
-    sample_ = {};
-    socket_fds_.clear();
-    links_hidden_ = false;
-    open_ = 0;
-    sockets_ = 0;
-    busy_ = true;
-    if (const auto limits = Read(FixedString{"/proc/{}/limits", p_pid}.CStr())
-                                .and_then(ParseDescriptorLimits))
-    {
-      sample_.summary_[Field("fd_soft_limit")] = limits->soft_;
-      sample_.summary_[Field("fd_hard_limit")] = limits->hard_;
-    }
-    descriptors_.emplace(FixedString{"/proc/{}/fd", p_pid}.CStr());
-    if (!*descriptors_)
-    {
-      descriptors_.reset();
-      links_hidden_ = true;
-      sample_.flags_ = sample_.flags_ | Flags::DescriptorsHidden;
-    }
-  }
-
-  [[nodiscard]] bool Busy() const noexcept
-  {
-    return busy_;
-  }
-
-  // Drops a sample in progress, for example when the session changes.
-  void Reset() noexcept
-  {
-    busy_ = false;
-    descriptors_.reset();
-  }
-
-  // Walks descriptors until p_deadline, then returns nullopt; call again on
-  // a later tick. When the walk ends, reads the rest and returns the sample.
-  // It views the probe's storage until the next Start().
-  [[nodiscard]] std::optional<ResourceSample> Continue(Nanoseconds p_deadline)
-  {
-    if (!busy_ || (descriptors_ && !WalkDescriptors(p_deadline)))
-    {
-      return std::nullopt;
-    }
-    busy_ = false;
-    ReadPressure(pid_, sample_);
-    ReadProcessIo(pid_, sample_);
-    ReadProcessMemory(pid_, sample_);
-    ReadCgroupLimits(sample_);
-    const auto same_namespace = SameNetworkNamespace(pid_);
+    ResourceSample sample;
+    ReadPressure(p_pid, sample);
+    ReadDescriptors(p_pid, sample);
+    ReadProcessIo(p_pid, sample);
+    ReadProcessMemory(p_pid, sample);
+    ReadCgroupLimits(sample);
+    const auto same_namespace = SameNetworkNamespace(p_pid);
     if (same_namespace == false)
     {
-      sample_.flags_ =
-          sample_.flags_ | resource_wire::Flags::OtherNetworkNamespace;
+      sample.flags_ =
+          sample.flags_ | resource_wire::Flags::OtherNetworkNamespace;
     }
     else
     {
-      ReadSockets(sample_);
-      ReadSocketLimits(sample_);
+      ReadSockets(sample);
+      ReadSocketLimits(sample);
     }
-    ReadNamespaceCounters(pid_, sample_);
-    return sample_;
-  }
-
-  // A whole sample in one call, for tests and benchmarks.
-  [[nodiscard]] ResourceSample Sample(int p_pid)
-  {
-    Start(p_pid);
-    const auto sample = Continue(Nanoseconds::max());
-    assert(sample);
-    return *sample;
+    ReadNamespaceCounters(p_pid, sample);
+    return sample;
   }
 
  private:
@@ -303,29 +248,36 @@ class ResourceProbe
   }
 
   // Counts the descriptors and remembers which are sockets, by inode.
-  // False when p_deadline came first: the walk continues next time.
-  [[nodiscard]] bool WalkDescriptors(Nanoseconds p_deadline)
+  void ReadDescriptors(int p_pid, ResourceSample& p_sample)
   {
-    // The clock is read once per this many entries, so that one entry
-    // always gets through and a check costs little.
-    constexpr std::size_t kEntriesPerClockCheck = 256;
-    auto& directory = *descriptors_;
-    std::array<char, 64> link{};
-    for (std::size_t count = 1;; ++count)
+    auto& summary = p_sample.summary_;
+    socket_fds_.clear();
+    links_hidden_ = false;
+    if (const auto limits = Read(FixedString{"/proc/{}/limits", p_pid}.CStr())
+                                .and_then(ParseDescriptorLimits))
     {
-      if (count % kEntriesPerClockCheck == 0 &&
-          ClockNow(CLOCK_MONOTONIC) >= p_deadline)
-      {
-        return false;
-      }
+      summary[Field("fd_soft_limit")] = limits->soft_;
+      summary[Field("fd_hard_limit")] = limits->hard_;
+    }
+    Directory directory{FixedString{"/proc/{}/fd", p_pid}.CStr()};
+    if (!directory)
+    {
+      links_hidden_ = true;
+      p_sample.flags_ = p_sample.flags_ | Flags::DescriptorsHidden;
+      return;
+    }
+    std::uint64_t open = 0;
+    std::uint64_t sockets = 0;
+    std::array<char, 64> link{};
+    for (;;)
+    {
       const auto next = directory.Next();
       if (!next)
       {
         // A partial count is not sent as complete; the values stay
         // unavailable and no socket is matched to the target.
         socket_fds_.clear();
-        descriptors_.reset();
-        return true;
+        return;
       }
       if (!*next)
       {
@@ -337,8 +289,8 @@ class ResourceProbe
       {
         continue;
       }
-      ++open_;
-      if (links_hidden_ || open_ > kMaxDescriptorLinks)
+      ++open;
+      if (links_hidden_ || open > kMaxDescriptorLinks)
       {
         continue;
       }
@@ -359,13 +311,12 @@ class ResourceProbe
         if (const auto inode =
                 ParseNumber<std::uint64_t>(target.substr(8, target.size() - 9)))
         {
-          ++sockets_;
+          ++sockets;
           // Within capacity: at most kMaxDescriptorLinks links are read.
           socket_fds_.push_back({*inode, *fd});
         }
       }
     }
-    descriptors_.reset();
     // Sort for binary search by inode. A socket open on several
     // descriptors keeps the lowest one.
     std::ranges::sort(socket_fds_, {},
@@ -376,21 +327,18 @@ class ResourceProbe
     const auto duplicates =
         std::ranges::unique(socket_fds_, {}, &SocketFd::inode_);
     socket_fds_.erase(duplicates.begin(), duplicates.end());
-    auto& summary = sample_.summary_;
-    summary[Field("fd_open")] = open_;
+    summary[Field("fd_open")] = open;
     if (links_hidden_)
     {
-      sample_.flags_ = sample_.flags_ | Flags::DescriptorsHidden;
+      p_sample.flags_ = p_sample.flags_ | Flags::DescriptorsHidden;
+      return;
     }
-    else if (open_ > kMaxDescriptorLinks)
+    if (open > kMaxDescriptorLinks)
     {
-      sample_.flags_ = sample_.flags_ | Flags::DescriptorScanTruncated;
+      p_sample.flags_ = p_sample.flags_ | Flags::DescriptorScanTruncated;
+      return;
     }
-    else
-    {
-      summary[Field("fd_sockets")] = sockets_;
-    }
-    return true;
+    summary[Field("fd_sockets")] = sockets;
   }
 
   void ReadProcessMemory(int p_pid, ResourceSample& p_sample)
@@ -796,13 +744,6 @@ class ResourceProbe
   std::vector<SocketFd> socket_fds_;
   FullestSockets fullest_;
   bool links_hidden_ = false;
-  // The sample in progress.
-  bool busy_ = false;
-  int pid_ = 0;
-  ResourceSample sample_;
-  std::optional<Directory> descriptors_;
-  std::uint64_t open_ = 0;
-  std::uint64_t sockets_ = 0;
 };
 
 }  // namespace triangulator
