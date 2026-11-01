@@ -23,10 +23,18 @@
 #include "resources.hpp"
 #include "schedule.hpp"
 
+// The Makefile sets this from "git describe". A build outside it reports
+// "unknown".
+#ifndef TRIANGULATOR_VERSION
+#define TRIANGULATOR_VERSION "unknown"
+#endif
+
 namespace triangulator
 {
 namespace
 {
+
+constexpr std::string_view kVersion = TRIANGULATOR_VERSION;
 
 volatile std::sig_atomic_t reload_requested = 0;
 volatile std::sig_atomic_t stop_requested = 0;
@@ -643,6 +651,7 @@ class Sampler final
     {
       return prepared;
     }
+    LogTargets(std::format("triangulator-sampler {} started", kVersion));
     ConfigWatch watch{p_config_path};
     auto deadline = ClockNow(CLOCK_MONOTONIC);
     auto last_elapsed = deadline;
@@ -780,7 +789,26 @@ class Sampler final
     {
       return std::unexpected(prepared.error());
     }
+    LogTargets("configuration reloaded");
     return true;
+  }
+
+  // Tells the operator what the sampler does now. It writes to the sink
+  // directly, not through logger_, so the 60 s warning limit cannot hide it.
+  void LogTargets(std::string_view p_event) const
+  {
+    const auto& settings = config_.settings_;
+    std::array<char, 256> line{};
+    const auto result =
+        settings.Discovers()
+            ? std::format_to_n(line.data(), line.size(),
+                               "{}; discovery, up to {} targets", p_event,
+                               settings.max_targets_)
+            : std::format_to_n(line.data(), line.size(), "{}; {} targets",
+                               p_event, targets_.size());
+    StderrSink().Write(
+        {line.data(),
+         std::min(static_cast<std::size_t>(result.size), line.size())});
   }
 
   // A target table: one shared, bounded /proc pass resolves the names.
