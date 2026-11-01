@@ -1,0 +1,18 @@
+{
+  "QA-001": {
+    "status": "PASSED",
+    "observation": "Both source-built package checksums passed. Isolated install started without a compiler at installation. Browser identified sleep PID 5 with fresh thread and resource samples."
+  },
+  "QA-002": {
+    "status": "PASSED",
+    "observation": "Added owned PID 6 as second through Add target and confirmation. Both targets stayed live; second tile opened PID 6 and selection persisted after reload."
+  },
+  "QA-003": {
+    "status": "PASSED",
+    "observation": "Empty process input showed Please fill out this field. PID 2147483647 showed no running process before confirmation. Reload retained exactly two targets; no saved configuration change."
+  },
+  "QA-005": {
+    "status": "BLOCKED",
+    "observation": "Partial: live thread drawer, 1 min map, newest recording, previous time, disabled live charts, and hidden Settings editing observed. Preview then stopped responding; reads and snapshot timed out at 15000ms. Remaining replay, custom-range restoration, and Timeline preview expectations were not verified. No product verdict."
+  }
+}

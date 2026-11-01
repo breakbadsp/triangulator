@@ -1,0 +1,548 @@
+{
+  "observations": [
+    {
+      "url": "http://127.0.0.1:35815/",
+      "title": "Targets \u00b7 Thread monitor",
+      "loading": false,
+      "visibleText": "All targets\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nTotals for all targets\n1\nHealthy\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nShowing 1 of 1 targets\nsleep\nomarchy \u00b7 default\nRemove\n+\nAdd target\nHow to read this page",
+      "consoleEntries": [],
+      "networkEntries": [],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      }
+    },
+    {
+      "error": {
+        "_tag": "PreviewAutomationControlInterruptedError",
+        "operation": "snapshot",
+        "failureCount": 1,
+        "message": "A browser dialog is pending. Read preview_status and resolve it with preview_dialog."
+      }
+    },
+    {
+      "value": {
+        "text": "\u2190 All targets\nAll targets\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\n\u25cf omarchy \u00b7 second \u00b7 sleep \u00b7 PID 6 \u00b7 live\nsleep\nPID 6 \u00b7 Live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nMemory\nMonitor\nSettings\nTimeline\n\nInspect a recorded process view.\n\n\u25c0 Previous\nNext \u25b6\nLive\n\nNo recordings yet. Recording may be disabled; thread history still has older summaries.\n\nLive\n\nLive view. Drag the Timeline back to inspect a recording.\n\nPast assessments\nSummary\n\nsleep \u00b7 1 threads. Trends kept in this tab since 02:58:59 PM.\n\n1 min\n5 min\n15 min\nAssessment\nHealthy\nas of 02:58:59 PM\n\n1 of 1 threads are waiting: 1 sleep. No thread is using noticeable CPU.\n\n\u2713\nNo problems detected\nNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now. No memory-map warnings detected in the available samples.\nActive threads\n0\nof 1 \u00b7 1 idle for 10 s+\nContext switches\n0/s\nDisk & syscall I/O\n0 B/s\nread 0 B/s \u00b7 write 0 B/s\nThread churn\n+0 / \u22120\nlower bound \u00b7 seen starting / ending, last minute\nProcess load\n\nRunning, waiting for CPU, or blocked in kernel. 1.00 is one core of demand.\n\n0.00\n1-minute load\n5 min\n0.00\n15 min (1 s of data)\n0.00\nOn CPU now\n0.00 cores\nWaiting for CPU\nnegligible\nBusiest thread\nall idle\nCollecting data\u2026\nOn CPU\n0.00\nWaiting for CPU\n0.00\n1-min average\nMemory use\n\nPhysical memory and mapped address space.\n\nResident memory (RSS)\n2.2 MiB\nWaiting for resource samples\u2026\nVirtual size (VmSize)\n6.3 MiB\nWaiting for memory samples\u2026\nProcess details\nThreads (0 of 1)\n\nThread activity and wait states. Select a row for history; press / to search.\n\nWhat the threads are doing\n\nThread count by latest state, stacked. Hover to read a m",
+        "url": "http://127.0.0.1:35815/?target=omarchy%2Fsecond"
+      }
+    },
+    {
+      "value": {
+        "inputs": [
+          {
+            "id": "fleet-search",
+            "message": ""
+          },
+          {
+            "id": "target-id",
+            "message": ""
+          },
+          {
+            "id": "target-input",
+            "message": "Please fill out this field."
+          }
+        ],
+        "text": "\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\n\u25cf omarchy \u00b7 second \u00b7 sleep \u00b7 PID 6 \u00b7 live\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nTotals for all targets\n2\nHealthy\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nShowing 2 of 2 targets\nsleep\nomarchy \u00b7 default\nRemove\nsleep\nomarchy \u00b7 second\nRemove\n+\nAdd target\nHow to read this page\nAdd target\n\nMonitor one more process with the local sampler. A process name follows a restart; a PID does not. The change applies to every viewer.\n\nTarget ID\nProcess name or PID\nCancel\nAdd target"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:35815/",
+      "title": "Targets \u00b7 Thread monitor",
+      "loading": false,
+      "visibleText": "All targets\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\n\u25cf omarchy \u00b7 second \u00b7 sleep \u00b7 PID 6 \u00b7 live\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nTotals for all targets\n2\nHealthy\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nShowing 2 of 2 targets\n\nno running process with PID 2147483647\n\nsleep\nomarchy \u00b7 default\nRemove\nsleep\nomarchy \u00b7 second\nRemove\n+\nAdd target\nHow to read this page\nAdd target\n\nMonitor one more process with the local sampler. A process name follows a restart; a PID does not. The change applies to every viewer.\n\nTarget ID\nProcess name or PID\nCancel\nAdd target\n\nno running process with PID 2147483647",
+      "consoleEntries": [
+        {
+          "level": "error",
+          "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+          "timestamp": "2026-11-01T09:29:32.984Z"
+        }
+      ],
+      "networkEntries": [
+        {
+          "url": "http://127.0.0.1:35815/api/resources?start=1793525146.2564833&end=1793525340.2564833&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.754Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/resources?start=1793525146.2564833&end=1793525340.2564833&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.786Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525328.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.799Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525329.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.799Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525330.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.800Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525327.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.800Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525331.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.804Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525332.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.806Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525333.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.808Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525335.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.808Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525334.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.809Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525336.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.812Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525337.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.813Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525338.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.813Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525340.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.815Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/replay?at=1793525339.2564833&direction=at&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:00.817Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:01.670Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:02.668Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:02.676Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:03.680Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:04.672Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:04.685Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:05.689Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/resources?start=1793524445.752&end=1793525345.752&target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:05.757Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:06.674Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/live?target=omarchy%2Fsecond",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:06.691Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:06.983Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:07.036Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:07.082Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:12.085Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:12.125Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:17.129Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:17.168Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:22.176Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:22.215Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:27.217Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:27.258Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/fleet",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:32.262Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets/control",
+          "method": "GET",
+          "status": 200,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:32.308Z"
+        },
+        {
+          "url": "http://127.0.0.1:35815/api/targets",
+          "method": "POST",
+          "status": 400,
+          "failed": false,
+          "timestamp": "2026-11-01T09:29:32.983Z"
+        }
+      ],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      },
+      "omitted": [
+        "75 older network entries"
+      ]
+    },
+    {
+      "value": {
+        "text": "All targets\nTheme\nSystem\nLight\nDark\nTargets\n\nEvery monitored process and its current assessment. Select a tile to open its dashboard.\n\nStatus\nAll\nNeeds attention\nCritical\nSerious\nWarning\nHealthy\nNo data\nTiles\nComfortable\nCompact\nHow to read this page"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:35815/?target=omarchy%2Fsecond",
+      "title": "sleep \u00b7 Thread monitor",
+      "loading": false,
+      "visibleText": "\u2026",
+      "consoleEntries": [],
+      "networkEntries": [],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      },
+      "omitted": [
+        "159 older network entries",
+        "visibleText after 0 characters (use preview_evaluate for more)",
+        "accessibilityTree after 10000 characters",
+        "19 of 19 actionTimeline",
+        "40 of 40 networkEntries",
+        "1 of 1 consoleEntries"
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:35815/?target=omarchy%2Fsecond",
+      "title": "sleep \u00b7 Thread monitor",
+      "loading": false,
+      "visibleText": "\u2026",
+      "consoleEntries": [],
+      "networkEntries": [],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      },
+      "omitted": [
+        "160 older network entries",
+        "visibleText after 0 characters (use preview_evaluate for more)",
+        "accessibilityTree after 10000 characters",
+        "20 of 20 actionTimeline",
+        "40 of 40 networkEntries",
+        "1 of 1 consoleEntries"
+      ]
+    },
+    {
+      "value": {
+        "buttons": [
+          {
+            "html": "<button type=\"button\" data-window=\"60\" aria-pressed=\"false\" disabled=\"\">1 min</button>",
+            "text": "1 min"
+          },
+          {
+            "html": "<button type=\"button\" data-map-window=\"0\" aria-pressed=\"true\" disabled=\"\">Now</button>",
+            "text": "Now"
+          },
+          {
+            "html": "<button type=\"button\" data-map-window=\"60\" aria-pressed=\"false\" disabled=\"\">1 min</button>",
+            "text": "1 min"
+          },
+          {
+            "html": "<button type=\"button\" data-activity=\"all\" aria-pressed=\"false\">All <span id=\"n-all\" class=\"muted\">1</span></button>",
+            "text": "All 1"
+          }
+        ],
+        "disabled": [
+          [
+            "watch-add",
+            false
+          ],
+          [
+            "watch-save",
+            true
+          ],
+          [
+            "watch-reset",
+            true
+          ]
+        ],
+        "inputs": [
+          {
+            "id": "timeline-range",
+            "type": "range",
+            "value": "1793525435.05649"
+          },
+          {
+            "id": "",
+            "type": "checkbox",
+            "value": "critical"
+          },
+          {
+            "id": "",
+            "type": "checkbox",
+            "value": "serious"
+          },
+          {
+            "id": "",
+            "type": "checkbox",
+            "value": "warning"
+          },
+          {
+            "id": "",
+            "type": "checkbox",
+            "value": "info"
+          },
+          {
+            "id": "search",
+            "type": "search",
+            "value": ""
+          },
+          {
+            "id": "sockets-busy-only",
+            "type": "checkbox",
+            "value": "on"
+          },
+          {
+            "id": "from",
+            "type": "datetime-local",
+            "value": ""
+          },
+          {
+            "id": "to",
+            "type": "datetime-local",
+            "value": ""
+          }
+        ],
+        "text": "\u2190 All targets\nAll targets\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\n\u25cf omarchy \u00b7 second \u00b7 sleep \u00b7 PID 6 \u00b7 live\nsleep\nPID 6 \u00b7 Historical\n11/1/2026, 3:00:35 PM \u00b7 Back to live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nMemory\nMonitor\nSettings\nTimeline\n\nInspect a recorded process view.\n\n\u25c0 Previous\nNext \u25b6\nLive\n\nRecordings from 11/1/2026, 2:58:47 PM to 11/1/2026, 3:00:35 PM, one every 1 s.\n\n11/1/2026, 2:58:47 PM\nNow \u00b7 11/1/2026, 3:00:41 PM\n\nViewing 11/1/2026, 3:00:35 PM\n\nRecorded view \u00b7 11/1/2026, 3:00:35 PM \u00b7 session 3381290277766161652. State is the latest sampled observation; rates cover the preceding ~10 seconds.\n\nPast assessments\n0 findings\nSummary\n\nsleep \u00b7 1 threads. Trends kept in this tab since 03:00:34 PM.\n\n1 min\n5 min\n15 min\nAssessment\nHealthy\nas of 03:00:34 PM\n\n1 of 1 threads are waiting: 1 sleep. No thread is using noticeable CPU.\n\n\u2713\nNo problems detected\nNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket buffers right now. No memory-map warnings detected in the available samples.\nActive threads\n0\nof 1 \u00b7 1",
+        "tiles": []
+      }
+    },
+    {
+      "value": {
+        "text": "\u2190 All targets\nAll targets\n\u25cf omarchy \u00b7 default \u00b7 sleep \u00b7 PID 5 \u00b7 live\n\u25cf omarchy \u00b7 second \u00b7 sleep \u00b7 PID 6 \u00b7 live\nsleep\nPID 6 \u00b7 Historical\n11/1/2026, 3:00:33 PM \u00b7 Back to live\nTheme\nSystem\nLight\nDark\nTimeline\nSummary\nThreads\nResources\nMemory\nMonitor\nSettings\nTimeline\n\nInspect a recorded process view.\n\n\u25c0 Previous\nNext \u25b6\nLive\n\nRecordings from 11/1/2026, 2:58:47 PM to 11/1/2026, 3:01:31 PM, one every 1 s.\n\n11/1/2026, 2:58:47 PM\nNow \u00b7 11/1/2026, 3:01:31 PM\n\nViewing 11/1/2026, 3:00:33 PM\n\nRecorded view \u00b7 11/1/2026, 3:00:33 PM \u00b7 session 3381290277766161652. State is the latest sampled observation; rates cover the preceding ~10 seconds.\n\nPast assessments\n0 findings\nSummary\n\nsleep \u00b7 1 threads. Trends kept in this tab since 03:00:33 PM.\n\n1 min\n5 min\n15 min\nAssessment\nHealthy\nas of 03:00:33 PM\n\n1 of 1 threads are waiting: 1 sleep. No thread is using noticeable CPU.\n\n\u2713\nNo problems detected\nNo saturated threads, CPU waiting, kernel stalls, paging, resource pressure, exhausted limits or full socket bu"
+      }
+    },
+    {
+      "value": {
+        "drawer": "sleep\nTID 6 \u00b7 group ungrouped \u00b7 family sleep\n\u2715\nSleep in hrtimer_nanosleep \u00b7 last 10 s: \nActivity\nidle for over 3 min\nLast core\n#0\nLast sample\n03:02:05 PM\nRecent live CPU\n\nLast two minutes from the live feed.\n\n0.0%\n2.5%\n5.0%\n03:00:14 PM\n03:01:09 PM\n03:02:05 PM\nHistory\n\n5-second summaries stored by the collector.\n\n15 min\n1 h\n6 h\n24 h\nLoad\n\n40 summaries from 2026-11-01 14:02:06 to 2026-11-01 15:02:06.\n\nCPU\n0.0%\n2.5%\n5.0%\n02:58:44 PM\n03:00:22 PM\n03:01:59 PM\nRun delay\n0.0%\n0.5%\n1.0%\n02:58:44 PM\n03:00:22 PM\n03:01:59 PM\nState mix\n0%\n50%\n100%\n02:58:44 PM\n03:00:22 PM\n03:01:59 PM\nSleep\nI/O\n0 B/s\n<1 B/s\n1 B/s\n02:58:44 PM\n03:00:22 PM\n03:01:59 PM\nRead/s\nWrite/s\nTable view",
+        "inputs": [
+          {
+            "id": "from",
+            "rect": {
+              "bottom": 583.078125,
+              "height": 32.59375,
+              "left": 1407.902587890625,
+              "right": 1622.902587890625,
+              "top": 550.484375,
+              "width": 215,
+              "x": 1407.902587890625,
+              "y": 550.484375
+            },
+            "value": "2026-11-01T14:02:06"
+          },
+          {
+            "id": "to",
+            "rect": {
+              "bottom": 627.765625,
+              "height": 32.59375,
+              "left": 1203.605712890625,
+              "right": 1419.605712890625,
+              "top": 595.171875,
+              "width": 216,
+              "x": 1203.605712890625,
+              "y": 595.171875
+            },
+            "value": "2026-11-01T15:02:06"
+          }
+        ]
+      }
+    },
+    {
+      "url": "http://127.0.0.1:35815/?target=omarchy%2Fsecond",
+      "title": "sleep \u00b7 Thread monitor",
+      "loading": false,
+      "visibleText": "\u2026",
+      "consoleEntries": [],
+      "networkEntries": [],
+      "screenshot": {
+        "mimeType": "image/png",
+        "width": 1280,
+        "height": 800
+      },
+      "omitted": [
+        "160 older network entries",
+        "visibleText after 0 characters (use preview_evaluate for more)",
+        "accessibilityTree after 10000 characters",
+        "39 of 39 actionTimeline",
+        "40 of 40 networkEntries",
+        "1 of 1 consoleEntries"
+      ]
+    }
+  ],
+  "blocker": "After Previous recording from Live and a further Previous action, preview_evaluate and preview_snapshot timed out at 15000ms. HTTP root still returned 200. No product failure established.",
+  "source": "cdeef9f11eebe3daa01e44db7b99cd0e75f930f5"
+}

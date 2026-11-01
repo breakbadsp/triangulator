@@ -1,0 +1,24 @@
+{
+  "root": "/tmp/triangulator-master-runtime",
+  "home": "/tmp/triangulator-master-runtime/triangulator",
+  "http_port": 35815,
+  "udp_port": 59317,
+  "url": "http://127.0.0.1:35815",
+  "fixture_pids": [
+    5,
+    6
+  ],
+  "archives": [
+    {
+      "component": "sampler",
+      "filename": "triangulator-sampler-source-cdeef9f1-linux-x86_64.tar.gz",
+      "sha256": "0bdcd8fe6d2763556023886f9f5ee777f5519d26b9206c7297ea44208cead576"
+    },
+    {
+      "component": "collector",
+      "filename": "triangulator-collector-source-cdeef9f1-linux-x86_64.tar.gz",
+      "sha256": "e6d4b20ffaeb83cde0cdd9ee9165b876a5fb0832ff72064b3f569e3635126b43"
+    }
+  ],
+  "version": "source-cdeef9f1"
+}

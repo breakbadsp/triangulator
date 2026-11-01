@@ -22,11 +22,11 @@
 | QA-131 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-132 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-133 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
-| QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-001 | PASSED | source cdeef9f1, linux-x86_64 | [Run](runs/20261101T093346Z-master-sanity/index.md) | [Evidence](runs/20261101T093346Z-master-sanity/evidence/observations.json) |
+| QA-002 | PASSED | source cdeef9f1, linux-x86_64 | [Run](runs/20261101T093346Z-master-sanity/index.md) | [Evidence](runs/20261101T093346Z-master-sanity/evidence/observations.json) |
+| QA-003 | PASSED | source cdeef9f1, linux-x86_64 | [Run](runs/20261101T093346Z-master-sanity/index.md) | [Evidence](runs/20261101T093346Z-master-sanity/evidence/observations.json) |
 | QA-004 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-005 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-005 | BLOCKED | source cdeef9f1, linux-x86_64 | [Run](runs/20261101T093346Z-master-sanity/index.md) | [Evidence](runs/20261101T093346Z-master-sanity/evidence/observations.json) |
 | QA-006 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-007 | NOT_RUN | - | - | - |
 | QA-008 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
