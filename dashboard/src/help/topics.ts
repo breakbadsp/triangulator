@@ -1985,7 +1985,7 @@ const topics = {
     title: "Memory findings",
     scope: "Fixed rules applied in the browser",
     meaning:
-      "Conditions in the memory map, resource, and thread samples that deserve inspection, such as swap use or a stack close to its limit.",
+      "Conditions in the memory map, resource, and thread samples that deserve inspection, such as a stack close to its limit. Swap use alone is info: it costs time only when major page faults read the pages back.",
     example: "",
     reading:
       "Read the severity and detail of each finding, then check the matching tile, limit, or region.",

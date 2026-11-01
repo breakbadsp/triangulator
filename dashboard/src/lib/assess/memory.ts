@@ -234,10 +234,12 @@ export function assessMemory(
     r.memory.rss > 0 &&
     r.memory.swap >= 0.1 * r.memory.rss
   )
+    // Info only: Linux keeps cold pages in swap until they are touched, so
+    // swap use alone costs nothing. The major-fault rules catch the cost.
     add(
-      "warning",
+      "info",
       "Part of the process is swapped out",
-      `${memoryBytes(r.memory.swap)} in swap next to ${memoryBytes(r.memory.rss)} resident. Touching it costs a major fault.`,
+      `${memoryBytes(r.memory.swap)} in swap next to ${memoryBytes(r.memory.rss)} resident. Swapped pages cost a major fault only when the process touches them again.`,
     );
   // Only code matters: deleted data files (shared memory, temporary files)
   // are normal, and the sampler may cut the start of long names.
