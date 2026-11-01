@@ -95,6 +95,10 @@ These skills are manual-only. Repository rules govern checks and delivery.
 
 ## Git workflow
 
+Before each LoomFlow session, run `bash scripts/setup-ai.sh` from the repository
+root. It installs or updates the shared ai-assets files and checks the LoomFlow
+references. If it fails, stop and report the error before loading shared instructions.
+
 1. Create a new worktree and a descriptive branch for each change, including
    documentation. Never edit in the primary checkout or on `master`.
 2. When the change is complete and checks pass, commit, push, and open a pull
