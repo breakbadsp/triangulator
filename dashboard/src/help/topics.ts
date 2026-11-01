@@ -445,10 +445,25 @@ const topics = {
       "Examples include CPU at or above 90% of a core, run delay over one quarter of CPU time, kernel waits, major faults, and packet loss over 1%. Watched-thread rules (see Watched threads) add findings for a thread that stopped waking up, a watched thread that is busy, and a rule that matches no thread. Read the specific finding and its scope. The card lists the most severe findings first and shows up to 8; Show more lists the rest until you select Show fewer.",
     limits:
       "These are rules of thumb, not a diagnosis. Check workload expectations and measurement coverage before changing configuration.",
-    related: ["watched", "health", "cpu", "pressure"],
+    related: ["verdict", "watched", "health", "cpu", "pressure"],
     source: "Computed in this page from the displayed data",
     sourceDetail:
       "This page applies fixed rules to the values it shows: thread samples, resource samples, memory samples, and monitor health. Each finding names the value it used; the topic of that value gives its source.",
+  },
+  verdict: {
+    title: "Assessment verdict",
+    scope: "Worst finding on the Assessment card",
+    meaning:
+      "The badge colour is the most severe finding. Red is Critical (Needs attention now). Orange is Serious (Something is struggling). Warning findings alone do not make it orange.",
+    example: "",
+    reading:
+      "Red: no sample for 10 s; the target ended or is absent; file descriptors, memory mappings, or address space at 90% or more of the limit; an OOM kill. Orange: a thread uses 90% or more of a core; a thread is only in kernel wait (D); a watched thread stopped waking; the thread count grows near the pids limit; I/O full pressure of 5% or more; memory full pressure of 2% or more; 10 or more major faults/s with memory pressure of 5% or more; CPU quota throttling in 25% or more of periods; dropped connections, socket or UDP receive drops; TCP memory pressure.",
+    limits:
+      "Pressure can be for the cgroup or the host, and some network counters are for the whole host or namespace. A rule with missing data does not run.",
+    related: ["assessment", "watched", "pressure", "health"],
+    source: "Computed in this page from the displayed data",
+    sourceDetail:
+      "The same rules as the Assessment card. Each finding names the value it used.",
   },
   active: {
     title: "Active threads",

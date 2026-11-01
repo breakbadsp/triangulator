@@ -404,7 +404,7 @@ function Assessment({
         <Help topic="assessment" as="div">
           <h3>Assessment</h3>
         </Help>
-        <Help topic="assessment" as="div" className="verdict">
+        <Help topic="verdict" as="div" className="verdict">
           <span
             id="verdict"
             className="badge"
