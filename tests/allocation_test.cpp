@@ -203,7 +203,7 @@ int main()
     sockets[2 * index + 1] = FileDescriptor{pair[1]};
   }
   const int pid = ::getpid();
-  const TargetSelector by_pid = TargetPid{pid};
+  const TargetPid by_pid{pid};
   const TargetSelector by_name = TargetName{"allocation-test"};
   // One cache keeps /proc files open. The other has no descriptor budget, so
   // its threads build their paths and reopen their files every tick.
@@ -216,7 +216,7 @@ int main()
 
   CpuBudget cpu_budget{5, 1};
   const std::array<TargetConfig, 2> selected_targets{
-      {{"self", by_pid}, {"name", by_name}}};
+      {{"self", TargetSelector{by_pid}}, {"name", by_name}}};
   // Discovery with two slots: this process by name, and children that a
   // pattern selects. The second child finds no slot, so it is excluded.
   Config discovery_config;
@@ -287,9 +287,9 @@ int main()
     watch.Reloaded(Nanoseconds{tick} * 2'000'000'000);
     const auto target = FindTarget(by_pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
-    Require(FindTarget(by_name).has_value(), "lookup by name");
     const auto targets = FindTargets(selected_targets);
     Require(targets[0] && *targets[0], "shared target lookup");
+    Require(targets[1].has_value(), "lookup by name");
     for (int sample = 0; sample < 100; ++sample)
     {
       cpu_budget.Add(4ms, 200ms);

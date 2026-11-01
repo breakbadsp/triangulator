@@ -269,8 +269,21 @@ class ResourceProbe
     std::uint64_t open = 0;
     std::uint64_t sockets = 0;
     std::array<char, 64> link{};
-    while (const auto entry = directory.Next())
+    for (;;)
     {
+      const auto next = directory.Next();
+      if (!next)
+      {
+        // A partial count is not sent as complete; the values stay
+        // unavailable and no socket is matched to the target.
+        socket_fds_.clear();
+        return;
+      }
+      if (!*next)
+      {
+        break;
+      }
+      const auto entry = *next;
       const auto fd = ParseNumber<std::uint32_t>(*entry);
       if (!fd)
       {

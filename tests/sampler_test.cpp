@@ -1423,7 +1423,7 @@ std::size_t OpenDescriptors()
 {
   std::size_t count = 0;
   Directory directory{"/proc/self/fd"};
-  while (directory.Next())
+  for (auto entry = directory.Next(); entry && *entry; entry = directory.Next())
   {
     ++count;
   }
@@ -2318,6 +2318,91 @@ void TestExitStatus()
   }
 }
 
+// The descriptor this process has open on p_path, or -1.
+int OpenDescriptorOf(const std::string& p_path)
+{
+  for (const auto& entry : std::filesystem::directory_iterator{"/proc/self/fd"})
+  {
+    std::error_code error;
+    if (std::filesystem::read_symlink(entry.path(), error) == p_path)
+    {
+      return std::stoi(entry.path().filename().string());
+    }
+  }
+  return -1;
+}
+
+// Makes the next getdents64 on p_descriptor fail with ENOTDIR: a pipe
+// takes the place of the open directory.
+void BreakDirectory(int p_descriptor)
+{
+  int pipe_ends[2]{};
+  Require(::pipe(pipe_ends) == 0, "pipe");
+  Require(::dup2(pipe_ends[0], p_descriptor) == p_descriptor, "dup2");
+  ::close(pipe_ends[0]);
+  ::close(pipe_ends[1]);
+}
+
+// A directory read error is not the end of the directory (PR 215, finding 1).
+void TestDirectoryReadErrors()
+{
+  {
+    Directory directory{"/proc"};
+    Require(static_cast<bool>(directory), "open /proc");
+    BreakDirectory(directory.Fd());
+    const auto entry = directory.Next();
+    Require(!entry && entry.error() == ENOTDIR, "a read error is an error");
+  }
+  {
+    // The directory of a process that exits during the scan is gone.
+    Child child{0};
+    Directory directory{std::format("/proc/{}/task", child.Pid()).c_str()};
+    Require(static_cast<bool>(directory), "open the child's task directory");
+    child.End();
+    child.Reap();
+    const auto entry = directory.Next();
+    Require(!entry && entry.error() == ENOENT,
+            "an exited process's directory is ENOENT, not empty");
+  }
+  {
+    Directory directory{"/proc/self/task"};
+    std::size_t count = 0;
+    for (auto entry = directory.Next(); entry && *entry;
+         entry = directory.Next())
+    {
+      ++count;
+    }
+    Require(count >= 3, "a complete scan ends with nullopt");  // ".", ".."
+  }
+  // A discovery pass that fails part way admits nothing and keeps the last
+  // excluded count; the next complete pass admits.
+  char root[] = "/tmp/discovery-error-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "discovery fixture directory");
+  std::ofstream{std::format("{}/{}", root, ::getpid())};
+  // More than one tick of entries, so the pass spans two Scan() calls.
+  for (std::size_t index = 0; index < 2 * kScanEntriesPerTick; ++index)
+  {
+    std::ofstream{std::format("{}/not-a-pid-{}", root, index)};
+  }
+  Config config;
+  config.process_names_ = {"sampler-test"};
+  config.max_targets_ = 4;
+  Discovery discovery{root};
+  discovery.Configure(config);
+  Nanoseconds now{kDiscoveryInterval};
+  const auto first = discovery.Scan(config, now);
+  Require(first && !*first, "the pass is not finished after one tick");
+  BreakDirectory(OpenDescriptorOf(root));
+  const auto failed = discovery.Scan(config, now);
+  Require(failed && !*failed && CountSlots(discovery, SlotState::Running) == 0,
+          "a failed pass admits nothing");
+  Nanoseconds later = now;
+  RunDiscoveryPass(discovery, config, later);
+  Require(FindSlot(discovery, ::getpid()) != nullptr,
+          "the next complete pass admits the match");
+  std::filesystem::remove_all(root);
+}
+
 int main()
 {
   try
@@ -2335,6 +2420,7 @@ int main()
     TestDiscoveryChildren();
     TestDiscoveryChildCapAfterRuleRemoval();
     TestDiscoveryChildSelectedByReload();
+    TestDirectoryReadErrors();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();

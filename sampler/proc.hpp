@@ -20,59 +20,10 @@ struct TargetIdentity
 // target as gone.
 using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
 
-[[nodiscard]] inline TargetLookup FindTarget(const TargetSelector& p_selector)
+[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector)
 {
-  int pid = 0;
+  const int pid = p_selector.value_;
   std::array<char, 4096> buffer{};
-  if (const auto* selected = std::get_if<TargetPid>(&p_selector))
-  {
-    pid = selected->value_;
-  }
-  else
-  {
-    const auto& name = std::get<TargetName>(p_selector).value_;
-    Directory directory{"/proc"};
-    if (!directory)
-    {
-      if (DescriptorsExhausted(errno))
-      {
-        return std::unexpected(errno);
-      }
-      return std::nullopt;
-    }
-    while (const auto entry = directory.Next())
-    {
-      const auto candidate = ParseNumber<int>(*entry);
-      if (!candidate || *candidate <= 0)
-      {
-        continue;
-      }
-      const auto descriptor =
-          OpenReadonly(FixedString{"/proc/{}/comm", *candidate}.CStr());
-      if (!descriptor && DescriptorsExhausted(errno))
-      {
-        return std::unexpected(errno);
-      }
-      auto comm = ReadAtStart(descriptor, buffer);
-      if (!comm)
-      {
-        continue;
-      }
-      if (comm->ends_with('\n'))
-      {
-        comm->remove_suffix(1);
-      }
-      if (*comm != name)
-      {
-        continue;
-      }
-      if (pid != 0)
-      {
-        return std::nullopt;
-      }
-      pid = *candidate;
-    }
-  }
   if (!pid)
   {
     return std::nullopt;
@@ -105,7 +56,8 @@ FindTargets(std::span<const TargetConfig> p_targets)
   {
     if (std::holds_alternative<TargetPid>(p_targets[index].selector_))
     {
-      results[index] = FindTarget(p_targets[index].selector_);
+      results[index] =
+          FindTarget(std::get<TargetPid>(p_targets[index].selector_));
     }
     else
     {
@@ -128,9 +80,15 @@ FindTargets(std::span<const TargetConfig> p_targets)
     const auto entry = directory.Next();
     if (!entry)
     {
+      // An incomplete scan cannot show that a name is absent or unique.
+      lookup_error = entry.error();
       break;
     }
-    const auto pid = ParseNumber<int>(*entry);
+    if (!*entry)
+    {
+      break;
+    }
+    const auto pid = ParseNumber<int>(**entry);
     if (!pid || *pid <= 0)
     {
       continue;
@@ -365,16 +323,31 @@ class ThreadCache
     Directory directory{FixedString{"/proc/{}/task", p_pid}.CStr()};
     if (!directory)
     {
-      // Out of descriptors: keep the cache as it is and try again next tick.
-      if (!DescriptorsExhausted(errno))
+      // The process is gone. Any other failure, such as running out of
+      // descriptors, keeps the cache, and the next tick tries again.
+      if (errno == ENOENT || errno == ESRCH)
       {
         Clear();
       }
       return;
     }
-    while (const auto entry = directory.Next())
+    for (;;)
     {
-      const auto tid = ParseNumber<int>(*entry);
+      const auto entry = directory.Next();
+      if (!entry)
+      {
+        // An incomplete scan does not show which threads ended.
+        if (entry.error() == ENOENT || entry.error() == ESRCH)
+        {
+          Clear();
+        }
+        return;
+      }
+      if (!*entry)
+      {
+        break;
+      }
+      const auto tid = ParseNumber<int>(**entry);
       if (!tid || *tid <= 0)
       {
         continue;

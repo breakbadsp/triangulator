@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <expected>
 #include <format>
 #include <limits>
 #include <optional>
@@ -87,8 +88,10 @@ class Directory
     return fd_.Get();
   }
 
-  // The next entry's name, or nullopt at the end or on a read error.
-  [[nodiscard]] std::optional<std::string_view> Next()
+  // The next entry's name, nullopt at the end, or errno when a read failed.
+  // A failed read is not the end: the entries seen so far are incomplete.
+  // ENOENT means that the directory of an exited process is gone.
+  [[nodiscard]] std::expected<std::optional<std::string_view>, int> Next()
   {
     if (offset_ == length_)
     {
@@ -100,7 +103,11 @@ class Directory
         length = ::syscall(SYS_getdents64, fd_.Get(), buffer_.data(),
                            buffer_.size());
       } while (length < 0 && errno == EINTR);
-      if (length <= 0)
+      if (length < 0)
+      {
+        return std::unexpected(errno);
+      }
+      if (length == 0)
       {
         return std::nullopt;
       }
