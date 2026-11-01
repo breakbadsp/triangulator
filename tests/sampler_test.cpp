@@ -2403,6 +2403,64 @@ void TestDirectoryReadErrors()
   std::filesystem::remove_all(root);
 }
 
+// A stat line with state p_state and start time p_start.
+std::string FakeStat(int p_pid, std::string_view p_name, char p_state,
+                     std::uint64_t p_start)
+{
+  std::string stat = std::format("{} ({}) {}", p_pid, p_name, p_state);
+  for (int field = 4; field <= 52; ++field)
+  {
+    stat += std::format(" {}", field == 22 ? p_start : 0);
+  }
+  return stat + "\n";
+}
+
+// A process whose stat cannot be read is neither gone nor present, so no
+// exit is reported for it (PR 215, finding 3). The fake /proc is a test
+// directory, so this also holds when the tests run as root.
+void TestUncertainIdentity()
+{
+  char root[] = "/tmp/identity-XXXXXX";
+  Require(::mkdtemp(root) != nullptr, "identity fixture directory");
+  const auto write = [&root](int p_pid, const std::string& p_text)
+  {
+    std::filesystem::create_directory(std::format("{}/{}", root, p_pid));
+    std::ofstream{std::format("{}/{}/stat", root, p_pid)} << p_text;
+  };
+  write(10, FakeStat(10, "alive", 'S', 77));
+  write(11, FakeStat(11, "zombie", 'Z', 77));
+  write(12, "12 (cut");
+  write(13, "");
+  std::filesystem::create_directories(std::format("{}/14/stat", root));
+  const auto find = [&root](int p_pid)
+  {
+    return FindTarget(TargetPid{p_pid}, root);
+  };
+  const auto alive = find(10);
+  Require(alive && *alive && (*alive)->starttime_ == 77, "a live process");
+  Require(find(11) && !*find(11), "a zombie is gone");
+  Require(find(99) && !*find(99), "no /proc entry: gone");
+  Require(!find(12) && find(12).error() == EBADMSG,
+          "an unparseable stat is uncertain");
+  Require(!find(13) && find(13).error() == EIO, "an empty stat is uncertain");
+  Require(!find(14) && find(14).error() == EISDIR, "a read error is uncertain");
+  Require(ProcessEnded({.pid_ = 10, .starttime_ = 77}, root) ==
+              std::expected<bool, int>{false},
+          "a live process has not ended");
+  Require(ProcessEnded({.pid_ = 10, .starttime_ = 78}, root) ==
+              std::expected<bool, int>{true},
+          "a reused PID has ended");
+  Require(ProcessEnded({.pid_ = 99, .starttime_ = 1}, root) ==
+              std::expected<bool, int>{true},
+          "a missing process has ended");
+  for (const int pid : {12, 13, 14})
+  {
+    Require(!ProcessEnded({.pid_ = pid, .starttime_ = 77}, root),
+            "an uncertain read reports no exit");
+  }
+  std::filesystem::remove_all(root);
+}
+
 int main()
 {
   try
@@ -2421,6 +2479,7 @@ int main()
     TestDiscoveryChildCapAfterRuleRemoval();
     TestDiscoveryChildSelectedByReload();
     TestDirectoryReadErrors();
+    TestUncertainIdentity();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestWire();

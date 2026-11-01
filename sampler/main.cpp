@@ -198,10 +198,10 @@ class TargetSampler final
         const auto ended = ProcessEnded(*previous_target_);
         if (!ended)
         {
-          // Without descriptors the check cannot be made. Keep the old
-          // target and its last tick, skip this tick as for a failed
-          // lookup, and ask again at the next one, so the report is not
-          // lost.
+          // The stat read could not decide, for example for lack of
+          // descriptors or a permission error. Keep the old target and its
+          // last tick, skip this tick as for a failed lookup, and ask again
+          // at the next one: no exit report for a process that may live.
           logger_.Warn(
               "cannot tell whether PID {} ended: {}; tick skipped, will "
               "check again",

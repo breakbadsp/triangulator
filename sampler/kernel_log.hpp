@@ -524,21 +524,17 @@ class KernelLog
 
 // Whether p_target has ended: its /proc entry is gone, it is a zombie, or
 // the PID now belongs to another process. The error is errno when the check
-// could not be made for lack of file descriptors; the caller must not take
-// that as "still running".
+// could not decide (see FindTarget); the caller must not take that as an
+// answer either way.
 [[nodiscard]] inline std::expected<bool, int> ProcessEnded(
-    const TargetIdentity& p_target)
+    const TargetIdentity& p_target, const char* p_root = "/proc")
 {
-  std::array<char, 4096> buffer{};
-  const auto descriptor =
-      OpenReadonly(FixedString{"/proc/{}/stat", p_target.pid_}.CStr());
-  if (!descriptor && DescriptorsExhausted(errno))
+  const auto found = FindTarget(TargetPid{p_target.pid_}, p_root);
+  if (!found)
   {
-    return std::unexpected(errno);
+    return std::unexpected(found.error());
   }
-  const auto stat = ReadAtStart(descriptor, buffer).and_then(ParseStat);
-  return !stat || stat->state_ == 'Z' || stat->state_ == 'X' ||
-         stat->starttime_ != p_target.starttime_;
+  return !*found || (*found)->starttime_ != p_target.starttime_;
 }
 
 }  // namespace triangulator

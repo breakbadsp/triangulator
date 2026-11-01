@@ -15,28 +15,51 @@ struct TargetIdentity
   bool operator==(const TargetIdentity&) const = default;
 };
 
-// Value: the target, or nullopt when it is absent. Error: errno when the lookup
-// itself failed for lack of file descriptors, so the caller must not treat the
-// target as gone.
+// Value: the target, or nullopt when it is confirmed gone. Error: errno when
+// the read could not decide, such as a permission error, a short or
+// unparseable stat, or no file descriptors left. The caller must then treat
+// the target as neither gone nor present: skip the tick, keep the session.
 using TargetLookup = std::expected<std::optional<TargetIdentity>, int>;
 
-[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector)
+// One stat read. Gone means: no /proc entry (ENOENT, or ESRCH from a process
+// that exited after the open), or a zombie or dead state. p_root is /proc,
+// or a test directory in the same layout.
+[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector,
+                                             const char* p_root = "/proc")
 {
   const int pid = p_selector.value_;
-  std::array<char, 4096> buffer{};
-  if (!pid)
+  if (pid <= 0)
   {
     return std::nullopt;
   }
   const auto descriptor =
-      OpenReadonly(FixedString{"/proc/{}/stat", pid}.CStr());
-  if (!descriptor && DescriptorsExhausted(errno))
+      OpenReadonly(FixedString{"{}/{}/stat", p_root, pid}.CStr());
+  if (!descriptor)
   {
+    if (errno == ENOENT || errno == ESRCH)
+    {
+      return std::nullopt;
+    }
     return std::unexpected(errno);
   }
+  std::array<char, 4096> buffer{};
+  errno = 0;
   const auto contents = ReadAtStart(descriptor, buffer);
-  const auto stat = contents.and_then(ParseStat);
-  if (!stat || stat->state_ == 'Z' || stat->state_ == 'X')
+  if (!contents)
+  {
+    if (errno == ESRCH)
+    {
+      return std::nullopt;
+    }
+    // Empty or longer than the buffer: a stat line is far shorter.
+    return std::unexpected(errno != 0 ? errno : EIO);
+  }
+  const auto stat = ParseStat(*contents);
+  if (!stat)
+  {
+    return std::unexpected(EBADMSG);
+  }
+  if (stat->state_ == 'Z' || stat->state_ == 'X')
   {
     return std::nullopt;
   }
