@@ -95,6 +95,7 @@ def run_case(mode, duration, sampler):
             log.seek(0)
             excluded = 0
             for line in log.read().splitlines():
+                line = re.sub(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z ", "", line)
                 if line.startswith("triangulator: kernel log (/dev/kmsg) not readable (errno "):
                     continue
                 notice = re.fullmatch(r"triangulator: (\d+) matching processes are not monitored: all 8 slots of max_targets are in use", line)
