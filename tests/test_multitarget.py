@@ -100,7 +100,7 @@ class CollectorCase(unittest.TestCase):
             try:
                 if condition():
                     return
-            except (OSError, KeyError):
+            except (OSError, KeyError, sqlite3.Error):
                 pass
             self.assertIsNone(self.process.poll(), "collector exited")
             time.sleep(0.03)
