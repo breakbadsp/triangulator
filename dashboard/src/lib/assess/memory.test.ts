@@ -1,7 +1,7 @@
 import { assert, test } from "vitest";
 import type { MemoryLayout } from "../../api/types";
 import { assessMemory, memoryRegions, rssTrend } from "./memory";
-import { memorySummary, rssHistory, NOW } from "../test-fixtures";
+import { memorySummary, resources, rssHistory, NOW } from "../test-fixtures";
 const GROWS = "Resident memory grows without a plateau";
 const trendOf = (input: ReturnType<typeof rssHistory>) =>
   rssTrend(input.view, input.points, input.now);
@@ -13,6 +13,22 @@ const growthFindings = (input: ReturnType<typeof rssHistory>) =>
     null,
     trendOf(input),
   ).map((item) => item.title);
+
+test("swap use without major faults or memory pressure is info, not a warning", () => {
+  const findings = assessMemory(
+    memorySummary({}),
+    [],
+    resources({ memory: { rss: 900e6, swap: 200e6 } }),
+    0,
+  );
+  assert.deepEqual(
+    findings.map((item) => `${item.level}: ${item.title}`),
+    [
+      "info: Part of the process is swapped out",
+      "good: Nothing unusual in the memory map",
+    ],
+  );
+});
 
 test("memory findings flag mapping limits, deleted libraries and the main stack", () => {
   const summary = memorySummary({
