@@ -257,6 +257,27 @@ test("resource charts and range counts keep only the displayed PID", () => {
   expect(paths()).toEqual(before);
 });
 
+test("pressure history connects nearby readings across an unavailable sample", () => {
+  const rows = [1, null, 3, null, 5, null, null, null, 9].map(
+    (pressure, index) => ({
+      ts: 100 + index * 5,
+      pid: 7,
+      elapsed_s: 5,
+      rss_bytes: 1000,
+      cgroup_cpu_some_pct: pressure,
+    }),
+  );
+  const { container } = render(
+    show(view(sample()), { points: asResourcePoints(rows) }),
+  );
+  const chart = container.querySelector("#chart-pressure");
+  const lines = chart?.querySelectorAll("polyline");
+  expect(lines).toHaveLength(1);
+  expect(lines?.[0]?.getAttribute("points")?.split(" ")).toHaveLength(3);
+  // The longer gap stays visible, and the last reading remains a dot.
+  expect(chart?.querySelectorAll("circle")).toHaveLength(1);
+});
+
 test("every visible resource label has a registered help topic", () => {
   render(
     show(

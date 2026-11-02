@@ -28,6 +28,8 @@ export function medianStep(points: readonly { t: number }[]) {
   steps.sort((a, b) => a - b);
   return steps[Math.floor(steps.length / 2)] || 1;
 }
+export const gapLimit = (points: readonly { t: number }[]) =>
+  medianStep(points) * 3.5;
 /**
  * Runs of points to draw as one line or band. A gap of more than 3.5 median
  * steps, or a point with no known value, ends a run.
@@ -36,7 +38,7 @@ export function segments<T extends { t: number }>(
   points: readonly T[],
   unknown: (point: T) => boolean,
 ): T[][] {
-  const gap = medianStep(points) * 3.5;
+  const gap = gapLimit(points);
   const result: T[][] = [];
   let current: T[] = [];
   points.forEach((point, index) => {

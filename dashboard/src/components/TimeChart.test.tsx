@@ -40,6 +40,23 @@ const readings = () =>
     (row) => row.textContent,
   );
 
+test("a missing value still breaks other chart lines", () => {
+  const { container } = render(
+    <TimeChart
+      id="gap-test"
+      topic="load"
+      points={[
+        { t: 0, value: 1 },
+        { t: 5, value: null },
+        { t: 10, value: 2 },
+      ]}
+      series={[{ label: "Load", color: "red", get: (point) => point.value }]}
+    />,
+  );
+  expect(container.querySelectorAll("polyline")).toHaveLength(0);
+  expect(container.querySelectorAll("circle")).toHaveLength(2);
+});
+
 test("the chart readout follows the pointer to each sample", () => {
   const hit = chart();
   fireEvent.pointerMove(hit, { clientX: 60, clientY: 40 });
