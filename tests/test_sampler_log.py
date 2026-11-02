@@ -85,10 +85,14 @@ class SamplerLogTests(unittest.TestCase):
         self.directory.cleanup()
 
     def start_target(self):
-        """A process with its own name, so that only this test selects it."""
+        """A process with its own name, so that only this test selects it.
+
+        A symbolic link sets the task name (comm), but /proc/PID/exe names the
+        linked program, as for a multi-call binary such as coreutils.
+        """
         program = Path(self.directory.name) / "logtarget"
-        if not program.exists():
-            shutil.copy(shutil.which("sleep"), program)
+        if not program.is_symlink():
+            program.symlink_to(shutil.which("sleep"))
         target = subprocess.Popen([str(program), "60"])
         self.targets.append(target)
         return target
@@ -135,6 +139,8 @@ class SamplerLogTests(unittest.TestCase):
         self.start_target()
         self.start_log(setting)
         self.log.wait_for(rf"^{TIME} triangulator: target \S+: monitoring PID {self.targets[-1].pid} \(logtarget\)$")
+        # The log names the task, not the program file.
+        self.assertNotEqual(Path(os.readlink(f"/proc/{self.targets[-1].pid}/exe")).name, "logtarget")
         restarts = 2
         for number in range(1, restarts + 1):
             ended = self.targets[-1]

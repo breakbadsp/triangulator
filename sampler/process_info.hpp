@@ -173,20 +173,24 @@ struct ExePath
   return boot_wall_ns + since_boot_ns;
 }
 
-// The name for a log line: the base name of the program file, or when the
-// file is hidden, of the first word of the command line, or "?". Characters
-// that are not printable become '?', so a process cannot forge a log line.
+// The name for a log line: p_comm, the kernel task name that
+// process_names and target_process match. A multi-call binary (coreutils,
+// busybox) or an interpreter makes the program file name differ from it.
+// When p_comm is empty: the base name of the program file, or when the file
+// is hidden, of the first word of the command line, or "?". Characters that
+// are not printable become '?', so a process cannot forge a log line.
 inline constexpr std::size_t kLogNameSize = 48;
 
 [[nodiscard]] inline std::array<char, kLogNameSize> LogName(
-    const process_wire::Packet& p_packet)
+    std::string_view p_comm, const process_wire::Packet& p_packet)
 {
   const auto base_name = [](std::string_view p_path)
   {
     return p_path.substr(p_path.rfind('/') + 1);
   };
-  std::string_view name;
-  if (!process_wire::HasFlag(p_packet.flags_, process_wire::Flags::ExeHidden))
+  std::string_view name = p_comm;
+  if (name.empty() &&
+      !process_wire::HasFlag(p_packet.flags_, process_wire::Flags::ExeHidden))
   {
     name = base_name(process_wire::Text(p_packet.exe_));
   }

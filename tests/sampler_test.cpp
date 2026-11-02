@@ -1127,8 +1127,8 @@ void TestBurstLimiter()
 
 void TestLogName()
 {
-  const auto name =
-      [](std::string_view p_exe, std::string_view p_command, bool p_hidden)
+  const auto name = [](std::string_view p_comm, std::string_view p_exe,
+                       std::string_view p_command, bool p_hidden)
   {
     process_wire::Packet packet;
     process_wire::CopyEnd(packet.exe_, p_exe);
@@ -1137,16 +1137,21 @@ void TestLogName()
     {
       packet.flags_ = process_wire::Flags::ExeHidden;
     }
-    return std::string{process_wire::Text(LogName(packet))};
+    return std::string{process_wire::Text(LogName(p_comm, packet))};
   };
-  Require(name("/usr/bin/python3", "python3 app.py", false) == "python3",
-          "the base name of the program file");
-  Require(name("/usr/bin/python3", "other", true) == "other",
+  Require(name("logtarget", "/usr/bin/coreutils", "logtarget 60", false) ==
+              "logtarget",
+          "the task name, not the name of a multi-call program file");
+  Require(name("", "/usr/bin/python3", "python3 app.py", false) == "python3",
+          "no task name gives the base name of the program file");
+  Require(name("", "/usr/bin/python3", "other", true) == "other",
           "a hidden program file gives the command name");
-  Require(name("", "/opt/app/server --port 1", true) == "server",
+  Require(name("", "", "/opt/app/server --port 1", true) == "server",
           "the command name is the base name of the first word");
-  Require(name("", "", true) == "?", "no name gives a question mark");
-  Require(name("/bin/a\nb", "", false) == "a?b",
+  Require(name("", "", "", true) == "?", "no name gives a question mark");
+  Require(name("a\nb", "", "", false) == "a?b",
+          "a control character in the task name cannot start a new log line");
+  Require(name("", "/bin/a\nb", "", false) == "a?b",
           "a control character cannot start a new log line");
 }
 

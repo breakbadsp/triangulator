@@ -1,5 +1,6 @@
 #include <sys/random.h>
 
+#include <algorithm>
 #include <cassert>
 #include <csignal>
 #include <cstring>
@@ -367,8 +368,9 @@ class TargetSampler final
     if (!monitoring_logged_)
     {
       monitoring_logged_ = true;
-      lifecycle_.Log("target {}: monitoring PID {} ({})", target_.id_,
-                     p_target.pid_, process_wire::Text(LogName(process_info_)));
+      lifecycle_.Log(
+          "target {}: monitoring PID {} ({})", target_.id_, p_target.pid_,
+          process_wire::Text(LogName(MainThreadName(p_target), process_info_)));
     }
     process_info_.session_ = session_;
     process_info_.monotonic_ns_ =
@@ -378,6 +380,24 @@ class TargetSampler final
     SendPart(process_wire::Encode(process_info_), "process info");
     next_process_info_ =
         NextDeadline(next_process_info_, p_monotonic, kProcessInfoInterval);
+  }
+
+  // The process name from this tick's main-thread record, so the log needs
+  // no extra /proc read. Empty when the main thread was not sampled.
+  [[nodiscard]] std::string_view MainThreadName(
+      const TargetIdentity& p_target) const
+  {
+    const auto records = std::span{records_}.first(record_count_);
+    const auto main_thread =
+        std::ranges::find(records, static_cast<std::uint32_t>(p_target.pid_),
+                          &wire::Record::tid_);
+    if (main_thread == records.end())
+    {
+      return {};
+    }
+    const auto& comm = main_thread->comm_;
+    return {comm.data(), static_cast<std::size_t>(
+                             std::ranges::find(comm, '\0') - comm.begin())};
   }
 
   // Time between memory-map samples, as for ResourceInterval().
