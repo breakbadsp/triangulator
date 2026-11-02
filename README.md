@@ -67,7 +67,7 @@ target selector on a process page changes only the current tab.
 
 | Default | Value |
 | --- | --- |
-| Sampling | Threads: up to 5 Hz · CPU budget: 1% of one core · Resources: 2 s · Memory: 30 s |
+| Sampling | Threads: up to 5 Hz · CPU budget: 10% of one core · Resources: 2 s · Memory: 30 s |
 | History | Recordings: 1 s · Retention: 7 days · Raw samples: enabled |
 | Runtime files | `~/triangulator/` |
 

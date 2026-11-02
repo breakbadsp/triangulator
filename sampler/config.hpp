@@ -31,7 +31,7 @@ struct Config
   // Preallocated discovery slots. Each one costs about 0.5 MB of memory.
   std::size_t max_targets_ = 8;
   double rate_hz_ = 5.0;
-  double cpu_budget_pct_ = 1.0;
+  double cpu_budget_pct_ = 10.0;
   std::string collector_;
   bool status_fallback_ = false;
   // Seconds between resource samples (pressure, descriptors, sockets); 0

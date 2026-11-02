@@ -6,7 +6,7 @@
 - Keep selection in each browser tab. The collector has no shared current target.
 - Open the dashboard on a Targets overview: one tile per target with the Assessment verdict of its latest live view, worst first. Use local testing controls there. See [REQ-0024](#req-0024-local-configuration-and-discovery). Tiles run the same rules in the browser; the thread churn rule and the memory-map layout rules need history kept in a tab, so they do not run on tiles.
 - Preserve single-target configuration and stored history during upgrades.
-- The owner approved automatic throttling on 2026-10-20, with a default budget of 1% of one CPU core. This is the approved exception to raw-counter-only sampling.
+- The owner approved automatic throttling on 2026-10-20, with a default budget of 1% of one CPU core. The owner raised the default to 10% in #225, because 1% throttled 13 real targets to about 1.6 Hz. This is the approved exception to raw-counter-only sampling.
 - Open: decide whether limited access to other users' targets is sufficient.
 - Track unresolved budget and blocking-read choices in [requirements](requirements.md) (REQ-0009 to REQ-0012).
 - Configuration and behavior: [sampler README](../sampler/README.md#multiple-targets), [collector README](../collector/README.md#per-target-settings).

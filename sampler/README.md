@@ -94,7 +94,7 @@ collector first. Older collectors count TTGT as an invalid packet.
 
 ## CPU budget
 
-`cpu_budget_pct` defaults to `1.0`, or 1% of one CPU core. The allowed range is
+`cpu_budget_pct` defaults to `10.0`, or 10% of one CPU core. The allowed range is
 0.01..100. The sampler measures `CLOCK_THREAD_CPUTIME_ID` for all targets in
 one fixed window of about five seconds. When use exceeds the budget, it lowers
 the effective rate. It never goes below 0.2 Hz. At the minimum rate, the CPU

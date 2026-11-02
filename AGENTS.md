@@ -48,7 +48,7 @@ needs the owner's explicit approval first.
 - Do the interpretation on the collector. The sampler reads raw counters and
   sends them. It computes no rates, rules, or alerts. The approved
   exception is the overhead throttle on the sampler's own CPU use. Its
-  default budget is 1% of one CPU core.
+  default budget is 10% of one CPU core.
 - Bound the cost of each tick. Share work across targets, such as one `/proc`
   scan per tick, and spread heavy scans (resources, memory maps) so that one
   tick runs at most one of them.

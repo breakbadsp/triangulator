@@ -968,8 +968,8 @@ void TestCpuBudget()
             "invalid CPU budget is rejected");
   }
   Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"a\"]")
-                  ->cpu_budget_pct_ == 1,
-          "default CPU budget is one percent");
+                  ->cpu_budget_pct_ == 10,
+          "default CPU budget is ten percent");
 }
 
 void TestWire()
