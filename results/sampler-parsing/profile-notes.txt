@@ -1,0 +1,10 @@
+Sampler profile, 2026-11-02
+
+Run from the repository root:
+PYTHONPATH=tests python3 results/sampler-parsing/profile-run.py --before /tmp/tri-sampler-parsing-baseline/build/triangulator-sampler --after build/triangulator-sampler --output results/sampler-parsing/profile-measurements.json --duration 30 --warmup 5 --repeats 2
+
+The existing benchmark starts 16 processes with 50 threads each. One thread per process is busy. The others sleep. Targets use CPU 0, the receiver uses CPU 1, and the sampler uses CPU 2. Each binary ran twice, in before, after, after, before order. No CPU is isolated. The host has other activity. Each trial records at 999 Hz with perf record -e cycles:u attached to the sampler. perf.data and perf logs are in build/profile-*.data and build/profile-*.data.log. Text reports use perf report --stdio --no-children --sort comm,dso,symbol --percent-limit 0.3. Reports show self sample weights, not elapsed time or call graphs. Inlining and different symbol boundaries prevent a direct comparison of individual function shares.
+
+All four trials received 150 complete samples per target. The driver checked chunk completeness, exact thread IDs, sequence continuity, target session, rate, and sampler warnings. It recorded monotonic and /proc/PID/schedstat execution-time snapshots in nanoseconds. Execution time includes user and kernel time. Profiler setup and teardown fall inside that window. Before CPU was 3.761% and 3.779%; after CPU was 3.741% and 3.800% of one core. Two trials do not establish a whole-sampler difference.
+
+perf_event_paranoid was 2. User-space cycles were available; the profile does not measure kernel execution or blocking time. perf reports zero lost samples. Some samples have unknown kernel addresses despite the user-space event filter, so symbol attribution is not complete. No call chains were recorded. The workload uses mostly sleeping threads, and these results do not cover a fully busy application, a remote network, or the collector.

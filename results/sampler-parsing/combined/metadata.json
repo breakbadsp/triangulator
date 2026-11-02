@@ -1,0 +1,8 @@
+{
+  "base_revision": "e14254606ffaeffc5aff26cb43640e366b5484be",
+  "compiler": "c++",
+  "flags": "-O2 -flto=auto -Wall -Wextra -Werror -Wconversion -Wshadow -std=c++23",
+  "cpu": 3,
+  "runs": 15,
+  "warmup": 3
+}

@@ -1,0 +1,75 @@
+{
+  "results": [
+    {
+      "cpu_percent": 3.728008415585213,
+      "samples_per_target_min": 60,
+      "samples_per_target_max": 60,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 28.300548,
+      "label": "before",
+      "repeat": 1
+    },
+    {
+      "cpu_percent": 3.8182762292613655,
+      "samples_per_target_min": 60,
+      "samples_per_target_max": 60,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 35.95003,
+      "label": "after",
+      "repeat": 1
+    },
+    {
+      "cpu_percent": 3.738666137411222,
+      "samples_per_target_min": 60,
+      "samples_per_target_max": 60,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 17.110039,
+      "label": "after",
+      "repeat": 2
+    },
+    {
+      "cpu_percent": 3.7870245155957365,
+      "samples_per_target_min": 60,
+      "samples_per_target_max": 60,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 3.981018,
+      "label": "before",
+      "repeat": 2
+    },
+    {
+      "cpu_percent": 3.7382856422770825,
+      "samples_per_target_min": 60,
+      "samples_per_target_max": 60,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 18.673047,
+      "label": "before",
+      "repeat": 3
+    },
+    {
+      "cpu_percent": 4.003536923221168,
+      "samples_per_target_min": 59,
+      "samples_per_target_max": 59,
+      "target_count": 16,
+      "threads_per_target": 50,
+      "max_receive_loop_lag_ms": 275.836887,
+      "label": "after",
+      "repeat": 3
+    }
+  ],
+  "duration_s": 12.0,
+  "warmup_s": 5.0,
+  "cpu_assignment": {
+    "target": 0,
+    "receiver": 1,
+    "sampler": 2
+  },
+  "sha256": {
+    "before": "c01929cb117d500dc22585bb689871e1aa48d670e032a030d18ede8d468ea4c2",
+    "after": "07afcb1505f4bab2d166eaabaad353255221910b98b58668f3361b2114400d24"
+  }
+}

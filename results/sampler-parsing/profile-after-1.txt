@@ -1,0 +1,37 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cycles:u'
+# Event count (approx.): 485794502
+#
+# Overhead  Command          Shared Object         Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       IPC   [IPC Coverage]
+# ........  ...............  ....................  ...........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................  ....................
+#
+    44.60%  triangulator-sa  triangulator-sampler  [.] triangulator::ParseStat(std::basic_string_view<char, std::char_traits<char> >)
+    11.35%  triangulator-sa  triangulator-sampler  [.] __memset_avx2_unaligned_erms
+     6.56%  triangulator-sa  triangulator-sampler  [.] triangulator::Thread::TakeSample(int, bool, triangulator::RateLimitedLogger&)
+     6.36%  triangulator-sa  triangulator-sampler  [.] std::optional<unsigned long> triangulator::ParseNumber<unsigned long>(std::basic_string_view<char, std::char_traits<char> >)
+     3.54%  triangulator-sa  triangulator-sampler  [.] triangulator::ThreadCache::Rescan(int, triangulator::RateLimitedLogger&)
+     2.84%  triangulator-sa  triangulator-sampler  [.] std::optional<int> triangulator::ParseNumber<int>(std::basic_string_view<char, std::char_traits<char> >)
+     2.42%  triangulator-sa  [unknown]             [k] 0xffffffff9b000080
+     2.24%  triangulator-sa  triangulator-sampler  [.] triangulator::(anonymous namespace)::TargetSampler::SampleTick(std::optional<triangulator::TargetIdentity> const&, std::chrono::duration<long, std::ratio<1l, 1000000000l> >)
+     2.22%  triangulator-sa  triangulator-sampler  [.] __libc_pread64
+     2.12%  triangulator-sa  triangulator-sampler  [.] triangulator::Thread::ReadFile(triangulator::FileDescriptor&, int, std::basic_string_view<char, std::char_traits<char> >, std::span<char, 18446744073709551615ul>) const [clone .constprop.0]
+     1.91%  triangulator-sa  triangulator-sampler  [.] __memchr_avx2
+     1.90%  triangulator-sa  triangulator-sampler  [.] void triangulator::ForEachLine<triangulator::FindTableCounter(std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >)::{lambda(std::basic_string_view<char, std::char_traits<char> >)#1}>(std::basic_string_view<char, std::char_traits<char> >, triangulator::FindTableCounter(std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >, std::basic_string_view<char, std::char_traits<char> >)::{lambda(std::basic_string_view<char, std::char_traits<char> >)#1}&&)
+     1.72%  triangulator-sa  triangulator-sampler  [.] std::basic_string_view<char, std::char_traits<char> >::substr(unsigned long, unsigned long) const [clone .constprop.0] [clone .isra.0]
+     1.58%  triangulator-sa  triangulator-sampler  [.] triangulator::ParseSchedstat(std::basic_string_view<char, std::char_traits<char> >)::{lambda()#1}::operator()() const
+     1.37%  triangulator-sa  triangulator-sampler  [.] __memmove_avx_unaligned_erms
+     0.97%  triangulator-sa  triangulator-sampler  [.] triangulator::Trim(std::basic_string_view<char, std::char_traits<char> >)
+     0.73%  triangulator-sa  triangulator-sampler  [.] triangulator::Discovery::Examine(triangulator::Config const&, int)
+     0.62%  triangulator-sa  triangulator-sampler  [.] triangulator::ResourceProbe::ReadNamespaceCounters(int, triangulator::ResourceSample&)
+     0.53%  triangulator-sa  triangulator-sampler  [.] SamplerMain(int, char**)
+     0.45%  triangulator-sa  triangulator-sampler  [.] std::__format::_Sink_iter<char> std::__format::__do_vformat_to<char, 1u>(std::__format::_Sink_iter<char>, std::basic_string_view<char, std::char_traits<char> >, std::basic_format_context<std::__format::_Sink_iter<char>, char>&)
+     0.35%  triangulator-sa  triangulator-sampler  [.] __memcmp_avx2_movbe
+
+
+#
+# (Tip: For tracepoint events, try: perf report -s trace_fields)
+#
