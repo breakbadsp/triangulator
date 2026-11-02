@@ -236,6 +236,9 @@ make benchmark-sampler-matrix  # About 22 minutes; writes build/sampler-benchmar
 [Benchmark driver](tests/benchmark_sampler.py) ·
 [Native thread workload](tests/benchmark_target.cpp)
 
+For continuous full-path thread-record capacity with the CPU budget disabled,
+see [Sampler capacity benchmark](docs/sampler-capacity.md).
+
 ### Thread sampling throughput and latency
 
 Measured directly on the same host on 2026-10-12. Each target has one busy
