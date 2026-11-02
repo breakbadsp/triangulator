@@ -17,6 +17,7 @@
 | QA-136 | NOT_RUN | - | - | - |
 | QA-137 | NOT_RUN | - | - | - |
 | QA-138 | NOT_RUN | - | - | - |
+| QA-139 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -830,3 +831,10 @@
 - Test: At 1440x900, measure the complete process header, including section tabs, against the previous version. Repeat at widths 768px and 375px with one target, multiple targets, a recorded view, and all warnings. Use Tab and arrow keys to select a target and theme. Use Enter on All targets, Back to live, and each header help button. Scroll the section tabs at 375px. Open the fleet page and compare its controls with the previous version.
 - Expected: The process header is shorter at 1440x900. Controls and warnings remain readable. The page has no horizontal overflow or overlapping controls. Section tabs scroll within their own row. Target selection and All targets navigate correctly. Theme and Back to live work. Help stays available. Fleet behavior stays the same.
 - Local layout check: Run `node scripts/verify-process-header.mjs <baseline-ref>` after `npm ci --prefix dashboard`, with Chromium installed. This uses the real header components with fixture data. It does not replace this package case.
+
+## QA-139: Stretched resource interval
+
+- Status: NOT_RUN
+- Driver: scripted
+- Test: Run the sampler with `rate_hz = 1`, `resource_interval_s = 1`, and discovery of 4 owned targets. Open the Resources section of one target and wait 20 seconds. Then run 1 target with `rate_hz = 5` and `resource_interval_s = 2`. Open help on the sample line.
+- Expected: With 4 targets the sample line reads "every 4.0 s (configured 1 s)", or "every 5.0 s" after a memory-map turn. With 1 target it reads "every 2 s" and shows no configured value. The Data coverage help explains the measured interval and why it can be longer.
