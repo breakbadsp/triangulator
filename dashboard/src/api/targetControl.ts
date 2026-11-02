@@ -1,54 +1,17 @@
 import { getJson } from "./client";
 
-export type ManagedTarget = { id: string; target: string };
-/** "tables": [[target]] tables with IDs. "names": discovery lists. */
-export type ControlMode = "tables" | "names";
 export type TargetControl =
   | { enabled: false; reason: string }
-  | {
-      enabled: true;
-      host: string;
-      mode: ControlMode;
-      targets: ManagedTarget[] | null;
-      error: string;
-    };
+  | { enabled: true; host: string; error: string };
+/** Add and Remove edit the exact names in process_names. */
 export type TargetChange =
-  | ({ action: "add" } & ManagedTarget)
   | { action: "add"; target: string }
-  | { action: "remove"; key: string; id: string; target: string }
-  /** A discovered target: Remove deletes its exact name from process_names. */
   | { action: "remove"; key: string; id: string; rule: string };
-export type ProcessCandidate = {
-  pid: number;
-  user: string;
-  started_at: number | null;
-  command: string;
-};
 export type TargetWrite =
   | { kind: "done"; message: string }
-  | {
-      kind: "failed";
-      message: string;
-      applied: boolean;
-      candidates: ProcessCandidate[];
-      total: number;
-    };
+  | { kind: "failed"; message: string; applied: boolean };
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
-const managed = (value: unknown): value is ManagedTarget =>
-  record(value) &&
-  typeof value.id === "string" &&
-  typeof value.target === "string";
-const candidate = (value: unknown): value is ProcessCandidate =>
-  record(value) &&
-  typeof value.pid === "number" &&
-  Number.isSafeInteger(value.pid) &&
-  value.pid > 0 &&
-  typeof value.user === "string" &&
-  typeof value.command === "string" &&
-  (value.started_at === null ||
-    (typeof value.started_at === "number" &&
-      Number.isFinite(value.started_at)));
 
 export function parseTargetControl(value: unknown): TargetControl {
   if (!record(value) || value.enabled !== true)
@@ -60,11 +23,6 @@ export function parseTargetControl(value: unknown): TargetControl {
   return {
     enabled: true,
     host: typeof value.host === "string" ? value.host : "",
-    mode: value.mode === "names" ? "names" : "tables",
-    targets:
-      Array.isArray(value.targets) && value.targets.every(managed)
-        ? value.targets
-        : null,
     error: typeof value.error === "string" ? value.error : "",
   };
 }
@@ -87,8 +45,6 @@ export async function changeTargets(
     kind: "failed",
     message,
     applied: false,
-    candidates: [],
-    total: 0,
   });
   try {
     const response = await fetch("/api/targets", {
@@ -108,10 +64,7 @@ export async function changeTargets(
       return failed(
         `Unable to change targets (HTTP ${String(response.status)})`,
       );
-    if (!response.ok || typeof body.error === "string") {
-      const candidates: ProcessCandidate[] = Array.isArray(body.candidates)
-        ? body.candidates.filter(candidate)
-        : [];
+    if (!response.ok || typeof body.error === "string")
       return {
         kind: "failed",
         message:
@@ -119,15 +72,7 @@ export async function changeTargets(
             ? body.error
             : `Unable to change targets (HTTP ${String(response.status)})`,
         applied: body.applied === true,
-        candidates,
-        total:
-          typeof body.total === "number" &&
-          Number.isSafeInteger(body.total) &&
-          body.total >= candidates.length
-            ? body.total
-            : candidates.length,
       };
-    }
     return {
       kind: "done",
       message:

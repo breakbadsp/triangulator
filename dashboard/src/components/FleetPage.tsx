@@ -116,15 +116,11 @@ function TileRemove({
   // A blocked Remove explains itself only after a click, not on every tile.
   const [explained, setExplained] = useState(false);
   if (!control.enabled || !tile.local) return null;
-  const managed = control.targets?.find((entry) => entry.id === tile.id);
   const discovered = tile.discovered;
-  if (!discovered && (control.mode !== "tables" || !managed)) return null;
-  const blocked = discovered
-    ? discovered.otherRule || !discovered.rule
+  if (!discovered) return null;
+  const blocked =
+    discovered.otherRule || !discovered.rule
       ? "Another rule selects this process (a process pattern, another name after a rename, or the rule that selects its parent), so Remove would not stop it. Edit sampler.toml on the host."
-      : ""
-    : (control.targets?.length ?? 0) <= 1
-      ? "Keep at least one target."
       : "";
   return (
     <Help
@@ -140,15 +136,13 @@ function TileRemove({
         disabled={editor.busy}
         onClick={() => {
           if (blocked) setExplained(true);
-          else if (discovered?.rule)
+          else if (discovered.rule)
             void editor.change({
               action: "remove",
               key: tile.key,
               id: tile.id,
               rule: discovered.rule,
             });
-          else if (managed)
-            void editor.change({ action: "remove", key: tile.key, ...managed });
         }}
       >
         Remove
@@ -477,7 +471,6 @@ export function FleetPage() {
           key={editor.form.generation}
           editor={editor}
           enabled={control.enabled}
-          names={control.enabled && control.mode === "names"}
         />
       )}
     </HelpGuideProvider>

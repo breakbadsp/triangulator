@@ -217,13 +217,13 @@ class DashboardConcurrencyTests(unittest.TestCase):
         self.stop()
         self.config.write_text(self.config.read_text() + 'http_host="0.0.0.0"\n')
         self.start()
-        request = b"GET /api/target HTTP/1.0\r\n" + forwarded.replace(b"{}", b"10.1.2.3") + b"\r\n"
+        request = b"GET /api/targets/control HTTP/1.0\r\n" + forwarded.replace(b"{}", b"10.1.2.3") + b"\r\n"
         status, data = self.raw(request)
         self.assertEqual(status, 200)
         self.assertNotIn("Target changes from other hosts are off", data.get("error", ""))
         if local is None or local.startswith("127."):
             self.skipTest("no non-loopback address on this host")
-        request = b"GET /api/target HTTP/1.0\r\n" + forwarded.replace(b"{}", b"127.0.0.1") + b"\r\n"
+        request = b"GET /api/targets/control HTTP/1.0\r\n" + forwarded.replace(b"{}", b"127.0.0.1") + b"\r\n"
         status, data = self.raw(request, local)
         self.assertEqual((status, data["enabled"]), (200, False))
         self.assertIn("Target changes from other hosts are off", data["error"])

@@ -132,23 +132,6 @@ const topics = {
     sourceDetail:
       "This tab saves the final view, compatible memory layout, and matching exit in target-scoped session storage. Later resource reads end at the stopped time; layout refresh stops.",
   },
-  "target-pid": {
-    title: "Matching processes",
-    scope: "Add target · processes with the entered name",
-    meaning:
-      "When the process name matches more than one running process, the sampler cannot tell which one to monitor. This list shows each one with its PID, user, start time, and command line.",
-    example:
-      "Two processes named worker: PID 4100 · app · started 3 h ago · worker --queue orders, and PID 4377 · app · started 2 min ago · worker --queue billing. Select the first to monitor the orders worker.",
-    reading:
-      "A choice fills in its PID. Then select Add target. To monitor by name instead, stop the extra processes, or give them different names.",
-    limits:
-      "A PID does not follow a restart: after the process restarts, the target is absent until you add the new PID. The list shows at most 20 processes, and it says when more match.",
-    related: ["manage-targets", "target-id"],
-    source:
-      "Local control helper: `/proc/PID/comm`, `cmdline`, `stat`, and the owner of `/proc/PID`",
-    sourceDetail:
-      "The helper finds every process whose name equals the entered name, as the sampler does, and returns each PID with its user, start time (`/proc/PID/stat` field 22 and `btime`), and command line.",
-  },
   "fleet-waiting": {
     title: "Waiting for a process",
     scope: "Configured exact name",
@@ -189,7 +172,7 @@ const topics = {
     reading:
       "Each change needs confirmation and persists in the local configuration. Remove deletes the exact-name rule and stops every instance of that name. A process that a pattern selects, that was renamed after it was admitted, or that is a child target of a selected process cannot be removed here; edit sampler.toml on its host.",
     limits:
-      "Remote samplers cannot be changed here. A non-loopback browser client also needs network_target_control = true on the collector. This testing option is off by default and has no authentication. Legacy target tables require at least one target.",
+      "Remote samplers cannot be changed here. A non-loopback browser client also needs network_target_control = true on the collector. This testing option is off by default and has no authentication. The sampler needs at least one process name or pattern, so Remove of the last one is refused. A PID cannot be added: select a process by its name.",
     related: ["target-id", "target-switch", "fleet-capacity"],
     source: "Local control helper, kernel packet source, and sampler.toml",
     sourceDetail:
@@ -197,17 +180,19 @@ const topics = {
   },
   "target-id": {
     title: "Target ID",
-    scope: "Sampler configuration",
-    meaning: "A stable name for one monitored target.",
-    example: "orders remains the same ID when orders-api restarts.",
+    scope: "One discovered process",
+    meaning:
+      "The name of one monitored process on its host. The sampler makes it from the process name.",
+    example:
+      "The first orders-api process is orders-api; a second one at the same time is orders-api.2.",
     reading:
-      "Use 1 to 31 letters, digits, dots, underscores, or hyphens. Each ID must be unique on its host.",
+      "The ID stays the same while the process runs. A collector [[target]] setting for one target uses this ID.",
     limits:
-      "An ID is not a process selector. Set a process name or PID as well.",
+      "An ID cannot be chosen. A restarted process can get a different suffix when other instances still run.",
     related: ["manage-targets", "target-switch"],
-    source: "`[[target]] id` in sampler.toml",
+    source: "Sampler discovery: the sanitized `/proc/PID/comm` name",
     sourceDetail:
-      "The sampler sends this stable ID in TTGT. A target key combines the sampler host name and this ID.",
+      "The sampler sends this ID in TTGT. A target key combines the sampler host name and this ID.",
   },
   "fleet-filter": {
     title: "Find targets",
@@ -263,20 +248,21 @@ const topics = {
   },
 
   target: {
-    title: "Process name or PID",
+    title: "Process name",
     scope: "Target selection",
     meaning:
-      "An exact process name follows matching process restarts. A PID selects one running process.",
-    example: "worker-service selects an exact name; 1234 selects a process ID.",
+      "The sampler monitors every process whose Linux name is in process_names or matches process_patterns. A name follows process restarts.",
+    example:
+      'process_names = ["worker-service"] monitors each worker-service process.',
     reading:
-      "A name with no running match is accepted and waits for the process. An ambiguous name is rejected. Changes apply without a sampler restart.",
+      "A name with no running match waits for the process. Each matching process gets its own target. Changes apply without a sampler restart.",
     limits:
-      "Linux process names are limited to 15 bytes. A thread ID is not a process ID.",
+      "Linux process names are limited to 15 bytes. The sampler cannot select a process by PID.",
     related: ["session", "health"],
     source:
-      "Sampler `[[target]]` tables or legacy `target_process` and `target_pid`; names match `/proc/PID/comm`",
+      "Sampler `process_names` and `process_patterns`; names match `/proc/PID/comm`",
     sourceDetail:
-      "Manage targets and `scripts/set-target.sh` write the configuration and ask the sampler to reload. For a name, the sampler compares it with `/proc/PID/comm` of every process. Check it yourself: `pgrep -x NAME`.",
+      "Manage targets writes the configuration and asks the sampler to reload. For a name, the sampler compares it with `/proc/PID/comm` of every process. Check it yourself: `pgrep -x NAME`.",
   },
   "target-switch": {
     title: "Monitoring target",

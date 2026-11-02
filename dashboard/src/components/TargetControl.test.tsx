@@ -6,8 +6,19 @@ let control: unknown;
 let write: (body: Record<string, unknown>) => Response | Promise<Response>;
 let calls: { body: Record<string, unknown>; options: RequestInit }[];
 let reads: string[];
+// Discovered targets: the exact name in process_names selects each one.
+const named = { name_selected: true };
 const targets = [
-  { key: "h/api", host: "h", id: "api", pid: 10, local: true, status: "live" },
+  {
+    key: "h/api",
+    host: "h",
+    id: "api",
+    pid: 10,
+    local: true,
+    status: "live",
+    rule: "api",
+    ...named,
+  },
   {
     key: "h/busy",
     host: "h",
@@ -15,6 +26,8 @@ const targets = [
     pid: 20,
     local: true,
     status: "live",
+    rule: "busy",
+    ...named,
   },
   {
     key: "other/api",
@@ -23,11 +36,9 @@ const targets = [
     pid: 30,
     local: false,
     status: "live",
+    rule: "api",
+    ...named,
   },
-];
-const configured = [
-  { id: "api", target: "10" },
-  { id: "busy", target: "20" },
 ];
 const tick = () => act(() => vi.advanceTimersByTimeAsync(0));
 const poll = () => act(() => vi.advanceTimersByTimeAsync(5000));
@@ -43,8 +54,7 @@ function input(id: string) {
   return found;
 }
 const status = () => el("fleet-status").textContent;
-function edit(id = "orders", target = "worker") {
-  fireEvent.change(el("target-id"), { target: { value: id } });
+function edit(target = "worker") {
   fireEvent.change(el("target-input"), { target: { value: target } });
 }
 async function start() {
@@ -90,7 +100,7 @@ beforeEach(() => {
   );
   history.replaceState(null, "", "/");
   localStorage.clear();
-  control = { enabled: true, host: "h", targets: configured };
+  control = { enabled: true, host: "h" };
   calls = [];
   reads = [];
   write = () => Response.json({ message: "Reload requested." });
@@ -129,16 +139,15 @@ afterEach(() => {
 });
 
 // Old tests 145, 2987: one check, confirmation, one apply, and disabled inputs.
-test("confirmed Add sends one check and apply with the dashboard headers and trimmed identity", async () => {
+test("confirmed Add sends one check and apply with the dashboard headers and the trimmed name", async () => {
   await start();
   open();
-  edit(" orders ", " 1234 ");
+  edit(" orders-api ");
   const pending = deferred();
   write = () => pending.promise;
   fireEvent.submit(el("target-form"));
   fireEvent.submit(el("target-form"));
   expect(calls).toHaveLength(1);
-  expect(input("target-id").disabled).toBe(true);
   expect(input("target-input").disabled).toBe(true);
   expect(el("target-save").hasAttribute("disabled")).toBe(true);
   expect(confirm).not.toHaveBeenCalled();
@@ -148,8 +157,8 @@ test("confirmed Add sends one check and apply with the dashboard headers and tri
     await pending.promise;
   });
   expect(calls.map((call) => call.body)).toEqual([
-    { action: "add", id: "orders", target: "1234", check: true },
-    { action: "add", id: "orders", target: "1234" },
+    { action: "add", target: "orders-api", check: true },
+    { action: "add", target: "orders-api" },
   ]);
   for (const { options } of calls)
     expect(options.headers).toEqual({
@@ -157,7 +166,7 @@ test("confirmed Add sends one check and apply with the dashboard headers and tri
       "X-Triangulator": "1",
     });
   expect(confirm).toHaveBeenCalledExactlyOnceWith(
-    "Add orders? This changes monitoring for every viewer.",
+    "Add the process name orders-api? Every process with this name is monitored. This changes monitoring for every viewer.",
   );
   expect(document.getElementById("target-settings")).toBeNull();
   expect(status()).toBe("Reload requested.");
@@ -165,7 +174,7 @@ test("confirmed Add sends one check and apply with the dashboard headers and tri
 });
 
 // Old tests 2987, 3008, 3141.
-test("Remove uses the configured selector only on the local host and protects the last target", async () => {
+test("Remove sends the exact name only on the local host and shows a refusal", async () => {
   await start();
   const removes = screen.getAllByRole("button", { name: /^Remove target/ });
   expect(removes.map((button) => button.getAttribute("aria-label"))).toEqual([
@@ -175,22 +184,22 @@ test("Remove uses the configured selector only on the local host and protects th
   fireEvent.click(screen.getByRole("button", { name: "Remove target busy" }));
   await tick();
   expect(calls.map((call) => call.body)).toEqual([
-    { action: "remove", key: "h/busy", id: "busy", target: "20" },
+    { action: "remove", key: "h/busy", id: "busy", rule: "busy" },
   ]);
   expect(confirm).toHaveBeenCalledExactlyOnceWith(
-    "Remove busy? This changes monitoring for every viewer.",
+    "Remove the process name busy? Every process named busy stops being monitored. This changes monitoring for every viewer.",
   );
   expect(status()).toBe("Reload requested.");
-  control = { enabled: true, host: "h", targets: configured.slice(0, 1) };
-  await poll();
-  expect(
-    screen.queryByRole("button", { name: "Remove target busy" }),
-  ).toBeNull();
-  expect(screen.queryByText("Keep at least one target.")).toBeNull();
+  // The helper refuses to remove the last rule; the dashboard shows why.
+  write = () =>
+    Response.json(
+      { error: "keep at least one process name or pattern" },
+      { status: 400 },
+    );
   fireEvent.click(screen.getByRole("button", { name: "Remove target api" }));
   await tick();
-  expect(screen.getByText("Keep at least one target.")).toBeTruthy();
-  expect(calls).toHaveLength(1);
+  expect(status()).toBe("keep at least one process name or pattern");
+  expect(calls).toHaveLength(2);
   control = { enabled: false, error: "local sampler verification failed" };
   await poll();
   expect(screen.queryByRole("button", { name: /^Remove target/ })).toBeNull();
@@ -206,7 +215,7 @@ test("Add and Remove share a synchronous guard, including programmatic submits",
   fireEvent.submit(el("target-form"));
   fireEvent.submit(el("target-form"));
   expect(calls.map((call) => call.body)).toEqual([
-    { action: "remove", key: "h/busy", id: "busy", target: "20" },
+    { action: "remove", key: "h/busy", id: "busy", rule: "busy" },
   ]);
   await act(async () => {
     pending.resolve(Response.json({ message: "Removed." }));
@@ -285,38 +294,21 @@ test("an applied error is reported and refreshes control without an automatic re
   await submit();
   expect(calls).toHaveLength(2);
   expect(status()).toBe("Applied, but reload failed");
-  expect(input("target-id").value).toBe("orders");
+  expect(input("target-input").value).toBe("worker");
   expect(reads.filter((url) => url === "/api/targets/control")).toHaveLength(2);
 });
 
 // Old test 3160: polling owns only control, including quiet unavailability.
-test("polls refresh Remove while preserving dirty inputs, candidates and status", async () => {
+test("polls refresh Remove while preserving dirty inputs and status", async () => {
   await start();
   open();
   edit();
-  write = () =>
-    Response.json(
-      {
-        error: "ambiguous",
-        candidates: [
-          { pid: 4100, user: "app", started_at: null, command: "worker" },
-        ],
-      },
-      { status: 409 },
-    );
+  write = () => Response.json({ error: "rejected" }, { status: 409 });
   await submit();
   const before = status();
-  const picker = el("target-pid");
-  control = {
-    enabled: true,
-    host: "h",
-    targets: configured.slice(0, 1),
-    error: "new poll error",
-  };
+  control = { enabled: true, host: "h", error: "new poll error" };
   await poll();
-  expect(input("target-id").value).toBe("orders");
   expect(input("target-input").value).toBe("worker");
-  expect(el("target-pid")).toBe(picker);
   expect(status()).toBe(before);
   control = { enabled: false, error: "remote dashboard" };
   await poll();
@@ -332,14 +324,14 @@ test("unavailable control is quiet and a control host change during check preven
   expect(document.getElementById("fleet-add")).toBeNull();
   expect(status()).toBe("");
   app.unmount();
-  control = { enabled: true, host: "h", targets: configured };
+  control = { enabled: true, host: "h" };
   await start();
   open();
   edit();
   const pending = deferred();
   write = () => pending.promise;
   fireEvent.submit(el("target-form"));
-  control = { enabled: true, host: "other", targets: configured };
+  control = { enabled: true, host: "other" };
   await poll();
   await act(async () => {
     pending.resolve(Response.json({}));
@@ -350,79 +342,12 @@ test("unavailable control is quiet and a control host change during check preven
   expect(status()).toContain("Target control changed");
 });
 
-// Old tests 3197, 3220.
-test("ambiguous names list PID, user, age and command; selection and validation clear old candidates", async () => {
-  await start();
-  open();
-  edit();
-  write = () =>
-    Response.json(
-      {
-        error: "ambiguous",
-        candidates: [
-          {
-            pid: 4100,
-            user: "app",
-            started_at: Date.now() / 1000 - 7200,
-            command: "worker --queue orders",
-          },
-          {
-            pid: 4377,
-            user: "app",
-            started_at: null,
-            command: "worker --queue billing",
-          },
-        ],
-      },
-      { status: 409 },
-    );
-  await submit();
-  const options = within(el("target-pid")).getAllByRole("option");
-  expect(options.map((option) => option.textContent)).toEqual([
-    "Select one of 2 listed",
-    "PID 4100 · app · started 2 h ago · worker --queue orders",
-    "PID 4377 · app · worker --queue billing",
-  ]);
-  expect(document.activeElement).toBe(el("target-pid"));
-  fireEvent.change(el("target-pid"), { target: { value: "4377" } });
-  expect(input("target-input").value).toBe("4377");
-  expect(status()).toContain("does not follow a restart");
-  expect(document.activeElement).toBe(el("target-save"));
-  edit();
-  write = () =>
-    Response.json(
-      {
-        error: "ambiguous",
-        total: 25,
-        candidates: Array.from({ length: 20 }, (_, i) => ({
-          pid: 5000 + i,
-          user: "app",
-          started_at: null,
-          command: "worker",
-        })),
-      },
-      { status: 409 },
-    );
-  await submit();
-  expect(within(el("target-pid")).getAllByRole("option")).toHaveLength(21);
-  expect(status()).toContain(
-    "25 processes are named worker; the first 20 are listed",
-  );
-  fireEvent.change(el("target-id"), { target: { value: "." } });
-  await submit();
-  expect(document.getElementById("target-candidates")).toBeNull();
-  expect(calls).toHaveLength(2);
-  fireEvent.click(el("target-cancel"));
-  open();
-  expect(document.getElementById("target-candidates")).toBeNull();
-});
-
 // Old test 3180. Real showModal/portal interaction is also in prove_dashboard.mjs.
 test("dialog Help opens its guide inside the modal and closes with it", async () => {
   await start();
   open();
-  const label = el("target-id").closest<HTMLElement>("[data-help]");
-  if (!label) throw Error("Missing Target ID help");
+  const label = el("target-input").closest<HTMLElement>("[data-help]");
+  if (!label) throw Error("Missing process name help");
   fireEvent.click(within(label).getByRole("button", { name: /^Explain / }));
   const guide = document.getElementById("help-guide");
   expect(guide && el("target-settings").contains(guide)).toBe(true);
@@ -430,20 +355,15 @@ test("dialog Help opens its guide inside the modal and closes with it", async ()
   expect(document.getElementById("help-guide")).toBeNull();
 });
 
-test("discovery Add needs only a name and explains all matching instances", async () => {
-  control = { enabled: true, mode: "names", host: "h", targets: [] };
+test("Add accepts only an exact process name, not a PID", async () => {
   await start();
   open();
-  expect(document.getElementById("target-id")).toBeNull();
-  fireEvent.change(el("target-input"), { target: { value: "orders-api" } });
-  await submit();
-  expect(calls.map((call) => call.body)).toEqual([
-    { action: "add", target: "orders-api", check: true },
-    { action: "add", target: "orders-api" },
-  ]);
-  expect(confirm).toHaveBeenCalledExactlyOnceWith(
-    "Add the process name orders-api? Every process with this name is monitored. This changes monitoring for every viewer.",
-  );
+  for (const value of ["1234 5", "..", "0123456789abcdef"]) {
+    edit(value);
+    await submit();
+    expect(el("target-status").className).toBe("bad");
+  }
+  expect(calls).toHaveLength(0);
 });
 
 test("discovery distinguishes waiting and capacity and blocks pattern and remote Remove", async () => {
@@ -454,9 +374,7 @@ test("discovery distinguishes waiting and capacity and blocks pattern and remote
         return Promise.resolve(
           Response.json({
             enabled: true,
-            mode: "names",
             host: "h",
-            targets: [],
           }),
         );
       return Promise.resolve(

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Shared code for set-target.sh and set-rate.sh.
+"""Shared code for set-rate.sh and the dashboard target control.
 
-Usage: sampler_control.py <set-target NAME|PID | set-target-id ID NAME|PID |
-                           add-target ID NAME|PID | remove-target ID |
-                           set-rate HZ>
+Usage: sampler_control.py set-rate HZ
 
-set-target and set-rate edit the running sampler's config in place and send
+set-rate and the dashboard edit the running sampler's config in place and send
 SIGHUP. The new file is first checked by the running sampler binary itself
 (`/proc/PID/exe --check-config`), so it is validated by the same parser that
 reloads it.
@@ -18,7 +16,6 @@ import json
 import math
 import os
 from pathlib import Path
-import pwd
 import re
 import signal
 import subprocess
@@ -31,23 +28,6 @@ RESTART_HINT = "scripts/stop.sh sampler && scripts/start.sh"
 
 class ControlError(Exception):
     pass
-
-
-class AmbiguousNameError(ControlError):
-    """More than one process has the name. The dashboard offers the candidates."""
-
-    def __init__(self, name, pids):
-        super().__init__(f"multiple processes named {name}; pass a PID from: {pids}")
-        self.candidates = [process_summary(pid) for pid in pids[:20]]
-        self.total = len(pids)
-
-
-class TargetLimitError(ControlError):
-    """The collector has no free target slot for one more target."""
-
-    def __init__(self, max_targets):
-        super().__init__(f"The collector is at its limit of {max_targets} targets. Remove a target, "
-                         "or raise max_targets in the collector configuration, then add this one.")
 
 
 def runtime_directory():
@@ -63,87 +43,6 @@ def parse_pid(text):
     if not 0 < pid <= 2**31 - 1:
         raise ControlError("PID must be a positive 32-bit integer")
     return pid
-
-
-def require_process(pid):
-    """Fail unless pid is a live process, not a thread ID or a zombie.
-
-    /proc/TID exists for every thread too (readdir just doesn't list it), so
-    only Tgid tells a process from one of its threads.
-    """
-    try:
-        status = Path(f"/proc/{pid}/status").read_text()
-    except FileNotFoundError:
-        raise ControlError(f"no running process with PID {pid}") from None
-    fields = dict(line.split(":", 1) for line in status.splitlines() if ":" in line)
-    tgid = int(fields["Tgid"])
-    if tgid != pid:
-        raise ControlError(f"{pid} is a thread ID of process {tgid}; pass {tgid}")
-    if fields["State"].split()[0] in ("Z", "X"):
-        raise ControlError(f"process {pid} has exited")
-
-
-def processes_named(name):
-    """PIDs whose /proc/PID/comm equals name, matched like the sampler does."""
-    wanted = os.fsencode(name)
-    matches = []
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdecimal():
-            continue
-        try:
-            comm = (entry / "comm").read_bytes()
-        except OSError:
-            continue
-        if comm.removesuffix(b"\n") == wanted:
-            matches.append(int(entry.name))
-    return sorted(matches)
-
-
-def process_summary(pid):
-    """PID, user, start time (Unix seconds), and command line of a process.
-
-    A field that cannot be read, for example after the process exits, is None.
-    """
-    proc = Path(f"/proc/{pid}")
-    summary = {"pid": pid, "user": None, "started_at": None, "command": None}
-    try:
-        summary["user"] = pwd.getpwuid(proc.stat().st_uid).pw_name
-    except (OSError, KeyError):
-        pass
-    try:
-        command = (proc / "cmdline").read_bytes().replace(b"\0", b" ").strip()
-        summary["command"] = os.fsdecode(command)[:200] or None
-    except OSError:
-        pass
-    try:
-        # Field 22 of /proc/PID/stat is the start time in clock ticks after boot.
-        ticks = int((proc / "stat").read_text().rsplit(")", 1)[1].split()[19])
-        boot = next(int(line.split()[1]) for line in Path("/proc/stat").read_text().splitlines()
-                    if line.startswith("btime "))
-        summary["started_at"] = boot + ticks / os.sysconf("SC_CLK_TCK")
-    except (OSError, ValueError, IndexError, StopIteration):
-        pass
-    return summary
-
-
-def check_name(name):
-    if not 1 <= len(os.fsencode(name)) <= 15:
-        raise ControlError("process name must contain 1..15 bytes")
-    if any(character in name for character in '"\n\r\0'):
-        raise ControlError("process name must not contain quotes or line breaks")
-
-
-def unique_process_named(name):
-    """The only process named name, or None when none is running.
-
-    The sampler treats an ambiguous name as an absent target, so more than
-    one match is an error.
-    """
-    check_name(name)
-    matches = processes_named(name)
-    if len(matches) > 1:
-        raise AmbiguousNameError(name, matches)
-    return matches[0] if matches else None
 
 
 def read_setting(text, key):
@@ -168,12 +67,9 @@ def read_setting(text, key):
 def replace_setting(text, pattern, setting):
     """Replace the first line matching pattern with setting, in place.
 
-    Other matching lines are removed (the sampler rejects duplicate keys and
-    both target keys at once). Without a match, setting is appended.
+    Other matching lines are removed (the sampler rejects duplicate keys).
+    Without a match, setting is appended.
     """
-    table = TARGET_TABLE.search(text)
-    if table is not None:
-        return replace_setting(text[:table.start()], pattern, setting) + text[table.start():]
     output = []
     placed = False
     for line in text.splitlines(keepends=True):
@@ -271,50 +167,6 @@ def update_config(root, pattern, setting, collector_endpoint=None, transform=Non
         return pid, config
 
 
-def set_target(root, target, collector_endpoint=None, target_id=None):
-    running = True
-    pid = parse_pid(target)
-    if pid is not None:
-        require_process(pid)
-        setting = f"target_pid = {pid}"
-    else:
-        running = unique_process_named(target) is not None
-        setting = f'target_process = "{target}"'
-    pattern = re.compile(r"\s*target_(?:process|pid)\s*=")
-    selected = str(pid) if pid is not None else target
-    # The setting that was written, for the success message.
-    written = setting
-
-    def transform(text):
-        nonlocal written
-        if TARGET_TABLE.search(text) is None:
-            if target_id not in (None, "default"):
-                raise ControlError("this target id is not configured; use --add ID NAME|PID")
-            return replace_setting(text, pattern, setting)
-        targets = configured_targets(text)
-        wanted = target_id or next((item["id"] for item in targets if item["id"] == "default"),
-                                   targets[0]["id"] if len(targets) == 1 else None)
-        existing = next((item for item in targets if item["id"] == wanted), None)
-        if existing is None:
-            raise ControlError("specify a configured target ID; use --add ID NAME|PID to add one")
-        existing["target"] = selected
-        selector = f"pid = {pid}" if pid is not None else f'process = "{target}"'
-        written = f'[[target]] id = "{wanted}", {selector}'
-        return replace_targets(text, targets)
-
-    sampler, config = update_config(root, pattern, setting, collector_endpoint, transform=transform)
-    message = "Reload requested. The dashboard will update when the sampler reports."
-    if not running:
-        message = f"Waiting for a process named {target} to start."
-    if collector_endpoint is not None:
-        return {"enabled": True, "target": target, "message": message}
-    print(f"Updated {config}: {written}")
-    print(f"Requested reload of sampler {sampler}; check the dashboard and "
-          f"{runtime_directory() / 'logs/sampler.log'}.")
-    if not running:
-        print(f"No process named {target} is running yet; the dashboard shows the target as absent until one starts.")
-
-
 def require_local_collector(config, expected):
     """The dashboard must control only a sampler sending to this collector."""
     endpoint = read_setting(config.read_text(), "collector") or ""
@@ -331,58 +183,7 @@ def require_local_collector(config, expected):
     except ValueError:
         local = matching_port = False
     if not separator or not local or not matching_port:
-        raise ControlError("the local sampler sends to a different collector; use scripts/set-target.sh on its host")
-
-
-def dashboard_target(root, host, port, target=None):
-    """JSON interface for the local dashboard; reuse the CLI's validated edit."""
-    try:
-        if target is not None:
-            result = set_target(root, target, (host, port))
-        else:
-            sampler = running_sampler(root)
-            if sampler is None:
-                raise ControlError("the sampler is not running; start it with scripts/start.sh")
-            config = sampler[1]
-            require_local_collector(config, (host, port))
-            text = config.read_text()
-            targets = configured_targets(text)
-            selected = next((target for target in targets if target["id"] == "default"),
-                            targets[0] if len(targets) == 1 else None)
-            if selected is None:
-                raise ControlError("use Manage targets for this multi-target sampler")
-            result = {"enabled": True, "target": selected["target"]}
-    except (ControlError, OSError, subprocess.TimeoutExpired) as error:
-        result = {"enabled": target is not None, "error": str(error)}
-    print(json.dumps(result))
-
-
-TARGET_TABLE = re.compile(r"(?m)^[ \t]*\[\[target\]\][ \t\r]*(?:#[^\n]*)?$" )
-
-
-def configured_targets(text):
-    """Read the sampler's small configuration syntax without changing escapes."""
-    parts = TARGET_TABLE.split(text)
-    if len(parts) == 1:
-        pid = read_setting(text, "target_pid")
-        name = read_setting(text, "target_process")
-        return [{"id": "default", "target": pid or name}] if pid or name else []
-    return [{"id": read_setting(part, "id"),
-             "target": read_setting(part, "pid") or read_setting(part, "process")}
-            for part in parts[1:]]
-
-
-def replace_targets(text, targets):
-    prefix = TARGET_TABLE.split(text, maxsplit=1)[0]
-    prefix = "".join(line for line in prefix.splitlines(keepends=True)
-                     if not re.match(r"\s*target_(?:pid|process)\s*=", line))
-    output = prefix.rstrip() + "\n\n"
-    for target in targets:
-        selected = target["target"]
-        pid = parse_pid(selected)
-        selector = f"pid = {pid}" if pid is not None else f'process = "{selected}"'
-        output += f'[[target]]\nid = "{target["id"]}"\n{selector}\n\n'
-    return output
+        raise ControlError("the local sampler sends to a different collector; edit sampler.toml on its host")
 
 
 RULE_LISTS = ("process_names", "process_patterns")
@@ -431,10 +232,6 @@ def replace_rule_list(text, key, items):
     return "\n".join(lines[:start] + block + lines[end + 1:])
 
 
-def discovers(text):
-    return any(rule_list(text, key) is not None for key in RULE_LISTS)
-
-
 def change_rule_set(text, change):
     """Add or remove one exact process name; patterns are edited on the host."""
     if not isinstance(change, dict) or set(change) - {"action", "id", "target", "name", "key", "rule"}:
@@ -458,56 +255,15 @@ def change_rule_set(text, change):
             raise ControlError("this process name is no longer configured; reload the target list")
         if any(fnmatchcase(name, pattern) for pattern in patterns):
             raise ControlError("a process pattern also selects this name; edit process_patterns on the host")
+        if names == [name] and not patterns:
+            raise ControlError("keep at least one process name or pattern; the sampler needs one")
         names.remove(name)
     else:
         raise ControlError("action must be add or remove")
     return replace_rule_list(text, "process_names", names)
 
 
-def change_target_set(text, change, max_targets=None):
-    if discovers(text):
-        return change_rule_set(text, change)
-    # The dashboard also sends the target key, which the collector checks.
-    if not isinstance(change, dict) or set(change) - {"action", "id", "target", "key"}:
-        raise ControlError("expected an action, target id, and selector")
-    action, target_id = change.get("action"), change.get("id")
-    if not isinstance(target_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,31}", target_id) or target_id in (".", ".."):
-        raise ControlError("target id must contain 1..31 letters, digits, dots, underscores, or hyphens")
-    targets = configured_targets(text)
-    existing = next((target for target in targets if target["id"] == target_id), None)
-    if action == "add":
-        if existing is not None:
-            raise ControlError("this target id is already configured")
-        if len(targets) >= 16:
-            raise ControlError("at most 16 targets are permitted")
-        # The collector drops a target beyond max_targets. Its published count
-        # lags a reload, so the configured count, read under the lock, also
-        # counts adds that it has not seen yet.
-        if max_targets is not None and len(targets) >= max_targets:
-            raise TargetLimitError(max_targets)
-        selected = change.get("target")
-        if not isinstance(selected, str) or not selected:
-            raise ControlError("enter a process name or PID")
-        pid = parse_pid(selected)
-        if pid is not None:
-            require_process(pid)
-        else:
-            unique_process_named(selected)
-        targets.append({"id": target_id, "target": selected})
-    elif action == "remove":
-        if existing is None:
-            raise ControlError("this target id is no longer configured")
-        if len(targets) <= 1:
-            raise ControlError("keep at least one target configured")
-        if "target" in change and change["target"] != existing["target"]:
-            raise ControlError("this target selector changed; reload the target list")
-        targets.remove(existing)
-    else:
-        raise ControlError("action must be add or remove")
-    return replace_targets(text, targets)
-
-
-def dashboard_targets(root, host, port, max_targets, body=None):
+def dashboard_targets(root, host, port, body=None):
     """Apply one set operation under the existing configuration lock."""
     check = False
     try:
@@ -526,39 +282,23 @@ def dashboard_targets(root, host, port, max_targets, body=None):
                 if sampler is None:
                     raise ControlError("the sampler is not running; start it with scripts/start.sh")
                 require_local_collector(sampler[1], (host, port))
-                change_target_set(sampler[1].read_text(), change, max_targets)
+                change_rule_set(sampler[1].read_text(), change)
             else:
                 update_config(root, None, None, (host, port),
-                              transform=lambda text: change_target_set(text, change, max_targets))
+                              transform=lambda text: change_rule_set(text, change))
         sampler = running_sampler(root)
         if sampler is None:
             raise ControlError("the sampler is not running; start it with scripts/start.sh")
         require_local_collector(sampler[1], (host, port))
         text = sampler[1].read_text()
         result = {"enabled": True, "host": os.uname().nodename}
-        if discovers(text):
-            result.update(mode="names", targets=[],
-                          names=(rule_list(text, "process_names") or ([],))[0],
-                          patterns=(rule_list(text, "process_patterns") or ([],))[0])
-        else:
-            result.update(mode="tables", targets=configured_targets(text))
+        result.update(names=(rule_list(text, "process_names") or ([],))[0],
+                      patterns=(rule_list(text, "process_patterns") or ([],))[0])
         if body is not None and not check:
             result["message"] = "Reload requested. The target change applies to every viewer."
     except (ControlError, OSError, subprocess.TimeoutExpired) as error:
         result = {"enabled": body is not None, "error": str(error)}
-        if isinstance(error, TargetLimitError):
-            result["at_limit"] = True
-        if isinstance(error, AmbiguousNameError):
-            result["candidates"] = error.candidates
-            result["total"] = error.total
     print(json.dumps(result))
-
-
-def edit_target_set(root, change):
-    sampler, config = update_config(root, None, None,
-        transform=lambda text: change_target_set(text, change))
-    print(f"Updated {config}: {change['action']} target {change['id']}")
-    print(f"Requested reload of sampler {sampler}.")
 
 
 def set_rate(root, text):
@@ -575,17 +315,10 @@ def set_rate(root, text):
 
 
 def main(argv):
-    if len(argv) in (5, 6) and argv[1] == "dashboard-targets":
-        dashboard_targets(ROOT, argv[2], argv[3], int(argv[4]), argv[5] if len(argv) == 6 else None)
-        return 0
-    if len(argv) in (4, 5) and argv[1] == "dashboard-target":
-        dashboard_target(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
+    if len(argv) in (4, 5) and argv[1] == "dashboard-targets":
+        dashboard_targets(ROOT, argv[2], argv[3], argv[4] if len(argv) == 5 else None)
         return 0
     commands = {
-        "set-target": (1, lambda target: set_target(ROOT, target)),
-        "set-target-id": (2, lambda target_id, target: set_target(ROOT, target, target_id=target_id)),
-        "add-target": (2, lambda target_id, target: edit_target_set(ROOT, {"action": "add", "id": target_id, "target": target})),
-        "remove-target": (1, lambda target_id: edit_target_set(ROOT, {"action": "remove", "id": target_id})),
         "set-rate": (1, lambda rate: set_rate(ROOT, rate)),
     }
     name = argv[1] if len(argv) > 1 else ""

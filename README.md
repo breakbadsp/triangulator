@@ -56,8 +56,10 @@ Prefer binaries? See [release packages](#release-packages).
 git clone https://github.com/breakbadsp/triangulator.git
 cd triangulator
 scripts/start.sh
-scripts/set-target.sh 1234  # Replace 1234 with your process ID.
 ```
+
+Set `process_names` in `~/triangulator/config/sampler.toml` to the Linux names
+of the processes to monitor. The sampler reloads the file when it changes.
 
 Open **<http://127.0.0.1:9401>**. On the **Targets** overview, use **Add target**
 and the **Remove** button on a tile to change the monitored processes. The
@@ -77,13 +79,12 @@ in [collector.toml](config/collector.toml).
 
 Monitor several processes with one sampler:
 
-```sh
-scripts/set-target.sh --add orders 1234
-scripts/set-target.sh orders 5678
-scripts/set-target.sh --remove orders
+```toml
+process_names = ["orders-api", "billing"]
 ```
 
-Use unique target IDs. Keep at least one target. See
+Each matching process is a target. Its ID is the process name, then
+`orders-api.2` for a second instance. Keep at least one name or pattern. See
 [multiple-target configuration](sampler/README.md#multiple-targets) and
 [per-target collector settings](collector/README.md#per-target-settings).
 
@@ -303,10 +304,10 @@ recorded execution result.
 <!-- qa-summary:start -->
 | Status | Cases | Case IDs |
 | --- | ---: | --- |
-| PASSED | 79 | - |
+| PASSED | 72 | - |
 | FAILED | 15 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098, QA-107, QA-108, QA-119 |
-| BLOCKED | 26 | QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-001, QA-009, QA-016, QA-023, QA-052, QA-067, QA-068, QA-069, QA-079, QA-086, QA-102, QA-104, QA-105, QA-109, QA-111, QA-112, QA-113, QA-118 |
-| NOT_RUN | 7 | QA-123, QA-124, QA-125, QA-134, QA-136, QA-007, QA-062 |
+| BLOCKED | 23 | QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-009, QA-016, QA-023, QA-052, QA-067, QA-079, QA-086, QA-102, QA-104, QA-105, QA-109, QA-111, QA-112, QA-113, QA-118 |
+| NOT_RUN | 17 | QA-123, QA-124, QA-125, QA-134, QA-136, QA-001, QA-002, QA-003, QA-004, QA-007, QA-062, QA-065, QA-068, QA-069, QA-070, QA-076, QA-089 |
 | **Total** | **127** | |
 <!-- qa-summary:end -->
 
@@ -328,7 +329,7 @@ recorded execution result.
 - Download matching sampler and collector archives and their `.sha256` files from [Releases](https://github.com/breakbadsp/triangulator/releases).
 - Choose `el8` or `el9` for the target platform. Install the sampler on the monitored host and the collector on the monitoring host.
 - Check each archive with `sha256sum -c ARCHIVE.sha256`, then extract with `tar -xzf ARCHIVE -C ~`.
-- On one host, run `~/triangulator/scripts/start.sh`, then `~/triangulator/scripts/set-target.sh PID`.
+- On one host, run `~/triangulator/scripts/start.sh`, then set `process_names` in `~/triangulator/config/sampler.toml`.
 - For separate hosts, set the sampler's collector address and the collector's allowed sampler address in their active configuration. Set `clock_ticks` from `getconf CLK_TCK` on the sampler host.
 - Keep HTTP on loopback. For remote access, use `ssh -L 9401:127.0.0.1:9401 USER@COLLECTOR_HOST` and open <http://127.0.0.1:9401>.
 - Service examples: [deploy](deploy/).

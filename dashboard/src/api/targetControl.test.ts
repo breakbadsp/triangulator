@@ -11,17 +11,9 @@ test("the control boundary rejects malformed lists and hides unavailable replies
     enabled: false,
     reason: "",
   });
-  expect(
-    parseTargetControl({
-      enabled: true,
-      host: "h",
-      targets: [{ id: "one", target: 1 }],
-    }),
-  ).toEqual({
+  expect(parseTargetControl({ enabled: true, host: "h" })).toEqual({
     enabled: true,
     host: "h",
-    mode: "tables",
-    targets: null,
     error: "",
   });
   expect(
@@ -29,8 +21,6 @@ test("the control boundary rejects malformed lists and hides unavailable replies
   ).toEqual({
     enabled: true,
     host: "",
-    mode: "tables",
-    targets: null,
     error: "sampler stopped",
   });
   for (const response of [
@@ -50,32 +40,19 @@ test("the control boundary rejects malformed lists and hides unavailable replies
     reason: "",
   });
 });
-test("the write boundary parses candidate and applied error fields without trusting malformed data", async () => {
+test("the write boundary reads the error and applied fields", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      Response.json(
-        {
-          error: "Ambiguous",
-          applied: true,
-          total: "25",
-          candidates: [
-            null,
-            { pid: -1 },
-            { pid: 4, user: "app", started_at: null, command: "worker" },
-          ],
-        },
-        { status: 503 },
+    vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { error: "Rejected", applied: true, candidates: [{ pid: 4 }] },
+          { status: 503 },
+        ),
       ),
-    ),
   );
   expect(
-    await changeTargets({ action: "add", id: "one", target: "worker" }, true),
-  ).toEqual({
-    kind: "failed",
-    message: "Ambiguous",
-    applied: true,
-    total: 1,
-    candidates: [{ pid: 4, user: "app", started_at: null, command: "worker" }],
-  });
+    await changeTargets({ action: "add", target: "worker" }, true),
+  ).toEqual({ kind: "failed", message: "Rejected", applied: true });
 });
