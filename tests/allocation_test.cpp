@@ -20,7 +20,6 @@
 #include "../sampler/config_watch.hpp"
 #include "../sampler/discovery.hpp"
 #include "../sampler/memory.hpp"
-#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -173,7 +172,7 @@ void StepDiscovery(Discovery& p_discovery, const Config& p_config,
     ::kill(child, SIGKILL);
     ::waitpid(child, nullptr, 0);
   }
-  const auto found = FindTarget(TargetPid{slots[1].identity_.pid_});
+  const auto found = FindTarget(slots[1].identity_.pid_);
   Require(found && *found != slots[1].identity_, "the child ended");
   Require(
       p_sampler.SampleTick(std::nullopt, ClockNow(CLOCK_MONOTONIC)).has_value(),
@@ -204,8 +203,6 @@ int main()
     sockets[2 * index + 1] = FileDescriptor{pair[1]};
   }
   const int pid = ::getpid();
-  const TargetPid by_pid{pid};
-  const TargetSelector by_name = TargetName{"allocation-test"};
   // One cache keeps /proc files open. The other has no descriptor budget, so
   // its threads build their paths and reopen their files every tick.
   ThreadCache kept{1024};
@@ -216,8 +213,6 @@ int main()
   RateLimitedLogger logger;
 
   CpuBudget cpu_budget{5, 1};
-  const std::array<TargetConfig, 2> selected_targets{
-      {{"self", TargetSelector{by_pid}}, {"name", by_name}}};
   // Discovery with two slots: this process by name, and children that a
   // pattern selects. The second child finds no slot, so it is excluded.
   Config discovery_config;
@@ -250,12 +245,10 @@ int main()
   runtime.endpoint_ = std::move(*endpoint);
   DescriptorBudget budget{1024};
   const std::array<char, 64> host{'t', 'e', 's', 't'};
-  auto sampler = std::make_unique<TargetSampler>(runtime, TargetConfig{},
-                                                 budget, logger, host);
+  auto sampler = std::make_unique<TargetSampler>(runtime, budget, logger, host);
   Require(sampler->Initialize().has_value(), "real sampler startup");
   Require(watch.Watching(), "config watch");
 
-  NameLookup names;
   // Sampling, for several ticks.
   const auto before = allocation_count;
   for (int tick = 0; tick < 3; ++tick)
@@ -264,7 +257,7 @@ int main()
     // Slot assignment, sampling, exit, and reassignment run production code.
     Require(sampler->Assign("allocation-test.16").has_value(),
             "slot assignment");
-    const auto identity = FindTarget(by_pid);
+    const auto identity = FindTarget(pid);
     Require(identity.has_value(), "identity");
     Require(
         sampler->SampleTick(*identity, ClockNow(CLOCK_MONOTONIC)).has_value(),
@@ -287,16 +280,8 @@ int main()
     Require(watch.Poll(false, Nanoseconds{tick} * 2'000'000'000, logger),
             "an edit makes a reload pending");
     watch.Reloaded(Nanoseconds{tick} * 2'000'000'000);
-    const auto target = FindTarget(by_pid);
+    const auto target = FindTarget(pid);
     Require(target && *target && (*target)->pid_ == pid, "lookup by PID");
-    // Twice: a pass, then the check of the PID that it found.
-    for (int lookup = 0; lookup < 2; ++lookup)
-    {
-      const auto targets =
-          names.Find(selected_targets, Nanoseconds{tick} * 2'000'000'000);
-      Require(targets[0] && *targets[0], "shared target lookup");
-      Require(targets[1] && *targets[1], "lookup by name");
-    }
     for (int sample = 0; sample < 100; ++sample)
     {
       cpu_budget.Add(4ms, 200ms);

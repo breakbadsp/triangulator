@@ -587,7 +587,7 @@ class Discovery final
     auto* slot = &p_slot;
     const int p_pid = p_candidate.pid_;
     const auto name = Text(p_candidate.name_);
-    const auto found = FindTarget(TargetPid{p_pid});
+    const auto found = FindTarget(p_pid);
     if (!found)
     {
       // Without descriptors the pass stops. Any other uncertain read skips

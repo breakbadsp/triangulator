@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import signal
 import socket
 import sqlite3
@@ -12,7 +13,15 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from test_sampler_control import start_named
 from wire import RESOURCE_SOCKETS, RESOURCE_SUMMARY, classify, decode, decode_exit, decode_resource, receive_tick
+
+
+def sleeper(tag):
+    """A sleeping process with a comm unique to this test run; the sampler
+    selects processes by name only."""
+    name = f"tm{tag}-{os.getpid()}"[:15]
+    return name, start_named(name)
 
 
 def wait_until_asleep(pid, timeout=5):
@@ -37,14 +46,14 @@ class SamplerTests(unittest.TestCase):
                     socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
                 receiver.bind(("127.0.0.1", 0))
                 receiver.settimeout(3)
-                target = subprocess.Popen(["sleep", "20"])
+                name, target = sleeper("r")
                 sampler = None
                 try:
                     collector = f"127.0.0.1:{receiver.getsockname()[1]}"
-                    contents = f'target_pid={target.pid}\ncollector="{collector}"\n'
+                    contents = f'process_names=["{name}"]\ncollector="{collector}"\n'
                     if setting == "template":
-                        contents = template.replace('target_process = "ghostty"',
-                                                    f"target_pid = {target.pid}")
+                        contents = template.replace('process_names = ["ghostty"]',
+                                                    f'process_names = ["{name}"]')
                         contents = contents.replace("127.0.0.1:9400", collector)
                     elif setting == "explicit":
                         contents += "rate_hz=1.0\n"
@@ -76,7 +85,7 @@ class SamplerTests(unittest.TestCase):
             # A valid file with the flag's name must not start sampling.
             for flag in ("-h", "--help"):
                 Path(directory, flag).write_text(
-                    f'target_pid=1\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                    f'process_names=["init"]\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
                 result = subprocess.run([str(binary), flag], cwd=directory,
                                         capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -91,26 +100,27 @@ class SamplerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver:
             receiver.bind(("127.0.0.1", 0))
             receiver.settimeout(3)
-            target = subprocess.Popen(["sleep", "20"])
+            name, target = sleeper("w")
             wait_until_asleep(target.pid)
             config = Path(directory) / "sampler.toml"
-            config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+            select = f'process_names = ["{name}"]\n'
+            config.write_text(f'{select}rate_hz = 10\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             sampler = subprocess.Popen([str(binary), str(config)], stderr=subprocess.PIPE, text=True)
             try:
                 first = decode(receive_tick(receiver))
                 self.assertEqual(first.pid, target.pid)
-                self.assertEqual(first.records[0].comm, "sleep")
+                self.assertEqual(first.records[0].comm, name)
                 self.assertEqual(classify(first.records[0]), "sleep", first.records[0].wchan)
                 self.assertFalse(first.records[0].flags & 1, "per-thread io must be readable as the same UID")
                 self.assertEqual(first.interval_ms, 100)
-                config.write_text(f'target_pid = {target.pid}\nrate_hz = 99\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+                config.write_text(f'{select}rate_hz = 99\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler.send_signal(signal.SIGHUP)
                 for _ in range(3):
                     unchanged = decode(receive_tick(receiver))
                     self.assertEqual(unchanged.session, first.session)
                     self.assertEqual(unchanged.interval_ms, 100)
                 self.assertIsNone(sampler.poll())
-                config.write_text(f'target_pid = {target.pid}\nrate_hz = 5\nstatus_fallback = true\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
+                config.write_text(f'{select}rate_hz = 5\nstatus_fallback = true\ncollector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler.send_signal(signal.SIGHUP)
                 for _ in range(10):
                     value = decode(receive_tick(receiver))
@@ -137,7 +147,7 @@ class SamplerTests(unittest.TestCase):
                 self.assertEqual(len(reports), 5)
                 self.assertEqual(len(set(reports)), 1)
                 report = reports[0]
-                self.assertEqual((report.pid, report.comm, report.lines), (target.pid, "sleep", ()))
+                self.assertEqual((report.pid, report.comm, report.lines), (target.pid, name, ()))
                 self.assertIn(report.kernel_log, ("read", "unreadable", "unavailable"))
                 self.assertEqual(report.error == 0, report.kernel_log == "read")
                 # The exit status names the signal: through a pidfd on Linux 6.15 and
@@ -167,16 +177,17 @@ class SamplerTests(unittest.TestCase):
                 return subprocess.run([str(binary), "--check-config", str(config)],
                                       capture_output=True, text=True, timeout=5)
 
-            # Valid for the sampler, though not TOML: unquoted values and a backslash.
-            checked = check(f"target_process = a\\q\nrate_hz = 5\ncollector = 127.0.0.1:{port}\n")
+            # Valid for the sampler, though not TOML: an unquoted value.
+            checked = check(f'process_names = ["a"]\nrate_hz = 5\ncollector = 127.0.0.1:{port}\n')
             self.assertEqual(checked.returncode, 0, checked.stderr)
             self.assertIn("valid", checked.stdout)
             with self.assertRaises(TimeoutError):
                 receiver.recv(1200)
             for text, error in (
-                    (f'target_pid = 1\nrate_hz = 99\ncollector = "127.0.0.1:{port}"\n', "rate_hz"),
-                    (f'target_pid = 1\ntarget_process = "x"\ncollector = "127.0.0.1:{port}"\n', "exactly one"),
-                    (f'target_pid = 1\ncollector = "127.0.0.1:{port}"\n' + "#" * 16384 + "\n", "16 KiB")):
+                    (f'process_names = ["a"]\nrate_hz = 99\ncollector = "127.0.0.1:{port}"\n', "rate_hz"),
+                    (f'target_pid = 1\ncollector = "127.0.0.1:{port}"\n', "target_pid was removed"),
+                    (f'collector = "127.0.0.1:{port}"\n', "no target"),
+                    (f'process_names = ["a"]\ncollector = "127.0.0.1:{port}"\n' + "#" * 16384 + "\n", "16 KiB")):
                 checked = check(text)
                 self.assertEqual(checked.returncode, 2, text[:80])
                 self.assertIn(error, checked.stderr)
@@ -200,7 +211,7 @@ class SamplerTests(unittest.TestCase):
                 name = target.stdout.readline().strip()
                 self.assertTrue(name.startswith("tmon-"))
                 config = Path(directory) / "sampler.toml"
-                config.write_text(f'target_process="{name}"\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
                 sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(config)],
                                            stderr=subprocess.PIPE, text=True)
                 chunks = {}
@@ -254,7 +265,7 @@ class DescriptorLimitTests(unittest.TestCase):
             try:
                 name = target.stdout.readline().strip()
                 config = Path(directory) / "sampler.toml"
-                config.write_text(f'target_process="{name}"\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
+                config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{receiver.getsockname()[1]}"\n')
                 # 26 threads x 4 descriptors = 104 cached descriptors, more than the limit.
                 sampler = subprocess.Popen([str(root / "build/triangulator-sampler"), str(config)], stderr=subprocess.PIPE,
                                            text=True, preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_NOFILE, (96, 96)))
@@ -291,6 +302,7 @@ CPP_COLLECTOR = [str(ROOT / "build/triangulator-collector")]
 # reads, so its sockets have something to report.
 SOCKET_TARGET = """
 import socket, sys, time
+open("/proc/self/comm", "w").write(sys.argv[1])
 listener = socket.socket()
 listener.bind(("127.0.0.1", 0))
 listener.listen(8)
@@ -312,14 +324,15 @@ class ResourceSampleTests(unittest.TestCase):
         receiver.settimeout(3)
         # /dev/null for the inherited descriptors, so the target's own sockets
         # are the only ones it has.
-        target = subprocess.Popen([sys.executable, "-c", SOCKET_TARGET], stdin=subprocess.DEVNULL,
+        name = f"tms-{os.getpid()}"
+        target = subprocess.Popen([sys.executable, "-c", SOCKET_TARGET, name], stdin=subprocess.DEVNULL,
                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         self.addCleanup(lambda: (target.terminate(), target.wait(timeout=5)))
         port, server_fd = (int(value) for value in target.stdout.readline().split())
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         config = Path(directory.name) / "sampler.toml"
-        config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\n'
+        config.write_text(f'process_names = ["{name}"]\nrate_hz = 10\n'
                           f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n{extra}')
         sampler = subprocess.Popen([str(ROOT / "build/triangulator-sampler"), str(config)],
                                    stderr=subprocess.PIPE, text=True)
@@ -404,16 +417,15 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 f'udp_host="127.0.0.1"\nudp_port={udp_port}\nhttp_port={http_port}\n'
                 f'data_dir="{directory}/data"\ndeadman_url="http://127.0.0.1:9/"\nstore_raw=false\n'
                 '[alerts]\nwindow_s=5\ncpu_warn_pct=60\nwebhook_url="http://127.0.0.1:9/"\n'
-                '[[watch]]\nprefix="sle"\nwake_ms=1000\n')
+                '[[watch]]\nprefix="tmc"\nwake_ms=1000\n')
             invalid = Path(directory) / "invalid.toml"
             invalid.write_text("[alerts]\nwindow_s=4\n")
             checked = subprocess.run([*CPP_COLLECTOR, str(invalid), "--check-config"], capture_output=True, text=True)
             self.assertEqual(checked.returncode, 2)
             self.assertIn("window_s must be 5..10", checked.stderr)
-            target = subprocess.Popen(["sleep", "30"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
+            name, target = sleeper("c")
             sampler_config = Path(directory) / "sampler.toml"
-            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
+            sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
                                       'resource_interval_s=1\nmemory_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(collector_config)], cwd=ROOT,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -469,7 +481,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(layout["pid"], target.pid)
                 kinds = {region["kind"] for region in layout["regions"]}
                 self.assertTrue({"stack", "file"} <= kinds, kinds)
-                self.assertEqual(live["threads"][0]["name"], "sleep")
+                self.assertEqual(live["threads"][0]["name"], name)
                 # The [[watch]] rule matches the target's thread by name. last_ran is
                 # on the last_sample clock and never after it.
                 self.assertEqual(live["threads"][0]["wake_ms"], 1000)
@@ -518,7 +530,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 self.assertEqual(live["health"]["last_target"]["session"], session)
                 self.assertEqual(live["health"]["last_target"]["pid"], target.pid)
                 ended = live["exit"]
-                self.assertEqual((ended["pid"], ended["name"]), (target.pid, "sleep"))
+                self.assertEqual((ended["pid"], ended["name"]), (target.pid, name))
                 # SIGKILL from another process leaves no kernel message. The exit status
                 # names it when the sampler could read it, even with the log restricted.
                 if ended["signal"] is None:
@@ -537,7 +549,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 final = json.loads(body)
                 self.assertEqual(final["health"]["session"], session)
                 self.assertFalse(final["health"]["target_absent"])
-                self.assertEqual(final["threads"][0]["name"], "sleep")
+                self.assertEqual(final["threads"][0]["name"], name)
             finally:
                 for process in (sampler, collector, target):
                     if process.poll() is None:
@@ -702,10 +714,9 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             config = Path(directory) / "collector.toml"
             config.write_text(f'udp_host="127.0.0.1"\nudp_port={udp_port}\n'
                               f'http_port={free_port(socket.SOCK_STREAM)}\ndata_dir="{data}"\nstore_raw=true\n')
-            target = subprocess.Popen(["sleep", "30"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
+            name, target = sleeper("c")
             sampler_config = Path(directory) / "sampler.toml"
-            sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
+            sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
                                       'resource_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(config)], stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE, text=True)

@@ -43,9 +43,10 @@ process_patterns = ["worker-*"]
 
 - Match the Linux process name, not the command line. Explain the Linux
   15-byte name limit in the shipped configuration example.
-- Preserve existing PID and named-target configuration forms. Reject a
-  configuration that combines legacy selectors with the new discovery lists.
-  Name the conflicting settings in the error.
+- Select processes only with the discovery lists. The owner approved the
+  removal of PID selection and custom target IDs. A configuration with
+  `target_pid`, `target_process`, or `[[target]]` fails. The error names the
+  key and shows the `process_names` line to use.
 - Detect local file changes without repeated file reads in normal sampling
   ticks. Use a non-blocking file-change notification in the existing thread.
   Handle atomic file replacement as well as edits. Keep `SIGHUP` available.

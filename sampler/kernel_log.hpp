@@ -529,7 +529,7 @@ class KernelLog
 [[nodiscard]] inline std::expected<bool, int> ProcessEnded(
     const TargetIdentity& p_target, const char* p_root = "/proc")
 {
-  const auto found = FindTarget(TargetPid{p_target.pid_}, p_root);
+  const auto found = FindTarget(p_target.pid_, p_root);
   if (!found)
   {
     return std::unexpected(found.error());

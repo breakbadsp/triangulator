@@ -136,7 +136,7 @@ class DiscoveryTests(unittest.TestCase):
         parent.wait()
         self.until(lambda: not {'sleep', 'sleep.2'} & set(self.latest))
 
-    def test_capacity_and_empty_reload(self):
+    def test_capacity_and_rejected_reloads_keep_the_previous_config(self):
         children = [self.child() for _ in range(3)]
         self.write(f'process_patterns=["{self.name}*"]\nmax_targets=2\n')
         self.start()
@@ -147,17 +147,30 @@ class DiscoveryTests(unittest.TestCase):
         self.receive(1.2)
         self.assertEqual(before, {k: v['session'] for k, v in self.latest.items()})
         self.assertNotIn(extra.pid, {v['pid'] for v in self.latest.values()})
-        self.write('process_names=[]\nmax_targets=2\n')
-        self.until(lambda: not self.latest)
+        # A file without a rule, or with a removed selector, is rejected; the
+        # sampler keeps the previous rules and sessions.
+        for rejected in ('process_names=[]\nmax_targets=2\n',
+                         f'target_pid={children[0].pid}\n',
+                         f'target_process="{self.name}"\n',
+                         f'[[target]]\nid="orders"\nprocess="{self.name}"\n'):
+            self.write(rejected)
+            self.receive(1.2)
+            self.assertEqual(before, {k: v['session'] for k, v in self.latest.items()}, rejected)
+            self.assertNotIn('default', self.latest)
         self.write(f'process_names=["{self.name}"]\nmax_targets=2\n')
-        self.until(lambda: len(self.latest) == 2)
-        self.write('process_names=[]\nmax_targets=2\n')
-        self.until(lambda: not self.latest)
-        self.write(f'target_pid={children[0].pid}\n')
-        self.until(lambda: set(self.latest) == {'default'})
-        self.assertEqual(self.latest['default']['flags'], 0)
-        self.write(f'process_names=["{self.name}"]\nmax_targets=2\n')
-        self.until(lambda: len(self.latest) == 2 and 'default' not in self.latest)
+        self.until(lambda: len(self.latest) == 2 and all(v['flags'] & 2 for v in self.latest.values()))
+
+    def test_removed_selectors_fail_at_startup_with_the_replacement(self):
+        for text, key in ((f'target_process="{self.name}"\n', 'target_process'),
+                          ('target_pid=1\n', 'target_pid'),
+                          ('[[target]]\nid="orders"\npid=1\n', '[[target]]'),
+                          ('process_names=[]\n', 'no target')):
+            self.write(text)
+            result = subprocess.run([ROOT / 'build/triangulator-sampler', self.path],
+                                    capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(result.returncode, 0, text)
+            self.assertIn(key, result.stderr)
+            self.assertIn('process_names = [', result.stderr)
 
     def test_capacity_grow_shrink_keeps_survivors_and_releases_old_sessions(self):
         children = [self.child() for _ in range(3)]

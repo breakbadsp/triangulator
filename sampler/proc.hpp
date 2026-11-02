@@ -66,17 +66,17 @@ ReadProcessStat(int p_pid, const char* p_root = "/proc")
   return stat;
 }
 
-[[nodiscard]] inline TargetLookup FindTarget(const TargetPid& p_selector,
+[[nodiscard]] inline TargetLookup FindTarget(int p_pid,
                                              const char* p_root = "/proc")
 {
-  return ReadProcessStat(p_selector.value_, p_root)
+  return ReadProcessStat(p_pid, p_root)
       .transform(
-          [&p_selector](const std::optional<ThreadStat>& p_stat)
+          [p_pid](const std::optional<ThreadStat>& p_stat)
           {
             return p_stat.transform(
-                [&p_selector](const ThreadStat& p_found)
+                [p_pid](const ThreadStat& p_found)
                 {
-                  return TargetIdentity{p_selector.value_, p_found.starttime_};
+                  return TargetIdentity{p_pid, p_found.starttime_};
                 });
           });
 }
