@@ -72,7 +72,7 @@ if [[ $# -eq 0 ]]; then
     [[ " ${programs[*]} " != *" sampler "* ]] || has_sampler=true
     [[ " ${programs[*]} " != *" collector "* ]] || has_collector=true
     if [[ "$has_sampler" == true ]]; then
-        echo "Set target_process (or target_pid) in $config_dir/sampler.toml to select the process to monitor."
+        echo "Set process_names in $config_dir/sampler.toml to select the processes to monitor."
         [[ "$has_collector" == true ]] ||
             echo "Set collector in $config_dir/sampler.toml to the collector's IP:port."
     fi

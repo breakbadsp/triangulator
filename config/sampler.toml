@@ -1,5 +1,8 @@
-target_process = "ghostty"
-# target_pid = 1234
+# Processes to monitor, by exact Linux name. /proc/PID/comm keeps only 15
+# bytes, not the command line. Each matching process is its own target; its
+# ID is the name, then name.2, name.3 for more instances at the same time.
+# The sampler needs at least one entry here or in process_patterns.
+process_names = ["ghostty"]
 rate_hz = 5.0
 collector = "127.0.0.1:9400"
 status_fallback = false
@@ -16,22 +19,6 @@ memory_interval_s = 30
 # CPU budget as a percentage of one CPU core. The sampler can lower its rate.
 cpu_budget_pct = 1.0
 
-# For multiple targets, remove target_process/target_pid above. Add tables
-# after all global settings:
-# [[target]]
-# id = "orders"
-# process = "orders-api"
-# [[target]]
-# id = "billing"
-# pid = 1234
-
-# Production discovery: remove target_process/target_pid and all [[target]]
-# tables before enabling these lists. Add an exact name with one list entry.
-# Linux /proc/PID/comm keeps only 15 bytes, not the command line.
-# process_names = [
-#   "orders-api",
-#   "billing",
-# ]
 # Optional whole-name globs: * matches any bytes; ? matches one byte.
 # Matching ignores ASCII case: "T3*" matches "t3code". Exact names do not.
 # process_patterns = ["worker-*"]

@@ -9,7 +9,6 @@
 #include <expected>
 #include <format>
 #include <string>
-#include <variant>
 #include <vector>
 
 #include "../common/target_wire.hpp"
@@ -19,25 +18,6 @@
 namespace triangulator
 {
 
-struct TargetPid
-{
-  int value_;
-  bool operator==(const TargetPid&) const = default;
-};
-struct TargetName
-{
-  std::string value_;
-  bool operator==(const TargetName&) const = default;
-};
-using TargetSelector = std::variant<TargetPid, TargetName>;
-
-struct TargetConfig
-{
-  std::string id_;
-  TargetSelector selector_ = TargetPid{0};
-  bool operator==(const TargetConfig&) const = default;
-};
-
 // Limits of the discovery lists. A rule or a process name has at most 15
 // bytes, the Linux comm limit; longer text could never match.
 inline constexpr std::size_t kMaxRules = target_wire::kMaxTargets;
@@ -45,15 +25,11 @@ inline constexpr std::size_t kMaxRuleBytes = 15;
 
 struct Config
 {
-  TargetSelector target_ = TargetPid{0};
-  std::vector<TargetConfig> targets_;
-  // Discovery rules. They are empty in a legacy configuration, which uses
-  // target_ and targets_ instead.
+  // Discovery rules. Together they hold at least one entry.
   std::vector<std::string> process_names_;
   std::vector<std::string> process_patterns_;
   // Preallocated discovery slots. Each one costs about 0.5 MB of memory.
   std::size_t max_targets_ = 8;
-  bool discovery_lists_ = false;
   double rate_hz_ = 5.0;
   double cpu_budget_pct_ = 1.0;
   std::string collector_;
@@ -65,11 +41,6 @@ struct Config
   // files); 0 turns them off.
   int memory_interval_s_ = 30;
 
-  [[nodiscard]] bool Discovers() const noexcept
-  {
-    return discovery_lists_ || !process_names_.empty() ||
-           !process_patterns_.empty();
-  }
   [[nodiscard]] Nanoseconds Interval() const noexcept
   {
     return std::chrono::duration_cast<Nanoseconds>(
@@ -247,11 +218,8 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
     std::string_view p_contents)
 {
   Config config;
-  bool target_set = false;
-  bool in_target = false;
   std::array<std::string_view, 12> keys{};
   std::size_t key_count = 0;
-  bool max_targets_set = false;
   // A multi-line array: its key and the item text read so far.
   std::string_view array_key;
   std::string array_items;
@@ -259,7 +227,6 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
       [&config](std::string_view p_key,
                 std::string_view p_items) -> std::expected<void, std::string>
   {
-    config.discovery_lists_ = true;
     auto items = ParseStringArray(p_key, p_items);
     if (!items)
     {
@@ -323,20 +290,9 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
     }
     if (line == "[[target]]")
     {
-      if (target_set)
-      {
-        return std::unexpected(
-            "use target tables or a top-level target, not both");
-      }
-      if (config.targets_.size() == target_wire::kMaxTargets)
-      {
-        return std::unexpected("at most 16 targets are permitted");
-      }
-      config.targets_.push_back({});
-      in_target = true;
-      keys = {};
-      key_count = 0;
-      continue;
+      return std::unexpected(
+          "[[target]] tables were removed; select processes by name: "
+          "process_names = [\"name\", ...]");
     }
     const auto separator = line.find('=');
     if (separator == std::string_view::npos)
@@ -354,7 +310,7 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
       return std::unexpected("too many configuration keys");
     }
     keys[key_count++] = key;
-    if (!in_target && (key == "process_names" || key == "process_patterns"))
+    if (key == "process_names" || key == "process_patterns")
     {
       if (!value.starts_with('['))
       {
@@ -386,79 +342,18 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
     {
       return std::unexpected("embedded quotes are unsupported");
     }
-    if (in_target)
+    if (key == "target_process")
     {
-      auto& target = config.targets_.back();
-      if (key == "id")
-      {
-        if (!target_wire::ValidName(value, 31))
-        {
-          return std::unexpected(
-              "target id must contain 1..31 letters, digits, dots, "
-              "underscores, or hyphens");
-        }
-        target.id_ = value;
-      }
-      else if (key == "pid" || key == "process")
-      {
-        if (std::get_if<TargetName>(&target.selector_) ||
-            std::get<TargetPid>(target.selector_).value_ != 0)
-        {
-          return std::unexpected(
-              "each target needs exactly one pid or process");
-        }
-        if (key == "pid")
-        {
-          const auto pid = ParseNumber<int>(value);
-          if (!pid || *pid <= 0)
-          {
-            return std::unexpected("target pid must be positive");
-          }
-          target.selector_ = TargetPid{*pid};
-        }
-        else
-        {
-          if (value.empty() || value.size() > 15 ||
-              value.find('\0') != std::string_view::npos)
-          {
-            return std::unexpected("target process must contain 1..15 bytes");
-          }
-          target.selector_ = TargetName{std::string{value}};
-        }
-      }
-      else
-      {
-        return std::unexpected(std::format("unknown target key: {}", key));
-      }
-      continue;
+      return std::unexpected(std::format(
+          "target_process was removed; use process_names = [\"{}\"]", value));
     }
-    if (key == "target_pid" || key == "target_process")
+    if (key == "target_pid")
     {
-      if (target_set)
-      {
-        return std::unexpected(
-            "set exactly one of target_pid and target_process");
-      }
-      target_set = true;
-      if (key == "target_pid")
-      {
-        const auto pid = ParseNumber<int>(value);
-        if (!pid || *pid <= 0)
-        {
-          return std::unexpected("target_pid must be a positive integer");
-        }
-        config.target_ = TargetPid{*pid};
-      }
-      else
-      {
-        if (value.empty() || value.size() > 15)
-        {
-          return std::unexpected("target_process must contain 1..15 bytes");
-        }
-        config.target_ = TargetName{std::string{value}};
-      }
+      return std::unexpected(
+          "target_pid was removed; select the process by name: "
+          "process_names = [\"name\"]");
     }
-    else if (key == "rate_hz")
+    if (key == "rate_hz")
     {
       const auto rate = ParseNumber<double>(value);
       if (!rate || !std::isfinite(*rate) || *rate < 0.2 || *rate > 10.0)
@@ -510,7 +405,6 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
         return std::unexpected("max_targets must be 1..16");
       }
       config.max_targets_ = *count;
-      max_targets_set = true;
     }
     else if (key == "memory_interval_s")
     {
@@ -531,56 +425,19 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
   {
     return std::unexpected(std::format("{} has no closing ]", array_key));
   }
-  if (config.Discovers())
-  {
-    if (target_set || in_target)
-    {
-      return std::unexpected(std::format(
-          "process_names and process_patterns cannot be combined with {}",
-          in_target ? "[[target]] tables" : "target_pid or target_process"));
-    }
-    if (auto valid = ValidateRules(config); !valid)
-    {
-      return std::unexpected(valid.error());
-    }
-    if (config.collector_.empty())
-    {
-      return std::unexpected("collector is required");
-    }
-    return config;
-  }
-  if (max_targets_set)
+  if (config.process_names_.empty() && config.process_patterns_.empty())
   {
     return std::unexpected(
-        "max_targets applies only to process_names and process_patterns");
+        "no target: list at least one process name, such as "
+        "process_names = [\"name\"], or a process pattern");
   }
-  if (in_target)
+  if (auto valid = ValidateRules(config); !valid)
   {
-    for (std::size_t index = 0; index < config.targets_.size(); ++index)
-    {
-      const auto& target = config.targets_[index];
-      const auto* pid = std::get_if<TargetPid>(&target.selector_);
-      if (target.id_.empty() || (pid && pid->value_ == 0))
-      {
-        return std::unexpected("each target needs an id and a pid or process");
-      }
-      for (std::size_t previous = 0; previous < index; ++previous)
-      {
-        if (config.targets_[previous].id_ == target.id_)
-        {
-          return std::unexpected("target ids must be unique");
-        }
-      }
-    }
-    config.target_ = config.targets_.front().selector_;
+    return std::unexpected(valid.error());
   }
-  else if (target_set)
+  if (config.collector_.empty())
   {
-    config.targets_.push_back({"default", config.target_});
-  }
-  if (config.targets_.empty() || config.collector_.empty())
-  {
-    return std::unexpected("target and collector are required");
+    return std::unexpected("collector is required");
   }
   return config;
 }

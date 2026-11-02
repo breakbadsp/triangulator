@@ -2833,50 +2833,49 @@ void TestExpiredSlotResumesSameSession()
   }
 }
 
-// A removal names the sessions published when the operator asked, and is
-// applied at the next refresh. A target added again with the same ID in
-// between is a new session and must survive that refresh, however late the
-// refresh runs.
-void TestRemovalKeepsReplacementSession()
+// A [[target]] override in collector.toml names the ID that the sampler
+// derives from the process name. It applies to that discovered instance only;
+// the second instance of the name, "orders-api.2", keeps the global interval.
+void TestOverrideAppliesToDerivedId()
 {
   MonitorFixture fixture;
-  Config config;
-  config.max_targets_ = 2;
-  config.max_live_samples_ = 10000;
-  TargetFleet fleet{config, 1'700'000'000, fixture.storage_, fixture.sink_};
+  auto config = ParseConfig(
+      "max_targets=2\n[[target]]\nhost=\"host-a\"\nid=\"orders-api\"\n"
+      "replay_interval_s=0\n");
+  Require(config.has_value(), "override configuration");
+  TargetFleet fleet{*config, 1'700'000'000, fixture.storage_, fixture.sink_};
   const PeerText peer{"127.0.0.1"};
-  target_wire::Packet announcement;
-  announcement.pid_ = 123;
-  announcement.process_start_ = 1;
-  announcement.effective_millihz_ = 1000;
-  announcement.configured_millihz_ = 1000;
-  target_wire::SetText(announcement.host_, "host-a");
-  target_wire::SetText(announcement.target_, "orders");
-  const auto announce = [&](std::uint64_t p_session, double p_now)
+  for (const auto& [id, session] :
+       std::array<std::pair<std::string_view, std::uint64_t>, 2>{
+           {{"orders-api", 1}, {"orders-api.2", 2}}})
   {
-    announcement.session_ = p_session;
-    Require(fleet.Handle(wire::AsBytes(announcement), peer, p_now).has_value(),
-            "announcement handled");
-  };
-  announce(1, 1'700'000'000);
-  auto& slot = *fleet.Slots().front();
-  // The operator removes session 1; the same ID returns as session 2 before
-  // the refresh applies the removal.
-  announce(2, 1'700'000'002);
-  const std::vector<std::uint64_t> removed{1};
-  fleet.Remove("host-a/orders", removed);
-  Require(slot.active_ && slot.visible_ && slot.session_ == 2,
-          "a removal of the old session leaves the replacement session");
-  announce(1, 1'700'000'002.5);
-  Require(slot.session_ == 2, "the removed session stays retired");
-  const std::vector<std::uint64_t> current{2};
-  fleet.Remove("host-a/orders", current);
-  Require(!slot.active_ && !slot.visible_,
-          "a removal of the session retires it");
-  announce(2, 1'700'000'004);
-  Require(!slot.active_, "the removed session is not accepted again");
-  announce(3, 1'700'000'005);
-  Require(slot.active_ && slot.session_ == 3, "a later session is accepted");
+    target_wire::Packet announcement;
+    announcement.pid_ = static_cast<std::uint32_t>(100 + session);
+    announcement.process_start_ = 1;
+    announcement.session_ = session;
+    announcement.flags_ = target_wire::kNameSelected;
+    announcement.effective_millihz_ = 1000;
+    announcement.configured_millihz_ = 1000;
+    target_wire::SetText(announcement.host_, "host-a");
+    target_wire::SetText(announcement.target_, id);
+    Require(fleet.Handle(wire::AsBytes(announcement), peer, 1'700'000'000)
+                .has_value(),
+            "discovered target announced");
+  }
+  std::size_t checked = 0;
+  for (const auto& slot : fleet.Slots())
+  {
+    if (!slot->active_)
+    {
+      continue;
+    }
+    const double interval =
+        ReplayInterval(*config, slot->host_.View(), slot->id_.View());
+    Require(interval == (slot->id_.View() == "orders-api" ? 0.0 : 1.0),
+            "the override applies to the derived ID only");
+    ++checked;
+  }
+  Require(checked == 2, "both discovered instances have slots");
 }
 
 // A collector that restarts while a two-target sampler runs hears untagged
@@ -3059,6 +3058,7 @@ int main()
   try
   {
     TestDecodeRoundTrip();
+    TestOverrideAppliesToDerivedId();
     TestDecodeRejectsInvalidDatagrams();
     TestClassification();
     TestCounterResetAndSessionReset();
@@ -3106,7 +3106,6 @@ int main()
     TestAllowedSenders();
     TestEverySlotKeepsFullHistoryBudget();
     TestExpiredSlotResumesSameSession();
-    TestRemovalKeepsReplacementSession();
     TestCollectorRestartRebindsEveryTarget();
     TestLegacyOwnerUsesSmallestSenderForWatches();
     std::puts(

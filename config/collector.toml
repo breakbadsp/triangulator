@@ -89,8 +89,9 @@ prefix = "misc-"
 # wake_ms = 500
 
 # Optional per-target recording interval. These tables use the announced host
-# and ID. Keep global settings above all table sections.
+# and ID; the sampler makes the ID from the process name (orders-api, then
+# orders-api.2). Keep global settings above all table sections.
 # [[target]]
 # host = "app-host"
-# id = "orders"
+# id = "orders-api"
 # replay_interval_s = 2

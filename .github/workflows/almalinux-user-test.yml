@@ -125,7 +125,7 @@ jobs:
           assert headers.split(b'\r\n', 1)[0].split()[1] == b'200', headers
           live = json.loads(body)
           assert live['threads'], live
-          assert live['threads'][0]['name'] == 'sleep', live['threads']
+          assert live['threads'][0]['name'] == 'tri-ci-target', live['threads']
           assert live['health']['pid'] == int(Path('reports/runtime-target.pid').read_text()), live['health']
           print('Copied static binaries monitored the target as UID 1000.')
           PY

@@ -24,11 +24,9 @@ Run these commands from the repository root as the target process user.
    scripts/start.sh
    ```
 
-2. Select a process name or PID:
-
-   ```sh
-   scripts/set-target.sh ghostty
-   ```
+2. Select processes by name: set `process_names` in
+   `~/triangulator/config/sampler.toml`, or use **Add target** on the
+   dashboard.
 
 3. Set the sample frequency:
 
@@ -52,7 +50,7 @@ build/triangulator-sampler --check-config ~/triangulator/config/sampler.toml
 scripts/start.sh sampler
 ```
 
-Set `target_process` or `target_pid` in the configuration.
+Set `process_names` or `process_patterns` in the configuration.
 File edits and atomic replacement apply automatically. `SIGHUP` also requests a reload.
 
 [Configuration example](../config/sampler.toml) ·
@@ -62,30 +60,22 @@ File edits and atomic replacement apply automatically. `SIGHUP` also requests a 
 
 ## Multiple targets
 
-Use one sampler process on each host. Put global settings before the target
-tables. Use either the legacy selector or target tables.
+Use one sampler process on each host. List each process name:
 
 ```toml
 collector = "127.0.0.1:9400"
 rate_hz = 5.0
-
-[[target]]
-id = "orders"
-process = "orders-api"
-
-[[target]]
-id = "billing"
-pid = 1234
+process_names = ["orders-api", "billing"]
 ```
 
-A configuration permits up to 16 targets. IDs must be unique and contain
-1..31 letters, digits, dots, underscores, or hyphens. Each table needs an ID
-and exactly one `process` or `pid`. A process name must be an exact, unique
-Linux process name of at most 15 bytes.
+Each matching process is one target, with an ID made from its name (see
+[local discovery](#local-discovery)). The sampler cannot select a PID or set
+an ID. A configuration with `target_pid`, `target_process`, or a `[[target]]`
+table fails at startup with an error that shows the `process_names` line to
+use. A reload with such a key keeps the previous configuration.
 
 Each target has its own session. A process restart changes only that session.
-On SIGHUP, targets with the same ID and selector keep their sessions. A global
-setting change starts new sessions for all targets. The sampler shares one
+A global setting change starts new sessions for all targets. The sampler shares one
 process-name scan and one descriptor budget. Resources and memory maps rotate
 across targets; one tick runs at most one heavy scan. That caps all targets together at
 `rate_hz` heavy scans per second. When the enabled intervals ask for more
@@ -115,16 +105,15 @@ rates, and the budget. The collector converts the counters to a percentage.
 
 ## Local discovery
 
-The local `sampler.toml` owns production selection. Remove legacy selectors
-before using the discovery lists in [the example](../config/sampler.toml).
+The local `sampler.toml` owns production selection. See the discovery lists in
+[the example](../config/sampler.toml).
 `process_names` selects exact Linux comm names. `process_patterns` optionally
 selects whole names with `*` and `?`, ignoring ASCII case (`T3*` matches
 `t3code`). Patterns that differ only in case are rejected as duplicates.
 Brackets and backslashes are rejected. Each rule has 1..15 bytes, with at most 16 rules in total.
 Exact names use letters, digits, dots, underscores, and hyphens. Linux keeps
 only 15 bytes of a process name. It does not match the command line.
-Empty lists are valid and keep discovery active. Do not mix lists with
-`target_pid`, `target_process`, or `[[target]]`.
+The two lists together need at least one entry.
 
 `max_targets` reserves 1..16 instance slots, default 8. Configure at least
 one slot per exact name. Each running PID and start time gets its own

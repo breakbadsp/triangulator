@@ -18,7 +18,6 @@
 #include "exit_status.hpp"
 #include "kernel_log.hpp"
 #include "memory.hpp"
-#include "name_lookup.hpp"
 #include "proc.hpp"
 #include "process_info.hpp"
 #include "resources.hpp"
@@ -102,23 +101,14 @@ extern "C" void OnSignal(int p_number)
 class TargetSampler final
 {
  public:
-  TargetSampler(RuntimeConfig& p_config, TargetConfig p_target,
-                DescriptorBudget& p_budget, RateLimitedLogger& p_logger,
-                const std::array<char, 64>& p_host)
-      : config_(p_config),
-        target_(std::move(p_target)),
-        threads_(p_budget),
-        logger_(p_logger),
-        host_(p_host)
+  TargetSampler(RuntimeConfig& p_config, DescriptorBudget& p_budget,
+                RateLimitedLogger& p_logger, const std::array<char, 64>& p_host)
+      : config_(p_config), threads_(p_budget), logger_(p_logger), host_(p_host)
   {
     // Assign() then never allocates for an ID.
-    target_.id_.reserve(target_wire::kMaxIdBytes);
+    id_.reserve(target_wire::kMaxIdBytes);
   }
 
-  [[nodiscard]] const TargetConfig& Settings() const noexcept
-  {
-    return target_;
-  }
   [[nodiscard]] std::expected<void, std::string> Initialize()
   {
     return ResetSession();
@@ -133,7 +123,7 @@ class TargetSampler final
   // session, with nothing of the previous target kept.
   [[nodiscard]] std::expected<void, std::string> Assign(std::string_view p_id)
   {
-    target_.id_.assign(p_id);
+    id_.assign(p_id);
     previous_target_.reset();
     exit_status_.Stop();
     exit_report_sends_ = 0;
@@ -231,7 +221,7 @@ class TargetSampler final
             exit_report_.wait_status_ = *status;
             exit_report_.exit_status_ = exit_wire::ExitStatus::Known;
           }
-          lifecycle_.Log("target {}: PID {} ended", target_.id_,
+          lifecycle_.Log("target {}: PID {} ended", id_,
                          previous_target_->pid_);
           exit_report_.ended_session_ = session_;
           exit_report_sends_ = kExitReportSends;
@@ -315,7 +305,7 @@ class TargetSampler final
     packet.flags_ = flags_;
     packet.excluded_ = config_.excluded_;
     packet.session_ = session_;
-    target_wire::SetText(packet.target_, target_.id_);
+    target_wire::SetText(packet.target_, id_);
     packet.host_ = host_;
     packet.configured_millihz_ = static_cast<std::uint32_t>(
         std::lround(config_.settings_.rate_hz_ * 1000));
@@ -369,7 +359,7 @@ class TargetSampler final
     {
       monitoring_logged_ = true;
       lifecycle_.Log(
-          "target {}: monitoring PID {} ({})", target_.id_, p_target.pid_,
+          "target {}: monitoring PID {} ({})", id_, p_target.pid_,
           process_wire::Text(LogName(MainThreadName(p_target), process_info_)));
     }
     process_info_.session_ = session_;
@@ -624,7 +614,7 @@ class TargetSampler final
       std::chrono::seconds{process_wire::kRepeatSeconds};
 
   RuntimeConfig& config_;
-  TargetConfig target_;
+  std::string id_;
   ThreadCache threads_;
   std::array<wire::Record, wire::kMaxThreads> records_{};
   std::size_t record_count_ = 0;  // records_ filled by the last tick
@@ -678,7 +668,7 @@ class Sampler final
 
   [[nodiscard]] std::expected<void, std::string> Run(const char* p_config_path)
   {
-    if (auto prepared = PrepareTargets(false); !prepared)
+    if (auto prepared = PreparePool(false); !prepared)
     {
       return prepared;
     }
@@ -712,10 +702,7 @@ class Sampler final
           ClockNow(CLOCK_MONOTONIC) +
           std::min<Nanoseconds>(config_.Interval() / 4, 50ms);
       std::array<bool, target_wire::kMaxTargets> live{};
-      if (auto sampled = config_.settings_.Discovers()
-                             ? SampleDiscovered(exit_deadline, live)
-                             : SampleConfigured(exit_deadline, live);
-          !sampled)
+      if (auto sampled = SampleDiscovered(exit_deadline, live); !sampled)
       {
         return sampled;
       }
@@ -733,7 +720,7 @@ class Sampler final
           static_cast<std::uint64_t>(cpu_budget_.Elapsed().count());
       if (old_rate > 0 && old_rate != config_.effective_rate_hz_)
       {
-        for (auto& target : Samplers())
+        for (auto& target : pool_)
         {
           target->AnnounceNextTick();
         }
@@ -755,17 +742,10 @@ class Sampler final
   CpuBudget cpu_budget_;
   RateLimitedLogger logger_;
   std::array<char, 64> host_{};
-  std::vector<std::unique_ptr<TargetSampler>> targets_;
-  // Discovery mode: one sampler for each slot, made at startup or reload.
   Discovery discovery_;
-  NameLookup names_;
+  // One sampler for each discovery slot, made at startup or reload.
   std::vector<std::unique_ptr<TargetSampler>> pool_;
   std::size_t heavy_cursor_ = 0;
-
-  [[nodiscard]] std::vector<std::unique_ptr<TargetSampler>>& Samplers() noexcept
-  {
-    return config_.settings_.Discovers() ? pool_ : targets_;
-  }
 
   // Reads the configuration file again. The value is false when the file
   // was invalid and the previous configuration stays.
@@ -793,30 +773,20 @@ class Sampler final
     // Configure() can erase slots above a reduced discovery capacity.
     for (std::size_t index = 0; index < pool_.size(); ++index)
     {
-      if ((!keep_sessions || !after.Discovers() ||
-           index >= after.max_targets_) &&
+      if ((!keep_sessions || index >= after.max_targets_) &&
           discovery_.Used()[index].state_ != SlotState::Free)
       {
         pool_[index]->Release();
       }
     }
-    for (auto& target : targets_)
-    {
-      if (!keep_sessions || after.Discovers() ||
-          !std::ranges::contains(after.targets_, target->Settings()))
-      {
-        target->Release();
-      }
-    }
     config_ = std::move(*next);
-    names_.Restart();
     if (!keep_sessions)
     {
       cpu_budget_ = CpuBudget{config_.settings_.rate_hz_,
                               config_.settings_.cpu_budget_pct_};
     }
     config_.effective_rate_hz_ = cpu_budget_.RateHz();
-    if (auto prepared = PrepareTargets(keep_sessions); !prepared)
+    if (auto prepared = PreparePool(keep_sessions); !prepared)
     {
       return std::unexpected(prepared.error());
     }
@@ -830,41 +800,12 @@ class Sampler final
   {
     const auto& settings = config_.settings_;
     std::array<char, 256> line{};
-    const auto result =
-        settings.Discovers()
-            ? std::format_to_n(line.data(), line.size(),
-                               "{}; discovery, up to {} targets", p_event,
-                               settings.max_targets_)
-            : std::format_to_n(line.data(), line.size(), "{}; {} targets",
-                               p_event, targets_.size());
+    const auto result = std::format_to_n(line.data(), line.size(),
+                                         "{}; discovery, up to {} targets",
+                                         p_event, settings.max_targets_);
     StderrSink().Write(
         {line.data(),
          std::min(static_cast<std::size_t>(result.size), line.size())});
-  }
-
-  // A target table: one shared, bounded /proc pass resolves the names.
-  [[nodiscard]] std::expected<void, std::string> SampleConfigured(
-      Nanoseconds p_exit_deadline, std::span<bool> p_live)
-  {
-    const auto lookups =
-        names_.Find(config_.settings_.targets_, ClockNow(CLOCK_MONOTONIC));
-    for (std::size_t index = 0; index < targets_.size(); ++index)
-    {
-      if (!lookups[index])
-      {
-        logger_.Warn("target lookup failed: {}; tick skipped, session kept",
-                     lookups[index].error());
-        continue;
-      }
-      if (auto sampled =
-              targets_[index]->SampleTick(*lookups[index], p_exit_deadline);
-          !sampled)
-      {
-        return sampled;
-      }
-      p_live[index] = true;
-    }
-    return {};
   }
 
   // Discovery: one bounded part of a /proc pass, then one tick for each
@@ -916,7 +857,7 @@ class Sampler final
       std::optional<TargetIdentity> identity;
       if (slot.identity_.pid_ != 0)
       {
-        const auto found = FindTarget(TargetPid{slot.identity_.pid_});
+        const auto found = FindTarget(slot.identity_.pid_);
         if (!found)
         {
           logger_.Warn("target lookup failed: {}; tick skipped, session kept",
@@ -955,7 +896,7 @@ class Sampler final
   // memory maps of all targets equal opportunities.
   void StepHeavy(std::span<const bool> p_live)
   {
-    auto& samplers = Samplers();
+    auto& samplers = pool_;
     const auto now = ClockNow(CLOCK_MONOTONIC);
     const auto jobs = samplers.size() * 2;
     for (std::size_t checked = 0; checked < jobs; ++checked)
@@ -973,7 +914,6 @@ class Sampler final
   [[nodiscard]] std::expected<void, std::string> PreparePool(
       bool p_keep_sessions)
   {
-    targets_.clear();
     discovery_.Configure(config_.settings_);
     if (!p_keep_sessions)
     {
@@ -987,8 +927,8 @@ class Sampler final
     for (std::size_t index = pool_.size();
          index < config_.settings_.max_targets_; ++index)
     {
-      auto sampler = std::make_unique<TargetSampler>(config_, TargetConfig{},
-                                                     budget_, logger_, host_);
+      auto sampler =
+          std::make_unique<TargetSampler>(config_, budget_, logger_, host_);
       if (auto initialized = sampler->Initialize(); !initialized)
       {
         return initialized;
@@ -1002,45 +942,6 @@ class Sampler final
         slot.reassigned_ = slot.state_ != SlotState::Free;
       }
     }
-    heavy_cursor_ = 0;
-    return {};
-  }
-
-  [[nodiscard]] std::expected<void, std::string> PrepareTargets(
-      bool p_keep_sessions)
-  {
-    if (config_.settings_.Discovers())
-    {
-      return PreparePool(p_keep_sessions);
-    }
-    pool_.clear();
-    discovery_ = Discovery{};
-    std::vector<std::unique_ptr<TargetSampler>> next;
-    next.reserve(config_.settings_.targets_.size());
-    for (const auto& target : config_.settings_.targets_)
-    {
-      const auto found = std::ranges::find_if(
-          targets_,
-          [&](const auto& p_existing)
-          {
-            return p_existing && p_existing->Settings() == target;
-          });
-      if (p_keep_sessions && found != targets_.end())
-      {
-        next.push_back(std::move(*found));
-      }
-      else
-      {
-        auto sampler = std::make_unique<TargetSampler>(config_, target, budget_,
-                                                       logger_, host_);
-        if (auto initialized = sampler->Initialize(); !initialized)
-        {
-          return initialized;
-        }
-        next.push_back(std::move(sampler));
-      }
-    }
-    targets_ = std::move(next);
     heavy_cursor_ = 0;
     return {};
   }

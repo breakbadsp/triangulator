@@ -62,7 +62,7 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "sampler.toml"
             config.write_text(
-                f'target_process = "{NAME}"\nrate_hz = {arguments.rate}\n'
+                f'process_names = ["{NAME}"]\nrate_hz = {arguments.rate}\n'
                 f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
                 'resource_interval_s = 2\nmemory_interval_s = 0\ncpu_budget_pct = 100\n')
             sampler = subprocess.Popen([str(arguments.binary), str(config)],

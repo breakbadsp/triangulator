@@ -32,7 +32,7 @@ pack() {
         cp -p "$root/build/$binary" "$package/bin/"
     done
     # Control scripts are shared.
-    for script in runtime.sh start.sh stop.sh restart.sh set-target.sh set-rate.sh sampler_control.py; do
+    for script in runtime.sh start.sh stop.sh restart.sh set-rate.sh sampler_control.py; do
         cp -p "$root/scripts/$script" "$package/scripts/"
     done
     cp -p "$root/config/$kind.toml" "$package/templates/"

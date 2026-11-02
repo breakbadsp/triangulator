@@ -22,7 +22,6 @@
 #include "../sampler/exit_status.hpp"
 #include "../sampler/kernel_log.hpp"
 #include "../sampler/memory.hpp"
-#include "../sampler/name_lookup.hpp"
 #include "../sampler/proc.hpp"
 #include "../sampler/process_info.hpp"
 #include "../sampler/resources.hpp"
@@ -100,43 +99,47 @@ void TestParsing()
 void TestConfig()
 {
   const auto config = ParseConfig(
-      "target_process = \"name #1\" # "
+      "process_patterns = [\"name #*\"] # "
       "comment\nrate_hz=0.2\ncollector=\"[::1]:9400\"\nstatus_fallback=true\n");
   Require(config.has_value(), "valid configuration");
-  Require(std::get<TargetName>(config->target_).value_ == "name #1",
-          "quoted hash is part of process name");
+  Require(config->process_patterns_ == std::vector<std::string>{"name #*"},
+          "quoted hash is part of process pattern");
   Require(config->Interval() == 5s && config->IntervalMs() == 5000,
           "rate converted to chrono duration");
   Require(config->status_fallback_, "fallback flag");
   Require(config->resource_interval_s_ == 2, "resource samples default to 2 s");
   const auto resources_off = ParseConfig(
-      "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=0\n");
+      "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nresource_interval_s="
+      "0\n");
   Require(resources_off && resources_off->resource_interval_s_ == 0,
           "resource samples can be turned off");
   Require(config->memory_interval_s_ == 30,
           "memory-map samples default to 30 s");
   const auto memory_on = ParseConfig(
-      "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=30\n");
+      "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nmemory_interval_s="
+      "30\n");
   Require(memory_on && memory_on->memory_interval_s_ == 30,
           "memory-map samples can be turned on");
   const auto memory_off = ParseConfig(
-      "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=0\n");
+      "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nmemory_interval_s=0\n");
   Require(memory_off && memory_off->memory_interval_s_ == 0,
           "memory-map samples can be turned off");
   for (const auto invalid : {
-           "target_pid=1\ntarget_process=foo\ncollector=127.0.0.1:9400",
-           "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=nan",
-           "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=10.1",
-           "target_pid=1\ncollector=127.0.0.1:9400\nrate_hz=0.19",
-           "target_pid=1\ntarget_pid=2\ncollector=127.0.0.1:9400",
-           "target_pid=1\ncollector=\"127.0.0.1:9400",
-           "target_pid=-1\ncollector=127.0.0.1:9400",
-           "target_pid=1\ncollector=127.0.0.1:9400\nunknown=true",
-           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=61",
-           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=-1",
-           "target_pid=1\ncollector=127.0.0.1:9400\nresource_interval_s=2.5",
-           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=3601",
-           "target_pid=1\ncollector=127.0.0.1:9400\nmemory_interval_s=-1",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nrate_hz=nan",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nrate_hz=10.1",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nrate_hz=0.19",
+           "process_names=[\"a\"]\ncollector=\"127.0.0.1:9400",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nunknown=true",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nresource_interval_"
+           "s=61",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nresource_interval_"
+           "s=-1",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nresource_interval_"
+           "s=2.5",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nmemory_interval_s="
+           "3601",
+           "process_names=[\"a\"]\ncollector=127.0.0.1:9400\nmemory_interval_s="
+           "-1",
        })
   {
     Require(!ParseConfig(invalid), "invalid config must be rejected");
@@ -181,33 +184,39 @@ void RequireHex(std::span<const std::byte> p_bytes, std::string_view p_expected)
   }
 }
 
-// Target tables retain legacy configuration and reject ambiguous selectors.
-void TestMultipleTargetConfig()
+// The removed selectors fail with an error that names the key and shows the
+// process_names replacement, also next to valid discovery lists. A
+// configuration with no rule selects nothing, so it fails too.
+void TestRemovedTargetKeys()
 {
-  const auto parsed = ParseConfig(
-      "collector=127.0.0.1:9400\n[[target]]\nid=orders\nprocess=orders-api\n[["
-      "target]]\nid=billing\npid=123\n");
-  Require(parsed && parsed->targets_.size() == 2, "two target tables");
-  Require(ParseConfig("collector=127.0.0.1:9400\ntarget_pid=1")
-                  ->targets_.front()
-                  .id_ == "default",
-          "legacy target has default id");
-  for (const auto text :
-       {"target_pid=1\n[[target]]\nid=one\npid=2",
-        "[[target]]\nid=one\npid=1\nprocess=two", "[[target]]\nid=one",
-        "[[target]]\npid=1", "[[target]]\nid=../escape\npid=1",
-        "[[target]]\nid=one\npid=1\n[[target]]\nid=one\npid=2",
-        "[[target]]\nid=one\npid=1\nrate_hz=2"})
+  for (const auto& [text, key] :
+       std::array<std::pair<std::string_view, std::string_view>, 6>{{
+           {"target_process=orders-api", "target_process"},
+           {"target_pid=123", "target_pid"},
+           {"[[target]]\nid=orders\nprocess=orders-api", "[[target]]"},
+           {"[[target]]\nid=billing\npid=123", "[[target]]"},
+           {"process_names=[\"a\"]\ntarget_process=b", "target_process"},
+           {"process_names=[\"a\"]\n[[target]]\nid=b\npid=1", "[[target]]"},
+       }})
   {
-    Require(!ParseConfig(std::string{"collector=127.0.0.1:9400\n"} + text),
-            "invalid target table");
+    const auto parsed = ParseConfig(std::string{"collector=127.0.0.1:9400\n"} +
+                                    std::string{text});
+    Require(!parsed && parsed.error().find(key) != std::string::npos &&
+                parsed.error().find("process_names = [") != std::string::npos,
+            text);
   }
-  std::string many = "collector=127.0.0.1:9400\n";
-  for (int index = 0; index < 17; ++index)
+  const auto named =
+      ParseConfig("collector=127.0.0.1:9400\ntarget_process=orders-api");
+  Require(!named && named.error().find("process_names = [\"orders-api\"]") !=
+                        std::string::npos,
+          "the replacement keeps the configured name");
+  for (const auto text : {"", "process_names=[]", "process_patterns=[]",
+                          "process_names=[]\nprocess_patterns=[]"})
   {
-    many += std::format("[[target]]\nid=t{}\npid=1\n", index);
-    Require(ParseConfig(many).has_value() == (index < 16),
-            "fixed target count");
+    const auto parsed =
+        ParseConfig(std::string{"collector=127.0.0.1:9400\n"} + text);
+    Require(!parsed && parsed.error().starts_with("no target"),
+            "a configuration without a rule fails");
   }
 }
 
@@ -219,23 +228,19 @@ void TestDiscoveryConfig()
       "collector=127.0.0.1:9400\nprocess_names = [\n  \"orders-api\",  # "
       "one\n  \"billing\",\n]\nprocess_patterns = [\"worker-*\", \"a,b?\"]\n"
       "max_targets = 3\n");
-  Require(parsed && parsed->Discovers(), "discovery lists parse");
+  Require(parsed.has_value(), "discovery lists parse");
   Require(parsed->process_names_ ==
               std::vector<std::string>{"orders-api", "billing"},
           "a name per list entry, comments and a trailing comma allowed");
   Require(
       parsed->process_patterns_ == std::vector<std::string>{"worker-*", "a,b?"},
       "a comma inside quotes belongs to the pattern");
-  Require(parsed->max_targets_ == 3 && parsed->targets_.empty(),
-          "max_targets, and no target tables");
+  Require(parsed->max_targets_ == 3, "max_targets");
   Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"x\"]")
                   ->max_targets_ == 8,
           "eight slots by default");
   for (const auto text :
-       {"process_names=[\"a\"]\ntarget_process=b",
-        "target_pid=1\nprocess_patterns=[\"a*\"]",
-        "process_names=[\"a\"]\n[[target]]\nid=b\npid=1",
-        "process_names=[\"web content\"]", "process_names=[\"..\"]",
+       {"process_names=[\"web content\"]", "process_names=[\"..\"]",
         "process_names=[\"0123456789abcdef\"]", "process_names=[\"a\",\"a\"]",
         "process_patterns=[\"plain\"]", "process_patterns=[\"[ab]*\"]",
         "process_patterns=[\"a\\\\*\"]",
@@ -243,16 +248,11 @@ void TestDiscoveryConfig()
         "process_names=\"a\"", "process_names=[a]",
         "process_names=[\"a\"\n\"b\"]", "process_names=[\"a\" \"b\"]",
         "process_names=[\"a\"]\nmax_targets=17",
-        "process_names=[\"a\"]\nmax_targets=0", "target_pid=1\nmax_targets=2"})
+        "process_names=[\"a\"]\nmax_targets=0"})
   {
     Require(!ParseConfig(std::string{"collector=127.0.0.1:9400\n"} + text),
             text);
   }
-  const auto mixed = ParseConfig(
-      "collector=127.0.0.1:9400\ntarget_pid=1\nprocess_names=[\"a\"]");
-  Require(!mixed && mixed.error().find("target_pid or target_process") !=
-                        std::string::npos,
-          "the error names the conflicting settings");
   Require(
       !ParseConfig(
           "collector=127.0.0.1:9400\nprocess_patterns=[\"a*\",\"a*\"]") &&
@@ -925,14 +925,6 @@ void TestSharedDescriptorBudget()
   first.Clear();
   second.Clear();
   Require(budget.kept_ == 0, "clear releases the shared descriptor budget");
-  const std::array<TargetConfig, 2> targets{
-      {{"self", TargetPid{::getpid()}},
-       {"absent", TargetName{"absent-xyz-123"}}}};
-  NameLookup names;
-  const auto found = names.Find(targets, Nanoseconds{0});
-  Require(found[0] && *found[0] && (**found[0]).pid_ == ::getpid(),
-          "shared lookup finds PID");
-  Require(found[1] && !*found[1], "shared lookup reports an absent name");
 }
 
 // A fixed CPU window lowers the rate, respects the minimum, and recovers.
@@ -970,16 +962,14 @@ void TestCpuBudget()
   Require(minimum.RateHz() > 0.2, "old high CPU buckets expire at low rates");
   for (const auto text : {"0", "-1", "nan", "101"})
   {
-    Require(!ParseConfig(
-                std::string{
-                    "collector=127.0.0.1:9400\ntarget_pid=1\ncpu_budget_pct="} +
-                text),
+    Require(!ParseConfig(std::string{"collector=127.0.0.1:9400\nprocess_names=["
+                                     "\"a\"]\ncpu_budget_pct="} +
+                         text),
             "invalid CPU budget is rejected");
   }
-  Require(
-      ParseConfig("collector=127.0.0.1:9400\ntarget_pid=1")->cpu_budget_pct_ ==
-          1,
-      "default CPU budget is one percent");
+  Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"a\"]")
+                  ->cpu_budget_pct_ == 1,
+          "default CPU budget is one percent");
 }
 
 void TestWire()
@@ -1858,7 +1848,7 @@ void TestProcessInfoProbe()
 {
   using process_wire::Flags;
   const int pid = ::getpid();
-  const auto target = FindTarget(TargetPid{pid});
+  const auto target = FindTarget(pid);
   Require(target && *target, "the test process is found");
   ProcessInfoProbe probe;
   const auto before = ClockNow(CLOCK_REALTIME);
@@ -2272,7 +2262,7 @@ void TestExitMessages()
   Require(cut.kernel_log_ == exit_wire::KernelLog::Read && cut.line_count_ == 0,
           "a drain with no time left reads nothing but still reports");
 
-  const auto self = FindTarget(TargetPid{::getpid()});
+  const auto self = FindTarget(::getpid());
   Require(self && *self, "the test process is found");
   const auto running = ProcessEnded(**self);
   Require(running && !*running, "a running process has not ended");
@@ -2372,7 +2362,7 @@ class Child final
   }
   [[nodiscard]] TargetIdentity Identity() const
   {
-    const auto found = FindTarget(TargetPid{pid_});
+    const auto found = FindTarget(pid_);
     Require(found && *found, "the child is found");
     return **found;
   }
@@ -2562,7 +2552,7 @@ void TestUncertainIdentity()
   std::filesystem::create_directories(std::format("{}/14/stat", root));
   const auto find = [&root](int p_pid)
   {
-    return FindTarget(TargetPid{p_pid}, root);
+    return FindTarget(p_pid, root);
   };
   const auto alive = find(10);
   Require(alive && *alive && (*alive)->starttime_ == 77, "a live process");
@@ -2589,99 +2579,13 @@ void TestUncertainIdentity()
   std::filesystem::remove_all(root);
 }
 
-// A configured name is found by a pass of at most kScanEntriesPerTick
-// entries per tick; only a complete pass decides (PR 215, finding 2).
-void TestNameLookup()
-{
-  char root[] = "/tmp/name-lookup-XXXXXX";
-  Require(::mkdtemp(root) != nullptr, "name lookup fixture directory");
-  const auto process = [&root](int p_pid, std::string_view p_name)
-  {
-    const auto directory = std::format("{}/{}", root, p_pid);
-    std::filesystem::create_directories(directory);
-    std::ofstream{directory + "/comm"} << p_name << '\n';
-    std::ofstream{directory + "/stat"} << FakeStat(p_pid, p_name, 'S', 7);
-  };
-  constexpr int kIdle = 3000;
-  for (int pid = 1; pid <= kIdle; ++pid)
-  {
-    process(pid, "idle");
-  }
-  process(5000, "web");
-  const std::array<TargetConfig, 2> targets{
-      {{"web", TargetName{"web"}}, {"other", TargetName{"other"}}}};
-  NameLookup names{root};
-  Nanoseconds now{0};
-  const auto tick = [&]()
-  {
-    now += 100ms;
-    return names.Find(targets, now);
-  };
-  int ticks = 1;
-  auto found = tick();
-  Require(found[0] && !*found[0], "one tick does not finish a large pass");
-  while (!(found[0] && *found[0]) && ticks < 100)
-  {
-    found = tick();
-    ++ticks;
-  }
-  // kIdle + 3 entries (".", ".." and the target), at most 512 per tick.
-  const int pass_ticks = static_cast<int>(
-      (kIdle + 3 + kScanEntriesPerTick - 1) / kScanEntriesPerTick);
-  Require(ticks == pass_ticks && (*found[0])->pid_ == 5000,
-          "the pass is spread over ticks and then finds the name");
-  Require(found[1] && !*found[1], "a name that no process has is absent");
-
-  process(5001, "web");
-  for (int count = 0; count < 5; ++count)
-  {
-    found = tick();
-    Require(found[0] && *found[0],
-            "until the next pass ends, the found PID is kept");
-  }
-  for (int count = 0; count < 30 && found[0] && *found[0]; ++count)
-  {
-    found = tick();
-  }
-  Require(found[0] && !*found[0], "a complete pass sees the second process");
-  std::filesystem::remove_all(std::format("{}/5001", root));
-  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
-  {
-    found = tick();
-  }
-  Require(found[0] && *found[0], "the name is unique again");
-
-  std::ofstream{std::format("{}/5000/stat", root)}
-      << FakeStat(5000, "renamed", 'S', 7);
-  Require(tick()[0] == TargetLookup{std::nullopt},
-          "a rename is seen at the next tick, without a pass");
-  process(5000, "web");
-
-  // A pass that fails keeps the found PID and does not decide the rest.
-  found = tick();
-  for (int count = 0; count < 30 && !(found[0] && *found[0]); ++count)
-  {
-    found = tick();
-  }
-  Require(found[0] && *found[0], "the renamed-back process is found again");
-  names.Restart();
-  (void)tick();
-  BreakDirectory(OpenDescriptorOf(root));
-  found = tick();
-  Require(found[0] && *found[0] && (*found[0])->pid_ == 5000,
-          "a failed pass keeps the found PID");
-  Require(!found[1] && found[1].error() == ENOTDIR,
-          "a failed pass leaves an unfound name unknown, not absent");
-  std::filesystem::remove_all(root);
-}
-
 int main()
 {
   try
   {
     TestParsing();
     TestConfig();
-    TestMultipleTargetConfig();
+    TestRemovedTargetKeys();
     TestDiscoveryConfig();
     TestGlobMatch();
     TestConfigWatchEvents();
@@ -2694,7 +2598,6 @@ int main()
     TestDiscoveryChildSelectedByReload();
     TestDirectoryReadErrors();
     TestUncertainIdentity();
-    TestNameLookup();
     TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();

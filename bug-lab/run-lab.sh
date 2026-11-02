@@ -74,8 +74,16 @@ for name in "${scenarios[@]}"; do
         echo "$name exited before target selection; see $out/$name.log" >&2
         exit 1
     fi
-    # Select by PID: a name is ambiguous if another lab run uses the same scenario.
-    "$root/scripts/set-target.sh" "$app" >/dev/null
+    # Select the scenario by its process name, bb-<scenario> (bugbench.c). A
+    # concurrent lab run of the same scenario is selected too.
+    python3 - "$root" "bb-${run[-2]:0:12}" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1] + "/scripts")
+import sampler_control as control
+control.update_config(Path(sys.argv[1]), None, None,
+                      transform=lambda text: control.replace_rule_list(text, "process_names", [sys.argv[2]]))
+PY
     # The page opens first so trend charts cover the whole run.
     node "$root/bug-lab/capture.mjs" "http://127.0.0.1:$port" "$hold" "$out/$name.png" \
         "#overview=$out/$name-overview.png" "#threads-section=$out/$name-threads.png" \

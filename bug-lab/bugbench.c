@@ -8,7 +8,7 @@
 //   bugbench --list
 //
 // The process name (comm) is "bb-<scenario>" so that the sampler can select it
-// with `scripts/set-target.sh bb-<scenario>`. Worker threads use the thread
+// with `process_names = ["bb-<scenario>"]`. Worker threads use the thread
 // prefixes from config/collector.toml (worker-, io-, sender-, misc-).
 //
 // THIS CODE IS BUGGY ON PURPOSE. It leaks, spins, deadlocks and ignores errors.

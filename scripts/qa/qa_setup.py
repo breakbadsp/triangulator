@@ -15,6 +15,7 @@ import os
 import re
 import signal
 import socket
+import sys
 import subprocess
 import tarfile
 from pathlib import Path
@@ -62,7 +63,10 @@ def start(args):
     root.mkdir(parents=True, exist_ok=True)
     archives = install(Path(args.packages), root, args.platform)
     http, udp = free_ports()
-    fixtures = [subprocess.Popen(['sleep', '86400'], start_new_session=True) for _ in range(args.fixtures)]
+    # Each fixture has a unique comm, because the sampler selects by name.
+    named = "import sys, time; open('/proc/self/comm', 'w').write(sys.argv[1]); time.sleep(86400)"
+    fixtures = [subprocess.Popen([sys.executable, '-c', named, f'qa-fixture-{index}'], start_new_session=True)
+                for index in range(args.fixtures)]
     config = home / 'config'
     config.mkdir(exist_ok=True)
     collector = (home / 'templates/collector.toml').read_text()
@@ -70,7 +74,7 @@ def start(args):
                        ('sampler_ip', '"127.0.0.1"'), ('max_live_samples', 10000)):
         collector = set_key(collector, key, value)
     sampler = (home / 'templates/sampler.toml').read_text()
-    sampler = re.sub(r'^target_process = .*\n', f'target_pid = {fixtures[0].pid}\n', sampler, flags=re.M)
+    sampler = re.sub(r'^process_names = .*\n', 'process_names = ["qa-fixture-0"]\n', sampler, flags=re.M)
     sampler = re.sub(r'\d+\.\d+\.\d+\.\d+:9400', f'127.0.0.1:{udp}', sampler)
     sampler = set_key(sampler, 'memory_interval_s', 5)
     (config / 'collector.toml').write_text(collector)

@@ -40,7 +40,7 @@ install_runtime_binary() {
         mv -f "$destination.tmp.$$" "$destination"
     fi
     local script
-    for script in runtime.sh start.sh stop.sh restart.sh set-target.sh set-rate.sh sampler_control.py; do
+    for script in runtime.sh start.sh stop.sh restart.sh set-rate.sh sampler_control.py; do
         source="$root/scripts/$script"
         destination="$runtime_dir/scripts/$script"
         [[ "$source" != "$destination" && -e "$source" ]] || continue

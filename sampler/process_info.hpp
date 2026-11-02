@@ -174,7 +174,7 @@ struct ExePath
 }
 
 // The name for a log line: p_comm, the kernel task name that
-// process_names and target_process match. A multi-call binary (coreutils,
+// process_names and process_patterns match. A multi-call binary (coreutils,
 // busybox) or an interpreter makes the program file name differ from it.
 // When p_comm is empty: the base name of the program file, or when the file
 // is hidden, of the first word of the command line, or "?". Characters that

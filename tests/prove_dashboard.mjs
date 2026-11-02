@@ -1524,12 +1524,12 @@ try:
     case.setUp()
     case.start_dashboard(extra='sampler_ips=["127.0.0.1"]\\n')
     config = case.runtime / "config/sampler.toml"
-    config.write_text(f'collector="127.0.0.1:{case.port}"\\nrate_hz=5\\n[[target]]\\nid="default"\\npid={case.target.pid}\\n')
+    config.write_text(f'collector="127.0.0.1:{case.port}"\\nrate_hz=5\\nprocess_names=["{case.name}"]\\n')
     case.start_sampler(config)
     name = f"proof-{case.target.pid}"
     first, second = start_named(name), start_named(name)
     case.addCleanup(stop, first, second)
-    print(json.dumps({"url": case.dashboard, "pid": first.pid, "name": name, "config": str(config)}), flush=True)
+    print(json.dumps({"url": case.dashboard, "pid": first.pid, "name": name, "configured": case.name, "config": str(config)}), flush=True)
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     try:
         while True: time.sleep(1)
@@ -1550,9 +1550,9 @@ finally:
   }, "local control fixture");
   controlBase = controlInfo.url;
   const controlUrl = `${controlBase}/api/targets/control`;
-  const targetList = async () => (await (await fetch(controlUrl)).json()).targets;
+  const ruleNames = async () => (await (await fetch(controlUrl)).json()).names;
   const fleetTargetList = async () => (await (await fetch(`${controlBase}/api/targets`)).json()).targets;
-  await until(async () => (await targetList())?.length === 1, "local configured target");
+  await until(async () => (await ruleNames())?.length === 1, "local configured name");
   const originalConfig = await readFile(controlInfo.config, "utf8");
   const targetWrites = [];
   const targetStatuses = new Map();
@@ -1592,8 +1592,9 @@ finally:
   // The metric guide opens inside the modal dialog from an info button.
   const guideFor = (field) =>
     `document.querySelector('${field}').closest('[data-help]').querySelector('button.help-info')`;
-  await click(`#target-settings [data-help="target-id"] > button.help-info`);
-  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Target ID'"), "modal ID guide");
+  assert.equal(await evaluate("document.querySelector('#target-id') === null && document.querySelector('#target-pid') === null"), true);
+  await evaluate(`${guideFor('#target-input')}.click()`);
+  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Manage targets'"), "modal input guide");
   const modalHelp = await evaluate(`(() => {
     const dialog = document.querySelector('#target-settings');
     const guide = dialog.querySelector('#help-guide');
@@ -1608,41 +1609,36 @@ finally:
     return button.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
   })()`);
   assert.equal(addHit, true, "Add target remains clickable while the guide is open");
-  await click('#target-settings #help-guide .help-related button[data-help="manage-targets"]');
-  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Manage targets'"), "modal related guide topic");
-  await escapeTargetHelp();
-  assert.equal(await evaluate("document.querySelector('#target-settings').matches(':modal') && !document.querySelector('#help-guide')"), true);
+  await click('#target-settings #help-guide .help-related button[data-help="target-id"]');
+  await until(() => evaluate("document.querySelector('#target-settings #help-guide-title')?.textContent === 'Target ID'"), "modal related guide topic");
   // The guide remains interactive in the top layer. Close by a real pointer click.
-  await evaluate(`${guideFor('#target-input')}.click()`);
-  await until(() => evaluate("!!document.querySelector('#target-settings #help-guide')"), "modal input guide");
   await click('#target-settings #help-guide button[aria-label="Close metric guide"]');
   assert.equal(await evaluate("document.querySelector('#help-guide') === null && document.querySelector('#target-settings').matches(':modal')"), true);
   await send("Emulation.clearDeviceMetricsOverride");
-  await typeInto("#target-id", "proof");
-  await escapeTargetHelp();
-  await typeInto("#target-input", "2147483647");
+  // The page refuses a value that is not an exact process name, such as a PID
+  // with a space, without a request.
+  await typeInto("#target-input", "1234 5");
   await escapeTargetHelp();
   await click("#target-save");
-  await until(() => evaluate("document.querySelector('#target-status').textContent.includes('no running process')"), "real invalid PID refusal");
+  await until(() => evaluate("document.querySelector('#target-status').textContent.includes('Enter an exact process name')"), "page-side name refusal");
+  assert.equal(targetWrites.length, 0);
+  // The helper refuses a name that is already configured, before confirmation.
+  await typeInto("#target-input", controlInfo.configured);
+  await escapeTargetHelp();
+  await click("#target-save");
+  await until(() => evaluate("document.querySelector('#target-status').textContent.includes('already in process_names')"), "real duplicate name refusal");
   assert.equal(confirmations.length, 0);
   assert.equal(targetWrites.length, 1);
   assert.equal(targetStatuses.get(targetWrites[0].id), 400);
   assert.equal(await readFile(controlInfo.config, "utf8"), originalConfig);
-  await typeInto("#target-input", controlInfo.name);
-  await escapeTargetHelp();
-  await click("#target-save");
-  await until(() => evaluate("document.querySelector('#target-pid')?.options.length === 3"), "real ambiguous process picker");
-  assert.equal(await evaluate("document.activeElement.id"), "target-pid");
-  await evaluate(`document.querySelector('#target-pid').value=${JSON.stringify(String(controlInfo.pid))};document.querySelector('#target-pid').dispatchEvent(new Event('change',{bubbles:true}))`);
-  assert.equal(await evaluate("document.querySelector('#target-input').value"), String(controlInfo.pid));
-  assert.match(await evaluate("document.querySelector('#target-status').textContent"), /does not follow a restart/);
-  await escapeTargetHelp();
   // Cancelled Add checks once but never applies.
+  await typeInto("#target-input", "proof-wait");
+  await escapeTargetHelp();
   await click("#target-save");
   await until(() => confirmations.length === 1, "cancelled native Add confirmation");
   await until(() => evaluate("!document.querySelector('#target-save').disabled"), "cancelled Add ready");
   assert.equal(await readFile(controlInfo.config, "utf8"), originalConfig);
-  assert.equal(targetWrites.length, 3);
+  assert.equal(targetWrites.length, 2);
   // A non-JSON server failure keeps the same input and permits a retry.
   onPaused = async ({ requestId }) => {
     await send("Fetch.fulfillRequest", { requestId, responseCode: 503, body: Buffer.from("unavailable").toString("base64") });
@@ -1651,31 +1647,37 @@ finally:
   await evaluate("document.querySelector('#target-form').requestSubmit()");
   await until(() => evaluate("document.querySelector('#target-status').textContent === 'Unable to change targets (HTTP 503)'"), "non-JSON failure recovery");
   await send("Fetch.disable");
-  assert.equal(await evaluate("document.querySelector('#target-input').value"), String(controlInfo.pid));
+  assert.equal(await evaluate("document.querySelector('#target-input').value"), "proof-wait");
   acceptTargetChange = true;
   const addStart = targetWrites.length;
   await evaluate("document.querySelector('#target-form').requestSubmit();document.querySelector('#target-form').requestSubmit()");
   await until(() => evaluate("!document.querySelector('#target-settings') && document.querySelector('#fleet-status').textContent.includes('Reload requested')"), "real Add and dialog close");
   assert.deepEqual(targetWrites.slice(addStart).map((entry) => entry.body), [
-    { action: "add", id: "proof", target: String(controlInfo.pid), check: true },
-    { action: "add", id: "proof", target: String(controlInfo.pid) },
+    { action: "add", target: "proof-wait", check: true },
+    { action: "add", target: "proof-wait" },
   ]);
   assert.equal(confirmations.length, 2);
-  await until(async () => (await targetList()).length === 2, "sampler config contains added target");
-  await until(() => evaluate("!!document.querySelector('[aria-label=\"Remove target proof\"]')"), "new removable tile after refresh");
+  await until(async () => (await ruleNames()).length === 2, "sampler config contains the added name");
+  await until(() => evaluate("document.body.textContent.includes('Waiting for a process named proof-wait')"), "explicit waiting tile");
   acceptTargetChange = false;
   const removeStart = targetWrites.length;
-  await click('[aria-label="Remove target proof"]');
+  await click('[aria-label="Remove target proof-wait"]');
   await until(() => confirmations.length === 3, "cancelled native Remove confirmation");
   assert.equal(targetWrites.length, removeStart);
   acceptTargetChange = true;
   await escapeTargetHelp();
-  await click('[aria-label="Remove target proof"]');
-  await until(async () => (await targetList()).length === 1, "real Remove in sampler config");
-  await until(() => evaluate("!document.querySelector('[aria-label=\"Remove target proof\"]')"), "removed tile after refresh");
-  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", key: `${(await fleetTargetList())[0].host}/proof`, id: "proof", target: String(controlInfo.pid) }]);
-  assert.equal(confirmations.length, 4);
-  assert.equal(await evaluate("document.querySelector('[aria-label=\"Remove target default\"]').disabled"), true);
+  await click('[aria-label="Remove target proof-wait"]');
+  await until(async () => (await ruleNames()).length === 1, "real Remove in sampler config");
+  await until(() => evaluate("!document.querySelector('[aria-label=\"Remove target proof-wait\"]')"), "removed tile after refresh");
+  const host = (await fleetTargetList())[0].host;
+  assert.deepEqual(targetWrites.slice(removeStart).map((entry) => entry.body), [{ action: "remove", key: `${host}/proof-wait`, id: "proof-wait", rule: "proof-wait" }]);
+  assert.match(confirmations.at(-1), /Every process named proof-wait stops being monitored/);
+  assert.equal((await readFile(controlInfo.config, "utf8")).includes('"proof-wait"'), false);
+  // The last rule stays: the helper refuses, and the page shows why.
+  const lastRule = await readFile(controlInfo.config, "utf8");
+  await click(`[aria-label="Remove target ${controlInfo.configured}"]`);
+  await until(() => evaluate("document.querySelector('#fleet-status').textContent.includes('keep at least one')"), "last rule refusal");
+  assert.equal(await readFile(controlInfo.config, "utf8"), lastRule);
   for (const entry of targetWrites) {
     const headers = Object.fromEntries(Object.entries(entry.headers).map(([name, value]) => [name.toLowerCase(), value]));
     assert.equal(headers["x-triangulator"], "1");
@@ -1683,32 +1685,27 @@ finally:
   }
   // Collector guards are separate evidence from the new page-side writes.
   const currentConfig = await readFile(controlInfo.config, "utf8");
-  const guardRequest = async (headers) => fetch(`${controlBase}/api/targets`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ action: "remove", id: "default" }) });
+  const guardRequest = async (headers) => fetch(`${controlBase}/api/targets`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ action: "remove", id: controlInfo.configured }) });
   assert.equal((await guardRequest({})).status, 403);
   assert.equal((await guardRequest({ "X-Triangulator": "1", Origin: "https://untrusted.invalid" })).status, 403);
   assert.equal((await guardRequest({ "X-Triangulator": "1" })).status, 403);
   assert.equal(await readFile(controlInfo.config, "utf8"), currentConfig);
-  // Discovery controls use the real sampler file, with two matching PIDs.
-  const discoveryConfig = currentConfig.split("[[target]]")[0] +
-    `process_names=["${controlInfo.name}"]\nprocess_patterns=["${controlInfo.name}*"]\n`;
+  // A pattern also selects the two matching PIDs, so their Remove is disabled.
+  const discoveryConfig = currentConfig.replace(/^process_names\s*=\s*\[[^\]]*\]/m,
+    `process_names=["${controlInfo.name}"]\nprocess_patterns=["${controlInfo.name}*"]`);
   await writeFile(controlInfo.config, discoveryConfig);
   await until(async () => (await fleetTargetList()).filter((target) => target.pid !== 0).length === 2, "two discovered process instances");
-  await until(() => evaluate("[...document.querySelectorAll('.ft-remove')].length === 2 && [...document.querySelectorAll('.ft-remove')].every(button => button.disabled)"), "pattern Remove is disabled in the real browser");
-  await click("#fleet-add");
-  await until(() => evaluate("!!document.querySelector('#target-settings')"), "discovery Add dialog");
-  assert.equal(await evaluate("document.querySelector('#target-id') === null"), true);
-  await typeInto("#target-input", "proof-wait");
-  await escapeTargetHelp();
-  await click("#target-save");
-  await until(async () => (await fleetTargetList()).some((target) => target.id === "proof-wait" && target.pid === 0), "persistent waiting rule");
-  await until(() => evaluate("document.body.textContent.includes('Waiting for a process named proof-wait')"), "explicit waiting tile");
-  await click('[aria-label="Remove target proof-wait"]');
-  await until(async () => !(await fleetTargetList()).some((target) => target.id === "proof-wait"), "exact rule Remove");
-  assert.equal((await readFile(controlInfo.config, "utf8")).includes('"proof-wait"'), false);
-  assert.match(confirmations.at(-1), /Every process named proof-wait stops being monitored/);
+  // Remove explains the refusal and sends nothing.
+  await until(() => evaluate("document.querySelectorAll('.ft-remove').length === 2"), "two pattern-selected tiles");
+  const writesBeforePattern = targetWrites.length;
+  const confirmationsBeforePattern = confirmations.length;
+  await click(".ft-remove");
+  await until(() => evaluate("document.body.textContent.includes('Another rule selects this process')"), "pattern Remove refusal in the real browser");
+  assert.equal(targetWrites.length, writesBeforePattern);
+  assert.equal(confirmations.length, confirmationsBeforePattern);
   assert.equal(await evaluate("document.querySelector('[id*=alert], [data-help=alerts]') === null"), true);
   assert.equal(requests.some((url) => url.includes("/api/alert-settings")), false);
-  const targetControl = { realAdd: true, realRemove: true, invalidPidRefusedBeforeConfirm: true, ambiguousPidPicker: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,403], hiddenAlerts: true };
+  const targetControl = { realAdd: true, realRemove: true, nameRefusedBeforeConfirm: true, lastRuleKept: true, cancelledAddAndRemove: true, doubleSubmit: true, nonJsonRecovery: true, modalHelp, nativeConfirmations: confirmations, guardedHeaders: true, collectorGuards: [403,403,403], hiddenAlerts: true };
 
   const { proveCleanup } = await import("./prove_cleanup.mjs");
   const cleanup = await proveCleanup({ root, profile, base, controlBase, send, evaluate, until, stop, setPaused: value => { onPaused = value; } });

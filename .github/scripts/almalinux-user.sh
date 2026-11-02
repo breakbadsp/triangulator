@@ -21,9 +21,12 @@ trap cleanup EXIT
 
 make clean
 MAKEFLAGS=-j2 scripts/start.sh
-sleep 120 &
+# A unique comm, so the sampler selects this process by name.
+python3 -c "open('/proc/self/comm', 'w').write('tri-ci-target'); import time; time.sleep(120)" &
 target_pid=$!
-scripts/set-target.sh "$target_pid"
+config="${TRIANGULATOR_HOME:-$HOME/triangulator}/config/sampler.toml"
+sed -i 's/^process_names = .*/process_names = ["tri-ci-target"]/' "$config"
+grep -qxF 'process_names = ["tri-ci-target"]' "$config"
 scripts/set-rate.sh 5
 python3 - "$target_pid" <<'PY'
 import json
@@ -40,7 +43,7 @@ for attempt in range(100):
     time.sleep(.1)
 else:
     raise SystemExit('The dashboard did not receive the target samples.')
-assert live['threads'][0]['name'] == 'sleep', live['threads']
+assert live['threads'][0]['name'] == 'tri-ci-target', live['threads']
 with open('/reports/startup-live.json', 'w') as output:
     json.dump(live, output, indent=2)
 with urllib.request.urlopen(base, timeout=2) as response:

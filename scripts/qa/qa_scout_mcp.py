@@ -55,9 +55,10 @@ def run_bugbench(root, env, udp, http, start, stop, tool, selected=None):
         (root / 'cgroup-error.txt').write_text(str(error))
     subprocess.run(['gcc', '-O2', '-Wall', '-Wextra', '-pthread', str(REPO / 'bug-lab/bugbench.c'), '-o', str(root / 'bugbench')], check=True)
     sampler_config = root / 'sampler.toml'
-    def configure(pid):
-        sampler_config.write_text(f'target_pid={pid}\nrate_hz=2\ncollector="127.0.0.1:{udp}"\nresource_interval_s=2\nmemory_interval_s=5\n')
-    configure(1)
+    def configure(name):
+        sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=2\ncollector="127.0.0.1:{udp}"\nresource_interval_s=2\nmemory_interval_s=5\n')
+    # No scenario runs yet; the sampler waits for this name.
+    configure('qa-idle')
     sampler = start([REPO / 'build/triangulator-sampler', sampler_config], 'sampler')
     scenarios = 'healthy cpu-spin cpu-oversub cpu-throttle yield-storm lock-convoy deadlock mem-leak mem-oom vm-bloat fd-leak disk-sync major-faults tcp-slow udp-drop close-wait listen-full thread-churn thread-leak stopped'.split()
     results = []
@@ -90,7 +91,8 @@ def run_bugbench(root, env, udp, http, start, stop, tool, selected=None):
                     (group / 'cgroup.procs').write_text(str(os.getpid()))
             hold = 165 if name == 'thread-leak' else 70
             app = start([root / 'bugbench', 'healthy' if name == 'stopped' else name, str(hold+30)], name, preexec_fn=limits)
-            configure(app.pid)
+            # bugbench names its process bb-<scenario>, at most 15 bytes.
+            configure(('bb-' + ('healthy' if name == 'stopped' else name))[:15])
             sampler.send_signal(signal.SIGHUP)
             for elapsed in range(1, hold+1):
                 time.sleep(1)
@@ -141,7 +143,8 @@ def check_history(root):
             time.sleep(2)
             if os.getpid() == 1:
                 sampler_config = root / 'history-sampler.toml'
-                sampler_config.write_text('target_pid=1\nrate_hz=2\ncollector=\"127.0.0.1:' + str(json.loads((root / 'identity.json').read_text())['udp_port']) + '\"\n')
+                init_name = Path('/proc/1/comm').read_text().strip()
+                sampler_config.write_text(f'process_names=["{init_name}"]\nrate_hz=2\ncollector="127.0.0.1:' + str(json.loads((root / 'identity.json').read_text())['udp_port']) + '"\n')
                 history_sampler = subprocess.Popen([str(REPO / 'build/triangulator-sampler'), str(sampler_config)], stdout=log, stderr=log)
                 time.sleep(4)
             with (root / 'history-serve.log').open('w') as err:

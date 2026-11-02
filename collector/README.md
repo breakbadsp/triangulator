@@ -150,9 +150,12 @@ In collector.toml, override the recording cadence with a target settings table:
 ```toml
 [[target]]
 host = "host-a"
-id = "orders"
+id = "orders-api"
 replay_interval_s = 0
 ```
+
+The `id` is the ID that the sampler makes from the process name: `orders-api`
+for the first instance, `orders-api.2` for a second one at the same time.
 
 Use 0 to disable recording for that target, or 0.5..60 seconds. Other targets
 use the global interval. Restart the collector after a configuration change.

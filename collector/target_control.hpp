@@ -21,15 +21,12 @@ extern char** environ;
 namespace triangulator::collector
 {
 
-// Optional local development control, using the same helper as set-target.sh.
+// Optional local development control through scripts/sampler_control.py.
 // The helper owns /proc inspection, config validation and SIGHUP. Nothing runs
 // in the UDP loop, and installations without the script need no Python.
-// A set operation also passes p_max_targets, so the helper can refuse an add
-// under its configuration lock.
 [[nodiscard]] inline std::expected<Json, std::string> RunTargetControl(
     const std::string& p_host, std::int64_t p_port,
-    const std::optional<std::string>& p_target, bool p_multiple,
-    std::int64_t p_max_targets)
+    const std::optional<std::string>& p_target)
 {
   std::array<char, 4096> executable{};
   const auto length =
@@ -65,28 +62,17 @@ namespace triangulator::collector
   const int action_status =
       ::posix_spawn_file_actions_adddup2(&actions, writer.Get(), STDOUT_FILENO);
   std::string interpreter = "python3";
-  std::string command = p_multiple ? "dashboard-targets" : "dashboard-target";
+  std::string command = "dashboard-targets";
   std::string host = p_host;
   std::string port = std::to_string(p_port);
-  std::string max_targets = std::to_string(p_max_targets);
   std::string target = p_target.value_or("");
-  std::array<char*, 8> arguments{interpreter.data(),
+  std::array<char*, 7> arguments{interpreter.data(),
                                  const_cast<char*>(script.c_str()),
                                  command.data(),
                                  host.data(),
                                  port.data(),
-                                 nullptr,
-                                 nullptr,
+                                 p_target ? target.data() : nullptr,
                                  nullptr};
-  std::size_t next_argument = 5;
-  if (p_multiple)
-  {
-    arguments[next_argument++] = max_targets.data();
-  }
-  if (p_target)
-  {
-    arguments[next_argument] = target.data();
-  }
   pid_t child = -1;
   const int spawned =
       action_status ? action_status

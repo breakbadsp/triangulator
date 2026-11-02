@@ -23,10 +23,10 @@
 | QA-131 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-132 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-133 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-001 | BLOCKED | dev-6541317 (CI) | [Run](runs/20261028T172148Z-targeted-6541317/index.md) | [Evidence](runs/20261028T172148Z-targeted-6541317/evidence/observations.json) |
-| QA-002 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-003 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-004 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-001 | NOT_RUN | - | - | - |
+| QA-002 | NOT_RUN | - | - | - |
+| QA-003 | NOT_RUN | - | - | - |
+| QA-004 | NOT_RUN | - | - | - |
 | QA-005 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-006 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-007 | NOT_RUN | - | - | - |
@@ -81,17 +81,17 @@
 | QA-062 | NOT_RUN | - | - | - |
 | QA-063 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-064 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-065 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-065 | NOT_RUN | - | - | - |
 | QA-067 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-068 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-069 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-070 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-068 | NOT_RUN | - | - | - |
+| QA-069 | NOT_RUN | - | - | - |
+| QA-070 | NOT_RUN | - | - | - |
 | QA-071 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-072 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-073 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-074 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-075 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-076 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-076 | NOT_RUN | - | - | - |
 | QA-077 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-078 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-079 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -104,7 +104,7 @@
 | QA-086 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-087 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-088 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-089 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-089 | NOT_RUN | - | - | - |
 | QA-090 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-091 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-092 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -141,26 +141,26 @@
 ## QA-001: Package installation and live dashboard
 
 - Driver: scripted
-- Test: Verify both package checksums. Extract into one isolated installation, start it, select an owned PID, and open the dashboard.
+- Test: Verify both package checksums. Extract into one isolated installation, start it, set `process_names` to the unique name of an owned process, and open the dashboard.
 - Expected: No compiler is needed. The dashboard identifies the process and shows fresh threads without blocking application errors.
 
-## QA-002: Add a target by PID
+## QA-002: Add a target by name
 
 - Driver: scripted
-- Test: With QA-001 running, add a second owned PID with Add target on the Targets overview. Confirm, open its tile, and reload.
+- Test: With QA-001 running, add the unique name of a second owned process with Add target on the Targets overview. Confirm, open its tile, and reload.
 - Expected: Both targets remain live. The second process and its threads appear, and selection survives reload.
 
 ## QA-003: Invalid target input
 
 - Driver: scripted
-- Test: From QA-002, try an empty process field and a nonexistent PID in the Add target dialog. Reload.
+- Test: From QA-002, try an empty process field, a name with a space, a name of 16 bytes, and a name that is already configured in the Add target dialog. Reload.
 - Expected: Validation rejects both before confirmation. No target or saved configuration changes.
 
 ## QA-004: Wait for a named process
 
 - Driver: scripted
-- Test: Add an absent exact process name of at most 15 bytes. Start that process, then stop it. Also change an existing target with `scripts/set-target.sh ID NAME`.
-- Expected: The name is accepted. Absence becomes live data on start. Exit preserves the final view until Show live, including after the selector change.
+- Test: Add an absent exact process name of at most 15 bytes. Start that process, then stop it.
+- Expected: The name is accepted. Absence becomes live data on start. Exit preserves the final view until Show live.
 
 ## QA-005: Thread detail and recorded replay
 
@@ -492,11 +492,11 @@
 - Test: Set different saved watch rules for two targets. Record both, switch targets, replay, and restart the collector.
 - Expected: Rules and recordings stay with their target across switching and restart. No other target's rules or process data appear.
 
-## QA-065: Target control commands
+## QA-065: Removed target selectors fail with the replacement
 
 - Driver: scripted
-- Test: With two named targets, run `scripts/set-target.sh ID NAME|PID`, `--add`, `--remove`, rate control, and `--help`. Try invalid/duplicate IDs and removing the last target.
-- Expected: Valid commands reload the same sampler. Selector changes affect only their target; rate changes keep all target IDs. Invalid input and help preserve configuration.
+- Test: Start the sampler with `target_pid`, `target_process`, a `[[target]]` table, and no rule in turn. Then edit a running configuration to each of them. Change the rate with `scripts/set-rate.sh`.
+- Expected: Each startup fails. The error names the key and shows the `process_names = [...]` line to use. Each reload keeps the previous rules and sessions. The rate change reloads the same sampler. `scripts/set-target.sh` does not exist.
 
 ## QA-067: Single-target install after a collector-only upgrade
 
@@ -507,19 +507,19 @@
 ## QA-068: Sampler upgrade with an unchanged single-target configuration
 
 - Driver: judged
-- Test: After QA-067, upgrade the sampler with unchanged configuration. Restart each component separately, then start the sampler five seconds before the collector. Compare memory, history, rules, CPU, and RSS.
-- Expected: One default target keeps earlier data. Outages create only expected gaps. Memory returns promptly; baseline CPU stays comparable. Default budget does not throttle a small workload.
+- Test: After QA-067, upgrade the sampler with unchanged configuration. Replace its `target_pid` or `target_process` with the `process_names` line from the startup error. Restart each component separately, then start the sampler five seconds before the collector. Compare memory, history, rules, CPU, and RSS.
+- Expected: The unchanged configuration fails at startup with the replacement line. After the edit, the target has the ID of its process name, so earlier data stays under the old default target. Outages create only expected gaps. Memory returns promptly; baseline CPU stays comparable. Default budget does not throttle a small workload.
 
 ## QA-069: Change the single target through the API and scripts
 
 - Driver: judged
-- Test: After QA-068, switch A/B by legacy target API, PID/name scripts, and rate scripts. Test absent names, empty input, and nonexistent PID. Repeat after adding/removing a second target, then with remote/non-loopback settings.
-- Expected: Single-target controls remain compatible and preserve history and watches. Invalid input changes nothing. Remote or non-loopback setups refuse target changes.
+- Test: After QA-068, switch A/B with Add and Remove on the Targets overview and with the rate script. Test absent names, empty input, and a name with a space. Repeat after adding/removing a second name, then with remote/non-loopback settings. Request `GET /api/target`.
+- Expected: Target changes preserve the history and watches of other targets. Invalid input changes nothing. Remove of the last name is refused. Remote or non-loopback setups refuse target changes. `/api/target` returns 404.
 
 ## QA-070: Shipped and earlier configuration files
 
 - Driver: judged
-- Test: Start with shipped and earlier configurations, scalar and list sampler IPs. Test target limits 0/65 and 8 targets with 2,000,000 samples each. Reload an invalid target table.
+- Test: Start with shipped and earlier configurations, scalar and list sampler IPs. Test target limits 0/65 and 8 targets with 2,000,000 samples each. Reload a sampler file with a `[[target]]` table.
 - Expected: Valid configurations start unchanged. Invalid capacity values name the key and fail startup. Invalid reload preserves active targets.
 
 ## QA-071: Two or three targets: add, remove, and re-add
@@ -555,8 +555,8 @@
 ## QA-076: Add and remove a sixth investigation target
 
 - Driver: judged
-- Test: From QA-073 with a free slot, add `extra`: cancel, then confirm. Remove it, then try an existing ID. Observe another tab and the sampler PID.
-- Expected: Cancel changes nothing. Confirmed changes reach both pickers without another sampler. Duplicate IDs fail and preserve existing targets.
+- Test: From QA-073 with a free slot, add the name `extra`: cancel, then confirm. Remove it, then try a name that is already configured. Observe another tab and the sampler PID.
+- Expected: Cancel changes nothing. Confirmed changes reach both pickers without another sampler. A duplicate name fails and preserves existing targets.
 
 ## QA-077: Five-target diagnosis includes the fault findings
 
@@ -636,11 +636,11 @@
 - Test: Tab through tiles and their Remove and help buttons. Wait for two polls with focus on each. Press Enter on a tile link. Open the `fleet` and `fleet-tile` help.
 - Expected: Focus is visible and survives polls. Enter opens the target. The dot and target link expose the assessment to assistive technology. Both help topics open and say that tiles do not run the thread churn rule or memory-map layout rules. Tile help describes the minimal face and says that the dot shows assessment, not sampler activity. It directs users to the card or dashboard for process details.
 
-## QA-089: Select one of several processes with the same name
+## QA-089: Add a name that several processes have
 
 - Driver: judged
-- Test: Start two owned processes with the same name. In Add target, enter a new ID and that name. Select the second process, add it, then open Add target again. Repeat with more than 20 matching processes.
-- Expected: The configuration does not change on the ambiguous name. Matching processes lists PID, user, start time, and command line, at most 20, and the status gives the full count. A choice fills in its PID and warns that a PID does not follow a restart. The chosen PID is added. A new dialog or a later local error hides the list.
+- Test: Start two owned processes with the same name. In Add target, enter that name and confirm. Then remove one tile.
+- Expected: Each process gets its own tile: the name, and the name with `.2`. The dialog has no ID field and no process list. Remove deletes the name rule and stops both instances.
 
 ## QA-090: Findings card on a tile
 

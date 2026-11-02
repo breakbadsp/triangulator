@@ -338,8 +338,8 @@ class DashboardServer
   void Post(httplib::Response& p_response, const Request& p_request)
   {
     const auto& path = p_request.path_;
-    if (path != "/api/target" && path != "/api/targets" &&
-        path != "/api/watches" && path != "/api/watches/reset")
+    if (path != "/api/targets" && path != "/api/watches" &&
+        path != "/api/watches/reset")
     {
       Respond(p_response, 501, "Unsupported method", "text/plain");
       return;
@@ -352,64 +352,46 @@ class DashboardServer
     }
     if (path == "/api/targets")
     {
-      Target(p_response, p_request.peer_, p_request.body_, true);
+      Target(p_response, p_request.peer_, p_request.body_);
       return;
     }
-    if (path == "/api/watches" || path == "/api/watches/reset")
+    const auto key = QueryValue(p_request.query_, "target");
+    const auto selected = state_.Select(key.value_or(""));
+    if (key && !selected)
     {
-      const auto key = QueryValue(p_request.query_, "target");
-      const auto selected = state_.Select(key.value_or(""));
-      if (key && !selected)
-      {
-        RespondJson(p_response, 404, JsonObject{{"error", "unknown target"}});
-        return;
-      }
-      const auto settings = selected ? selected->watches_ : watches_;
-      if (!settings)
-      {
-        RespondJson(
-            p_response, 503,
-            JsonObject{{"error", "target watch settings limit reached"}});
-        return;
-      }
-      if (p_request.if_match_.empty())
-      {
-        RespondJson(p_response, 428,
-                    JsonObject{{"error",
-                                "Reload this dashboard before changing "
-                                "watched-thread rules."}});
-        return;
-      }
-      std::string_view revision = p_request.if_match_;
-      if (revision.size() >= 2 && revision.front() == '"' &&
-          revision.back() == '"')
-      {
-        revision.remove_prefix(1);
-        revision.remove_suffix(1);
-      }
-      else
-      {
-        revision = {};
-      }
-      RespondWatches(p_response,
-                     path == "/api/watches"
-                         ? settings->Replace(p_request.body_, revision)
-                         : settings->Reset(revision));
+      RespondJson(p_response, 404, JsonObject{{"error", "unknown target"}});
+      return;
+    }
+    const auto settings = selected ? selected->watches_ : watches_;
+    if (!settings)
+    {
+      RespondJson(p_response, 503,
+                  JsonObject{{"error", "target watch settings limit reached"}});
+      return;
+    }
+    if (p_request.if_match_.empty())
+    {
+      RespondJson(p_response, 428,
+                  JsonObject{{"error",
+                              "Reload this dashboard before changing "
+                              "watched-thread rules."}});
+      return;
+    }
+    std::string_view revision = p_request.if_match_;
+    if (revision.size() >= 2 && revision.front() == '"' &&
+        revision.back() == '"')
+    {
+      revision.remove_prefix(1);
+      revision.remove_suffix(1);
     }
     else
     {
-      const auto body = ParseJson(p_request.body_);
-      const auto* target = body ? body->Find("target") : nullptr;
-      if (target == nullptr || !target->IsString() ||
-          target->AsString().empty() || target->AsString().size() > 64 ||
-          target->AsString().find('\0') != std::string::npos)
-      {
-        RespondJson(p_response, 400,
-                    JsonObject{{"error", "enter a process name or PID"}});
-        return;
-      }
-      Target(p_response, p_request.peer_, target->AsString());
+      revision = {};
     }
+    RespondWatches(p_response,
+                   path == "/api/watches"
+                       ? settings->Replace(p_request.body_, revision)
+                       : settings->Reset(revision));
   }
 
   // The reply to a change of the watch rules: the rules now in force, as
@@ -495,8 +477,7 @@ class DashboardServer
     const bool reads_target = p_request.path_ != "/" &&
                               p_request.path_ != "/api/targets" &&
                               p_request.path_ != "/api/fleet" &&
-                              p_request.path_ != "/api/targets/control" &&
-                              p_request.path_ != "/api/target";
+                              p_request.path_ != "/api/targets/control";
     if (reads_target && target_key && !target)
     {
       RespondJson(p_response, 404, JsonObject{{"error", "unknown target"}});
@@ -536,10 +517,6 @@ class DashboardServer
     }
     else if (p_request.path_ == "/api/targets/control")
     {
-      Target(p_response, p_request.peer_, std::nullopt, true);
-    }
-    else if (p_request.path_ == "/api/target")
-    {
       Target(p_response, p_request.peer_, std::nullopt);
     }
     else if (p_request.path_ == "/api/watches")
@@ -561,8 +538,9 @@ class DashboardServer
   }
 
   // The exact name that a Remove deletes from process_names: the target ID
-  // without its ".N" suffix. Empty for a legacy target table. Error: a
-  // Remove that would not stop this process, so it is refused.
+  // without its ".N" suffix. Error: a Remove that would not stop this
+  // process, or a target that no name rule selects (an older sampler), so it
+  // is refused.
   [[nodiscard]] static std::expected<std::string, std::string> RuleName(
       const PublishedTarget& p_target)
   {
@@ -570,7 +548,9 @@ class DashboardServer
     if ((flags &
          (target_wire::kNameSelected | target_wire::kOtherRuleSelected)) == 0)
     {
-      return std::string{};
+      return std::unexpected(
+          "No process name selects this target, so Remove cannot stop it. "
+          "Edit sampler.toml on the host.");
     }
     if ((flags & target_wire::kOtherRuleSelected) != 0)
     {
@@ -583,8 +563,7 @@ class DashboardServer
   }
 
   void Target(httplib::Response& p_response, std::string_view p_peer,
-              const std::optional<std::string>& p_target,
-              bool p_multiple = false)
+              const std::optional<std::string>& p_target)
   {
     // Test control of the sampler on this host. Its configuration on disk
     // selects production targets; remote samplers are never changed here.
@@ -600,10 +579,7 @@ class DashboardServer
       return;
     }
     std::optional<std::string> request = p_target;
-    // Take the sessions of the target being removed before the sampler
-    // changes, so the removal cannot reach a session announced afterwards.
-    std::vector<std::uint64_t> removed_sessions;
-    if (p_multiple && p_target)
+    if (p_target)
     {
       auto change = ParseJson(*p_target);
       const auto* action = change ? change->Find("action") : nullptr;
@@ -641,26 +617,19 @@ class DashboardServer
           RespondJson(p_response, 409, JsonObject{{"error", rule.error()}});
           return;
         }
-        if (rule->empty() && id && id->IsString())
+        const auto* requested_rule = change->Find("rule");
+        if (!requested_rule || !requested_rule->IsString() ||
+            requested_rule->AsString() != *rule)
         {
-          removed_sessions = state_.LocalSessionsForId(id->AsString());
+          RespondJson(
+              p_response, 409,
+              JsonObject{
+                  {"error", "Target rule changed; reload the target list"}});
+          return;
         }
-        else
-        {
-          const auto* requested_rule = change->Find("rule");
-          if (!requested_rule || !requested_rule->IsString() ||
-              requested_rule->AsString() != *rule)
-          {
-            RespondJson(
-                p_response, 409,
-                JsonObject{
-                    {"error", "Target rule changed; reload the target list"}});
-            return;
-          }
-          // Discovered targets: the sampler releases every instance of the
-          // name itself, so only the rule changes.
-          request = DumpJson(JsonObject{{"action", "remove"}, {"name", *rule}});
-        }
+        // The sampler releases every instance of the name itself, so only
+        // the rule changes.
+        request = DumpJson(JsonObject{{"action", "remove"}, {"name", *rule}});
       }
       // The collector drops targets beyond max_targets without a trace, so
       // refuse the add before the sampler configuration changes.
@@ -679,38 +648,12 @@ class DashboardServer
         return;
       }
     }
-    auto result = RunTargetControl(config_.udp_host_, config_.udp_port_,
-                                   request, p_multiple, config_.max_targets_);
+    auto result =
+        RunTargetControl(config_.udp_host_, config_.udp_port_, request);
     if (!result)
     {
       RespondJson(p_response, 503, JsonObject{{"error", result.error()}});
       return;
-    }
-    // The helper counts configured targets under its lock, so it also refuses
-    // an add that the published count above has not seen yet.
-    if (result->Find("at_limit"))
-    {
-      RespondJson(p_response, 409, *result);
-      return;
-    }
-    if (!removed_sessions.empty() && !result->Find("error"))
-    {
-      const auto change = ParseJson(*p_target);
-      const auto* id = change ? change->Find("id") : nullptr;
-      const auto* host = result->Find("host");
-      if (id && id->IsString() && host && host->IsString())
-      {
-        if (!state_.QueueRemoval(host->AsString() + "/" + id->AsString(),
-                                 std::move(removed_sessions)))
-        {
-          RespondJson(p_response, 503,
-                      JsonObject{{"applied", true},
-                                 {"error",
-                                  "Sampler changed; collector target cleanup "
-                                  "is busy. Reload the target list."}});
-          return;
-        }
-      }
     }
     const auto* enabled = result->Find("enabled");
     const bool available =

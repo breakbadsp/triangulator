@@ -106,7 +106,7 @@ fi
 # stop.sh stops whatever the pidfile names; point it at the process found.
 # start.sh then records the new process there. If the pidfile named another
 # running instance (e.g. the main one, while restarting a test copy), put
-# it back afterwards so stop.sh and set-target.sh keep finding that one.
+# it back afterwards so stop.sh and set-rate.sh keep finding that one.
 other=""
 if [[ -f "$pidfile" ]]; then
     other="$(<"$pidfile")"

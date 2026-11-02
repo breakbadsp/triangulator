@@ -44,10 +44,13 @@ if os.environ.get('LAB_TEST_CAPTURE') == 'wait':
 sys.exit(12 if os.environ.get('LAB_TEST_CAPTURE') == 'fail' else 0)
 """)
         self.write_program("bin/sleep", "#!/usr/bin/env python3\nimport time\ntime.sleep(.05)\n")
-        self.write_program("scripts/set-target.sh", """#!/usr/bin/env python3
-import os, sys
+        # Records the process name that run-lab.sh writes to process_names.
+        self.write_program("scripts/sampler_control.py", """import os
 from pathlib import Path
-Path(os.environ['LAB_TEST_ROOT'], 'target.pid').write_text(sys.argv[1])
+def replace_rule_list(text, key, items):
+    return {key: items}
+def update_config(root, pattern, setting, collector_endpoint=None, transform=None):
+    Path(os.environ['LAB_TEST_ROOT'], 'target.name').write_text(transform('')['process_names'][0])
 """)
         self.environment = {**os.environ, "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"],
                             "LAB_TEST_ROOT": str(self.root), "TRIANGULATOR_HOME": str(self.root / "runtime"),
@@ -68,12 +71,12 @@ Path(os.environ['LAB_TEST_ROOT'], 'target.pid').write_text(sys.argv[1])
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
-    def test_default_capture_reaches_thread_growth_and_uses_bench_pid(self):
+    def test_default_capture_reaches_thread_growth_and_selects_the_bench_name(self):
         result = subprocess.run(self.command("thread-leak"), env=self.environment,
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "capture-delay").read_text(), "165")
-        self.assertEqual((self.root / "target.pid").read_text(), (self.root / "bench.pid").read_text())
+        self.assertEqual((self.root / "target.name").read_text(), "bb-thread-leak")
         self.assert_stopped("bench.pid")
         self.assertEqual(list((self.root / "scratch").iterdir()), [])
 

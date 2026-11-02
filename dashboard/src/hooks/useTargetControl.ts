@@ -1,15 +1,12 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
   changeTargets,
-  type ProcessCandidate,
   type TargetChange,
   type TargetControl,
 } from "../api/targetControl";
 
 type Form = {
-  id: string;
   target: string;
-  candidates: ProcessCandidate[];
   status: string;
   bad: boolean;
   open: boolean;
@@ -18,18 +15,11 @@ type Form = {
 type Event =
   | { type: "open"; error: string }
   | { type: "close" }
-  | { type: "edit"; field: "id" | "target"; value: string }
-  | {
-      type: "status";
-      message: string;
-      bad?: boolean;
-      candidates?: ProcessCandidate[];
-    }
+  | { type: "edit"; value: string }
+  | { type: "status"; message: string; bad?: boolean }
   | { type: "done"; message: string; close: boolean };
 const initial: Form = {
-  id: "",
   target: "",
-  candidates: [],
   status: "",
   bad: false,
   open: false,
@@ -50,25 +40,21 @@ function reduce(state: Form, event: Event): Form {
         ...state,
         open: false,
         generation: state.generation + 1,
-        candidates: [],
         status: "",
         bad: false,
       };
     case "edit":
-      return { ...state, [event.field]: event.value, candidates: [] };
+      return { ...state, target: event.value };
     case "status":
       return {
         ...state,
         status: event.message,
         bad: event.bad ?? false,
-        candidates: event.candidates ?? [],
       };
     case "done":
       return {
         ...state,
-        id: "",
         target: "",
-        candidates: [],
         status: event.message,
         bad: false,
         open: event.close ? false : state.open,
@@ -80,10 +66,7 @@ function reduce(state: Form, event: Event): Form {
 function confirmation(change: TargetChange) {
   const scope = "This changes monitoring for every viewer.";
   if (change.action === "remove")
-    return "rule" in change
-      ? `Remove the process name ${change.rule}? Every process named ${change.rule} stops being monitored. ${scope}`
-      : `Remove ${change.id}? ${scope}`;
-  if ("id" in change) return `Add ${change.id}? ${scope}`;
+    return `Remove the process name ${change.rule}? Every process named ${change.rule} stops being monitored. ${scope}`;
   return `Add the process name ${change.target}? Every process with this name is monitored. ${scope}`;
 }
 
@@ -171,50 +154,23 @@ export function useTargetControl(control: TargetControl, refresh: () => void) {
         { kind: "failed" }
       >,
     ) {
-      const candidates = change.action === "add" ? result.candidates : [];
-      const name = change.action === "add" ? change.target : "";
-      dispatch({
-        type: "status",
-        bad: true,
-        candidates,
-        message: candidates.length
-          ? `${String(result.total)} processes are named ${name}${result.total > candidates.length ? `; the first ${String(candidates.length)} are listed` : ""}. Select one to monitor it by PID.`
-          : result.message,
-      });
+      dispatch({ type: "status", bad: true, message: result.message });
       if (result.applied) refresh();
     }
   }
   function add() {
     if (inFlight.current) return;
-    const id = form.id.trim(),
-      target = form.target.trim();
-    if (control.enabled && control.mode === "names") {
-      if (!/^[A-Za-z0-9_.-]{1,15}$/.test(target) || /^\.\.?$/.test(target)) {
-        dispatch({
-          type: "status",
-          message:
-            "Enter an exact process name of 1 to 15 letters, digits, dots, underscores, or hyphens.",
-          bad: true,
-        });
-        return;
-      }
-      void change({ action: "add", target });
-      return;
-    }
-    if (
-      !/^[A-Za-z0-9_.-]{1,31}$/.test(id) ||
-      id === "." ||
-      id === ".." ||
-      !target
-    ) {
+    const target = form.target.trim();
+    if (!/^[A-Za-z0-9_.-]{1,15}$/.test(target) || /^\.\.?$/.test(target)) {
       dispatch({
         type: "status",
-        message: "Enter a valid target ID and process name or PID.",
+        message:
+          "Enter an exact process name of 1 to 15 letters, digits, dots, underscores, or hyphens.",
         bad: true,
       });
       return;
     }
-    void change({ action: "add", id, target });
+    void change({ action: "add", target });
   }
   return {
     form,
@@ -227,16 +183,8 @@ export function useTargetControl(control: TargetControl, refresh: () => void) {
       ++context.current.generation;
       dispatch({ type: "open", error: control.error });
     },
-    edit(field: "id" | "target", value: string) {
-      dispatch({ type: "edit", field, value });
-    },
-    select(pid: string) {
-      if (!pid) return;
-      dispatch({ type: "edit", field: "target", value: pid });
-      dispatch({
-        type: "status",
-        message: `PID ${pid} selected. A PID does not follow a restart. Select Add target.`,
-      });
+    edit(value: string) {
+      dispatch({ type: "edit", value });
     },
   };
 }
