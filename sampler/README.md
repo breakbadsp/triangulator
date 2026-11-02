@@ -76,14 +76,17 @@ use. A reload with such a key keeps the previous configuration.
 
 Each target has its own session. A process restart changes only that session.
 A global setting change starts new sessions for all targets. The sampler shares one
-process-name scan and one descriptor budget. Resources and memory maps rotate
-across targets; one tick runs at most one heavy scan. That caps all targets together at
-`rate_hz` heavy scans per second. When the enabled intervals ask for more
-(`targets * (1/resource_interval_s + 1/memory_interval_s)` above `rate_hz`),
-each source runs less often than configured, and there is no warning. At 5 Hz
-with 16 targets and `resource_interval_s = 2`, resources alone ask for 8 per
-second, so each target gets about one every 3 s. Raise `rate_hz` or the
-intervals, or disable a source, to avoid the stretch. Exit-log reads share
+process-name scan and one descriptor budget. One tick runs at most one heavy
+scan (resources or memory maps), so all targets together get one heavy scan
+per tick. A cycle gives each target one resource scan, and memory maps one
+turn when a sample is busy or due. When the targets ask for more than that,
+each target's resource interval grows evenly to `targets + 1` ticks at the
+effective rate (the CPU budget can lower it), and memory maps get one turn per
+cycle. At 5 Hz with 16 targets and `resource_interval_s = 2`, each target gets
+a resource sample every 3.2 to 3.4 s, and a memory-map sample about every
+54 s. The collector measures the real interval, and the dashboard shows it
+next to the configured one. Raise `rate_hz` or the intervals, or disable a
+source, to avoid the stretch. Exit-log reads share
 one time limit of at most 50 ms for the full tick.
 
 The sampler sends TTGT at session start and every 10 seconds. Upgrade the
