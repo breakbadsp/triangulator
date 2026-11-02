@@ -4,9 +4,13 @@
 // thread ticks.
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <optional>
+#include <span>
+
+#include "../common/target_wire.hpp"
 
 namespace triangulator
 {
@@ -36,10 +40,10 @@ namespace triangulator
 
 // The heavy-scan cycle. One tick runs at most one heavy scan, so the
 // capacity is one scan per tick for all targets together. A cycle gives
-// each live target one resource scan in a fixed position, which keeps
-// their gaps equal, and gives memory maps one more position only when a
-// memory sample waits. When capacity is left, the cycle is the configured
-// interval long and the free positions are memory turns.
+// each live target one resource scan in a fixed slot, which keeps their
+// gaps equal, and gives memory maps one more position only when a memory
+// sample waits. When capacity is left, the cycle is the configured interval
+// long and the free positions are memory turns.
 class HeavySchedule final
 {
  public:
@@ -51,23 +55,33 @@ class HeavySchedule final
     std::size_t interval_ticks_{};    // IntervalTicks of the resource interval
   };
 
-  // The live-target number whose resources this tick scans, or nullopt for
-  // a memory turn. p_cycle is read only when a new cycle starts, so a
-  // change of the target count or the tick rate never breaks a cycle.
-  [[nodiscard]] std::optional<std::size_t> Next(const Cycle& p_cycle) noexcept
+  // The discovery slot whose resources this tick scans, or nullopt for a
+  // memory turn. p_cycle and p_live_slots are read only when a new cycle
+  // starts, so a join or exit never remaps a position that already ran.
+  [[nodiscard]] std::optional<std::size_t> Next(
+      const Cycle& p_cycle, std::span<const std::size_t> p_live_slots) noexcept
   {
     if (position_ == 0)
     {
-      resource_targets_ = p_cycle.resource_targets_;
-      length_ = std::max(
-          {p_cycle.resource_targets_ + (p_cycle.memory_waiting_ ? 1U : 0U),
-           p_cycle.interval_ticks_, std::size_t{1}});
+      resource_targets_ =
+          std::min(p_cycle.resource_targets_, target_wire::kMaxTargets);
+      length_ =
+          std::max({resource_targets_ + (p_cycle.memory_waiting_ ? 1U : 0U),
+                    p_cycle.interval_ticks_, std::size_t{1}});
+      slot_count_ = std::min(p_live_slots.size(), resource_targets_);
+      for (std::size_t index = 0; index < slot_count_; ++index)
+      {
+        slots_[index] = p_live_slots[index];
+      }
     }
     const auto position = position_;
     position_ = (position_ + 1) % length_;
     if (position < resource_targets_)
     {
-      return position;
+      // A hole stays in this list until wrap. ScanResources skips a slot
+      // that is no longer live; it must not become a memory turn.
+      return position < slot_count_ ? slots_[position]
+                                    : target_wire::kMaxTargets;
     }
     return std::nullopt;
   }
@@ -81,6 +95,8 @@ class HeavySchedule final
   std::size_t position_ = 0;
   std::size_t length_ = 1;
   std::size_t resource_targets_ = 0;
+  std::size_t slot_count_ = 0;
+  std::array<std::size_t, target_wire::kMaxTargets> slots_{};
 };
 
 }  // namespace triangulator

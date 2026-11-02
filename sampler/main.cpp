@@ -1,12 +1,14 @@
 #include <sys/random.h>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <csignal>
 #include <cstring>
 #include <expected>
 #include <format>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -897,30 +899,36 @@ class Sampler final
   {
     auto& samplers = pool_;
     const auto now = ClockNow(CLOCK_MONOTONIC);
+    std::array<std::size_t, target_wire::kMaxTargets> live_slots{};
     std::size_t live_targets = 0;
     bool memory_waiting = false;
     for (std::size_t index = 0; index < samplers.size(); ++index)
     {
       if (p_live[index] && samplers[index]->HasTarget())
       {
+        if (live_targets < live_slots.size())
+        {
+          live_slots[live_targets] = index;
+        }
         ++live_targets;
         memory_waiting = memory_waiting || samplers[index]->MemoryDue(now);
       }
     }
     const bool resources_on = config_.settings_.resource_interval_s_ > 0;
-    const auto resource_target = heavy_schedule_.Next({
-        .resource_targets_ = resources_on ? live_targets : 0,
-        .memory_waiting_ = memory_waiting,
-        .interval_ticks_ =
-            resources_on ? IntervalTicks(
-                               std::chrono::seconds{
-                                   config_.settings_.resource_interval_s_},
-                               config_.Interval())
-                         : 0,
-    });
-    if (resource_target)
+    const auto resource_slot = heavy_schedule_.Next(
+        {.resource_targets_ = resources_on ? live_targets : 0,
+         .memory_waiting_ = memory_waiting,
+         .interval_ticks_ =
+             resources_on ? IntervalTicks(
+                                std::chrono::seconds{
+                                    config_.settings_.resource_interval_s_},
+                                config_.Interval())
+                          : 0},
+        std::span<const std::size_t>{live_slots}.first(
+            std::min(live_targets, live_slots.size())));
+    if (resource_slot)
     {
-      ScanResources(p_live, *resource_target);
+      ScanResources(p_live, *resource_slot);
     }
     else
     {
@@ -928,23 +936,17 @@ class Sampler final
     }
   }
 
-  // Resources of live target number p_number. A target that ended since the
-  // cycle started leaves its position empty.
-  void ScanResources(std::span<const bool> p_live, std::size_t p_number)
+  // Resources of one latched discovery slot. A target that ended since the
+  // cycle started leaves that position empty until wrap.
+  void ScanResources(std::span<const bool> p_live, std::size_t p_index)
   {
-    auto& samplers = pool_;
-    std::size_t number = 0;
-    for (std::size_t index = 0; index < samplers.size(); ++index)
+    if (p_index >= pool_.size())
     {
-      if (p_live[index] && samplers[index]->HasTarget())
-      {
-        if (number == p_number)
-        {
-          samplers[index]->ScanResources();
-          return;
-        }
-        ++number;
-      }
+      return;
+    }
+    if (p_live[p_index] && pool_[p_index]->HasTarget())
+    {
+      pool_[p_index]->ScanResources();
     }
   }
 

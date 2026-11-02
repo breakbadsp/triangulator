@@ -9,9 +9,11 @@
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -1917,6 +1919,16 @@ struct HeavyRun
   std::size_t memory_turns_{};
 };
 
+std::span<const std::size_t> IdentitySlots(std::size_t p_targets)
+{
+  static std::array<std::size_t, target_wire::kMaxTargets> slots{};
+  for (std::size_t index = 0; index < p_targets; ++index)
+  {
+    slots[index] = index;
+  }
+  return std::span<const std::size_t>{slots}.first(p_targets);
+}
+
 template <typename TWaiting>
 HeavyRun RunHeavySchedule(std::size_t p_targets, std::size_t p_interval_ticks,
                           std::size_t p_ticks, TWaiting p_memory_waiting)
@@ -1924,12 +1936,14 @@ HeavyRun RunHeavySchedule(std::size_t p_targets, std::size_t p_interval_ticks,
   HeavySchedule schedule;
   HeavyRun run{.gaps_ = std::vector<std::vector<std::size_t>>(p_targets)};
   std::vector<std::optional<std::size_t>> last(p_targets);
+  const auto slots = IdentitySlots(p_targets);
   for (std::size_t tick = 0; tick < p_ticks; ++tick)
   {
     const auto target =
         schedule.Next({.resource_targets_ = p_targets,
                        .memory_waiting_ = p_memory_waiting(tick),
-                       .interval_ticks_ = p_interval_ticks});
+                       .interval_ticks_ = p_interval_ticks},
+                      slots);
     if (!target)
     {
       ++run.memory_turns_;
@@ -2011,13 +2025,56 @@ void TestHeavySchedule()
   Require(off.memory_turns_ == 10, "with resources off every tick is memory");
   // A change of the target count waits for the next cycle.
   HeavySchedule schedule;
-  Require(
-      schedule.Next({.resource_targets_ = 3, .interval_ticks_ = 1}) == 0 &&
-          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 1 &&
-          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 2 &&
-          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 0 &&
-          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 0,
-      "a new target count applies from the next cycle");
+  const std::array<std::size_t, 3> three{0, 1, 2};
+  const std::array<std::size_t, 1> one_slot{0};
+  Require(schedule.Next({.resource_targets_ = 3, .interval_ticks_ = 1},
+                        three) == 0 &&
+              schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1},
+                            one_slot) == 1 &&
+              schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1},
+                            one_slot) == 2 &&
+              schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1},
+                            one_slot) == 0 &&
+              schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1},
+                            one_slot) == 0,
+          "a new target count applies from the next cycle");
+}
+
+// Checks that a cycle keeps the slot list from its first tick, so a join
+// in a hole does not scan a neighbour twice (issue #232 R1-1).
+void TestHeavyScheduleLatchesSlots()
+{
+  HeavySchedule schedule;
+  const std::array<std::size_t, 4> started{0, 1, 3, 4};
+  const std::array<std::size_t, 5> joined{0, 1, 2, 3, 4};
+  const std::array<std::size_t, 3> after_exit{0, 2, 3};
+  Require(schedule.Next({.resource_targets_ = 4, .interval_ticks_ = 4},
+                        started) == 0 &&
+              schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 4},
+                            joined) == 1 &&
+              schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 4},
+                            joined) == 3 &&
+              schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 4},
+                            joined) == 4,
+          "a join in a lower slot waits until the next cycle");
+  Require(schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 5},
+                        joined) == 0 &&
+              schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 5},
+                            joined) == 1 &&
+              schedule.Next({.resource_targets_ = 5, .interval_ticks_ = 5},
+                            joined) == 2,
+          "the next cycle scans the joined slot in its latched place");
+  HeavySchedule exiting;
+  const std::array<std::size_t, 4> packed{0, 1, 2, 3};
+  Require(exiting.Next({.resource_targets_ = 4, .interval_ticks_ = 4},
+                       packed) == 0 &&
+              exiting.Next({.resource_targets_ = 3, .interval_ticks_ = 4},
+                           after_exit) == 1 &&
+              exiting.Next({.resource_targets_ = 3, .interval_ticks_ = 4},
+                           after_exit) == 2 &&
+              exiting.Next({.resource_targets_ = 3, .interval_ticks_ = 4},
+                           after_exit) == 3,
+          "an exit leaves its latched slot in place for the rest of the cycle");
 }
 
 std::array<wire::Record, 3> TickOf(std::uint32_t p_first,
@@ -2731,6 +2788,7 @@ int main()
     TestProcessInfoProbe();
     TestNextDeadline();
     TestHeavySchedule();
+    TestHeavyScheduleLatchesSlots();
     TestExitMessages();
     TestExitStatus();
     std::puts(
