@@ -292,6 +292,7 @@ function Pressure({
         id="chart-pressure"
         topic="pressure"
         points={points}
+        connectNulls
         series={PRESSURE_SERIES.map(([key, label, color]) => ({
           label: label + " some",
           color,

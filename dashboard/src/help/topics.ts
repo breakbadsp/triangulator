@@ -1267,7 +1267,7 @@ const topics = {
     reading:
       "Table values cover the latest resource interval; chart points show interval peaks. The first sample can use the kernel avg10 average. Assessment checks CPU some at 20%, memory some at 5% or full at 2%, and I/O some at 10% or full at 5%.",
     limits:
-      "The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.",
+      "Lines connect nearby available points across missing values. Longer gaps stay blank. The target cgroup can contain other processes. Host values cover the entire host. Host CPU full is not a useful stall measure.",
     related: ["throttle", "rss", "disk"],
     source: "`/proc/pressure/*` and `/sys/fs/cgroup/CGROUP/*.pressure`",
     sourceDetail:

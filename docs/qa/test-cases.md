@@ -15,6 +15,7 @@
 | QA-125 | NOT_RUN | - | - | - |
 | QA-134 | NOT_RUN | - | - | - |
 | QA-136 | NOT_RUN | - | - | - |
+| QA-137 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -808,3 +809,10 @@
 - Driver: judged
 - Test: Open a target dashboard. Open help on the Assessment verdict badge by pointer, keyboard, and touch. Open its guide.
 - Expected: The help names red as Critical and orange as Serious, and lists the rules for each. It says that warnings alone do not make the badge orange. Related links open Assessment and the other named topics.
+
+## QA-137: Pressure chart with multiple targets
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Monitor seven processes. Open the pressure chart for a target with nearby available readings separated by unavailable readings. Check a longer gap and open chart help.
+- Expected: Lines connect nearby available readings. Longer gaps remain blank. Help explains the lines and gaps.

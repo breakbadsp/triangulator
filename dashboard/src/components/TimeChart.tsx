@@ -11,7 +11,7 @@ import { GuideContext, registerGuideChart } from "../help/guideContext";
 import { useHeld } from "../hooks/useHeld";
 import { Help, type Readout } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
-import { niceMax, segments } from "../lib/chart";
+import { gapLimit, niceMax, segments } from "../lib/chart";
 import { clock, isNum, num } from "../lib/format";
 
 export interface ChartSeries<P> {
@@ -33,6 +33,7 @@ interface TimeChartProps<P extends { t: number }> {
   topic: HelpTopicId;
   points: readonly P[];
   series: readonly ChartSeries<P>[];
+  connectNulls?: boolean;
   stacked?: boolean;
   overlay?: ChartSeries<P> | null;
   format?: (value: unknown) => string;
@@ -54,6 +55,7 @@ function Chart<P extends { t: number }>({
   topic,
   points,
   series,
+  connectNulls = false,
   stacked = false,
   overlay = null,
   format = num,
@@ -116,6 +118,7 @@ function Chart<P extends { t: number }>({
         : buildScene({
             points,
             series,
+            connectNulls,
             stacked,
             overlay,
             format,
@@ -129,6 +132,7 @@ function Chart<P extends { t: number }>({
     [
       points,
       series,
+      connectNulls,
       stacked,
       overlay,
       format,
@@ -288,6 +292,7 @@ interface Scene<P extends { t: number }> {
 function buildScene<P extends { t: number }>({
   points,
   series,
+  connectNulls,
   stacked,
   overlay,
   format,
@@ -300,6 +305,7 @@ function buildScene<P extends { t: number }>({
 }: {
   points: readonly P[];
   series: readonly ChartSeries<P>[];
+  connectNulls: boolean;
   stacked: boolean;
   overlay: ChartSeries<P> | null;
   format: (value: unknown) => string;
@@ -383,6 +389,7 @@ function buildScene<P extends { t: number }>({
   const unknown = (point: P) =>
     stacked && series.every((item) => !isNum(item.get(point)));
   const runs = segments(points, unknown);
+  const maxGap = connectNulls ? gapLimit(points) : 0;
   const line = (run: readonly P[], get: (point: P) => number) =>
     run.map((point) => `${String(x(point.t))},${String(y(get(point)))}`);
   if (stacked) {
@@ -480,8 +487,12 @@ function buildScene<P extends { t: number }>({
           run = [];
         };
         for (const point of segment) {
-          if (isNum(item.get(point))) run.push(point);
-          else flush();
+          if (isNum(item.get(point))) {
+            const previous = run.at(-1);
+            if (previous && connectNulls && point.t - previous.t > maxGap)
+              flush();
+            run.push(point);
+          } else if (!connectNulls) flush();
         }
         flush();
       });
