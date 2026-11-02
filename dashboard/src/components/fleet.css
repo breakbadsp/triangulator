@@ -48,8 +48,8 @@
 }
 .fleet-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 16px;
 }
 .fleet-tile {
   --lvl: var(--s-other);
@@ -57,9 +57,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 140px;
+  min-height: 104px;
   min-width: 0;
-  padding: 20px;
+  padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--line);
   color: inherit;
@@ -185,15 +185,6 @@
 }
 .fleet-toolbar {
   margin: -8px 0 18px;
-}
-/* Compact: smaller tiles, gaps, and padding; the same text and controls. */
-.fleet-grid[data-density="compact"] {
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
-  gap: 16px;
-}
-.fleet-grid[data-density="compact"] .fleet-tile {
-  min-height: 104px;
-  padding: 12px 14px;
 }
 .fleet-tile[data-level="good"],
 .fleet-tile[data-level="info"] {
@@ -351,7 +342,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 140px;
+  min-height: 104px;
   border: 1.5px dashed var(--line);
   border-radius: 16px;
   background: transparent;
@@ -373,9 +364,6 @@
 }
 .fleet-status {
   margin: -8px 0 16px;
-}
-.fleet-grid[data-density="compact"] .fleet-add {
-  min-height: 104px;
 }
 .target-dialog {
   width: min(440px, calc(100vw - 32px));

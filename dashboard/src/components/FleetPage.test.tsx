@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../App";
-import type { LiveResponse, Target } from "../api/types";
+import { readFileSync } from "node:fs";
+import type { LiveResponse } from "../api/types";
+
+const fleetCss = readFileSync("src/components/fleet.css", "utf8");
 
 function fleetView(pid: number, name: string, cpu: number): LiveResponse {
   const now = Date.now() / 1000;
@@ -141,29 +144,17 @@ const shownTiles = () =>
   tiles()
     .filter((tile) => !tile.hidden)
     .map((tile) => tile.querySelector(".ft-key")?.textContent);
-function filterFleet(text: string, status = "") {
+function filterFleet(text: string) {
   fireEvent.change(screen.getByRole("searchbox", { name: "Find target" }), {
     target: { value: text },
   });
-  fireEvent.change(
-    screen.getByRole("combobox", { name: "Assessment status" }),
-    { target: { value: status } },
-  );
 }
-const density = () => [
-  screen.getByRole<HTMLSelectElement>("combobox", { name: "Tile density" })
-    .value,
-  element("#fleet-grid").dataset.density,
-];
-const chooseDensity = (value: string) =>
-  fireEvent.change(screen.getByRole("combobox", { name: "Tile density" }), {
-    target: { value },
-  });
 
 // Ported from 777cf3a:tests/dashboard_test.js, phase 3 cases 3060–3404.
-test("overview page shows one tile per target, worst first, and links to each dashboard", async () => {
+test("overview page shows one tile per target in API order, and links to each dashboard", async () => {
   await start();
   expect(document.documentElement.dataset.page).toBe("fleet");
+  expect(document.getElementById("target-select")).toBeNull();
   expect(
     requests.some((url) =>
       /^\/api\/(live|replay|resources|watches)$|^\/api\/(replay|resources)\?/.test(
@@ -174,16 +165,16 @@ test("overview page shows one tile per target, worst first, and links to each da
   expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(1);
   expect(requests.some((url) => url.startsWith("/api/live"))).toBe(false);
   expect(tiles().map((tile) => link(tile).getAttribute("href"))).toEqual([
-    "?target=h%2Fbusy",
     "?target=h%2Fapi",
+    "?target=h%2Fbusy",
     "?target=h%2Fgone",
   ]);
   expect(tiles().map((tile) => tile.dataset.level)).toEqual([
-    "serious",
     "good",
+    "serious",
     "unknown",
   ]);
-  expect(tiles()[0]?.textContent).toContain("busy is saturating a core");
+  expect(tileFor("h/busy").textContent).toContain("busy is saturating a core");
   expect(
     within(tileFor("h/api")).getByRole("img").getAttribute("aria-label"),
   ).toBe("Assessment: Healthy");
@@ -197,6 +188,25 @@ test("overview page shows one tile per target, worst first, and links to each da
   await poll();
   expect(tiles()[0]).toBe(first);
   expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(2);
+});
+
+test("overview preserves a non-alphabetical API order through polls and search", async () => {
+  const targets = [fleetTargets[2], fleetTargets[0], fleetTargets[1]];
+  let cpu = 99;
+  respond = (url) =>
+    url === "/api/targets"
+      ? Response.json({ targets })
+      : url === "/api/live?target=h%2Fbusy"
+        ? Response.json(fleetView(20, "busy", cpu))
+        : fleetRespond(url);
+  await start();
+  expect(shownTiles()).toEqual(["h · gone", "h · api", "h · busy"]);
+  cpu = 5;
+  await poll();
+  expect(tileFor("h/busy").dataset.level).toBe("good");
+  expect(shownTiles()).toEqual(["h · gone", "h · api", "h · busy"]);
+  filterFleet("h/");
+  expect(shownTiles()).toEqual(["h · gone", "h · api", "h · busy"]);
 });
 
 test("overview page polls nothing while the tab is hidden and reports a lost collector", async () => {
@@ -343,7 +353,7 @@ test("a tile that holds keyboard focus is not refilled until focus leaves it", a
   expect(link(tile)).toBe(before);
   expect(tile.dataset.level).toBe("serious");
   expect(tile.querySelector(".ft-card")?.textContent).toContain("uses 99");
-  expect(tiles()[0]).toBe(tile);
+  expect(tiles()[1]).toBe(tile);
   act(() => {
     before.blur();
   });
@@ -352,7 +362,7 @@ test("a tile that holds keyboard focus is not refilled until focus leaves it", a
   expect(tile.querySelector(".ft-card")).toBeNull();
 });
 
-test("keyboard focus stays on a tile link when another target changes the tile order", async () => {
+test("API order and keyboard focus survive assessment changes", async () => {
   let cpu = 5;
   respond = (url) =>
     url === "/api/live?target=h%2Fbusy"
@@ -364,11 +374,15 @@ test("keyboard focus stays on a tile link when another target changes the tile o
     apiLink.focus();
   });
   expect(document.activeElement).toBe(apiLink);
+  const original = tiles();
+  expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
   cpu = 99;
   await poll();
   expect(
     link(element("#fleet-grid > article:first-child")).getAttribute("href"),
-  ).toBe("?target=h%2Fbusy");
+  ).toBe("?target=h%2Fapi");
+  expect(tiles()).toEqual(original);
+  expect(tileFor("h/busy").dataset.level).toBe("serious");
   expect(document.activeElement).toBe(apiLink);
 });
 
@@ -402,57 +416,41 @@ test("a tile with only informational findings has no card", async () => {
   expect(api.querySelector(".ft-card")).toBeNull();
 });
 
-test("tile density starts Comfortable, survives reload, and ignores target count and polls", async () => {
-  let targets: readonly Target[] = fleetTargets;
-  respond = (url) =>
-    url === "/api/targets"
-      ? Response.json({ targets })
-      : url.startsWith("/api/live?")
-        ? Response.json(fleetView(1, "x", 1))
-        : fleetRespond(url);
-  let app = await start();
-  expect(density()).toEqual(["comfortable", "comfortable"]);
-  chooseDensity("compact");
-  expect(density()).toEqual(["compact", "compact"]);
-  targets = Array.from({ length: 64 }, (_, i) => ({
-    key: "h/t" + String(i),
-    host: "h",
-    id: "t" + String(i),
-    pid: 100 + i,
-    status: "live",
-    process: null,
-  }));
-  await poll();
-  targets = fleetTargets.slice(0, 1);
-  await poll();
-  expect(density()).toEqual(["compact", "compact"]);
-  expect(localStorage.getItem("triangulator:fleet-density")).toBe("compact");
-  app.unmount();
-  app = await start();
-  expect(density()).toEqual(["compact", "compact"]);
-  chooseDensity("comfortable");
-  app.unmount();
-  await start();
-  expect(density()).toEqual(["comfortable", "comfortable"]);
-});
+test.each(["comfortable", "compact", "bogus", "blocked storage"])(
+  "compact is the only layout with legacy choice %s",
+  async (choice) => {
+    if (choice === "blocked storage")
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+    else localStorage.setItem("triangulator:fleet-density", choice);
+    const style = document.createElement("style");
+    style.textContent = fleetCss;
+    document.head.append(style);
+    try {
+      await start(`?status=critical&layout=${choice}&density=${choice}`);
+      expect(
+        screen.queryByRole("combobox", { name: "Assessment status" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("combobox", { name: "Tile density" }),
+      ).toBeNull();
+      expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
+      expect(getComputedStyle(element("#fleet-grid > article")).minHeight).toBe(
+        "104px",
+      );
+      expect(getComputedStyle(element("#fleet-grid")).gap).toBe("16px");
+      await poll();
+      expect(getComputedStyle(element("#fleet-grid > article")).minHeight).toBe(
+        "104px",
+      );
+    } finally {
+      style.remove();
+    }
+  },
+);
 
-test("blocked storage keeps the density choice only until reload", async () => {
-  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-    throw new Error("blocked");
-  });
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-    throw new Error("blocked");
-  });
-  const app = await start();
-  expect(density()).toEqual(["comfortable", "comfortable"]);
-  chooseDensity("compact");
-  expect(density()).toEqual(["compact", "compact"]);
-  app.unmount();
-  await start();
-  expect(density()).toEqual(["comfortable", "comfortable"]);
-});
-
-test("search and status show matching tiles with no request while the counts keep every target", async () => {
+test("search shows matching tiles with no request while the counts keep every target", async () => {
   await start();
   const before = requests.length;
   const original = tiles();
@@ -461,19 +459,15 @@ test("search and status show matching tiles with no request while the counts kee
   filterFleet("API");
   expect(shownTiles()).toEqual(["h · api"]);
   expect(element("#fleet-shown").textContent).toBe("Showing 1 of 3 targets");
-  filterFleet("h/", "attention");
-  expect(shownTiles()).toEqual(["h · busy"]);
-  filterFleet("", "good");
-  expect(shownTiles()).toEqual(["h · api"]);
-  filterFleet("", "unknown");
-  expect(shownTiles()).toEqual(["h · gone"]);
+  filterFleet("h/");
+  expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
   expect(requests).toHaveLength(before);
-  filterFleet("", "critical");
+  filterFleet("missing");
   expect(shownTiles()).toEqual([]);
   expect(element("#fleet-none")).toBeDefined();
   expect(element("#fleet-clear")).toBeDefined();
   expect(element("#fleet-none").textContent).toBe(
-    "No targets match this search and status. Clear filters shows every target.",
+    "No targets match this search. Clear filters shows every target.",
   );
   expect(element("#fleet-counts").textContent).toMatch(
     /Totals for all targets.*1.*Serious.*1.*Healthy.*1.*No data/,
@@ -485,58 +479,42 @@ test("search and status show matching tiles with no request while the counts kee
     expect(tile).toBe(original[index]);
   });
   fireEvent.click(element("#fleet-clear"));
-  expect(shownTiles()).toEqual(["h · busy", "h · api", "h · gone"]);
+  expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
   expect(document.querySelector("#fleet-none")).toBeNull();
   expect(document.querySelector("#fleet-clear")).toBeNull();
   expect(document.activeElement).toBe(element("#fleet-search"));
 });
 
-test("the URL keeps search and status, and target links carry them back to All targets", async () => {
-  let app = await start("?q=bus&status=attention");
+test("search survives reload and navigation while legacy status is dropped from links", async () => {
+  let app = await start("?q=bus&status=attention&layout=comfortable");
   expect(
     screen.getByRole<HTMLInputElement>("searchbox", { name: "Find target" })
       .value,
   ).toBe("bus");
-  expect(
-    screen.getByRole<HTMLSelectElement>("combobox", {
-      name: "Assessment status",
-    }).value,
-  ).toBe("attention");
   expect(shownTiles()).toEqual(["h · busy"]);
-  expect(
-    link(element("#fleet-grid > article:first-child")).getAttribute("href"),
-  ).toBe("?target=h%2Fbusy&q=bus&status=attention");
-  filterFleet("a b", "serious");
-  expect(location.search).toBe("?q=a+b&status=serious");
-  expect(
-    link(element("#fleet-grid > article:nth-child(2)")).getAttribute("href"),
-  ).toBe("?target=h%2Fapi&q=a+b&status=serious");
+  const href = link(tileFor("h/busy")).getAttribute("href");
+  expect(href).toBe("?target=h%2Fbusy&q=bus");
+  app.unmount();
+  app = await start(href ?? "");
+  const back = screen
+    .getByRole("link", { name: "← All targets" })
+    .getAttribute("href");
+  expect(back).toBe("./?q=bus");
+  app.unmount();
+  app = await start(back?.slice(2));
+  expect(shownTiles()).toEqual(["h · busy"]);
+  filterFleet("a b");
+  expect(location.search).toBe("?q=a+b");
   filterFleet("");
   expect(location.search).toBe("");
-  expect(
-    link(element("#fleet-grid > article:first-child")).getAttribute("href"),
-  ).toBe("?target=h%2Fbusy");
   app.unmount();
-  app = await start("?status=bogus");
-  expect(
-    screen.getByRole<HTMLSelectElement>("combobox", {
-      name: "Assessment status",
-    }).value,
-  ).toBe("");
-  app.unmount();
-  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-    throw new Error("blocked");
-  });
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-    throw new Error("blocked");
-  });
-  app = await start("?target=h%2Fbusy&q=a+b&status=serious");
-  expect(
-    screen.getByRole("link", { name: "← All targets" }).getAttribute("href"),
-  ).toBe("./?q=a+b&status=serious");
-  app.unmount();
-  await start("?target=h%2Fapi");
+  app = await start("?target=h%2Fapi&status=critical&layout=comfortable");
   expect(
     screen.getByRole("link", { name: "← All targets" }).getAttribute("href"),
   ).toBe("./");
+  app.unmount();
+  await start("?target=h%2Fbusy&q=a+b&status=serious");
+  expect(
+    screen.getByRole("link", { name: "← All targets" }).getAttribute("href"),
+  ).toBe("./?q=a+b");
 });

@@ -33,6 +33,11 @@ test("shows access, shared budget and other-target attention, then a single iden
       ]}
     />,
   );
+  expect(
+    screen.getByRole<HTMLSelectElement>("combobox", {
+      name: "Selected monitoring target",
+    }).value,
+  ).toBe(target.key);
   expect(document.getElementById("target-access")?.textContent).toBe(
     "Limited access",
   );

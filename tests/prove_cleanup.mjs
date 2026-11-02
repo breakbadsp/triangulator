@@ -242,7 +242,7 @@ export async function proveCleanup({
   await click("#page-help");
   assert.equal(
     await evaluate("document.querySelectorAll('.help-topics button').length"),
-    149,
+    148,
   );
   assert.equal(await evaluate("document.querySelector('main').inert"), true);
   // Tab wraps inside the modal guide in both directions.
@@ -418,7 +418,7 @@ export async function proveCleanup({
   return {
     widths,
     shortViewport: short,
-    guideTopics: 149,
+    guideTopics: 148,
     guideResize: true,
     modalFocus: true,
     threadReturn: true,

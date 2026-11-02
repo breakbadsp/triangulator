@@ -130,7 +130,7 @@ async function portSpacing(theme, target) {
       mobile: false,
     });
     await send("Page.navigate", {
-      url: `${base}/?target=${encodeURIComponent(target)}&q=rack&status=critical#overview`,
+      url: `${base}/?target=${encodeURIComponent(target)}&q=rack&status=critical`,
     });
     await until(
       () =>
@@ -217,7 +217,7 @@ async function portSpacing(theme, target) {
       label + " return navigation",
     );
     const destination = await evaluate("location.pathname+location.search");
-    check(destination, "/?q=rack&status=critical", label + " retained filters");
+    check(destination, "/?q=rack", label + " retained search");
     cases.push({
       theme,
       width,

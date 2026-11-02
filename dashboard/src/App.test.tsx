@@ -65,8 +65,11 @@ test.each(["/", "/?target=host%2Fworker"])(
       );
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<App />);
-    await screen.findByRole("option", { name: /host · worker/, hidden: true });
     if (url.includes("target")) {
+      await screen.findByRole("option", {
+        name: /host · worker/,
+        hidden: true,
+      });
       await screen.findByText("worker", topBar);
       expect(screen.getByText("PID 42 · Live")).toBeDefined();
       expect(
@@ -75,6 +78,12 @@ test.each(["/", "/?target=host%2Fworker"])(
         ),
       ).toBe(true);
     } else {
+      await screen.findByRole("link", {
+        name: /host · worker:.*Open its dashboard/,
+      });
+      expect(
+        screen.queryByRole("combobox", { name: "Selected monitoring target" }),
+      ).toBeNull();
       expect(screen.getByRole("heading", { name: "Targets" })).toBeDefined();
       expect(
         fetchMock.mock.calls.every(
@@ -122,7 +131,9 @@ test("restores and saves the theme under the existing key", async () => {
   fireEvent.change(theme, { target: { value: "auto" } });
   expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   expect(localStorage.getItem("triangulator:theme")).toBe("auto");
-  await screen.findByRole("option", { name: /host · worker/, hidden: true });
+  await screen.findByRole("link", {
+    name: /host · worker:.*Open its dashboard/,
+  });
 });
 
 test("reports poll failures and keeps the last target name", async () => {
@@ -171,7 +182,9 @@ test("uses a safe default when stored theme data is invalid", async () => {
     screen.getByRole<HTMLSelectElement>("combobox", { name: "Color theme" })
       .value,
   ).toBe("auto");
-  await screen.findByRole("option", { name: /host · worker/, hidden: true });
+  await screen.findByRole("link", {
+    name: /host · worker:.*Open its dashboard/,
+  });
 });
 
 // The served page computes the Summary in the browser from /api/live.

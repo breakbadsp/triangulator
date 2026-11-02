@@ -9,14 +9,10 @@ import { HelpGuideProvider, PageHelp } from "../help/HelpGuide";
 import { Help } from "../help/Help";
 import { usePoll } from "../hooks/usePoll";
 import {
-  FLEET_STATUSES,
   fleetCounts,
   fleetQuery,
-  matchesFilter,
-  rankTiles,
   targetHref,
   tileModel,
-  type FleetFilter,
   type TileModel,
 } from "../lib/fleet";
 import { LEVEL_ICONS } from "../lib/findings";
@@ -70,23 +66,6 @@ function capacityNotices(list: FleetResponse["list"]): string[] {
   return notices;
 }
 
-function readFilter(): FleetFilter {
-  const query = new URLSearchParams(location.search);
-  const status =
-    FLEET_STATUSES.find((value) => value === query.get("status")) ?? "";
-  return { q: query.get("q") ?? "", status };
-}
-const DENSITY_KEY = "triangulator:fleet-density";
-type Density = "comfortable" | "compact";
-function readDensity(): Density {
-  try {
-    return localStorage.getItem(DENSITY_KEY) === "compact"
-      ? "compact"
-      : "comfortable";
-  } catch {
-    return "comfortable";
-  }
-}
 const COUNT_GROUPS = [
   ["critical", "Critical", "var(--critical)"],
   ["serious", "Serious", "var(--serious)"],
@@ -94,15 +73,6 @@ const COUNT_GROUPS = [
   ["good", "Healthy", "var(--good)"],
   ["unknown", "No data", "var(--s-other)"],
 ] as const;
-const STATUS_LABELS = [
-  "Needs attention",
-  "Critical",
-  "Serious",
-  "Warning",
-  "Healthy",
-  "No data",
-];
-
 /** Remove on a tile of the local sampler; never on a remote sampler's. */
 function TileRemove({
   tile,
@@ -166,35 +136,36 @@ export function FleetPage() {
     reason: "",
   };
   const editor = useTargetControl(control, fleet.refresh);
-  const [filter, setFilter] = useState(readFilter);
-  const [density, setDensity] = useState(readDensity);
+  const [query, setQuery] = useState(
+    () => new URLSearchParams(location.search).get("q") ?? "",
+  );
   const [focused, setFocused] = useState<{
     key: string;
     model: TileModel;
   } | null>(null);
   const search = useRef<HTMLInputElement>(null);
-  const tiles = rankTiles(
-    (fleet.data?.targets ?? []).map((target) =>
-      focused?.key === target.key
-        ? focused.model
-        : tileModel(
-            target,
-            fleet.data?.views.get(target.key),
-            fleet.data?.now ?? 0,
-          ),
-    ),
+  const tiles = (fleet.data?.targets ?? []).map((target) =>
+    focused?.key === target.key
+      ? focused.model
+      : tileModel(
+          target,
+          fleet.data?.views.get(target.key),
+          fleet.data?.now ?? 0,
+        ),
   );
   const counts = fleetCounts(tiles);
   const attention = counts.critical + counts.serious + counts.warning;
-  const shown = tiles.filter((tile) => matchesFilter(tile, filter)).length;
-  const filtered = !!filter.q.trim() || !!filter.status;
+  const matchesSearch = (tile: TileModel) =>
+    tile.search.includes(query.trim().toLowerCase());
+  const shown = tiles.filter(matchesSearch).length;
+  const filtered = !!query.trim();
   useEffect(() => {
     document.title =
       (attention ? `(${String(attention)}) ` : "") + "Targets · Thread monitor";
   }, [attention]);
 
-  function changeFilter(next: FleetFilter) {
-    setFilter(next);
+  function changeSearch(next: string) {
+    setQuery(next);
     const query = fleetQuery(next).toString();
     history.replaceState(
       null,
@@ -249,62 +220,11 @@ export function FleetPage() {
               type="search"
               placeholder="Name, host or target ID"
               aria-label="Find target"
-              value={filter.q}
+              value={query}
               onChange={(event) => {
-                changeFilter({ ...filter, q: event.currentTarget.value });
+                changeSearch(event.currentTarget.value);
               }}
             />
-          </Help>
-          <Help topic="fleet-filter">
-            <label>
-              Status
-              <select
-                id="fleet-level"
-                aria-label="Assessment status"
-                value={filter.status}
-                onChange={(event) => {
-                  changeFilter({
-                    ...filter,
-                    status:
-                      FLEET_STATUSES.find(
-                        (value) => value === event.currentTarget.value,
-                      ) ?? "",
-                  });
-                }}
-              >
-                <option value="">All</option>
-                {FLEET_STATUSES.map((status, index) => (
-                  <option key={status} value={status}>
-                    {STATUS_LABELS[index]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </Help>
-          <Help topic="fleet-density">
-            <label>
-              Tiles
-              <select
-                id="fleet-density"
-                aria-label="Tile density"
-                value={density}
-                onChange={(event) => {
-                  const next =
-                    event.currentTarget.value === "compact"
-                      ? "compact"
-                      : "comfortable";
-                  setDensity(next);
-                  try {
-                    localStorage.setItem(DENSITY_KEY, next);
-                  } catch {
-                    /* Keep the selection until reload when storage is blocked. */
-                  }
-                }}
-              >
-                <option value="comfortable">Comfortable</option>
-                <option value="compact">Compact</option>
-              </select>
-            </label>
           </Help>
           {filtered && (
             <Help topic="fleet-filter">
@@ -312,7 +232,7 @@ export function FleetPage() {
                 id="fleet-clear"
                 type="button"
                 onClick={() => {
-                  changeFilter({ q: "", status: "" });
+                  changeSearch("");
                   search.current?.focus();
                 }}
               >
@@ -342,16 +262,13 @@ export function FleetPage() {
             <p className="fleet-capacity warn">{notice}</p>
           </Help>
         ))}
-        {/* React DOM puts focus back on a focused tile link that a reorder moves
-            (restoreSelection after each commit); tests/prove_dashboard.mjs checks it in Chromium. */}
-        <div id="fleet-grid" className="fleet-grid" data-density={density}>
+        <div id="fleet-grid" className="fleet-grid">
           {tiles.map((tile) => (
             <article
               key={tile.key}
               className="fleet-tile"
               data-level={tile.level}
-              data-search={tile.search}
-              hidden={!matchesFilter(tile, filter)}
+              hidden={!matchesSearch(tile)}
               onFocus={() => {
                 setFocused({ key: tile.key, model: tile });
               }}
@@ -369,7 +286,7 @@ export function FleetPage() {
                 />
                 <a
                   className="ft-name"
-                  href={targetHref(tile.key, filter)}
+                  href={targetHref(tile.key, query)}
                   title={tile.name}
                   aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" ? "no data" : tile.verdict}. Open its dashboard.`}
                 >
@@ -451,8 +368,7 @@ export function FleetPage() {
         {tiles.length > 0 && shown === 0 && (
           <Help topic="fleet-filter" as="div">
             <p id="fleet-none" className="fleet-empty">
-              No targets match this search and status. Clear filters shows every
-              target.
+              No targets match this search. Clear filters shows every target.
             </p>
           </Help>
         )}

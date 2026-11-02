@@ -100,17 +100,17 @@
 | QA-080 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-081 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-082 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-083 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-084 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-083 | NOT_RUN | - | - | - |
+| QA-084 | NOT_RUN | - | - | - |
 | QA-085 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-086 | BLOCKED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-087 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-087 | NOT_RUN | - | - | - |
 | QA-088 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-089 | NOT_RUN | - | - | - |
 | QA-090 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-091 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-092 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-093 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-091 | NOT_RUN | - | - | - |
+| QA-092 | NOT_RUN | - | - | - |
+| QA-093 | NOT_RUN | - | - | - |
 | QA-094 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-095 | PASSED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
 | QA-096 | FAILED | dev-c16a553 (CI) | [Run](runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](runs/20261027T153250Z-react-c16a553/observations.json) |
@@ -600,16 +600,17 @@
 
 ## QA-083: Tile order, colors, and counts
 
-- Case revision: 2.
+- Case revision: 3.
 - Driver: judged
-- Test: Use targets at critical, serious, warning, healthy, and no-data levels. Include live targets with findings. Compare each assessment dot with its tile edge, count pills, and the tab title.
-- Expected: Tiles are worst first, then by key. Dot and edge both use red for critical, orange for serious, amber for warning, green for healthy, and gray for no data. A live target with findings does not get a green activity dot. Each dot has the corresponding accessible assessment label and native title. Counts match the tiles. The title starts with the number of targets at warning or worse.
+- Test: Use targets at critical, serious, warning, healthy, and no-data levels. Include live targets with findings. Compare each assessment dot with its tile edge, count pills, and the tab title. Change assessments across two polls and compare tile order with `/api/fleet` list.targets.
+- Expected: Tiles retain the order in `/api/fleet` list.targets, including after assessment changes. Dot and edge both use red for critical, orange for serious, amber for warning, green for healthy, and gray for no data. A live target with findings does not get a green activity dot. Each dot has the corresponding accessible assessment label and native title. Counts match the tiles. The title starts with the number of targets at warning or worse.
 
 ## QA-084: Navigate between the overview and a target
 
+- Case revision: 2.
 - Driver: judged
 - Test: Select a tile, use All targets, use browser Back, and middle-click a tile.
-- Expected: Each route opens the expected page. Middle-click opens the target in a new tab. `?target=` with no value opens the default target.
+- Expected: The All targets page has no top-row target selector. A target dashboard with several targets keeps its top-row selector. Each route opens the expected page. Middle-click opens the target in a new tab. `?target=` with no value opens the default target.
 
 ## QA-085: Empty overview and lost collector
 
@@ -626,10 +627,10 @@
 
 ## QA-087: Overview themes and tile spacing
 
-- Case revision: 5.
+- Case revision: 6.
 - Driver: judged
-- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths, in both Tiles densities. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Point at a long name and read the link's accessible name. Check Remove placement.
-- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. In Comfortable, target tiles and Add target have a 140 px minimum height and grid gaps are 24 px. In Compact, the minimum height is 104 px and gaps are 16 px. Tiles grow when long identity text needs more room. No fixed aspect ratio forces empty height. Host and target identities wrap within the tile. A long process name may stay on one line with an ellipsis; the link's title and accessible name give the full name. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
+- Test: View the overview in Dark, Light, and System themes at desktop, 390 px, and 320 px widths, with the compact layout. Include long process names and host/target identities. Measure target tiles, Add target, and grid gaps. Point at a long name and read the link's accessible name. Check Remove placement.
+- Expected: Dark uses the matte black canvas and tiles. Light uses light tiles. Target tiles and Add target have a 104 px minimum height and grid gaps are 16 px. Tiles grow when long identity text needs more room. No fixed aspect ratio forces empty height. Host and target identities wrap within the tile. A long process name may stay on one line with an ellipsis; the link's title and accessible name give the full name. Remove stays at the bottom right. Text and controls remain readable. Nothing scrolls sideways at 390 px or 320 px.
 
 ## QA-088: Keyboard focus and help on the overview
 
@@ -650,24 +651,27 @@
 - Test: Use one target with findings and one healthy target. Point at each tile, move quickly across the grid, and Tab to a tile link. Select a tile while its card is open.
 - Expected: Only a tile with warning or worse findings shows a card, after a short delay, with the process start time, command line, and up to four findings with details. No card flashes during quick movement. Keyboard focus shows the card, and the tile keeps its values until focus leaves. A click still opens the dashboard.
 
-## QA-091: Overview tile density
+## QA-091: Compact overview
 
-- Setup: `python3 tests/fleet_fixture.py --targets 64` starts an isolated collector with deterministic targets and prints its URL and the expected levels. Use `--targets 20` and `--targets 50` for the other counts. It cannot produce No data; make one `/api/live` request fail for that level.
+- Case revision: 2.
+- Setup: `python3 tests/fleet_fixture.py --targets 64` starts an isolated collector with deterministic targets and prints its URL and expected levels. Use `--targets 20` and `--targets 50` for the other counts.
 - Driver: judged
-- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Select Compact in Tiles, then Comfortable. Reload after each choice, and change the number of targets between polls. Repeat with browser storage blocked. Open the `fleet-density` help.
-- Expected: Comfortable is the default. Comfortable tiles have a 140 px minimum height and 24 px gaps; Compact tiles have a 104 px minimum height, 16 px gaps, and 12 to 14 px padding, with the same text sizes and controls. Compact shows more full tiles on one screen at 1280 and 1920 px. The choice survives reload. Polls and target count changes never change it. With storage blocked, the choice lasts until reload. Nothing scrolls sideways; the page scrolls vertically.
+- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Reload and change the target count between polls. Open old URLs with `layout=comfortable` and `density=comfortable`, and set `triangulator:fleet-density` to `comfortable` in local storage. Repeat with browser storage blocked. Open the `fleet` help.
+- Expected: The overview always uses compact tiles. No Tiles or layout dropdown exists. Tiles and Add target have a 104 px minimum height, with 16 px grid gaps and 12 to 14 px tile padding. Polls, reloads, old settings, and target counts do not change the layout. Nothing scrolls sideways; the page scrolls vertically. Help describes compact tiles and collector order.
 
-## QA-092: Overview search and status
+## QA-092: Overview search
 
+- Case revision: 2.
 - Driver: judged
-- Test: Use the QA-091 fixture with 64 targets at critical, serious, warning, healthy, and no-data levels, with long identities and the same process name on different hosts. Search by name, host, and target ID. Select each Status choice. Combine a search and a status that match nothing. Watch network requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters. Open the `fleet-filter` help.
-- Expected: Only matching tiles show, worst first. Needs attention shows critical, serious, and warning tiles. "Showing N of M targets" gives the matching count and the count of all targets. The count pills, labeled "Totals for all targets", do not change with filters. Typing starts no request. Polls keep the filter, the tile elements, and keyboard focus. With no match, the page says so, and Clear filters and Add target remain usable. Clear filters shows every tile. Nothing scrolls sideways at 320 px.
+- Test: Use the QA-091 fixture with targets at different assessment levels and the same process name on different hosts. Search by name, host, and target ID. Search for text that matches nothing. Watch requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters. Open the `fleet-filter` help.
+- Expected: No Status dropdown exists. Only search hides tiles; matches retain collector order at every level. "Showing N of M targets" gives the matching count and total count. The count pills always total all targets. Typing starts no request. Polls keep the search, tile elements, and keyboard focus. With no match, Clear filters and Add target remain usable. Clear filters shows every tile. Nothing scrolls sideways at 320 px.
 
-## QA-093: A filtered overview survives navigation
+## QA-093: A searched overview survives navigation
 
+- Case revision: 2.
 - Driver: judged
-- Test: Filter the overview by search and status. Open the URL in a new tab. Open a tile, then use browser Back. Open a tile again and use All targets. Middle-click a tile and use All targets in the new tab. Repeat with browser storage blocked.
-- Expected: The URL carries `q` and `status`. Each path returns to the overview with the same search, status, and matching tiles. Blocked storage affects only the saved tile density.
+- Test: Search the overview. Open the URL in a new tab. Open a tile, then use browser Back. Open a tile again and use All targets. Middle-click a tile and use All targets in the new tab. Repeat with browser storage blocked and old URLs with `status=critical` and `layout=comfortable`.
+- Expected: The URL carries `q`. Each path returns with the same search and matching tiles. Old status and layout choices have no effect. Target and All targets links carry the search without status or layout choices. Browser storage does not affect search or compact layout.
 
 ## QA-094: One matte black theme on every page
 
