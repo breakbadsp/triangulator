@@ -416,10 +416,14 @@ test("a tile with only informational findings has no card", async () => {
   expect(api.querySelector(".ft-card")).toBeNull();
 });
 
-test.each(["comfortable", "compact", "bogus"])(
+test.each(["comfortable", "compact", "bogus", "blocked storage"])(
   "compact is the only layout with legacy choice %s",
   async (choice) => {
-    localStorage.setItem("triangulator:fleet-density", choice);
+    if (choice === "blocked storage")
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+    else localStorage.setItem("triangulator:fleet-density", choice);
     const style = document.createElement("style");
     style.textContent = fleetCss;
     document.head.append(style);
@@ -445,18 +449,6 @@ test.each(["comfortable", "compact", "bogus"])(
     }
   },
 );
-
-test("compact works with blocked browser storage", async () => {
-  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-    throw new Error("blocked");
-  });
-  const app = await start("?status=unknown");
-  expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
-  expect(screen.queryByRole("combobox", { name: "Tile density" })).toBeNull();
-  app.unmount();
-  await start();
-  expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
-});
 
 test("search shows matching tiles with no request while the counts keep every target", async () => {
   await start();

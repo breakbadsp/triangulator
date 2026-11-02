@@ -268,7 +268,6 @@ export function FleetPage() {
               key={tile.key}
               className="fleet-tile"
               data-level={tile.level}
-              data-search={tile.search}
               hidden={!matchesSearch(tile)}
               onFocus={() => {
                 setFocused({ key: tile.key, model: tile });

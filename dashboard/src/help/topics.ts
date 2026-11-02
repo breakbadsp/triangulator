@@ -386,7 +386,7 @@ const topics = {
     example:
       "Critical 1 · Healthy 3 means one process needs attention now and three show no problem.",
     reading:
-      "All targets uses compact tiles in the order supplied by the collector. Assessment changes do not change this order. Use the tiles to select a target; this page has no target selector in the top row. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
+      "All targets uses compact tiles in the order supplied by the collector. Assessment changes do not change this order. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
     limits:
       "Tiles do not run the thread churn rule or memory-map layout rules. Each refresh returns the latest live view of every target in one response, so a large number of targets makes that response larger than one dashboard needs.",
     related: ["fleet-tile", "target-switch", "assessment"],

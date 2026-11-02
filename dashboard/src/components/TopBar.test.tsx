@@ -33,6 +33,11 @@ test("shows access, shared budget and other-target attention, then a single iden
       ]}
     />,
   );
+  expect(
+    screen.getByRole<HTMLSelectElement>("combobox", {
+      name: "Selected monitoring target",
+    }).value,
+  ).toBe(target.key);
   expect(document.getElementById("target-access")?.textContent).toBe(
     "Limited access",
   );
@@ -99,20 +104,4 @@ test("theme changes still apply when storage is blocked", () => {
   expect(document.documentElement.dataset.theme).toBe("dark");
   fireEvent.change(theme, { target: { value: "light" } });
   expect(document.documentElement.dataset.theme).toBe("light");
-});
-
-test("the target selector is absent on All targets and present on a target dashboard", () => {
-  const targets = [target, { ...target, key: "host/billing", id: "billing" }];
-  const { rerender } = render(
-    <TopBar page={{ kind: "fleet" }} targets={targets} />,
-  );
-  expect(document.getElementById("target-select")).toBeNull();
-  rerender(
-    <TopBar page={{ kind: "target", key: target.key }} targets={targets} />,
-  );
-  expect(
-    screen.getByRole<HTMLSelectElement>("combobox", {
-      name: "Selected monitoring target",
-    }).value,
-  ).toBe(target.key);
 });

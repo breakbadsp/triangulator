@@ -180,7 +180,7 @@ try {
   await until(
     () =>
       evaluate(
-        "document.querySelector('#target-select')?.options.length === 21 && document.querySelectorAll('#fleet-grid > article').length === 20",
+        "!document.querySelector('#target-select') && document.querySelectorAll('#fleet-grid > article').length === 20",
       ),
     "fleet target list and tiles",
   );
@@ -258,9 +258,7 @@ try {
     ),
     { guide: true, focus: true },
   );
-  // Chromium drops focus without a blur event when a focused node moves.
-  // Make the last tile serious, so React moves the tiles after it, and check
-  // that the moved, focused healthy tile link keeps focus.
+  // Assessment changes must preserve API order and keyboard focus.
   const tileKeys = `[...document.querySelectorAll('#fleet-grid > article')].map((tile) => ({key: new URLSearchParams(tile.querySelector('.ft-name').getAttribute('href')).get('target'), level: tile.dataset.level}))`;
   const before = await evaluate(tileKeys);
   const focusIndex = before.findIndex((tile) => tile.level === "good");
@@ -295,22 +293,18 @@ try {
   await send("Fetch.enable", {
     patterns: [{ urlPattern: "*/api/fleet", requestStage: "Response" }],
   });
-  await until(async () => {
-    const after = await evaluate(tileKeys);
-    return (
-      after.findIndex((tile) => tile.key === mover) <
-      after.findIndex((tile) => tile.key === focusKey)
-    );
-  }, "tile reorder");
-  const reorder = await evaluate(
-    `({moverLevel: document.querySelector(${JSON.stringify(`.ft-name[href="?target=${encodeURIComponent(mover)}"]`)}).closest('article').dataset.level, moved: window.focusedTileMoved, focusKept: document.activeElement === window.focusedLink, connected: window.focusedLink.isConnected})`,
+  await until(
+    () => evaluate(`document.querySelector(${JSON.stringify(`.ft-name[href="?target=${encodeURIComponent(mover)}"]`)}).closest('article').dataset.level === 'serious'`),
+    "assessment change",
   );
-  assert.deepEqual(reorder, {
-    moverLevel: "serious",
-    moved: true,
-    focusKept: true,
-    connected: true,
-  });
+  assert.deepEqual(
+    (await evaluate(tileKeys)).map((tile) => tile.key),
+    before.map((tile) => tile.key),
+  );
+  const reorder = await evaluate(
+    "({moved: window.focusedTileMoved, focusKept: document.activeElement === window.focusedLink, connected: window.focusedLink.isConnected})",
+  );
+  assert.deepEqual(reorder, { moved: false, focusKept: true, connected: true });
   await send("Fetch.disable");
   onPaused = () => undefined;
   let target;
@@ -319,9 +313,9 @@ try {
     target = targets.find((entry) => entry.status === "live" && entry.pid > 0);
     return !!target;
   }, "fixture live target");
-  // Drive the real select. Its change handler must navigate with location.assign.
+  // Open the dashboard through its overview tile.
   await evaluate(
-    `document.querySelector('#target-select').value=${JSON.stringify(target.key)};document.querySelector('#target-select').dispatchEvent(new Event('change',{bubbles:true}))`,
+    `document.querySelector(${JSON.stringify(`.ft-name[href="?target=${encodeURIComponent(target.key)}"]`)}).click()`,
   );
   await until(
     () =>
