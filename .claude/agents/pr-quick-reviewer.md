@@ -1,8 +1,6 @@
 ---
 name: pr-quick-reviewer
 description: Second reviewer for one pull request. Scans small PRs alone, or gives an independent second opinion next to the main reviewer. Reports only real blockers and majors and never edits code.
-model: sonnet
-effort: high
 tools: Read, Grep, Glob, Bash
 ---
 
