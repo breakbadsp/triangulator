@@ -5,6 +5,7 @@ import {
   socketNotes,
   networkRows,
   scopeOf,
+  sampleInterval,
 } from "./resourceView";
 import { asResourcePoints } from "./assess/memory";
 const socket = (extra: Partial<ResourceSocket>): ResourceSocket => ({
@@ -16,6 +17,17 @@ const socket = (extra: Partial<ResourceSocket>): ResourceSocket => ({
   ...extra,
 });
 describe("resource views", () => {
+  it("shows the measured interval next to the configured one only when longer (#225)", () => {
+    const at = (elapsed_s: number | null): Resources => ({
+      available: true,
+      interval_s: 2,
+      elapsed_s,
+    });
+    expect(sampleInterval(at(null))).toBe("every 2 s");
+    expect(sampleInterval(at(2.004))).toBe("every 2 s");
+    expect(sampleInterval(at(2.2))).toBe("every 2 s");
+    expect(sampleInterval(at(3.4))).toBe("every 3.4 s (configured 2 s)");
+  });
   it("explains slow readers, full listeners and zero-window peers (old 444)", () => {
     expect(
       socketNotes(socket({ listener: true, accept_fill_pct: 125 })),

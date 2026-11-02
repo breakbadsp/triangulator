@@ -968,8 +968,8 @@ void TestCpuBudget()
             "invalid CPU budget is rejected");
   }
   Require(ParseConfig("collector=127.0.0.1:9400\nprocess_names=[\"a\"]")
-                  ->cpu_budget_pct_ == 1,
-          "default CPU budget is one percent");
+                  ->cpu_budget_pct_ == 10,
+          "default CPU budget is ten percent");
 }
 
 void TestWire()
@@ -1908,6 +1908,118 @@ void TestNextDeadline()
           "a run that fell behind counts from now");
 }
 
+// Runs HeavySchedule for p_ticks ticks and returns, for each target, the
+// ticks between its resource scans, and the count of memory turns.
+// p_memory_waiting says whether a memory sample waits at a tick.
+struct HeavyRun
+{
+  std::vector<std::vector<std::size_t>> gaps_;
+  std::size_t memory_turns_{};
+};
+
+template <typename TWaiting>
+HeavyRun RunHeavySchedule(std::size_t p_targets, std::size_t p_interval_ticks,
+                          std::size_t p_ticks, TWaiting p_memory_waiting)
+{
+  HeavySchedule schedule;
+  HeavyRun run{.gaps_ = std::vector<std::vector<std::size_t>>(p_targets)};
+  std::vector<std::optional<std::size_t>> last(p_targets);
+  for (std::size_t tick = 0; tick < p_ticks; ++tick)
+  {
+    const auto target =
+        schedule.Next({.resource_targets_ = p_targets,
+                       .memory_waiting_ = p_memory_waiting(tick),
+                       .interval_ticks_ = p_interval_ticks});
+    if (!target)
+    {
+      ++run.memory_turns_;
+      continue;
+    }
+    Require(*target < p_targets, "a resource scan names a live target");
+    if (last[*target])
+    {
+      run.gaps_[*target].push_back(tick - *last[*target]);
+    }
+    last[*target] = tick;
+  }
+  return run;
+}
+
+bool AllGapsIn(const HeavyRun& p_run, std::size_t p_low, std::size_t p_high)
+{
+  return std::ranges::all_of(
+      p_run.gaps_,
+      [&](const auto& p_gaps)
+      {
+        return !p_gaps.empty() && std::ranges::all_of(p_gaps,
+                                                      [&](std::size_t p_gap)
+                                                      {
+                                                        return p_gap >= p_low &&
+                                                               p_gap <= p_high;
+                                                      });
+      });
+}
+
+// Checks the heavy cycle at the settings of issue #225: resource gaps stay
+// equal for every target count, memory waits for at most one position in a
+// full cycle, and the cycle never stretches when no memory sample waits.
+void TestHeavySchedule()
+{
+  Require(IntervalTicks(std::chrono::seconds{2}, 200ms) == 10 &&
+              IntervalTicks(std::chrono::seconds{2}, 300ms) == 7 &&
+              IntervalTicks(Nanoseconds{0}, 200ms) == 0,
+          "the resource interval rounds up to whole ticks");
+  const auto always = [](std::size_t)
+  {
+    return true;
+  };
+  const auto never = [](std::size_t)
+  {
+    return false;
+  };
+  // 16 targets at 5 Hz ask for 8 scans per second against 5: each target
+  // gets one in 17 ticks (3.4 s), and memory one turn in each cycle.
+  const auto full = RunHeavySchedule(16, 10, 17 * 20, always);
+  Require(AllGapsIn(full, 17, 17) && full.memory_turns_ == 20,
+          "16 targets get equal gaps and memory one turn per cycle");
+  Require(AllGapsIn(RunHeavySchedule(16, 10, 16 * 20, never), 16, 16),
+          "with no memory sample waiting the cycle is one scan per target");
+  Require(AllGapsIn(RunHeavySchedule(16, 10, 400,
+                                     [](std::size_t p_tick)
+                                     {
+                                       return p_tick % 50 < 10;
+                                     }),
+                    16, 17),
+          "a memory sample that waits now and then adds at most one tick");
+  // Capacity is left: the configured 2 s holds, and memory uses free ticks.
+  const auto one = RunHeavySchedule(1, 10, 200, always);
+  Require(AllGapsIn(one, 10, 10) && one.memory_turns_ == 180,
+          "one target keeps the configured interval");
+  Require(AllGapsIn(RunHeavySchedule(8, 10, 200, always), 10, 10),
+          "eight targets keep the configured interval");
+  // rate_hz = 1 and resource_interval_s = 1: memory stretches only the
+  // cycles in which it waits.
+  const auto slow = RunHeavySchedule(1, 1, 100,
+                                     [](std::size_t p_tick)
+                                     {
+                                       return p_tick == 50;
+                                     });
+  Require(AllGapsIn(slow, 1, 2) && slow.memory_turns_ == 1,
+          "a memory turn takes one extra tick only when memory waits");
+  // Resources off: every tick is a memory turn.
+  const auto off = RunHeavySchedule(0, 0, 10, always);
+  Require(off.memory_turns_ == 10, "with resources off every tick is memory");
+  // A change of the target count waits for the next cycle.
+  HeavySchedule schedule;
+  Require(
+      schedule.Next({.resource_targets_ = 3, .interval_ticks_ = 1}) == 0 &&
+          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 1 &&
+          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 2 &&
+          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 0 &&
+          schedule.Next({.resource_targets_ = 1, .interval_ticks_ = 1}) == 0,
+      "a new target count applies from the next cycle");
+}
+
 std::array<wire::Record, 3> TickOf(std::uint32_t p_first,
                                    std::uint32_t p_second,
                                    std::uint32_t p_third)
@@ -2618,6 +2730,7 @@ int main()
     TestProcessInfoParsing();
     TestProcessInfoProbe();
     TestNextDeadline();
+    TestHeavySchedule();
     TestExitMessages();
     TestExitStatus();
     std::puts(

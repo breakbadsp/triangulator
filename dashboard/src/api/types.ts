@@ -177,6 +177,8 @@ export interface ResourceSocket {
 export interface Resources {
   sequence?: number;
   interval_s?: number;
+  // Measured seconds since the previous sample; null without one.
+  elapsed_s?: number | null;
   cgroup?: string | null;
   available: boolean;
   reason?: string;

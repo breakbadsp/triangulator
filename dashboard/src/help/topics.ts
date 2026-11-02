@@ -1516,7 +1516,7 @@ const topics = {
       "Coverage notes identify missing, partial, stale, or unavailable observations.",
     example: "",
     reading:
-      "Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero.",
+      "Read the supplied reason and the last sample time. A dash means not available; a numeric zero means measured zero. The resource sample line shows the measured time between the last two samples. When it is more than 10% longer than resource_interval_s, the configured value follows in brackets: one sampler tick runs at most one resource or memory-map scan for all targets, so many targets or a CPU budget throttle stretch the interval.",
     limits: "Do not treat gaps or unreadable values as zero activity.",
     related: ["health"],
     source: "Flags sent with each sample",

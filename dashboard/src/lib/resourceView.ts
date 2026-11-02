@@ -502,10 +502,21 @@ export function networkRows(r: Resources, points: readonly ResourcePoint[]) {
       : "",
   };
 }
+// The real interval is the measured gap to the previous sample. It is longer
+// than configured when the sampler's targets ask for more heavy scans than
+// its ticks allow; 10% absorbs send jitter.
+export function sampleInterval(r: Resources) {
+  const configured = r.interval_s || 0;
+  const measured = r.elapsed_s;
+  if (!isNum(measured) || measured <= configured * 1.1)
+    return `every ${duration(configured)}`;
+  const real = measured < 90 ? `${measured.toFixed(1)} s` : duration(measured);
+  return `every ${real} (configured ${duration(configured)})`;
+}
 export function resourceCoverage(r: Resources) {
   const flags = r.flags || {};
   let text =
-    `Sample ${String(r.sequence)} · every ${duration(r.interval_s || 0)} · ${String(r.sockets?.matched ?? "?")} sockets listed` +
+    `Sample ${String(r.sequence)} · ${sampleInterval(r)} · ${String(r.sockets?.matched ?? "?")} sockets listed` +
     (r.sockets?.unmatched
       ? `, ${String(r.sockets.unmatched)} not listable (netlink, raw, packet or unbound UDP sockets)`
       : "") +

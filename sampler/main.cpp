@@ -152,36 +152,37 @@ class TargetSampler final
     StepAnnouncement(previous_target_, ClockNow(CLOCK_MONOTONIC));
   }
 
-  [[nodiscard]] bool HeavyDue(bool p_memory, Nanoseconds p_now) const
+  // Whether this target was found this tick, so it can take a heavy scan.
+  [[nodiscard]] bool HasTarget() const noexcept
   {
-    if (!previous_target_)
-    {
-      return false;
-    }
-    if (p_memory)
-    {
-      return MemoryInterval() > Nanoseconds{0} &&
-             (memory_.Busy() || p_now + config_.Interval() / 2 >= next_memory_);
-    }
-    return ResourceInterval() > Nanoseconds{0} &&
-           p_now + config_.Interval() / 2 >= next_resources_;
+    return previous_target_.has_value();
   }
 
-  void StepHeavy(bool p_memory, Nanoseconds p_now)
+  // A memory-map sample is busy, or due within half a tick.
+  [[nodiscard]] bool MemoryDue(Nanoseconds p_now) const
   {
-    if (!previous_target_)
-    {
-      return;
-    }
-    if (p_memory)
+    return previous_target_ && MemoryInterval() > Nanoseconds{0} &&
+           (memory_.Busy() || p_now + config_.Interval() / 2 >= next_memory_);
+  }
+
+  [[nodiscard]] bool MemoryBusy() const noexcept
+  {
+    return memory_.Busy();
+  }
+
+  void ScanMemory(Nanoseconds p_now)
+  {
+    if (previous_target_)
     {
       StepMemory(*previous_target_, p_now);
     }
-    else
+  }
+
+  void ScanResources()
+  {
+    if (previous_target_)
     {
       SendResources(*previous_target_);
-      next_resources_ =
-          NextDeadline(next_resources_, p_now, ResourceInterval());
     }
   }
 
@@ -551,7 +552,6 @@ class TargetSampler final
     session_ = *session;
     sequence_ = 0;
     resource_sequence_ = 0;
-    next_resources_ = Nanoseconds{0};  // a new session samples at once
     memory_.Reset();
     memory_sequence_ = 0;
     next_memory_ = Nanoseconds{0};
@@ -635,7 +635,6 @@ class TargetSampler final
   ResourceProbe resources_;
   std::array<std::byte, resource_wire::kMaxPartSize> resource_packet_{};
   std::uint32_t resource_sequence_ = 0;
-  Nanoseconds next_resources_{0};
   MemoryProbe memory_;
   std::array<std::byte, memory_wire::kMaxPartSize> memory_packet_{};
   std::uint32_t memory_sequence_ = 0;
@@ -745,7 +744,8 @@ class Sampler final
   Discovery discovery_;
   // One sampler for each discovery slot, made at startup or reload.
   std::vector<std::unique_ptr<TargetSampler>> pool_;
-  std::size_t heavy_cursor_ = 0;
+  HeavySchedule heavy_schedule_;
+  std::size_t memory_cursor_ = 0;
 
   // Reads the configuration file again. The value is false when the file
   // was invalid and the previous configuration stays.
@@ -892,21 +892,77 @@ class Sampler final
     return {};
   }
 
-  // One heavy scan at most per tick. A single cursor gives resources and
-  // memory maps of all targets equal opportunities.
+  // One heavy scan at most per tick, chosen by the heavy cycle.
   void StepHeavy(std::span<const bool> p_live)
   {
     auto& samplers = pool_;
     const auto now = ClockNow(CLOCK_MONOTONIC);
-    const auto jobs = samplers.size() * 2;
-    for (std::size_t checked = 0; checked < jobs; ++checked)
+    std::size_t live_targets = 0;
+    bool memory_waiting = false;
+    for (std::size_t index = 0; index < samplers.size(); ++index)
     {
-      const auto job = heavy_cursor_++ % jobs;
-      const auto index = job / 2;
-      if (p_live[index] && samplers[index]->HeavyDue(job % 2 != 0, now))
+      if (p_live[index] && samplers[index]->HasTarget())
       {
-        samplers[index]->StepHeavy(job % 2 != 0, now);
-        break;
+        ++live_targets;
+        memory_waiting = memory_waiting || samplers[index]->MemoryDue(now);
+      }
+    }
+    const bool resources_on = config_.settings_.resource_interval_s_ > 0;
+    const auto resource_target = heavy_schedule_.Next({
+        .resource_targets_ = resources_on ? live_targets : 0,
+        .memory_waiting_ = memory_waiting,
+        .interval_ticks_ =
+            resources_on ? IntervalTicks(
+                               std::chrono::seconds{
+                                   config_.settings_.resource_interval_s_},
+                               config_.Interval())
+                         : 0,
+    });
+    if (resource_target)
+    {
+      ScanResources(p_live, *resource_target);
+    }
+    else
+    {
+      ScanMemory(p_live, now);
+    }
+  }
+
+  // Resources of live target number p_number. A target that ended since the
+  // cycle started leaves its position empty.
+  void ScanResources(std::span<const bool> p_live, std::size_t p_number)
+  {
+    auto& samplers = pool_;
+    std::size_t number = 0;
+    for (std::size_t index = 0; index < samplers.size(); ++index)
+    {
+      if (p_live[index] && samplers[index]->HasTarget())
+      {
+        if (number == p_number)
+        {
+          samplers[index]->ScanResources();
+          return;
+        }
+        ++number;
+      }
+    }
+  }
+
+  // A memory turn: the busy memory-map sample continues, or the next due
+  // target in turn starts one. The cursor stays on a busy sample, so only
+  // one sample is in progress at a time.
+  void ScanMemory(std::span<const bool> p_live, Nanoseconds p_now)
+  {
+    auto& samplers = pool_;
+    for (std::size_t checked = 0; checked < samplers.size(); ++checked)
+    {
+      const auto index = (memory_cursor_ + checked) % samplers.size();
+      auto& sampler = *samplers[index];
+      if (p_live[index] && sampler.MemoryDue(p_now))
+      {
+        sampler.ScanMemory(p_now);
+        memory_cursor_ = sampler.MemoryBusy() ? index : index + 1;
+        return;
       }
     }
   }
@@ -942,7 +998,8 @@ class Sampler final
         slot.reassigned_ = slot.state_ != SlotState::Free;
       }
     }
-    heavy_cursor_ = 0;
+    heavy_schedule_.Reset();
+    memory_cursor_ = 0;
     return {};
   }
 

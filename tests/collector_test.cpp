@@ -2126,6 +2126,42 @@ const Json& ResourceField(const Json& p_live, std::string_view p_path)
   return *value;
 }
 
+// Checks rates and the stale mark when the sampler stretches its resource
+// interval (#225): interval_ms stays the configured 5 s, but samples come
+// 20 s apart. Rates stay, and stale follows the measured gap. A gap over a
+// lost sample must not delay the stale mark.
+void TestResourceStretchedInterval()
+{
+  RowCollector sink;
+  ResourceMonitor monitor{sink};
+  const auto at = [](std::uint32_t p_sequence, std::uint64_t p_monotonic_s)
+  {
+    auto header = ResourceHeader(p_sequence);
+    header.monotonic_ns_ = p_monotonic_s * 1'000'000'000;
+    return header;
+  };
+  monitor.Accept(Summary(at(0, 1000), GrowingValues(0)), 1);
+  monitor.Accept(Summary(at(1, 1020), GrowingValues(1)), 21);
+  monitor.Drain(21, true);
+  auto live = monitor.Snapshot(21);
+  RequireNear(Field(live, "elapsed_s").AsNumber(), 20,
+              "a gap of four configured intervals keeps rates");
+  Require(Field(live, "interval_s").AsNumber() == 5,
+          "the configured interval stays in the sample");
+  Require(!Field(monitor.Snapshot(21 + 59), "stale").AsBool() &&
+              Field(monitor.Snapshot(21 + 61), "stale").AsBool(),
+          "stale comes after three measured gaps");
+  // Sequence 2 is lost; sequence 3 comes 300 s later.
+  monitor.Accept(Summary(at(3, 1320), GrowingValues(3)), 321);
+  monitor.Drain(321, true);
+  live = monitor.Snapshot(321);
+  RequireNear(Field(live, "elapsed_s").AsNumber(), 300,
+              "a rate over a lost sample is the average of the gap");
+  Require(!Field(monitor.Snapshot(321 + 14), "stale").AsBool() &&
+              Field(monitor.Snapshot(321 + 16), "stale").AsBool(),
+          "a gap over a lost sample does not delay the stale mark");
+}
+
 void TestResourceRatesAndSockets()
 {
   RowCollector sink;
@@ -3083,6 +3119,7 @@ int main()
     TestWatchDirectorySync();
     TestStorageReportsErrors();
     TestResourceRatesAndSockets();
+    TestResourceStretchedInterval();
     TestResourceResetsLossAndOrder();
     TestResourceRetiredSessions();
     TestMemoryCgroupAndInterfaceRates();

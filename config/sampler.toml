@@ -17,7 +17,7 @@ resource_interval_s = 2
 memory_interval_s = 30
 
 # CPU budget as a percentage of one CPU core. The sampler can lower its rate.
-cpu_budget_pct = 1.0
+cpu_budget_pct = 10.0
 
 # Optional whole-name globs: * matches any bytes; ? matches one byte.
 # Matching ignores ASCII case: "T3*" matches "t3code". Exact names do not.

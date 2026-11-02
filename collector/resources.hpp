@@ -293,11 +293,11 @@ class ResourceMonitor
           {"stats", Stats()}};
     }
     const auto& sample = *latest_;
-    const auto interval = sample.header_.interval_ms_ / 1000.0;
-    Json result = SampleJson(sample, Previous());
+    const auto* previous = Previous();
+    Json result = SampleJson(sample, previous);
     result.Set("available", true);
-    result.Set("stale",
-               p_now - sample.received_ > std::max(15.0, 3 * interval));
+    result.Set("stale", p_now - sample.received_ >
+                            std::max(15.0, 3 * ExpectedGap(previous)));
     result.Set("updated", sample.received_);
     result.Set("stats", Stats());
     return result;
@@ -428,7 +428,11 @@ class ResourceMonitor
   }
 
   // The previous sample when rates over the interval to the latest one are
-  // meaningful: same session and process, and not too long ago.
+  // meaningful: same session and process. Any gap is allowed: the counters
+  // of one process only grow, so a rate over a long gap is still the true
+  // average. The sampler stretches the gap when its targets ask for more
+  // heavy scans than its ticks allow, and interval_ms stays the configured
+  // value.
   [[nodiscard]] const ResourceSample* Previous() const
   {
     if (!latest_ || !previous_)
@@ -437,14 +441,29 @@ class ResourceMonitor
     }
     const auto& now = latest_->header_;
     const auto& before = previous_->header_;
-    const double elapsed = latest_->monotonic_ - previous_->monotonic_;
     if (now.session_ != before.session_ || now.pid_ != before.pid_ ||
-        now.process_start_ != before.process_start_ || elapsed <= 0 ||
-        elapsed > 3 * now.interval_ms_ / 1000.0)
+        now.process_start_ != before.process_start_ ||
+        latest_->monotonic_ <= previous_->monotonic_)
     {
       return nullptr;
     }
     return &*previous_;
+  }
+
+  // Seconds until the next sample is expected: the measured gap when no
+  // sample was lost before the latest one, else the configured interval. A
+  // gap over lost samples is not the sampler's schedule, so it must not
+  // delay the stale mark.
+  [[nodiscard]] double ExpectedGap(const ResourceSample* p_previous) const
+  {
+    const auto& header = latest_->header_;
+    const double configured = header.interval_ms_ / 1000.0;
+    if (p_previous == nullptr ||
+        header.sequence_ != p_previous->header_.sequence_ + 1)
+    {
+      return configured;
+    }
+    return std::max(configured, Elapsed(*latest_, *p_previous));
   }
 
   void Finish(Assembly& p_assembly)
