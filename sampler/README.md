@@ -84,7 +84,11 @@ each target's resource interval grows evenly to `targets + 1` ticks at the
 effective rate (the CPU budget can lower it), and memory maps get one turn per
 cycle. At 5 Hz with 16 targets and `resource_interval_s = 2`, each target gets
 a resource sample every 3.2 to 3.4 s, and a memory-map sample about every
-54 s. The collector measures the real interval, and the dashboard shows it
+54 s. That memory bound holds while each memory-map sample fits in one turn
+(at most 50 ms; about 80,000 maps lines, more than the kernel default
+`vm.max_map_count` of 65,530). A sample that needs `k` turns takes `k`
+cycles, so the 16 samples need at most 17 turns together to stay within
+60 s. The collector measures the real interval, and the dashboard shows it
 next to the configured one. Raise `rate_hz` or the intervals, or disable a
 source, to avoid the stretch. Exit-log reads share
 one time limit of at most 50 ms for the full tick.
