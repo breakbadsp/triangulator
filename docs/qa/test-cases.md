@@ -16,6 +16,7 @@
 | QA-134 | NOT_RUN | - | - | - |
 | QA-136 | NOT_RUN | - | - | - |
 | QA-137 | NOT_RUN | - | - | - |
+| QA-138 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -816,3 +817,12 @@
 - Driver: judged
 - Test: Monitor seven processes. Open the pressure chart for a target with nearby available readings separated by unavailable readings. Check a longer gap and open chart help.
 - Expected: Lines connect nearby available readings. Longer gaps remain blank. Help explains the lines and gaps.
+
+## QA-138: Compact process header
+
+- Status: NOT_RUN
+- Driver: scripted
+- Setup: Use two targets and a recording. Include a long host and process name, limited access, sampler throttling, and another absent target.
+- Test: At 1440x900, measure the complete process header, including section tabs, against the previous version. Repeat at widths 768px and 375px with one target, multiple targets, a recorded view, and all warnings. Use Tab and arrow keys to select a target and theme. Use Enter on All targets, Back to live, and each header help button. Scroll the section tabs at 375px. Open the fleet page and compare its controls with the previous version.
+- Expected: The process header is shorter at 1440x900. Controls and warnings remain readable. The page has no horizontal overflow or overlapping controls. Section tabs scroll within their own row. Target selection and All targets navigate correctly. Theme and Back to live work. Help stays available. Fleet behavior stays the same.
+- Local layout check: Run `node scripts/verify-process-header.mjs <baseline-ref>` after `npm ci --prefix dashboard`, with Chromium installed. This uses the real header components with fixture data. It does not replace this package case.
