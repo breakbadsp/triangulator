@@ -44,6 +44,7 @@ class TargetFleet final
                                  4};
     std::uint64_t session = 0;
     std::optional<std::uint32_t> pid;
+    std::optional<std::uint64_t> ended_session;
     std::optional<target_wire::Packet> announcement;
     if (magic == "TTGT")
     {
@@ -109,6 +110,7 @@ class TargetFleet final
         return {};
       }
       session = decoded->next_session_;
+      ended_session = decoded->ended_session_;
     }
     else
     {
@@ -147,6 +149,19 @@ class TargetFleet final
       }
     }
     TargetSlot* known = nullptr;
+    if (ended_session)
+    {
+      // TEND links sessions even when the old target's TTGT was lost.
+      for (auto& candidate : slots_)
+      {
+        if (candidate->active_ && candidate->peer_ == p_peer &&
+            candidate->session_ == *ended_session)
+        {
+          known = candidate.get();
+          break;
+        }
+      }
+    }
     if (announcement)
     {
       for (auto& candidate : slots_)
@@ -251,21 +266,21 @@ class TargetFleet final
         slot->id_ = FixedText<32>{slot->visible_ ? "default" : ""};
       }
     }
+    if (known && known != slot)
+    {
+      Retire(known->peer_, known->session_);
+      known->monitor_.Close();
+      known->resources_.Drain(p_now, true);
+      slot->previous_body_ =
+          known->last_body_ ? known->last_body_ : known->previous_body_;
+      slot->previous_metadata_ = known->last_metadata_
+                                     ? known->last_metadata_
+                                     : known->previous_metadata_;
+      known->active_ = false;
+      known->visible_ = false;
+    }
     if (announcement)
     {
-      if (known && known != slot)
-      {
-        Retire(known->peer_, known->session_);
-        known->monitor_.Close();
-        known->resources_.Drain(p_now, true);
-        slot->previous_body_ =
-            known->last_body_ ? known->last_body_ : known->previous_body_;
-        slot->previous_metadata_ = known->last_metadata_
-                                       ? known->last_metadata_
-                                       : known->previous_metadata_;
-        known->active_ = false;
-        known->visible_ = false;
-      }
       if (slot->peer_ != p_peer)
       {
         Retire(slot->peer_, slot->session_);

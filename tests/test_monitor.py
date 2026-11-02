@@ -1,4 +1,5 @@
 import datetime
+from contextlib import contextmanager
 import json
 import os
 import signal
@@ -7,6 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
@@ -398,6 +400,36 @@ def free_port(kind):
         return reservation.getsockname()[1]
 
 
+@contextmanager
+def lost_announcement_proxy():
+    """Drop the first TTGT, as when the sampler starts before the collector."""
+    destination = free_port(socket.SOCK_DGRAM)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as relay:
+        relay.bind(("127.0.0.1", 0))
+        relay.settimeout(0.1)
+        stopped = threading.Event()
+
+        def forward():
+            dropped = False
+            while not stopped.is_set():
+                try:
+                    data, _ = relay.recvfrom(65535)
+                except socket.timeout:
+                    continue
+                if data.startswith(b"TTGT") and not dropped:
+                    dropped = True
+                    continue
+                relay.sendto(data, ("127.0.0.1", destination))
+
+        worker = threading.Thread(target=forward)
+        worker.start()
+        try:
+            yield destination, relay.getsockname()[1]
+        finally:
+            stopped.set()
+            worker.join(timeout=2)
+
+
 class CppCollectorIntegrationTests(unittest.TestCase):
     """The C++ core collector: live data, history and no alerting."""
 
@@ -409,8 +441,8 @@ class CppCollectorIntegrationTests(unittest.TestCase):
         self.assertEqual(checked.returncode, 0, checked.stderr)
 
     def test_sampler_cpp_collector_dashboard_and_history_without_alerting(self):
-        with tempfile.TemporaryDirectory() as directory:
-            udp_port, http_port = free_port(socket.SOCK_DGRAM), free_port(socket.SOCK_STREAM)
+        with tempfile.TemporaryDirectory() as directory, lost_announcement_proxy() as (udp_port, sampler_port):
+            http_port = free_port(socket.SOCK_STREAM)
             collector_config = Path(directory) / "collector.toml"
             # Alert settings are accepted and ignored: they are for the alerting module.
             collector_config.write_text(
@@ -425,7 +457,7 @@ class CppCollectorIntegrationTests(unittest.TestCase):
             self.assertIn("window_s must be 5..10", checked.stderr)
             name, target = sleeper("c")
             sampler_config = Path(directory) / "sampler.toml"
-            sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{udp_port}"\n'
+            sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{sampler_port}"\n'
                                       'resource_interval_s=1\nmemory_interval_s=1\n')
             collector = subprocess.Popen([*CPP_COLLECTOR, str(collector_config)], cwd=ROOT,
                                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
