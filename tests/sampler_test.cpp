@@ -1071,6 +1071,90 @@ bool Blocking(int p_descriptor)
 // A warning never waits for a reader: stderr can be a full pipe that
 // another process also writes, a full socket, or a terminal that nobody
 // reads (D1-1). SIGALRM ends the test if a write blocks.
+// The text after the UTC timestamp that every log line starts with. The
+// timestamp is checked for its shape; its value depends on the clock.
+std::string_view AfterTimestamp(std::string_view p_text)
+{
+  constexpr std::string_view kShape = "dddd-dd-ddTdd:dd:dd.dddZ ";
+  static_assert(kShape.size() == kTimestampSize);
+  bool shaped = p_text.size() >= kShape.size();
+  for (std::size_t index = 0; shaped && index < kShape.size(); ++index)
+  {
+    shaped = kShape[index] == 'd'
+                 ? (p_text[index] >= '0' && p_text[index] <= '9')
+                 : p_text[index] == kShape[index];
+  }
+  Require(shaped, "a log line starts with a UTC timestamp");
+  return p_text.substr(kShape.size());
+}
+
+void TestTimestamp()
+{
+  const auto format = [](std::int64_t p_milliseconds)
+  {
+    const auto text =
+        FormatTimestamp(std::chrono::milliseconds{p_milliseconds});
+    return std::string{text.data(), text.size()};
+  };
+  Require(format(0) == "1970-01-01T00:00:00.000Z ", "the epoch");
+  Require(format(1'700'000'000'123) == "2023-11-14T22:13:20.123Z ",
+          "milliseconds are kept");
+  Require(format(1'709'208'000'000) == "2024-02-29T12:00:00.000Z ",
+          "a leap day");
+  Require(format(951'868'800'000) == "2000-03-01T00:00:00.000Z ",
+          "the day after a year-2000 leap day");
+  Require(format(1'767'225'599'999) == "2025-12-31T23:59:59.999Z ",
+          "the last millisecond of a year");
+  Require(format(-5) == "1970-01-01T00:00:00.000Z ",
+          "a time before the epoch gives the epoch");
+}
+
+void TestBurstLimiter()
+{
+  BurstLimiter limiter;
+  const Nanoseconds start{1'000'000'000};
+  int allowed = 0;
+  for (int line = 0; line < 11; ++line)
+  {
+    allowed += limiter.Allow(start + std::chrono::milliseconds{line}) ? 1 : 0;
+  }
+  Require(allowed == 10, "10 lines in a burst pass and the 11th is dropped");
+  Require(!limiter.Allow(start + 59s), "still limited before 60 s");
+  Require(limiter.Allow(start + 61s), "allowed again after 60 s");
+  Require(limiter.Allow(start + 61s) && limiter.Allow(start + 61s),
+          "the lines of the old burst have left the window");
+}
+
+void TestLogName()
+{
+  const auto name = [](std::string_view p_comm, std::string_view p_exe,
+                       std::string_view p_command, bool p_hidden)
+  {
+    process_wire::Packet packet;
+    process_wire::CopyEnd(packet.exe_, p_exe);
+    process_wire::CopyStart(packet.command_, p_command);
+    if (p_hidden)
+    {
+      packet.flags_ = process_wire::Flags::ExeHidden;
+    }
+    return std::string{process_wire::Text(LogName(p_comm, packet))};
+  };
+  Require(name("logtarget", "/usr/bin/coreutils", "logtarget 60", false) ==
+              "logtarget",
+          "the task name, not the name of a multi-call program file");
+  Require(name("", "/usr/bin/python3", "python3 app.py", false) == "python3",
+          "no task name gives the base name of the program file");
+  Require(name("", "/usr/bin/python3", "other", true) == "other",
+          "a hidden program file gives the command name");
+  Require(name("", "", "/opt/app/server --port 1", true) == "server",
+          "the command name is the base name of the first word");
+  Require(name("", "", "", true) == "?", "no name gives a question mark");
+  Require(name("a\nb", "", "", false) == "a?b",
+          "a control character in the task name cannot start a new log line");
+  Require(name("", "/bin/a\nb", "", false) == "a?b",
+          "a control character cannot start a new log line");
+}
+
 void TestWarningSink()
 {
   ::signal(SIGPIPE, SIG_IGN);  // as the sampler's InstallSignalHandlers()
@@ -1104,7 +1188,8 @@ void TestWarningSink()
     ::waitpid(writer, nullptr, 0);
     (void)ReadAvailable(read_end.Get());
     Require(sink.Write("drained") &&
-                ReadAvailable(read_end.Get()) == "triangulator: drained\n",
+                AfterTimestamp(ReadAvailable(read_end.Get())) ==
+                    "triangulator: drained\n",
             "a drained pipe takes the next warning");
     read_end.Reset();
     Require(!sink.Write("no reader"), "a pipe with no reader fails with EPIPE");
@@ -1149,10 +1234,21 @@ void TestWarningSink()
     Require(sink.Write("first") && sink.Write("second"), "file write");
     std::array<char, 1024> text{};
     const auto length = ::pread(file.Get(), text.data(), text.size(), 0);
-    Require(length > 0 && std::string_view{text.data(),
-                                           static_cast<std::size_t>(length)} ==
-                              "triangulator: first\ntriangulator: second\n",
+    Require(length > 0, "file read");
+    const auto first_line =
+        AfterTimestamp({text.data(), static_cast<std::size_t>(length)});
+    const auto second_start = first_line.find('\n') + 1;
+    Require(first_line.starts_with("triangulator: first\n") &&
+                AfterTimestamp(first_line.substr(second_start)) ==
+                    "triangulator: second\n",
             "a regular file gets each warning at once");
+    const auto before = length;
+    Require(sink.Write(std::string(2000, 'x')),
+            "a long message is cut, not dropped");
+    const auto total = ::pread(file.Get(), text.data(), text.size(), 0);
+    Require(total - before == static_cast<ssize_t>(WarningSink::kLineSize) &&
+                text[static_cast<std::size_t>(total) - 1] == '\n',
+            "a long line is cut to the line size and ends with a newline");
   }
   ::alarm(0);
 }
@@ -2604,6 +2700,9 @@ int main()
     TestCpuBudget();
     TestWire();
     TestRaii();
+    TestTimestamp();
+    TestBurstLimiter();
+    TestLogName();
     TestWarningSink();
     TestDescriptorBudget();
     TestResourceParsing();

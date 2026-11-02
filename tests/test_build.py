@@ -117,6 +117,21 @@ class BuildOptionsTests(unittest.TestCase):
             self.assertIn("-O3", options.read_text())
             self.assertNotEqual(options.read_text(), old_options)
 
+    def test_version_is_unknown_without_git_and_does_not_touch_build_options(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tools = self.prepare(directory)
+            first = self.run_make(directory, "build/sampler_version", path=tools)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            version = Path(directory) / "build/sampler_version"
+            options = Path(directory) / "build/build_options"
+            self.assertEqual(version.read_text().strip(), "unknown")
+            before = options.stat().st_mtime_ns
+            changed = self.run_make(directory, "build/sampler_version", "SAMPLER_VERSION=v9-3-gabc", path=tools)
+            self.assertEqual(changed.returncode, 0, changed.stderr)
+            self.assertEqual(version.read_text().strip(), "v9-3-gabc")
+            self.assertEqual(options.stat().st_mtime_ns, before)
+            self.assertNotIn("v9-3-gabc", options.read_text())
+
     def test_build_options_ignore_a_failing_cmp(self):
         with tempfile.TemporaryDirectory() as directory:
             tools = self.prepare(directory)

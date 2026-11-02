@@ -1,5 +1,6 @@
 #include <sys/random.h>
 
+#include <algorithm>
 #include <cassert>
 #include <csignal>
 #include <cstring>
@@ -23,10 +24,18 @@
 #include "resources.hpp"
 #include "schedule.hpp"
 
+// The Makefile sets this from "git describe". A build outside it reports
+// "unknown".
+#ifndef TRIANGULATOR_VERSION
+#define TRIANGULATOR_VERSION "unknown"
+#endif
+
 namespace triangulator
 {
 namespace
 {
+
+constexpr std::string_view kVersion = TRIANGULATOR_VERSION;
 
 volatile std::sig_atomic_t reload_requested = 0;
 volatile std::sig_atomic_t stop_requested = 0;
@@ -222,6 +231,8 @@ class TargetSampler final
             exit_report_.wait_status_ = *status;
             exit_report_.exit_status_ = exit_wire::ExitStatus::Known;
           }
+          lifecycle_.Log("target {}: PID {} ended", target_.id_,
+                         previous_target_->pid_);
           exit_report_.ended_session_ = session_;
           exit_report_sends_ = kExitReportSends;
           reported = true;
@@ -354,6 +365,13 @@ class TargetSampler final
     }
     process_info_ =
         process_info_probe_.Read(p_target.pid_, p_target.starttime_);
+    if (!monitoring_logged_)
+    {
+      monitoring_logged_ = true;
+      lifecycle_.Log(
+          "target {}: monitoring PID {} ({})", target_.id_, p_target.pid_,
+          process_wire::Text(LogName(MainThreadName(p_target), process_info_)));
+    }
     process_info_.session_ = session_;
     process_info_.monotonic_ns_ =
         static_cast<std::uint64_t>(p_monotonic.count());
@@ -362,6 +380,24 @@ class TargetSampler final
     SendPart(process_wire::Encode(process_info_), "process info");
     next_process_info_ =
         NextDeadline(next_process_info_, p_monotonic, kProcessInfoInterval);
+  }
+
+  // The process name from this tick's main-thread record, so the log needs
+  // no extra /proc read. Empty when the main thread was not sampled.
+  [[nodiscard]] std::string_view MainThreadName(
+      const TargetIdentity& p_target) const
+  {
+    const auto records = std::span{records_}.first(record_count_);
+    const auto main_thread =
+        std::ranges::find(records, static_cast<std::uint32_t>(p_target.pid_),
+                          &wire::Record::tid_);
+    if (main_thread == records.end())
+    {
+      return {};
+    }
+    const auto& comm = main_thread->comm_;
+    return {comm.data(), static_cast<std::size_t>(
+                             std::ranges::find(comm, '\0') - comm.begin())};
   }
 
   // Time between memory-map samples, as for ResourceInterval().
@@ -532,6 +568,7 @@ class TargetSampler final
     next_layout_ = Nanoseconds{0};
     next_process_info_ = Nanoseconds{0};
     next_announcement_ = Nanoseconds{0};
+    monitoring_logged_ = false;
     return {};
   }
 
@@ -596,6 +633,8 @@ class TargetSampler final
   exit_wire::Report exit_report_{};
   int exit_report_sends_ = 0;
   RateLimitedLogger& logger_;
+  LifecycleLogger lifecycle_;
+  bool monitoring_logged_ = false;  // for the current session
   std::array<char, 64> host_{};
   Nanoseconds next_announcement_{0};
   std::optional<TargetIdentity> previous_target_;
@@ -643,6 +682,7 @@ class Sampler final
     {
       return prepared;
     }
+    LogTargets(std::format("triangulator-sampler {} started", kVersion));
     ConfigWatch watch{p_config_path};
     auto deadline = ClockNow(CLOCK_MONOTONIC);
     auto last_elapsed = deadline;
@@ -780,7 +820,26 @@ class Sampler final
     {
       return std::unexpected(prepared.error());
     }
+    LogTargets("configuration reloaded");
     return true;
+  }
+
+  // Tells the operator what the sampler does now. It writes to the sink
+  // directly, not through logger_, so the 60 s warning limit cannot hide it.
+  void LogTargets(std::string_view p_event) const
+  {
+    const auto& settings = config_.settings_;
+    std::array<char, 256> line{};
+    const auto result =
+        settings.Discovers()
+            ? std::format_to_n(line.data(), line.size(),
+                               "{}; discovery, up to {} targets", p_event,
+                               settings.max_targets_)
+            : std::format_to_n(line.data(), line.size(), "{}; {} targets",
+                               p_event, targets_.size());
+    StderrSink().Write(
+        {line.data(),
+         std::min(static_cast<std::size_t>(result.size), line.size())});
   }
 
   // A target table: one shared, bounded /proc pass resolves the names.

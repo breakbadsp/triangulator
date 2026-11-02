@@ -151,6 +151,14 @@ class SamplerBenchmarkTests(unittest.TestCase):
             benchmark_sampler.check_sampler_log(text)
         benchmark_sampler.check_sampler_log(
             "triangulator: kernel log (/dev/kmsg) not readable (errno 1); exit reports\n")
+        benchmark_sampler.check_sampler_log(
+            "2026-11-01T18:04:14.548Z triangulator: kernel log (/dev/kmsg) "
+            "not readable (errno 1); exit reports\n")
+        benchmark_sampler.check_sampler_log(
+            "2026-11-01T18:04:14.548Z triangulator: triangulator-sampler v1-2-gabc started; 1 targets\n")
+        with self.assertRaisesRegex(RuntimeError, "logged errors or warnings"):
+            benchmark_sampler.check_sampler_log(
+                "2026-11-01T18:04:14.548Z triangulator: UDP send failed\n")
 
     def test_late_tick_is_counted_not_rejected(self):
         stream, decoder = self.stream([self.packet(), self.packet(chunk=1),

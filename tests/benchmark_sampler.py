@@ -18,6 +18,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import select
 import socket
 import statistics
@@ -44,6 +45,17 @@ TIMESPEC = struct.Struct("=qq")
 # removes kernel messages from exit reports; sampling is unaffected.
 KMSG_NOTICE = ("triangulator: kernel log (/dev/kmsg) not readable: ",
                "triangulator: kernel log (/dev/kmsg) not readable (errno ")
+
+
+# Lines that say what the sampler does. They are not warnings.
+ROUTINE_NOTICE = re.compile(r"triangulator: ((triangulator-sampler \S+ started|configuration reloaded); |target \S+: (monitoring PID \d+ |PID \d+ ended))")
+
+# Each sampler log line starts with a UTC time such as 2026-11-01T18:04:14.548Z.
+LOG_TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z ")
+
+
+def without_log_time(line):
+    return LOG_TIME.sub("", line, count=1)
 
 
 @contextmanager
@@ -82,7 +94,9 @@ def read_sampler_log(sampler):
 
 
 def check_sampler_log(text):
-    if any(line and not line.startswith(KMSG_NOTICE) for line in text.splitlines()):
+    lines = (without_log_time(line) for line in text.splitlines())
+    if any(line and not line.startswith(KMSG_NOTICE) and not ROUTINE_NOTICE.match(line)
+           for line in lines):
         raise RuntimeError("sampler logged errors or warnings")
 
 

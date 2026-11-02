@@ -37,6 +37,9 @@ needs the owner's explicit approval first.
   reports (at most 50 ms) and the netlink `sock_diag` socket dump, which waits
   up to 1 s per `recv` and has no total time budget (only a cap of 1,000,000
   sockets).
+  The sampler log lines (startup, reload, and per-target lifecycle lines, at most
+  10 per 60 s per target) may write to a regular-file stderr. The owner approved
+  this in PR #222.
 - Need no privileges: read only the `/proc` files the sampler's user can
   read. No sudo, capabilities, or ptrace. The existing `/dev/kmsg` read is
   best effort and may need `CAP_SYSLOG` when `dmesg_restrict=1`. A target of

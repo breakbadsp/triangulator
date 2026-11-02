@@ -106,6 +106,17 @@ build/compile_options: FORCE | build
 	@$(file >$@,$(COMPILE_OPTIONS)) true
 endif
 
+# The sampler logs this version at startup. Only the sampler object uses it, so
+# a new commit recompiles that one file and changes neither option file above.
+# Without git, or outside a repository, it is "unknown".
+ifndef SAMPLER_VERSION
+SAMPLER_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)
+endif
+ifneq ($(file <build/sampler_version),$(SAMPLER_VERSION))
+build/sampler_version: FORCE | build
+	@$(file >$@,$(SAMPLER_VERSION)) true
+endif
+
 # SQLite has its own compiler flags. C++ and link changes do not rebuild it.
 SQLITE_OPTIONS := $(CXX) $(CPPFLAGS) $(SQLITE_CFLAGS) $(SQLITE_SOURCE)
 ifneq ($(file <build/sqlite_options),$(SQLITE_OPTIONS))
@@ -149,9 +160,9 @@ endif
 	done
 	@rm -f build/release_segments.tmp build/release_dynamic.tmp
 
-build/triangulator-sampler.o: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile
+build/triangulator-sampler.o: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok build/sampler_version Makefile
 	mkdir -p build
-	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_LDFLAGS) -DTRIANGULATOR_VERSION='"$(SAMPLER_VERSION)"' -std=c++23 -pthread $(LDFLAGS) -c $< -o $@
 
 build/triangulator-sampler: build/triangulator-sampler.o build/compiler_ok Makefile build/build_options
 	mkdir -p build

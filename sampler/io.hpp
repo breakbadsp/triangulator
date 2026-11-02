@@ -197,6 +197,73 @@ using namespace std::chrono_literals;
   return std::chrono::seconds{value.tv_sec} + Nanoseconds{value.tv_nsec};
 }
 
+// Length of "YYYY-MM-DDTHH:MM:SS.mmmZ ", the UTC time at the start of each log
+// line, with the trailing space.
+inline constexpr std::size_t kTimestampSize = 25;
+
+// Formats p_wall (time since the Unix epoch) as a UTC timestamp. It uses
+// integer arithmetic only, not gmtime_r: glibc can read /etc/localtime and
+// allocate on the first call, and the tick path may do neither. The date
+// follows the civil-from-days method of Howard Hinnant. A time before the
+// epoch gives the epoch.
+[[nodiscard]] inline std::array<char, kTimestampSize> FormatTimestamp(
+    Nanoseconds p_wall) noexcept
+{
+  constexpr std::int64_t kMillisecondsPerDay = 86'400'000;
+  constexpr std::int64_t kDaysFromYearZeroToEpoch = 719'468;
+  constexpr std::int64_t kDaysPerEra = 146'097;  // 400 years
+  const auto total_ms = std::max<std::int64_t>(
+      0, std::chrono::duration_cast<std::chrono::milliseconds>(p_wall).count());
+  const auto days = total_ms / kMillisecondsPerDay;
+  const auto day_ms = total_ms % kMillisecondsPerDay;
+
+  const auto shifted = days + kDaysFromYearZeroToEpoch;
+  const auto era = shifted / kDaysPerEra;
+  const auto day_of_era = shifted % kDaysPerEra;
+  const auto year_of_era = (day_of_era - day_of_era / 1460 +
+                            day_of_era / 36'524 - day_of_era / 146'096) /
+                           365;
+  const auto day_of_year =
+      day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+  const auto month_index = (5 * day_of_year + 2) / 153;  // 0 is March
+  const auto day = day_of_year - (153 * month_index + 2) / 5 + 1;
+  const auto month = month_index < 10 ? month_index + 3 : month_index - 9;
+  const auto year = year_of_era + era * 400 + (month <= 2 ? 1 : 0);
+
+  std::array<char, kTimestampSize> text{};
+  std::size_t position = 0;
+  const auto put_digits = [&](std::int64_t p_value, int p_count)
+  {
+    for (int digit = p_count - 1; digit >= 0; --digit)
+    {
+      text[position + static_cast<std::size_t>(digit)] =
+          static_cast<char>('0' + p_value % 10);
+      p_value /= 10;
+    }
+    position += static_cast<std::size_t>(p_count);
+  };
+  const auto put_character = [&](char p_character)
+  {
+    text[position++] = p_character;
+  };
+  put_digits(year % 10'000, 4);
+  put_character('-');
+  put_digits(month, 2);
+  put_character('-');
+  put_digits(day, 2);
+  put_character('T');
+  put_digits(day_ms / 3'600'000, 2);
+  put_character(':');
+  put_digits(day_ms / 60'000 % 60, 2);
+  put_character(':');
+  put_digits(day_ms / 1000 % 60, 2);
+  put_character('.');
+  put_digits(day_ms % 1000, 3);
+  put_character('Z');
+  put_character(' ');
+  return text;
+}
+
 // Writes warnings to stderr (fd 2) without waiting for a reader. fd 2 often
 // shares its open file description with the shell or supervisor, so its
 // flags are not changed. The way to write is chosen once, at startup:
@@ -239,15 +306,20 @@ class WarningSink final
     }
   }
 
-  // p_message has no prefix and no newline. False when the line was not
-  // written whole.
+  // p_message has no prefix and no newline. The line starts with the UTC
+  // time, so an operator can tell when it was written. False when the line
+  // was not written whole.
   bool Write(std::string_view p_message) noexcept
   {
     std::array<char, kLineSize> line{};
-    const auto result = std::format_to_n(line.data(), line.size() - 1,
+    const auto timestamp = FormatTimestamp(ClockNow(CLOCK_REALTIME));
+    std::ranges::copy(timestamp, line.begin());
+    const auto result = std::format_to_n(line.data() + kTimestampSize,
+                                         line.size() - 1 - kTimestampSize,
                                          "triangulator: {}", p_message);
     const auto length =
-        std::min(static_cast<std::size_t>(result.size), line.size() - 1);
+        std::min(kTimestampSize + static_cast<std::size_t>(result.size),
+                 line.size() - 1);
     line[length] = '\n';
     const std::string_view text{line.data(), length + 1};
     ssize_t written = -1;
@@ -323,6 +395,59 @@ class RateLimitedLogger
 
  private:
   std::optional<Nanoseconds> last_warning_;
+};
+
+// Allows at most 10 lines in any 60 s. A burst limit, not a fixed gap, so a
+// short-lived process still gets its start and end lines while a crash loop
+// cannot flood the log.
+class BurstLimiter
+{
+ public:
+  static constexpr std::size_t kLines = 10;
+
+  [[nodiscard]] bool Allow(Nanoseconds p_now) noexcept
+  {
+    auto& oldest = times_[next_];
+    if (count_ == kLines && p_now - oldest < 60s)
+    {
+      return false;
+    }
+    oldest = p_now;
+    next_ = (next_ + 1) % kLines;
+    count_ = std::min(count_ + 1, kLines);
+    return true;
+  }
+
+ private:
+  std::array<Nanoseconds, kLines> times_{};
+  std::size_t next_ = 0;
+  std::size_t count_ = 0;
+};
+
+// Lines about what the sampler monitors, such as a target's process start and
+// end. Apart from RateLimitedLogger so that these lines and warnings do not
+// hide each other.
+class LifecycleLogger
+{
+ public:
+  template <typename... TArgs>
+  void Log(std::format_string<TArgs...> p_format, TArgs&&... p_args)
+  {
+    if (!limiter_.Allow(ClockNow(CLOCK_MONOTONIC)))
+    {
+      return;
+    }
+    std::array<char, 512> message{};
+    const auto result =
+        std::format_to_n(message.data(), message.size(), p_format,
+                         std::forward<TArgs>(p_args)...);
+    StderrSink().Write(
+        {message.data(),
+         std::min(static_cast<std::size_t>(result.size), message.size())});
+  }
+
+ private:
+  BurstLimiter limiter_;
 };
 
 }  // namespace triangulator
