@@ -186,11 +186,11 @@ test("Remove uses the configured selector only on the local host and protects th
   expect(
     screen.queryByRole("button", { name: "Remove target busy" }),
   ).toBeNull();
-  expect(
-    screen.getByRole<HTMLButtonElement>("button", {
-      name: "Remove target api",
-    }).disabled,
-  ).toBe(true);
+  expect(screen.queryByText("Keep at least one target.")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Remove target api" }));
+  await tick();
+  expect(screen.getByText("Keep at least one target.")).toBeTruthy();
+  expect(calls).toHaveLength(1);
   control = { enabled: false, error: "local sampler verification failed" };
   await poll();
   expect(screen.queryByRole("button", { name: /^Remove target/ })).toBeNull();
@@ -507,11 +507,11 @@ test("discovery distinguishes waiting and capacity and blocks pattern and remote
   expect(
     screen.getByText(/2 matching processes on h are not monitored/),
   ).toBeTruthy();
-  expect(
-    screen.getByRole<HTMLButtonElement>("button", {
-      name: "Remove target worker",
-    }).disabled,
-  ).toBe(true);
+  expect(screen.queryByText(/^Another rule selects this process/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Remove target worker" }));
+  await tick();
+  expect(screen.getByText(/^Another rule selects this process/)).toBeTruthy();
+  expect(confirm).not.toHaveBeenCalled();
   expect(
     screen.queryByRole("button", { name: "Remove target remote" }),
   ).toBeNull();
