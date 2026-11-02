@@ -198,28 +198,14 @@ const topics = {
     title: "Find targets",
     scope: "This browser tab · Targets overview",
     meaning:
-      "Search shows the tiles whose process name, host, or target ID contains the text. Status shows the tiles at one assessment level, or Needs attention for critical, serious, and warning.",
+      "Search shows the tiles whose process name, host, or target ID contains the text. Search includes every assessment level.",
     example:
-      "Search db with Status Critical shows only critical targets whose name, host, or ID contains db.",
+      "Search db shows targets whose name, host, or ID contains db, at every assessment level.",
     reading:
-      "Showing N of M targets counts the tiles that match out of every monitored target. The count pills always total all targets. Clear filters shows every tile again. The page address keeps the search and status, and target links carry them, so a copied link, browser Back, and All targets on a target dashboard return to the same view. Add target stays available when no tile matches.",
+      "Showing N of M targets counts the tiles that match out of every monitored target. The count pills always total all targets. Clear filters shows every tile again. The page address keeps the search, and target links carry it, so a copied link, browser Back, and All targets on a target dashboard return to the same view. Add target stays available when no tile matches.",
     limits:
-      "Search and status only show or hide tiles: they start no request and do not change monitoring. A tile with keyboard focus keeps its last level until focus leaves it, so it can stay shown or hidden until the next refresh.",
-    related: ["fleet", "fleet-tile", "fleet-density"],
-    source: "",
-    sourceDetail: "",
-  },
-  "fleet-density": {
-    title: "Tile density",
-    scope: "This browser · Targets overview",
-    meaning: "Select Comfortable or Compact target tiles.",
-    example:
-      "Compact tiles start at 200 px wide and 104 px tall, instead of 240 px and 140 px, so more targets fit on one screen.",
-    reading:
-      "Comfortable uses larger tiles and gaps. Compact uses smaller tiles, gaps, and padding with the same text and controls. Your selection is saved in this browser. The number of targets and the 5-second refresh never change it.",
-    limits:
-      "If browser storage is blocked, the selection lasts only until the page reloads. Density does not change assessments or which targets show.",
-    related: ["fleet", "fleet-tile", "appearance"],
+      "Search only shows or hides tiles. It starts no request and does not change monitoring. A tile with keyboard focus keeps its last level until focus leaves it, so it can stay shown or hidden until the next refresh.",
+    related: ["fleet", "fleet-tile"],
     source: "",
     sourceDetail: "",
   },
@@ -267,7 +253,8 @@ const topics = {
   "target-switch": {
     title: "Monitoring target",
     scope: "This browser tab",
-    meaning: "Select the host and target ID shown in this tab.",
+    meaning:
+      "On a target dashboard, select the host and target ID shown in this tab.",
     example: "Two tabs can show different processes.",
     reading:
       "The URL stores the choice. A switch resets filters, the selected thread, charts, memory view, and replay position. All targets returns to the overview of every target.",
@@ -395,11 +382,11 @@ const topics = {
     title: "Targets overview",
     scope: "Every target of this collector · latest live view",
     meaning:
-      "The first page: one tile per monitored process, with its current assessment. The counts above the tiles total every target by level, including targets that a search or status hides.",
+      "The first page: one tile per monitored process, with its current assessment. The counts above the tiles total every target by level, including targets that a search hides.",
     example:
       "Critical 1 · Healthy 3 means one process needs attention now and three show no problem.",
     reading:
-      "Tiles are sorted worst first, then by host and target ID. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
+      "All targets uses compact tiles in the order supplied by the collector. Assessment changes do not change this order. Use the tiles to select a target; this page has no target selector in the top row. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
     limits:
       "Tiles do not run the thread churn rule or memory-map layout rules. Each refresh returns the latest live view of every target in one response, so a large number of targets makes that response larger than one dashboard needs.",
     related: ["fleet-tile", "target-switch", "assessment"],

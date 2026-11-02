@@ -115,42 +115,40 @@ export function TopBar({
         </Help>
       )}
       <div className="target">
-        <Help topic="target-switch" className="target-choice">
-          <select
-            id="target-select"
-            hidden={hidePicker}
-            aria-label="Selected monitoring target"
-            value={page.kind === "fleet" ? "" : (chosen?.key ?? page.key)}
-            onChange={(event) => {
-              navigate(event.currentTarget.value);
-            }}
-          >
-            <option value="">All targets</option>
-            {page.kind === "target" && page.key && !chosen && (
-              <option value={page.key}>Selected target unavailable</option>
-            )}
-            {ordered.map((target) => (
-              <option key={target.key} value={target.key}>
-                {target.status === "live" ? "●" : "○"} {target.host} ·{" "}
-                {target.id}
-                {target.process?.command
-                  ? ` · ${target.process.command.split(" ")[0] ?? ""}`
-                  : ""}
-                {target.pid ? ` · PID ${String(target.pid)}` : ""} ·{" "}
-                {target.status}
-                {target.access === "limited" ? " · Limited access" : ""}
-                {target.throttled ? " · Sampler throttled" : ""}
-              </option>
-            ))}
-          </select>
-          <span id="target-key" hidden={!hidePicker}>
-            {chosen
-              ? `${chosen.host} · ${chosen.id}`
-              : page.kind === "target"
-                ? page.key
-                : ""}
-          </span>
-        </Help>
+        {page.kind === "target" && (
+          <Help topic="target-switch" className="target-choice">
+            <select
+              id="target-select"
+              hidden={hidePicker}
+              aria-label="Selected monitoring target"
+              value={chosen?.key ?? page.key}
+              onChange={(event) => {
+                navigate(event.currentTarget.value);
+              }}
+            >
+              <option value="">All targets</option>
+              {page.key && !chosen && (
+                <option value={page.key}>Selected target unavailable</option>
+              )}
+              {ordered.map((target) => (
+                <option key={target.key} value={target.key}>
+                  {target.status === "live" ? "●" : "○"} {target.host} ·{" "}
+                  {target.id}
+                  {target.process?.command
+                    ? ` · ${target.process.command.split(" ")[0] ?? ""}`
+                    : ""}
+                  {target.pid ? ` · PID ${String(target.pid)}` : ""} ·{" "}
+                  {target.status}
+                  {target.access === "limited" ? " · Limited access" : ""}
+                  {target.throttled ? " · Sampler throttled" : ""}
+                </option>
+              ))}
+            </select>
+            <span id="target-key" hidden={!hidePicker}>
+              {chosen ? `${chosen.host} · ${chosen.id}` : page.key}
+            </span>
+          </Help>
+        )}
         {page.kind === "target" && attention > 0 && (
           <Help topic="target-attention">
             <span id="target-attention" className="target-badge">

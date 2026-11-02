@@ -1,6 +1,6 @@
 import type { LiveResponse, Target } from "../api/types";
 import { fleetAssessment } from "./assess";
-import { LEVEL_ORDER, VERDICTS, type Finding, type Level } from "./findings";
+import { VERDICTS, type Finding, type Level } from "./findings";
 import { ago, isNum } from "./format";
 import { fleetName } from "./target";
 
@@ -71,15 +71,6 @@ export function tileModel(
   };
 }
 
-export function rankTiles(tiles: readonly TileModel[]): TileModel[] {
-  const rank = (level: TileModel["level"]) =>
-    level === "unknown" ? LEVEL_ORDER.length : LEVEL_ORDER.indexOf(level);
-  return [...tiles].sort(
-    (a, b) =>
-      rank(a.level) - rank(b.level) ||
-      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
-  );
-}
 export function fleetCounts(
   tiles: readonly TileModel[],
 ): Record<TileModel["level"], number> {
@@ -94,45 +85,20 @@ export function fleetCounts(
   for (const tile of tiles) counts[tile.level]++;
   return counts;
 }
-export const FLEET_STATUSES = [
-  "attention",
-  "critical",
-  "serious",
-  "warning",
-  "good",
-  "unknown",
-] as const;
-export type FleetStatus = (typeof FLEET_STATUSES)[number];
-export interface FleetFilter {
-  q: string;
-  status: FleetStatus | "";
-}
-export function matchesFilter(tile: TileModel, filter: FleetFilter): boolean {
-  return (
-    tile.search.includes(filter.q.trim().toLowerCase()) &&
-    (!filter.status ||
-      filter.status === tile.level ||
-      (filter.status === "attention" &&
-        ["critical", "serious", "warning"].includes(tile.level)))
-  );
-}
-export function fleetQuery(filter: FleetFilter): URLSearchParams {
+export function fleetQuery(search: string): URLSearchParams {
   const query = new URLSearchParams();
-  if (filter.q.trim()) query.set("q", filter.q.trim());
-  if (filter.status) query.set("status", filter.status);
+  if (search.trim()) query.set("q", search.trim());
   return query;
 }
-export function targetHref(key: string, filter: FleetFilter): string {
+export function targetHref(key: string, search: string): string {
   return (
     "?" +
-    new URLSearchParams([["target", key], ...fleetQuery(filter)]).toString()
+    new URLSearchParams([["target", key], ...fleetQuery(search)]).toString()
   );
 }
 export function backHref(search: string): string {
   const query = new URLSearchParams(
-    [...new URLSearchParams(search)].filter(
-      ([name]) => name === "q" || name === "status",
-    ),
+    [...new URLSearchParams(search)].filter(([name]) => name === "q"),
   ).toString();
   return "./" + (query ? "?" + query : "");
 }

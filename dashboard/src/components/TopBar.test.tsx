@@ -100,3 +100,19 @@ test("theme changes still apply when storage is blocked", () => {
   fireEvent.change(theme, { target: { value: "light" } });
   expect(document.documentElement.dataset.theme).toBe("light");
 });
+
+test("the target selector is absent on All targets and present on a target dashboard", () => {
+  const targets = [target, { ...target, key: "host/billing", id: "billing" }];
+  const { rerender } = render(
+    <TopBar page={{ kind: "fleet" }} targets={targets} />,
+  );
+  expect(document.getElementById("target-select")).toBeNull();
+  rerender(
+    <TopBar page={{ kind: "target", key: target.key }} targets={targets} />,
+  );
+  expect(
+    screen.getByRole<HTMLSelectElement>("combobox", {
+      name: "Selected monitoring target",
+    }).value,
+  ).toBe(target.key);
+});

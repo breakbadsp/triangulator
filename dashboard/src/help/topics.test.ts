@@ -4,7 +4,6 @@ import { helpTopics, helpTopicIds } from "./topics";
 test("all topic links resolve and every measurement names a balanced source", () => {
   const controls = new Set([
     "appearance",
-    "fleet-density",
     "fleet-filter",
     "section-navigation",
     "watchprefix",
