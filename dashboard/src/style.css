@@ -442,6 +442,37 @@ section.block {
   }
 }
 
+/* Keep the process controls compact without changing the fleet header. */
+:root[data-page="target"] .topbar-inner {
+  padding-top: 8px;
+  padding-bottom: 6px;
+  gap: 8px 12px;
+}
+:root[data-page="target"] .target {
+  gap: 6px 10px;
+}
+:root[data-page="target"] .target .target-choice {
+  flex-basis: auto;
+  max-width: 100%;
+  flex-wrap: nowrap;
+}
+:root[data-page="target"]
+  .target:has(#target-select:not([hidden]))
+  .target-choice {
+  flex: 0 1 360px;
+}
+:root[data-page="target"] .target-choice select {
+  flex: 1;
+  width: 0;
+}
+:root[data-page="target"] .topbar > [data-help="section-navigation"] {
+  padding-right: 24px;
+}
+:root[data-page="target"] nav.tabs a {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+
 /* Shared panel parts, ported from 777cf3a:collector/dashboard.html. */
 .section-head h2 {
   font-size: 24px;

@@ -307,8 +307,8 @@ recorded execution result.
 | PASSED | 72 | - |
 | FAILED | 15 | QA-011, QA-014, QA-017, QA-020, QA-031, QA-037, QA-056, QA-074, QA-090, QA-091, QA-096, QA-098, QA-107, QA-108, QA-119 |
 | BLOCKED | 23 | QA-126, QA-127, QA-128, QA-129, QA-130, QA-131, QA-132, QA-133, QA-009, QA-016, QA-023, QA-052, QA-067, QA-079, QA-086, QA-102, QA-104, QA-105, QA-109, QA-111, QA-112, QA-113, QA-118 |
-| NOT_RUN | 18 | QA-123, QA-124, QA-125, QA-134, QA-136, QA-137, QA-001, QA-002, QA-003, QA-004, QA-007, QA-062, QA-065, QA-068, QA-069, QA-070, QA-076, QA-089 |
-| **Total** | **128** | |
+| NOT_RUN | 19 | QA-123, QA-124, QA-125, QA-134, QA-136, QA-137, QA-138, QA-001, QA-002, QA-003, QA-004, QA-007, QA-062, QA-065, QA-068, QA-069, QA-070, QA-076, QA-089 |
+| **Total** | **129** | |
 <!-- qa-summary:end -->
 
 [All case results](docs/qa/test-cases.md#current-results) ·
