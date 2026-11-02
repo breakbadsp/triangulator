@@ -674,8 +674,10 @@ class Sampler final
     LogTargets(std::format("triangulator-sampler {} started", kVersion));
     ConfigWatch watch{p_config_path};
     auto deadline = ClockNow(CLOCK_MONOTONIC);
+#ifndef TRIANGULATOR_CAPACITY_BENCHMARK
     auto last_elapsed = deadline;
     auto last_cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
+#endif
     while (!stop_requested)
     {
       // A control wake can precede the tick deadline. Start its tick here
@@ -691,11 +693,13 @@ class Sampler final
         {
           return std::unexpected(applied.error());
         }
+#ifndef TRIANGULATOR_CAPACITY_BENCHMARK
         if (*applied)
         {
           last_elapsed = ClockNow(CLOCK_MONOTONIC);
           last_cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
         }
+#endif
       }
       const auto exit_deadline =
           ClockNow(CLOCK_MONOTONIC) +
@@ -706,6 +710,7 @@ class Sampler final
         return sampled;
       }
       StepHeavy(live);
+#ifndef TRIANGULATOR_CAPACITY_BENCHMARK
       const auto end = ClockNow(CLOCK_MONOTONIC);
       const auto cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
       cpu_budget_.Add(cpu - last_cpu, end - last_elapsed);
@@ -731,6 +736,7 @@ class Sampler final
         deadline += interval * ((end - deadline) / interval + 1);
       }
       SleepUntil(watch.Deadline(deadline));
+#endif
     }
     return {};
   }
@@ -1036,6 +1042,14 @@ class Sampler final
 
 int SamplerMain(int p_argc, char** p_argv)
 {
+#ifdef TRIANGULATOR_CAPACITY_BENCHMARK
+  // Only the separate benchmark binary can bypass the production controls.
+  if (p_argc == 2 && std::string_view{p_argv[1]} == "--capacity-mode")
+  {
+    std::puts("capacity-v1: no CPU budget; no deadline wait");
+    return 0;
+  }
+#endif
   if (p_argc == 2 && (std::string_view{p_argv[1]} == "-h" ||
                       std::string_view{p_argv[1]} == "--help"))
   {

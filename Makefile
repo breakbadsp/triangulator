@@ -257,7 +257,7 @@ dashboard-check: dashboard/node_modules/.package-lock.json
 scout: dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run build:scout
 
-check: dashboard-check all build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
+check: dashboard-check all build/triangulator-sampler-capacity build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
 	python3 tests/run_checks.py $(CPP_TESTS)
 
 check-asan:
@@ -330,3 +330,11 @@ build/buggy-workload.o: examples/buggy-workload/buggy_workload.cpp build/compile
 
 build/buggy-workload: build/buggy-workload.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -pthread -o $@
+
+# Isolated full-path capacity build. Never shipped by all or release.
+build/triangulator-sampler-capacity: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok build/sampler_version Makefile build/build_options
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DTRIANGULATOR_CAPACITY_BENCHMARK -DTRIANGULATOR_VERSION='"$(SAMPLER_VERSION)"' -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
+
+.PHONY: benchmark-capacity
+benchmark-capacity: build/triangulator-sampler-capacity build/benchmark-target
+	python3 tests/benchmark_capacity.py
