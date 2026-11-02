@@ -53,7 +53,7 @@ class BuggyWorkloadTests(unittest.TestCase):
         while time.monotonic() < deadline:
             self.assertIsNone(runner.poll(), "runner exited before startup")
             configs = list(base.glob("buggy-triangulator.*/sampler.toml"))
-            if configs and "target_pid = " in configs[0].read_text():
+            if configs and "process_names = " in configs[0].read_text():
                 return configs[0].parent
             time.sleep(0.05)
         self.fail("runner did not start the sampler")
@@ -70,7 +70,7 @@ class BuggyWorkloadTests(unittest.TestCase):
                 pass
             runner.wait()
 
-    def test_runner_preserves_base_and_selects_its_pid(self):
+    def test_runner_preserves_base_and_selects_its_process_by_a_unique_name(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             sentinel = base / "keep.txt"
@@ -82,8 +82,10 @@ class BuggyWorkloadTests(unittest.TestCase):
             try:
                 run = self.wait_for_run(base, runner)
                 workload_pid = int((run / "workload.pid").read_text())
-                self.assertIn(f"target_pid = {workload_pid}",
-                              (run / "sampler.toml").read_text())
+                # The sampler selects the name, and only this run's workload has it.
+                name = Path(f"/proc/{workload_pid}/comm").read_text().strip()
+                self.assertRegex(name, r"^bw-[0-9]+$")
+                self.assertIn(f'process_names = ["{name}"]', (run / "sampler.toml").read_text())
                 children = Path(f"/proc/{runner.pid}/task/{runner.pid}/children")
                 child_pids = [int(value) for value in children.read_text().split()]
             finally:

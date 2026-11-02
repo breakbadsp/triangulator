@@ -44,7 +44,7 @@ def run_case(mode, duration, sampler):
             for _ in range(unrelated):
                 start('db-unrelated')
             active = [start('db-match') for _ in range(matches)]
-            rules = f'target_pid={active[0].pid}\n' if mode == 'legacy' else 'process_patterns=["db-match*"]\nmax_targets=8\n'
+            rules = 'process_patterns=["db-match*"]\nmax_targets=8\n'
             config = directory / 'sampler.toml'
             config.write_text(f'collector="127.0.0.1:{receiver.getsockname()[1]}"\n'
                               'rate_hz=5\ncpu_budget_pct=1\nresource_interval_s=0\nmemory_interval_s=0\n' + rules)
@@ -140,7 +140,7 @@ def main():
     if not 6 <= args.duration <= 60:
         parser.error('duration must be 6..60 seconds')
     rows = []
-    for case in ('legacy', 'unchanged', 'churn', 'unrelated64', 'matches24'):
+    for case in ('unchanged', 'churn', 'unrelated64', 'matches24'):
         row = run_case(case, args.duration, args.sampler)
         print(json.dumps(row), flush=True)
         rows.append(row)

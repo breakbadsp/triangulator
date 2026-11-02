@@ -125,12 +125,19 @@ def read_probes(victim, timeout_s):
     return {name: check_probe(report[name]) for name in PROBES}
 
 
+def named_victim(directory):
+    """A link whose name becomes the victim's comm; the sampler selects by name."""
+    link = Path(directory) / f"bv-{os.getpid()}"
+    link.symlink_to(VICTIM)
+    return link
+
+
 def trial(name, cpus, binary, threads, duration_s, warmup_s, victim_options=()):
     rate, sampler_role, memory_interval_s, nice, resource_interval_s, maps_loop = SCENARIOS[name]
     by_role = dict(zip(ROLES, cpus))
     with tempfile.TemporaryDirectory() as directory, \
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver, \
-            child([str(VICTIM), str(threads), str(duration_s), *map(str, cpus[:4]), *victim_options],
+            child([str(named_victim(directory)), str(threads), str(duration_s), *map(str, cpus[:4]), *victim_options],
                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
                   preexec_fn=lambda: os.sched_setaffinity(0, ALLOWED_CPUS)) as victim:
         if not select.select([victim.stdout], [], [], 10)[0]:
@@ -159,7 +166,7 @@ def trial(name, cpus, binary, threads, duration_s, warmup_s, victim_options=()):
         receiver.bind(("127.0.0.1", 0))
         config = Path(directory) / "sampler.toml"
         config.write_text(
-            f'target_pid = {victim.pid}\nrate_hz = {rate}\n'
+            f'process_names = ["bv-{os.getpid()}"]\nrate_hz = {rate}\n'
             f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
             f'status_fallback = false\nresource_interval_s = {resource_interval_s}\n'
             f'memory_interval_s = {memory_interval_s}\n')

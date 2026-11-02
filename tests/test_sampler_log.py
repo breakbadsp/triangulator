@@ -67,7 +67,7 @@ class SamplerLog:
 
 MONITORING = rf"^{TIME} triangulator: target \S+: monitoring PID \d+ \(logtarget\)$"
 ENDED = rf"^{TIME} triangulator: target \S+: PID \d+ ended$"
-RELOADED = rf"^{TIME} triangulator: configuration reloaded; \d+ targets$"
+RELOADED = rf"^{TIME} triangulator: configuration reloaded; discovery, up to \d+ targets$"
 
 
 class SamplerLogTests(unittest.TestCase):
@@ -102,9 +102,9 @@ class SamplerLogTests(unittest.TestCase):
         self.log.assertion = self
 
     def test_start_and_reload_are_logged_once_each(self):
-        target = self.start_target()
-        self.start_log(f"target_pid = {target.pid}")
-        self.log.wait_for(rf"^{TIME} triangulator: triangulator-sampler \S+ started; 1 targets$")
+        self.start_target()
+        self.start_log('process_names = ["logtarget"]')
+        self.log.wait_for(rf"^{TIME} triangulator: triangulator-sampler \S+ started; discovery, up to 8 targets$")
         # The sampler reloads once at start, because the file is newer than the start.
         self.log.wait_for_count(RELOADED, 1)
         self.log.assert_count_stays(RELOADED, 1)
@@ -115,14 +115,14 @@ class SamplerLogTests(unittest.TestCase):
         self.assertLess(started, self.log.text.index("configuration reloaded"))
 
     def test_reload_keeps_the_session_unless_the_rate_changes(self):
-        target = self.start_target()
-        self.start_log(f"target_pid = {target.pid}")
+        self.start_target()
+        self.start_log('process_names = ["logtarget"]')
         self.log.wait_for_count(RELOADED, 1)
         self.log.wait_for_count(MONITORING, 1)
         self.log.process.send_signal(signal.SIGHUP)
         self.log.wait_for_count(RELOADED, 2)
         self.log.assert_count_stays(MONITORING, 1)
-        self.log.write_config(f"target_pid = {target.pid}", rate_hz=4)
+        self.log.write_config('process_names = ["logtarget"]', rate_hz=4)
         self.log.process.send_signal(signal.SIGHUP)
         self.log.wait_for_count(RELOADED, 3)
         self.log.wait_for_count(MONITORING, 2)
@@ -130,10 +130,8 @@ class SamplerLogTests(unittest.TestCase):
         self.assertEqual(self.log.count(ENDED), 0)
 
     def test_each_process_start_and_end_is_logged_once(self):
-        # A named target, and a discovery slot that the sampler assigns again.
-        for setting in ('target_process = "logtarget"', 'process_names = ["logtarget"]'):
-            with self.subTest(setting=setting):
-                self.log_restarts(setting)
+        # A discovery slot that the sampler assigns again.
+        self.log_restarts('process_names = ["logtarget"]')
 
     def log_restarts(self, setting):
         self.start_target()

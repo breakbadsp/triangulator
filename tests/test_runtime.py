@@ -10,6 +10,8 @@ import time
 import unittest
 import urllib.request
 
+from test_sampler_control import start_named
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +31,7 @@ class RuntimeTests(unittest.TestCase):
         for name in ("triangulator-sampler", "triangulator-collector"):
             shutil.copy2(ROOT / "build" / name, self.source / "build" / name)
         for name in ("start.sh", "stop.sh", "restart.sh", "runtime.sh", "set-rate.sh",
-                     "set-target.sh", "sampler_control.py"):
+                     "sampler_control.py"):
             shutil.copy2(ROOT / "scripts" / name, self.source / "scripts" / name)
         for name in ("triangulator-sampler.service", "triangulator-collector.service"):
             shutil.copy2(ROOT / "deploy" / name, self.source / "deploy" / name)
@@ -39,10 +41,11 @@ class RuntimeTests(unittest.TestCase):
             http.bind(("127.0.0.1", 0))
             self.udp_port = udp.getsockname()[1]
             self.http_port = http.getsockname()[1]
-        self.target = subprocess.Popen(["sleep", "60"])
+        self.target_name = f"rt-{os.getpid()}"
+        self.target = start_named(self.target_name)
         self.addCleanup(self.stop_target)
         (self.source / "config/sampler.toml").write_text(
-            f'target_pid={self.target.pid}\ncollector="127.0.0.1:{self.udp_port}"\n'
+            f'process_names=["{self.target_name}"]\ncollector="127.0.0.1:{self.udp_port}"\n'
             'resource_interval_s=1\nmemory_interval_s=1\n')
         (self.source / "config/collector.toml").write_text(
             f'udp_host="127.0.0.1"\nudp_port={self.udp_port}\n'

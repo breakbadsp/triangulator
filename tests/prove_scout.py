@@ -2,6 +2,7 @@
 """Prove scanner/collector read concurrency. Run make scout and make all first."""
 import json
 import os
+import sys
 from pathlib import Path
 import socket
 import sqlite3
@@ -38,10 +39,11 @@ def main():
             try:
                 collector = subprocess.Popen([ROOT / "build/triangulator-collector", config], stdout=log, stderr=log)
                 processes.append(collector)
-                target = subprocess.Popen(["sleep", "60"])
+                name = f"ps-{os.getpid()}"
+                target = subprocess.Popen([sys.executable, "-c", "import sys, time; open('/proc/self/comm', 'w').write(sys.argv[1]); time.sleep(60)", name])
                 processes.append(target)
                 sampler_config = home / "sampler.toml"
-                sampler_config.write_text(f'target_pid={target.pid}\nrate_hz=10\ncollector="127.0.0.1:{udp}"\nresource_interval_s=1\n')
+                sampler_config.write_text(f'process_names=["{name}"]\nrate_hz=10\ncollector="127.0.0.1:{udp}"\nresource_interval_s=1\n')
                 sampler = subprocess.Popen([ROOT / "build/triangulator-sampler", sampler_config], stdout=subprocess.DEVNULL, stderr=log)
                 processes.append(sampler)
                 with (home / "scout.log").open("w+") as scout_log:

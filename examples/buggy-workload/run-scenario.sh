@@ -105,14 +105,17 @@ if [[ "$ready" != true ]]; then
     exit 1
 fi
 
-# The wrapper writes the workload PID before exec. Use that explicit PID
-# to select exactly this run, with or without a systemd scope.
+# The sampler selects by process name. A link with a name unique to this
+# run gives the workload that comm, so only this run is selected. The
+# wrapper writes the workload PID before exec, for the cleanup.
+workload_name="bw-$$"
+ln -s "$workload" "$run_dir/$workload_name"
 cat >"$run_dir/workload-wrapper.sh" <<'SH'
 printf '%s\n' "$$" > "$1"
 exec "$2" "$3" "$4"
 SH
 command=(bash "$run_dir/workload-wrapper.sh"
-    "$run_dir/workload.pid" "$workload" "$scenario" "$seconds")
+    "$run_dir/workload.pid" "$run_dir/$workload_name" "$scenario" "$seconds")
 if [[ "$limits" == --limits ]]; then
     scope="buggy-workload-$$.scope"
     systemd-run --user --scope --unit="$scope" --quiet -p CPUQuota=30% -p MemoryMax=400M -p MemorySwapMax=0 \
@@ -140,7 +143,7 @@ if [[ ! "$workload_pid" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 cat >"$run_dir/sampler.toml" <<TOML
-target_pid = $workload_pid
+process_names = ["$workload_name"]
 rate_hz = 2.0
 collector = "127.0.0.1:$udp_port"
 status_fallback = false

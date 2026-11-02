@@ -1,6 +1,7 @@
 """Check target routing and API isolation with real UDP and HTTP sockets."""
 
 import json
+import os
 from pathlib import Path
 import socket
 import sqlite3
@@ -663,7 +664,10 @@ class MultiTargetSamplerTests(unittest.TestCase):
         self.receiver.bind(("127.0.0.1", 0))
         self.receiver.settimeout(4)
         self.addCleanup(self.receiver.close)
-        self.targets = [subprocess.Popen(["sleep", "30"]) for _ in range(3)]
+        # Unique comm names: the sampler selects processes by name only.
+        from test_sampler_control import start_named
+        self.names = [f"mt{index}-{os.getpid()}" for index in range(3)]
+        self.targets = [start_named(name) for name in self.names]
         self.sampler = None
         self.addCleanup(self.stop)
 
@@ -682,8 +686,7 @@ class MultiTargetSamplerTests(unittest.TestCase):
                 f'resource_interval_s={1 if heavy else 0}\nmemory_interval_s={1 if heavy else 0}\n')
         if cpu_budget is not None:
             text += f"cpu_budget_pct={cpu_budget}\n"
-        for index in entries:
-            text += f'[[target]]\nid="target-{index}"\npid={self.targets[index].pid}\n'
+        text += "process_names = [" + ", ".join(f'"{self.names[index]}"' for index in entries) + "]\n"
         self.config.write_text(text)
         if self.sampler is None:
             self.sampler = subprocess.Popen([ROOT / "build/triangulator-sampler", self.config],

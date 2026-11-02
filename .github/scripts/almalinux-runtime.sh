@@ -11,7 +11,17 @@ done
 mkdir -p /tmp/triangulator
 cd /tmp/triangulator
 cp /reports/release/triangulator-* .
-sleep 60 &
+# The sampler selects processes by name. A script's comm is its file name, and
+# a builtin read on a FIFO waits without a child process.
+cat > tri-ci-target <<'SCRIPT'
+#!/bin/bash
+fifo=/tmp/triangulator/tri-ci-target.fifo
+mkfifo "$fifo"
+exec 3<>"$fifo"
+read -r -t 60 -u 3 || true
+SCRIPT
+chmod +x tri-ci-target
+./tri-ci-target &
 target_pid=$!
 collector_pid=
 sampler_pid=
@@ -26,7 +36,7 @@ cleanup() {
 trap cleanup EXIT
 printf '%s\n' "$target_pid" > /reports/runtime-target.pid
 cat > sampler.toml <<EOF
-target_pid = $target_pid
+process_names = ["tri-ci-target"]
 collector = "127.0.0.1:9400"
 rate_hz = 5
 EOF

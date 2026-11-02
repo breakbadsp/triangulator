@@ -284,10 +284,19 @@ def collect(stream, sampler, target, duration_s, rate_tolerance=0.1, allow_slow=
     }
 
 
+def named_link(directory, program):
+    """A link with a name unique to this run. Its name becomes the comm of the
+    process, and the sampler selects processes by name only."""
+    link = Path(directory) / f"bt-{os.getpid()}"
+    link.symlink_to(program)
+    return link
+
+
 def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
     with tempfile.TemporaryDirectory() as directory, \
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver, \
-            child([str(TARGET), str(thread_count)], stdout=subprocess.PIPE, text=True) as target:
+            child([str(named_link(directory, TARGET)), str(thread_count)], stdout=subprocess.PIPE,
+                  text=True) as target:
         if not select.select([target.stdout], [], [], 10)[0]:
             raise RuntimeError("workload did not start within 10 seconds")
         if target.stdout.readline().strip() != f"{thread_count} threads ready":
@@ -300,7 +309,7 @@ def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
         receiver.bind(("127.0.0.1", 0))
         config = Path(directory) / "sampler.toml"
         config.write_text(
-            f'target_pid = {target.pid}\nrate_hz = {rate}\n'
+            f'process_names = ["bt-{os.getpid()}"]\nrate_hz = {rate}\n'
             f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
             f'status_fallback = false\nresource_interval_s = 5\nmemory_interval_s = {MEMORY_INTERVAL_S}\n')
         with child([str(binary), str(config)], stdout=subprocess.DEVNULL,

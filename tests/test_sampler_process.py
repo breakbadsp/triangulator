@@ -19,6 +19,8 @@ import tempfile
 import time
 import unittest
 
+from test_sampler_control import start_named, stop
+
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(os.environ.get("SAMPLER_BINARY", ROOT / "build/triangulator-sampler"))
 
@@ -40,6 +42,7 @@ EXE = slice(472, 632)
 CWD = slice(632, 792)
 CHANGING_TARGET = """
 import os, sys, time
+open("/proc/self/comm", "w").write(sys.argv[3])
 print("ready", flush=True)
 sys.stdin.readline()
 os.chdir(sys.argv[1])
@@ -65,13 +68,17 @@ class ProcessInfoTests(unittest.TestCase):
             program = Path(moved) / "exec-target"
             shutil.copy(shutil.which("sh"), program)
             self.assertEqual(program.read_bytes()[:4], b"\x7fELF", "sh is not an ELF file")
+            # A unique comm, so that the sampler selects only this process.
+            # The exec renames it to exec-target. That name is a rule too, so
+            # the admitted instance stays selected.
+            name = f"pi-{os.getpid()}"
             target = subprocess.Popen([sys.executable, "-c", CHANGING_TARGET, moved,
-                                       str(program)],
+                                       str(program), name],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       text=True, cwd=directory)
             self.assertEqual(target.stdout.readline().strip(), "ready")
             config = Path(directory) / "sampler.toml"
-            config.write_text(f'target_pid = {target.pid}\nrate_hz = 10\n'
+            config.write_text(f'process_names = ["{name}", "exec-target"]\nrate_hz = 10\n'
                               f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             sampler = subprocess.Popen([str(BINARY), str(config)], stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL)
@@ -104,7 +111,15 @@ class ProcessInfoTests(unittest.TestCase):
                 receiver.close()
 
 
-class FullStderrTests(unittest.TestCase):
+class NamedTargetCase(unittest.TestCase):
+    """Runs a process with a unique comm for the sampler to select by name."""
+
+    def setUp(self):
+        self.target_name = f"st-{os.getpid()}"
+        self.addCleanup(stop, start_named(self.target_name))
+
+
+class FullStderrTests(NamedTargetCase):
     def test_warning_to_a_full_stderr_pipe_does_not_stop_ticks(self):
         read_end, write_end = os.pipe()
         flags = fcntl.fcntl(write_end, fcntl.F_GETFL)
@@ -120,7 +135,7 @@ class FullStderrTests(unittest.TestCase):
         receiver.settimeout(0.2)
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "sampler.toml"
-            config.write_text(f'target_pid = {os.getpid()}\nrate_hz = 10\n'
+            config.write_text(f'process_names = ["{self.target_name}"]\nrate_hz = 10\n'
                               f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             sampler = subprocess.Popen([str(BINARY), str(config)], stdout=subprocess.DEVNULL,
                                        stderr=write_end)
@@ -139,7 +154,7 @@ class FullStderrTests(unittest.TestCase):
                 receiver.close()
 
 
-class RegularFileStderrTests(unittest.TestCase):
+class RegularFileStderrTests(NamedTargetCase):
     def test_invalid_edit_warning_is_in_a_regular_file_log_while_running(self):
         receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         receiver.bind(("127.0.0.1", 0))
@@ -147,7 +162,7 @@ class RegularFileStderrTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "sampler.toml"
             log = Path(directory) / "sampler.log"
-            config.write_text(f'target_pid = {os.getpid()}\nrate_hz = 10\n'
+            config.write_text(f'process_names = ["{self.target_name}"]\nrate_hz = 10\n'
                               f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n')
             with log.open("wb") as log_file:
                 sampler = subprocess.Popen([str(BINARY), str(config)],
