@@ -338,8 +338,8 @@ class DashboardServer
   void Post(httplib::Response& p_response, const Request& p_request)
   {
     const auto& path = p_request.path_;
-    if (path != "/api/targets" && path != "/api/watches" &&
-        path != "/api/watches/reset")
+    if (path != "/api/targets" && path != "/api/targets/retained/remove" &&
+        path != "/api/watches" && path != "/api/watches/reset")
     {
       Respond(p_response, 501, "Unsupported method", "text/plain");
       return;
@@ -348,6 +348,11 @@ class DashboardServer
     {
       RespondJson(p_response, 403,
                   JsonObject{{"error", "dashboard request required"}});
+      return;
+    }
+    if (path == "/api/targets/retained/remove")
+    {
+      RemoveRetained(p_response, p_request.body_);
       return;
     }
     if (path == "/api/targets")
@@ -392,6 +397,43 @@ class DashboardServer
                    path == "/api/watches"
                        ? settings->Replace(p_request.body_, revision)
                        : settings->Reset(revision));
+  }
+
+  void RemoveRetained(httplib::Response& p_response, std::string_view p_body)
+  {
+    const auto request = ParseJson(p_body);
+    const auto* key = request ? request->Find("key") : nullptr;
+    const auto* session = request ? request->Find("session") : nullptr;
+    if (!key || !key->IsString() || key->AsString().empty() || !session ||
+        !session->IsString() || session->AsString().empty())
+    {
+      RespondJson(p_response, 400,
+                  JsonObject{{"error", "Target key and session are required"}});
+      return;
+    }
+    std::uint64_t identity = 0;
+    const auto& digits = session->AsString();
+    const auto parsed =
+        std::from_chars(digits.data(), digits.data() + digits.size(), identity);
+    if (parsed.ec != std::errc{} ||
+        parsed.ptr != digits.data() + digits.size() || identity == 0)
+    {
+      RespondJson(p_response, 400,
+                  JsonObject{{"error", "Invalid target session"}});
+      return;
+    }
+    if (!state_.RemoveArchived(key->AsString(), identity))
+    {
+      RespondJson(p_response, 409,
+                  JsonObject{{"error",
+                              "This retained target changed or was already "
+                              "removed. Refresh Targets."}});
+      return;
+    }
+    RespondJson(p_response, 200,
+                JsonObject{{"message",
+                            "Removed from Targets. Stored history and "
+                            "recordings are unchanged."}});
   }
 
   // The reply to a change of the watch rules: the rules now in force, as

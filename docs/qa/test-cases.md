@@ -854,3 +854,11 @@
 - Driver: judged
 - Test: Run the sampler with two busy targets, `rate_hz = 10`, `cpu_budget_pct = 0.5`, `critical_names` set to one of them, and `critical_extra_budget_pct = 20`. Wait 30 seconds and open both targets. Then set `critical_names` to the other target, reload with SIGHUP, and wait 30 seconds. Stop the critical process and wait 30 seconds. Open the help of the "Sampler throttled" badge.
 - Expected: The critical target shows no throttle badge and samples at 10 Hz. The other target shows "Sampler throttled" with a lower rate and the 0.5% budget. After the reload, the two roles change without a restart and without new sessions. After the critical process stops, the remaining target is throttled against the 0.5% budget. Help explains that critical targets keep their full rate up to the budget plus the extra allowance.
+
+
+## QA-141: Released process stays on Targets
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Monitor a process selected by a pattern. End the process. Wait for the sampler to release its target. Reload Targets. Search for the process and open its tile in a new tab. Check the tile help. Start a new matching process. Repeat with a target removed from the sampler configuration.
+- Expected: The released process has a searchable "No longer monitored · Final data" tile. Its dashboard opens with final data, the exit report when available, and recordings. The tile has Remove from Targets. Remove it, reload Targets in a second browser, and confirm the tile is gone. Stored history and recordings remain on disk. A stale Remove action must not remove a live replacement. Help explains the limit of 64 retained views, collector restart, and replacement by the same key. New processes can use all live target slots. Configuration removal does not claim a crash.

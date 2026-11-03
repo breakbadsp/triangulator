@@ -43,6 +43,10 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const targets = usePoll(loadTargets, 2000);
   const live = usePoll(loadLive, 1000);
   const [resourceRange, setResourceRange] = useState<ResourceRange>(900);
+  const released =
+    targets.data !== undefined &&
+    live.data !== undefined &&
+    !targets.data.targets.some((target) => target.key === page.key);
   const display = useObservation(page.key, live.data, resourceRange);
   const observation = display.observation;
   const view = observation?.view;
@@ -52,7 +56,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
   const memory = observation?.memory ?? initialMemory;
   const watchRules = useWatchRules(
     view?.threads,
-    mode.kind === "live",
+    mode.kind === "live" && !released,
     display.scope,
   );
   const captureRules = display.rules;
@@ -159,6 +163,12 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
           }
         />
         <main aria-label="Dashboard">
+          {released && (
+            <Help topic="fleet" as="div" className="card">
+              No longer monitored. Showing the last published data. Exit reports
+              and recordings remain available when captured.
+            </Help>
+          )}
           <Help topic="exited" as="div">
             <div id="exited" className="card" hidden={!display.state.final}>
               <p id="exited-text">
