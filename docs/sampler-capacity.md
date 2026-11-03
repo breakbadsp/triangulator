@@ -55,7 +55,12 @@ Capacity benchmark: 100 threads, 3 runs of 35 s (warm-up 5 s)
   Sampler CPU  median <percent>% of one core (max <percent>%)
   Peak RSS     <MiB> MiB (sampler, whole run)
   Report: build/capacity.json
+  Markdown: build/capacity.md (paste into the pull request)
 ```
+
+The run also writes `build/capacity.md` beside the JSON: a table of the four
+headline values and bar charts of tick latency and of throughput per run. It
+is GitHub Markdown. Paste it into the pull request that changes the sampler.
 
 For repeatable comparisons, keep hardware, affinity, load, compiler, flags,
 thread count, and timing parameters fixed. The JSON includes raw sample times,
