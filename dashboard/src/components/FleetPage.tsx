@@ -46,7 +46,7 @@ async function loadFleet(signal: AbortSignal) {
 function capacityNotices(list: FleetResponse["list"]): string[] {
   const excluded = new Map<string, number>();
   for (const target of list.targets)
-    if (target.excluded)
+    if (!target.archived && target.excluded)
       excluded.set(
         target.host,
         Math.max(excluded.get(target.host) ?? 0, target.excluded),
@@ -58,7 +58,7 @@ function capacityNotices(list: FleetResponse["list"]): string[] {
   if (
     list.capacity_drops &&
     list.max_targets &&
-    list.targets.length >= list.max_targets
+    list.targets.filter((target) => !target.archived).length >= list.max_targets
   )
     notices.push(
       `The collector is at its limit of ${String(list.max_targets)} targets (max_targets in the collector configuration). Data from further targets is dropped.`,
@@ -288,7 +288,7 @@ export function FleetPage() {
                   className="ft-name"
                   href={targetHref(tile.key, query)}
                   title={tile.name}
-                  aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" ? "no data" : tile.verdict}. Open its dashboard.`}
+                  aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" && !tile.archived ? "no data" : tile.verdict}. Open its dashboard.`}
                 >
                   {tile.name}
                 </a>
@@ -301,6 +301,11 @@ export function FleetPage() {
               >
                 {tile.host} · {tile.id}
               </Help>
+              {tile.archived && (
+                <Help topic="fleet" as="div" className="ft-waiting muted">
+                  No longer monitored · Final data
+                </Help>
+              )}
               {tile.waiting && (
                 <Help
                   key={tile.key + "waiting"}

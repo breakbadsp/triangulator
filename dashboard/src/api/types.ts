@@ -13,6 +13,8 @@ export interface FleetResponse {
 }
 
 export interface Target {
+  /** Final view retained after the live target slot was released. */
+  archived?: boolean;
   key: string;
   host: string;
   id: string;

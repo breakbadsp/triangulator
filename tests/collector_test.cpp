@@ -33,6 +33,7 @@
 #include "../collector/process.hpp"
 #include "../collector/replay.hpp"
 #include "../collector/resources.hpp"
+#include "../collector/shared_state.hpp"
 #include "../collector/target_fleet.hpp"
 #include "../collector/target_watches.hpp"
 #include "../collector/watch.hpp"
@@ -1731,6 +1732,34 @@ exit_wire::Report WithStatus(exit_wire::Report p_report, std::int32_t p_status)
   return p_report;
 }
 
+// Released views stay bounded and never consume live target capacity.
+void TestRetainedTargetViews()
+{
+  using namespace triangulator::collector;
+  SharedState state;
+  constexpr std::size_t kReleasedCount = 65;
+  for (std::size_t index = 0; index < kReleasedCount; ++index)
+  {
+    const auto id = std::to_string(index);
+    const auto key = "host/" + id;
+    PublishedTarget target;
+    target.key_ = key;
+    target.id_ = id;
+    target.live_ = std::make_shared<const std::string>("{}");
+    state.PublishTargets(
+        {target}, JsonObject{{"targets", JsonArray{JsonObject{{"key", key},
+                                                              {"id", id}}}}});
+    state.PublishTargets({}, JsonObject{{"targets", JsonArray{}}});
+  }
+  Require(state.TargetCount() == 0, "retained views use no target slots");
+  Require(state.Fleet().live_.size() == 64, "retained views are bounded");
+  Require(!state.Select("host/0"), "oldest released view expires first");
+  Require(state.Select("host/64").has_value(),
+          "latest released view is readable");
+  Require(!state.Select(""),
+          "retained views do not become the default live target");
+}
+
 // Classifies exit statuses: a kernel message names the reason first; the
 // status names it when there is none, also with the log unreadable. The
 // live snapshot decodes the status.
@@ -3139,6 +3168,7 @@ int main()
     TestMemoryMapSessions();
     TestExitReports();
     TestExitStatus();
+    TestRetainedTargetViews();
     TestProcessInfo();
     TestAllowedSenders();
     TestEverySlotKeepsFullHistoryBudget();

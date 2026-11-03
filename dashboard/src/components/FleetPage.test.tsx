@@ -518,3 +518,27 @@ test("search survives reload and navigation while legacy status is dropped from 
     screen.getByRole("link", { name: "← All targets" }).getAttribute("href"),
   ).toBe("./?q=a+b");
 });
+
+test("released target stays searchable and opens its final dashboard", async () => {
+  respond = (url) =>
+    url === "/api/targets"
+      ? Response.json({
+          targets: [
+            { ...fleetTargets[0], archived: true, local: false, excluded: 255 },
+          ],
+          max_targets: 1,
+          capacity_drops: 1,
+        })
+      : fleetRespond(url);
+  await start("?q=api");
+  expect(screen.getByText("No longer monitored · Final data")).toBeDefined();
+  expect(screen.queryByText(/matching processes on h/)).toBeNull();
+  expect(screen.queryByText(/collector is at its limit/)).toBeNull();
+  expect(link(tileFor("h/api")).getAttribute("href")).toBe(
+    "?target=h%2Fapi&q=api",
+  );
+  expect(link(tileFor("h/api")).getAttribute("aria-label")).toContain(
+    "No longer monitored",
+  );
+  expect(screen.queryByRole("button", { name: /Remove target/ })).toBeNull();
+});
