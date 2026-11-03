@@ -16,8 +16,10 @@
 #include <cstring>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "io.hpp"
@@ -28,6 +30,148 @@ namespace triangulator
 {
 
 using resource_wire::Field;
+
+// Kernel counters of a network namespace, found by section and name, not by
+// position: the kernel may add or reorder columns.
+namespace resource_counters
+{
+struct Counter
+{
+  std::string_view section_;
+  std::string_view name_;
+  std::size_t field_;
+  // The matching key in /proc/PID/net/snmp6, or empty when the counter has
+  // none. IPv6 is added to the IPv4 value.
+  std::string_view ipv6_key_ = {};
+};
+
+inline constexpr std::array<Counter, 16> kSnmp{{
+    {"Tcp", "ActiveOpens", Field("net_tcp_active_opens")},
+    {"Tcp", "PassiveOpens", Field("net_tcp_passive_opens")},
+    {"Tcp", "AttemptFails", Field("net_tcp_attempt_fails")},
+    {"Tcp", "EstabResets", Field("net_tcp_estab_resets")},
+    {"Tcp", "InSegs", Field("net_tcp_in_segs")},
+    {"Tcp", "OutSegs", Field("net_tcp_out_segs")},
+    {"Tcp", "RetransSegs", Field("net_tcp_retrans_segs")},
+    {"Tcp", "InErrs", Field("net_tcp_in_errs")},
+    {"Tcp", "OutRsts", Field("net_tcp_out_rsts")},
+    {"Udp", "InDatagrams", Field("net_udp_in_datagrams"), "Udp6InDatagrams"},
+    {"Udp", "NoPorts", Field("net_udp_no_ports"), "Udp6NoPorts"},
+    {"Udp", "InErrors", Field("net_udp_in_errors"), "Udp6InErrors"},
+    {"Udp", "OutDatagrams", Field("net_udp_out_datagrams"), "Udp6OutDatagrams"},
+    {"Udp", "RcvbufErrors", Field("net_udp_rcvbuf_errors"), "Udp6RcvbufErrors"},
+    {"Udp", "SndbufErrors", Field("net_udp_sndbuf_errors"), "Udp6SndbufErrors"},
+    {"Udp", "MemErrors", Field("net_udp_mem_errors"), "Udp6MemErrors"},
+}};
+
+inline constexpr std::array<Counter, 14> kNetstat{{
+    {"TcpExt", "ListenOverflows", Field("net_listen_overflows")},
+    {"TcpExt", "ListenDrops", Field("net_listen_drops")},
+    {"TcpExt", "TCPBacklogDrop", Field("net_tcp_backlog_drop")},
+    {"TcpExt", "TCPRcvQDrop", Field("net_tcp_rcvq_drop")},
+    {"TcpExt", "TCPZeroWindowDrop", Field("net_tcp_zero_window_drop")},
+    {"TcpExt", "PruneCalled", Field("net_prune_called")},
+    {"TcpExt", "RcvPruned", Field("net_rcv_pruned")},
+    {"TcpExt", "OfoPruned", Field("net_ofo_pruned")},
+    {"TcpExt", "TCPTimeouts", Field("net_tcp_timeouts")},
+    {"TcpExt", "TCPAbortOnMemory", Field("net_tcp_abort_on_memory")},
+    {"TcpExt", "TCPAbortOnTimeout", Field("net_tcp_abort_on_timeout")},
+    {"TcpExt", "TCPMemoryPressures", Field("net_tcp_memory_pressures")},
+    {"TcpExt", "TCPReqQFullDrop", Field("net_tcp_req_q_full_drop")},
+    {"TcpExt", "SyncookiesSent", Field("net_syncookies_sent")},
+}};
+
+// Every UDP counter, and only UDP, has an IPv6 key, "Udp6" plus its name.
+[[nodiscard]] consteval bool Ipv6KeysMatch()
+{
+  for (const auto& counter : kSnmp)
+  {
+    const bool udp = counter.section_ == "Udp";
+    if (counter.ipv6_key_.empty() == udp ||
+        (udp && (!counter.ipv6_key_.starts_with("Udp6") ||
+                 counter.ipv6_key_.substr(4) != counter.name_)))
+    {
+      return false;
+    }
+  }
+  for (const auto& counter : kNetstat)
+  {
+    if (!counter.ipv6_key_.empty())
+    {
+      return false;
+    }
+  }
+  return true;
+}
+static_assert(Ipv6KeysMatch());
+
+// No two counters write one summary field, which would hide the first.
+[[nodiscard]] consteval bool FieldsAreDistinct()
+{
+  std::array<bool, resource_wire::kSummaryFields.size()> used{};
+  for (const auto& counter : kSnmp)
+  {
+    if (std::exchange(used[counter.field_], true))
+    {
+      return false;
+    }
+  }
+  for (const auto& counter : kNetstat)
+  {
+    if (std::exchange(used[counter.field_], true))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+static_assert(FieldsAreDistinct());
+}  // namespace resource_counters
+
+// Pressure stall files. The host paths are fixed, so they are built here,
+// not on each sample. The cgroup paths depend on the target's cgroup.
+namespace pressure_files
+{
+inline constexpr std::array<std::string_view, 3> kResources{"cpu", "memory",
+                                                            "io"};
+// Null-terminated, as the open call needs.
+inline constexpr std::array<const char*, 3> kHostPaths{
+    "/proc/pressure/cpu", "/proc/pressure/memory", "/proc/pressure/io"};
+// Summary fields per resource: some avg10, some total, full avg10, full
+// total.
+inline constexpr std::size_t kFieldsPerResource = 4;
+inline constexpr std::size_t kHostFirst = Field("host_cpu_some_avg10");
+inline constexpr std::size_t kCgroupFirst = Field("cgroup_cpu_some_avg10");
+
+// Each path names its resource, and each resource's four fields sit where
+// the sampler stores them: first field plus resource index times four.
+[[nodiscard]] consteval bool LayoutMatches()
+{
+  constexpr std::array<std::string_view, kFieldsPerResource> kSuffixes{
+      "some_avg10", "some_total", "full_avg10", "full_total"};
+  for (std::size_t index = 0; index < kResources.size(); ++index)
+  {
+    const auto resource = std::string{kResources[index]};
+    const std::string_view path = kHostPaths[index];
+    if (path != "/proc/pressure/" + resource)
+    {
+      return false;
+    }
+    for (std::size_t part = 0; part < kSuffixes.size(); ++part)
+    {
+      const auto offset = index * kFieldsPerResource + part;
+      const auto suffix = "_" + resource + "_" + std::string{kSuffixes[part]};
+      if (Field("host" + suffix) != kHostFirst + offset ||
+          Field("cgroup" + suffix) != kCgroupFirst + offset)
+      {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+static_assert(LayoutMatches());
+}  // namespace pressure_files
 
 // cgroup_ and sockets_ view the probe's storage. They stay valid until the
 // probe's next Sample().
@@ -170,14 +314,6 @@ class ResourceProbe
  private:
   using Flags = resource_wire::Flags;
 
-  // Pressure fields are four per resource (some avg10, some total, full
-  // avg10, full total) for cpu, memory and io, host first, then cgroup.
-  static constexpr std::size_t kHostPressure = Field("host_cpu_some_avg10");
-  static constexpr std::size_t kCgroupPressure = Field("cgroup_cpu_some_avg10");
-  static_assert(Field("host_io_full_total") == kHostPressure + 11);
-  static_assert(Field("cgroup_io_full_total") == kCgroupPressure + 11);
-  static constexpr std::array<std::string_view, 3> kPressureResources{
-      "cpu", "memory", "io"};
   static constexpr std::size_t kTcpStates = Field("tcp_established");
   static_assert(Field("tcp_closing") == kTcpStates + 9);
 
@@ -212,13 +348,14 @@ class ResourceProbe
 
   void ReadPressure(int p_pid, ResourceSample& p_sample)
   {
-    for (std::size_t index = 0; index < kPressureResources.size(); ++index)
+    for (std::size_t index = 0; index < pressure_files::kHostPaths.size();
+         ++index)
     {
-      if (const auto text =
-              Read(FixedString{"/proc/pressure/{}", kPressureResources[index]}
-                       .CStr()))
+      if (const auto text = Read(pressure_files::kHostPaths[index]))
       {
-        StorePressure(kHostPressure + index * 4, *text, p_sample.summary_);
+        StorePressure(pressure_files::kHostFirst +
+                          index * pressure_files::kFieldsPerResource,
+                      *text, p_sample.summary_);
       }
     }
     const auto cgroups = Read(FixedString{"/proc/{}/cgroup", p_pid}.CStr());
@@ -235,14 +372,17 @@ class ResourceProbe
     {
       return;
     }
-    for (std::size_t index = 0; index < kPressureResources.size(); ++index)
+    for (std::size_t index = 0; index < pressure_files::kResources.size();
+         ++index)
     {
       if (const auto text =
               Read(FixedString{"/sys/fs/cgroup{}/{}.pressure", p_sample.cgroup_,
-                               kPressureResources[index]}
+                               pressure_files::kResources[index]}
                        .CStr()))
       {
-        StorePressure(kCgroupPressure + index * 4, *text, p_sample.summary_);
+        StorePressure(pressure_files::kCgroupFirst +
+                          index * pressure_files::kFieldsPerResource,
+                      *text, p_sample.summary_);
       }
     }
   }
@@ -631,49 +771,9 @@ class ResourceProbe
   void ReadNamespaceCounters(int p_pid, ResourceSample& p_sample)
   {
     auto& summary = p_sample.summary_;
-    struct Counter
-    {
-      std::string_view section_;
-      std::string_view name_;
-      std::size_t field_;
-    };
-    constexpr std::array<Counter, 16> kSnmp{{
-        {"Tcp", "ActiveOpens", Field("net_tcp_active_opens")},
-        {"Tcp", "PassiveOpens", Field("net_tcp_passive_opens")},
-        {"Tcp", "AttemptFails", Field("net_tcp_attempt_fails")},
-        {"Tcp", "EstabResets", Field("net_tcp_estab_resets")},
-        {"Tcp", "InSegs", Field("net_tcp_in_segs")},
-        {"Tcp", "OutSegs", Field("net_tcp_out_segs")},
-        {"Tcp", "RetransSegs", Field("net_tcp_retrans_segs")},
-        {"Tcp", "InErrs", Field("net_tcp_in_errs")},
-        {"Tcp", "OutRsts", Field("net_tcp_out_rsts")},
-        {"Udp", "InDatagrams", Field("net_udp_in_datagrams")},
-        {"Udp", "NoPorts", Field("net_udp_no_ports")},
-        {"Udp", "InErrors", Field("net_udp_in_errors")},
-        {"Udp", "OutDatagrams", Field("net_udp_out_datagrams")},
-        {"Udp", "RcvbufErrors", Field("net_udp_rcvbuf_errors")},
-        {"Udp", "SndbufErrors", Field("net_udp_sndbuf_errors")},
-        {"Udp", "MemErrors", Field("net_udp_mem_errors")},
-    }};
-    constexpr std::array<Counter, 14> kNetstat{{
-        {"TcpExt", "ListenOverflows", Field("net_listen_overflows")},
-        {"TcpExt", "ListenDrops", Field("net_listen_drops")},
-        {"TcpExt", "TCPBacklogDrop", Field("net_tcp_backlog_drop")},
-        {"TcpExt", "TCPRcvQDrop", Field("net_tcp_rcvq_drop")},
-        {"TcpExt", "TCPZeroWindowDrop", Field("net_tcp_zero_window_drop")},
-        {"TcpExt", "PruneCalled", Field("net_prune_called")},
-        {"TcpExt", "RcvPruned", Field("net_rcv_pruned")},
-        {"TcpExt", "OfoPruned", Field("net_ofo_pruned")},
-        {"TcpExt", "TCPTimeouts", Field("net_tcp_timeouts")},
-        {"TcpExt", "TCPAbortOnMemory", Field("net_tcp_abort_on_memory")},
-        {"TcpExt", "TCPAbortOnTimeout", Field("net_tcp_abort_on_timeout")},
-        {"TcpExt", "TCPMemoryPressures", Field("net_tcp_memory_pressures")},
-        {"TcpExt", "TCPReqQFullDrop", Field("net_tcp_req_q_full_drop")},
-        {"TcpExt", "SyncookiesSent", Field("net_syncookies_sent")},
-    }};
     if (const auto text = Read(FixedString{"/proc/{}/net/snmp", p_pid}.CStr()))
     {
-      for (const auto& counter : kSnmp)
+      for (const auto& counter : resource_counters::kSnmp)
       {
         summary[counter.field_] =
             FindTableCounter(*text, counter.section_, counter.name_)
@@ -684,14 +784,13 @@ class ResourceProbe
     // IPv6 has no file, and IPv4 alone is the whole count.
     if (const auto text = Read(FixedString{"/proc/{}/net/snmp6", p_pid}.CStr()))
     {
-      for (const auto& counter : kSnmp)
+      for (const auto& counter : resource_counters::kSnmp)
       {
-        if (counter.section_ != "Udp")
+        if (counter.ipv6_key_.empty())
         {
           continue;
         }
-        const auto ipv6 =
-            FindKeyValue(*text, FixedString{"Udp6{}", counter.name_}.View());
+        const auto ipv6 = FindKeyValue(*text, counter.ipv6_key_);
         auto& value = summary[counter.field_];
         if (ipv6 && value != resource_wire::kUnavailable)
         {
@@ -702,7 +801,7 @@ class ResourceProbe
     if (const auto text =
             Read(FixedString{"/proc/{}/net/netstat", p_pid}.CStr()))
     {
-      for (const auto& counter : kNetstat)
+      for (const auto& counter : resource_counters::kNetstat)
       {
         summary[counter.field_] =
             FindTableCounter(*text, counter.section_, counter.name_)
