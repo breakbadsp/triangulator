@@ -1,7 +1,7 @@
 import type { Thread } from "../api/types";
-import { duration, isNum } from "./format";
+import { duration } from "./format";
 import type { Series } from "./series";
-import { STATES, futexWaitSecs, isIdle, stateLabels } from "./threads";
+import { STATES, isIdle, stateLabels, stuckThreads } from "./threads";
 
 // What the thread table shows, and which thread the drawer shows. Each action
 // is one of the old page's handlers (777cf3a: setActivity, renderChips,
@@ -216,7 +216,6 @@ export function chips(threads: readonly Thread[], view: ThreadView) {
   return { states, wchans };
 }
 
-const STUCK_FUTEX_S = 30;
 const sortValue: Record<
   Exclude<SortKey, "name">,
   (thread: Thread) => number
@@ -242,11 +241,11 @@ export function threadRows(threads: readonly Thread[], view: ThreadView) {
     )
       .map(([state, count]) => `${String(count)} ${state.toLowerCase()}`)
       .join(", ");
-    const longest = Math.max(0, ...idle.map(futexWaitSecs).filter(isNum));
+    const longest = stuckThreads(idle)[0];
     idleSummary =
       `${String(idle.length)} idle thread${idle.length > 1 ? "s" : ""} hidden (${waits}).` +
-      (longest >= STUCK_FUTEX_S
-        ? ` Longest futex wait: over ${duration(longest)}.`
+      (longest
+        ? ` Longest time without running: over ${duration(longest.secs)}.`
         : "");
   }
   const key = view.sort === "name" ? null : sortValue[view.sort];

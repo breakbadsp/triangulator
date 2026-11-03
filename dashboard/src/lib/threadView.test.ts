@@ -86,15 +86,15 @@ test("rows sort by the chosen column, then by TID, and the counts ignore activit
   ).toBe("alpha");
 });
 
-test("the idle summary names the hidden waits and a long futex wait", () => {
+test("the idle summary names the hidden waits and the longest time without running", () => {
   // The collector last saw thread 1 run 40 s before its newest sample.
   const threads = [
     thread(1, { last_sample: 140, last_ran: 100 }),
-    thread(2, { last_sample: 140, last_ran: 100, state: "sleep" }),
+    thread(2, { last_sample: 140, last_ran: 90, state: "sleep" }),
   ];
   const table = threadRows(threads, initialThreadView);
   expect(table.idleSummary).toBe(
-    "2 idle threads hidden (1 futex wait, 1 sleep). Longest futex wait: over 40 s.",
+    "2 idle threads hidden (1 futex wait, 1 sleep). Longest time without running: over 50 s.",
   );
   expect(table.empty).toBe("Every thread is idle right now.");
   expect(

@@ -45,20 +45,22 @@ export const futexShare = (thread: Thread) => {
     total = mix.reduce((sum, count) => sum + count, 0);
   return total ? ((thread.state_mix || {}).futex || 0) / total : 0;
 };
+export const STUCK_THREAD_S = 30;
 /**
- * Seconds an idle thread has waited on a futex, or null. A thread that has
- * not run cannot leave its wait, so the wait began when the collector last
- * saw it run (last_ran). Every live and recorded view has it.
+ * Current threads that have not run for at least STUCK_THREAD_S, longest
+ * first, in any state. A thread that has not run has not left its wait, so
+ * the wait began when the collector last saw it run (last_ran). Every live and
+ * recorded view has it.
  */
-export const futexWaitSecs = (thread: Thread) =>
-  !thread.stale &&
-  thread.state === "futex" &&
-  isIdle(thread) &&
-  futexShare(thread) === 1 &&
-  isNum(thread.last_sample) &&
-  isNum(thread.last_ran)
-    ? Math.max(0, thread.last_sample - thread.last_ran)
-    : null;
+export const stuckThreads = (threads: readonly Thread[]) =>
+  threads
+    .flatMap((thread) =>
+      !thread.stale && isNum(thread.last_sample) && isNum(thread.last_ran)
+        ? [{ thread, secs: Math.max(0, thread.last_sample - thread.last_ran) }]
+        : [],
+    )
+    .filter(({ secs }) => secs >= STUCK_THREAD_S)
+    .sort((left, right) => right.secs - left.secs);
 const KERNEL_SHARE_MIN = 0.5,
   SPIN_SWITCHES_MIN = 100;
 export function kernelShare(thread: Thread) {

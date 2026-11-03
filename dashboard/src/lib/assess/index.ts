@@ -12,8 +12,8 @@ import {
   family,
   isIdle,
   futexShare,
-  futexWaitSecs,
   kernelShare,
+  stuckThreads,
   threadLabel,
 } from "../threads";
 import { endedTarget, exitReason } from "../exit";
@@ -82,7 +82,6 @@ function memoryOverviewFindings(input: AssessInput) {
     pressureScope,
   ).filter((item) => item.level !== "info" && item.level !== "good");
 }
-const STUCK_FUTEX_S = 30;
 export function lockHints(threads: readonly Thread[]) {
   const found: Finding[] = [],
     current = threads.filter((thread) => !thread.stale),
@@ -92,25 +91,22 @@ export function lockHints(threads: readonly Thread[]) {
     if (!families.has(key)) families.set(key, []);
     families.get(key)?.push(thread);
   }
-  // Threads parked on a futex for a long time while other threads run. A
-  // family with an active member is a pool with spare workers; four or more
-  // stuck in one family look like an idle pool. Neither is reported.
-  const parked = (thread: Thread) =>
-    (futexWaitSecs(thread) ?? 0) >= STUCK_FUTEX_S;
-  const stuck = current.filter((thread) => {
-    const kin = families.get(family(thread.name)) ?? [];
-    return parked(thread) && kin.every(isIdle) && kin.filter(parked).length < 4;
-  });
-  if (stuck.length >= 2 && current.some((thread) => !isIdle(thread))) {
-    const least = Math.min(
-      ...stuck.map((thread) => futexWaitSecs(thread) ?? 0),
-    );
+  // Threads that have not run for a long time, in any state. A full deadlock
+  // blocks every thread, so no other thread needs to be active.
+  const stuck = stuckThreads(current),
+    shortest = stuck.at(-1);
+  if (shortest) {
+    const many = stuck.length > 1,
+      names = stuck.slice(0, 5).map(({ thread }) => threadLabel(thread));
     found.push({
       type: "threads",
       level: "info",
-      title: `${String(stuck.length)} threads have waited on a futex for over ${duration(least)} while other threads are active`,
-      detail: `Possible deadlock or lost wake-up: ${stuck.slice(0, 3).map(threadLabel).join(", ")}${stuck.length > 3 ? ", …" : ""}. Idle service threads wait the same way, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,
-      action: { state: "futex", activity: "idle" },
+      title: `${String(stuck.length)} thread${many ? "s have" : " has"} not run for over ${duration(shortest.secs)}`,
+      detail: `Possible deadlock or lost wake-up: ${names.join(", ")}${stuck.length > 5 ? ", …" : ""}. Idle service threads also look like this, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,
+      // The idle filter hides a running, stopped, or kernel-wait thread.
+      action: stuck.every(({ thread }) => isIdle(thread))
+        ? { activity: "idle" }
+        : { activity: "all" },
     });
   }
   // Many threads of one family waking constantly yet blocked on futex almost all the time with little CPU.
