@@ -32,6 +32,31 @@ claim. A CPU-constrained host can also fail the minimum CPU check. The existing
 `benchmark_sampler.py` reports delivered throughput at configured production
 rates; `benchmark_sampling.py` measures only the continuous read path.
 
+The run also reports tick latency: the last kernel receive time of a tick's
+datagrams minus the sampler's wall-clock stamp of that tick. It covers proc
+reads, encoding, and loopback UDP. It excludes receiver scheduling and the
+resource and memory-map work that follows a tick. The sampler is saturated, so
+this is the cost of one tick at full speed, not latency at a production rate
+(`benchmark_sampler.py` measures that). A 35-second window holds thousands of
+ticks, so p99 is stable, but `max_ms` is the single worst tick. A window fails
+if wall time and monotonic time differ by more than 5 ms, because a clock step
+would invalidate the values.
+
+The report also gives sampler CPU use (percent of one core, over the window)
+and peak RSS (`VmHWM`: the kernel's high-water mark for the sampler since its
+start, so it includes warm-up and the resource and memory-map work). The JSON
+has these per run and as a summary. A baseline without latency data still
+compares throughput. The console summary looks like this:
+
+```
+Capacity benchmark: 100 threads, 3 runs of 35 s (warm-up 5 s)
+  Throughput   median <records/s> thread records/s (min <records/s>, max <records/s>)
+  Tick latency median of runs: p50 <ms> ms, p95 <ms> ms, p99 <ms> ms; worst <ms> ms
+  Sampler CPU  median <percent>% of one core (max <percent>%)
+  Peak RSS     <MiB> MiB (sampler, whole run)
+  Report: build/capacity.json
+```
+
 For repeatable comparisons, keep hardware, affinity, load, compiler, flags,
 thread count, and timing parameters fixed. The JSON includes raw sample times,
 CPU use, binary/source hashes, source diff, revision, and machine/build metadata.
