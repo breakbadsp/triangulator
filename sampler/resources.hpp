@@ -186,7 +186,7 @@ struct ResourceSample
 
 // How full a socket's buffers are, 0 (empty) to 1 (at its limit): the
 // receive buffer, the send buffer or, for a listener, the accept backlog.
-[[nodiscard]] inline double Fullness(const resource_wire::Socket& p_socket)
+[[nodiscard]] constexpr double Fullness(const resource_wire::Socket& p_socket)
 {
   if (p_socket.state_ == std::to_underlying(SocketState::Listen))
   {
@@ -205,6 +205,21 @@ struct ResourceSample
                           : 0;
   return std::max(received, sent);
 }
+
+static_assert(
+    []
+    {
+      resource_wire::Socket socket{};
+      socket.rcvbuf_ = 200;
+      socket.rmem_alloc_ = 50;
+      socket.sndbuf_ = 100;
+      socket.wmem_queued_ = 60;
+      const bool buffers = Fullness(socket) == 0.6;
+      socket.state_ = std::to_underlying(SocketState::Listen);
+      socket.rx_queue_ = 1;
+      socket.tx_queue_ = 4;
+      return buffers && Fullness(socket) == 0.25;
+    }());
 
 // Keeps the kMaxSockets sockets most worth a look: buffer fullness, then
 // queued bytes, then drops. The storage is fixed. It is a heap whose front
@@ -679,12 +694,13 @@ class ResourceProbe
   // Socket totals and TCP state counts start at zero.
   static void ClearSocketTotals(resource_wire::SummaryValues& p_summary)
   {
-    for (const auto field :
-         {Field("tcp_sockets"), Field("tcp_listeners"), Field("tcp_rx_queue"),
-          Field("tcp_tx_queue"), Field("tcp_drops"), Field("udp_sockets"),
-          Field("udp_rx_queue"), Field("udp_tx_queue"), Field("udp_drops"),
-          Field("unix_sockets"), Field("unix_listeners"),
-          Field("unix_rx_queue"), Field("unix_tx_queue"), Field("unix_drops")})
+    constexpr std::array<std::size_t, 14> kTotals{
+        Field("tcp_sockets"),   Field("tcp_listeners"),  Field("tcp_rx_queue"),
+        Field("tcp_tx_queue"),  Field("tcp_drops"),      Field("udp_sockets"),
+        Field("udp_rx_queue"),  Field("udp_tx_queue"),   Field("udp_drops"),
+        Field("unix_sockets"),  Field("unix_listeners"), Field("unix_rx_queue"),
+        Field("unix_tx_queue"), Field("unix_drops")};
+    for (const auto field : kTotals)
     {
       p_summary[field] = 0;
     }
