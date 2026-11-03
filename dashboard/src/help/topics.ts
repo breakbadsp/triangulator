@@ -55,9 +55,9 @@ const topics = {
   },
   "sampler-budget": {
     title: "Sampler throttled",
-    scope: "Sampler host · all targets",
+    scope: "Sampler host · this target",
     meaning:
-      "The sampler reduced its shared rate because its CPU use exceeded the configured budget.",
+      "The sampler reduced this target's rate because its CPU use exceeded the configured budget. Targets in `critical_names` keep their full rate until CPU use exceeds the budget plus `critical_extra_budget_pct`.",
     example:
       "A 1% budget permits about 0.01 seconds of sampler CPU time per elapsed second.",
     reading:

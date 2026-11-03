@@ -681,12 +681,17 @@ class MultiTargetSamplerTests(unittest.TestCase):
                 target.terminate()
             target.wait(timeout=5)
 
-    def configure(self, entries, rate=5, heavy=False, cpu_budget=None):
+    def configure(self, entries, rate=5, heavy=False, cpu_budget=None, critical=None):
         text = (f'collector="127.0.0.1:{self.receiver.getsockname()[1]}"\nrate_hz={rate}\n'
                 f'resource_interval_s={1 if heavy else 0}\nmemory_interval_s={1 if heavy else 0}\n')
         if cpu_budget is not None:
             text += f"cpu_budget_pct={cpu_budget}\n"
-        text += "process_names = [" + ", ".join(f'"{self.names[index]}"' for index in entries) + "]\n"
+        names = [index if isinstance(index, str) else self.names[index] for index in entries]
+        text += "process_names = [" + ", ".join(f'"{name}"' for name in names) + "]\n"
+        if critical is not None:
+            critical = [index if isinstance(index, str) else self.names[index] for index in critical]
+            text += "critical_extra_budget_pct=50\n"
+            text += "critical_names = [" + ", ".join(f'"{name}"' for name in critical) + "]\n"
         self.config.write_text(text)
         if self.sampler is None:
             self.sampler = subprocess.Popen([ROOT / "build/triangulator-sampler", self.config],
@@ -795,6 +800,70 @@ class MultiTargetSamplerTests(unittest.TestCase):
                     changed.add(packet.session)
         self.assertEqual(announced, set(sessions.values()))
         self.assertEqual(changed, set(sessions.values()), "rate changes keep the target sessions")
+
+    def watch_rates(self, critical, other, seconds=14):
+        """Waits until the critical target sends every tick at the full 10 Hz
+        while the other one is throttled, and its announcement says so."""
+        from wire import decode
+        self.receiver.settimeout(0.5)
+        pids = {self.targets[critical].pid: "critical", self.targets[other].pid: "other"}
+        sessions, slowed_at, announced_at = {}, None, None
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline and (announced_at is None or slowed_at is None):
+            try:
+                data = self.receiver.recv(1500)
+            except TimeoutError:
+                continue
+            if data.startswith(b"TMON"):
+                packet = decode(data)
+                role = pids.get(packet.pid)
+                if role is None:
+                    continue
+                if sessions.get(role) != packet.session:
+                    # A reload or the first tick: the new state begins here.
+                    sessions[role] = packet.session
+                    slowed_at = announced_at = None
+                    continue
+                if role == "critical" and slowed_at is not None:
+                    self.assertEqual(packet.interval_ms, 100, "the critical target keeps rate_hz")
+                if role == "other" and packet.interval_ms > 100 and slowed_at is None:
+                    slowed_at = time.monotonic()
+            elif data.startswith(b"TTGT"):
+                values = ANNOUNCE.unpack(data)
+                if values[3] == sessions.get("critical") and slowed_at is not None:
+                    self.assertEqual(values[5], values[9], "a critical target is not throttled")
+                # The announcement goes out just before the first slower tick.
+                if values[3] == sessions.get("other") and values[5] < values[9] and announced_at is None:
+                    announced_at = time.monotonic()
+        self.assertIsNotNone(slowed_at, "the other target slows down")
+        self.assertIsNotNone(announced_at, "the slower rate is announced")
+        # Without a check per target, the change waits for the 10 s repeat.
+        self.assertLess(abs(announced_at - slowed_at), 2, "a per-target rate change is announced at once")
+
+    def test_critical_target_keeps_its_rate_and_reload_moves_it(self):
+        self.configure([0, 1], rate=10, cpu_budget=0.01, critical=[0])
+        self.watch_rates(critical=0, other=1)
+        self.configure([0, 1], rate=10, cpu_budget=0.01, critical=[1])
+        self.watch_rates(critical=1, other=0)
+
+    def test_waiting_critical_name_does_not_raise_the_ceiling(self):
+        missing = f"mtmiss-{os.getpid()}"[:15]
+        self.configure([0, missing], rate=10, cpu_budget=0.01, critical=[missing])
+        from wire import decode
+        self.receiver.settimeout(0.5)
+        deadline = time.monotonic() + 14
+        while time.monotonic() < deadline:
+            try:
+                data = self.receiver.recv(1500)
+            except TimeoutError:
+                continue
+            if data.startswith(b"TMON"):
+                packet = decode(data)
+                # The waiting slot is served on every loop tick: its interval
+                # is the loop interval.
+                if packet.flags & 1 and packet.interval_ms > 100:
+                    return
+        self.fail("a critical name with no process kept the loop at rate_hz")
 
     def test_stop_interrupts_the_minimum_rate_sleep(self):
         # Stop during a five-second wait, including with ThreadSanitizer.

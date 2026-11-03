@@ -86,6 +86,15 @@ struct DiscoverySlot
   return selection;
 }
 
+// A slot that critical_names protects. Its own name must select it: a child
+// that only its critical parent brings in is not critical.
+[[nodiscard]] inline bool IsCritical(const Config& p_config,
+                                     const DiscoverySlot& p_slot) noexcept
+{
+  return (p_slot.selection_ & target_wire::kNameSelected) != 0 &&
+         std::ranges::contains(p_config.critical_names_, Text(p_slot.name_));
+}
+
 // The ID text for a process name: bytes that an ID cannot hold become '_'.
 [[nodiscard]] constexpr std::array<char, 32> IdBase(std::string_view p_name)
 {

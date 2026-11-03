@@ -133,6 +133,12 @@ class TargetSampler final
     return ResetSession();
   }
 
+  // This target is served on every p_stride-th loop tick.
+  void SetStride(std::uint32_t p_stride) noexcept
+  {
+    stride_ = p_stride;
+  }
+
   // The target_wire flags of the next announcements. A change, and each
   // tick of a release, is announced at once.
   void SetFlags(std::uint8_t p_flags) noexcept
@@ -297,8 +303,15 @@ class TargetSampler final
   void StepAnnouncement(const std::optional<TargetIdentity>& p_target,
                         Nanoseconds p_monotonic)
   {
+    const auto loop_rate = config_.effective_rate_hz_ > 0
+                               ? config_.effective_rate_hz_
+                               : config_.settings_.rate_hz_;
+    const auto effective_millihz =
+        static_cast<std::uint32_t>(std::lround(loop_rate / stride_ * 1000));
+    // A changed rate goes out at once, not with the 10 s repeat.
     if (p_monotonic < next_announcement_ &&
-        (flags_ & target_wire::kReleased) == 0)
+        (flags_ & target_wire::kReleased) == 0 &&
+        effective_millihz == announced_millihz_)
     {
       return;
     }
@@ -310,10 +323,7 @@ class TargetSampler final
     packet.host_ = host_;
     packet.configured_millihz_ = static_cast<std::uint32_t>(
         std::lround(config_.settings_.rate_hz_ * 1000));
-    packet.effective_millihz_ = static_cast<std::uint32_t>(std::lround(
-        (config_.effective_rate_hz_ > 0 ? config_.effective_rate_hz_
-                                        : config_.settings_.rate_hz_) *
-        1000));
+    packet.effective_millihz_ = effective_millihz;
     packet.cpu_ns_ = config_.sampler_cpu_ns_;
     packet.elapsed_ns_ = config_.sampler_elapsed_ns_;
     packet.budget_basis_points_ = static_cast<std::uint32_t>(
@@ -338,6 +348,7 @@ class TargetSampler final
       packet.session_ = release_previous_session_;
       SendPart(wire::AsBytes(packet), "previous target release");
     }
+    announced_millihz_ = effective_millihz;
     next_announcement_ = p_monotonic + 10s;
   }
 
@@ -587,7 +598,7 @@ class TargetSampler final
               .records_ = static_cast<std::uint16_t>(count),
               .monotonic_ns_ = static_cast<std::uint64_t>(p_monotonic.count()),
               .wall_ns_ = static_cast<std::uint64_t>(p_wall.count()),
-              .interval_ms_ = config_.IntervalMs(),
+              .interval_ms_ = TickIntervalMs(config_.Interval(), stride_),
               .pid_ = static_cast<std::uint32_t>(p_pid),
           }};
       std::ranges::copy(p_records.subspan(offset, count),
@@ -627,6 +638,8 @@ class TargetSampler final
   bool monitoring_logged_ = false;  // for the current session
   std::array<char, 64> host_{};
   Nanoseconds next_announcement_{0};
+  std::uint32_t announced_millihz_ = 0;
+  std::uint32_t stride_ = 1;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
   std::uint64_t release_previous_session_ = 0;
@@ -655,8 +668,7 @@ class Sampler final
                     ? p_descriptor_limit - 3 * target_wire::kMaxTargets
                     : 0,
                 0},
-        cpu_budget_(config_.settings_.rate_hz_,
-                    config_.settings_.cpu_budget_pct_)
+        cpu_budget_(MakeCpuBudget(config_.settings_))
   {
     if (::gethostname(host_.data(), host_.size() - 1) != 0 ||
         !target_wire::ValidName(target_wire::Text(host_), 63))
@@ -704,31 +716,25 @@ class Sampler final
       const auto exit_deadline =
           ClockNow(CLOCK_MONOTONIC) +
           std::min<Nanoseconds>(config_.Interval() / 4, 50ms);
-      std::array<bool, target_wire::kMaxTargets> live{};
-      if (auto sampled = SampleDiscovered(exit_deadline, live); !sampled)
+      const auto stride = cpu_budget_.Stride();
+      if (auto sampled = SampleDiscovered(exit_deadline, stride); !sampled)
       {
         return sampled;
       }
-      StepHeavy(live);
+      StepHeavy(live_);
 #ifndef TRIANGULATOR_CAPACITY_BENCHMARK
       const auto end = ClockNow(CLOCK_MONOTONIC);
       const auto cpu = ClockNow(CLOCK_THREAD_CPUTIME_ID);
-      cpu_budget_.Add(cpu - last_cpu, end - last_elapsed);
+      const auto live = LiveTargets();
+      cpu_budget_.Add(cpu - last_cpu, end - last_elapsed, live.critical_,
+                      live.other_);
       last_cpu = cpu;
       last_elapsed = end;
-      const auto old_rate = config_.effective_rate_hz_;
       config_.effective_rate_hz_ = cpu_budget_.RateHz();
       config_.sampler_cpu_ns_ =
           static_cast<std::uint64_t>(cpu_budget_.Cpu().count());
       config_.sampler_elapsed_ns_ =
           static_cast<std::uint64_t>(cpu_budget_.Elapsed().count());
-      if (old_rate > 0 && old_rate != config_.effective_rate_hz_)
-      {
-        for (auto& target : pool_)
-        {
-          target->AnnounceNextTick();
-        }
-      }
       const auto interval = config_.Interval();
       deadline += interval;
       if (deadline <= end)
@@ -752,6 +758,38 @@ class Sampler final
   std::vector<std::unique_ptr<TargetSampler>> pool_;
   HeavySchedule heavy_schedule_;
   std::size_t memory_cursor_ = 0;
+  // Slots sampled with a process. A slot skipped by its stride keeps the
+  // value of its last served tick.
+  std::array<bool, target_wire::kMaxTargets> live_{};
+  std::uint64_t tick_ = 0;
+
+  [[nodiscard]] static CpuBudget MakeCpuBudget(const Config& p_settings)
+  {
+    return CpuBudget{p_settings.rate_hz_, p_settings.cpu_budget_pct_,
+                     p_settings.critical_extra_budget_pct_};
+  }
+
+  struct LiveKinds
+  {
+    bool critical_ = false;
+    bool other_ = false;
+  };
+
+  // A waiting slot of a critical name has no process, so it is not live.
+  [[nodiscard]] LiveKinds LiveTargets() noexcept
+  {
+    LiveKinds kinds;
+    const auto slots = discovery_.Used();
+    for (std::size_t index = 0; index < slots.size(); ++index)
+    {
+      if (live_[index] && pool_[index]->HasTarget())
+      {
+        (IsCritical(config_.settings_, slots[index]) ? kinds.critical_
+                                                     : kinds.other_) = true;
+      }
+    }
+    return kinds;
+  }
 
   // Reads the configuration file again. The value is false when the file
   // was invalid and the previous configuration stays.
@@ -785,12 +823,14 @@ class Sampler final
         pool_[index]->Release();
       }
     }
-    config_ = std::move(*next);
-    if (!keep_sessions)
+    const bool same_critical =
+        before.critical_names_ == after.critical_names_ &&
+        before.critical_extra_budget_pct_ == after.critical_extra_budget_pct_;
+    if (!keep_sessions || !same_critical)
     {
-      cpu_budget_ = CpuBudget{config_.settings_.rate_hz_,
-                              config_.settings_.cpu_budget_pct_};
+      cpu_budget_ = MakeCpuBudget(after);
     }
+    config_ = std::move(*next);
     config_.effective_rate_hz_ = cpu_budget_.RateHz();
     if (auto prepared = PreparePool(keep_sessions); !prepared)
     {
@@ -815,10 +855,14 @@ class Sampler final
   }
 
   // Discovery: one bounded part of a /proc pass, then one tick for each
-  // used slot. A stat read per instance detects an exit or a reused PID.
+  // used slot. A stat read per instance detects an exit or a reused PID. A
+  // non-critical slot is served on every p_stride-th tick only, and does
+  // nothing on the others: its own sequence numbers and interval_ms then
+  // describe the slower rate to the collector.
   [[nodiscard]] std::expected<void, std::string> SampleDiscovered(
-      Nanoseconds p_exit_deadline, std::span<bool> p_live)
+      Nanoseconds p_exit_deadline, std::uint32_t p_stride)
   {
+    const bool other_tick = tick_++ % p_stride == 0;
     const auto& settings = config_.settings_;
     const auto scanned = discovery_.Scan(settings, ClockNow(CLOCK_MONOTONIC));
     if (!scanned)
@@ -850,8 +894,15 @@ class Sampler final
       auto& sampler = *pool_[index];
       if (slot.state_ == SlotState::Free)
       {
+        live_[index] = false;
         continue;
       }
+      const bool critical = IsCritical(settings, slot);
+      if (!critical && !other_tick)
+      {
+        continue;
+      }
+      live_[index] = false;
       if (slot.reassigned_)
       {
         slot.reassigned_ = false;
@@ -884,12 +935,13 @@ class Sampler final
         }
       }
       sampler.SetFlags(discovery_.Flags(index));
+      sampler.SetStride(critical ? 1 : p_stride);
       if (auto sampled = sampler.SampleTick(identity, p_exit_deadline);
           !sampled)
       {
         return sampled;
       }
-      p_live[index] = true;
+      live_[index] = true;
       if (slot.state_ == SlotState::Releasing)
       {
         discovery_.StepRelease(index);

@@ -972,6 +972,224 @@ void TestCpuBudget()
           "default CPU budget is ten percent");
 }
 
+void TestCriticalConfig()
+{
+  const std::string base =
+      "collector=127.0.0.1:9400\nprocess_names=[\"orders\", \"billing\"]\n";
+  const auto absent = ParseConfig(base);
+  Require(absent && absent->critical_names_.empty() &&
+              absent->critical_extra_budget_pct_ == 5,
+          "no critical names and a 5% extra budget by default");
+  const auto parsed = ParseConfig(
+      base + "critical_names = [\"orders\"]\ncritical_extra_budget_pct=12.5\n");
+  Require(parsed &&
+              parsed->critical_names_ == std::vector<std::string>{"orders"} &&
+              parsed->critical_extra_budget_pct_ == 12.5,
+          "critical names and extra budget parse");
+  Require(ParseConfig(base + "critical_names = []\n")->critical_names_.empty(),
+          "an empty critical list is the default");
+  const auto unknown = ParseConfig(base + "critical_names = [\"gateway\"]\n");
+  Require(!unknown && unknown.error() ==
+                          "critical name \"gateway\" is not in process_names",
+          "a critical name must also be a process name");
+  for (const auto text :
+       {"critical_names = [\"orders\", \"orders\"]", "critical_names = \"x\"",
+        "critical_extra_budget_pct = -1", "critical_extra_budget_pct = 50.1",
+        "critical_extra_budget_pct = nan"})
+  {
+    Require(!ParseConfig(base + text), text);
+  }
+  Require(ParseConfig(base + "critical_extra_budget_pct = 0") &&
+              ParseConfig(base + "critical_extra_budget_pct = 50"),
+          "extra budget limits are inclusive");
+
+  DiscoverySlot slot;
+  std::ranges::copy(std::string_view{"orders"}, slot.name_.begin());
+  slot.selection_ = target_wire::kNameSelected;
+  Require(IsCritical(*parsed, slot), "a slot selected by a critical name");
+  slot.selection_ = 0;
+  Require(!IsCritical(*parsed, slot),
+          "a child that only its parent selects is not critical");
+  Require(!IsCritical(*absent, slot) && !IsCritical(*absent, DiscoverySlot{}),
+          "no critical names: no critical slot");
+}
+
+// Runs the sampler loop against a cost model: each tick costs p_critical
+// while a critical target is live, plus p_other on the ticks that serve the
+// other targets. The value is the CPU percent of the last ten seconds.
+double RunBudget(CpuBudget& p_budget, Nanoseconds p_duration,
+                 Nanoseconds p_critical, Nanoseconds p_other,
+                 bool p_critical_live, bool p_other_live)
+{
+  Nanoseconds simulated{0};
+  Nanoseconds tail_cpu{0};
+  Nanoseconds tail_elapsed{0};
+  for (std::uint64_t tick = 0; simulated < p_duration; ++tick)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_budget.RateHz()});
+    const bool other_served = tick % p_budget.Stride() == 0;
+    const auto cpu = (p_critical_live ? p_critical : Nanoseconds{0}) +
+                     (p_other_live && other_served ? p_other : Nanoseconds{0});
+    p_budget.Add(cpu, interval, p_critical_live, p_other_live);
+    simulated += interval;
+    if (simulated > p_duration - 10s)
+    {
+      tail_cpu += cpu;
+      tail_elapsed += interval;
+    }
+  }
+  return 100.0 * static_cast<double>(tail_cpu.count()) /
+         static_cast<double>(tail_elapsed.count());
+}
+
+struct FlapResult
+{
+  double live_percent_ = 0;
+  double live_rate_hz_ = 0;
+};
+
+// A critical target is live for p_live of each cycle of p_live + p_gone. A
+// tick that finds it live costs p_cost, and a tick that does not costs
+// nothing. The percent is the use over the live ticks of the last minute,
+// and the rate is the one that the last live tick ran at.
+FlapResult RunFlapping(CpuBudget& p_budget, Nanoseconds p_duration,
+                       Nanoseconds p_live, Nanoseconds p_gone,
+                       Nanoseconds p_cost)
+{
+  Nanoseconds simulated{0};
+  Nanoseconds tail_cpu{0};
+  Nanoseconds tail_elapsed{0};
+  FlapResult result;
+  while (simulated < p_duration)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_budget.RateHz()});
+    const bool live = simulated % (p_live + p_gone) < p_live;
+    const auto cpu = live ? p_cost : Nanoseconds{0};
+    p_budget.Add(cpu, interval, live, false);
+    simulated += interval;
+    if (live)
+    {
+      result.live_rate_hz_ = p_budget.RateHz();
+      if (simulated > p_duration - 60s)
+      {
+        tail_cpu += cpu;
+        tail_elapsed += interval;
+      }
+    }
+  }
+  result.live_percent_ = 100.0 * static_cast<double>(tail_cpu.count()) /
+                         static_cast<double>(tail_elapsed.count());
+  return result;
+}
+
+// A critical target that is live for less than the 5 s window, and gone for
+// longer than the 5 s hold, must still be held to the ceiling. The window
+// counts live critical ticks only and survives the gaps: the gaps carry no
+// critical work, and the decision needs five seconds of it.
+void TestCriticalFlapping()
+{
+  struct Pattern
+  {
+    Nanoseconds live_;
+    Nanoseconds gone_;
+  };
+  for (const auto pattern :
+       {Pattern{4s, 5500ms}, Pattern{1s, 6s}, Pattern{500ms, 9s},
+        Pattern{4s, 4900ms}, Pattern{10s, 10s}, Pattern{4s, 30s}})
+  {
+    // 40 ms a tick is 40% at 10 Hz: far above the 15% ceiling.
+    CpuBudget budget{10, 10, 5};
+    const auto heavy =
+        RunFlapping(budget, 900s, pattern.live_, pattern.gone_, 40ms);
+    Require(heavy.live_rate_hz_ < 10 && heavy.live_percent_ <= 15,
+            "a flapping critical target is held to the ceiling");
+
+    // The use falls to 2%: below 60% of the ceiling, so the rate recovers.
+    const auto light =
+        RunFlapping(budget, 900s, pattern.live_, pattern.gone_, 2ms);
+    Require(light.live_rate_hz_ == 10,
+            "a flapping critical target recovers its rate");
+
+    // The cut ran on live critical ticks only. After a lasting exit it must
+    // not cut the other targets, which use 1%.
+    RunBudget(budget, 90s, 0ms, 1ms, false, true);
+    Require(budget.Stride() == 1 && budget.RateHz() == 10,
+            "work of a flapping critical target does not cut other targets");
+  }
+
+  // Use within the ceiling changes nothing.
+  CpuBudget calm{10, 10, 5};
+  Require(RunFlapping(calm, 300s, 4s, 5500ms, 12ms).live_rate_hz_ == 10,
+          "a flapping critical target within the ceiling keeps its rate");
+}
+
+// Budget 10%, extra 5%: the ceiling is 15% while a critical target is live.
+void TestCriticalBudget()
+{
+  CpuBudget protect{10, 10, 5};
+  auto percent = RunBudget(protect, 120s, 12ms, 5ms, true, true);
+  Require(protect.RateHz() == 10 && protect.Stride() > 1,
+          "above the budget, other targets slow down and a critical target "
+          "keeps its full rate");
+  Require(protect.RateHz() / protect.Stride() >= kMinRateHz,
+          "other targets keep the minimum rate");
+  Require(percent <= 15, "the total stays within the ceiling");
+
+  for (const bool other_live : {true, false})
+  {
+    CpuBudget hard{10, 10, 5};
+    percent = RunBudget(hard, 180s, 20ms, 5ms, true, other_live);
+    Require(hard.RateHz() < 10 && percent <= 15,
+            "critical work above the ceiling slows the critical target too");
+  }
+
+  // The critical target ends; the same 12% that the ceiling permitted is now
+  // above the budget of the other targets.
+  RunBudget(protect, 60s, 0ms, 12ms, false, true);
+  Require(protect.Stride() == 1 && protect.RateHz() < 10,
+          "without a live critical target the ceiling is the budget");
+
+  CpuBudget window{10, 10, 5};
+  RunBudget(window, 30s, 14ms, 0ms, true, false);
+  Require(window.RateHz() == 10, "critical work within the ceiling");
+  RunBudget(window, 6s, 0ms, 1ms, false, true);
+  Require(window.RateHz() == 10,
+          "the critical work before an exit does not slow the other targets");
+
+  // A critical process that restarts every few seconds must not stop the
+  // decisions: it is live for 3 s of each 4 s, and its work is above the
+  // ceiling while it runs.
+  CpuBudget crash_loop{10, 10, 5};
+  Nanoseconds simulated{0};
+  while (simulated < 120s)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / crash_loop.RateHz()});
+    const bool live = simulated % 4s < 3s;
+    crash_loop.Add(live ? 30ms : 0ms, interval, live, false);
+    simulated += interval;
+  }
+  Require(crash_loop.RateHz() < 10,
+          "a critical target that restarts often is still held to the ceiling");
+  RunBudget(crash_loop, 12s, 0ms, 0ms, false, false);
+  Require(crash_loop.Stride() == 1,
+          "a lasting exit returns to the budget of the other targets");
+
+  const auto loop = [](double p_rate_hz)
+  {
+    return std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_rate_hz});
+  };
+  Require(TickIntervalMs(loop(7), 35) == 5000 &&
+              TickIntervalMs(loop(6), 30) == 5000 &&
+              TickIntervalMs(loop(10), 1) == 100,
+          "a strided tick interval is rounded after the multiply");
+  Require(TickIntervalMs(loop(7), 36) == kMaxTickIntervalMs,
+          "a tick interval never exceeds what the collector accepts");
+}
+
 void TestWire()
 {
   ThreadStat stat{.state_ = 'S',
@@ -2713,6 +2931,9 @@ int main()
     TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();
+    TestCriticalConfig();
+    TestCriticalBudget();
+    TestCriticalFlapping();
     TestWire();
     TestRaii();
     TestTimestamp();
