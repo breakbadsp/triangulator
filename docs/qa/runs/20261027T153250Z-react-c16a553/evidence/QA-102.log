@@ -1,2 +1,0 @@
-[bugbench    0.0s] cpu-spin: one thread in a hot loop (pid 3260, 160 s)
-[bugbench   73.7s] done
