@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { Fold } from "./Fold";
 import type { ReplayBounds } from "../api/replay";
 import { timelineAtLive } from "../api/replay";
 import type { Observation } from "../lib/observation";
@@ -85,129 +86,137 @@ export function Timeline({
   }, []);
   return (
     <section id="timeline" className="block card">
-      <Help topic="timeline" as="div">
-        <h2>Timeline</h2>
-        <p>Inspect a recorded process view.</p>
-      </Help>
-      <Help topic="timeline" as="div">
-        <div className="range">
-          <button
-            id="replay-previous"
-            type="button"
-            disabled={!available || (recorded && at <= first)}
-            onClick={() => {
-              onInspect(recorded ? at : last, recorded ? "previous" : "latest");
-            }}
-            aria-label="Previous recording"
-          >
-            ◀ Previous
-          </button>
-          <button
-            id="replay-next"
-            type="button"
-            disabled={!recorded || at >= last}
-            onClick={() => {
-              onInspect(at, "next");
-            }}
-            aria-label="Next recording"
-          >
-            Next ▶
-          </button>
-          <button
-            id="replay-live"
-            type="button"
-            aria-pressed={!recorded}
-            onClick={onLive}
-          >
-            Live
-          </button>
-        </div>
-        <p id="replay-bounds" className="muted">
-          {available
-            ? `Recordings from ${date(first)} to ${date(last)}, ${bounds.interval_s ? `one every ${String(bounds.interval_s)} s.` : "recording is now disabled."}`
-            : "No recordings yet. Recording may be disabled; thread history still has older summaries."}
-        </p>
-        <Help topic="assesshistory" as="div">
-          <div id="timeline-marks" className="timeline-marks">
-            {available &&
-              shown.map((episode) => (
-                // One mark per shown past finding, in its severity colour,
-                // from first to last seen.
-                <span
-                  key={episode.id}
-                  style={
-                    {
-                      left: `${String(100 * Math.max(0, (episode.first - start) / (end - start)))}%`,
-                      width: `${String(100 * Math.max(0, (episode.last - episode.first) / (end - start)))}%`,
-                      "--lvl": `var(--${episode.level === "info" ? "muted" : episode.level})`,
-                    } as CSSProperties
-                  }
-                >
-                  <Help topic="assesshistory" className="mark-help">
-                    <span
-                      role="img"
-                      aria-label={`${episode.item.title} · ${clock(episode.first)}`}
-                    />
-                  </Help>
-                </span>
-              ))}
+      <Fold
+        name="timeline"
+        summary={
+          <Help topic="timeline">
+            <h2>Timeline</h2>
+          </Help>
+        }
+      >
+        <Help topic="timeline" as="div" className="timeline-controls">
+          <div className="range">
+            <button
+              id="replay-previous"
+              type="button"
+              disabled={!available || (recorded && at <= first)}
+              onClick={() => {
+                onInspect(
+                  recorded ? at : last,
+                  recorded ? "previous" : "latest",
+                );
+              }}
+              aria-label="Previous recording"
+            >
+              ◀ Previous
+            </button>
+            <button
+              id="replay-next"
+              type="button"
+              disabled={!recorded || at >= last}
+              onClick={() => {
+                onInspect(at, "next");
+              }}
+              aria-label="Next recording"
+            >
+              Next ▶
+            </button>
+            <button
+              id="replay-live"
+              type="button"
+              aria-pressed={!recorded}
+              onClick={onLive}
+            >
+              Live
+            </button>
           </div>
+          <p id="replay-bounds" className="muted">
+            {available
+              ? `Recordings from ${date(first)} to ${date(last)}, ${bounds.interval_s ? `one every ${String(bounds.interval_s)} s.` : "recording is now disabled."}`
+              : "No recordings yet. Recording may be disabled; thread history still has older summaries."}
+          </p>
+          <Help topic="assesshistory" as="div">
+            <div id="timeline-marks" className="timeline-marks">
+              {available &&
+                shown.map((episode) => (
+                  // One mark per shown past finding, in its severity colour,
+                  // from first to last seen.
+                  <span
+                    key={episode.id}
+                    style={
+                      {
+                        left: `${String(100 * Math.max(0, (episode.first - start) / (end - start)))}%`,
+                        width: `${String(100 * Math.max(0, (episode.last - episode.first) / (end - start)))}%`,
+                        "--lvl": `var(--${episode.level === "info" ? "muted" : episode.level})`,
+                      } as CSSProperties
+                    }
+                  >
+                    <Help topic="assesshistory" className="mark-help">
+                      <span
+                        role="img"
+                        aria-label={`${episode.item.title} · ${clock(episode.first)}`}
+                      />
+                    </Help>
+                  </span>
+                ))}
+            </div>
+          </Help>
+          <input
+            ref={input}
+            id="timeline-range"
+            type="range"
+            aria-label="Recorded time"
+            min={start}
+            max={end}
+            step="1"
+            disabled={!available}
+            value={preview ?? at}
+            onInput={(event) => {
+              setPreview(Number(event.currentTarget.value));
+            }}
+            onChange={() => undefined}
+            onPointerCancel={() => {
+              setPreview(null);
+            }}
+            onBlur={() => {
+              setPreview(null);
+            }}
+            style={{ width: "100%" }}
+          />
+          <div className="range">
+            <span id="timeline-start">{available ? date(start) : ""}</span>
+            <span id="timeline-end">
+              {recorded ? `Now · ${date(end)}` : "Live"}
+            </span>
+          </div>
+          <p id="timeline-cursor" className="muted">
+            {preview !== null
+              ? timelineAtLive(preview, end, 1)
+                ? "Release for live"
+                : `Release to view ${date(preview)}`
+              : recorded
+                ? `Viewing ${date(at)}`
+                : ""}
+          </p>
+          <p id="replay-note" role="status">
+            {note}
+          </p>
         </Help>
-        <input
-          ref={input}
-          id="timeline-range"
-          type="range"
-          aria-label="Recorded time"
-          min={start}
-          max={end}
-          step="1"
-          disabled={!available}
-          value={preview ?? at}
-          onInput={(event) => {
-            setPreview(Number(event.currentTarget.value));
+        <PastAssessments
+          scan={past.scan}
+          episodes={past.episodes}
+          filter={filter}
+          onFilter={setFilter}
+          recordings={available}
+          viewingAt={recorded ? observation.now : null}
+          selected={selected}
+          onSelect={(episode) => {
+            setSelected(episode.id);
+            onInspect(episode.at);
           }}
-          onChange={() => undefined}
-          onPointerCancel={() => {
-            setPreview(null);
-          }}
-          onBlur={() => {
-            setPreview(null);
-          }}
-          style={{ width: "100%" }}
+          onLoadOlder={past.loadOlder}
         />
-        <div className="range">
-          <span id="timeline-start">{available ? date(start) : ""}</span>
-          <span id="timeline-end">
-            {recorded ? `Now · ${date(end)}` : "Live"}
-          </span>
-        </div>
-        <p id="timeline-cursor" className="muted">
-          {preview !== null
-            ? timelineAtLive(preview, end, 1)
-              ? "Release for live"
-              : `Release to view ${date(preview)}`
-            : recorded
-              ? `Viewing ${date(at)}`
-              : ""}
-        </p>
-        <p id="replay-note" role="status">
-          {note}
-        </p>
-      </Help>
-      <PastAssessments
-        scan={past.scan}
-        episodes={past.episodes}
-        filter={filter}
-        onFilter={setFilter}
-        recordings={available}
-        viewingAt={recorded ? observation.now : null}
-        selected={selected}
-        onSelect={(episode) => {
-          setSelected(episode.id);
-          onInspect(episode.at);
-        }}
-        onLoadOlder={past.loadOlder}
-      />
+      </Fold>
     </section>
   );
 }

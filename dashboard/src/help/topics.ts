@@ -104,7 +104,7 @@ const topics = {
     title: "Timeline and recorded views",
     scope: "Selected target · collector recordings",
     meaning:
-      "Previous from Live opens the newest recording. Previous and Next select actual recordings. Drag to preview a time, then release to select the recording at or before it. The last selectable step returns to Live. The bar runs from the oldest time the past-assessment list has checked (at least the last 15 minutes) on the left to now on the right; coloured marks above it show when past findings were present.",
+      "Timeline sits below Summary and starts collapsed. Select its header to open or close it. The page saves your choice. Previous from Live opens the newest recording. Previous and Next select actual recordings. Drag to preview a time, then release to select the recording at or before it. The last selectable step returns to Live. The bar runs from the oldest time the past-assessment list has checked (at least the last 15 minutes) on the left to now on the right; coloured marks above it show when past findings were present.",
     example:
       "Select Previous to inspect the latest recorded process state. Select Live or Back to live to return to the retained live or final view.",
     reading:
