@@ -93,6 +93,40 @@ At 1 Hz, at most one heavy scan can run per second. The configured 2-second
 resource interval requests eight scans per second across 16 targets, before
 memory-map scans. The requested intervals therefore cannot all be met.
 
+## Cache and branch misses in thread sampling
+
+Measured on 2026-11-03 at `master` revision
+`168bcb95648a3488188fb12272cb164b23c95ab2`, after the buffer zero-fill
+change. The host was the Intel Core i5-9500 described above. The static
+benchmark used `-O2 -flto=auto`. Its SHA-256 was
+`b8e5a02d97cbdd4fc2c21f094de70593ee8dec958ec66512a744703f216fec23`.
+The host was not isolated.
+
+The existing sampling-loop benchmark read one process with 500 threads: one
+busy thread and 499 sleeping threads. Each trial used a 1-second warm-up and
+2,000 measured batches. The counters include startup and warm-up. They cover
+user mode only, including the benchmark harness, but exclude kernel work. The
+benchmark runs continuously and excludes UDP, resource scans, and memory-map
+scans. It does not measure the full sampler or the 16-target workload above.
+
+| Counter | Trial 1 | Trial 2 | Trial 3 |
+| --- | ---: | ---: | ---: |
+| User instructions | 7,842,335,237 | 7,849,189,527 | 7,869,471,676 |
+| User cache references | 22,943,736 | 26,353,153 | 22,859,134 |
+| User cache misses | 714,533 | 500,027 | 368,359 |
+| Misses / references | 3.11% | 1.90% | 1.61% |
+| User branches | 2,219,724,797 | 2,221,663,767 | 2,227,401,764 |
+| User branch misses | 1,237,145 | 1,233,407 | 1,224,538 |
+| Misses / branches | 0.056% | 0.056% | 0.055% |
+
+`perf stat` reported 100% running time for each event. Generic cache events
+are hardware-dependent and do not count every cache access. Cache misses
+varied substantially across trials, while branch misses were stable. These
+counts do not identify the responsible code or establish a speedup from a
+change. Repeat and profile individual events before selecting an optimisation.
+Run `bash scripts/profile-sampler-misses.sh /path/to/master-checkout` to
+repeat; the script builds the two benchmark binaries in that checkout.
+
 ## Profile and improvement candidates
 
 - **Thread file reads:** In a 5.1-second steady trace, each of
