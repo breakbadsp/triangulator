@@ -2645,6 +2645,31 @@ void TestMemoryMapLayout()
       "a late sample is ignored");
   Require(memory.Snapshot(400).Find("stale")->AsBool(),
           "a sample older than three intervals is stale");
+  // A summary-only sample keeps the last mapping count and its time.
+  auto skipped = MemoryParts(5, {})[0];
+  skipped.values_[memory_wire::Field("vma_count")] = memory_wire::kUnavailable;
+  memory.Accept(skipped, 220);
+  const auto held = memory.Snapshot(220);
+  Require(held.Find("values")->Find("vma_count")->AsInt() == 4 &&
+              held.Find("vma_updated")->AsNumber() == 190,
+          "a skipped scan retains the count and its original timestamp");
+  // A failed scan clears the old count instead of presenting it as current.
+  auto failed = MemoryParts(6, {})[0];
+  failed.values_[memory_wire::Field("vma_count")] = memory_wire::kUnavailable;
+  failed.values_[memory_wire::Field("maps_reads")] = 0;
+  memory.Accept(failed, 250);
+  Require(memory.Snapshot(250).Find("values")->Find("vma_count")->IsNull() &&
+              memory.Snapshot(250).Find("vma_updated")->IsNull(),
+          "a failed scan clears the previous count");
+  memory.Accept(MemoryParts(7, {})[0], 280);
+  memory.PrepareSession(6);
+  auto new_session = MemoryParts(1, {})[0];
+  new_session.header_.session_ = 6;
+  new_session.values_[memory_wire::Field("vma_count")] =
+      memory_wire::kUnavailable;
+  memory.Accept(new_session, 310);
+  Require(memory.Snapshot(310).Find("values")->Find("vma_count")->IsNull(),
+          "a new session does not retain the old count");
 }
 
 // Region parts arrive out of order around a lost summary: summary 1, then

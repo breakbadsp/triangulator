@@ -861,4 +861,4 @@
 - Status: NOT_RUN
 - Driver: judged
 - Test: Run the sampler with `memory_interval_s = 5` on a target that maps and unmaps memory. Watch the Memory section for 30 s, then restart the sampler.
-- Expected: The summary values update every 5 s. The mapping count and the layout update every 10 s, and the first sample after a start has both. Between those updates the mapping count shows "—", the last layout stays and its age grows, and no "map is not readable" note appears.
+- Expected: The summary values update every 5 s. The mapping count and the layout update every 10 s, and the first sample after a start has both. Between scans the last count and layout stay visible, the count shows its scan age relative to the latest sample, and no "map is not readable" note appears. A mapping-limit warning stays visible between scans.

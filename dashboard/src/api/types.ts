@@ -299,6 +299,7 @@ export interface MemorySummary {
   stale?: boolean;
   pid?: number;
   updated?: number;
+  vma_updated?: number | null;
   interval_s?: number;
   layout_id?: string | null;
   flags?: {

@@ -851,7 +851,7 @@ export function memoryTiles(
   tiles.push([
     "Mappings (VMAs)",
     isNum(v.vma_count) ? v.vma_count.toLocaleString() : "—",
-    isNum(vmaShare) ? `${pct(vmaShare)} of vm.max_map_count` : "limit unknown",
+    `${isNum(vmaShare) ? `${pct(vmaShare)} of vm.max_map_count` : "limit unknown"}${isNum(m.vma_updated) && isNum(m.updated) && m.updated > m.vma_updated ? ` · scan ${duration(m.updated - m.vma_updated)} before sample` : ""}`,
     isNum(vmaShare) && vmaShare >= 75,
   ]);
   // The thread samples' rate ten minutes ago, when they reach back that far.
