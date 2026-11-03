@@ -12,7 +12,7 @@
 namespace triangulator
 {
 
-[[nodiscard]] inline std::string_view Trim(std::string_view p_text)
+[[nodiscard]] constexpr std::string_view Trim(std::string_view p_text)
 {
   const auto first = p_text.find_first_not_of(" \t\r\n");
   if (first == std::string_view::npos)
@@ -22,7 +22,7 @@ namespace triangulator
   return p_text.substr(first, p_text.find_last_not_of(" \t\r\n") - first + 1);
 }
 
-[[nodiscard]] inline std::string_view NextToken(std::string_view& p_text)
+[[nodiscard]] constexpr std::string_view NextToken(std::string_view& p_text)
 {
   p_text = Trim(p_text);
   const auto end = p_text.find_first_of(" \t\r\n");
@@ -33,7 +33,8 @@ namespace triangulator
 }
 
 template <typename Number>
-[[nodiscard]] std::optional<Number> ParseNumber(std::string_view p_text)
+[[nodiscard]] constexpr std::optional<Number> ParseNumber(
+    std::string_view p_text)
 {
   if (p_text.empty())
   {
@@ -69,7 +70,7 @@ template <typename Number>
   return value;
 }
 
-[[nodiscard]] inline std::optional<std::uint64_t> ParseHex(
+[[nodiscard]] constexpr std::optional<std::uint64_t> ParseHex(
     std::string_view p_text)
 {
   if (p_text.starts_with("0x") || p_text.starts_with("0X"))
@@ -102,7 +103,7 @@ struct ThreadStat
   std::uint16_t processor_{};
 };
 
-[[nodiscard]] inline std::optional<ThreadStat> ParseStat(
+[[nodiscard]] constexpr std::optional<ThreadStat> ParseStat(
     std::string_view p_text)
 {
   const auto first = p_text.find('(');
@@ -189,7 +190,7 @@ struct ThreadStat
 // Compiler suffixes such as ".constprop.0" or ".isra.0" are dropped.
 using WaitChannel = std::array<char, 32>;
 
-[[nodiscard]] inline WaitChannel ParseWchan(std::string_view p_text)
+[[nodiscard]] constexpr WaitChannel ParseWchan(std::string_view p_text)
 {
   WaitChannel result{};
   p_text = Trim(p_text);
@@ -210,7 +211,8 @@ struct IoCounters
 
 // rchar and wchar from /proc/<pid>/task/<tid>/io: bytes moved by read- and
 // write-family syscalls, including sockets and pipes.
-[[nodiscard]] inline std::optional<IoCounters> ParseIo(std::string_view p_text)
+[[nodiscard]] constexpr std::optional<IoCounters> ParseIo(
+    std::string_view p_text)
 {
   std::optional<std::uint64_t> read;
   std::optional<std::uint64_t> written;
@@ -244,7 +246,7 @@ struct SchedulerCounters
   std::uint64_t timeslices_{};
 };
 
-[[nodiscard]] inline std::optional<SchedulerCounters> ParseSchedstat(
+[[nodiscard]] constexpr std::optional<SchedulerCounters> ParseSchedstat(
     std::string_view p_text)
 {
   auto next = [&p_text]() -> std::string_view
@@ -272,7 +274,7 @@ struct SchedulerCounters
   return SchedulerCounters{*delay, *slices};
 }
 
-[[nodiscard]] inline std::optional<SchedulerCounters> ParseStatus(
+[[nodiscard]] constexpr std::optional<SchedulerCounters> ParseStatus(
     std::string_view p_text)
 {
   std::optional<std::uint64_t> voluntary;
@@ -305,5 +307,44 @@ struct SchedulerCounters
   }
   return SchedulerCounters{*nonvoluntary, *voluntary};
 }
+
+// These helpers read /proc text and do no I/O. The checks below make the
+// compiler run them on fixed input.
+static_assert(Trim(" \t a b\n") == "a b" && Trim(" \n").empty());
+static_assert(
+    []
+    {
+      std::string_view text = " ab cd";
+      return NextToken(text) == "ab" && text == " cd";
+    }());
+static_assert(ParseNumber<int>("-12") == -12 && !ParseNumber<int>("12x") &&
+              !ParseNumber<std::uint64_t>("-1"));
+static_assert(ParseHex("0x1F") == 0x1F && !ParseHex("0x") && !ParseHex("g"));
+static_assert(
+    []
+    {
+      const auto stat = ParseStat(
+          "42 (a b) S 41 0 0 0 0 0 0 0 7 0 100 50 0 0 0 0 0 0 12345 0 0 0 0 0 "
+          "0 0 0 0 0 0 0 0 0 0 0 3");
+      return stat && std::string_view{stat->name_.data()} == "a b" &&
+             stat->state_ == 'S' && stat->parent_pid_ == 41 &&
+             stat->major_faults_ == 7 && stat->utime_ == 100 &&
+             stat->stime_ == 50 && stat->starttime_ == 12345 &&
+             stat->processor_ == 3;
+    }());
+static_assert(!ParseStat("42 (a) S 41"));
+static_assert(std::string_view{ParseWchan(" do_wait.isra.0\n").data()} ==
+                  "do_wait" &&
+              ParseWchan("0")[0] == '\0');
+static_assert(ParseIo("rchar: 5\nwchar: 7\n")->read_bytes_ == 5 &&
+              ParseIo("rchar: 5\nwchar: 7\n")->write_bytes_ == 7 &&
+              !ParseIo("rchar: 5\n"));
+static_assert(ParseSchedstat("1 2 3\n")->run_delay_ == 2 &&
+              ParseSchedstat("1 2 3\n")->timeslices_ == 3 &&
+              !ParseSchedstat("1 2"));
+static_assert(ParseStatus("voluntary_ctxt_switches:\t4\n"
+                          "nonvoluntary_ctxt_switches:\t5\n")
+                      ->run_delay_ == 5 &&
+              !ParseStatus("voluntary_ctxt_switches:\t4\n"));
 
 }  // namespace triangulator

@@ -48,7 +48,7 @@ struct MapsLine
   std::string_view name_;
 };
 
-[[nodiscard]] inline memory_wire::RegionKind ClassifyMapping(
+[[nodiscard]] constexpr memory_wire::RegionKind ClassifyMapping(
     std::string_view p_name)
 {
   using memory_wire::RegionKind;
@@ -74,7 +74,7 @@ struct MapsLine
   return p_name.starts_with('/') ? RegionKind::File : RegionKind::Anonymous;
 }
 
-[[nodiscard]] inline std::optional<MapsLine> ParseMapsLine(
+[[nodiscard]] constexpr std::optional<MapsLine> ParseMapsLine(
     std::string_view p_line)
 {
   auto rest = p_line;
@@ -116,7 +116,7 @@ struct MapsLine
 }
 
 // FNV-1a over p_bytes.
-[[nodiscard]] inline std::uint64_t Fnv1a(
+[[nodiscard]] constexpr std::uint64_t Fnv1a(
     std::span<const std::byte> p_bytes) noexcept
 {
   std::uint64_t hash = 14695981039346656037ull;
@@ -202,7 +202,7 @@ class LayoutBuilder
 };
 
 // Field p_field (1-based, as in proc(5)) of /proc/PID/stat, as a number.
-[[nodiscard]] inline std::optional<std::uint64_t> FindStatField(
+[[nodiscard]] constexpr std::optional<std::uint64_t> FindStatField(
     std::string_view p_text, int p_field)
 {
   const auto last = p_text.rfind(')');
@@ -223,8 +223,8 @@ class LayoutBuilder
 
 // The soft limit in row p_row of /proc/PID/limits, such as "Max stack
 // size". Unlimited, or a missing row, is kUnavailable.
-[[nodiscard]] inline std::uint64_t FindSoftLimit(std::string_view p_text,
-                                                 std::string_view p_row)
+[[nodiscard]] constexpr std::uint64_t FindSoftLimit(std::string_view p_text,
+                                                    std::string_view p_row)
 {
   std::uint64_t result = memory_wire::kUnavailable;
   ForEachLine(p_text,
@@ -240,6 +240,36 @@ class LayoutBuilder
               });
   return result;
 }
+
+// The checks below make the compiler run the helpers on fixed input.
+static_assert(ClassifyMapping("") == memory_wire::RegionKind::Anonymous &&
+              ClassifyMapping("[heap]") == memory_wire::RegionKind::Heap &&
+              ClassifyMapping("[vdso]") == memory_wire::RegionKind::Kernel &&
+              ClassifyMapping("/lib/x.so") == memory_wire::RegionKind::File &&
+              ClassifyMapping("[anon:x]") ==
+                  memory_wire::RegionKind::Anonymous);
+static_assert(
+    []
+    {
+      const auto line =
+          ParseMapsLine("7f00-7f10 r-xp 00001000 08:01 42   /usr/lib/a b.so");
+      return line && line->start_ == 0x7f00 && line->end_ == 0x7f10 &&
+             line->permissions_ ==
+                 (std::to_underlying(memory_wire::Permission::Read) |
+                  std::to_underlying(memory_wire::Permission::Execute)) &&
+             line->kind_ == memory_wire::RegionKind::File &&
+             line->name_ == "/usr/lib/a b.so" &&
+             !ParseMapsLine("7f10-7f00 r-xp 0 08:01 42");
+    }());
+// FNV-1a test vectors: the empty input and "a".
+static_assert(Fnv1a({}) == 14695981039346656037ull &&
+              Fnv1a(std::array{std::byte{'a'}}) == 0xaf63dc4c8601ec8cull);
+static_assert(FindStatField("1 (a) S 7 8", 4) == 7 &&
+              !FindStatField("1 (a) S 7 8", 9) && !FindStatField("1 (a", 4));
+static_assert(FindSoftLimit("Max stack size 8388608 unlimited bytes\n",
+                            "Max stack size") == 8388608 &&
+              FindSoftLimit("Max stack size unlimited unlimited bytes\n",
+                            "Max stack size") == memory_wire::kUnavailable);
 
 // A finished sample. regions_ views the probe's storage and stays valid
 // until the probe's next Start(). It is empty when the layout is unchanged
@@ -325,15 +355,16 @@ class MemoryProbe
     auto& summary = sample_.summary_;
     if (const auto text = Read(FixedString{"/proc/{}/status", p_pid}.CStr()))
     {
-      for (const auto& [key, field] :
-           {std::pair{"VmSize", Field("vm_size_bytes")},
-            std::pair{"VmPeak", Field("vm_peak_bytes")},
-            std::pair{"VmData", Field("vm_data_bytes")},
-            std::pair{"VmStk", Field("vm_stack_bytes")},
-            std::pair{"VmExe", Field("vm_exe_bytes")},
-            std::pair{"VmLib", Field("vm_lib_bytes")},
-            std::pair{"VmPTE", Field("vm_pte_bytes")},
-            std::pair{"VmLck", Field("vm_locked_bytes")}})
+      constexpr std::array<std::pair<std::string_view, std::size_t>, 8> kKeys{
+          {{"VmSize", Field("vm_size_bytes")},
+           {"VmPeak", Field("vm_peak_bytes")},
+           {"VmData", Field("vm_data_bytes")},
+           {"VmStk", Field("vm_stack_bytes")},
+           {"VmExe", Field("vm_exe_bytes")},
+           {"VmLib", Field("vm_lib_bytes")},
+           {"VmPTE", Field("vm_pte_bytes")},
+           {"VmLck", Field("vm_locked_bytes")}}};
+      for (const auto& [key, field] : kKeys)
       {
         summary[field] =
             FindKilobytes(*text, key).value_or(memory_wire::kUnavailable);

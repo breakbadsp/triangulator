@@ -87,7 +87,7 @@ struct DiscoverySlot
 }
 
 // The ID text for a process name: bytes that an ID cannot hold become '_'.
-[[nodiscard]] inline std::array<char, 32> IdBase(std::string_view p_name)
+[[nodiscard]] constexpr std::array<char, 32> IdBase(std::string_view p_name)
 {
   std::array<char, 32> base{};
   for (std::size_t index = 0; index < p_name.size(); ++index)
@@ -107,6 +107,9 @@ struct DiscoverySlot
   }
   return base;
 }
+
+static_assert(std::string_view{IdBase("a b/.-").data()} == "a_b_.-" &&
+              std::string_view{IdBase("..").data()} == "__");
 
 // Owns the discovery slots: which process each one follows and its ID. The
 // sampler owns one TargetSampler for each slot and asks this class, each

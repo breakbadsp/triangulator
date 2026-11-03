@@ -153,7 +153,7 @@ class Directory
 
 // open() failed because this process or the whole system ran out of file
 // descriptors. That is our resource problem, not a sign the file is gone.
-[[nodiscard]] inline bool DescriptorsExhausted(int p_error) noexcept
+[[nodiscard]] constexpr bool DescriptorsExhausted(int p_error) noexcept
 {
   return p_error == EMFILE || p_error == ENFILE;
 }
@@ -206,7 +206,7 @@ inline constexpr std::size_t kTimestampSize = 25;
 // allocate on the first call, and the tick path may do neither. The date
 // follows the civil-from-days method of Howard Hinnant. A time before the
 // epoch gives the epoch.
-[[nodiscard]] inline std::array<char, kTimestampSize> FormatTimestamp(
+[[nodiscard]] constexpr std::array<char, kTimestampSize> FormatTimestamp(
     Nanoseconds p_wall) noexcept
 {
   constexpr std::int64_t kMillisecondsPerDay = 86'400'000;
@@ -263,6 +263,15 @@ inline constexpr std::size_t kTimestampSize = 25;
   put_character(' ');
   return text;
 }
+
+static_assert(std::ranges::equal(
+    FormatTimestamp(0s), std::string_view{"1970-01-01T00:00:00.000Z "}));
+// 2024-02-29 (a leap day) 13:45:07.089 UTC.
+static_assert(std::ranges::equal(FormatTimestamp(1'709'214'307'089ms),
+                                 std::string_view{
+                                     "2024-02-29T13:45:07.089Z "}));
+static_assert(std::ranges::equal(
+    FormatTimestamp(-5s), std::string_view{"1970-01-01T00:00:00.000Z "}));
 
 // Writes warnings to stderr (fd 2) without waiting for a reader. fd 2 often
 // shares its open file description with the shell or supervisor, so its

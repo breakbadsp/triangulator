@@ -20,7 +20,7 @@ namespace triangulator
 
 // Calls p_visit(line) for each line of p_text, without the newline.
 template <typename TVisit>
-void ForEachLine(std::string_view p_text, TVisit&& p_visit)
+constexpr void ForEachLine(std::string_view p_text, TVisit&& p_visit)
 {
   while (!p_text.empty())
   {
@@ -103,7 +103,7 @@ struct DescriptorLimits
 
 // The "Max open files" row of /proc/PID/limits. "unlimited" stays
 // kUnavailable: there is no headroom to report.
-[[nodiscard]] inline std::optional<DescriptorLimits> ParseDescriptorLimits(
+[[nodiscard]] constexpr std::optional<DescriptorLimits> ParseDescriptorLimits(
     std::string_view p_text)
 {
   constexpr std::string_view kRow = "Max open files";
@@ -133,7 +133,7 @@ struct DescriptorLimits
 
 // The value after p_key in "key: value" or "key value" lines (/proc/PID/io,
 // /proc/net/snmp6), or nullopt when the key is missing or not a number.
-[[nodiscard]] inline std::optional<std::uint64_t> FindKeyValue(
+[[nodiscard]] constexpr std::optional<std::uint64_t> FindKeyValue(
     std::string_view p_text, std::string_view p_key)
 {
   std::optional<std::uint64_t> result;
@@ -160,7 +160,7 @@ struct DescriptorLimits
 }
 
 // A "Key:   1234 kB" line of /proc/PID/status, in bytes.
-[[nodiscard]] inline std::optional<std::uint64_t> FindKilobytes(
+[[nodiscard]] constexpr std::optional<std::uint64_t> FindKilobytes(
     std::string_view p_text, std::string_view p_key)
 {
   std::optional<std::uint64_t> result;
@@ -186,7 +186,7 @@ struct DescriptorLimits
 
 // A cgroup file holding one number or "max". "max" means no limit, which has
 // no headroom to report, so it is nullopt like an unreadable file.
-[[nodiscard]] inline std::optional<std::uint64_t> ParseCgroupNumber(
+[[nodiscard]] constexpr std::optional<std::uint64_t> ParseCgroupNumber(
     std::string_view p_text)
 {
   return ParseNumber<std::uint64_t>(Trim(p_text));
@@ -199,7 +199,8 @@ struct CpuMax
 };
 
 // cpu.max: "max 100000" or "50000 100000".
-[[nodiscard]] inline std::optional<CpuMax> ParseCpuMax(std::string_view p_text)
+[[nodiscard]] constexpr std::optional<CpuMax> ParseCpuMax(
+    std::string_view p_text)
 {
   const auto quota = NextToken(p_text);
   const auto period = ParseNumber<std::uint64_t>(NextToken(p_text));
@@ -222,7 +223,7 @@ struct InterfaceCounters
 // interface line parses. Bridges and veth pairs are counted once each, so a
 // packet dropped on a veth and on its bridge counts twice: read the sum as
 // "this namespace is dropping", not as an exact packet count.
-[[nodiscard]] inline std::optional<InterfaceCounters> ParseNetDev(
+[[nodiscard]] constexpr std::optional<InterfaceCounters> ParseNetDev(
     std::string_view p_text)
 {
   InterfaceCounters total;
@@ -269,7 +270,7 @@ struct InterfaceCounters
 // a line of names followed by a line of values with the same prefix:
 //   TcpExt: SyncookiesSent ListenOverflows ...
 //   TcpExt: 0 12 ...
-[[nodiscard]] inline std::optional<std::uint64_t> FindTableCounter(
+[[nodiscard]] constexpr std::optional<std::uint64_t> FindTableCounter(
     std::string_view p_text, std::string_view p_section,
     std::string_view p_name)
 {
@@ -309,7 +310,7 @@ struct InterfaceCounters
 }
 
 // A value from /proc/net/sockstat: "TCP: inuse 23 orphan 0 tw 773 ...".
-[[nodiscard]] inline std::optional<std::uint64_t> FindSockstat(
+[[nodiscard]] constexpr std::optional<std::uint64_t> FindSockstat(
     std::string_view p_text, std::string_view p_protocol,
     std::string_view p_name)
 {
@@ -340,7 +341,7 @@ struct InterfaceCounters
 
 // The cgroup v2 path from /proc/PID/cgroup ("0::/system.slice/x.service").
 // nullopt on a cgroup v1-only host.
-[[nodiscard]] inline std::optional<std::string_view> ParseCgroupPath(
+[[nodiscard]] constexpr std::optional<std::string_view> ParseCgroupPath(
     std::string_view p_text)
 {
   std::optional<std::string_view> result;
@@ -356,7 +357,7 @@ struct InterfaceCounters
 }
 
 // Three numbers separated by blanks, as in net.ipv4.tcp_mem.
-[[nodiscard]] inline std::optional<std::array<std::uint64_t, 3>> ParseTriple(
+[[nodiscard]] constexpr std::optional<std::array<std::uint64_t, 3>> ParseTriple(
     std::string_view p_text)
 {
   std::array<std::uint64_t, 3> result{};
@@ -371,5 +372,35 @@ struct InterfaceCounters
   }
   return result;
 }
+
+// The checks below make the compiler run the parsers on fixed input.
+static_assert(FindKeyValue("rchar: 5\nwchar_x: 6\nwchar: 7\n", "wchar") == 7 &&
+              !FindKeyValue("rchar: 5\n", "wchar"));
+static_assert(FindKilobytes("VmRSS:\t  12 kB\n", "VmRSS") == 12 * 1024 &&
+              !FindKilobytes("VmRSS:\t  12\n", "VmRSS"));
+static_assert(ParseDescriptorLimits("Max open files  1024  4096  files\n")
+                      ->soft_ == 1024 &&
+              !ParseDescriptorLimits("Max cpu time\n"));
+static_assert(ParseCgroupNumber("42\n") == 42 && !ParseCgroupNumber("max\n"));
+static_assert(!ParseCpuMax("max 100000\n")->quota_us_ &&
+              ParseCpuMax("50000 100000\n")->quota_us_ == 50000 &&
+              !ParseCpuMax("max 0\n"));
+static_assert(
+    []
+    {
+      const auto total = ParseNetDev(
+          "  lo: 0 0 9 9 0 0 0 0 0 0 9 9 0 0 0 0\n"
+          "eth0: 0 0 1 2 0 0 0 0 0 0 3 4 0 0 0 0\n");
+      return total && total->rx_errors_ == 1 && total->rx_dropped_ == 2 &&
+             total->tx_errors_ == 3 && total->tx_dropped_ == 4;
+    }());
+static_assert(FindTableCounter("TcpExt: A B\nTcpExt: 1 2\n", "TcpExt", "B") ==
+                  2 &&
+              !FindTableCounter("TcpExt: A B\nTcpExt: 1 2\n", "TcpExt", "C"));
+static_assert(FindSockstat("TCP: inuse 23 orphan 4\n", "TCP", "orphan") == 4);
+static_assert(ParseCgroupPath("0::/a.slice/b\n") == "/a.slice/b" &&
+              !ParseCgroupPath("1:name=x:/\n"));
+static_assert(ParseTriple("1 2 3\n") == std::array<std::uint64_t, 3>{1, 2, 3} &&
+              !ParseTriple("1 2\n"));
 
 }  // namespace triangulator

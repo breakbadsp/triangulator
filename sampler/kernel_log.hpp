@@ -43,7 +43,7 @@ namespace triangulator
 // The message text of one /dev/kmsg record, which is
 // "PRIORITY,SEQUENCE,MICROSECONDS,FLAGS[,...];TEXT\n" and may be followed by
 // " KEY=VALUE\n" lines. nullopt when the record has no ';'.
-[[nodiscard]] inline std::optional<std::string_view> KmsgText(
+[[nodiscard]] constexpr std::optional<std::string_view> KmsgText(
     std::string_view p_record) noexcept
 {
   const auto start = p_record.find(';');
@@ -58,7 +58,7 @@ namespace triangulator
 // The whole number that starts p_text, when digits end it at a character in
 // p_terminators (or at the end of the text). "1234 (app)" is 1234; "1234abc",
 // "12.5" and an 11-digit number are nothing.
-[[nodiscard]] inline std::optional<std::uint32_t> LeadingId(
+[[nodiscard]] constexpr std::optional<std::uint32_t> LeadingId(
     std::string_view p_text, std::string_view p_terminators)
 {
   std::size_t length = 0;
@@ -78,7 +78,7 @@ namespace triangulator
 // Whether any occurrence of p_key in p_text is followed by an id from
 // p_sorted_ids. p_word_start asks for a character that cannot belong to a
 // longer name in front of the key, so "pid=" does not match inside "ppid=".
-[[nodiscard]] inline bool KeyNamesId(
+[[nodiscard]] constexpr bool KeyNamesId(
     std::string_view p_text, std::string_view p_key,
     std::string_view p_terminators, bool p_word_start,
     std::span<const std::uint32_t> p_sorted_ids)
@@ -108,7 +108,7 @@ namespace triangulator
 // Whether p_text has "comm[1234]" with an id from p_sorted_ids: the thread
 // name and ID the kernel prints for a fault. A bracket at the start of the
 // text or after a space is not a task.
-[[nodiscard]] inline bool NamesBracketedId(
+[[nodiscard]] constexpr bool NamesBracketedId(
     std::string_view p_text, std::span<const std::uint32_t> p_sorted_ids)
 {
   for (auto at = p_text.find('['); at != std::string_view::npos;
@@ -129,7 +129,7 @@ namespace triangulator
 
 // Whether p_text is the hung-task warning "INFO: task comm:1234 blocked" for
 // an id from p_sorted_ids. The thread name may itself contain ':'.
-[[nodiscard]] inline bool NamesHungTask(
+[[nodiscard]] constexpr bool NamesHungTask(
     std::string_view p_text, std::span<const std::uint32_t> p_sorted_ids)
 {
   constexpr std::string_view kKey = "task ";
@@ -158,8 +158,8 @@ namespace triangulator
 // "CPU: 1 PID: 1234 Comm: comm" and "INFO: task comm:1234 blocked". Other
 // numbers that equal an id, such as a fault address or a user ID, do not
 // count.
-[[nodiscard]] inline bool NamesTask(std::string_view p_text,
-                                    std::span<const std::uint32_t> p_sorted_ids)
+[[nodiscard]] constexpr bool NamesTask(
+    std::string_view p_text, std::span<const std::uint32_t> p_sorted_ids)
 {
   return KeyNamesId(p_text, "Killed process ", " )", false, p_sorted_ids) ||
          KeyNamesId(p_text, "Kill process ", " )", false, p_sorted_ids) ||
@@ -174,8 +174,8 @@ namespace triangulator
 // "Killed process 1234 (name)", "task=name,pid=1234," in the OOM killer's
 // summary, "PID: 1234 Comm: name" and "INFO: task name:1234 blocked". For a
 // sampler in a nested PID namespace, where the IDs in the log are not its own.
-[[nodiscard]] inline bool NamesTaskCalled(std::string_view p_text,
-                                          std::string_view p_name)
+[[nodiscard]] constexpr bool NamesTaskCalled(std::string_view p_text,
+                                             std::string_view p_name)
 {
   if (p_name.empty())
   {
@@ -214,6 +214,28 @@ namespace triangulator
   }
   return false;
 }
+
+static_assert(KmsgText("6,1,2,-;a b\n SUBSYSTEM=x\n") == "a b" &&
+              !KmsgText("no separator"));
+static_assert(LeadingId("1234 (app)", " ") == 1234 &&
+              !LeadingId("1234abc", " ") && !LeadingId("12345678901", ""));
+static_assert(
+    []
+    {
+      constexpr std::array<std::uint32_t, 2> kIds{7, 1234};
+      return NamesTask("app[1234]: segfault at 0", kIds) &&
+             NamesTask("Killed process 7 (app)", kIds) &&
+             NamesTask("oom: pid=1234, uid=0", kIds) &&
+             NamesTask("CPU: 1 PID: 7 Comm: app", kIds) &&
+             NamesTask("INFO: task a:b:1234 blocked", kIds) &&
+             !NamesTask("oom: ppid=1234, uid=0", kIds) &&
+             !NamesTask("segfault at 1234 ip 0", kIds);
+    }());
+static_assert(NamesTaskCalled("app[9]: segfault", "app") &&
+              NamesTaskCalled("Killed process 9 (app)", "app") &&
+              NamesTaskCalled("task=app,pid=9,uid=0", "app") &&
+              !NamesTaskCalled("myapp[9]: segfault", "app") &&
+              !NamesTaskCalled("app[9]: segfault", ""));
 
 // Whether this process is in the initial PID namespace, whose PIDs the
 // kernel log uses. p_path is /proc/self/ns/pid, a link to "pid:[INODE]";

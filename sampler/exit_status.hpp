@@ -66,7 +66,7 @@ inline constexpr std::uint64_t kPidfdInfoExit = 1U << 3;
 // The exit status in field 52 of /proc/PID/stat, in waitpid(2) form. The
 // kernel sets it when the process ends; it is zero while the process runs.
 // nullopt when the field is missing (before Linux 3.5) or not a status.
-[[nodiscard]] inline std::optional<std::int32_t> ParseExitCode(
+[[nodiscard]] constexpr std::optional<std::int32_t> ParseExitCode(
     std::string_view p_stat)
 {
   constexpr int kExitCodeField = 52;
@@ -93,6 +93,20 @@ inline constexpr std::uint64_t kPidfdInfoExit = 1U << 3;
   }
   return value;
 }
+
+static_assert(
+    []
+    {
+      // Fields 3 to 51 are zero; field 52 is the wait status.
+      std::string stat = "1 (a b)";
+      for (int field = 3; field <= 51; ++field)
+      {
+        stat += " 0";
+      }
+      return ParseExitCode(stat + " 256") == 256 &&
+             !ParseExitCode(stat + " -1") && !ParseExitCode(stat) &&
+             !ParseExitCode("1 a");
+    }());
 
 // Holds a pidfd for the current target, so its exit status can be read
 // after it ends. Allocates nothing.

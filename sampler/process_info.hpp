@@ -30,7 +30,7 @@ namespace triangulator
 
 // The value of line "Key:<tab>value" of /proc/PID/status, without the
 // surrounding white space, or nullopt when the key is missing.
-[[nodiscard]] inline std::optional<std::string_view> FindStatusText(
+[[nodiscard]] constexpr std::optional<std::string_view> FindStatusText(
     std::string_view p_text, std::string_view p_key)
 {
   std::optional<std::string_view> result;
@@ -56,7 +56,7 @@ struct IdPair
   std::uint32_t effective_ = process_wire::kUnavailable32;
 };
 
-[[nodiscard]] inline IdPair ParseIdPair(std::string_view p_value)
+[[nodiscard]] constexpr IdPair ParseIdPair(std::string_view p_value)
 {
   const auto real = ParseNumber<std::uint32_t>(NextToken(p_value));
   const auto effective = ParseNumber<std::uint32_t>(NextToken(p_value));
@@ -125,7 +125,7 @@ struct ExePath
   bool deleted_ = false;
 };
 
-[[nodiscard]] inline ExePath SplitDeleted(std::string_view p_link)
+[[nodiscard]] constexpr ExePath SplitDeleted(std::string_view p_link)
 {
   constexpr std::string_view kSuffix = " (deleted)";
   if (p_link.ends_with(kSuffix))
@@ -137,7 +137,8 @@ struct ExePath
 
 // The command line with the NUL separators of /proc/PID/cmdline replaced by
 // spaces, in place, and without the trailing NULs.
-[[nodiscard]] inline std::string_view JoinCommandLine(std::span<char> p_bytes)
+[[nodiscard]] constexpr std::string_view JoinCommandLine(
+    std::span<char> p_bytes)
 {
   auto length = p_bytes.size();
   while (length > 0 && p_bytes[length - 1] == '\0')
@@ -154,10 +155,10 @@ struct ExePath
 // boot. Zero when the clocks or the tick rate are not usable, or the result
 // would be before the epoch. The ticks are split into seconds and a rest so
 // the product cannot overflow.
-[[nodiscard]] inline std::uint64_t StartedWallNs(std::uint64_t p_starttime,
-                                                 long p_ticks_per_s,
-                                                 Nanoseconds p_realtime,
-                                                 Nanoseconds p_boottime)
+[[nodiscard]] constexpr std::uint64_t StartedWallNs(std::uint64_t p_starttime,
+                                                    long p_ticks_per_s,
+                                                    Nanoseconds p_realtime,
+                                                    Nanoseconds p_boottime)
 {
   if (p_ticks_per_s <= 0 || p_boottime.count() <= 0 || p_realtime < p_boottime)
   {
@@ -319,5 +320,24 @@ class ProcessInfoProbe
   // for a path (PATH_MAX is 4,096).
   std::array<char, 8192> buffer_{};
 };
+
+// The checks below make the compiler run the helpers on fixed input.
+static_assert(FindStatusText("Name:\tx\nSeccomp:\t 2 \n", "Seccomp") == "2");
+static_assert(ParseIdPair("1000\t1001\t1\t1").real_ == 1000 &&
+              ParseIdPair("1000\t1001\t1\t1").effective_ == 1001 &&
+              ParseIdPair("1000").real_ == process_wire::kUnavailable32);
+static_assert(SplitDeleted("/bin/x (deleted)").path_ == "/bin/x" &&
+              SplitDeleted("/bin/x (deleted)").deleted_ &&
+              !SplitDeleted("/bin/x").deleted_);
+static_assert(
+    []
+    {
+      std::array<char, 6> bytes{'a', '\0', 'b', '\0', '\0', '\0'};
+      return JoinCommandLine(bytes) == "a b";
+    }());
+// 100 ticks per second: start time 250 ticks is 2.5 s after boot.
+static_assert(StartedWallNs(250, 100, 10s, 4s) == 8'500'000'000 &&
+              StartedWallNs(250, 0, 10s, 4s) == 0 &&
+              StartedWallNs(250, 100, 3s, 4s) == 0);
 
 }  // namespace triangulator
