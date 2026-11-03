@@ -24,6 +24,9 @@ import benchmark_sampler as bench
 ROOT = bench.ROOT
 BINARY = ROOT / 'build/triangulator-sampler-capacity'
 MODE = 'capacity-v1: no CPU budget; no deadline wait'
+# Wall time may slew by tens of ppm over a window. A larger gap is a clock step,
+# which would make the wall-clock latency meaningless.
+MAX_CLOCK_DRIFT_NS = 5_000_000
 
 
 def require_capacity_binary(binary):
@@ -67,6 +70,19 @@ def task_ids(pid):
     return {int(path.name) for path in Path(f'/proc/{pid}/task').iterdir()}
 
 
+def latency_summary(latencies):
+    return {'p50_ms': bench.percentile(latencies, 50), 'p95_ms': bench.percentile(latencies, 95),
+            'p99_ms': bench.percentile(latencies, 99), 'max_ms': max(latencies)}
+
+
+def peak_rss_mib(pid):
+    # VmHWM is the kernel's high-water mark since process start: warm-up and startup included.
+    for line in (Path('/proc') / str(pid) / 'status').read_text().splitlines():
+        if line.startswith('VmHWM:'):
+            return int(line.split()[1]) / 1024
+    raise RuntimeError('process status has no VmHWM field')
+
+
 def window(stream, sampler, target, seconds, keep=True):
     first, _ = bench.wait_sample(stream, sampler, target, time.monotonic() + 10)
     start = bench.cpu_snapshot(sampler.pid)
@@ -85,6 +101,9 @@ def window(stream, sampler, target, seconds, keep=True):
     finish = bench.cpu_snapshot(sampler.pid)
     cpu_percent = 100 * (finish[1] - start[1]) / (finish[0] - start[0])
     elapsed = (last.monotonic_ns - first.monotonic_ns) / 1e9
+    drift_ns = abs((last.wall_ns - first.wall_ns) - (last.monotonic_ns - first.monotonic_ns))
+    if keep and drift_ns > MAX_CLOCK_DRIFT_NS:
+        raise RuntimeError('wall clock changed relative to the monotonic clock; latency is invalid')
     if keep and (ticks < 2 or ticks / elapsed <= 10 or cpu_percent <= 10):
         raise RuntimeError('capacity was not demonstrated: require >10 ticks/s and >10% sampler CPU')
     if task_ids(target.pid) != stream.thread_ids or len(task_ids(sampler.pid)) != 1:
@@ -93,6 +112,8 @@ def window(stream, sampler, target, seconds, keep=True):
         'elapsed_s': elapsed, 'ticks': ticks, 'thread_records': ticks * len(stream.thread_ids),
         'delivered_records_per_s': ticks * len(stream.thread_ids) / elapsed,
         'sampler_cpu_percent': cpu_percent,
+        'latency': latency_summary([row[2] for row in rows]) if rows else None,
+        'clock_drift_ms': drift_ns / 1e6,
         'sampler_cpu_s': (finish[1] - start[1]) / 1e9,
         'receiver_cpu_s': (time.process_time_ns() - receiver_start) / 1e9,
         'first_sample': [first.sequence, first.monotonic_ns],
@@ -134,6 +155,7 @@ def trial(binary, threads, duration, warmup):
                 # A further complete tick closes the trailing packet/sequence boundary.
                 bench.wait_sample(stream, sampler, target, time.monotonic() + 10)
                 require_scheduled_work(stream.datagrams, warmup + duration)
+                result['sampler_peak_rss_mib'] = peak_rss_mib(sampler.pid)
                 bench.check_sampler_log(bench.read_sampler_log(sampler))
             except (OSError, ValueError, RuntimeError) as error:
                 raise RuntimeError(f'{error}; sampler log: {bench.read_sampler_log(sampler)}') from error
@@ -154,11 +176,48 @@ def check_baseline(current, baseline):
         raise ValueError('baseline has no usable runs')
 
 
+def median_latency(runs, key):
+    return statistics.median(run['latency'][key] for run in runs)
+
+
 def comparison(current, baseline):
     check_baseline(current, baseline)
     old = statistics.median(run['delivered_records_per_s'] for run in baseline['runs'])
     new = statistics.median(run['delivered_records_per_s'] for run in current['runs'])
-    return {'baseline_median_records_per_s': old, 'change_percent': 100 * (new / old - 1)}
+    result = {'baseline_median_records_per_s': old, 'change_percent': 100 * (new / old - 1)}
+    # A baseline from before latency was recorded still compares for throughput.
+    try:
+        old_p95 = median_latency(baseline['runs'], 'p95_ms')
+        new_p95 = median_latency(current['runs'], 'p95_ms')
+    except (KeyError, TypeError):
+        return result
+    if old_p95 > 0:
+        result.update(baseline_median_latency_p95_ms=old_p95,
+                      latency_p95_change_percent=100 * (new_p95 / old_p95 - 1))
+    return result
+
+
+def format_report(report, output):
+    """Return the summary lines: throughput, latency, CPU, and peak RSS."""
+    latency, cpu = report['latency'], report['sampler_cpu_percent']
+    lines = [
+        f"Capacity benchmark: {report['threads']} threads, {report['repeats']} runs of "
+        f"{report['duration_s']:g} s (warm-up {report['warmup_s']:g} s)",
+        f"  Throughput   median {report['median_records_per_s']:.1f} thread records/s "
+        f"(min {report['min_records_per_s']:.1f}, max {report['max_records_per_s']:.1f})",
+        f"  Tick latency median of runs: p50 {latency['median_p50_ms']:.3f} ms, "
+        f"p95 {latency['median_p95_ms']:.3f} ms, p99 {latency['median_p99_ms']:.3f} ms; "
+        f"worst {latency['max_ms']:.3f} ms",
+        f"  Sampler CPU  median {cpu['median']:.1f}% of one core (max {cpu['max']:.1f}%)",
+        f"  Peak RSS     {report['sampler_peak_rss_mib']:.1f} MiB (sampler, whole run)",
+    ]
+    comparison = report.get('comparison')
+    if comparison:
+        lines.append(f"  Throughput change vs baseline: {comparison['change_percent']:+.2f}%")
+        if 'latency_p95_change_percent' in comparison:
+            lines.append(f"  Latency p95 change vs baseline: {comparison['latency_p95_change_percent']:+.2f}%")
+    lines.append(f'  Report: {output}')
+    return lines
 
 
 def main():
@@ -205,6 +264,9 @@ def main():
         'repeats': args.repeats, 'busy_target_threads': 1, 'configured_budget_pct': 1,
         'resource_interval_s': 5, 'memory_interval_s': 30, 'runs': [],
         'limit': 'local delivered capacity; includes receiver and host contention; not collector ingestion',
+        'latency_method': 'last kernel arrival of the tick (SO_TIMESTAMPNS_NEW) - TMON wall_ns; '
+                          'includes proc reads, encode, loopback UDP; excludes receiver scheduling '
+                          'and resource or memory-map work; the sampler is saturated, not at a production rate',
         'raw_sample_columns': ['sequence', 'monotonic_ns', 'complete_latency_ms'],
     }
     # Reject an unusable baseline now: a failure after the runs would discard them.
@@ -223,12 +285,16 @@ def main():
     report['median_records_per_s'] = statistics.median(rates)
     report['min_records_per_s'] = min(rates)
     report['max_records_per_s'] = max(rates)
+    cpu = [run['sampler_cpu_percent'] for run in report['runs']]
+    report['sampler_cpu_percent'] = {'median': statistics.median(cpu), 'max': max(cpu)}
+    report['sampler_peak_rss_mib'] = max(run['sampler_peak_rss_mib'] for run in report['runs'])
+    report['latency'] = {f'median_{key}': median_latency(report['runs'], key)
+                         for key in ('p50_ms', 'p95_ms', 'p99_ms')}
+    report['latency']['max_ms'] = max(run['latency']['max_ms'] for run in report['runs'])
     if args.baseline:
         report['comparison'] = comparison(report, baseline)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
-    print(f"Local delivered capacity: {report['median_records_per_s']:.1f} thread records/s; {args.output}")
-    if args.baseline:
-        print(f"Change: {report['comparison']['change_percent']:+.2f}%")
+    print('\n'.join(format_report(report, args.output)))
 
 
 if __name__ == '__main__':

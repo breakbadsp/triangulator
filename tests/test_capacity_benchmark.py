@@ -41,6 +41,39 @@ class CapacityTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 capacity.comparison(report, dict(baseline, **{key: None}))
 
+    def test_latency_summary_uses_nearest_rank(self):
+        summary = capacity.latency_summary([float(value) for value in range(100, 0, -1)])
+        self.assertEqual(summary, {'p50_ms': 50, 'p95_ms': 95, 'p99_ms': 99, 'max_ms': 100})
+
+    def test_comparison_reports_latency_when_both_runs_have_it(self):
+        report = dict(schema_version=1, method='continuous', threads=101, duration_s=6,
+                      warmup_s=1, repeats=2, build_options='c++ -O2', cpu_model='cpu',
+                      kernel='linux', allowed_cpus=[0], complete=True,
+                      workload_source_sha256='target', receiver_source_sha256='receiver')
+
+        def runs(*p95):
+            return [{'delivered_records_per_s': 100, 'latency': {'p95_ms': value}} for value in p95]
+        result = capacity.comparison(dict(report, runs=runs(3, 5, 4)), dict(report, runs=runs(2, 2)))
+        self.assertEqual(result['latency_p95_change_percent'], 100)
+        self.assertEqual(result['baseline_median_latency_p95_ms'], 2)
+        # A baseline recorded before latency existed still compares throughput.
+        old = dict(report, runs=[{'delivered_records_per_s': 100}])
+        self.assertNotIn('latency_p95_change_percent', capacity.comparison(dict(report, runs=runs(3)), old))
+
+    def test_summary_shows_throughput_latency_cpu_and_rss(self):
+        report = dict(threads=100, repeats=2, duration_s=35, warmup_s=5, median_records_per_s=150000,
+                      min_records_per_s=149000, max_records_per_s=151000,
+                      latency=dict(median_p50_ms=0.6, median_p95_ms=0.7, median_p99_ms=0.9, max_ms=7.2),
+                      sampler_cpu_percent=dict(median=98.5, max=99.1), sampler_peak_rss_mib=12.5,
+                      comparison=dict(change_percent=-1.5, latency_p95_change_percent=3))
+        text = '\n'.join(capacity.format_report(report, 'out.json'))
+        for expected in ('150000.0 thread records/s', 'p95 0.700 ms', 'worst 7.200 ms',
+                         '98.5% of one core', '12.5 MiB', '-1.50%', '+3.00%'):
+            self.assertIn(expected, text)
+
+    def test_peak_rss_reads_the_kernel_high_water_mark(self):
+        self.assertGreater(capacity.peak_rss_mib(os.getpid()), 1)
+
     def test_baseline_without_usable_runs_is_rejected(self):
         report = dict(schema_version=1, method='continuous', threads=101, duration_s=6,
                       warmup_s=1, repeats=2, build_options='c++ -O2', cpu_model='cpu',
@@ -102,12 +135,19 @@ class CapacityTests(unittest.TestCase):
             report = json.loads(output.read_text())
             self.assertTrue(report['complete'])
             self.assertEqual(len(report['runs']), 2)
+            self.assertEqual(report['sampler_peak_rss_mib'], max(run['sampler_peak_rss_mib'] for run in report['runs']))
+            self.assertGreater(report['sampler_cpu_percent']['median'], 10)
+            self.assertEqual(report['latency']['max_ms'], max(run['latency']['max_ms'] for run in report['runs']))
             for run in report['runs']:
                 self.assertEqual(len(set(run['thread_ids'])), 101)
                 self.assertEqual(run['ticks'], len(run['samples']))
                 self.assertEqual(run['thread_records'], 101 * run['ticks'])
                 self.assertGreater(run['delivered_records_per_s'], 1010)
                 self.assertGreater(run['sampler_cpu_percent'], 10)
+                self.assertGreater(run['sampler_peak_rss_mib'], 0)
+                latency = run['latency']
+                self.assertTrue(0 < latency['p50_ms'] <= latency['p95_ms'] <= latency['p99_ms'] <= latency['max_ms'])
+                self.assertEqual(latency['max_ms'], max(row[2] for row in run['samples']))
                 self.assertGreaterEqual(run['elapsed_s'], 6)
                 sequences = [run['first_sample'][0]] + [row[0] for row in run['samples']]
                 self.assertEqual(sequences, list(range(sequences[0], sequences[-1] + 1)))
