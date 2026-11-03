@@ -22,7 +22,7 @@ Python 3, GCC, and a working user systemd manager are required.
 bugbench-session                         # start or resume the saved scenario
 bugbench-session list
 bugbench-session next
-bugbench-session previous
+bugbench-session prev                    # previous is also supported
 bugbench-session run fd-leak --seconds 300
 bugbench-session status
 bugbench-session stop

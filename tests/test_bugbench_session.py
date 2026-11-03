@@ -59,6 +59,11 @@ class CommandTest(unittest.TestCase):
         self.assertIn("Unknown scenario", result.stderr)
         self.assertFalse((self.home / "bugbench-session/state.json").exists())
 
+    def test_prev_at_start_reports_boundary(self):
+        result = self.run_command("prev")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No previous scenario", result.stdout)
+
     def test_invalid_arguments_do_not_create_a_session(self):
         for arguments in [("run",), ("run", "healthy", "--seconds", "0"),
                           ("--seconds", "-1")]:
