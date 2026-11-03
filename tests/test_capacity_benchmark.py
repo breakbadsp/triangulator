@@ -71,6 +71,22 @@ class CapacityTests(unittest.TestCase):
                          '98.5% of one core', '12.5 MiB', '-1.50%', '+3.00%'):
             self.assertIn(expected, text)
 
+    def test_markdown_summary_has_bars_and_baseline_change(self):
+        report = dict(threads=100, repeats=2, duration_s=35, warmup_s=5, median_records_per_s=150000,
+                      min_records_per_s=149000, max_records_per_s=151000,
+                      runs=[dict(delivered_records_per_s=149000), dict(delivered_records_per_s=151000)],
+                      latency=dict(median_p50_ms=0.6, median_p95_ms=2.0, median_p99_ms=4.0, max_ms=7.2),
+                      sampler_cpu_percent=dict(median=98.5, max=99.1), sampler_peak_rss_mib=12.5,
+                      comparison=dict(change_percent=-1.5, latency_p95_change_percent=3))
+        text = '\n'.join(capacity.format_markdown(report))
+        for expected in ('**150,000** records/s', '**2.000** ms', '**98.5%**', '**12.5** MiB',
+                         '| Throughput | -1.50% |', '| Latency p95 | +3.00% |', 'worst '):
+            self.assertIn(expected, text)
+        # The slowest tick fills the bar; a faster one is shorter and never empty.
+        rows = {line.split()[0]: line.count('\u2588') for line in text.splitlines() if '\u2588' in line}
+        self.assertEqual(rows['worst'], 32)
+        self.assertTrue(0 < rows['p50'] < rows['p95'] < rows['p99'] < 32)
+
     def test_peak_rss_reads_the_kernel_high_water_mark(self):
         self.assertGreater(capacity.peak_rss_mib(os.getpid()), 1)
 
@@ -133,6 +149,7 @@ class CapacityTests(unittest.TestCase):
                                      '--output', str(output)], capture_output=True, text=True, timeout=45)
             self.assertEqual(result.returncode, 0, result.stderr)
             report = json.loads(output.read_text())
+            self.assertIn('Tick latency', output.with_suffix('.md').read_text())
             self.assertTrue(report['complete'])
             self.assertEqual(len(report['runs']), 2)
             self.assertEqual(report['sampler_peak_rss_mib'], max(run['sampler_peak_rss_mib'] for run in report['runs']))

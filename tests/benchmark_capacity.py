@@ -220,6 +220,38 @@ def format_report(report, output):
     return lines
 
 
+def bar(value, scale, width=32):
+    return '\u2588' * max(1, round(width * value / scale))
+
+
+def format_markdown(report):
+    """Return a GitHub-flavoured summary with bar charts, ready to paste into a pull request."""
+    latency, cpu = report['latency'], report['sampler_cpu_percent']
+    steps = [('p50', latency['median_p50_ms']), ('p95', latency['median_p95_ms']),
+             ('p99', latency['median_p99_ms']), ('worst', latency['max_ms'])]
+    lines = [
+        f"### Sampler capacity: {report['threads']} threads, {report['repeats']} runs of "
+        f"{report['duration_s']:g} s (warm-up {report['warmup_s']:g} s)", '',
+        '| Throughput | Latency p95 | Sampler CPU | Peak RSS |', '|---|---|---|---|',
+        f"| **{report['median_records_per_s']:,.0f}** records/s | **{latency['median_p95_ms']:.3f}** ms | "
+        f"**{cpu['median']:.1f}%** of one core | **{report['sampler_peak_rss_mib']:.1f}** MiB |", '',
+        '**Tick latency** (ms, median of runs; worst is the slowest single tick)', '', '```',
+        *(f'{name:<6}{bar(value, latency["max_ms"]):<32} {value:.3f}' for name, value in steps), '```', '',
+        '**Throughput per run** (records/s)', '', '```',
+        *(f"run {number}  {bar(run['delivered_records_per_s'], report['max_records_per_s']):<32} "
+          f"{run['delivered_records_per_s']:,.0f}" for number, run in enumerate(report['runs'], 1)),
+        '```']
+    comparison = report.get('comparison')
+    if comparison:
+        lines += ['', '| vs baseline | Change |', '|---|---|',
+                  f"| Throughput | {comparison['change_percent']:+.2f}% |"]
+        if 'latency_p95_change_percent' in comparison:
+            lines.append(f"| Latency p95 | {comparison['latency_p95_change_percent']:+.2f}% |")
+    lines += ['', '_Latency is measured with the sampler saturated, not at a production rate. '
+              'Peak RSS includes start-up and warm-up._']
+    return lines
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, default=BINARY)
@@ -234,6 +266,8 @@ def main():
             or not math.isfinite(args.duration) or args.duration < 6
             or not math.isfinite(args.warmup) or args.warmup < 1):
         parser.error('require 1..500 threads, positive repeats, duration >=6 s, warmup >=1 s')
+    if args.output.suffix == '.md':
+        parser.error('output is the JSON report; the Markdown summary uses the same name with .md')
     if args.baseline and args.baseline.resolve() == args.output.resolve():
         parser.error('baseline and output must be different files')
     binary = args.binary.resolve()
@@ -294,7 +328,10 @@ def main():
     if args.baseline:
         report['comparison'] = comparison(report, baseline)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
+    summary = args.output.with_suffix('.md')
+    summary.write_text('\n'.join(format_markdown(report)) + '\n')
     print('\n'.join(format_report(report, args.output)))
+    print(f'  Markdown: {summary} (paste into the pull request)')
 
 
 if __name__ == '__main__':
