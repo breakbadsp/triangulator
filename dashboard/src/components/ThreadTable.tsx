@@ -233,106 +233,93 @@ export function ThreadTable({
   return (
     <div id="thread-details" className="card" style={{ marginTop: 14 }}>
       <div className="card-head">
-        <Help topic="active" as="div">
-          <h3>Thread details</h3>
-        </Help>
+        <h3>Thread details</h3>
       </div>
       <div className="toolbar">
-        <Help topic="active" as="div">
-          <div className="seg" role="group" aria-label="Which threads to show">
-            {ACTIVITIES.map(([activity, label]) => (
-              <button
-                key={activity}
-                type="button"
-                data-activity={activity}
-                aria-pressed={threadView.activity === activity}
-                onClick={() => {
-                  dispatch({ type: "activity", activity });
-                }}
-              >
-                {label}{" "}
-                <span id={`n-${activity}`} className="muted">
-                  {table.counts[activity]}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Help>
-        <Help topic="thread">
-          <input
-            ref={search}
-            id="search"
-            type="search"
-            placeholder="Thread name, TID or wait channel"
-            aria-label="Find thread"
-            value={threadView.search}
+        <div className="seg" role="group" aria-label="Which threads to show">
+          {ACTIVITIES.map(([activity, label]) => (
+            <button
+              key={activity}
+              type="button"
+              data-activity={activity}
+              aria-pressed={threadView.activity === activity}
+              onClick={() => {
+                dispatch({ type: "activity", activity });
+              }}
+            >
+              {label}{" "}
+              <span id={`n-${activity}`} className="muted">
+                {table.counts[activity]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <input
+          ref={search}
+          id="search"
+          type="search"
+          placeholder="Thread name, TID or wait channel"
+          aria-label="Find thread"
+          value={threadView.search}
+          onChange={(event) => {
+            dispatch({ type: "search", search: event.target.value });
+          }}
+        />
+
+        <label>
+          Group{" "}
+          <select
+            id="group"
+            value={threadView.group}
             onChange={(event) => {
-              dispatch({ type: "search", search: event.target.value });
-            }}
-          />
-        </Help>
-        <Help topic="group">
-          <label>
-            Group{" "}
-            <select
-              id="group"
-              value={threadView.group}
-              onChange={(event) => {
-                dispatch({ type: "group", group: event.target.value });
-              }}
-            >
-              <option value="">All groups</option>
-              {Object.entries(view?.groups ?? {}).map(([name, count]) => (
-                <option key={name} value={name}>
-                  {`${name} (${String(count)})`}
-                </option>
-              ))}
-            </select>
-          </label>
-        </Help>
-        <Help topic="active">
-          <label>
-            Sort{" "}
-            <select
-              id="sort"
-              value={threadView.sort}
-              onChange={(event) => {
-                dispatch({
-                  type: "sort",
-                  sort: event.target.value as SortKey,
-                });
-              }}
-            >
-              {SORTS.map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </Help>
-        <Help topic="active">
-          <button
-            id="clear-filters"
-            type="button"
-            onClick={() => {
-              dispatch({ type: "clear" });
+              dispatch({ type: "group", group: event.target.value });
             }}
           >
-            Clear filters
-          </button>
-        </Help>
+            <option value="">All groups</option>
+            {Object.entries(view?.groups ?? {}).map(([name, count]) => (
+              <option key={name} value={name}>
+                {`${name} (${String(count)})`}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Sort{" "}
+          <select
+            id="sort"
+            value={threadView.sort}
+            onChange={(event) => {
+              dispatch({
+                type: "sort",
+                sort: event.target.value as SortKey,
+              });
+            }}
+          >
+            {SORTS.map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          id="clear-filters"
+          type="button"
+          onClick={() => {
+            dispatch({ type: "clear" });
+          }}
+        >
+          Clear filters
+        </button>
       </div>
       <div id="threads-live" {...holdHandlers}>
-        <Help topic="states" as="div" className="chips-title">
-          State / block type
-        </Help>
+        <div className="chips-title">State / block type</div>
         <div id="state-chips" className="chips">
           {states.map((chip) => (
-            <Help
-              key={chip.value}
-              topic={isHelpTopicId(chip.value) ? chip.value : "active"}
-            >
+            <span key={chip.value}>
               <button
                 type="button"
                 className="chip"
@@ -345,18 +332,18 @@ export function ThreadTable({
                 <span>{chip.label}</span>
                 <span className="count">{chip.count}</span>
               </button>
-            </Help>
+            </span>
           ))}
         </div>
-        <Help topic="wchan" as="div" className="chips-title">
+        <div className="chips-title">
           Wait channel{" "}
           <span style={{ textTransform: "none", letterSpacing: 0 }}>
             (kernel function the thread is blocked in)
           </span>
-        </Help>
+        </div>
         <div id="wchan-chips" className="chips">
           {wchans.map((chip) => (
-            <Help key={chip.value} topic={chip.value ? "wchan" : "active"}>
+            <span key={chip.value}>
               <button
                 type="button"
                 className="chip mono"
@@ -368,7 +355,7 @@ export function ThreadTable({
                 <span>{chip.label}</span>
                 <span className="count">{chip.count}</span>
               </button>
-            </Help>
+            </span>
           ))}
         </div>
         <p
@@ -377,7 +364,7 @@ export function ThreadTable({
           style={{ margin: "0 0 8px", fontSize: 13 }}
         >
           {table.idleSummary && (
-            <Help topic="active">
+            <span>
               {table.idleSummary}
               <button
                 type="button"
@@ -388,7 +375,7 @@ export function ThreadTable({
               >
                 Show them
               </button>
-            </Help>
+            </span>
           )}
         </p>
         <div className="table-wrap">
@@ -416,7 +403,7 @@ export function ThreadTable({
                         : undefined
                     }
                   >
-                    <Help topic={column.topic}>{column.label}</Help>
+                    {column.label}
                   </th>
                 ))}
               </tr>

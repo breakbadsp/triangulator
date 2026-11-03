@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { LiveResponse, MemorySummary, PressureScope } from "../api/types";
 import { Help } from "../help/Help";
-import type { HelpTopicId } from "../help/topics";
 import { useHeld, useHolding } from "../hooks/useHeld";
 import { useReadout } from "../hooks/useReadout";
 import { memoryFaultRate } from "../lib/assess/index";
@@ -50,31 +49,6 @@ import "./memory.css";
 
 const DEFAULT_SUB =
   "The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds.";
-const TOPICS: Readonly<Record<string, HelpTopicId>> = {
-  "Virtual size (VmSize)": "vmsize",
-  "Resident (RSS)": "rss",
-  "Anonymous / file / shared": "memkinds",
-  "Mappings (VMAs)": "vmas",
-  "Major faults": "faults",
-  "Memory pressure (PSI some)": "pressure",
-  Mappings: "vmas",
-  "Address space": "aslimit",
-  "Main stack": "stack",
-  "Peak virtual size": "vmsize",
-  "Data + heap (VmData)": "vmdata",
-  "Page faults since start": "faulttotals",
-  "Regions / VMAs": "vmas",
-  "Share of VmSize": "vmsize",
-  "Largest unmapped gap": "memgap",
-  "Heap mapping size change": "heap",
-  "Stack mapping size change": "stack",
-  "Heap mapping end ↑": "heapend",
-  "Main stack start ↓": "stackstart",
-  "Resident anonymous": "anonres",
-};
-// Labels with no topic of their own fall back to the card's topic, as the
-// old page did.
-const topicOf = (label: string, card: HelpTopicId) => TOPICS[label] ?? card;
 const LEVEL_NAMES = {
   critical: "critical",
   serious: "serious",
@@ -145,7 +119,12 @@ export function MemoryMap({
       <section id="memory-map" className="block">
         <div className="section-head">
           <div>
-            <Help key={memory.key} topic="memmap" as="div">
+            <Help
+              key={memory.key}
+              topic="memmap"
+              as="div"
+              sources={["amap", "memkinds", "memlimits", "rss", "vmsize"]}
+            >
               <h2>Memory map</h2>
             </Help>
             <p id="memory-sub">
@@ -187,12 +166,12 @@ export function MemoryMap({
             summaryClassName="fold-summary fold-bar"
             autoOpen={wantsFold(findings, "memory")}
             summary={
-              <Help key={memory.key} topic="amap">
+              <span key={memory.key}>
                 <h3>Address space &amp; zoom</h3>
                 <span className="muted">
                   Every mapping, and a zoom into one
                 </span>
-              </Help>
+              </span>
             }
           >
             {m?.available && (
@@ -260,9 +239,7 @@ function MemoryOverview({
       >
         {shownTiles.map(([label, value, sub, bad]) => (
           <div key={label} className="card tile">
-            <Help topic={topicOf(label, "memmap")} as="div" className="label">
-              {label}
-            </Help>
+            <div className="label">{label}</div>
             <div className="value">{value}</div>
             <div className={bad ? "sub bad" : "sub"}>{sub}</div>
           </div>
@@ -272,9 +249,8 @@ function MemoryOverview({
         <div className="card">
           <div className="card-head">
             <div>
-              <Help topic="memfindings" as="div">
-                <h3>Findings</h3>
-              </Help>
+              <h3>Findings</h3>
+
               <p>
                 Worked out in the browser from the latest memory-map, resource
                 and thread samples.
@@ -282,43 +258,40 @@ function MemoryOverview({
             </div>
           </div>
           <div {...findingHold.handlers}>
-            <Help topic="memfindings" as="div">
-              <ul id="memory-findings" className="mem-findings">
-                {shownFindings.map((item) => (
-                  <li
-                    key={`${item.level}|${item.title}`}
-                    className="mem-finding"
-                    style={
-                      {
-                        "--lvl": `var(--${item.level === "info" ? "accent" : item.level})`,
-                      } as CSSProperties
+            <ul id="memory-findings" className="mem-findings">
+              {shownFindings.map((item) => (
+                <li
+                  key={`${item.level}|${item.title}`}
+                  className="mem-finding"
+                  style={
+                    {
+                      "--lvl": `var(--${item.level === "info" ? "accent" : item.level})`,
+                    } as CSSProperties
+                  }
+                >
+                  <span
+                    className={
+                      item.level === "warning" || item.level === "serious"
+                        ? "sev dark"
+                        : "sev"
                     }
                   >
-                    <span
-                      className={
-                        item.level === "warning" || item.level === "serious"
-                          ? "sev dark"
-                          : "sev"
-                      }
-                    >
-                      {LEVEL_NAMES[item.level]}
-                    </span>
-                    <div>
-                      <div className="t">{item.title}</div>
-                      <div className="d">{item.detail}</div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Help>
+                    {LEVEL_NAMES[item.level]}
+                  </span>
+                  <div>
+                    <div className="t">{item.title}</div>
+                    <div className="d">{item.detail}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
         <div className="card">
           <div className="card-head">
             <div>
-              <Help topic="memlimits" as="div">
-                <h3>Limits &amp; headroom</h3>
-              </Help>
+              <h3>Limits &amp; headroom</h3>
+
               <p>
                 Limits that make mmap, malloc or thread creation fail, or stop
                 the main stack from growing.
@@ -331,7 +304,6 @@ function MemoryOverview({
                 <Meter
                   key={meter.label}
                   label={meter.label}
-                  topic={topicOf(meter.label, "memlimits")}
                   sub={meter.sub}
                   value={meter.value}
                   max={meter.max}
@@ -341,10 +313,10 @@ function MemoryOverview({
             </div>
             <dl id="memory-facts" className="facts">
               {limits.facts.map(([label, value]) => (
-                <Help key={label} topic={topicOf(label, "memlimits")} as="div">
+                <div key={label}>
                   <dt className="help-fact">{label}</dt>
                   <dd>{value}</dd>
-                </Help>
+                </div>
               ))}
             </dl>
           </div>
@@ -440,18 +412,17 @@ function AddressMap({
       <div className="card" {...hold.handlers}>
         <div className="card-head">
           <div>
-            <Help topic="amap" as="div">
-              <h3>
-                Address space{" "}
-                <span
-                  id="memory-region-count"
-                  className="muted"
-                  style={{ fontWeight: 400 }}
-                >
-                  {shown.count}
-                </span>
-              </h3>
-            </Help>
+            <h3>
+              Address space{" "}
+              <span
+                id="memory-region-count"
+                className="muted"
+                style={{ fontWeight: 400 }}
+              >
+                {shown.count}
+              </span>
+            </h3>
+
             <p>
               High addresses at the top. Unmapped spaces between mappings are
               shortened.
@@ -501,16 +472,16 @@ function AddressMap({
             )}
           </div>
         </Help>
-        <Help topic="amap" as="div">
-          <div className="legend">
-            {LEGEND.map(([color, label]) => (
-              <span key={label}>
-                <i className="sw" style={{ background: color }} />
-                {label}
-              </span>
-            ))}
-          </div>
-        </Help>
+
+        <div className="legend">
+          {LEGEND.map(([color, label]) => (
+            <span key={label}>
+              <i className="sw" style={{ background: color }} />
+              {label}
+            </span>
+          ))}
+        </div>
+
         <p className="mem-hint">
           The darker part of a bar is its size on a log scale, from 4 KB to the
           largest bar. Adjacent mappings of the same kind are joined into one
@@ -625,14 +596,13 @@ function Zoom({
         <div className="card" {...hold.handlers}>
           <div className="card-head">
             <div>
-              <Help topic="memzoom" as="div">
-                <h3>
-                  Zoom:{" "}
-                  <code id="memory-zoom-name">
-                    {shownRow ? memoryRowName(shownRow) : "—"}
-                  </code>
-                </h3>
-              </Help>
+              <h3>
+                Zoom:{" "}
+                <code id="memory-zoom-name">
+                  {shownRow ? memoryRowName(shownRow) : "—"}
+                </code>
+              </h3>
+
               <p id="memory-zoom-sub" className="mono">
                 {shownRow
                   ? `${hex(shownRow.lo)} – ${hex(shownRow.hi)} · ${memoryPerms(shownRow)}${memoryGrows(shownRow.cat)}`
@@ -642,10 +612,10 @@ function Zoom({
           </div>
           <dl id="memory-zoom-facts" className="facts four">
             {shown.facts.map(([label, value]) => (
-              <Help key={label} topic={topicOf(label, "memzoom")} as="div">
+              <div key={label}>
                 <dt className="help-fact">{label}</dt>
                 <dd>{value}</dd>
-              </Help>
+              </div>
             ))}
           </dl>
           <p
@@ -657,7 +627,7 @@ function Zoom({
             {shown.grid?.margin && (
               <>
                 <br />
-                <Help topic="heapmargin">Heap display margin</Help>
+                Heap display margin
                 <span>{shown.grid.margin}</span>
               </>
             )}
@@ -715,19 +685,19 @@ function Zoom({
               </div>
             </Help>
           )}
-          <Help topic="memzoom" as="div">
-            <div id="memory-grid-legend" className="legend">
-              {shown.grid?.legend.map((item) => (
-                <span key={item.label}>
-                  <i
-                    className={`sw ${item.className}`}
-                    style={item.color ? { background: item.color } : undefined}
-                  />
-                  {item.label}
-                </span>
-              ))}
-            </div>
-          </Help>
+
+          <div id="memory-grid-legend" className="legend">
+            {shown.grid?.legend.map((item) => (
+              <span key={item.label}>
+                <i
+                  className={`sw ${item.className}`}
+                  style={item.color ? { background: item.color } : undefined}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+
           <p className="mem-hint">Cells show mappings, not resident pages.</p>
           <div id="memory-charts" className="mem-charts">
             {shown.charts.map((chart) => (
@@ -739,8 +709,8 @@ function Zoom({
             up to 15 minutes.
           </p>
           <p className="mem-hint">
-            <Help topic="threadstacks">Thread stacks</Help> can keep a fixed
-            reserved size while residency changes.
+            Thread stacks can keep a fixed reserved size while residency
+            changes.
           </p>
           <details
             id="memory-region-details"
@@ -750,7 +720,7 @@ function Zoom({
             }}
           >
             <summary id="memory-regions-summary" className="help-label">
-              <Help topic="memregions">Member regions</Help>
+              Member regions
             </summary>
             <div
               className="table-wrap"
@@ -759,21 +729,11 @@ function Zoom({
               <table>
                 <thead>
                   <tr>
-                    <th>
-                      <Help topic="memregions">Region</Help>
-                    </th>
-                    <th>
-                      <Help topic="memregions">Start</Help>
-                    </th>
-                    <th className="num">
-                      <Help topic="memregions">Size</Help>
-                    </th>
-                    <th>
-                      <Help topic="memregions">Perms</Help>
-                    </th>
-                    <th className="num">
-                      <Help topic="vmas">VMAs</Help>
-                    </th>
+                    <th>Region</th>
+                    <th>Start</th>
+                    <th className="num">Size</th>
+                    <th>Perms</th>
+                    <th className="num">VMAs</th>
                   </tr>
                 </thead>
                 <Help
@@ -821,9 +781,8 @@ function ZoomChart({ chart }: { chart: MemoryChart }) {
   return (
     <div className="mem-chart">
       <div className="cap">
-        <Help topic={topicOf(chart.title, "memzoom")} as="div">
-          <h3>{chart.title}</h3>
-        </Help>
+        <h3>{chart.title}</h3>
+
         <span>{chart.trend}</span>
       </div>
       {"empty" in chart ? (

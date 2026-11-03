@@ -3,7 +3,6 @@ import { date, num } from "../lib/format";
 import { useEffect, useState } from "react";
 import type { LiveResponse, Target } from "../api/types";
 import { markDeparture } from "../api/viewStorage";
-import { Help } from "../help/Help";
 import type { Page } from "../page";
 
 import { backHref } from "../lib/fleet";
@@ -104,19 +103,17 @@ export function TopBar({
   return (
     <div className="topbar-inner">
       {page.kind === "target" && (
-        <Help topic="fleet">
-          <a
-            id="fleet-back"
-            className="fleet-back"
-            href={backHref(location.search)}
-          >
-            ← All targets
-          </a>
-        </Help>
+        <a
+          id="fleet-back"
+          className="fleet-back"
+          href={backHref(location.search)}
+        >
+          ← All targets
+        </a>
       )}
       <div className="target">
         {page.kind === "target" && (
-          <Help topic="target-switch" className="target-choice">
+          <span className="target-choice">
             <select
               id="target-select"
               hidden={hidePicker}
@@ -147,69 +144,57 @@ export function TopBar({
             <span id="target-key" hidden={!hidePicker}>
               {chosen ? `${chosen.host} · ${chosen.id}` : page.key}
             </span>
-          </Help>
+          </span>
         )}
         {page.kind === "target" && attention > 0 && (
-          <Help topic="target-attention">
-            <span id="target-attention" className="target-badge">
-              {attention} other target{attention === 1 ? " needs" : "s need"}{" "}
-              attention
-            </span>
-          </Help>
+          <span id="target-attention" className="target-badge">
+            {attention} other target{attention === 1 ? " needs" : "s need"}{" "}
+            attention
+          </span>
         )}
         {page.kind === "target" && chosen?.access === "limited" && (
-          <Help topic="target-access">
-            <span id="target-access" className="target-badge">
-              Limited access
-            </span>
-          </Help>
+          <span id="target-access" className="target-badge">
+            Limited access
+          </span>
         )}
         {page.kind === "target" && chosen?.throttled && (
-          <Help topic="sampler-budget">
-            <span id="target-budget" className="target-badge">
-              Sampler throttled ·{" "}
-              <span id="target-budget-value">
-                {num(chosen.effective_rate_hz, 2)} Hz
-              </span>{" "}
-              · CPU {num(chosen.sampler_cpu_pct, 2)}% of one core; budget{" "}
-              {num(chosen.cpu_budget_pct, 2)}%
-            </span>
-          </Help>
+          <span id="target-budget" className="target-badge">
+            Sampler throttled ·{" "}
+            <span id="target-budget-value">
+              {num(chosen.effective_rate_hz, 2)} Hz
+            </span>{" "}
+            · CPU {num(chosen.sampler_cpu_pct, 2)}% of one core; budget{" "}
+            {num(chosen.cpu_budget_pct, 2)}%
+          </span>
         )}
         {page.kind === "target" && (
           <>
-            <Help topic="health">
-              <span
-                aria-label={state}
-                className={`status-dot ${mode.kind === "recorded" ? "warning" : mode.kind === "final" || health?.sampler_silent || health?.target_absent ? "critical" : health?.last_seen ? "live" : "warning"}`}
-              />
-            </Help>
-            <Help topic="target">
-              <strong id="target-name">{targetName}</strong>
-            </Help>
-            <Help topic="health">
-              <span id="target-meta" className="muted">
-                {health?.pid ? `PID ${String(health.pid)} · ` : ""}
-                {state}
-                {mode.kind === "final" ? ` · at ${date(now)}` : ""}
-              </span>
-            </Help>
+            <span
+              aria-label={state}
+              className={`status-dot ${mode.kind === "recorded" ? "warning" : mode.kind === "final" || health?.sampler_silent || health?.target_absent ? "critical" : health?.last_seen ? "live" : "warning"}`}
+            />
+
+            <strong id="target-name">{targetName}</strong>
+
+            <span id="target-meta" className="muted">
+              {health?.pid ? `PID ${String(health.pid)} · ` : ""}
+              {state}
+              {mode.kind === "final" ? ` · at ${date(now)}` : ""}
+            </span>
           </>
         )}
       </div>
       {mode.kind === "recorded" && (
-        <Help topic="timeline">
-          <button
-            id="history-pill"
-            type="button"
-            onClick={onLive}
-            aria-label={`Viewing the recording at ${date(now)}. Back to live`}
-          >
-            {date(now)} · Back to live
-          </button>
-        </Help>
+        <button
+          id="history-pill"
+          type="button"
+          onClick={onLive}
+          aria-label={`Viewing the recording at ${date(now)}. Back to live`}
+        >
+          {date(now)} · Back to live
+        </button>
       )}
-      <Help topic="appearance" className="theme-picker">
+      <span className="theme-picker">
         <label htmlFor="theme">Theme</label>
         <select
           id="theme"
@@ -224,7 +209,7 @@ export function TopBar({
           <option value="light">Light</option>
           <option value="dark">Dark</option>
         </select>
-      </Help>
+      </span>
     </div>
   );
 }

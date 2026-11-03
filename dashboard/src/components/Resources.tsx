@@ -42,18 +42,6 @@ interface ResourceReading {
   now: number;
 }
 type Show = ReturnType<typeof useReadout>["show"];
-const TILE_TOPICS: Readonly<Record<string, HelpTopicId>> = {
-  "I/O pressure": "pressure",
-  "Memory pressure": "pressure",
-  "CPU pressure": "pressure",
-  "Memory (RSS)": "rss",
-  "Open files": "fds",
-  "Disk I/O": "disk",
-  "Queued in sockets": "queues",
-  "Network drops": "netdrops",
-  "TCP retransmits": "retrans",
-  "CLOSE-WAIT": "closewait",
-};
 const EMPTY_HISTORY = "Collecting stored resource samples…";
 
 /**
@@ -98,7 +86,11 @@ export function Resources({
     <section id="resources" className="block">
       <div className="section-head">
         <div>
-          <Help topic="pressure" as="div">
+          <Help
+            topic="pressure"
+            as="div"
+            sources={["limits", "queues", "netdrops", "coverage"]}
+          >
             <h2>Pressure, limits &amp; sockets</h2>
           </Help>
           <p id="resources-sub">
@@ -109,32 +101,29 @@ export function Resources({
                 : ` Updated ${ago(now - (current.updated ?? 0))}.`)}
           </p>
         </div>
-        <Help topic="pressure" as="div">
-          <div className="seg" role="group" aria-label="Resource history range">
-            {RESOURCE_RANGES.map(([seconds, label]) => (
-              <button
-                key={seconds}
-                type="button"
-                data-res-range={seconds}
-                aria-pressed={range === seconds}
-                onClick={() => {
-                  onRange(seconds);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Help>
+
+        <div className="seg" role="group" aria-label="Resource history range">
+          {RESOURCE_RANGES.map(([seconds, label]) => (
+            <button
+              key={seconds}
+              type="button"
+              data-res-range={seconds}
+              aria-pressed={range === seconds}
+              onClick={() => {
+                onRange(seconds);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       {!observation ? (
-        <Help topic="coverage" as="div">
-          <p id="resources-empty" className="socket-empty">
-            {r?.available
-              ? "Waiting for a resource sample of the current process."
-              : r?.reason || "This collector does not report resource samples."}
-          </p>
-        </Help>
+        <p id="resources-empty" className="socket-empty">
+          {r?.available
+            ? "Waiting for a resource sample of the current process."
+            : r?.reason || "This collector does not report resource samples."}
+        </p>
       ) : (
         <div
           id="resources-content"
@@ -145,40 +134,35 @@ export function Resources({
             <div className="card">
               <div className="card-head">
                 <div>
-                  <Help topic="pressure" as="div">
-                    <h3>Pressure stalls (PSI)</h3>
-                  </Help>
+                  <h3>Pressure stalls (PSI)</h3>
+
                   <p>
                     Time lost waiting for CPU, memory, or I/O. Peaks per
                     interval.
                   </p>
                 </div>
-                <Help topic="pressure">
-                  <select
-                    id="pressure-scope"
-                    aria-label="Pressure scope"
-                    value={scopeOf(observation.r, scope)}
-                    onChange={(event) => {
-                      onScope(
-                        event.target.value === "host" ? "host" : "cgroup",
-                      );
-                    }}
-                  >
-                    <option value="cgroup" disabled={!hasCgroup(observation.r)}>
-                      Target&apos;s cgroup
-                    </option>
-                    <option value="host">Whole host</option>
-                  </select>
-                </Help>
+
+                <select
+                  id="pressure-scope"
+                  aria-label="Pressure scope"
+                  value={scopeOf(observation.r, scope)}
+                  onChange={(event) => {
+                    onScope(event.target.value === "host" ? "host" : "cgroup");
+                  }}
+                >
+                  <option value="cgroup" disabled={!hasCgroup(observation.r)}>
+                    Target&apos;s cgroup
+                  </option>
+                  <option value="host">Whole host</option>
+                </select>
               </div>
               <Pressure observation={observation} scope={scope} range={range} />
             </div>
             <div className="card">
               <div className="card-head">
                 <div>
-                  <Help topic="limits" as="div">
-                    <h3>Limits &amp; headroom</h3>
-                  </Help>
+                  <h3>Limits &amp; headroom</h3>
+
                   <p>
                     How close the process and the kernel are to limits that make
                     calls fail (EMFILE) or shrink buffers.
@@ -192,9 +176,8 @@ export function Resources({
             <div className="card">
               <div className="card-head">
                 <div>
-                  <Help topic="queues" as="div">
-                    <h3>Bytes waiting in the target&apos;s sockets</h3>
-                  </Help>
+                  <h3>Bytes waiting in the target&apos;s sockets</h3>
+
                   <p>
                     Receive: waiting for the app. Send: waiting for the peer or
                     network.
@@ -210,11 +193,7 @@ export function Resources({
                   assessResources(observation.r, now),
                   "resources",
                 )}
-                summary={
-                  <Help topic="netdrops">
-                    <h3>Network stack drops &amp; errors</h3>
-                  </Help>
-                }
+                summary={<h3>Network stack drops &amp; errors</h3>}
               >
                 {/* The In range column changes with the range, so its
                     readouts and hold start again. */}
@@ -246,13 +225,7 @@ function Tiles({
     <div id="resource-tiles" className="tiles resource-tiles" {...handlers}>
       {resourceTiles(r, points, scope).map(([label, value, sub, values]) => (
         <div key={label} className="card tile">
-          <Help
-            topic={TILE_TOPICS[label] ?? "pressure"}
-            as="div"
-            className="label"
-          >
-            {label}
-          </Help>
+          <div className="label">{label}</div>
           <div className="value">{value}</div>
           <div className="sub">{sub}</div>
           <Sparkline
@@ -307,23 +280,21 @@ function Pressure({
       />
       <div id="pressure-legend" className="legend">
         {PRESSURE_SERIES.map(([key, label, color]) => (
-          <Help key={key} topic="pressure">
+          <span key={key}>
             <i className="sw line" style={{ background: color }} />
             {label} some
             <b>{pct(stall(r.pressure?.[shown]?.[key]?.some))}</b>
-          </Help>
+          </span>
         ))}
       </div>
       <div className="table-wrap" style={{ marginTop: 12 }}>
         <table>
           <thead>
             <tr>
-              <th>
-                <Help topic="pressure">Resource</Help>
-              </th>
+              <th>Resource</th>
               {PRESSURE_COLUMNS.map(([where, kind, label]) => (
                 <th key={where + kind} className="num">
-                  <Help topic="pressure">{label}</Help>
+                  {label}
                 </th>
               ))}
             </tr>
@@ -380,14 +351,12 @@ function Pressure({
 
 export function Meter({
   label,
-  topic,
   sub,
   value,
   max,
   text,
 }: {
   label: string;
-  topic: HelpTopicId;
   sub: string;
   value: number | null | undefined;
   max: number | null | undefined;
@@ -396,7 +365,7 @@ export function Meter({
   const share =
     isNum(value) && isNum(max) && max > 0 ? (100 * value) / max : null;
   return (
-    <Help topic={topic} as="div" className="meter">
+    <div className="meter">
       <div>
         {label}
         {sub && <small>{sub}</small>}
@@ -410,7 +379,7 @@ export function Meter({
         )}
       </div>
       <div className="val">{text}</div>
-    </Help>
+    </div>
   );
 }
 function Limits({ observation }: { observation: ResourceReading }) {
@@ -443,7 +412,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
       <div id="limits">
         <Meter
           label="Open files"
-          topic="fds"
           sub={
             isNum(fds.hard_limit) ? `hard limit ${String(fds.hard_limit)}` : ""
           }
@@ -459,7 +427,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
           (isNum(mem.max) ? (
             <Meter
               label="Cgroup memory"
-              topic="cgroupmem"
               sub={`incl. page cache${isNum(mem.high) ? " · high " + bytes(mem.high) : ""}`}
               value={mem.current}
               max={mem.max}
@@ -468,7 +435,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
           ) : (
             <Meter
               label="Cgroup memory"
-              topic="cgroupmem"
               sub="no memory.max limit"
               value={null}
               max={0}
@@ -478,7 +444,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
         {isNum(cpu.quota_us) && isNum(cpu.period_us) && (
           <Meter
             label="CPU throttling"
-            topic="throttle"
             sub={`quota ${num(cpu.quota_us / cpu.period_us, 2)} cores`}
             value={cpu.throttled_pct}
             max={100}
@@ -492,7 +457,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
         {isNum(pids.current) && (
           <Meter
             label="Processes & threads"
-            topic="pids"
             sub={isNum(pids.max) ? "cgroup pids.max" : "no pids.max limit"}
             value={isNum(pids.max) ? pids.current : null}
             max={isNum(pids.max) ? pids.max : 0}
@@ -506,7 +470,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
         {worst && (
           <Meter
             label="Accept backlog"
-            topic="backlog"
             sub={worst.local || worst.path || ""}
             value={worst.rx_queue}
             max={worst.tx_queue}
@@ -517,7 +480,6 @@ function Limits({ observation }: { observation: ResourceReading }) {
           <Meter
             key={label}
             label={label}
-            topic="sockmem"
             sub={`pressure at ${bytes(pressureAt * page)}, limit ${bytes(Number(limit) * page)} · host-wide`}
             value={used}
             max={pressureAt}
@@ -543,11 +505,11 @@ function Limits({ observation }: { observation: ResourceReading }) {
               "endpoint",
             ],
           ] as const
-        ).map(([label, value, topic]) => (
-          <Help key={label} topic={topic} as="div">
+        ).map(([label, value]) => (
+          <div key={label}>
             <dt>{label}</dt>
             <dd>{value}</dd>
-          </Help>
+          </div>
         ))}
       </dl>
     </div>
@@ -591,7 +553,7 @@ function Queues({
       />
       <div id="queues-legend" className="legend">
         {QUEUE_SERIES.map(([key, , label, color]) => (
-          <Help key={key} topic="queues">
+          <span key={key}>
             <i className="sw line" style={{ background: color }} />
             {label}
             <b>
@@ -599,11 +561,11 @@ function Queues({
                 all.reduce((sum, kind) => sum + (kinds[kind]?.[key] || 0), 0),
               )}
             </b>
-          </Help>
+          </span>
         ))}
-        <Help topic="queues" className="muted">
+        <span className="muted">
           {`${all.map((kind) => `${String(kinds[kind]?.sockets ?? 0)} ${kind.toUpperCase()}`).join(" · ")} · ${String(states.established ?? 0)} established · ${String(states.close_wait ?? 0)} close-wait · ${String(states.listen ?? 0)} listening`}
-        </Help>
+        </span>
       </div>
     </div>
   );
@@ -628,7 +590,7 @@ function Network({ observation }: { observation: ResourceReading }) {
             <tr>
               {NETWORK_COLUMNS.map((label, column) => (
                 <th key={label} className={column ? "num" : undefined}>
-                  <Help topic="netdrops">{label}</Help>
+                  {label}
                 </th>
               ))}
             </tr>
@@ -756,37 +718,35 @@ function FullestSockets({
     <div className="card" style={{ marginTop: 14 }} {...handlers}>
       <div className="card-head">
         <div>
-          <Help topic="queues" as="div">
-            <h3>
-              Fullest sockets{" "}
-              <span
-                id="resource-socket-count"
-                className="muted"
-                style={{ fontWeight: 400 }}
-              >
-                {count}
-              </span>
-            </h3>
-          </Help>
+          <h3>
+            Fullest sockets{" "}
+            <span
+              id="resource-socket-count"
+              className="muted"
+              style={{ fontWeight: 400 }}
+            >
+              {count}
+            </span>
+          </h3>
+
           <p>Sockets ranked by buffer use in the latest sample.</p>
         </div>
-        <Help topic="queues">
-          <label className="muted" style={{ fontSize: 13 }}>
-            <input
-              id="sockets-busy-only"
-              type="checkbox"
-              checked={busyOnly}
-              onChange={(event) => {
-                // The filter applies to the held sample at once; the old
-                // readout and scroll position belong to other rows.
-                clear();
-                if (wrap.current) wrap.current.scrollTop = 0;
-                onBusyOnly(event.target.checked);
-              }}
-            />{" "}
-            Only sockets with data, drops or retransmits
-          </label>
-        </Help>
+
+        <label className="muted" style={{ fontSize: 13 }}>
+          <input
+            id="sockets-busy-only"
+            type="checkbox"
+            checked={busyOnly}
+            onChange={(event) => {
+              // The filter applies to the held sample at once; the old
+              // readout and scroll position belong to other rows.
+              clear();
+              if (wrap.current) wrap.current.scrollTop = 0;
+              onBusyOnly(event.target.checked);
+            }}
+          />{" "}
+          Only sockets with data, drops or retransmits
+        </label>
       </div>
       <div ref={wrap} className="table-wrap" style={{ maxHeight: 440 }}>
         <table>
@@ -797,7 +757,7 @@ function FullestSockets({
                   key={column.label}
                   className={column.num ? "num" : undefined}
                 >
-                  <Help topic={column.topic}>{column.label}</Help>
+                  {column.label}
                 </th>
               ))}
             </tr>
@@ -886,11 +846,10 @@ function FullestSockets({
           </Help>
         </table>
       </div>
-      <Help topic="coverage" as="div">
-        <p id="resource-coverage" className="socket-note">
-          {resourceCoverage(r)}
-        </p>
-      </Help>
+
+      <p id="resource-coverage" className="socket-note">
+        {resourceCoverage(r)}
+      </p>
     </div>
   );
 }

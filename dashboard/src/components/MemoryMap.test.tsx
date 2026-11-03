@@ -10,7 +10,6 @@ import type {
   MemoryRegion,
   MemorySummary,
 } from "../api/types";
-import { helpTopics } from "../help/topics";
 import { useObservation } from "../hooks/useObservation";
 import { initialMemory } from "../lib/memoryView";
 import type { ResourcePoint } from "../lib/assess/memory";
@@ -171,7 +170,7 @@ for (const [change, next] of [
   ["session", { session: "s2" }],
   ["PID", { pid: 2, seq: 2 }],
 ] as const)
-  for (const label of ["Memory map", "Address space & zoom"])
+  for (const label of ["Memory map"])
     test(`D1 a ${change} change closes the ${label} guide and keeps the disclosures open`, async () => {
       const { rerender } = render(<Harness live={processView()} />);
       await settle();
@@ -230,50 +229,6 @@ test("1801 the resident tile uses the steady RSS trend", async () => {
   expect(tile("Resident (RSS)")[2]).toMatch(
     /^▲ 1[12][0-9](\.[0-9])? MiB \/ min$/,
   );
-});
-
-test("2015 memory tile, meter, fact and chart labels resolve to a real topic", async () => {
-  render(<Harness live={processView()} />);
-  await settle();
-  const labels = [
-    "Virtual size (VmSize)",
-    "Resident (RSS)",
-    "Anonymous / file / shared",
-    "Mappings (VMAs)",
-    "Major faults",
-    "Memory pressure (PSI some)",
-    "Mappings",
-    "Address space",
-    "Main stack",
-    "Peak virtual size",
-    "Data + heap (VmData)",
-    "Page tables",
-    "Locked",
-    "Page faults since start",
-    "Longest maps read",
-    "Size (mapped)",
-    "Largest unmapped gap",
-    "Heap mapping size change",
-    "Page size",
-    "Heap mapping end ↑",
-    "Main stack start ↓",
-    "Resident anonymous",
-    "Member regions",
-    "Thread stacks",
-  ];
-  const topic = (label: string) =>
-    screen
-      .getAllByText(label)
-      .map(
-        (element) => element.closest<HTMLElement>("[data-help]")?.dataset.help,
-      );
-  for (const label of labels)
-    for (const id of topic(label))
-      expect(Object.hasOwn(helpTopics, id ?? ""), label).toBe(true);
-  expect(topic("Data + heap (VmData)")).toEqual(["vmdata"]);
-  expect(topic("Page faults since start")).toEqual(["faulttotals"]);
-  expect(topic("Major faults")).toEqual(["faults"]);
-  expect(topic("Largest unmapped gap")).toEqual(["memgap"]);
 });
 
 test("2066 the zoom legend in the page names the grid's kinds", async () => {

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Help } from "../help/Help";
 
 export interface Section {
   id: string;
@@ -101,19 +100,17 @@ export function SectionTabs({
   }, [entries]);
   if (!entries.length) return null;
   return (
-    <Help topic="section-navigation" as="div">
-      <nav className="tabs" aria-label="Sections">
-        {entries.map((section) => (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            aria-current={current === section.id ? "location" : undefined}
-            onClick={() => onSelect?.(section.id)}
-          >
-            {section.label}
-          </a>
-        ))}
-      </nav>
-    </Help>
+    <nav className="tabs" aria-label="Sections">
+      {entries.map((section) => (
+        <a
+          key={section.id}
+          href={`#${section.id}`}
+          aria-current={current === section.id ? "location" : undefined}
+          onClick={() => onSelect?.(section.id)}
+        >
+          {section.label}
+        </a>
+      ))}
+    </nav>
   );
 }

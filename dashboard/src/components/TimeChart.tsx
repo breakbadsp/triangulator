@@ -1,14 +1,10 @@
 import {
-  useContext,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { GuideContext, registerGuideChart } from "../help/guideContext";
-import { useHeld } from "../hooks/useHeld";
 import { Help, type Readout } from "../help/Help";
 import type { HelpTopicId } from "../help/topics";
 import { gapLimit, niceMax, segments } from "../lib/chart";
@@ -44,13 +40,7 @@ interface TimeChartProps<P extends { t: number }> {
   to?: number | undefined;
   empty?: string;
 }
-export function TimeChart<P extends { t: number }>(props: TimeChartProps<P>) {
-  const chartKey = useId();
-  const guide = useContext(GuideContext);
-  const held = useHeld(props, guide?.request?.chart?.key === chartKey);
-  return <Chart {...held} chartKey={chartKey} />;
-}
-function Chart<P extends { t: number }>({
+export function TimeChart<P extends { t: number }>({
   id,
   topic,
   points,
@@ -65,32 +55,9 @@ function Chart<P extends { t: number }>({
   from,
   to,
   empty = "Collecting data…",
-  chartKey,
-}: TimeChartProps<P> & { chartKey: string }) {
+}: TimeChartProps<P>) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
-  useLayoutEffect(() => {
-    const element = host.current;
-    if (!element) return;
-    return registerGuideChart(element, () => {
-      const columns = overlay ? [...series, overlay] : series;
-      return {
-        key: chartKey,
-        topic,
-        headers: ["Time", ...columns.map((item) => item.label)],
-        rows: points.map((point) => [
-          clock(point.t),
-          ...columns.map((item) => {
-            const value = item.get(point);
-            return isNum(value)
-              ? (item.format ?? format)(value)
-              : "Not available";
-          }),
-        ]),
-      };
-    });
-  }, [chartKey, topic, points, series, overlay, format]);
-
   // The hovered sample's time, not the pointer's x: a live update moves the
   // axis, and the readout must stay on the sample the reader chose.
   const [hover, setHover] = useState<{

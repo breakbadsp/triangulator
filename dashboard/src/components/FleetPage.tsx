@@ -16,7 +16,7 @@ import { getJson } from "../api/client";
 import { readTileOrder, saveTileOrder } from "../api/fleetOrder";
 import { parseLive } from "../api/replay";
 import type { FleetResponse, LiveResponse } from "../api/types";
-import { HelpGuideProvider, PageHelp } from "../help/HelpGuide";
+import { HelpGuideProvider } from "../help/HelpGuide";
 import { Help } from "../help/Help";
 import { usePoll } from "../hooks/usePoll";
 import {
@@ -106,12 +106,7 @@ function TileRemove({
       ? "Another rule selects this process (a process pattern, another name after a rename, or the rule that selects its parent), so Remove would not stop it. Edit sampler.toml on the host."
       : "";
   return (
-    <Help
-      key={tile.key + "remove"}
-      topic="manage-targets"
-      as="div"
-      className="ft-foot"
-    >
+    <div key={tile.key + "remove"} className="ft-foot">
       <button
         className="ft-remove"
         type="button"
@@ -135,7 +130,7 @@ function TileRemove({
           {blocked}
         </small>
       )}
-    </Help>
+    </div>
   );
 }
 
@@ -164,7 +159,7 @@ function RemoveRetained({
     setBusy(false);
   }
   return (
-    <Help topic="fleet" as="div" className="ft-foot">
+    <div className="ft-foot">
       <button
         type="button"
         className="ft-remove"
@@ -181,7 +176,7 @@ function RemoveRetained({
           {error}
         </small>
       )}
-    </Help>
+    </div>
   );
 }
 
@@ -302,98 +297,82 @@ export function FleetPage() {
       </header>
       <ErrorBanner error={fleet.error} />
       <main id="fleet" aria-labelledby="fleet-title">
-        <div className="fleet-head">
-          <Help topic="fleet" as="div">
+        <Help topic="fleet" as="div" className="fleet-head">
+          <div>
             <h2 id="fleet-title">Targets</h2>
             <p>
               Every monitored process and its current assessment. Select a tile
               to open its dashboard.
             </p>
-          </Help>
+          </div>
           {tiles.length > 0 && (
-            <Help topic="fleet" as="div">
-              <div
-                id="fleet-counts"
-                className="fleet-counts"
-                aria-live="polite"
-              >
-                <small>Totals for all targets</small>
-                {COUNT_GROUPS.map(([level, label, color]) => {
-                  const count =
-                    counts[level] + (level === "good" ? counts.info : 0);
-                  return count ? (
-                    <span
-                      key={level}
-                      style={{ "--lvl": color } as CSSProperties}
-                    >
-                      <b>{count}</b> {label}
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            </Help>
+            <div id="fleet-counts" className="fleet-counts" aria-live="polite">
+              <small>Totals for all targets</small>
+              {COUNT_GROUPS.map(([level, label, color]) => {
+                const count =
+                  counts[level] + (level === "good" ? counts.info : 0);
+                return count ? (
+                  <span key={level} style={{ "--lvl": color } as CSSProperties}>
+                    <b>{count}</b> {label}
+                  </span>
+                ) : null;
+              })}
+            </div>
           )}
-        </div>
+        </Help>
         <div className="toolbar fleet-toolbar">
-          <Help topic="fleet-filter">
-            <input
-              ref={search}
-              id="fleet-search"
-              type="search"
-              placeholder="Name, host or target ID"
-              aria-label="Find target"
-              value={query}
-              onChange={(event) => {
-                changeSearch(event.currentTarget.value);
-              }}
-            />
-          </Help>
+          <input
+            ref={search}
+            id="fleet-search"
+            type="search"
+            placeholder="Name, host or target ID"
+            aria-label="Find target"
+            value={query}
+            onChange={(event) => {
+              changeSearch(event.currentTarget.value);
+            }}
+          />
+
           {filtered && (
-            <Help topic="fleet-filter">
-              <button
-                id="fleet-clear"
-                type="button"
-                onClick={() => {
-                  changeSearch("");
-                  search.current?.focus();
-                }}
-              >
-                Clear filters
-              </button>
-            </Help>
+            <button
+              id="fleet-clear"
+              type="button"
+              onClick={() => {
+                changeSearch("");
+                search.current?.focus();
+              }}
+            >
+              Clear filters
+            </button>
           )}
           {tiles.length > 0 && (
-            <Help topic="fleet-filter">
-              <span id="fleet-shown" className="muted" aria-live="polite">
-                Showing {shown} of {tiles.length} targets
-              </span>
-            </Help>
+            <span id="fleet-shown" className="muted" aria-live="polite">
+              Showing {shown} of {tiles.length} targets
+            </span>
           )}
         </div>
+
         {tiles.length > 1 && (
-          <Help topic="fleet" as="div">
-            <small id="fleet-order-hint" className="muted">
-              Drag a tile to reorder it, or press Alt and an arrow key on a
-              focused tile.
-            </small>
-          </Help>
+          <small id="fleet-order-hint" className="muted">
+            Drag a tile to reorder it, or press Alt and an arrow key on a
+            focused tile.
+          </small>
         )}
         <p id="fleet-order-status" className="fleet-sr" aria-live="polite">
           {announcement}
         </p>
-        <Help topic="manage-targets" as="div">
-          <p
-            id="fleet-status"
-            role="status"
-            className={(editor.form.bad ? "bad" : "muted") + " fleet-status"}
-          >
-            {editor.form.status}
-          </p>
-        </Help>
+        <p
+          id="fleet-status"
+          role="status"
+          className={(editor.form.bad ? "bad" : "muted") + " fleet-status"}
+        >
+          {editor.form.status}
+        </p>
+
         {fleet.data?.capacity.map((notice) => (
-          <Help key={notice} topic="fleet-capacity" as="div">
+          <div key={notice}>
             <p className="fleet-capacity warn">{notice}</p>
-          </Help>
+          </div>
         ))}
         <div id="fleet-grid" className="fleet-grid">
           {tiles.map((tile) => (
@@ -452,28 +431,18 @@ export function FleetPage() {
                   {tile.name}
                 </a>
               </div>
-              <Help
-                key={tile.key + "identity"}
-                topic="fleet-tile"
-                as="div"
-                className="ft-key"
-              >
+              <div key={tile.key + "identity"} className="ft-key">
                 {tile.host} · {tile.id}
-              </Help>
+              </div>
               {tile.archived && (
-                <Help topic="fleet" as="div" className="ft-waiting muted">
+                <div className="ft-waiting muted">
                   No longer monitored · Final data
-                </Help>
+                </div>
               )}
               {tile.waiting && (
-                <Help
-                  key={tile.key + "waiting"}
-                  topic="fleet-waiting"
-                  as="div"
-                  className="ft-waiting muted"
-                >
+                <div key={tile.key + "waiting"} className="ft-waiting muted">
                   Waiting for a process named {tile.waiting}
-                </Help>
+                </div>
               )}
               <TileRemove tile={tile} control={control} editor={editor} />
               <RemoveRetained tile={tile} refresh={fleet.refresh} />
@@ -502,12 +471,7 @@ export function FleetPage() {
             </article>
           ))}
           {(control.enabled || control.reason) && (
-            <Help
-              key="fleet-add"
-              topic="manage-targets"
-              as="div"
-              className="fleet-add-help"
-            >
+            <div key="fleet-add" className="fleet-add-help">
               <button
                 id="fleet-add"
                 className="fleet-add"
@@ -527,25 +491,20 @@ export function FleetPage() {
                   on its host.
                 </small>
               )}
-            </Help>
+            </div>
           )}
         </div>
         {tiles.length > 0 && shown === 0 && (
-          <Help topic="fleet-filter" as="div">
-            <p id="fleet-none" className="fleet-empty">
-              No targets match this search. Clear filters shows every target.
-            </p>
-          </Help>
+          <p id="fleet-none" className="fleet-empty">
+            No targets match this search. Clear filters shows every target.
+          </p>
         )}
         {fleet.data && tiles.length === 0 && (
-          <Help topic="fleet" as="div">
-            <p id="fleet-empty" className="fleet-empty">
-              No targets yet. A target appears here when its sampler sends its
-              first data to this collector.
-            </p>
-          </Help>
+          <p id="fleet-empty" className="fleet-empty">
+            No targets yet. A target appears here when its sampler sends its
+            first data to this collector.
+          </p>
         )}
-        <PageHelp />
       </main>
       {editor.form.open && (
         <TargetDialog

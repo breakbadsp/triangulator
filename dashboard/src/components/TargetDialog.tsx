@@ -51,7 +51,7 @@ export function TargetDialog({
             editor.add();
           }}
         >
-          <Help key={key + "process"} topic="manage-targets">
+          <span key={key + "process"}>
             <label htmlFor="target-input">Exact process name</label>
             <input
               id="target-input"
@@ -66,13 +66,8 @@ export function TargetDialog({
                 editor.edit(event.currentTarget.value);
               }}
             />
-          </Help>
-          <Help
-            key={key + "actions"}
-            topic="manage-targets"
-            as="div"
-            className="dialog-actions"
-          >
+          </span>
+          <div key={key + "actions"} className="dialog-actions">
             <button id="target-cancel" type="button" onClick={editor.close}>
               Cancel
             </button>
@@ -84,9 +79,9 @@ export function TargetDialog({
             >
               Add target
             </button>
-          </Help>
+          </div>
         </form>
-        <Help key={key + "status"} topic="manage-targets" as="div">
+        <div key={key + "status"}>
           <p
             id="target-status"
             role="status"
@@ -94,7 +89,7 @@ export function TargetDialog({
           >
             {form.status}
           </p>
-        </Help>
+        </div>
       </HelpPortalTarget>
     </dialog>
   );

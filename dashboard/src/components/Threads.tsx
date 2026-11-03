@@ -147,33 +147,27 @@ function ThreadMap({
       <div className="card">
         <div className="card-head">
           <div>
-            <Help topic="map" as="div">
-              <h3>Thread map</h3>
-            </Help>
+            <h3>Thread map</h3>
+
             <p id="mosaic-sub">{map.sub}</p>
           </div>
-          <Help topic="map" as="div">
-            <div
-              className="seg"
-              role="group"
-              aria-label="Thread map time window"
-            >
-              {MAP_WINDOWS.map(([seconds, label]) => (
-                <button
-                  key={seconds}
-                  type="button"
-                  data-map-window={seconds}
-                  disabled={recorded}
-                  aria-pressed={(recorded ? 0 : window) === seconds}
-                  onClick={() => {
-                    setWindow(seconds);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </Help>
+
+          <div className="seg" role="group" aria-label="Thread map time window">
+            {MAP_WINDOWS.map(([seconds, label]) => (
+              <button
+                key={seconds}
+                type="button"
+                data-map-window={seconds}
+                disabled={recorded}
+                aria-pressed={(recorded ? 0 : window) === seconds}
+                onClick={() => {
+                  setWindow(seconds);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div {...handlers}>
           <Help topic="map" as="div" readout={readout ?? undefined}>
@@ -223,20 +217,14 @@ function ThreadMap({
           <div id="mosaic-legend">
             <div className="legend">
               {map.legend.map(({ state, count }) => (
-                <Help key={state} topic={state}>
+                <span key={state}>
                   <i className={`sw ${state}`} />
                   {stateLabels[state]}
                   <b>{count}</b>
-                </Help>
+                </span>
               ))}
-              <Help topic="map" className="muted">
-                {map.note}
-              </Help>
-              {map.shortData && (
-                <Help topic="map" className="bad">
-                  {map.shortData}
-                </Help>
-              )}
+              <span className="muted">{map.note}</span>
+              {map.shortData && <span className="bad">{map.shortData}</span>}
             </div>
           </div>
         </div>
@@ -272,25 +260,23 @@ function Families({
       <div className="card">
         <div className="card-head">
           <div>
-            <Help topic="families" as="div">
-              <h3>Where the CPU goes</h3>
-            </Help>
+            <h3>Where the CPU goes</h3>
+
             <p id="family-sub">{FAMILY_SUBS[mode]}</p>
           </div>
-          <Help topic="families">
-            <select
-              id="family-mode"
-              aria-label="Group CPU by"
-              value={mode}
-              onChange={(event) => {
-                setMode(event.target.value as FamilyMode);
-              }}
-            >
-              <option value="family">Name family</option>
-              <option value="group">Config group</option>
-              <option value="thread">Thread</option>
-            </select>
-          </Help>
+
+          <select
+            id="family-mode"
+            aria-label="Group CPU by"
+            value={mode}
+            onChange={(event) => {
+              setMode(event.target.value as FamilyMode);
+            }}
+          >
+            <option value="family">Name family</option>
+            <option value="group">Config group</option>
+            <option value="thread">Thread</option>
+          </select>
         </div>
         <div {...barHandlers}>
           <BarList
@@ -330,14 +316,7 @@ function Cores({
   const { columns, scale } = coreColumns(held.threads);
   return (
     <div className="card" {...handlers}>
-      <Fold
-        name="cores"
-        summary={
-          <Help topic="cores">
-            <h3>Core placement</h3>
-          </Help>
-        }
-      >
+      <Fold name="cores" summary={<h3>Core placement</h3>}>
         <p className="fold-note">
           CPU of this process&apos;s threads, by the core each thread last ran
           on. Uneven bars can mean pinning or affinity.
@@ -371,15 +350,13 @@ function Cores({
         </Help>
         <div className="core-base" />
         {held.threads.length > 0 && (
-          <Help topic="cores" as="div">
-            <div
-              id="cores-scale"
-              className="muted"
-              style={{ fontSize: 12, marginTop: 6 }}
-            >
-              {scale}
-            </div>
-          </Help>
+          <div
+            id="cores-scale"
+            className="muted"
+            style={{ fontSize: 12, marginTop: 6 }}
+          >
+            {scale}
+          </div>
         )}
       </Fold>
     </div>
@@ -426,7 +403,11 @@ export function Threads({
     <section id="threads-section" className="block">
       <div className="section-head">
         <div>
-          <Help topic="active" as="div">
+          <Help
+            topic="active"
+            as="div"
+            sources={["states", "cpu", "delay", "wchan", "sysio"]}
+          >
             <h2>
               Threads{" "}
               <span id="count" className="muted" style={{ fontWeight: 400 }}>
@@ -444,9 +425,8 @@ export function Threads({
         <div className="card" hidden={recorded}>
           <div className="card-head">
             <div>
-              <Help topic="states" as="div">
-                <h3>What the threads are doing</h3>
-              </Help>
+              <h3>What the threads are doing</h3>
+
               <p>
                 Thread count by latest state, stacked. Hover to read a moment.
               </p>
@@ -471,20 +451,19 @@ export function Threads({
               (state) =>
                 now?.s[state] || points.some((point) => point.s[state]),
             ).map((state) => (
-              <Help key={state} topic={state}>
+              <span key={state}>
                 <i className={`sw ${state}`} />
                 {stateLabels[state]}
                 <b>{String(now?.s[state] || 0)}</b>
-              </Help>
+              </span>
             ))}
           </div>
         </div>
         <div className="card">
           <div className="card-head">
             <div>
-              <Help topic="wchan" as="div">
-                <h3>Where threads wait</h3>
-              </Help>
+              <h3>Where threads wait</h3>
+
               <p>
                 Kernel wait channels right now. Click to filter the thread
                 table.

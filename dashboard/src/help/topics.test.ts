@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { helpTopics, helpTopicIds } from "./topics";
 // Pinned 1885, 1898 and the explicit-ID replacement for 1914.
-test("all topic links resolve and every measurement names a balanced source", () => {
+test("every measurement retains its source with balanced code spans", () => {
   const controls = new Set([
     "appearance",
     "fleet-filter",
@@ -17,10 +17,11 @@ test("all topic links resolve and every measurement names a balanced source", ()
   expect(helpTopicIds.length).toBeGreaterThan(140);
   for (const id of helpTopicIds) {
     const topic = helpTopics[id];
-    for (const related of topic.related)
-      expect(Object.hasOwn(helpTopics, related), `${id} -> ${related}`).toBe(
-        true,
-      );
+    expect(Object.keys(topic).sort(), id).toEqual(
+      topic.source
+        ? ["source", "sourceDetail", "title"]
+        : ["meaning", "source", "sourceDetail", "title"],
+    );
     if (!controls.has(id)) {
       expect(topic.source, id).not.toBe("");
       expect(topic.sourceDetail, id).not.toBe("");
@@ -34,7 +35,5 @@ test("all topic links resolve and every measurement names a balanced source", ()
   expect(helpTopics["net-listen_overflows"].source).toContain(
     "TcpExt: ListenOverflows",
   );
-  expect(helpTopics.throttle.scope).toContain("CPU periods");
-  expect(helpTopics.demand.scope).not.toBe(helpTopics.delay.scope);
-  expect(helpTopics.socket.meaning).not.toBe(helpTopics.endpoint.meaning);
+  expect(helpTopics.socket.source).not.toBe(helpTopics.endpoint.source);
 });
