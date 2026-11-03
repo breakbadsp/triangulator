@@ -5,7 +5,6 @@ import type {
   ProcessExit as Exit,
   ProcessInfo as Info,
 } from "../api/types";
-import { helpTopics } from "../help/topics";
 import { ProcessExit, ProcessInfo } from "./ProcessCards";
 
 const health = (session: string, absent: boolean, pid: number) => ({
@@ -70,12 +69,6 @@ test("process details show the readable facts and say what is not available", ()
   expect(shown["Parent process"]).toBe("PID 1");
   expect(shown["User & group"]).toBe("UID 1000 · GID 100");
   expect(shown["Allowed CPUs"]).toBe("0-3,8");
-  // Every label has a help topic.
-  for (const item of document.querySelectorAll<HTMLElement>(
-    "#process-facts > div",
-  ))
-    expect(Object.hasOwn(helpTopics, item.dataset.help ?? "")).toBe(true);
-
   // Effective IDs show only when they differ; unread values are not zero.
   Object.assign(info, {
     euid: 0,

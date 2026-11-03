@@ -89,12 +89,12 @@ export function Timeline({
       <Fold
         name="timeline"
         summary={
-          <Help topic="timeline">
+          <Help topic="timeline" sources={["assesshistory"]}>
             <h2>Timeline</h2>
           </Help>
         }
       >
-        <Help topic="timeline" as="div" className="timeline-controls">
+        <div className="timeline-controls">
           <div className="range">
             <button
               id="replay-previous"
@@ -135,32 +135,32 @@ export function Timeline({
               ? `Recordings from ${date(first)} to ${date(last)}, ${bounds.interval_s ? `one every ${String(bounds.interval_s)} s.` : "recording is now disabled."}`
               : "No recordings yet. Recording may be disabled; thread history still has older summaries."}
           </p>
-          <Help topic="assesshistory" as="div">
-            <div id="timeline-marks" className="timeline-marks">
-              {available &&
-                shown.map((episode) => (
-                  // One mark per shown past finding, in its severity colour,
-                  // from first to last seen.
-                  <span
-                    key={episode.id}
-                    style={
-                      {
-                        left: `${String(100 * Math.max(0, (episode.first - start) / (end - start)))}%`,
-                        width: `${String(100 * Math.max(0, (episode.last - episode.first) / (end - start)))}%`,
-                        "--lvl": `var(--${episode.level === "info" ? "muted" : episode.level})`,
-                      } as CSSProperties
-                    }
-                  >
-                    <Help topic="assesshistory" className="mark-help">
-                      <span
-                        role="img"
-                        aria-label={`${episode.item.title} · ${clock(episode.first)}`}
-                      />
-                    </Help>
+
+          <div id="timeline-marks" className="timeline-marks">
+            {available &&
+              shown.map((episode) => (
+                // One mark per shown past finding, in its severity colour,
+                // from first to last seen.
+                <span
+                  key={episode.id}
+                  style={
+                    {
+                      left: `${String(100 * Math.max(0, (episode.first - start) / (end - start)))}%`,
+                      width: `${String(100 * Math.max(0, (episode.last - episode.first) / (end - start)))}%`,
+                      "--lvl": `var(--${episode.level === "info" ? "muted" : episode.level})`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="mark-help">
+                    <span
+                      role="img"
+                      aria-label={`${episode.item.title} · ${clock(episode.first)}`}
+                    />
                   </span>
-                ))}
-            </div>
-          </Help>
+                </span>
+              ))}
+          </div>
+
           <input
             ref={input}
             id="timeline-range"
@@ -201,7 +201,7 @@ export function Timeline({
           <p id="replay-note" role="status">
             {note}
           </p>
-        </Help>
+        </div>
         <PastAssessments
           scan={past.scan}
           episodes={past.episodes}

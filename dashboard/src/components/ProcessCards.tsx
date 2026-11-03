@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from "react";
 import type { LiveResponse } from "../api/types";
-import { Help } from "../help/Help";
 import { exitCard, processFacts, viewProcess } from "../lib/summary";
 import { Fold } from "./Fold";
 
@@ -24,26 +23,16 @@ export function ProcessInfo({
     >
       <Fold
         name="process"
-        summary={
-          <Help topic="procinfo">
-            <h3 id="process-title">Process details</h3>
-          </Help>
-        }
+        summary={<h3 id="process-title">Process details</h3>}
       >
-        <Help topic="procinfo" as="div">
-          <p id="process-sub" className="fold-note">
-            What the target is. The sampler reads these once when it starts
-            watching the process.
-          </p>
-        </Help>
+        <p id="process-sub" className="fold-note">
+          What the target is. The sampler reads these once when it starts
+          watching the process.
+        </p>
+
         <dl id="process-facts" className="facts">
           {processFacts(info, now).map((fact) => (
-            <Help
-              key={fact.label}
-              topic={fact.topic}
-              as="div"
-              className={fact.wide ? "wide" : undefined}
-            >
+            <div key={fact.label} className={fact.wide ? "wide" : undefined}>
               <dt className="help-fact">{fact.label}</dt>
               <dd
                 className={fact.wide ? "wrap mono" : undefined}
@@ -51,7 +40,7 @@ export function ProcessInfo({
               >
                 {fact.value}
               </dd>
-            </Help>
+            </div>
           ))}
         </dl>
       </Fold>
@@ -93,42 +82,36 @@ export function ProcessExit({
         }}
       >
         <summary className="exit-summary">
-          <Help topic="exitreason">
-            <h3 id="exit-title">Last process exit</h3>
-          </Help>
-          <Help topic="exitreason">
-            <span
-              id="exit-reason"
-              className="badge"
-              style={{ "--lvl": `var(--${card.level})` } as CSSProperties}
-            >
-              {card.label}
-            </span>
-          </Help>
-          <Help topic="exitreason">
-            <span id="exit-brief" className="muted">
-              {card.brief}
-            </span>
-          </Help>
+          <h3 id="exit-title">Last process exit</h3>
+
+          <span
+            id="exit-reason"
+            className="badge"
+            style={{ "--lvl": `var(--${card.level})` } as CSSProperties}
+          >
+            {card.label}
+          </span>
+
+          <span id="exit-brief" className="muted">
+            {card.brief}
+          </span>
         </summary>
-        <Help topic="exitreason" as="div">
+        <div>
           <p id="exit-sub" className="muted">
             {card.sub}
           </p>
           <p id="exit-explain" className="profile">
             {card.explain}
           </p>
-        </Help>
-        <Help topic="exitstatus" as="div">
-          <p id="exit-status" className="profile">
-            {card.status}
-          </p>
-        </Help>
+        </div>
+
+        <p id="exit-status" className="profile">
+          {card.status}
+        </p>
+
         {card.logRead && (
           <details id="exit-details">
-            <summary>
-              <Help topic="exitmessages">Kernel messages</Help>
-            </summary>
+            <summary>Kernel messages</summary>
             <pre id="exit-messages" className="exit-log mono">
               {card.messages}
             </pre>

@@ -153,6 +153,25 @@ function filterFleet(text: string) {
   });
 }
 
+test("Targets has one page info button and none on tiles or controls", async () => {
+  await start();
+  expect(screen.getAllByRole("button", { name: /^Explain / })).toHaveLength(1);
+  const info = screen.getByRole("button", { name: "Explain Targets overview" });
+  expect(info.parentElement?.classList.contains("fleet-head")).toBe(true);
+  expect(document.querySelector("#fleet-grid .help-info")).toBeNull();
+  expect(document.querySelector("header .help-info")).toBeNull();
+  expect(screen.queryByText("Data sources")).toBeNull();
+  filterFleet("no-match");
+  expect(screen.getAllByRole("button", { name: /^Explain / })).toHaveLength(1);
+  fireEvent.click(info);
+  expect(
+    screen.getByRole("heading", { name: "Targets overview" }),
+  ).toBeDefined();
+  expect(document.querySelector("#help-guide")?.textContent).toContain(
+    "/api/fleet",
+  );
+});
+
 // Ported from 777cf3a:tests/dashboard_test.js, phase 3 cases 3060–3404.
 test("overview page shows one tile per target in API order, and links to each dashboard", async () => {
   await start();

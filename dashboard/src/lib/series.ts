@@ -17,6 +17,7 @@ export interface Point {
   died: number;
   rss: number | null;
   vm: number | null;
+  hostAvailable?: number | null;
   /** The 1-min load average after this point, or null when its rates are unknown. */
   l1?: number | null;
 }
@@ -122,6 +123,7 @@ const POINT_FIELDS = [
   "died",
   "rss",
   "vm",
+  "hostAvailable",
   "l1",
 ] as const;
 const isPoint = (value: unknown): value is Point =>
@@ -311,6 +313,9 @@ export function ingest(series: Series, view: LiveResponse): Series {
     resources.session === health.session &&
     resources.pid === health.pid;
   point.rss = resourcesCurrent ? (resources.memory?.rss ?? null) : null;
+  const host = resourcesCurrent ? resources.host_memory : null;
+  if (isNum(host?.total) && host.total > 0 && isNum(host.available))
+    point.hostAvailable = (100 * host.available) / host.total;
   // VmSize comes with each resource sample. The sparse memory sample fills in
   // only when the resource sample lacks it.
   point.vm =

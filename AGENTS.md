@@ -76,9 +76,9 @@ These skills are manual-only. Repository rules govern checks and delivery.
 
 ## Dashboard help
 
-- Every user-visible dashboard section, card, chart, label, column, legend, and
-  disclosure needs a contextual help topic in the same change. Follow
-  [Help for new dashboard features](docs/contextual-help-design.md#help-for-new-dashboard-features).
+- Use one source info button per major dashboard section. Group important
+  sources there. Do not add info buttons to labels, values, legends, tiles,
+  or controls. Follow [source help rules](docs/contextual-help-design.md).
 
 ## Documentation
 

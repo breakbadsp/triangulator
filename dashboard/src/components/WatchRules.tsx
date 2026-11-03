@@ -134,7 +134,7 @@ export function WatchRules({
     <section id="collector-settings" className="block">
       <div className="section-head">
         <div>
-          <Help topic="collsettings" as="div">
+          <Help topic="collsettings" as="div" sources={["watches"]}>
             <h2>Settings</h2>
           </Help>
           <p>
@@ -146,9 +146,8 @@ export function WatchRules({
       <div className="card" id="watch-card">
         <div className="card-head">
           <div>
-            <Help topic="watches" as="div">
-              <h3>Watched threads</h3>
-            </Help>
+            <h3>Watched threads</h3>
+
             <p>
               Threads whose name starts with a prefix should wake at least every
               N milliseconds, as workers that wait with a timeout do. The
@@ -158,13 +157,11 @@ export function WatchRules({
           </div>
         </div>
         {recorded && (
-          <Help topic="collsettings" as="div">
-            <p id="watch-recorded-readonly" className="muted">
-              Settings cannot be edited while you inspect a recorded moment.
-              Select Live on the Timeline to edit them.
-              {dirty ? " Your unsaved edits are kept." : ""}
-            </p>
-          </Help>
+          <p id="watch-recorded-readonly" className="muted">
+            Settings cannot be edited while you inspect a recorded moment.
+            Select Live on the Timeline to edit them.
+            {dirty ? " Your unsaved edits are kept." : ""}
+          </p>
         )}
         <div hidden={recorded}>
           {state.kind === "ready" ? (
@@ -176,11 +173,9 @@ export function WatchRules({
               onChanged={onChanged}
             />
           ) : (
-            <Help topic="collsettings" as="div">
-              <p id="watch-readonly" className="muted">
-                {readOnlyNote(state)}
-              </p>
-            </Help>
+            <p id="watch-readonly" className="muted">
+              {readOnlyNote(state)}
+            </p>
           )}
         </div>
       </div>
@@ -261,36 +256,25 @@ function Editor({
   const { base } = state;
   return (
     <div id="watch-editor">
-      <Help topic="watchsource" as="div">
-        <p id="watch-source">
-          {base.source === "dashboard"
-            ? "Saved from the dashboard. These replace the [[watch]] rules in collector.toml until you reset."
-            : "From the config file (collector.toml)."}
-        </p>
-      </Help>
+      <p id="watch-source">
+        {base.source === "dashboard"
+          ? "Saved from the dashboard. These replace the [[watch]] rules in collector.toml until you reset."
+          : "From the config file (collector.toml)."}
+      </p>
+
       {base.saved_error && (
-        <Help topic="watchsource" as="div">
-          <p id="watch-warning" className="watch-warning" role="alert">
-            {`The rules saved from the dashboard could not be used: ${base.saved_error.replace(/\.?$/, ".")} The rules from the config file are in force. Save new rules, or reset to remove the saved file.`}
-          </p>
-        </Help>
+        <p id="watch-warning" className="watch-warning" role="alert">
+          {`The rules saved from the dashboard could not be used: ${base.saved_error.replace(/\.?$/, ".")} The rules from the config file are in force. Save new rules, or reset to remove the saved file.`}
+        </p>
       )}
       <div className="table-wrap">
         <table className="watch-table">
           <thead>
             <tr>
-              <th>
-                <Help topic="watchprefix">Thread name prefix</Help>
-              </th>
-              <th>
-                <Help topic="watchwake">Wakes at least every (ms)</Help>
-              </th>
-              <th>
-                <Help topic="watchmatch">Matching threads now</Help>
-              </th>
-              <th>
-                <Help topic="watchremove">Remove</Help>
-              </th>
+              <th>Thread name prefix</th>
+              <th>Wakes at least every (ms)</th>
+              <th>Matching threads now</th>
+              <th>Remove</th>
             </tr>
           </thead>
           <tbody id="watch-rows">
@@ -385,100 +369,87 @@ function Editor({
         </table>
       </div>
       {state.draft.length === 0 && (
-        <Help topic="watches" as="div">
-          <p id="watch-empty" className="muted">
-            No rules. No thread is watched.
-          </p>
-        </Help>
+        <p id="watch-empty" className="muted">
+          No rules. No thread is watched.
+        </p>
       )}
       <div className="actions">
-        <Help topic="watchadd">
-          <button
-            ref={addButton}
-            id="watch-add"
-            type="button"
-            disabled={!controls.canAdd}
-            onClick={() => {
-              focusRow.current = state.nextId;
-              dispatch({ type: "add" });
-            }}
-          >
-            Add rule
-          </button>
-        </Help>
+        <button
+          ref={addButton}
+          id="watch-add"
+          type="button"
+          disabled={!controls.canAdd}
+          onClick={() => {
+            focusRow.current = state.nextId;
+            dispatch({ type: "add" });
+          }}
+        >
+          Add rule
+        </button>
+
         {controls.limit && (
-          <Help topic="watchadd">
-            <span id="watch-limit" className="muted">
-              {controls.limit}
-            </span>
-          </Help>
+          <span id="watch-limit" className="muted">
+            {controls.limit}
+          </span>
         )}
       </div>
       {controls.unsaved && (
-        <Help topic="watchsave" as="div">
-          <p id="watch-unsaved" className="watch-unsaved">
-            {controls.unsaved}
-          </p>
-        </Help>
+        <p id="watch-unsaved" className="watch-unsaved">
+          {controls.unsaved}
+        </p>
       )}
       <div className="actions">
-        <Help topic="watchsave">
+        <button
+          id="watch-save"
+          className="primary"
+          type="button"
+          disabled={!controls.canSave}
+          onClick={() => {
+            void write("save");
+          }}
+        >
+          Save
+        </button>
+
+        {controls.showDiscard && (
           <button
-            id="watch-save"
-            className="primary"
+            id="watch-discard"
             type="button"
-            disabled={!controls.canSave}
+            disabled={controls.busy}
             onClick={() => {
-              void write("save");
+              dispatch({ type: "discard" });
             }}
           >
-            Save
+            Discard edits
           </button>
-        </Help>
-        {controls.showDiscard && (
-          <Help topic="watchsave">
-            <button
-              id="watch-discard"
-              type="button"
-              disabled={controls.busy}
-              onClick={() => {
-                dispatch({ type: "discard" });
-              }}
-            >
-              Discard edits
-            </button>
-          </Help>
         )}
         {state.conflict && (
-          <Help topic="watchreload">
-            <button
-              id="watch-reload"
-              type="button"
-              disabled={controls.busy}
-              onClick={() => {
-                void reload();
-              }}
-            >
-              Reload current rules
-            </button>
-          </Help>
-        )}
-        <Help topic="watchreset">
           <button
-            id="watch-reset"
+            id="watch-reload"
             type="button"
-            disabled={!controls.canReset}
-            onClick={reset}
+            disabled={controls.busy}
+            onClick={() => {
+              void reload();
+            }}
           >
-            Reset to config file
+            Reload current rules
           </button>
-        </Help>
+        )}
+
+        <button
+          id="watch-reset"
+          type="button"
+          disabled={!controls.canReset}
+          onClick={reset}
+        >
+          Reset to config file
+        </button>
+
         {/* Always present, so screen readers announce each new status. */}
-        <Help topic="watchsave">
-          <span id="watch-status" role="status" className={state.status.kind}>
-            {state.status.text}
-          </span>
-        </Help>
+
+        <span id="watch-status" role="status" className={state.status.kind}>
+          {state.status.text}
+        </span>
       </div>
     </div>
   );

@@ -8,7 +8,6 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { Thread, WatchInfo, WatchRule } from "../api/types";
-import { helpTopics } from "../help/topics";
 import { WatchRules } from "./WatchRules";
 
 afterEach(() => {
@@ -771,55 +770,6 @@ test("a live poll keeps focus and the draft, and unsaved edits guard leaving the
   const stay = new Event("beforeunload", { cancelable: true });
   dispatchEvent(stay);
   expect(stay.defaultPrevented).toBe(false);
-});
-
-test("every visible element of the Settings section has registered help", async () => {
-  await editor(
-    watchReply([{ prefix: "worker-", wake_ms: 500 }], {
-      source: "dashboard",
-      saved_error: "bad file",
-    }),
-    () => reply({ error: "Another user changed the rules." }, 409),
-  );
-  type(0, "wake", "250");
-  fireEvent.click(button("Save"));
-  await status(/Another user/);
-  const section = document.getElementById("collector-settings");
-  for (const element of section?.querySelectorAll<HTMLElement>("[data-help]") ??
-    [])
-    expect(Object.hasOwn(helpTopics, element.dataset.help ?? "")).toBe(true);
-  // The anchor is the element itself, an ancestor, or its only content.
-  const helped = (element: Element | null) => {
-    expect(
-      element?.closest("[data-help]") ?? element?.querySelector("[data-help]"),
-      element?.textContent ?? "missing",
-    ).toBeTruthy();
-  };
-  for (const id of [
-    "watch-source",
-    "watch-warning",
-    "watch-unsaved",
-    "watch-status",
-  ])
-    helped(document.getElementById(id));
-  for (const name of ["Settings", "Watched threads"])
-    helped(screen.getByRole("heading", { name }));
-  for (const label of [
-    "Thread name prefix",
-    "Wakes at least every (ms)",
-    "Matching threads now",
-    "Remove",
-  ])
-    helped(screen.getByRole("columnheader", { name: label }));
-  for (const name of [
-    "Add rule",
-    "Save",
-    "Reload current rules",
-    "Reset to config file",
-  ])
-    helped(button(name));
-  fireEvent.click(button("Remove rule 1"));
-  helped(document.getElementById("watch-empty"));
 });
 
 test("recorded mode keeps the dirty draft, blocks actions, and restores the same revision", async () => {

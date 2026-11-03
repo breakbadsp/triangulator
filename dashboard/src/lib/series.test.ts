@@ -1,7 +1,46 @@
 import { expect, test } from "vitest";
 import type { MemorySummary, Resources } from "../api/types";
-import { emptySeries, ingest } from "./series";
+import { emptySeries, ingest, restoreSeries } from "./series";
 import { view, lockThread } from "./test-fixtures";
+
+test("host memory history records current samples and leaves stale samples as gaps", () => {
+  let series = emptySeries;
+  for (const [time, available, stale] of [
+    [1, 80, false],
+    [2, 50, false],
+    [3, 40, true],
+  ] as const) {
+    series = ingest(
+      series,
+      view({
+        health: { ...view().health, pid: 7 },
+        threads: [{ tid: 1, name: "w", last_sample: time, state: "sleep" }],
+        resources: {
+          available: true,
+          stale,
+          session: "s",
+          pid: 7,
+          host_memory: { total: 100, available },
+        },
+      }),
+    );
+  }
+  expect(series.points.map((point) => point.hostAvailable)).toEqual([
+    80,
+    50,
+    undefined,
+  ]);
+  const restored = restoreSeries(
+    { session: "s", points: series.points },
+    null,
+    "s",
+  );
+  expect(restored.points.map((point) => point.hostAvailable)).toEqual([
+    80,
+    50,
+    undefined,
+  ]);
+});
 
 test("summary points record RSS and VmSize only from current samples", () => {
   let series = emptySeries;

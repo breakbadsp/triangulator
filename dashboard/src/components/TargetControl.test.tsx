@@ -346,7 +346,7 @@ test("unavailable control is quiet and a control host change during check preven
 test("dialog Help opens its guide inside the modal and closes with it", async () => {
   await start();
   open();
-  const label = el("target-input").closest<HTMLElement>("[data-help]");
+  const label = el("target-dialog-title").closest<HTMLElement>("[data-help]");
   if (!label) throw Error("Missing process name help");
   fireEvent.click(within(label).getByRole("button", { name: /^Explain / }));
   const guide = document.getElementById("help-guide");

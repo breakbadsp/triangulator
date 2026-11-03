@@ -59,58 +59,6 @@ afterEach(() => {
 });
 const emptyHistory = () => Response.json({ rows: [], truncated: false });
 
-test.each([
-  ["CPU", "CPU", "20.0%"],
-  ["Run delay", "Run delay", "7.0%"],
-  ["State mix", "Running", "100%"],
-  ["I/O", "Read/s", "2.0 KB/s"],
-])(
-  "the history %s heading captures its metric",
-  async (heading, column, value) => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>().mockImplementation(() =>
-        Promise.resolve(
-          Response.json({
-            rows: [990, 1000].map((ts) => ({
-              ts,
-              cpu_pct: 20,
-              run_delay_pct: 7,
-              read_bps: 2048,
-              write_bps: 4096,
-              samples: 20,
-              expected_samples: 20,
-              valid: true,
-              sample_counts: { running: 20 },
-            })),
-            truncated: false,
-          }),
-        ),
-      ),
-    );
-    render(
-      <HelpGuideProvider>
-        <Drawer thread={selected(one)} />
-      </HelpGuideProvider>,
-    );
-    await screen.findByText(/2 summaries/);
-    fireEvent.keyDown(document, { key: "Escape" });
-    const opener = within(document.getElementById("history") ?? document.body)
-      .getByRole("heading", { name: heading })
-      .closest<HTMLElement>("[data-help]");
-    if (!opener) throw Error("Missing history heading");
-    fireEvent.click(within(opener).getByRole("button", { name: /^Explain / }));
-    const guide = document.getElementById("help-guide");
-    if (!guide) throw Error("Missing guide");
-    fireEvent.click(within(guide).getByText("View chart data"));
-    expect(
-      within(guide).getByRole("columnheader", { name: column }),
-    ).toBeDefined();
-    expect(within(guide).getAllByRole("cell", { name: value })).toHaveLength(2);
-    fireEvent.keyDown(document, { key: "Escape" });
-  },
-);
-
 // Old tests 356 and 378: ranges persist across close and another thread.
 test("the custom history interval and open table survive closing and changing threads", async () => {
   const fetcher = vi
@@ -230,7 +178,7 @@ test("Escape closes drawer help before it closes the drawer", async () => {
   );
   await screen.findByText(/0 summaries/);
   const historyHelp = document.querySelector<HTMLElement>(
-    "#history [data-help='history']",
+    "#drawer [data-help='thread']",
   );
   if (!historyHelp) throw new Error("Missing history help");
   fireEvent.click(

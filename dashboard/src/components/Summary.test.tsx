@@ -292,6 +292,14 @@ test("the memory card shows how much host memory is available", () => {
   expect(document.getElementById("overview-host-mem")?.textContent).toBe("—");
 });
 
+test("the memory card charts host memory history", () => {
+  const { container } = show(
+    view(),
+    series([point(1, { hostAvailable: 80 }), point(2, { hostAvailable: 50 })]),
+  );
+  expect(container.querySelector("#chart-host-memory polyline")).not.toBeNull();
+});
+
 test("before the first live view the summary waits", () => {
   show(undefined);
   expect(screen.getByText("Waiting for data").id).toBe("verdict");
@@ -299,58 +307,7 @@ test("before the first live view the summary waits", () => {
   expect(document.querySelectorAll("#tiles .tile")).toHaveLength(0);
 });
 
-test.each([
-  ["rss", "chart-rss", "chart-vm", "Resident (RSS)", "2 MiB"],
-  ["vmsize", "chart-vm", "chart-rss", "Virtual size (VmSize)", "32 MiB"],
-])(
-  "the %s label guide holds only its own memory chart",
-  (topic, heldId, liveId, label, value) => {
-    const page = (scale: number) => (
-      <HelpGuideProvider>
-        <Summary
-          view={view()}
-          series={series([
-            point(1, { rss: 2 ** 20, vm: 16 * 2 ** 20 }),
-            point(2, { rss: scale * 2 * 2 ** 20, vm: scale * 32 * 2 ** 20 }),
-          ])}
-          now={10}
-          windowSecs={300}
-          onWindow={() => undefined}
-          resourcePoints={[]}
-          pressureScope="cgroup"
-        />
-      </HelpGuideProvider>
-    );
-    const { rerender } = render(page(1));
-    const opener = document.querySelector<HTMLElement>(
-      `#overview-memory .help-label[data-help='${topic}']`,
-    );
-    if (!opener) throw Error("Missing memory label");
-    fireEvent.click(within(opener).getByRole("button", { name: /^Explain / }));
-    const guide = document.getElementById("help-guide");
-    if (!guide) throw Error("Missing guide");
-    fireEvent.click(within(guide).getByText("View chart data"));
-    expect(
-      within(guide).getByRole("columnheader", { name: label }),
-    ).toBeDefined();
-    expect(within(guide).getByRole("cell", { name: value })).toBeDefined();
-    const chart = (id: string) =>
-      document.getElementById(id)?.querySelector("svg")?.innerHTML;
-    const held = chart(heldId),
-      updating = chart(liveId),
-      rows = guide.querySelector(".help-data")?.textContent;
-    expect(held).toBeDefined();
-    expect(updating).toBeDefined();
-    rerender(page(4));
-    expect(chart(heldId)).toBe(held);
-    expect(chart(liveId)).not.toBe(updating);
-    expect(guide.querySelector(".help-data")?.textContent).toBe(rows);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(chart(heldId)).not.toBe(held);
-  },
-);
-
-test("a watched finding keeps its open guide through live re-renders", () => {
+test("the section source stays open through live re-renders", () => {
   vi.useFakeTimers();
   try {
     const live = (now: number) => (
@@ -376,17 +333,16 @@ test("a watched finding keeps its open guide through live re-renders", () => {
       />
     );
     const { rerender } = render(live(1000), { wrapper: HelpGuideProvider });
-    const target = screen
-      .getByText("worker-1 stopped waking up")
-      .closest<HTMLElement>("[data-help]");
-    expect(target?.dataset.help).toBe("watched");
-    if (!target) return;
-    fireEvent.click(within(target).getByRole("button", { name: /^Explain / }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Explain Process overview" }),
+    );
     rerender(live(1001));
-    expect(target.isConnected, "an open guide keeps its row").toBe(true);
     expect(
-      screen.getByRole("complementary", { name: "Watched threads" }),
+      screen.getByRole("complementary", { name: "Process overview" }),
     ).toBeDefined();
+    expect(document.querySelector("#help-guide")?.textContent).toContain(
+      "/proc/PID/status",
+    );
   } finally {
     vi.useRealTimers();
   }
