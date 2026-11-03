@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "../App";
 import { readFileSync } from "node:fs";
 import type { LiveResponse } from "../api/types";
+import { mergeOrder, moveKey } from "../lib/fleet";
 
 const fleetCss = readFileSync("src/components/fleet.css", "utf8");
 
@@ -612,4 +613,96 @@ test("failed retained removal keeps the tile and explains the failure", async ()
       .getByRole("button", { name: "Remove retained target api" })
       .hasAttribute("disabled"),
   ).toBe(false);
+});
+
+const order = () => tiles().map((tile) => tile.dataset.key);
+const dragOnto = (from: string, to: string) => {
+  const dataTransfer = { setData: vi.fn(), effectAllowed: "" };
+  fireEvent.dragStart(tileFor(from), { dataTransfer });
+  fireEvent.dragOver(tileFor(to), { dataTransfer });
+  fireEvent.drop(tileFor(to), { dataTransfer });
+  fireEvent.dragEnd(tileFor(from), { dataTransfer });
+};
+
+test("tile order merges saved keys with the current targets and moves one key to another's place", () => {
+  expect(mergeOrder(["c", "gone", "a"], ["a", "b", "c", "d"])).toEqual([
+    "c",
+    "a",
+    "b",
+    "d",
+  ]);
+  expect(moveKey(["a", "b", "c"], "a", "c")).toEqual(["b", "c", "a"]);
+  expect(moveKey(["a", "b", "c"], "c", "a")).toEqual(["c", "a", "b"]);
+  expect(moveKey(["a", "b"], "a", "missing")).toEqual(["a", "b"]);
+});
+
+test("dropping a tile on another moves it there at once, and the order survives a reload and polls", async () => {
+  localStorage.setItem(
+    "triangulator:fleet-order",
+    JSON.stringify(["h/gone", "x/old"]),
+  );
+  const app = await start();
+  expect(order()).toEqual(["h/gone", "h/api", "h/busy"]);
+  dragOnto("h/gone", "h/busy");
+  expect(order()).toEqual(["h/api", "h/busy", "h/gone"]);
+  dragOnto("h/gone", "h/api");
+  expect(order()).toEqual(["h/gone", "h/api", "h/busy"]);
+  expect(link(tileFor("h/api")).draggable).toBe(false);
+  app.unmount();
+  await start();
+  expect(order()).toEqual(["h/gone", "h/api", "h/busy"]);
+  await poll();
+  expect(order()).toEqual(["h/gone", "h/api", "h/busy"]);
+});
+
+test("a drop during a search moves the tile in the full order", async () => {
+  const targets = [
+    ...fleetTargets,
+    { ...fleetTargets[0], key: "h/api2", id: "api2", pid: 40 },
+  ];
+  respond = (url) =>
+    url === "/api/targets"
+      ? Response.json({ targets })
+      : url === "/api/live?target=h%2Fapi2"
+        ? Response.json({}, { status: 503 })
+        : fleetRespond(url);
+  await start();
+  filterFleet("api");
+  expect(shownTiles()).toEqual(["h · api", "h · api2"]);
+  dragOnto("h/api2", "h/api");
+  expect(shownTiles()).toEqual(["h · api2", "h · api"]);
+  filterFleet("");
+  expect(order()).toEqual(["h/api2", "h/api", "h/busy", "h/gone"]);
+});
+
+test("Alt with an arrow key moves the focused tile, keeps focus and announces the place", async () => {
+  await start();
+  const first = link(tileFor("h/api"));
+  first.focus();
+  fireEvent.keyDown(first, { key: "ArrowLeft", altKey: true });
+  expect(order()).toEqual(["h/api", "h/busy", "h/gone"]);
+  expect(element("#fleet-order-status").textContent).toBe(
+    "api is already first.",
+  );
+  fireEvent.keyDown(first, { key: "ArrowRight", altKey: true });
+  expect(order()).toEqual(["h/busy", "h/api", "h/gone"]);
+  expect(element("#fleet-order-status").textContent).toBe(
+    "Moved api to position 2 of 3.",
+  );
+  expect(document.activeElement).toBe(link(tileFor("h/api")));
+  fireEvent.keyDown(first, { key: "ArrowRight" });
+  expect(order()).toEqual(["h/busy", "h/api", "h/gone"]);
+});
+
+test("blocked storage keeps the default order and still lets a tile move", async () => {
+  vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    throw new Error("blocked");
+  });
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new Error("blocked");
+  });
+  await start();
+  expect(order()).toEqual(["h/api", "h/busy", "h/gone"]);
+  dragOnto("h/api", "h/gone");
+  expect(order()).toEqual(["h/busy", "h/gone", "h/api"]);
 });
