@@ -92,8 +92,13 @@ export function lockHints(threads: readonly Thread[]) {
     families.get(key)?.push(thread);
   }
   // Threads that have not run for a long time, in any state. A full deadlock
-  // blocks every thread, so no other thread needs to be active.
-  const stuck = stuckThreads(current),
+  // blocks every thread, so no other thread needs to be active. A watched
+  // thread is judged against its own wake interval by the watch rules.
+  const stuck = stuckThreads(
+      current.filter(
+        (thread) => !(isNum(thread.wake_ms) && thread.wake_ms > 0),
+      ),
+    ),
     shortest = stuck.at(-1);
   if (shortest) {
     const many = stuck.length > 1,

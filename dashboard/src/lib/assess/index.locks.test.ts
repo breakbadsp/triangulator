@@ -73,6 +73,20 @@ test("one stuck thread raises the hint, in any state", () => {
   expect(item?.detail).toMatch(/: worker-a \(2\)\./);
 });
 
+test("a watched thread is left to its watch rule, not the hint", () => {
+  // A 60 s rule: 45 s without running is on schedule, so no deadlock hint.
+  const watched = { ...lockThread(1, "poller", "sleep"), wake_ms: 60000 };
+  expect(lockHints(waited([watched], 45))).toHaveLength(0);
+  // A 100 ms rule already reports "stopped waking up": do not name it twice.
+  const late = { ...lockThread(2, "beat", "sleep"), wake_ms: 100 };
+  const stuck = lockThread(3, "worker-a", "futex");
+  const [item, ...rest] = lockHints(waited([late, stuck], 60));
+  expect(rest).toHaveLength(0);
+  expect(item?.title).toBe("1 thread has not run for over 60 s");
+  expect(item?.detail).toMatch(/: worker-a \(3\)\./);
+  expect(item?.detail).not.toMatch(/beat/);
+});
+
 test("the hint names the longest waits first, at most five", () => {
   const threads = [1, 2, 3, 4, 5, 6, 7].map((tid) => ({
     ...lockThread(tid, `t${String(tid)}`, "sleep"),
