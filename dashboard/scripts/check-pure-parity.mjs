@@ -68,11 +68,11 @@ const { asResourcePoints, rssTrend } = load(
 );
 const canonical = (value) => JSON.parse(JSON.stringify(value));
 let comparisons = 0;
-// Intended change (QA-107): the stuck-futex hint reads the collector's
+// Intended change (QA-107): the stuck-thread hint reads the collector's
 // last_ran, not the tab's futexSince, so it also works without tab history.
 // The old page gets the same wait as its futexSince; it gave no hint in a
 // recording, so that one finding is not compared there.
-const STUCK_HINT = /threads have waited on a futex for over/;
+const STUCK_HINT = /threads? ha(s|ve) not run for over/;
 const futexSeen = (input) =>
   new Map(
     input.view.threads
@@ -899,11 +899,11 @@ log(
   `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
 );
 
-// Intended change (QA-107, QA-119): long futex waits and thread growth now
+// Intended change (QA-107, QA-119): the stuck-thread hint and thread growth now
 // run on recordings.
 const STUCK_HELP = [
   "rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run.",
-  "the thread churn rule, which needs trends kept in a live tab, and the watch rule with no thread do not run. Long futex waits use the collector's last-ran time, and thread growth uses the collector's thread counts for the 300 s before each recording.",
+  "the thread churn rule, which needs trends kept in a live tab, and the watch rule with no thread do not run. The stuck-thread hint (threads that have not run for over 30 s) uses the collector's last-ran time, and thread growth uses the collector's thread counts for the 300 s before each recording.",
 ];
 // The history explanations retain the pinned text. Automatic label aliases
 // are retired; internal callers use type-checked topic IDs.

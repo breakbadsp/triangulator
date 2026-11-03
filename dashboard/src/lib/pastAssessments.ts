@@ -85,10 +85,11 @@ export type ScanAction =
 // The same finding in two views: same type, same title once numbers are
 // ignored ("Packet loss 2.1%" and "Packet loss 3.4%"), and the same thread
 // generation in the same sampler session. A reused TID is a different thread.
+// A finding whose title also changes in words or units sets its own key.
 export const findingKey = (item: Finding) =>
   [
     item.type,
-    item.title.replace(/\d+(?:[.,]\d+)*/g, "#"),
+    item.key ?? item.title.replace(/\d+(?:[.,]\d+)*/g, "#"),
     item.action?.tid ?? "",
     item.action?.session ?? "",
     item.action?.generation ?? "",

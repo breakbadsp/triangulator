@@ -128,7 +128,7 @@
 | QA-104 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
 | QA-105 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
 | QA-106 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-107 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
+| QA-107 | NOT_RUN | - | - | - |
 | QA-108 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
 | QA-109 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
 | QA-110 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
