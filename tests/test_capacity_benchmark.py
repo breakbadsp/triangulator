@@ -41,6 +41,37 @@ class CapacityTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 capacity.comparison(report, dict(baseline, **{key: None}))
 
+    def test_baseline_without_usable_runs_is_rejected(self):
+        report = dict(schema_version=1, method='continuous', threads=101, duration_s=6,
+                      warmup_s=1, repeats=2, build_options='c++ -O2', cpu_model='cpu',
+                      kernel='linux', allowed_cpus=[0], complete=True,
+                      workload_source_sha256='target', receiver_source_sha256='receiver')
+        for runs in (None, [], [{}], [{'delivered_records_per_s': 0}]):
+            with self.subTest(runs=runs), self.assertRaisesRegex(ValueError, 'no usable runs'):
+                capacity.check_baseline(report, dict(report, runs=runs))
+
+    def test_incompatible_baseline_fails_before_any_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            baseline = Path(directory) / 'baseline.json'
+            baseline.write_text(json.dumps(dict(complete=True, threads=-1, runs=[])))
+            output = Path(directory) / 'out.json'
+            argv = ['benchmark_capacity.py', '--baseline', str(baseline), '--output', str(output)]
+            with patch.object(sys, 'argv', argv), patch.object(capacity, 'trial') as trial, \
+                    patch.object(capacity, 'exclusive_host') as host:
+                with self.assertRaisesRegex(ValueError, 'differs'):
+                    capacity.main()
+            trial.assert_not_called()
+            host.assert_not_called()
+            self.assertFalse(output.exists())
+
+    def test_long_run_requires_resource_and_memory_map_samples(self):
+        from collections import Counter
+        capacity.require_scheduled_work(Counter(TMON=9), 30)  # shorter than the memory interval
+        capacity.require_scheduled_work(Counter(TRES=1, TVMA=1), 35)
+        for missing in (Counter(TRES=1), Counter(TVMA=1), Counter(TMON=9)):
+            with self.subTest(missing=missing), self.assertRaisesRegex(RuntimeError, 'missing'):
+                capacity.require_scheduled_work(missing, 35)
+
     def test_invalid_duration_starts_no_workload(self):
         result = subprocess.run([sys.executable, str(Path(capacity.__file__)), '--duration', 'nan'],
                                 capture_output=True, text=True, timeout=5)
