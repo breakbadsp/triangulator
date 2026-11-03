@@ -35,7 +35,10 @@ Run these commands from the repository root as the target process user.
    ```
 
 The default frequency is 5 Hz. The range is 0.2–10 Hz.
-Resource samples run every 2 seconds, and memory-map samples every 30 seconds.
+Resource samples run every 2 seconds, and memory samples every 30 seconds.
+Every second memory sample, starting with the first, also reads
+`/proc/PID/maps`. The others carry only the summary, so the mapping count and
+the layout update every second interval.
 Set `resource_interval_s` or `memory_interval_s` to `0` to disable that source.
 Both intervals are limited by the thread sampling frequency. See
 [target impact](../docs/target-impact.md) for measured costs and limits.

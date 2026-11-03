@@ -305,12 +305,16 @@ int main()
                 resource_wire::HasFlag(sample.flags_,
                                        resource_wire::Flags::SocketsTruncated),
             "resource sample keeps the fullest sockets");
-    // A memory-map sample split over two calls, as over two ticks.
+    // A memory-map sample split over two calls, as over two ticks, then a
+    // summary-only sample.
     memory.Start(pid, true);
     Require(!memory.Continue(Nanoseconds{0}), "memory-map read deferred");
     const auto layout = memory.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
     Require(layout && layout->summary_[memory_wire::Field("vma_count")] > 0,
             "memory-map sample");
+    memory.Start(pid, false);
+    Require(memory.Continue(Nanoseconds{0}).has_value(),
+            "summary-only memory sample");
     Require(process_info.Read(pid, (*target)->starttime_).pid_ ==
                 static_cast<std::uint32_t>(pid),
             "process identity");

@@ -1937,21 +1937,57 @@ void TestMemoryProbe()
                                            memory_wire::RegionKind::Stack;
                                   }),
           "the layout has the main stack");
+  // A summary-only sample: the summary, no maps read, and no layout.
+  probe.Start(::getpid(), true);
+  const auto skipped = probe.Continue(Nanoseconds{0});
+  Require(
+      skipped && !probe.Busy() && skipped->flags_ == memory_wire::Flags::None &&
+          skipped->regions_.empty() &&
+          skipped->summary_[Field("vm_size_bytes")] > 0 &&
+          skipped->summary_[Field("max_map_count")] > 0 &&
+          skipped->summary_[Field("vma_count")] == memory_wire::kUnavailable &&
+          skipped->summary_[Field("maps_reads")] == memory_wire::kUnavailable &&
+          skipped->summary_[Field("maps_read_us")] == memory_wire::kUnavailable,
+      "a summary-only sample reads no maps and asks for no layout");
   // TODO(PR 37 review): this check assumes the test process maps nothing
   // between the two samples. If it flakes, for example because the allocator
   // added a mapping, loosen the check or sample a target with a fixed layout.
   probe.Start(::getpid(), false);
   const auto again = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
-  Require(again && again->regions_.empty(), "an unchanged layout is not sent");
+  Require(again && again->summary_[Field("vma_count")] > 0 &&
+              again->regions_.empty(),
+          "an unchanged layout is not sent");
+  probe.Start(::getpid(), false);
+  Require(probe.Continue(Nanoseconds{0}).has_value(),
+          "the next sample is summary-only");
   probe.Start(::getpid(), true);
   const auto refreshed = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
   Require(refreshed && !refreshed->regions_.empty(),
           "a refresh sends an unchanged layout again");
+  probe.Reset();
+  Require(probe.NextReadsMaps(), "a new session starts with a full sample");
   probe.Start(0x7fffffff, false);
   const auto missing = probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s);
   Require(missing && memory_wire::HasFlag(missing->flags_,
                                           memory_wire::Flags::MapsHidden),
           "a missing process has no layout");
+  // A summary-only sample repeats the flags of the last maps read, and a
+  // reset forgets them.
+  probe.Start(0x7fffffff, false);
+  const auto hidden = probe.Continue(Nanoseconds{0});
+  Require(hidden &&
+              memory_wire::HasFlag(hidden->flags_,
+                                   memory_wire::Flags::MapsHidden) &&
+              hidden->summary_[Field("vma_count")] == memory_wire::kUnavailable,
+          "a summary-only sample keeps the hidden flag");
+  probe.Reset();
+  probe.Start(::getpid(), false);
+  Require(probe.Continue(ClockNow(CLOCK_MONOTONIC) + 10s).has_value(),
+          "a reset restarts with a full sample");
+  probe.Start(::getpid(), false);
+  const auto after_reset = probe.Continue(Nanoseconds{0});
+  Require(after_reset && after_reset->flags_ == memory_wire::Flags::None,
+          "a reset forgets the flags");
 }
 
 // Reads maps text that the kernel does not produce, through the path seam:
