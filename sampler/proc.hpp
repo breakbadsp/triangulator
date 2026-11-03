@@ -42,7 +42,7 @@ ReadProcessStat(int p_pid, const char* p_root = "/proc")
     }
     return std::unexpected(errno);
   }
-  std::array<char, 4096> buffer{};
+  std::array<char, 4096> buffer;
   errno = 0;
   const auto contents = ReadAtStart(descriptor, buffer);
   if (!contents)
@@ -119,7 +119,7 @@ class Thread
   [[nodiscard]] std::optional<Sample> TakeSample(int p_pid, bool p_fallback,
                                                  RateLimitedLogger& p_logger)
   {
-    std::array<char, 8192> buffer{};
+    std::array<char, 8192> buffer;
     auto contents = ReadFile(stat_, p_pid, "stat", buffer);
     if (!contents)
     {
