@@ -105,8 +105,18 @@ the effective rate. It never goes below 0.2 Hz. At the minimum rate, the CPU
 use can still exceed the budget if the targets cost too much to sample.
 
 After CPU use stays below 60% of the budget for five seconds, the rate
-increases by 25%, up to `rate_hz`. All targets use the same effective rate.
-A rate change keeps their sessions. TMON reports the effective interval.
+increases by 25%, up to `rate_hz`. Without critical targets, all targets use
+the same effective rate. A rate change keeps their sessions.
+
+`critical_names` lists exact names from `process_names`. While a critical
+target has a process, the CPU ceiling is `cpu_budget_pct` plus
+`critical_extra_budget_pct` (default 5, range 0..50). A cut slows the other
+targets first, against `cpu_budget_pct`: they are sampled on every Nth tick
+only, down to 0.2 Hz. The critical targets slow down only when the total use is
+above the ceiling and the other targets are at 0.2 Hz. One CPU total is
+measured, not the cost of each target: a per-target clock read would add a
+syscall per target per tick, and discovery and the heavy scans belong to no
+target. A critical name with no running process does not raise the ceiling. TMON reports the effective interval.
 TTGT reports raw CPU and elapsed time counters, the configured and effective
 rates, and the budget. The collector converts the counters to a percentage.
 

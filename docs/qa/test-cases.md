@@ -18,6 +18,7 @@
 | QA-137 | NOT_RUN | - | - | - |
 | QA-138 | NOT_RUN | - | - | - |
 | QA-139 | NOT_RUN | - | - | - |
+| QA-140 | NOT_RUN | - | - | - |
 | QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
 | QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
@@ -838,3 +839,10 @@
 - Driver: scripted
 - Test: Run the sampler with `rate_hz = 1`, `resource_interval_s = 1`, and discovery of 4 owned targets. Open the Resources section of one target and wait 20 seconds. Then run 1 target with `rate_hz = 5` and `resource_interval_s = 2`. Open help on the sample line.
 - Expected: With 4 targets the sample line reads "every 4.0 s (configured 1 s)", or "every 5.0 s" after a memory-map turn. With 1 target it reads "every 2 s" and shows no configured value. The Data coverage help explains the measured interval and why it can be longer.
+
+## QA-140: Critical target keeps its rate under the CPU budget
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run the sampler with two busy targets, `rate_hz = 10`, `cpu_budget_pct = 0.5`, `critical_names` set to one of them, and `critical_extra_budget_pct = 20`. Wait 30 seconds and open both targets. Then set `critical_names` to the other target, reload with SIGHUP, and wait 30 seconds. Stop the critical process and wait 30 seconds. Open the help of the "Sampler throttled" badge.
+- Expected: The critical target shows no throttle badge and samples at 10 Hz. The other target shows "Sampler throttled" with a lower rate and the 0.5% budget. After the reload, the two roles change without a restart and without new sessions. After the critical process stops, the remaining target is throttled against the 0.5% budget. Help explains that critical targets keep their full rate up to the budget plus the extra allowance.
