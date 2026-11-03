@@ -110,6 +110,7 @@ struct ThreadStat
   const auto last = p_text.rfind(')');
   if (first == std::string_view::npos || last == std::string_view::npos ||
       last <= first || last + 2 >= p_text.size() || p_text[last + 1] != ' ')
+      [[unlikely]]
   {
     return std::nullopt;
   }
@@ -123,7 +124,7 @@ struct ThreadStat
   for (int field = 3; field <= 39; ++field)
   {
     const auto first_non_whitespace = fields.find_first_not_of(kWhitespace);
-    if (first_non_whitespace == std::string_view::npos)
+    if (first_non_whitespace == std::string_view::npos) [[unlikely]]
     {
       return std::nullopt;
     }
@@ -134,7 +135,7 @@ struct ThreadStat
         end == std::string_view::npos ? std::string_view{} : fields.substr(end);
     if (field == 3)
     {
-      if (token.size() != 1)
+      if (token.size() != 1) [[unlikely]]
       {
         return std::nullopt;
       }
@@ -143,7 +144,7 @@ struct ThreadStat
     if (field == 4)
     {
       const auto value = ParseNumber<int>(token);
-      if (!value)
+      if (!value) [[unlikely]]
       {
         return std::nullopt;
       }
@@ -152,7 +153,7 @@ struct ThreadStat
     if (field == 12 || field == 14 || field == 15 || field == 22)
     {
       const auto value = ParseNumber<std::uint64_t>(token);
-      if (!value)
+      if (!value) [[unlikely]]
       {
         return std::nullopt;
       }
@@ -176,7 +177,7 @@ struct ThreadStat
     if (field == 39)
     {
       const auto value = ParseNumber<std::uint16_t>(token);
-      if (!value)
+      if (!value) [[unlikely]]
       {
         return std::nullopt;
       }
