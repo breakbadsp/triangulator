@@ -10,6 +10,9 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-147 | NOT_RUN | - | - | - |
+| QA-146 | NOT_RUN | - | - | - |
+| QA-145 | NOT_RUN | - | - | - |
 | QA-143 | NOT_RUN | - | - | - |
 | QA-142 | NOT_RUN | - | - | - |
 | QA-141 | NOT_RUN | - | - | - |
@@ -884,3 +887,24 @@
 - Driver: judged
 - Test: Use the QA-091 fixture with at least 5 targets. Drag one tile onto another, forward and backward. Reload. Search for text that matches some tiles, drag one shown tile onto another, and clear the search. Focus a tile link and press Alt with each arrow key, with a screen reader on. Click and middle-click a tile link after a drag. Repeat with browser storage blocked, and after a target is added and another is removed.
 - Expected: The dragged tile takes the place of the tile it lands on, at once. The order survives a reload. A search keeps the custom order of the shown tiles, and the drag changes the order of all tiles. Alt with an arrow key moves the focused tile by one shown place, keeps focus on it, and announces its new position, or says that it is first or last. A drag starts no navigation, and a click or middle-click still opens the target. With storage blocked the order works until reload and no error shows. A new target appears after the saved tiles and a removed target leaves no gap. The `fleet` help describes reordering.
+
+## QA-145: Virtual size updates at the resource interval
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run the sampler with `resource_interval_s = 2` and `memory_interval_s = 30` on a target that maps memory every few seconds. Watch the "Virtual size (VmSize)" chart and readout in the Memory use card for 60 s. Compare the readout with `grep VmSize /proc/PID/status`. Open the `vmsize` help.
+- Expected: The readout and chart change about every 2 s, not every 30 s. The value matches `VmSize` within one interval. With the memory-map sample off, the chart still updates. Help names the resource sample and its 2 s default.
+
+## QA-146: Host memory available in the Memory use card
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Open a target with two or more targets on the host. Compare "Host memory available" and its detail line with `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`. Allocate several GiB on the host and watch the card. Open the `hostmem` help. Check the sampler with `strace -f -e trace=openat -p SAMPLER_PID` for 10 s.
+- Expected: The percentage is MemAvailable divided by MemTotal, and the line shows the amounts and the swap in use. It falls while memory is allocated. With no swap, the line has no swap text. The strace output shows one `/proc/meminfo` open for each half resource interval, not one for each target sample. Help describes the whole-host scope and the source.
+
+## QA-147: Charts have no gap after All targets
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Open a target dashboard and wait 30 s. Use All targets and wait 30 s. Use the target tile to return. Repeat with the tab in the background while on All targets. Then open a second target, use All targets, and wait 30 s.
+- Expected: The Process load and Memory use charts of the last viewed target continue with no gap across the 30 s on All targets, also with the tab in the background. The second target, when it was not the last viewed one, may show a gap. Reload of All targets keeps the polling. With browser storage blocked, All targets works and the chart has a gap.
