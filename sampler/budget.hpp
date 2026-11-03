@@ -26,9 +26,6 @@ inline constexpr std::uint32_t kMaxTickIntervalMs = 5000;
       interval.count(), std::int64_t{kMaxTickIntervalMs}));
 }
 
-// Twenty fixed buckets cover at least five seconds at the fastest check
-// cadence. Tick samples are added to the current bucket without allocation.
-//
 // One measured total controls two rates. While a critical target is live,
 // the loop runs at the critical rate, and other targets are served on every
 // Stride()-th tick. Other targets absorb a cut first, against the budget.
@@ -36,6 +33,15 @@ inline constexpr std::uint32_t kMaxTickIntervalMs = 5000;
 // plus extra) and the other targets have no room left. Per-target CPU is not
 // measured: it would cost a syscall per target per tick, and the shared
 // discovery and heavy scans belong to no target.
+//
+// Two windows of about five seconds feed the decisions. The main window sees
+// every tick and decides the rate of the targets without a live critical
+// target; each change of the critical state clears it, so that work from
+// before an exit cannot cut the other targets. The critical window sees only
+// the ticks that sample a live critical target and decides the critical
+// state. It survives the gaps: a target that is live for less than five
+// seconds at a time and gone for longer than the hold never fills a window of
+// wall time, but its live ticks add up to one.
 class CpuBudget final
 {
  public:
@@ -56,49 +62,27 @@ class CpuBudget final
     critical_gap_ =
         p_critical_live ? Nanoseconds{0} : critical_gap_ + p_elapsed;
     // A short gap, such as a critical process that restarts, keeps the
-    // critical state. Each change clears the window, so a flip faster than
-    // the 5 s window would stop every decision.
+    // critical state, so the loop rate does not flip with it.
     const bool critical_live =
         p_critical_live || (critical_live_ && critical_gap_ < kCriticalHold);
     if (critical_live != critical_live_)
     {
-      // The ceiling changes. Samples from the old state would steer the
-      // first decision of the new one.
+      // The main window clears at a change, whatever its direction: samples
+      // from the old state would steer the first decision of the new one.
       critical_live_ = critical_live;
-      ClearWindow();
+      main_.Clear();
+      since_change_ = Nanoseconds{0};
     }
-    total_elapsed_ += p_elapsed;
-    current_.cpu_ += p_cpu;
-    current_.elapsed_ += p_elapsed;
     since_change_ += p_elapsed;
-    if (current_.elapsed_ < 250ms)
+    const bool main_closed = main_.Add(p_cpu, p_elapsed);
+    if (p_critical_live && critical_.Add(p_cpu, p_elapsed) &&
+        critical_.IsFull() && StepCritical(critical_.Percent(), p_other_live))
     {
-      return;
+      // The next decision needs five seconds of live ticks at the new rates.
+      critical_.Clear();
     }
-    current_.end_ = total_elapsed_;
-    buckets_[position_++ % buckets_.size()] = current_;
-    current_ = {};
-    cpu_ = Nanoseconds{0};
-    elapsed_ = Nanoseconds{0};
-    for (const auto& bucket : buckets_)
-    {
-      if (total_elapsed_ - bucket.end_ < 5s)
-      {
-        cpu_ += bucket.cpu_;
-        elapsed_ += bucket.elapsed_;
-      }
-    }
-    // No decision while a held critical state has no live critical target:
-    // the window still holds work from before the exit.
-    if (elapsed_ < 5s || since_change_ < 5s ||
-        (critical_live_ && !p_critical_live))
-    {
-      return;
-    }
-    const double percent = 100.0 * static_cast<double>(cpu_.count()) /
-                           static_cast<double>(elapsed_.count());
-    if (critical_live_ ? StepCritical(percent, p_other_live)
-                       : StepOther(percent))
+    if (!critical_live_ && main_closed && main_.IsFull() &&
+        since_change_ >= kWindowLength && StepOther(main_.Percent()))
     {
       since_change_ = Nanoseconds{0};
     }
@@ -123,11 +107,11 @@ class CpuBudget final
   }
   [[nodiscard]] Nanoseconds Cpu() const noexcept
   {
-    return cpu_ + current_.cpu_;
+    return main_.Cpu();
   }
   [[nodiscard]] Nanoseconds Elapsed() const noexcept
   {
-    return elapsed_ + current_.elapsed_;
+    return main_.Elapsed();
   }
 
  private:
@@ -137,12 +121,83 @@ class CpuBudget final
   static constexpr double kRecoverBelow = 0.6;
   static constexpr double kRaiseStep = 1.25;
   static constexpr Nanoseconds kCriticalHold = 5s;
+  static constexpr Nanoseconds kWindowLength = 5s;
 
-  struct Bucket
+  // Twenty fixed buckets cover at least five seconds at the fastest check
+  // cadence. Tick samples are added to the current bucket without allocation.
+  // The window has its own clock, which advances only with the samples that
+  // it receives.
+  class Window final
   {
+   public:
+    // True when a bucket closed, which is when the sums change.
+    [[nodiscard]] bool Add(Nanoseconds p_cpu, Nanoseconds p_elapsed) noexcept
+    {
+      total_elapsed_ += p_elapsed;
+      current_.cpu_ += p_cpu;
+      current_.elapsed_ += p_elapsed;
+      if (current_.elapsed_ < 250ms)
+      {
+        return false;
+      }
+      current_.end_ = total_elapsed_;
+      buckets_[position_++ % buckets_.size()] = current_;
+      current_ = {};
+      cpu_ = Nanoseconds{0};
+      elapsed_ = Nanoseconds{0};
+      for (const auto& bucket : buckets_)
+      {
+        if (total_elapsed_ - bucket.end_ < kWindowLength)
+        {
+          cpu_ += bucket.cpu_;
+          elapsed_ += bucket.elapsed_;
+        }
+      }
+      return true;
+    }
+
+    void Clear() noexcept
+    {
+      buckets_ = {};
+      current_ = {};
+      cpu_ = Nanoseconds{0};
+      elapsed_ = Nanoseconds{0};
+    }
+
+    // The closed buckets cover a complete window.
+    [[nodiscard]] bool IsFull() const noexcept
+    {
+      return elapsed_ >= kWindowLength;
+    }
+    // The use over the closed buckets: call it only when IsFull().
+    [[nodiscard]] double Percent() const noexcept
+    {
+      return 100.0 * static_cast<double>(cpu_.count()) /
+             static_cast<double>(elapsed_.count());
+    }
+    [[nodiscard]] Nanoseconds Cpu() const noexcept
+    {
+      return cpu_ + current_.cpu_;
+    }
+    [[nodiscard]] Nanoseconds Elapsed() const noexcept
+    {
+      return elapsed_ + current_.elapsed_;
+    }
+
+   private:
+    struct Bucket
+    {
+      Nanoseconds cpu_{0};
+      Nanoseconds elapsed_{0};
+      Nanoseconds end_{0};
+    };
+
+    Nanoseconds total_elapsed_{0};
+    std::array<Bucket, 20> buckets_{};
+    std::size_t position_ = 0;
+    Bucket current_;
     Nanoseconds cpu_{0};
     Nanoseconds elapsed_{0};
-    Nanoseconds end_{0};
   };
 
   // No critical target: one rate for all targets, against the budget.
@@ -194,15 +249,6 @@ class CpuBudget final
     return false;
   }
 
-  void ClearWindow() noexcept
-  {
-    buckets_ = {};
-    current_ = {};
-    cpu_ = Nanoseconds{0};
-    elapsed_ = Nanoseconds{0};
-    since_change_ = Nanoseconds{0};
-  }
-
   double configured_rate_;
   double critical_rate_;
   double other_rate_;
@@ -211,12 +257,8 @@ class CpuBudget final
   bool critical_live_ = false;
   Nanoseconds critical_gap_{0};
   Nanoseconds since_change_{0};
-  Nanoseconds total_elapsed_{0};
-  std::array<Bucket, 20> buckets_{};
-  std::size_t position_ = 0;
-  Bucket current_;
-  Nanoseconds cpu_{0};
-  Nanoseconds elapsed_{0};
+  Window main_;
+  Window critical_;
 };
 
 }  // namespace triangulator

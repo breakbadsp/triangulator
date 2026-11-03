@@ -116,7 +116,7 @@ only, down to 0.2 Hz. The critical targets slow down only when the total use is
 above the ceiling and the other targets are at 0.2 Hz. One CPU total is
 measured, not the cost of each target: a per-target clock read would add a
 syscall per target per tick, and discovery and the heavy scans belong to no
-target. A critical name with no running process does not raise the ceiling. TMON reports the effective interval.
+target. The ceiling decision uses five seconds of the ticks that sample a live critical target, added up across gaps, so a target that is live for less than five seconds at a time is held to it too. A critical name with no running process does not raise the ceiling. TMON reports the effective interval.
 TTGT reports raw CPU and elapsed time counters, the configured and effective
 rates, and the budget. The collector converts the counters to a percentage.
 

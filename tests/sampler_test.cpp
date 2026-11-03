@@ -1043,6 +1043,88 @@ double RunBudget(CpuBudget& p_budget, Nanoseconds p_duration,
          static_cast<double>(tail_elapsed.count());
 }
 
+struct FlapResult
+{
+  double live_percent_ = 0;
+  double live_rate_hz_ = 0;
+};
+
+// A critical target is live for p_live of each cycle of p_live + p_gone. A
+// tick that finds it live costs p_cost, and a tick that does not costs
+// nothing. The percent is the use over the live ticks of the last minute,
+// and the rate is the one that the last live tick ran at.
+FlapResult RunFlapping(CpuBudget& p_budget, Nanoseconds p_duration,
+                       Nanoseconds p_live, Nanoseconds p_gone,
+                       Nanoseconds p_cost)
+{
+  Nanoseconds simulated{0};
+  Nanoseconds tail_cpu{0};
+  Nanoseconds tail_elapsed{0};
+  FlapResult result;
+  while (simulated < p_duration)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_budget.RateHz()});
+    const bool live = simulated % (p_live + p_gone) < p_live;
+    const auto cpu = live ? p_cost : Nanoseconds{0};
+    p_budget.Add(cpu, interval, live, false);
+    simulated += interval;
+    if (live)
+    {
+      result.live_rate_hz_ = p_budget.RateHz();
+      if (simulated > p_duration - 60s)
+      {
+        tail_cpu += cpu;
+        tail_elapsed += interval;
+      }
+    }
+  }
+  result.live_percent_ = 100.0 * static_cast<double>(tail_cpu.count()) /
+                         static_cast<double>(tail_elapsed.count());
+  return result;
+}
+
+// A critical target that is live for less than the 5 s window, and gone for
+// longer than the 5 s hold, must still be held to the ceiling. The window
+// counts live critical ticks only and survives the gaps: the gaps carry no
+// critical work, and the decision needs five seconds of it.
+void TestCriticalFlapping()
+{
+  struct Pattern
+  {
+    Nanoseconds live_;
+    Nanoseconds gone_;
+  };
+  for (const auto pattern :
+       {Pattern{4s, 5500ms}, Pattern{1s, 6s}, Pattern{500ms, 9s},
+        Pattern{4s, 4900ms}, Pattern{10s, 10s}, Pattern{4s, 30s}})
+  {
+    // 40 ms a tick is 40% at 10 Hz: far above the 15% ceiling.
+    CpuBudget budget{10, 10, 5};
+    const auto heavy =
+        RunFlapping(budget, 900s, pattern.live_, pattern.gone_, 40ms);
+    Require(heavy.live_rate_hz_ < 10 && heavy.live_percent_ <= 15,
+            "a flapping critical target is held to the ceiling");
+
+    // The use falls to 2%: below 60% of the ceiling, so the rate recovers.
+    const auto light =
+        RunFlapping(budget, 900s, pattern.live_, pattern.gone_, 2ms);
+    Require(light.live_rate_hz_ == 10,
+            "a flapping critical target recovers its rate");
+
+    // The cut ran on live critical ticks only. After a lasting exit it must
+    // not cut the other targets, which use 1%.
+    RunBudget(budget, 90s, 0ms, 1ms, false, true);
+    Require(budget.Stride() == 1 && budget.RateHz() == 10,
+            "work of a flapping critical target does not cut other targets");
+  }
+
+  // Use within the ceiling changes nothing.
+  CpuBudget calm{10, 10, 5};
+  Require(RunFlapping(calm, 300s, 4s, 5500ms, 12ms).live_rate_hz_ == 10,
+          "a flapping critical target within the ceiling keeps its rate");
+}
+
 // Budget 10%, extra 5%: the ceiling is 15% while a critical target is live.
 void TestCriticalBudget()
 {
@@ -2851,6 +2933,7 @@ int main()
     TestCpuBudget();
     TestCriticalConfig();
     TestCriticalBudget();
+    TestCriticalFlapping();
     TestWire();
     TestRaii();
     TestTimestamp();
