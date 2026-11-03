@@ -74,6 +74,7 @@ function saveSeries(target: string, series: Series) {
       JSON.stringify({
         session: series.session,
         points: series.points,
+        ids: series.ids ? [...series.ids] : null,
         loadState: series.load,
       }),
     );

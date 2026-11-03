@@ -219,6 +219,30 @@ test("the overview keeps adding points for the target page that was left", async
   expect(requests.some((url) => url.startsWith("/api/live"))).toBe(false);
 });
 
+test("the overview records thread starts and exits between polls", async () => {
+  sessionStorage.setItem("triangulator:last-target", "h/api");
+  const startTime = Date.now();
+  respond = (url) => {
+    if (url !== "/api/live?target=h%2Fapi") return fleetRespond(url);
+    const view = fleetView(10, "api", 5);
+    if (Date.now() - startTime >= 1000 && Date.now() - startTime < 3000)
+      return Response.json({
+        ...view,
+        threads: [...view.threads, { ...view.threads[0], tid: 11 }],
+      });
+    return Response.json(view);
+  };
+  await start();
+  await act(() => vi.advanceTimersByTimeAsync(4000));
+  const saved = JSON.parse(
+    sessionStorage.getItem("triangulator:buffer:h/api") ?? "null",
+  ) as {
+    points: { born: number; died: number }[];
+  };
+  expect(saved.points.some((point) => point.born === 1)).toBe(true);
+  expect(saved.points.some((point) => point.died === 1)).toBe(true);
+});
+
 test("overview preserves a non-alphabetical API order through polls and search", async () => {
   const targets = [fleetTargets[2], fleetTargets[0], fleetTargets[1]];
   let cpu = 99;

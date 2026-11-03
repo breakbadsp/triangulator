@@ -206,7 +206,11 @@ export function restoreSeries(
     session,
     points,
     lastTick,
-    ids: null,
+    ids:
+      Array.isArray(savedBuffer?.ids) &&
+      savedBuffer.ids.every((id: unknown) => typeof id === "string")
+        ? new Set<string>(savedBuffer.ids)
+        : null,
     seen,
     load,
     cpu: new Map(),
