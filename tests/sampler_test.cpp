@@ -972,6 +972,48 @@ void TestCpuBudget()
           "default CPU budget is ten percent");
 }
 
+void TestCriticalConfig()
+{
+  const std::string base =
+      "collector=127.0.0.1:9400\nprocess_names=[\"orders\", \"billing\"]\n";
+  const auto absent = ParseConfig(base);
+  Require(absent && absent->critical_names_.empty() &&
+              absent->critical_extra_budget_pct_ == 5,
+          "no critical names and a 5% extra budget by default");
+  const auto parsed = ParseConfig(
+      base + "critical_names = [\"orders\"]\ncritical_extra_budget_pct=12.5\n");
+  Require(parsed &&
+              parsed->critical_names_ == std::vector<std::string>{"orders"} &&
+              parsed->critical_extra_budget_pct_ == 12.5,
+          "critical names and extra budget parse");
+  Require(ParseConfig(base + "critical_names = []\n")->critical_names_.empty(),
+          "an empty critical list is the default");
+  const auto unknown = ParseConfig(base + "critical_names = [\"gateway\"]\n");
+  Require(!unknown && unknown.error() ==
+                          "critical name \"gateway\" is not in process_names",
+          "a critical name must also be a process name");
+  for (const auto text :
+       {"critical_names = [\"orders\", \"orders\"]", "critical_names = \"x\"",
+        "critical_extra_budget_pct = -1", "critical_extra_budget_pct = 50.1",
+        "critical_extra_budget_pct = nan"})
+  {
+    Require(!ParseConfig(base + text), text);
+  }
+  Require(ParseConfig(base + "critical_extra_budget_pct = 0") &&
+              ParseConfig(base + "critical_extra_budget_pct = 50"),
+          "extra budget limits are inclusive");
+
+  DiscoverySlot slot;
+  std::ranges::copy(std::string_view{"orders"}, slot.name_.begin());
+  slot.selection_ = target_wire::kNameSelected;
+  Require(IsCritical(*parsed, slot), "a slot selected by a critical name");
+  slot.selection_ = 0;
+  Require(!IsCritical(*parsed, slot),
+          "a child that only its parent selects is not critical");
+  Require(!IsCritical(*absent, slot) && !IsCritical(*absent, DiscoverySlot{}),
+          "no critical names: no critical slot");
+}
+
 // Runs the sampler loop against a cost model: each tick costs p_critical
 // while a critical target is live, plus p_other on the ticks that serve the
 // other targets. The value is the CPU percent of the last ten seconds.
@@ -2788,6 +2830,7 @@ int main()
     TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();
+    TestCriticalConfig();
     TestCriticalBudget();
     TestWire();
     TestRaii();

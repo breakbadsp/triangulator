@@ -28,10 +28,14 @@ struct Config
   // Discovery rules. Together they hold at least one entry.
   std::vector<std::string> process_names_;
   std::vector<std::string> process_patterns_;
+  // Exact names from process_names. Their targets keep rate_hz when the CPU
+  // budget throttles, up to critical_extra_budget_pct above the budget.
+  std::vector<std::string> critical_names_;
   // Preallocated discovery slots. Each one costs about 0.5 MB of memory.
   std::size_t max_targets_ = 8;
   double rate_hz_ = 5.0;
   double cpu_budget_pct_ = 10.0;
+  double critical_extra_budget_pct_ = 5.0;
   std::string collector_;
   bool status_fallback_ = false;
   // Seconds between resource samples (pressure, descriptors, sockets); 0
@@ -183,6 +187,19 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
           std::format("process name \"{}\" is listed twice", name));
     }
   }
+  for (const auto& name : p_config.critical_names_)
+  {
+    if (!std::ranges::contains(p_config.process_names_, name))
+    {
+      return std::unexpected(
+          std::format("critical name \"{}\" is not in process_names", name));
+    }
+    if (std::ranges::count(p_config.critical_names_, name) > 1)
+    {
+      return std::unexpected(
+          std::format("critical name \"{}\" is listed twice", name));
+    }
+  }
   for (const auto& pattern : p_config.process_patterns_)
   {
     if (pattern.empty() || pattern.size() > kMaxRuleBytes ||
@@ -218,7 +235,7 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
     std::string_view p_contents)
 {
   Config config;
-  std::array<std::string_view, 12> keys{};
+  std::array<std::string_view, 14> keys{};
   std::size_t key_count = 0;
   // A multi-line array: its key and the item text read so far.
   std::string_view array_key;
@@ -232,8 +249,10 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
     {
       return std::unexpected(items.error());
     }
-    (p_key == "process_names" ? config.process_names_
-                              : config.process_patterns_) = std::move(*items);
+    (p_key == "process_names"    ? config.process_names_
+     : p_key == "critical_names" ? config.critical_names_
+                                 : config.process_patterns_) =
+        std::move(*items);
     return {};
   };
   while (!p_contents.empty())
@@ -310,7 +329,8 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
       return std::unexpected("too many configuration keys");
     }
     keys[key_count++] = key;
-    if (key == "process_names" || key == "process_patterns")
+    if (key == "process_names" || key == "process_patterns" ||
+        key == "critical_names")
     {
       if (!value.starts_with('['))
       {
@@ -370,6 +390,15 @@ ParseStringArray(std::string_view p_key, std::string_view p_items)
         return std::unexpected("cpu_budget_pct must be 0.01..100");
       }
       config.cpu_budget_pct_ = *budget;
+    }
+    else if (key == "critical_extra_budget_pct")
+    {
+      const auto extra = ParseNumber<double>(value);
+      if (!extra || !std::isfinite(*extra) || *extra < 0 || *extra > 50)
+      {
+        return std::unexpected("critical_extra_budget_pct must be 0..50");
+      }
+      config.critical_extra_budget_pct_ = *extra;
     }
     else if (key == "collector")
     {
