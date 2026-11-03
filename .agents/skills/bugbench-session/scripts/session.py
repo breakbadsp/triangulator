@@ -158,7 +158,7 @@ class Session:
 def main():
     parser = argparse.ArgumentParser(prog="bugbench-session", description=__doc__)
     parser.add_argument("action", nargs="?", default="start",
-                        choices=["start", "next", "previous", "run", "list", "status", "stop"],
+                        choices=["start", "next", "prev", "previous", "run", "list", "status", "stop"],
                         help="session command (default: start)")
     parser.add_argument("scenario", nargs="?")
     parser.add_argument("--seconds", type=int, default=1800)
@@ -169,7 +169,7 @@ def main():
     session = Session(args.home.expanduser().resolve())
     with (session.root / "lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        session.dispatch(args.action, args.scenario, args.seconds)
+        session.dispatch("previous" if args.action == "prev" else args.action, args.scenario, args.seconds)
 
 
 if __name__ == "__main__":
