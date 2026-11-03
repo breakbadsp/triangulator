@@ -104,16 +104,26 @@ class MemoryMonitor
       }
       auto values = p_part.values_;
       const auto count = memory_wire::Field("vma_count");
+      constexpr std::array kMapFields{memory_wire::Field("vma_count"),
+                                      memory_wire::Field("maps_reads"),
+                                      memory_wire::Field("maps_read_us"),
+                                      memory_wire::Field("maps_read_max_us")};
       // A skipped scan leaves both fields unavailable; a failed scan still
       // reports its read count, including zero if opening maps failed.
       if (values[count] == memory_wire::kUnavailable &&
           values[memory_wire::Field("maps_reads")] == memory_wire::kUnavailable)
       {
-        values[count] = last_vma_count_;
+        for (const auto field : kMapFields)
+        {
+          if (last_map_values_[count] != memory_wire::kUnavailable)
+          {
+            values[field] = last_map_values_[field];
+          }
+        }
       }
       else
       {
-        last_vma_count_ = values[count];
+        last_map_values_ = values;
         vma_updated_ = values[count] == memory_wire::kUnavailable
                            ? std::optional<double>{}
                            : std::optional<double>{p_received};
@@ -223,7 +233,7 @@ class MemoryMonitor
     }
     session_ = p_session;
     latest_.reset();
-    last_vma_count_ = memory_wire::kUnavailable;
+    last_map_values_ = memory_wire::EmptySummary();
     vma_updated_.reset();
     assembling_ = false;
     layout_sequence_.reset();
@@ -332,7 +342,7 @@ class MemoryMonitor
   std::optional<std::uint64_t> session_;
   Ring<std::uint64_t, kMaxRetiredSessions> retired_sessions_;
   std::optional<Summary> latest_;
-  std::uint64_t last_vma_count_ = memory_wire::kUnavailable;
+  memory_wire::SummaryValues last_map_values_ = memory_wire::EmptySummary();
   std::optional<double> vma_updated_;
   bool assembling_ = false;
   memory_wire::Header assembly_header_;

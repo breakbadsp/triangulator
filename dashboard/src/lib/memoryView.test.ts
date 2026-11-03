@@ -19,12 +19,14 @@ import {
   isBar,
   memoryGrid,
   memoryGrowth,
+  memoryFacts,
   memoryLargestGap,
   memoryModel,
   memoryReducer,
   memoryResources,
   memoryRowName,
   memoryRows,
+  memorySubtitle,
   memoryZoomFacts,
   stepLines,
   type MemoryAction,
@@ -33,6 +35,19 @@ import {
   type MemoryState,
 } from "./memoryView";
 import { emptySeries } from "./series";
+
+test("map read costs retain their scan age between samples", () => {
+  const sample: MemorySummary = {
+    available: true,
+    updated: 160,
+    vma_updated: 100,
+    values: { maps_read_us: 40, maps_read_max_us: 20, maps_reads: 3 },
+  };
+  expect(memorySubtitle(sample, 160)).toContain("before sample");
+  expect(
+    memoryFacts(sample).find(([name]) => name === "Longest maps read")?.[1],
+  ).toContain("before sample");
+});
 
 const hex = (value: bigint | number) => "0x" + value.toString(16);
 const region = (

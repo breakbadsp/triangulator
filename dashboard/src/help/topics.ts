@@ -2170,7 +2170,7 @@ const topics = {
     reading:
       "Read each meter's denominator. Page tables and locked memory are also charged to the process.",
     limits:
-      "No configured limit is different from an unknown limit. The longest maps read shows the sampler's own cost.",
+      "No configured limit is different from an unknown limit. The longest maps read shows the sampler's cost on the last map scan. Between scans, its age is relative to the latest memory sample.",
     related: ["vmas", "aslimit", "stack"],
     source:
       "`/proc/PID/limits`, `/proc/PID/status`, `/proc/sys/vm/max_map_count`",

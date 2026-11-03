@@ -979,9 +979,13 @@ export function memoryMapItems(rows: readonly MemoryRow[]): MapItem[] {
 }
 
 // ---------- Section text ----------
+const mapScanAge = (m: MemorySummary) =>
+  isNum(m.vma_updated) && isNum(m.updated) && m.updated > m.vma_updated
+    ? ` · scan ${duration(m.updated - m.vma_updated)} before sample`
+    : "";
 export function memorySubtitle(m: MemorySummary, now: number) {
   const age = ago(now - (m.updated ?? 0));
-  return `The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${num(m.interval_s, 0)} s; the longest maps read took ${microseconds(m.values?.maps_read_max_us)}. ${m.stale ? "Stale: no sample since " + age + "." : "Updated " + age + "."}`;
+  return `The target's virtual address space: how much is mapped, how close it is to its limits, and what each region holds. Sampled every ${num(m.interval_s, 0)} s; the longest maps read took ${microseconds(m.values?.maps_read_max_us)}${mapScanAge(m)}. ${m.stale ? "Stale: no sample since " + age + "." : "Updated " + age + "."}`;
 }
 export interface MeterSpec {
   label: string;
@@ -1056,7 +1060,7 @@ export function memoryFacts(m: MemorySummary) {
     ],
     [
       "Longest maps read",
-      `${microseconds(v.maps_read_max_us)} (${String(v.maps_reads ?? "—")} reads, ${microseconds(v.maps_read_us)} total)`,
+      `${microseconds(v.maps_read_max_us)} (${String(v.maps_reads ?? "—")} reads, ${microseconds(v.maps_read_us)} total)${mapScanAge(m)}`,
     ],
   ] as const;
 }
