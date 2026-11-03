@@ -53,11 +53,18 @@ class CpuBudget final
   void Add(Nanoseconds p_cpu, Nanoseconds p_elapsed,
            bool p_critical_live = false, bool p_other_live = true)
   {
-    if (p_critical_live != critical_live_)
+    critical_gap_ =
+        p_critical_live ? Nanoseconds{0} : critical_gap_ + p_elapsed;
+    // A short gap, such as a critical process that restarts, keeps the
+    // critical state. Each change clears the window, so a flip faster than
+    // the 5 s window would stop every decision.
+    const bool critical_live =
+        p_critical_live || (critical_live_ && critical_gap_ < kCriticalHold);
+    if (critical_live != critical_live_)
     {
       // The ceiling changes. Samples from the old state would steer the
       // first decision of the new one.
-      critical_live_ = p_critical_live;
+      critical_live_ = critical_live;
       ClearWindow();
     }
     total_elapsed_ += p_elapsed;
@@ -81,7 +88,10 @@ class CpuBudget final
         elapsed_ += bucket.elapsed_;
       }
     }
-    if (elapsed_ < 5s || since_change_ < 5s)
+    // No decision while a held critical state has no live critical target:
+    // the window still holds work from before the exit.
+    if (elapsed_ < 5s || since_change_ < 5s ||
+        (critical_live_ && !p_critical_live))
     {
       return;
     }
@@ -126,6 +136,7 @@ class CpuBudget final
   static constexpr double kCutMargin = 0.9;
   static constexpr double kRecoverBelow = 0.6;
   static constexpr double kRaiseStep = 1.25;
+  static constexpr Nanoseconds kCriticalHold = 5s;
 
   struct Bucket
   {
@@ -198,6 +209,7 @@ class CpuBudget final
   double budget_pct_;
   double ceiling_pct_;
   bool critical_live_ = false;
+  Nanoseconds critical_gap_{0};
   Nanoseconds since_change_{0};
   Nanoseconds total_elapsed_{0};
   std::array<Bucket, 20> buckets_{};

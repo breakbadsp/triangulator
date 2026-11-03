@@ -1076,6 +1076,25 @@ void TestCriticalBudget()
   Require(window.RateHz() == 10,
           "the critical work before an exit does not slow the other targets");
 
+  // A critical process that restarts every few seconds must not stop the
+  // decisions: it is live for 3 s of each 4 s, and its work is above the
+  // ceiling while it runs.
+  CpuBudget crash_loop{10, 10, 5};
+  Nanoseconds simulated{0};
+  while (simulated < 120s)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / crash_loop.RateHz()});
+    const bool live = simulated % 4s < 3s;
+    crash_loop.Add(live ? 30ms : 0ms, interval, live, false);
+    simulated += interval;
+  }
+  Require(crash_loop.RateHz() < 10,
+          "a critical target that restarts often is still held to the ceiling");
+  RunBudget(crash_loop, 12s, 0ms, 0ms, false, false);
+  Require(crash_loop.Stride() == 1,
+          "a lasting exit returns to the budget of the other targets");
+
   const auto loop = [](double p_rate_hz)
   {
     return std::chrono::duration_cast<Nanoseconds>(
