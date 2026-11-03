@@ -101,6 +101,8 @@ export function lockHints(threads: readonly Thread[]) {
     found.push({
       type: "threads",
       level: "info",
+      // The count, plural, and unit change while the same threads stay stuck.
+      key: "stuck-threads",
       title: `${String(stuck.length)} thread${many ? "s have" : " has"} not run for over ${duration(shortest.secs)}`,
       detail: `Possible deadlock or lost wake-up: ${names.join(", ")}${stuck.length > 5 ? ", …" : ""}. Idle service threads also look like this, and /proc cannot show which lock it is. Compare with what these threads should be doing; a stack dump names the lock.`,
       // The idle filter hides a running, stopped, or kernel-wait thread.

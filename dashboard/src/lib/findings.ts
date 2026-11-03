@@ -10,6 +10,8 @@ export interface Finding {
   topic?: string;
   help?: HelpTopicId;
   hint?: string;
+  /** Names one ongoing condition when the title wording changes with it. */
+  key?: string;
   action?: {
     tid?: number;
     state?: string;

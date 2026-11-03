@@ -2,6 +2,7 @@ import { assert, expect, test } from "vitest";
 import type { Thread } from "../../api/types";
 import { assess, fleetAssessment, lockHints } from "./index";
 import { lockThread, view } from "../test-fixtures";
+import { episodes } from "../pastAssessments";
 import { input } from "./test-input";
 // The collector last saw each thread run `age` seconds before its sample.
 const waited = (threads: readonly Thread[], age: number) =>
@@ -37,6 +38,31 @@ test("a full deadlock, with every thread blocked, raises the hint", () => {
   expect(
     assess(input(view({ threads: waited(all, 45) }))).map((f) => f.level),
   ).toEqual(["good", "info"]);
+});
+
+test("the hint stays one past episode while its count and unit change", () => {
+  const sample = (at: number, ages: readonly number[]) => ({
+    at,
+    findings: lockHints(
+      ages.map((age, index) => ({
+        ...lockThread(index + 1, `w-${String(index + 1)}`, "futex"),
+        last_ran: 1000 - age,
+      })),
+    ),
+  });
+  const samples = [
+    sample(1000, [45]),
+    sample(1010, [55, 40]),
+    sample(1020, [65]),
+    sample(1030, [120]),
+  ];
+  expect(samples.map((item) => item.findings[0]?.title)).toEqual([
+    "1 thread has not run for over 45 s",
+    "2 threads have not run for over 40 s",
+    "1 thread has not run for over 65 s",
+    "1 thread has not run for over 2 min",
+  ]);
+  expect(episodes(samples).map((item) => item.count)).toEqual([4]);
 });
 
 test("one stuck thread raises the hint, in any state", () => {
