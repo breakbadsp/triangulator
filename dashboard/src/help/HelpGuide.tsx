@@ -9,15 +9,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ViewIdentityContext } from "../hooks/viewIdentityContext";
-import { date } from "../lib/format";
 import { createHelpCards, HelpCardsContext } from "./helpCards";
-import {
-  captureGuideChart,
-  GuideContext,
-  type GuideRequest,
-} from "./guideContext";
-import { helpTopics, helpTopicIds, type HelpTopicId } from "./topics";
-import type { Readout } from "./Help";
+import { GuideContext, type GuideRequest } from "./guideContext";
+import { helpTopics, type HelpTopicId } from "./topics";
 import "./help.css";
 
 export function CodeText({ text }: { text: string }) {
@@ -63,7 +57,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       topic: HelpTopicId,
       opener: HTMLElement,
       portal: HTMLElement | null = null,
-      readout?: Readout,
     ) => {
       cards.cancelAll();
       setReturnFocus(false);
@@ -78,7 +71,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       const drawerBody = drawer?.querySelector<HTMLElement>(".drawer-body");
       setRequest({
         topic,
-        originalTopic: topic,
         opener,
         portal,
         ancestors,
@@ -90,11 +82,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
                 scroll: drawerBody.scrollTop,
               }
             : null,
-        readout,
-        chart:
-          opener.dataset.help === topic
-            ? captureGuideChart(opener, topic)
-            : undefined,
       });
     },
     [cards],
@@ -203,9 +190,6 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
     };
   }, [opener, modal, close]);
   const content = request ? helpTopics[request.topic] : null;
-  const navigate = (topic: HelpTopicId) => {
-    setRequest((previous) => previous && { ...previous, topic });
-  };
   return (
     <HelpCardsContext value={cards}>
       <GuideContext value={{ request, open, close, dismissOwner }}>
@@ -231,7 +215,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
               >
                 <div className="help-guide-head">
                   <div className="help-guide-top">
-                    <span>METRIC GUIDE</span>
+                    <span>SOURCE</span>
                     <button
                       type="button"
                       aria-label="Close metric guide"
@@ -261,119 +245,21 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
                   </h2>
                 </div>
                 <div id="help-guide-body" ref={body} key={request.topic}>
-                  <p className="muted">{content.scope}</p>
-                  <p className="help-intro">
-                    <CodeText text={content.meaning} />
-                  </p>
-                  {request.readout &&
-                    request.topic === request.originalTopic && (
-                      <section className="help-example">
-                        <h3>{request.readout.title}</h3>
-                        {request.readout.rows.map((row) => (
-                          <p key={row.label}>
-                            {row.label}:{" "}
-                            {row.value === "—" ? "Not available" : row.value}
-                          </p>
-                        ))}
-                        <p>At {date(request.readout.stamp)}</p>
-                      </section>
-                    )}
-                  {content.example && (
-                    <section className="help-example">
-                      <h3>Example</h3>
-                      <p>
-                        <CodeText text={content.example} />
-                      </p>
-                    </section>
+                  {content.meaning && (
+                    <p>
+                      <CodeText text={content.meaning} />
+                    </p>
                   )}
-                  <section>
-                    <h3>How to read it</h3>
-                    <p>
-                      <CodeText text={content.reading} />
-                    </p>
-                  </section>
-                  <section>
-                    <h3>Measurement limits</h3>
-                    <p>
-                      <CodeText text={content.limits} />
-                    </p>
-                  </section>
-                  {content.sourceDetail && (
+                  {content.source && (
                     <section>
                       <h3>Source</h3>
+                      <p>
+                        <CodeText text={content.source} />
+                      </p>
                       <p>
                         <CodeText text={content.sourceDetail} />
                       </p>
                     </section>
-                  )}
-                  {request.chart && request.topic === request.originalTopic && (
-                    <details data-help={request.topic}>
-                      <summary>View chart data</summary>
-                      {request.chart.rows.length === 0 ? (
-                        <p>No chart samples are available in this view.</p>
-                      ) : (
-                        <div className="help-data">
-                          <table>
-                            <thead>
-                              <tr>
-                                {request.chart.headers.map((header) => (
-                                  <th key={header}>{header}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {request.chart.rows.map((row, index) => (
-                                <tr key={index}>
-                                  {row.map((value, cell) => (
-                                    <td key={cell}>{value}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </details>
-                  )}
-                  <nav aria-label="Related metrics" className="help-related">
-                    {content.related.map((topic) => (
-                      <button
-                        key={topic}
-                        type="button"
-                        data-help={topic}
-                        onClick={() => {
-                          navigate(topic);
-                        }}
-                      >
-                        {helpTopics[topic].title}
-                      </button>
-                    ))}
-                  </nav>
-                  {request.topic === "page" ? (
-                    <nav className="help-topics" aria-label="All topics">
-                      {helpTopicIds.map((topic) => (
-                        <button
-                          key={topic}
-                          type="button"
-                          data-help={topic}
-                          onClick={() => {
-                            navigate(topic);
-                          }}
-                        >
-                          {helpTopics[topic].title}
-                        </button>
-                      ))}
-                    </nav>
-                  ) : (
-                    <button
-                      type="button"
-                      data-help="page"
-                      onClick={() => {
-                        navigate("page");
-                      }}
-                    >
-                      All topics
-                    </button>
                   )}
                 </div>
               </aside>
@@ -389,11 +275,8 @@ export function PageHelp() {
   const guide = useContext(GuideContext);
   return (
     <details className="page-help">
-      <summary data-help="page">How to read this page</summary>
-      <p>
-        Read the scope, unit, time interval, and data status before interpreting
-        a metric. Open metric help for sources and measurement limits.
-      </p>
+      <summary data-help="page">Data sources</summary>
+      <p>Open an info button for the source of a value.</p>
       <button
         id="page-help"
         type="button"
@@ -402,7 +285,7 @@ export function PageHelp() {
           guide?.open("page", event.currentTarget);
         }}
       >
-        Open page guide
+        Page source
       </button>
     </details>
   );

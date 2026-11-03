@@ -10,7 +10,7 @@ import { readPinnedOracle } from "./parity-oracle.mjs";
 
 // This fixture works in shallow clones and source archives without Git.
 const dashboard = fileURLToPath(new URL("../", import.meta.url));
-const { oracle, source } = readPinnedOracle();
+const { oracle } = readPinnedOracle();
 
 // Load the real TypeScript modules without a second build or generated files.
 const modules = new Map();
@@ -897,52 +897,4 @@ for (let run = 0; run < 300; run++) {
 }
 log(
   `PASS: ${pastComparisons} old/new past-assessment episode and slot comparisons.`,
-);
-
-// Intended change (QA-107, QA-119): the stuck-thread hint and thread growth now
-// run on recordings.
-const STUCK_HELP = [
-  "rules that need trends kept in a live tab (thread growth, thread churn, long futex waits) and the watch rule with no thread do not run.",
-  "the thread churn rule, which needs trends kept in a live tab, and the watch rule with no thread do not run. The stuck-thread hint (threads that have not run for over 30 s) uses the collector's last-ran time, and thread growth uses the collector's thread counts for the 300 s before each recording.",
-];
-// The history explanations retain the pinned text. Automatic label aliases
-// are retired; internal callers use type-checked topic IDs.
-const topics = load(resolve(dashboard, "src/help/topics.ts")).helpTopics;
-for (const id of ["assesshistory", "historyfilters"]) {
-  const call = source.statements.find(
-    (statement) =>
-      ts.isExpressionStatement(statement) &&
-      ts.isCallExpression(statement.expression) &&
-      statement.expression.expression.getText(source) === "helpTopic" &&
-      statement.expression.arguments[0]?.text === id,
-  );
-  assert.ok(call, `Pinned help topic ${id}`);
-  const fields = [
-    "id",
-    "title",
-    "scope",
-    "meaning",
-    "example",
-    "reading",
-    "limits",
-    "related",
-  ];
-  const values = runInNewContext(
-    `let values; function helpTopic(...args) { values = args; } ${call.getText(source)}; values`,
-  );
-  for (let i = 1; i < fields.length; i++)
-    assert.deepEqual(
-      canonical(topics[id][fields[i]]),
-      canonical(
-        fields[i] === "related"
-          ? values[i].map((value) => (value === "replay" ? "timeline" : value))
-          : fields[i] === "limits"
-            ? values[i].replace(STUCK_HELP[0], STUCK_HELP[1])
-            : values[i],
-      ),
-      `Help ${id}.${fields[i]}`,
-    );
-}
-log(
-  "PASS: assesshistory and historyfilters text matches the pinned page word for word, except the stated QA-107 and QA-119 change.",
 );

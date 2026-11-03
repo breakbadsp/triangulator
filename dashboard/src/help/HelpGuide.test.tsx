@@ -109,7 +109,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test("narrow guide traps focus, navigates topics, resizes, and restores the opener", () => {
+test("source panel traps focus, resizes, and restores the opener", () => {
   render(<Fixture />);
   const { opener, guide } = explain();
   expect(guide.getAttribute("role")).toBe("dialog");
@@ -119,24 +119,13 @@ test("narrow guide traps focus, navigates topics, resizes, and restores the open
     key: "Tab",
     shiftKey: true,
   });
-  expect(document.activeElement?.textContent).toBe("All topics");
-  fireEvent.keyDown(document.activeElement ?? document, { key: "Tab" });
   expect(document.activeElement?.getAttribute("aria-label")).toBe(
     "Close metric guide",
   );
-  fireEvent.click(within(guide).getByRole("button", { name: "All topics" }));
-  expect(within(guide).getByRole("heading", { level: 2 }).textContent).toBe(
-    "How to read this page",
-  );
-  expect(guide.querySelectorAll(".help-topics button").length).toBeGreaterThan(
-    140,
-  );
-  fireEvent.click(
-    within(guide).getByRole("button", { name: "Limited access" }),
-  );
-  expect(guide.textContent).toContain(
-    "The sampler cannot read all process files.",
-  );
+  expect(guide.textContent).toContain("/proc/PID/task/TID/stat");
+  expect(within(guide).queryByText("Example")).toBeNull();
+  expect(within(guide).queryByText("How to read it")).toBeNull();
+  expect(within(guide).queryByRole("navigation")).toBeNull();
   vi.stubGlobal("innerWidth", 1200);
   fireEvent.resize(window);
   expect(guide.getAttribute("role")).toBe("complementary");
@@ -159,20 +148,12 @@ test("the native Add target guide leaves its dialog ancestor usable", () => {
   expect(document.querySelector("dialog")?.open).toBe(true);
 });
 
-test("guide data and its chart stay frozen until close, including unavailable cells", () => {
+test("source help has no chart table and live charts continue updating", () => {
   const { rerender } = render(<Fixture />);
   const { guide } = explain();
-  fireEvent.click(within(guide).getByText("View chart data"));
-  expect(
-    within(guide).getByRole("cell", { name: "Not available" }),
-  ).toBeDefined();
+  expect(within(guide).queryByRole("table")).toBeNull();
   const before = document.getElementById("guide-chart")?.innerHTML;
   rerender(<Fixture samples={points.map((p) => ({ ...p, value: 99 }))} />);
-  expect(document.getElementById("guide-chart")?.innerHTML).toBe(before);
-  expect(within(guide).getByRole("cell", { name: "1.0" })).toBeDefined();
-  fireEvent.click(
-    within(guide).getByRole("button", { name: "Close metric guide" }),
-  );
   expect(document.getElementById("guide-chart")?.innerHTML).not.toBe(before);
 });
 
@@ -203,7 +184,6 @@ test("Back to thread preserves the mounted drawer, inputs, scroll and opener", (
   body.scrollTop = 87;
   const { opener, guide } = explain("worker");
   expect(drawer.hidden).toBe(true);
-  fireEvent.click(within(guide).getByRole("button", { name: "All topics" }));
   fireEvent.click(
     within(guide).getByRole("button", { name: "Back to thread" }),
   );
@@ -212,27 +192,4 @@ test("Back to thread preserves the mounted drawer, inputs, scroll and opener", (
   expect(from.value).toBe(custom);
   expect(body.scrollTop).toBe(87);
   expect(document.activeElement).toBe(opener);
-});
-
-test("a heading with two charts of the same topic omits ambiguous chart data", () => {
-  render(
-    <HelpGuideProvider>
-      <main>
-        <div className="card">
-          <Help topic="cpu">CPU source</Help>
-          {["first", "second"].map((id) => (
-            <TimeChart
-              key={id}
-              id={id}
-              topic="cpu"
-              points={points}
-              series={[{ label: id, color: "blue", get: (p) => p.value }]}
-            />
-          ))}
-        </div>
-      </main>
-    </HelpGuideProvider>,
-  );
-  const { guide } = explain();
-  expect(within(guide).queryByText("View chart data")).toBeNull();
 });

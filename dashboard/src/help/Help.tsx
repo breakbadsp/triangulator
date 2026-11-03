@@ -15,6 +15,7 @@ import { createHelpTimer } from "./createHelpTimer";
 import { helpTopics, type HelpTopic, type HelpTopicId } from "./topics";
 import { GuideContext } from "./guideContext";
 import { createHelpCards, HelpCardsContext } from "./helpCards";
+import { CodeText } from "./HelpGuide";
 import { date } from "../lib/format";
 import "./help.css";
 
@@ -174,13 +175,12 @@ export function Help(props: {
     return !!card.current?.contains(document.activeElement);
   }
   const content: HelpTopic | null = active && shown ? helpTopics[shown] : null;
-  // A chart passes `readout` even before the pointer is on it, and explains
-  // itself through the readout card. A table body cannot hold a button.
-  const info = guide && !("readout" in props) && Tag !== "tbody";
+  // A table body cannot hold a button.
+  const info = guide && Tag !== "tbody";
   const infoButton = info && (
     <button
       type="button"
-      className={Tag === "div" ? "help-info help-info-corner" : "help-info"}
+      className="help-info"
       data-help={topic}
       aria-label={`Explain ${helpTopics[topic].title}`}
       onClick={(event) => {
@@ -197,7 +197,9 @@ export function Help(props: {
         anchor.current = element;
       }}
       id={anchorId}
-      className={className}
+      className={[className, info ? "help-anchor" : ""]
+        .filter(Boolean)
+        .join(" ")}
       data-help={topic}
       aria-describedby={content ? id : undefined}
       onMouseLeave={() => {
@@ -212,9 +214,8 @@ export function Help(props: {
         timer.cancel(true);
       }}
     >
-      {Tag === "div" && infoButton}
       {children}
-      {Tag !== "div" && infoButton}
+      {infoButton}
       {content &&
         createPortal(
           <aside
@@ -251,8 +252,11 @@ export function Help(props: {
               ×
             </button>
             <h2>{content.title}</h2>
-            <p className="muted">{content.scope}</p>
-            <p>{content.meaning}</p>
+            {content.meaning && (
+              <p>
+                <CodeText text={content.meaning} />
+              </p>
+            )}
             {shownReadout && (
               <div className="help-readout">
                 <p className="muted">{shownReadout.title}</p>
@@ -269,58 +273,13 @@ export function Help(props: {
                 </p>
               </div>
             )}
-            {content.example && (
-              <p>
-                <strong>Example. </strong>
-                {content.example}
-              </p>
-            )}
-            <p>{content.reading}</p>
-            <p>
-              <strong>Limits. </strong>
-              {content.limits}
-            </p>
             {content.source && (
               <p>
                 <strong>Source. </strong>
-                {content.source}
+                <CodeText text={content.source} />
                 <br />
-                {content.sourceDetail}
+                <CodeText text={content.sourceDetail} />
               </p>
-            )}
-            {guide && (
-              <button
-                type="button"
-                className="help-open-guide"
-                onClick={() => {
-                  if (anchor.current)
-                    guide.open(
-                      shown ?? topic,
-                      anchor.current,
-                      portalTarget,
-                      shownReadout ?? undefined,
-                    );
-                }}
-              >
-                Open metric guide
-              </button>
-            )}
-            {content.related.length > 0 && (
-              <nav aria-label="Related help">
-                {content.related.map((related) => (
-                  <a
-                    key={related}
-                    href={`#help-${related}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      setShownReadout(null);
-                      setShown(related);
-                    }}
-                  >
-                    {helpTopics[related].title}
-                  </a>
-                ))}
-              </nav>
             )}
           </aside>,
           portalTarget ?? document.body,

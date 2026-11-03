@@ -69,7 +69,7 @@ test("a chart readout still opens its card after the delay", () => {
       </Help>
     </HelpGuideProvider>,
   );
-  expect(screen.queryByRole("button", { name: /^Explain / })).toBeNull();
+  expect(screen.getByRole("button", { name: "Explain CPU" })).toBeDefined();
   act(() => {
     vi.advanceTimersByTime(HELP_DELAY);
   });

@@ -181,12 +181,13 @@
 - Test: Record an older installation's custom ports, target, logs, and history. Stop it, extract verified newer packages over it, and restart.
 - Expected: The new package keeps configuration, target, logs, and readable history. Record both versions; use BLOCKED if no older package is available.
 
-## QA-007: Contextual help covers every dashboard section
+## QA-007: Source help placement and access
 
-- Revision: 4
+- Revision: 5
 - Driver: judged
-- Test: With resource and memory data, point at and focus each section, label, legend, limit, zoom fact, and full-width table message, and wait 3 seconds. Select the ⓘ button of each. Point at each chart for 3 seconds. Use a summary label's ⓘ. Use inputs and row actions. Open the page guide. Follow related topics and All topics. Test Close, Escape, and Back to thread. Repeat at 390, 759, 760, and 1440 px, on a touch screen, and in a short viewport.
-- Expected: No help opens on hover, focus, or a label click. ⓘ shows on pointing or focus, and always on touch screens. ⓘ opens the specific guide; a summary ⓘ does not toggle its disclosure. At 760 px and wider, the guide is a right-side panel and the page moves aside, so the guide covers no dashboard content. Below 760 px it is a modal sheet that traps focus. Charts show their readout card after the delay. Closing restores focus to ⓘ or the page-guide fallback. Back to thread restores the mounted drawer, selected thread, filters, history interval, and scroll. Context changes close old guides.
+- Status: NOT_RUN
+- Test: Inspect info buttons without hovering in both themes at 390, 759, 760, and 1440 px. Open section, label, summary, drawer, and native-dialog help with pointer and keyboard. Test Close, Escape, focus return, and target changes.
+- Expected: Light info buttons stay at the top-right of their help area without covering text or controls. Help opens only on request. Summary buttons do not toggle disclosures. Source help contains a brief description and source details. Narrow panels trap focus. Closing restores focus and drawer state. Context changes close old help. Chart readouts retain sample values and timestamps.
 
 ## QA-008: Memory zoom legend matches the grid
 
@@ -451,10 +452,11 @@
 
 ## QA-056: Help names the source of each value
 
-- Revision: 2
+- Revision: 3
 - Driver: judged
-- Test: Hover CPU, run delay, and state; open guides for PSI, descriptors, queues, network, memory, and exit status. Run two source commands. Expand View chart data, including a missing value; keep it open during polling, then close it. Check controls, dark theme, and narrow width.
-- Expected: Each measured value names its source, field, reader, calculation, scope, unit, interval, and limits. Commands agree with the metric. Controls need no measurement source. Paths wrap readably. File names and commands are formatted as code. Chart rows match the displayed observation when the guide opened and stay fixed with their chart. Missing data is distinct from zero. Closing releases the chart to current data.
+- Status: NOT_RUN
+- Test: Open CPU, run delay, PSI, descriptors, queues, network, memory, and exit source help. Compare source fields with the reported values. Check controls, dark theme, and narrow width.
+- Expected: Each measurement retains its source file, field, reader, and calculation. Paths and commands wrap and use code formatting. Controls have a short description. No examples, reading guide, related topics, or chart tables appear.
 
 ## QA-057: Network counter column names
 

@@ -900,18 +900,17 @@ test("leaving for the overview saves the trends this tab collected", async () =>
   sessionStorage.clear();
 });
 
-test("the page guide exposes all metric topics and restores its opener", async () => {
+test("the page source explains collection and restores its opener", async () => {
   await renderLiveTarget();
-  fireEvent.click(screen.getByText("How to read this page"));
+  fireEvent.click(screen.getByText("Data sources"));
   expect(screen.queryByRole("dialog")).toBeNull();
-  const opener = screen.getByRole("button", { name: "Open page guide" });
+  const opener = screen.getByRole("button", { name: "Page source" });
   fireEvent.click(opener);
   const guide = screen.getByRole("complementary", {
     name: "How to read this page",
   });
-  expect(guide.querySelectorAll(".help-topics button").length).toBeGreaterThan(
-    140,
-  );
+  expect(guide.textContent).toContain("/proc");
+  expect(guide.querySelector("nav")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Close metric guide" }));
   expect(document.activeElement).toBe(opener);
 });
