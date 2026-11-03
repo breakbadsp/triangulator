@@ -18,7 +18,7 @@ The PATH command `bugbench-session` calls the same helper. With no action, it
 uses `start`. See [command setup](../../../bug-lab/README.md).
 
 `start` copies `bug-lab/bugbench.c` to `~/triangular/bin/bugbench.c`, compiles
-`~/triangular/bin/bugbench`, and starts the first scenario. If a session already
+`~/triangular/bin/bugbench`, enables `bb-*` discovery in the local sampler, and starts the first scenario. The discovery pattern remains after the session stops. If a session already
 has a running process, report it. If its process has ended, restart that scenario.
 The requested directory is `triangular`, not `triangulator`.
 
@@ -45,12 +45,12 @@ Python 3, GCC, and a working user systemd manager are required. If these are
 unavailable, report the error. Do not run a constrained scenario without its limit.
 
 After each start, report the scenario, verified PID, duration, and launch command
-from the helper output. Tell the user to select that PID as the dashboard target.
+from the helper output. Tell the user to open that process on the dashboard. Report any collector capacity warning.
 For `mem-oom`, tell the user to select it immediately: the kernel can kill it in
 about 30 seconds. For `thread-leak`, allow at least 165 seconds of observation.
 If the process has ended, report that fact instead of a live PID.
 
-Leave dashboard target selection to the user unless they ask you to change it.
+Leave dashboard navigation to the user unless they ask you to change it.
 Do not start the next scenario until requested. Explain observations from the
 fixture and dashboard rules when asked. Never treat a zero sampled churn count
 as proof that no threads started or ended.
