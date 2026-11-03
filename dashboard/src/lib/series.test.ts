@@ -66,6 +66,39 @@ test("summary points record RSS and VmSize only from current samples", () => {
     ),
   ).toEqual([null, null]);
   expect(feed(5)).toEqual([null, null]);
+  // VmSize follows the resource sample, and the memory sample is only a
+  // fallback when the resource sample lacks it.
+  expect(
+    feed(
+      6,
+      {
+        available: true,
+        session: "s",
+        pid: 7,
+        memory: { rss: 3 << 20, vm_size: 5 << 20 },
+      },
+      { available: true, pid: 7, values: { vm_size_bytes: 9 << 20 } },
+    ),
+  ).toEqual([3 << 20, 5 << 20]);
+  expect(
+    feed(
+      7,
+      { available: true, session: "s", pid: 7, memory: { rss: 3 << 20 } },
+      { available: true, pid: 7, values: { vm_size_bytes: 9 << 20 } },
+    ),
+  ).toEqual([3 << 20, 9 << 20]);
+  expect(
+    feed(
+      8,
+      {
+        available: true,
+        session: "s",
+        pid: 7,
+        memory: { rss: 3 << 20, vm_size: 6 << 20 },
+      },
+      { available: false },
+    ),
+  ).toEqual([3 << 20, 6 << 20]);
 });
 
 test("ingest preserves its inputs, counts thread generations, and resets on a new session", () => {

@@ -204,6 +204,10 @@ export interface Resources {
     shmem?: number | null;
     swap?: number | null;
     peak?: number | null;
+    vm_size?: number | null;
+    vm_data?: number | null;
+    vm_stack?: number | null;
+    vm_exe?: number | null;
     rss_growth_per_s?: number | null;
   };
   cgroup_limits?: {

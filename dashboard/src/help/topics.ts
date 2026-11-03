@@ -596,7 +596,7 @@ const topics = {
     related: ["rss", "vmsize", "memmap"],
     source: "`/proc/PID/status`: VmRSS, VmSize",
     sourceDetail:
-      'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
+      'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line in the same read. Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
   },
   rss: {
     title: "Memory (RSS)",
@@ -622,11 +622,11 @@ const topics = {
     reading:
       "Compare with RLIMIT_AS and the peak. Large values are common for runtimes that reserve address space up front.",
     limits:
-      "Virtual size is not memory use. Growth alone does not establish a leak. The Summary chart steps once per memory sample (30 s by default) and covers only the time this tab was open.",
+      "Virtual size is not memory use. Growth alone does not establish a leak. The Summary chart steps once per resource sample (2 s by default) and covers only the time this tab was open.",
     related: ["aslimit", "rss", "vmas"],
     source: "`/proc/PID/status`: VmSize, VmPeak",
     sourceDetail:
-      'With each memory sample, the sampler reads VmSize and VmPeak from `/proc/PID/status`. Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
+      'With each resource sample (every 2 s by default), the sampler reads VmSize from `/proc/PID/status`, in the same read as VmRSS. The Memory tab also reads VmPeak with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
   },
   collsettings: {
     title: "Collector settings",

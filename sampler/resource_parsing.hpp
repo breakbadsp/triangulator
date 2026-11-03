@@ -184,6 +184,29 @@ struct DescriptorLimits
   return result;
 }
 
+// The process memory fields of /proc/PID/status, in bytes. A missing line
+// stays unavailable.
+constexpr void ParseProcessMemory(std::string_view p_text,
+                                  resource_wire::SummaryValues& p_summary)
+{
+  using resource_wire::Field;
+  const auto store = [&](std::string_view p_key, std::size_t p_field)
+  {
+    p_summary[p_field] =
+        FindKilobytes(p_text, p_key).value_or(resource_wire::kUnavailable);
+  };
+  store("VmRSS", Field("rss_bytes"));
+  store("RssAnon", Field("rss_anon_bytes"));
+  store("RssFile", Field("rss_file_bytes"));
+  store("RssShmem", Field("rss_shmem_bytes"));
+  store("VmHWM", Field("rss_peak_bytes"));
+  store("VmSwap", Field("swap_bytes"));
+  store("VmSize", Field("vm_size_bytes"));
+  store("VmData", Field("vm_data_bytes"));
+  store("VmStk", Field("vm_stack_bytes"));
+  store("VmExe", Field("vm_exe_bytes"));
+}
+
 // A cgroup file holding one number or "max". "max" means no limit, which has
 // no headroom to report, so it is nullopt like an unreadable file.
 [[nodiscard]] constexpr std::optional<std::uint64_t> ParseCgroupNumber(

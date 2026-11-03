@@ -301,17 +301,19 @@ export function ingest(series: Series, view: LiveResponse): Series {
   }
   // Memory samples must belong to the process in this view after a restart.
   const { resources, memory } = view;
-  point.rss =
+  const resourcesCurrent =
     resources?.available &&
     !resources.stale &&
     resources.session === health.session &&
-    resources.pid === health.pid
-      ? (resources.memory?.rss ?? null)
-      : null;
+    resources.pid === health.pid;
+  point.rss = resourcesCurrent ? (resources.memory?.rss ?? null) : null;
+  // VmSize comes with each resource sample. The sparse memory sample fills in
+  // only when the resource sample lacks it.
   point.vm =
-    memory?.available && !memory.stale && memory.pid === health.pid
+    (resourcesCurrent ? resources.memory?.vm_size : null) ??
+    (memory?.available && !memory.stale && memory.pid === health.pid
       ? (memory.values?.vm_size_bytes ?? null)
-      : null;
+      : null);
   // Missing rates after a sampler pause must leave a gap, not an idle point.
   if (!threads.some((thread) => isNum(thread.cpu_pct)))
     Object.assign(point, {

@@ -861,13 +861,18 @@ class ResourceMonitor
           (static_cast<double>(*rss_now) - static_cast<double>(*rss_before)) /
           elapsed;
     }
-    result.Set("memory", JsonObject{{"rss", value(Field("rss_bytes"))},
-                                    {"anon", value(Field("rss_anon_bytes"))},
-                                    {"file", value(Field("rss_file_bytes"))},
-                                    {"shmem", value(Field("rss_shmem_bytes"))},
-                                    {"peak", value(Field("rss_peak_bytes"))},
-                                    {"swap", value(Field("swap_bytes"))},
-                                    {"rss_growth_per_s", Json(rss_growth)}});
+    result.Set("memory",
+               JsonObject{{"rss", value(Field("rss_bytes"))},
+                          {"anon", value(Field("rss_anon_bytes"))},
+                          {"file", value(Field("rss_file_bytes"))},
+                          {"shmem", value(Field("rss_shmem_bytes"))},
+                          {"peak", value(Field("rss_peak_bytes"))},
+                          {"swap", value(Field("swap_bytes"))},
+                          {"vm_size", value(Field("vm_size_bytes"))},
+                          {"vm_data", value(Field("vm_data_bytes"))},
+                          {"vm_stack", value(Field("vm_stack_bytes"))},
+                          {"vm_exe", value(Field("vm_exe_bytes"))},
+                          {"rss_growth_per_s", Json(rss_growth)}});
     const auto throttled = ThrottledPercent(p_sample, p_previous);
     result.Set(
         "cgroup_limits",

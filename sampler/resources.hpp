@@ -503,17 +503,7 @@ class ResourceProbe
     {
       return;
     }
-    for (const auto& [key, field] :
-         {std::pair{"VmRSS", Field("rss_bytes")},
-          std::pair{"RssAnon", Field("rss_anon_bytes")},
-          std::pair{"RssFile", Field("rss_file_bytes")},
-          std::pair{"RssShmem", Field("rss_shmem_bytes")},
-          std::pair{"VmHWM", Field("rss_peak_bytes")},
-          std::pair{"VmSwap", Field("swap_bytes")}})
-    {
-      p_sample.summary_[field] =
-          FindKilobytes(*text, key).value_or(resource_wire::kUnavailable);
-    }
+    ParseProcessMemory(*text, p_sample.summary_);
   }
 
   // The target's own cgroup (ancestors' limits are not followed): memory

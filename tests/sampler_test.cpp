@@ -1554,6 +1554,20 @@ void TestMemoryCgroupAndInterfaceParsing()
               FindKilobytes(status, "VmHWM") == 2048 * 1024 &&
               FindKilobytes(status, "VmSwap") == 0,
           "status memory lines are in bytes");
+  resource_wire::SummaryValues parsed = resource_wire::EmptySummary();
+  ParseProcessMemory(
+      "Name:\tworker\nVmPeak:\t 9000 kB\nVmSize:\t 8000 kB\n"
+      "VmData:\t 3000 kB\nVmStk:\t 132 kB\nVmExe:\t 44 kB\n"
+      "VmRSS:\t 1024 kB\n",
+      parsed);
+  Require(parsed[Field("vm_size_bytes")] == 8000 * 1024 &&
+              parsed[Field("vm_data_bytes")] == 3000 * 1024 &&
+              parsed[Field("vm_stack_bytes")] == 132 * 1024 &&
+              parsed[Field("vm_exe_bytes")] == 44 * 1024 &&
+              parsed[Field("rss_bytes")] == 1024 * 1024 &&
+              parsed[Field("swap_bytes")] == resource_wire::kUnavailable,
+          "status gives the four Vm fields and RSS in one read; a missing "
+          "line stays unavailable");
   Require(!FindKilobytes("VmRSS:\t12 MB\n", "VmRSS"),
           "a line that is not in kB is unavailable");
   Require(!FindKilobytes("Name:\tx\n", "VmRSS"),
