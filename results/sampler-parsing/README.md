@@ -29,7 +29,9 @@ thread; its other threads slept. The targets shared one CPU, and the sampler
 and UDP receiver each used another. The receiver checked complete chunks,
 sequence continuity and the exact thread IDs in every completed sample.
 The observed means were 3.751% before and 3.853% after, of one core. The
-trials do not show a whole-sampler improvement.
+third "after" trial delivered 59 of 60 samples per target, with 275 ms of
+receiver lag. The other five trials delivered all 60. The trials do not show a
+whole-sampler improvement.
 
 On 2026-11-03, the full-path capacity benchmark from PR #235 compared the
 same sampler sources with and without the PR #233 parser. It used one
@@ -47,8 +49,8 @@ and sequence continuity. This does not cover every production workload.
 The repeat profile used the same workload for two 30-second trials per
 binary, with 5 seconds of warm-up. Before CPU was 3.761% and 3.779%; after
 CPU was 3.741% and 3.800%. Each trial delivered 150 complete samples for
-every target. `profile-measurements.json` contains the summary measurements,
-and `profile-run.py` is the driver. The detailed `perf` reports are not kept.
+every target. `profile-measurements.json` contains the per-trial
+measurements. The driver and the detailed `perf` reports are not kept.
 The user-mode profiles do not measure kernel execution. Compiler
 inlining and symbol changes prevent a direct comparison of individual
 function shares. These trials also do not establish a whole-sampler gain.
