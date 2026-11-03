@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -149,15 +150,9 @@ class LayoutBuilder
   void Add(const MapsLine& p_line)
   {
     ++vma_count_;
-    std::array<char, memory_wire::kNameSize> name{};
-    // Keep the end of a long path: the file name is the useful part.
-    const auto kept = p_line.name_.substr(
-        p_line.name_.size() -
-        std::min(p_line.name_.size(), memory_wire::kNameSize - 1));
-    std::ranges::copy(kept, name.begin());
     // Joining compares the whole name: two paths with the same end are
     // different files.
-    const auto name_hash = Fnv1a(std::as_bytes(std::span{p_line.name_}));
+    const auto name_hash = HashName(p_line.name_);
     const auto previous_hash = std::exchange(last_name_hash_, name_hash);
     if (size_ != 0)
     {
@@ -176,12 +171,17 @@ class LayoutBuilder
       truncated_ = true;
       return;
     }
-    regions_[size_++] = memory_wire::Region{.start_ = p_line.start_,
-                                            .end_ = p_line.end_,
-                                            .vma_count_ = 1,
-                                            .kind_ = p_line.kind_,
-                                            .permissions_ = p_line.permissions_,
-                                            .name_ = name};
+    auto& region = regions_[size_++];
+    region = memory_wire::Region{.start_ = p_line.start_,
+                                 .end_ = p_line.end_,
+                                 .vma_count_ = 1,
+                                 .kind_ = p_line.kind_,
+                                 .permissions_ = p_line.permissions_};
+    // Keep the end of a long path: the file name is the useful part.
+    const auto kept = p_line.name_.substr(
+        p_line.name_.size() -
+        std::min(p_line.name_.size(), memory_wire::kNameSize - 1));
+    std::ranges::copy(kept, region.name_.begin());
   }
 
   [[nodiscard]] std::span<const memory_wire::Region> Regions() const noexcept
@@ -198,6 +198,28 @@ class LayoutBuilder
   }
 
  private:
+  // Hashes p_name eight bytes at a time. Only the equality of the hashes of
+  // two neighbouring names matters, so this need not be FNV-1a.
+  [[nodiscard]] static std::uint64_t HashName(std::string_view p_name) noexcept
+  {
+    constexpr std::uint64_t kPrime = 0x9E3779B97F4A7C15ull;
+    std::uint64_t hash = p_name.size();
+    std::size_t offset = 0;
+    for (; offset + sizeof(std::uint64_t) <= p_name.size();
+         offset += sizeof(std::uint64_t))
+    {
+      std::uint64_t word{};
+      std::memcpy(&word, p_name.data() + offset, sizeof(word));
+      hash = std::rotl((hash ^ word) * kPrime, 29);
+    }
+    std::uint64_t tail{};
+    if (offset < p_name.size())
+    {
+      std::memcpy(&tail, p_name.data() + offset, p_name.size() - offset);
+    }
+    return (hash ^ tail) * kPrime;
+  }
+
   std::array<memory_wire::Region, memory_wire::kMaxRegions> regions_{};
   std::size_t size_ = 0;
   std::uint64_t vma_count_ = 0;

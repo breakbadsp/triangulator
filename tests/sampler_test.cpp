@@ -1874,6 +1874,32 @@ void TestMemoryParsing()
               layout.Regions()[0].name_ == layout.Regions()[1].name_ &&
               layout.Regions()[0].permissions_ == 1,
           "files whose sent names are equal are not joined");
+  // Mappings join only when their whole names are equal. These pairs differ
+  // in the tail, in one word, in the length, or only in the empty name.
+  for (const auto& [first, second] :
+       {std::pair{"/aaaaaaaa", "/aaaaaaab"},
+        std::pair{"/aaaaaaaa", "/baaaaaaa"}, std::pair{"/lib", "/lib2"},
+        std::pair{"/aaaaaaaabbbbbbbb", "/aaaaaaaabbbbbbbc"},
+        std::pair{"", "/a"}})
+  {
+    layout.Clear();
+    layout.Add(MapsLine{0x1000, 0x2000, 1, RegionKind::File, first});
+    layout.Add(MapsLine{0x2000, 0x3000, 1, RegionKind::File, second});
+    Require(layout.Regions().size() == 2, "different names are not joined");
+    layout.Clear();
+    layout.Add(MapsLine{0x1000, 0x2000, 1, RegionKind::File, first});
+    layout.Add(MapsLine{0x2000, 0x3000, 1, RegionKind::File, first});
+    Require(layout.Regions().size() == 1 && layout.Regions()[0].end_ == 0x3000,
+            "equal names are joined");
+  }
+  // A region slot that held a long name has no stale bytes after a reuse.
+  layout.Clear();
+  layout.Add(*ParseMapsLine("1000-2000 r--p 0 08:01 1 " + long_path));
+  layout.Clear();
+  layout.Add(*ParseMapsLine("1000-2000 r--p 0 08:01 1 /a"));
+  Require(layout.Regions()[0].name_[2] == '\0' &&
+              std::string_view{layout.Regions()[0].name_.data()} == "/a",
+          "a reused region slot is NUL-padded");
   for (std::size_t index = 0; index <= memory_wire::kMaxRegions; ++index)
   {
     const auto start = 0x2000 * (index + 1);
