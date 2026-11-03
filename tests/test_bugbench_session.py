@@ -92,6 +92,12 @@ class SessionTest(unittest.TestCase):
         self.session = session_module.Session(Path(self.directory.name))
         self.session.bin.mkdir()
         self.session.binary.touch()
+        discovery = patch.object(session_module, "enable_discovery")
+        discovery.start()
+        self.addCleanup(discovery.stop)
+        capacity = patch.object(session_module, "warn_collector_capacity")
+        capacity.start()
+        self.addCleanup(capacity.stop)
 
     def test_navigation_reads_saved_position_and_preserves_boundaries(self):
         names = ["cpu-spin", "mem-oom", "healthy"]

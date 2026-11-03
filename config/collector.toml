@@ -10,8 +10,8 @@ sampler_ip = "127.0.0.1"
 # For several sampler hosts, replace sampler_ip with an allowlist:
 # sampler_ips = ["192.0.2.10", "192.0.2.11"]
 # With neither key, the collector pins the first valid sampler source.
-# Target slots, 1..64 (default 8). Each slot keeps the full max_live_samples.
-max_targets = 8
+# Target slots, 1..64. Each slot keeps the full max_live_samples.
+max_targets = 16
 data_dir = "./data"
 retention_days = 7
 store_raw = true
@@ -23,7 +23,7 @@ replay_interval_s = 1
 # Live samples kept in memory for each target slot. The collector reserves
 # about 280 bytes of address space per sample at startup, for every slot, so
 # max_live_samples times max_targets must be at most 10000000.
-max_live_samples = 1000000
+max_live_samples = 625000
 # deadman_url = "https://your-heartbeat-service.example/your-token"
 
 # tri-scout: optional read-only tools for an LLM client such as Claude Code or
