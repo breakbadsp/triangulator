@@ -10,3 +10,4 @@
 - These measurements predate automatic CPU throttling. They are evidence about placement, not the current default CPU budget.
 - Reproduce with `make benchmark-target-impact`. Method and exact probes: [driver](../tests/benchmark_target_impact.py), [victim](../tests/benchmark_victim.cpp).
 - Measure production Xeon and RHEL hosts separately. Desktop results provide no production tail-latency guarantee.
+- For a 16-target profile and improvement candidates, see [sampler performance optimisations](sampler-performance-optimisations.md).
