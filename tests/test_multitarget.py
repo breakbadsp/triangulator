@@ -13,8 +13,9 @@ import unittest
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 
-from wire import HEADER, RECORD
+from wire import HEADER, RECORD, EXIT_HEADER, EXIT_LINES, EXIT_LINE_SIZE
 
 ROOT = Path(__file__).resolve().parents[1]
 ANNOUNCE = struct.Struct("<4sBB2xQIIQQQII32s64s")
@@ -142,6 +143,109 @@ class MultiTargetCollectorTests(CollectorCase):
         self.send(tick(202))
         time.sleep(0.2)
         self.assertEqual(self.targets(), set())
+
+    def test_released_target_keeps_final_view_without_holding_capacity(self):
+        # The overview and a fresh dashboard can inspect a released process.
+        self.send(announce(101, "crashed"))
+        self.send(tick(101))
+        self.wait_for(lambda: "host-a/crashed" in self.targets())
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/crashed")["threads"])
+        self.send(announce(102, "crashed", pid=0))
+        self.send(tick(102, pid=0))
+        self.send(EXIT_HEADER.pack(b"TEND", 2, 2, 0, 0, 123, 2, 1,
+                                  time.time_ns(), 101, 102, b"crashed", 11, 1)
+                  + bytes(EXIT_LINES * EXIT_LINE_SIZE))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/crashed").get("exit"))
+        final = self.fetch("/api/live?target=host-a/crashed")
+        self.assertEqual(final["exit"]["pid"], 123)
+        packet = bytearray(announce(102, "crashed", pid=0))
+        packet[6] = 1 | 4
+        self.send(packet)
+        self.wait_for(lambda: self.targets() == set())
+        fleet = self.fetch("/api/fleet")
+        retained = fleet["list"]["targets"][0]
+        self.assertEqual(retained["key"], "host-a/crashed")
+        self.assertTrue(retained["archived"])
+        self.assertFalse(retained["local"])
+        self.assertEqual(fleet["live"][retained["key"]], final)
+        self.assertEqual(self.fetch("/api/live?target=host-a/crashed"), final)
+        self.assertEqual(self.fetch("/api/last-target?target=host-a/crashed")["health"]["pid"], 123)
+        for index in range(self.MAX_TARGETS):
+            self.send(announce(200 + index, f"replacement-{index}"))
+        self.wait_for(lambda: len(self.targets()) == self.MAX_TARGETS)
+        self.assertEqual(self.fetch("/api/targets")["capacity_drops"], 0)
+        self.send(packet)
+        self.assertNotIn("host-a/crashed", self.targets())
+
+    def test_remove_retained_target_preserves_storage_and_live_targets(self):
+        # Removal is session-specific and leaves stored rows and live slots intact.
+        path = "/api/targets/retained/remove"
+        body = {"key": "host-a/crashed", "session": "102"}
+        self.send(announce(101, "crashed"))
+        self.send(tick(101))
+        self.wait_for(lambda: "host-a/crashed" in self.targets())
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/crashed")["threads"])
+        self.assertEqual(self.post(path, {**body, "session": "101"}, "")[0], 409)
+        self.send(announce(102, "crashed", pid=0))
+        self.send(tick(102, pid=0))
+        self.send(EXIT_HEADER.pack(b"TEND", 2, 2, 0, 0, 123, 2, 1,
+                                  time.time_ns(), 101, 102, b"crashed", 11, 1)
+                  + bytes(EXIT_LINES * EXIT_LINE_SIZE))
+        self.wait_for(lambda: self.fetch("/api/live?target=host-a/crashed").get("exit"))
+        packet = bytearray(announce(102, "crashed", pid=0))
+        packet[6] = 1 | 4
+        self.send(packet)
+        self.wait_for(lambda: not self.targets())
+        self.send(announce(303, "live"))
+        self.send(tick(303))
+        self.wait_for(lambda: "host-a/live" in self.targets())
+        request = urllib.request.Request(self.base + path, data=json.dumps(body).encode(),
+                                         headers={"Content-Type": "application/json"})
+        with self.assertRaises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(request)
+        with denied.exception as response:
+            self.assertEqual(response.code, 403)
+        for invalid in ({}, {**body, "session": "not-a-session"},
+                        {**body, "session": "18446744073709551616"}):
+            self.assertEqual(self.post(path, invalid, "")[0], 400)
+        self.assertEqual(self.post(path, {**body, "session": "101"}, "")[0], 409)
+        files = list((self.directory / "data").rglob("*.sqlite3"))
+        self.assertTrue(files)
+        self.assertEqual(self.post(path, body, "")[0], 200)
+        self.assertEqual([t["key"] for t in self.fetch("/api/fleet")["list"]["targets"]],
+                         ["host-a/live"])
+        self.assertEqual(self.fetch("/api/live?target=host-a/live")["health"]["pid"], 123)
+        time.sleep(0.7)
+        self.assertEqual(len(self.fetch("/api/fleet")["list"]["targets"]), 1)
+        self.assertEqual(self.post(path, body, "")[0], 409)
+        self.assertTrue(all(file.exists() for file in files))
+        rows = 0
+        for file in files:
+            with closing(sqlite3.connect(f"file:{file}?mode=ro", uri=True)) as database:
+                if database.execute("SELECT name FROM sqlite_master WHERE name='process_exit'").fetchone():
+                    rows += database.execute("SELECT count(*) FROM process_exit").fetchone()[0]
+        self.assertGreater(rows, 0)
+        self.fetch("/api/history?target=host-a/crashed&session=101&tid=123")
+
+    def test_returning_key_replaces_retained_view(self):
+        # A returning key has one tile, with its new process data.
+        self.send(announce(101, "worker"))
+        self.send(tick(101))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        packet = bytearray(announce(101, "worker"))
+        packet[6] = 1 | 4
+        self.send(packet)
+        self.wait_for(lambda: not self.targets())
+        self.send(announce(202, "worker", pid=456))
+        self.send(tick(202, pid=456))
+        self.wait_for(lambda: "host-a/worker" in self.targets())
+        fleet = self.fetch("/api/fleet")
+        self.assertEqual(len(fleet["list"]["targets"]), 1)
+        self.assertFalse(fleet["list"]["targets"][0].get("archived", False))
+        self.assertEqual(fleet["live"]["host-a/worker"]["health"]["pid"], 456)
+        stale = {"key": "host-a/worker", "session": "101"}
+        self.assertEqual(self.post("/api/targets/retained/remove", stale, "")[0], 409)
+        self.assertEqual(self.fetch("/api/live?target=host-a/worker")["health"]["pid"], 456)
 
     def test_remote_target_remove_refuses_claimed_local_hostname_and_mismatched_id(self):
         # Both peers are loopback here. A key/ID mismatch must fail before helper writes.

@@ -123,7 +123,14 @@ A target slot whose sampler has been silent for longer than
 `target_idle_expiry_s` is released, so a replaced or removed target does not
 hold its slot. The default is 600 seconds; the range is 1..86400. The check
 runs in the periodic refresh. The released target disappears from
-`/api/targets`; its stored history remains. A sampler that returns later takes
+`/api/targets`; its stored history remains. The Targets overview keeps the
+last published view of up to 64 released targets until collector restart.
+These entries use no live slots. The oldest entry is removed first; a
+returning key replaces its retained view. `/api/fleet` includes these entries
+with `archived: true`, and explicit target reads can inspect their final data.
+Use Remove from Targets to remove a retained tile for every viewer. This
+keeps sampler rules, stored history, and recordings. The removal request
+matches the target key and session so it cannot remove a replacement. A sampler that returns later takes
 a free slot as a new session.
 
 Use `GET /api/targets` to list targets. `GET /api/fleet` returns that list

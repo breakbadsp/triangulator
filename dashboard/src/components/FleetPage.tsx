@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { readTargetControl, type TargetControl } from "../api/targetControl";
+import {
+  changeTargets,
+  readTargetControl,
+  type TargetControl,
+} from "../api/targetControl";
 import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
@@ -46,7 +50,7 @@ async function loadFleet(signal: AbortSignal) {
 function capacityNotices(list: FleetResponse["list"]): string[] {
   const excluded = new Map<string, number>();
   for (const target of list.targets)
-    if (target.excluded)
+    if (!target.archived && target.excluded)
       excluded.set(
         target.host,
         Math.max(excluded.get(target.host) ?? 0, target.excluded),
@@ -58,7 +62,7 @@ function capacityNotices(list: FleetResponse["list"]): string[] {
   if (
     list.capacity_drops &&
     list.max_targets &&
-    list.targets.length >= list.max_targets
+    list.targets.filter((target) => !target.archived).length >= list.max_targets
   )
     notices.push(
       `The collector is at its limit of ${String(list.max_targets)} targets (max_targets in the collector configuration). Data from further targets is dropped.`,
@@ -120,6 +124,52 @@ function TileRemove({
       {explained && blocked && (
         <small className="muted" role="status">
           {blocked}
+        </small>
+      )}
+    </Help>
+  );
+}
+
+function RemoveRetained({
+  tile,
+  refresh,
+}: {
+  tile: TileModel;
+  refresh: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const session = tile.archivedSession;
+  if (!tile.archived) return null;
+  async function remove() {
+    if (busy || !session) return;
+    setBusy(true);
+    setError("");
+    const result = await changeTargets({
+      action: "forget",
+      key: tile.key,
+      session,
+    });
+    if (result.kind === "done") refresh();
+    else setError(result.message);
+    setBusy(false);
+  }
+  return (
+    <Help topic="fleet" as="div" className="ft-foot">
+      <button
+        type="button"
+        className="ft-remove"
+        disabled={busy || !session}
+        aria-label={"Remove retained target " + tile.id}
+        onClick={() => {
+          void remove();
+        }}
+      >
+        Remove from Targets
+      </button>
+      {error && (
+        <small className="bad" role="alert">
+          {error}
         </small>
       )}
     </Help>
@@ -288,7 +338,7 @@ export function FleetPage() {
                   className="ft-name"
                   href={targetHref(tile.key, query)}
                   title={tile.name}
-                  aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" ? "no data" : tile.verdict}. Open its dashboard.`}
+                  aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" && !tile.archived ? "no data" : tile.verdict}. Open its dashboard.`}
                 >
                   {tile.name}
                 </a>
@@ -301,6 +351,11 @@ export function FleetPage() {
               >
                 {tile.host} · {tile.id}
               </Help>
+              {tile.archived && (
+                <Help topic="fleet" as="div" className="ft-waiting muted">
+                  No longer monitored · Final data
+                </Help>
+              )}
               {tile.waiting && (
                 <Help
                   key={tile.key + "waiting"}
@@ -312,6 +367,7 @@ export function FleetPage() {
                 </Help>
               )}
               <TileRemove tile={tile} control={control} editor={editor} />
+              <RemoveRetained tile={tile} refresh={fleet.refresh} />
               {tile.card && (
                 <div className="ft-card">
                   <div className="ft-proc">{tile.card.proc}</div>

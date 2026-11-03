@@ -388,7 +388,7 @@ const topics = {
     reading:
       "All targets uses compact tiles in the order supplied by the collector. Assessment changes do not change this order. Select a tile, or open it in a new tab, to see that process's dashboard; All targets on the dashboard returns here. The tab title starts with the number of targets at warning or worse. The page refreshes every 5 seconds while it is visible.",
     limits:
-      "Tiles do not run the thread churn rule or memory-map layout rules. Each refresh returns the latest live view of every target in one response, so a large number of targets makes that response larger than one dashboard needs.",
+      "Released targets remain as “No longer monitored · Final data” tiles. Select one to inspect its final data, exit report when available, and recordings. Use Remove from Targets to remove a retained tile for every viewer. This does not change sampler rules or delete stored history or recordings. A stale tile cannot remove a replacement process. The collector keeps up to 64 released target views until it restarts; the oldest is removed first. A returning target with the same key replaces the retained view. Removal or a silent sampler can also release a target, so this label alone does not prove a crash. Tiles do not run the thread churn rule or memory-map layout rules. Each refresh returns the latest live view of every target in one response, so a large number of targets makes that response larger than one dashboard needs.",
     related: ["fleet-tile", "target-switch", "assessment"],
     source: "Collector: `/api/fleet`",
     sourceDetail:

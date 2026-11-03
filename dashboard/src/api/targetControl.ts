@@ -38,7 +38,7 @@ export async function readTargetControl(
   }
 }
 export async function changeTargets(
-  change: TargetChange,
+  change: TargetChange | { action: "forget"; key: string; session: string },
   check = false,
 ): Promise<TargetWrite> {
   const failed = (message: string): TargetWrite => ({
@@ -46,12 +46,19 @@ export async function changeTargets(
     message,
     applied: false,
   });
+  if (check && change.action !== "add")
+    return failed("Only an add can be checked");
   try {
-    const response = await fetch("/api/targets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Triangulator": "1" },
-      body: JSON.stringify(check ? { ...change, check: true } : change),
-    });
+    const response = await fetch(
+      change.action === "forget"
+        ? "/api/targets/retained/remove"
+        : "/api/targets",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Triangulator": "1" },
+        body: JSON.stringify(check ? { ...change, check: true } : change),
+      },
+    );
     let body: unknown;
     try {
       body = await response.json();

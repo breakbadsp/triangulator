@@ -5,6 +5,8 @@ import { ago, isNum } from "./format";
 import { fleetName } from "./target";
 
 export interface TileModel {
+  archived: boolean;
+  archivedSession: string | null;
   key: string;
   host: string;
   id: string;
@@ -27,19 +29,28 @@ export function tileModel(
   now: number,
 ): TileModel {
   const assessment = fleetAssessment(view, now);
-  const level = assessment?.level ?? "unknown";
+  const level =
+    target.archived && assessment?.level === "good"
+      ? "unknown"
+      : (assessment?.level ?? "unknown");
   const name = fleetName(target, view ?? undefined);
   const findings = assessment?.findings ?? [];
   const health = view?.health;
   const process =
     view?.process?.session === health?.session ? view?.process : null;
   return {
+    archived: target.archived === true,
+    archivedSession: target.archived ? (target.session ?? null) : null,
     key: target.key,
     host: target.host,
     id: target.id,
     name,
     level,
-    verdict: level === "unknown" ? "No data" : VERDICTS[level],
+    verdict: target.archived
+      ? "No longer monitored"
+      : level === "unknown"
+        ? "No data"
+        : VERDICTS[level],
     search: (name + " " + target.key).toLowerCase(),
     local: target.local === true,
     discovered:

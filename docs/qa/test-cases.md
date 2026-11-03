@@ -10,6 +10,7 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-143 | NOT_RUN | - | - | - |
 | QA-142 | NOT_RUN | - | - | - |
 | QA-141 | NOT_RUN | - | - | - |
 | QA-123 | NOT_RUN | - | - | - |
@@ -862,3 +863,10 @@
 - Driver: judged
 - Test: Run the sampler with `memory_interval_s = 5` on a target that maps and unmaps memory. Watch the Memory section for 30 s, then restart the sampler.
 - Expected: The summary values update every 5 s. The mapping count and the layout update every 10 s, and the first sample after a start has both. Between scans the last count and layout stay visible, the count shows its scan age relative to the latest sample, and no "map is not readable" note appears. A mapping-limit warning stays visible between scans.
+
+## QA-143: Released process stays on Targets
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Monitor a process selected by a pattern. End the process. Wait for the sampler to release its target. Reload Targets. Search for the process and open its tile in a new tab. Check the tile help. Start a new matching process. Repeat with a target removed from the sampler configuration.
+- Expected: The released process has a searchable "No longer monitored · Final data" tile. Its dashboard opens with final data, the exit report when available, and recordings. The tile has Remove from Targets. Remove it, reload Targets in a second browser, and confirm the tile is gone. Stored history and recordings remain on disk. A stale Remove action must not remove a live replacement. Help explains the limit of 64 retained views, collector restart, and replacement by the same key. New processes can use all live target slots. Configuration removal does not claim a crash.
