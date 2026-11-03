@@ -183,7 +183,7 @@ export function assessMemory(
       add(
         share >= 90 ? "critical" : "warning",
         "Mapping count is close to the limit",
-        `${String(v.vma_count)} of ${String(v.max_map_count)} (vm.max_map_count). At the limit, mmap and thread creation fail with ENOMEM. ${String(anonymous)} mappings are anonymous and ${String(guards)} are guard pages.`,
+        `${String(v.vma_count)} of ${String(v.max_map_count)} (vm.max_map_count).${isNum(m.vma_updated) && isNum(m.updated) && m.updated > m.vma_updated ? ` The scan was ${duration(m.updated - m.vma_updated)} before this sample.` : ""} At the limit, mmap and thread creation fail with ENOMEM. ${String(anonymous)} mappings are anonymous and ${String(guards)} are guard pages.`,
       );
     }
   }

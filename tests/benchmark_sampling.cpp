@@ -94,10 +94,13 @@ using Records = std::array<wire::Record, wire::kMaxThreads>;
 
 // One whole memory-map sample, read to the end at once. The sampler spreads
 // the same reads over several ticks; the total work is the same. The layout is
-// always requested, which is the costlier case.
+// always requested, which is the costlier case. Every sample reads maps: the
+// sampler does so on every second sample, so this is the cost of one full
+// sample.
 [[nodiscard]] std::optional<MemorySample> SampleMemory(int p_pid,
                                                        MemoryProbe& p_probe)
 {
+  p_probe.Reset();
   p_probe.Start(p_pid, true);
   auto sample = p_probe.Continue(Nanoseconds::max());
   asm volatile("" : : "g"(&sample) : "memory");

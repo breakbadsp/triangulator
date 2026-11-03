@@ -508,7 +508,10 @@ class CppCollectorIntegrationTests(unittest.TestCase):
                 memory = live["memory"]
                 self.assertTrue(memory["available"])
                 self.assertEqual(memory["pid"], target.pid)
-                self.assertGreater(memory["values"]["vma_count"], 0)
+                # Every second memory sample reads no maps, so the mapping count
+                # is missing or positive, never zero or stale.
+                vma_count = memory["values"]["vma_count"]
+                self.assertTrue(vma_count is None or vma_count > 0, vma_count)
                 self.assertFalse(memory["flags"]["maps_hidden"])
                 self.assertEqual(layout["pid"], target.pid)
                 kinds = {region["kind"] for region in layout["regions"]}

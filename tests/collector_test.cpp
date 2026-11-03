@@ -2667,7 +2667,11 @@ void TestMemoryMapLayout()
   auto lost = MemoryParts(3, regions);
   memory.Accept(lost[0], 160);
   memory.Accept(lost[1], 160);
-  for (const auto& part : MemoryParts(4, std::span{regions}.first(5)))
+  auto measured = MemoryParts(4, std::span{regions}.first(5));
+  measured[0].values_[memory_wire::Field("maps_reads")] = 3;
+  measured[0].values_[memory_wire::Field("maps_read_us")] = 40;
+  measured[0].values_[memory_wire::Field("maps_read_max_us")] = 20;
+  for (const auto& part : measured)
   {
     memory.Accept(part, 190);
   }
@@ -2685,6 +2689,44 @@ void TestMemoryMapLayout()
       "a late sample is ignored");
   Require(memory.Snapshot(400).Find("stale")->AsBool(),
           "a sample older than three intervals is stale");
+  // A summary-only sample keeps the last mapping count and its time.
+  auto skipped = MemoryParts(5, {})[0];
+  skipped.values_[memory_wire::Field("vma_count")] = memory_wire::kUnavailable;
+  memory.Accept(skipped, 220);
+  const auto held = memory.Snapshot(220);
+  Require(held.Find("values")->Find("vma_count")->AsInt() == 4 &&
+              held.Find("values")->Find("maps_reads")->AsInt() == 3 &&
+              held.Find("values")->Find("maps_read_us")->AsInt() == 40 &&
+              held.Find("values")->Find("maps_read_max_us")->AsInt() == 20 &&
+              held.Find("vma_updated")->AsNumber() == 190,
+          "a skipped scan retains the map values and their timestamp");
+  // A failed scan clears the old count instead of presenting it as current.
+  auto failed = MemoryParts(6, {})[0];
+  failed.values_[memory_wire::Field("vma_count")] = memory_wire::kUnavailable;
+  failed.values_[memory_wire::Field("maps_reads")] = 0;
+  memory.Accept(failed, 250);
+  Require(
+      memory.Snapshot(250).Find("values")->Find("vma_count")->IsNull() &&
+          memory.Snapshot(250).Find("values")->Find("maps_reads")->AsInt() ==
+              0 &&
+          memory.Snapshot(250).Find("values")->Find("maps_read_us")->IsNull() &&
+          memory.Snapshot(250).Find("vma_updated")->IsNull(),
+      "a failed scan clears the previous count");
+  auto after_failed = MemoryParts(7, {})[0];
+  after_failed.values_[memory_wire::Field("vma_count")] =
+      memory_wire::kUnavailable;
+  memory.Accept(after_failed, 260);
+  Require(memory.Snapshot(260).Find("values")->Find("maps_reads")->IsNull(),
+          "a skipped scan does not reuse failed scan measurements");
+  memory.Accept(MemoryParts(8, {})[0], 280);
+  memory.PrepareSession(6);
+  auto new_session = MemoryParts(1, {})[0];
+  new_session.header_.session_ = 6;
+  new_session.values_[memory_wire::Field("vma_count")] =
+      memory_wire::kUnavailable;
+  memory.Accept(new_session, 310);
+  Require(memory.Snapshot(310).Find("values")->Find("vma_count")->IsNull(),
+          "a new session does not retain the old count");
 }
 
 // Region parts arrive out of order around a lost summary: summary 1, then

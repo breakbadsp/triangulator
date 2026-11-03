@@ -453,7 +453,9 @@ class TargetSampler final
       {
         return;
       }
-      const bool refresh_layout = p_monotonic + interval / 2 >= next_layout_;
+      // Only a sample that reads maps can carry the layout.
+      const bool refresh_layout =
+          memory_.NextReadsMaps() && p_monotonic + interval / 2 >= next_layout_;
       if (refresh_layout)
       {
         next_layout_ =

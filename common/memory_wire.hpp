@@ -11,7 +11,10 @@
 // One sample is up to kMaxParts datagrams that share a header: part 0 holds
 // the summary and parts 1.. hold up to kRegionsPerPart layout regions each.
 // A sample has region parts only when the layout changed, or for a periodic
-// refresh; otherwise the collector keeps the layout it has.
+// refresh; otherwise the collector keeps the layout it has. The sampler reads
+// maps on every second sample. The other samples are summary-only: vma_count
+// and the maps_* values are kUnavailable and the flags repeat those of the
+// last maps read.
 
 #include <algorithm>
 #include <array>

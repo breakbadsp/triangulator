@@ -71,6 +71,19 @@ test("memory findings flag mapping limits, deleted libraries and the main stack"
   );
 });
 
+test("a retained mapping warning reports the time of its scan", () => {
+  const summary = {
+    ...memorySummary({ vma_count: 950, max_map_count: 1000 }),
+    updated: 160,
+    vma_updated: 100,
+  };
+  const finding = assessMemory(summary, []).find(
+    (item) => item.title === "Mapping count is close to the limit",
+  );
+  assert.ok(finding);
+  assert.match(finding.detail, /scan was .* before this sample/);
+});
+
 test("a data file below the executable is not the program image", () => {
   const file = (start: number, permissions: string, name: string) => ({
     start: "0x" + start.toString(16),

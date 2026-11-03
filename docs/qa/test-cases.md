@@ -10,6 +10,8 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-143 | NOT_RUN | - | - | - |
+| QA-142 | NOT_RUN | - | - | - |
 | QA-141 | NOT_RUN | - | - | - |
 | QA-123 | NOT_RUN | - | - | - |
 | QA-124 | NOT_RUN | - | - | - |
@@ -855,8 +857,14 @@
 - Test: Run the sampler with two busy targets, `rate_hz = 10`, `cpu_budget_pct = 0.5`, `critical_names` set to one of them, and `critical_extra_budget_pct = 20`. Wait 30 seconds and open both targets. Then set `critical_names` to the other target, reload with SIGHUP, and wait 30 seconds. Stop the critical process and wait 30 seconds. Open the help of the "Sampler throttled" badge.
 - Expected: The critical target shows no throttle badge and samples at 10 Hz. The other target shows "Sampler throttled" with a lower rate and the 0.5% budget. After the reload, the two roles change without a restart and without new sessions. After the critical process stops, the remaining target is throttled against the 0.5% budget. Help explains that critical targets keep their full rate up to the budget plus the extra allowance.
 
+## QA-142: Memory maps are read on every second memory sample
 
-## QA-141: Released process stays on Targets
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run the sampler with `memory_interval_s = 5` on a target that maps and unmaps memory. Watch the Memory section for 30 s, then restart the sampler.
+- Expected: The summary values update every 5 s. The mapping count and the layout update every 10 s, and the first sample after a start has both. Between scans the last count, map-read times, and layout stay visible. The count and read times show their scan age relative to the latest sample. No "map is not readable" note appears. A mapping-limit warning stays visible between scans.
+
+## QA-143: Released process stays on Targets
 
 - Status: NOT_RUN
 - Driver: judged

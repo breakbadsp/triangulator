@@ -1922,7 +1922,7 @@ const topics = {
     related: ["amap", "vmsize", "rss"],
     source: "`/proc/PID/maps` and `/proc/PID/status`",
     sourceDetail:
-      "With each memory sample (every 30 s by default), the sampler reads `/proc/PID/maps` in small parts within a time budget, and the Vm lines of `/proc/PID/status`. The collector serves the layout through `/api/memory-map`. Check it yourself: `cat /proc/PID/maps`.",
+      "The sampler reads `/proc/PID/maps` every other memory sample and reads the Vm lines of `/proc/PID/status` with every sample. The collector serves the layout through `/api/memory-map`. Check it yourself: `cat /proc/PID/maps`.",
   },
   memkinds: {
     title: "Anonymous / file / shared",
@@ -1952,7 +1952,7 @@ const topics = {
     related: ["memregions", "vmsize", "memlimits"],
     source: "Lines of `/proc/PID/maps`; `/proc/sys/vm/max_map_count`",
     sourceDetail:
-      "Each line of `/proc/PID/maps` is one VMA; the sampler counts them with each memory sample. The limit is `/proc/sys/vm/max_map_count`. Check it yourself: `wc -l < /proc/PID/maps`.",
+      "Each line of `/proc/PID/maps` is one VMA. The sampler counts them every other memory sample. The last count remains visible between scans, with its age relative to the latest sample. The limit is `/proc/sys/vm/max_map_count`. Check it yourself: `wc -l < /proc/PID/maps`.",
   },
   memfindings: {
     title: "Memory findings",
@@ -2170,7 +2170,7 @@ const topics = {
     reading:
       "Read each meter's denominator. Page tables and locked memory are also charged to the process.",
     limits:
-      "No configured limit is different from an unknown limit. The longest maps read shows the sampler's own cost.",
+      "No configured limit is different from an unknown limit. The longest maps read shows the sampler's cost on the last map scan. Between scans, its age is relative to the latest memory sample.",
     related: ["vmas", "aslimit", "stack"],
     source:
       "`/proc/PID/limits`, `/proc/PID/status`, `/proc/sys/vm/max_map_count`",

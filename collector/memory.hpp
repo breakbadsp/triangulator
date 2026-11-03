@@ -102,7 +102,33 @@ class MemoryMonitor
         ++late_;
         return;
       }
-      latest_ = Summary{header, p_part.values_, p_received};
+      auto values = p_part.values_;
+      const auto count = memory_wire::Field("vma_count");
+      constexpr std::array kMapFields{memory_wire::Field("vma_count"),
+                                      memory_wire::Field("maps_reads"),
+                                      memory_wire::Field("maps_read_us"),
+                                      memory_wire::Field("maps_read_max_us")};
+      // A skipped scan leaves both fields unavailable; a failed scan still
+      // reports its read count, including zero if opening maps failed.
+      if (values[count] == memory_wire::kUnavailable &&
+          values[memory_wire::Field("maps_reads")] == memory_wire::kUnavailable)
+      {
+        for (const auto field : kMapFields)
+        {
+          if (last_map_values_[count] != memory_wire::kUnavailable)
+          {
+            values[field] = last_map_values_[field];
+          }
+        }
+      }
+      else
+      {
+        last_map_values_ = values;
+        vma_updated_ = values[count] == memory_wire::kUnavailable
+                           ? std::optional<double>{}
+                           : std::optional<double>{p_received};
+      }
+      latest_ = Summary{header, values, p_received};
       ++samples_;
     }
     if (header.parts_ > 1)
@@ -145,6 +171,7 @@ class MemoryMonitor
         {"available", true},
         {"stale", p_now - latest_->received_ > std::max(15.0, 3 * interval)},
         {"updated", latest_->received_},
+        {"vma_updated", vma_updated_ ? Json(*vma_updated_) : Json(nullptr)},
         {"pid", header.pid_},
         {"interval_s", interval},
         {"flags", FlagsJson(header.flags_)},
@@ -206,6 +233,8 @@ class MemoryMonitor
     }
     session_ = p_session;
     latest_.reset();
+    last_map_values_ = memory_wire::EmptySummary();
+    vma_updated_.reset();
     assembling_ = false;
     layout_sequence_.reset();
     if (layout_available_)
@@ -313,6 +342,8 @@ class MemoryMonitor
   std::optional<std::uint64_t> session_;
   Ring<std::uint64_t, kMaxRetiredSessions> retired_sessions_;
   std::optional<Summary> latest_;
+  memory_wire::SummaryValues last_map_values_ = memory_wire::EmptySummary();
+  std::optional<double> vma_updated_;
   bool assembling_ = false;
   memory_wire::Header assembly_header_;
   std::bitset<memory_wire::kMaxParts> parts_seen_;

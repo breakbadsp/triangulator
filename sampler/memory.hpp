@@ -12,6 +12,12 @@
 // the reads are kept small. The whole read is not one atomic snapshot
 // anyway: the kernel takes and drops the lock for each read() call.
 //
+// Reading maps is the expensive part, so samples alternate: a full sample
+// reads the summary and maps, and the next one reads the summary only. The
+// first sample of a session is full. A summary-only sample leaves the
+// map-derived values unavailable and carries no layout, so the collector
+// keeps its last complete layout and nothing looks fresh that is not.
+//
 // TODO(PR 37 review): measure how much reading maps delays the target's mmap
 // and munmap calls on older kernels and on targets with tens of thousands of
 // mappings. It has been measured only on Linux 7.2 with about 1,000 mappings.
@@ -271,9 +277,11 @@ static_assert(FindSoftLimit("Max stack size 8388608 unlimited bytes\n",
               FindSoftLimit("Max stack size unlimited unlimited bytes\n",
                             "Max stack size") == memory_wire::kUnavailable);
 
-// A finished sample. regions_ views the probe's storage and stays valid
-// until the probe's next Start(). It is empty when the layout is unchanged
-// since the last sample that sent it, unless that sample asked for it.
+// A finished sample. A summary-only sample has its map-derived values
+// (vma_count and maps_*) unavailable. regions_ views the probe's storage and
+// stays valid until the probe's next Start(). It is empty when the layout is
+// unchanged since the last sample that sent it, unless that sample asked for
+// it.
 struct MemorySample
 {
   memory_wire::SummaryValues summary_ = memory_wire::EmptySummary();
@@ -292,18 +300,27 @@ class MemoryProbe
     return busy_;
   }
 
+  // Whether the next Start() reads maps, not only the summary.
+  [[nodiscard]] bool NextReadsMaps() const noexcept
+  {
+    return next_reads_maps_;
+  }
+
   // Forgets the last layout and any sample in progress, for a new session.
+  // The next sample reads maps.
   void Reset() noexcept
   {
     maps_ = FileDescriptor{};
     busy_ = false;
     last_layout_hash_.reset();
+    next_reads_maps_ = true;
+    maps_flags_ = memory_wire::Flags::None;
   }
 
   // Starts a sample of p_pid: reads the summary files, which take no
-  // memory-map lock, and opens maps. The sample carries the layout when it
-  // changed, or when p_send_layout asks for it: a periodic refresh for a
-  // collector that started later or lost a part.
+  // memory-map lock, and opens maps when this sample reads them. The sample
+  // carries the layout when it changed, or when p_send_layout asks for it: a
+  // periodic refresh for a collector that started later or lost a part.
   void Start(int p_pid, bool p_send_layout)
   {
     Start(p_pid, p_send_layout, FixedString{"/proc/{}/maps", p_pid}.CStr());
@@ -321,7 +338,12 @@ class MemoryProbe
     read_time_ = Nanoseconds{0};
     longest_read_ = Nanoseconds{0};
     reads_ = 0;
+    reads_maps_ = std::exchange(next_reads_maps_, !next_reads_maps_);
     ReadSummary(p_pid);
+    if (!reads_maps_)
+    {
+      return;
+    }
     maps_ = OpenReadonly(p_maps_path);
     if (!maps_)
     {
@@ -451,12 +473,20 @@ class MemoryProbe
   {
     using memory_wire::Field;
     busy_ = false;
+    if (!reads_maps_)
+    {
+      // The flags still describe the last maps read, which is the layout
+      // the collector keeps.
+      sample_.flags_ = maps_flags_;
+      return sample_;
+    }
     auto& summary = sample_.summary_;
     summary[Field("maps_read_us")] = Microseconds(read_time_);
     summary[Field("maps_read_max_us")] = Microseconds(longest_read_);
     summary[Field("maps_reads")] = reads_;
     if (memory_wire::HasFlag(sample_.flags_, memory_wire::Flags::MapsHidden))
     {
+      maps_flags_ = sample_.flags_;
       return sample_;
     }
     summary[Field("vma_count")] = layout_.VmaCount();
@@ -471,6 +501,7 @@ class MemoryProbe
       last_layout_hash_ = hash;
       sample_.regions_ = layout_.Regions();
     }
+    maps_flags_ = sample_.flags_;
     return sample_;
   }
 
@@ -486,6 +517,11 @@ class MemoryProbe
   FileDescriptor maps_;
   bool busy_ = false;
   bool send_layout_ = false;
+  // Whether the sample in progress, and the next one, read maps.
+  bool reads_maps_ = true;
+  bool next_reads_maps_ = true;
+  // The flags of the last sample that read maps.
+  memory_wire::Flags maps_flags_ = memory_wire::Flags::None;
   MemorySample sample_;
   LayoutBuilder layout_;
   Nanoseconds read_time_{0};
