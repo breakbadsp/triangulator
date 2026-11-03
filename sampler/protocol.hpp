@@ -9,10 +9,9 @@ namespace triangulator::wire
 {
 
 // Packs one thread's /proc readings into the wire record.
-[[nodiscard]] inline Record EncodeSample(int p_tid, const ThreadStat& p_stat,
-                                         const SchedulerCounters& p_counters,
-                                         const std::optional<IoCounters>& p_io,
-                                         const WaitChannel& p_wchan)
+[[nodiscard]] constexpr Record EncodeSample(
+    int p_tid, const ThreadStat& p_stat, const SchedulerCounters& p_counters,
+    const std::optional<IoCounters>& p_io, const WaitChannel& p_wchan)
 {
   const auto io_values = p_io.value_or(IoCounters{});
   return Record{.tid_ = static_cast<std::uint32_t>(p_tid),
@@ -29,5 +28,18 @@ namespace triangulator::wire
                 .comm_ = p_stat.name_,
                 .wchan_ = p_wchan};
 }
+
+static_assert(
+    []
+    {
+      ThreadStat stat;
+      stat.state_ = 'S';
+      stat.utime_ = 5;
+      const auto record =
+          EncodeSample(9, stat, SchedulerCounters{3, 4}, std::nullopt, {});
+      return record.tid_ == 9 && record.state_ == 'S' && record.utime_ == 5 &&
+             record.run_delay_ == 3 && record.timeslices_ == 4 &&
+             record.flags_ == RecordFlags::IoUnavailable;
+    }());
 
 }  // namespace triangulator::wire
