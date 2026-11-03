@@ -121,6 +121,12 @@ class CpuBudget final
   }
 
  private:
+  // A cut aims 10% below the target. Recovery waits for use below 60% of
+  // it, so that a cut and a rise cannot alternate.
+  static constexpr double kCutMargin = 0.9;
+  static constexpr double kRecoverBelow = 0.6;
+  static constexpr double kRaiseStep = 1.25;
+
   struct Bucket
   {
     Nanoseconds cpu_{0};
@@ -133,13 +139,14 @@ class CpuBudget final
   {
     if (p_percent > budget_pct_)
     {
-      other_rate_ =
-          std::max(kMinRateHz, other_rate_ * budget_pct_ / p_percent * 0.9);
+      other_rate_ = std::max(
+          kMinRateHz, other_rate_ * budget_pct_ / p_percent * kCutMargin);
       return true;
     }
-    if (p_percent < budget_pct_ * 0.6 && other_rate_ < configured_rate_)
+    if (p_percent < budget_pct_ * kRecoverBelow &&
+        other_rate_ < configured_rate_)
     {
-      other_rate_ = std::min(configured_rate_, other_rate_ * 1.25);
+      other_rate_ = std::min(configured_rate_, other_rate_ * kRaiseStep);
       return true;
     }
     return false;
@@ -151,25 +158,26 @@ class CpuBudget final
     const bool other_room = p_other_live && other_rate_ > kMinRateHz;
     if (p_percent > budget_pct_ && other_room)
     {
-      other_rate_ =
-          std::max(kMinRateHz, other_rate_ * budget_pct_ / p_percent * 0.9);
+      other_rate_ = std::max(
+          kMinRateHz, other_rate_ * budget_pct_ / p_percent * kCutMargin);
       return true;
     }
     if (p_percent > ceiling_pct_)
     {
-      critical_rate_ =
-          std::max(kMinRateHz, critical_rate_ * ceiling_pct_ / p_percent * 0.9);
+      critical_rate_ = std::max(
+          kMinRateHz, critical_rate_ * ceiling_pct_ / p_percent * kCutMargin);
       other_rate_ = std::min(other_rate_, critical_rate_);
       return true;
     }
-    if (p_percent < ceiling_pct_ * 0.6 && critical_rate_ < configured_rate_)
+    if (p_percent < ceiling_pct_ * kRecoverBelow &&
+        critical_rate_ < configured_rate_)
     {
-      critical_rate_ = std::min(configured_rate_, critical_rate_ * 1.25);
+      critical_rate_ = std::min(configured_rate_, critical_rate_ * kRaiseStep);
       return true;
     }
-    if (p_percent < budget_pct_ * 0.6 && other_rate_ < critical_rate_)
+    if (p_percent < budget_pct_ * kRecoverBelow && other_rate_ < critical_rate_)
     {
-      other_rate_ = std::min(critical_rate_, other_rate_ * 1.25);
+      other_rate_ = std::min(critical_rate_, other_rate_ * kRaiseStep);
       return true;
     }
     return false;
