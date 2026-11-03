@@ -862,3 +862,10 @@
 - Driver: judged
 - Test: Monitor a process selected by a pattern. End the process. Wait for the sampler to release its target. Reload Targets. Search for the process and open its tile in a new tab. Check the tile help. Start a new matching process. Repeat with a target removed from the sampler configuration.
 - Expected: The released process has a searchable "No longer monitored · Final data" tile. Its dashboard opens with final data, the exit report when available, and recordings. The tile has Remove from Targets. Remove it, reload Targets in a second browser, and confirm the tile is gone. Stored history and recordings remain on disk. A stale Remove action must not remove a live replacement. Help explains the limit of 64 retained views, collector restart, and replacement by the same key. New processes can use all live target slots. Configuration removal does not claim a crash.
+
+## QA-142: Sampler log marks a critical target
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run the sampler with `process_names` set to two running processes and `critical_names` set to one of them. Read the sampler stderr.
+- Expected: The "monitoring PID" line of the critical process ends with ` critical=true`. The line of the other process has no `critical` text.

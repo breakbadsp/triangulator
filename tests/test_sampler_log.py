@@ -66,6 +66,7 @@ class SamplerLog:
 
 
 MONITORING = rf"^{TIME} triangulator: target \S+: monitoring PID \d+ \(logtarget\)$"
+CRITICAL = rf"^{TIME} triangulator: target \S+: monitoring PID \d+ \(logtarget\) critical=true$"
 ENDED = rf"^{TIME} triangulator: target \S+: PID \d+ ended$"
 RELOADED = rf"^{TIME} triangulator: configuration reloaded; discovery, up to \d+ targets$"
 
@@ -128,6 +129,34 @@ class SamplerLogTests(unittest.TestCase):
         self.log.wait_for_count(MONITORING, 2)
         self.log.assert_count_stays(MONITORING, 2)
         self.assertEqual(self.log.count(ENDED), 0)
+
+    def test_only_a_critical_target_is_marked_in_the_monitoring_line(self):
+        self.start_target()
+        self.start_log('process_names = ["logtarget"]')
+        self.log.wait_for_count(MONITORING, 1)
+        self.assertEqual(self.log.count(CRITICAL), 0)
+        self.assertNotIn("critical", self.log.text)
+
+    def test_a_pattern_match_is_not_marked_critical(self):
+        self.start_target()
+        self.start_log('process_names = ["othername"]\n'
+                       'process_patterns = ["logtarg*"]\ncritical_names = ["othername"]')
+        self.log.wait_for_count(MONITORING, 1)
+        self.log.assert_count_stays(CRITICAL, 0)
+
+    def test_critical_names_mark_the_monitoring_line_at_start_and_reload(self):
+        critical = 'process_names = ["logtarget"]\ncritical_names = ["logtarget"]'
+        self.start_target()
+        self.start_log(critical)
+        self.log.wait_for_count(CRITICAL, 1)
+        # Only a new session logs the line again. A rate change starts one.
+        self.log.write_config('process_names = ["logtarget"]', rate_hz=4)
+        self.log.process.send_signal(signal.SIGHUP)
+        self.log.wait_for_count(MONITORING, 1)
+        self.log.write_config(critical, rate_hz=3)
+        self.log.process.send_signal(signal.SIGHUP)
+        self.log.wait_for_count(CRITICAL, 2)
+        self.log.assert_count_stays(MONITORING, 1)
 
     def test_each_process_start_and_end_is_logged_once(self):
         # A discovery slot that the sampler assigns again.
