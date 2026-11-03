@@ -139,6 +139,13 @@ class TargetSampler final
     stride_ = p_stride;
   }
 
+  // Whether critical_names protects this target. Only the monitoring log
+  // line reads it.
+  void SetCritical(bool p_critical) noexcept
+  {
+    critical_ = p_critical;
+  }
+
   // The target_wire flags of the next announcements. A change, and each
   // tick of a release, is announced at once.
   void SetFlags(std::uint8_t p_flags) noexcept
@@ -371,8 +378,9 @@ class TargetSampler final
     {
       monitoring_logged_ = true;
       lifecycle_.Log(
-          "target {}: monitoring PID {} ({})", id_, p_target.pid_,
-          process_wire::Text(LogName(MainThreadName(p_target), process_info_)));
+          "target {}: monitoring PID {} ({}){}", id_, p_target.pid_,
+          process_wire::Text(LogName(MainThreadName(p_target), process_info_)),
+          critical_ ? " critical=true" : "");
     }
     process_info_.session_ = session_;
     process_info_.monotonic_ns_ =
@@ -640,6 +648,7 @@ class TargetSampler final
   Nanoseconds next_announcement_{0};
   std::uint32_t announced_millihz_ = 0;
   std::uint32_t stride_ = 1;
+  bool critical_ = false;
   std::optional<TargetIdentity> previous_target_;
   std::uint64_t session_ = 0;  // set by ResetSession() when Run() starts
   std::uint64_t release_previous_session_ = 0;
@@ -936,6 +945,7 @@ class Sampler final
       }
       sampler.SetFlags(discovery_.Flags(index));
       sampler.SetStride(critical ? 1 : p_stride);
+      sampler.SetCritical(critical);
       if (auto sampled = sampler.SampleTick(identity, p_exit_deadline);
           !sampled)
       {
