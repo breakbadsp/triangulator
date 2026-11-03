@@ -5,9 +5,10 @@ Intel i5-9500 with six logical CPUs, Linux `7.2.8-9-omarchy`, GCC 16.2.1,
 and the `powersave` CPU governor. Other host activity was present. These are
 host-specific observations, not performance guarantees.
 
-`combined/*.json.gz` contains the original parser comparison output from
-Hyperfine 2.0.0:
-15 runs and three warm-ups per case, with timed processes pinned to CPU 3.
+`parser-means.json` holds the mean wall time of each parser case. They come
+from Hyperfine 2.0.0 runs: 15 runs and three warm-ups per case, with timed
+processes pinned to CPU 3. `combined/metadata.json` records the settings. The
+raw Hyperfine output is not kept.
 The same behavior checks ran against each parser before timing. The cases
 parse one million stat lines, ten million numbers, or three million
 scheduler or I/O records. The wall times include process startup and the
@@ -30,17 +31,29 @@ sequence continuity and the exact thread IDs in every completed sample.
 The observed means were 3.751% before and 3.853% after, of one core. The
 trials do not show a whole-sampler improvement.
 
+On 2026-11-03, the full-path capacity benchmark from PR #235 compared the
+same sampler sources with and without the PR #233 parser. It used one
+100-thread target, an unlimited benchmark build, CPUs 0–3, and three
+alternating 35-second trials per variant after 5 seconds of warm-up. Median
+capacity was 140,984 thread records/s before and 140,945 after. Trial ranges
+were 137,727–143,907 and 135,750–141,343 respectively. This result does not
+show a capacity improvement; it covers one target shape on one host.
+
+A separate production-sampler regression run used 16 processes with 50
+threads each at 5 Hz. Two 12-second trials per variant received all 60
+samples per target. The receiver checked exact thread IDs, complete chunks,
+and sequence continuity. This does not cover every production workload.
+
 The repeat profile used the same workload for two 30-second trials per
 binary, with 5 seconds of warm-up. Before CPU was 3.761% and 3.779%; after
 CPU was 3.741% and 3.800%. Each trial delivered 150 complete samples for
-every target. `profile-measurements.json`, `profile-*.txt`, and
-`profile-run.py` contain the measurements, user-space `perf` reports, and
-the driver. The user-mode profiles do not measure kernel execution. Compiler
+every target. `profile-measurements.json` contains the summary measurements,
+and `profile-run.py` is the driver. The detailed `perf` reports are not kept.
+The user-mode profiles do not measure kernel execution. Compiler
 inlining and symbol changes prevent a direct comparison of individual
 function shares. These trials also do not establish a whole-sampler gain.
 
-`thread-sampling-comparison.json.gz` and `thread-sampling-reversed.json.gz` time
-200 production sampling batches against a live 500-thread target. The first
+A separate sampling benchmark timed 200 production sampling batches against a live 500-thread target. The first
 ordering measured 790.3 ± 44.0 ms before and 846.0 ± 79.4 ms after. Reversing
 the order measured 743.9 ± 25.7 ms before and 721.4 ± 28.5 ms after. The
 variation and ordering effect prevent a reliable overall speedup claim.
@@ -50,8 +63,7 @@ on the original revision. The first ordering used 120 batches and measured
 507.5 ± 5.3 ms before and 545.3 ± 44.3 ms with a shared buffer. The reversed
 ordering used 200 batches and measured 759.3 ± 28.5 ms before and
 825.6 ± 37.2 ms with the shared buffer. Because it did not show a benefit,
-the patch was not applied. It is retained as `buffer-experiment.patch.gz`; the
-two raw files start with `buffer-`.
+the patch was not applied. The patch and raw results are not kept.
 
 To repeat the parser comparison, install `hyperfine` and run:
 
@@ -72,5 +84,6 @@ python3 tests/benchmark_sampler_multi.py --before /path/to/original/sampler \
 ```
 
 Run `python3 scripts/render_sampler_parsing_results.py` to regenerate
-`summary.svg` from the recorded JSON. The other Hyperfine files preserve the
-isolated candidate comparisons, including the rejected second stat parser.
+`summary.svg` from the recorded JSON. Rewrite `parser-means.json` from new
+Hyperfine output first if you repeat the parser comparison. The isolated
+candidate comparisons, including the rejected second stat parser, are not kept.

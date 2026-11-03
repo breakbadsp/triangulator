@@ -1,32 +1,24 @@
 #!/usr/bin/env python3
-"""Render the recorded parser and sampler benchmarks as an SVG."""
+"""Render the recorded parser and sampler benchmarks as an SVG.
+
+The parser means come from `parser-means.json`, a summary of the Hyperfine
+runs, so the raw result files are not kept in the repository.
+"""
 import argparse
-import gzip
 import html
 import json
 from pathlib import Path
 import statistics
 
 
-def means(path):
-    compressed = path.with_suffix(path.suffix + ".gz")
-    data = json.loads(gzip.decompress(compressed.read_bytes()) if compressed.exists()
-                      else path.read_text())
-    return [statistics.mean(row["time_wall_clock"]["value"] for row in result["measurements"])
-            for result in data["results"]]
-
-
 def render(directory):
-    stat = means(directory / "combined/stat.json")
-    short = means(directory / "combined/number-short.json")
-    mixed = means(directory / "combined/number-mixed.json")
-    sched = means(directory / "combined/schedstat.json")
-    io = means(directory / "combined/io.json")
-    rows = [("Thread stat", stat[0], stat[1], 1_000_000),
-            ("Number · short", short[0], short[1], 10_000_000),
-            ("Number · mixed", mixed[0], mixed[1], 10_000_000),
-            ("Scheduler counters", sched[0], sched[1], 3_000_000),
-            ("I/O counters", io[0], io[1], 3_000_000)]
+    parser = json.loads((directory / "parser-means.json").read_text())
+    rows = [(name, parser[key]["before_s"], parser[key]["after_s"], count)
+            for name, key, count in (("Thread stat", "stat", 1_000_000),
+                                     ("Number · short", "number-short", 10_000_000),
+                                     ("Number · mixed", "number-mixed", 10_000_000),
+                                     ("Scheduler counters", "schedstat", 3_000_000),
+                                     ("I/O counters", "io", 3_000_000))]
     overall = json.loads((directory / "sampler-multi-comparison.json").read_text())["results"]
     before = statistics.mean(row["cpu_percent"] for row in overall if row["label"] == "before")
     after = statistics.mean(row["cpu_percent"] for row in overall if row["label"] == "after")
