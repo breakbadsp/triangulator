@@ -135,7 +135,7 @@
         <td>112 B per thread, max 10/datagram</td>
         <td>chunk / chunks (u8): up to 255 datagrams = 2550 threads</td><td>every interval (100–5000 ms)</td></tr>
     <tr><td class="mono" style="color:var(--tres)">TRES v1</td><td>sampler</td><td>64 B</td>
-        <td>part 0: 130×u64 + 128 B cgroup path (1168 B body; 1232 B with header). parts 1..: ≤6 sockets × 160 B</td>
+        <td>part 0: 140×u64 + 128 B cgroup path (1248 B body; 1312 B with header). parts 1..: ≤6 sockets × 160 B</td>
         <td>part / parts (u8): 1 + ⌈sockets/6⌉, ≤24 sockets so ≤5 parts</td><td>5 s default (1–60)</td></tr>
     <tr><td class="mono" style="color:var(--tvma)">TVMA v1</td><td>sampler</td><td>64 B</td>
         <td>part 0: 17×u64 (136 B body; 200 B with header). parts 1..: ≤20 regions × 64 B</td>
@@ -218,7 +218,7 @@ const FORMATS = {
       f("parts",7,1,"u8","total parts in the sample (≤5)",4),
       f("session",8,8,"u64","same session as TMON",0x1122334455667788n),
       f("sequence",16,4,"u32","resource sample counter",212),
-      f("count",20,2,"u16","130 for summary, else socket rows in this part (1..6)",130),
+      f("count",20,2,"u16","140 for summary, else socket rows in this part (1..6)",140),
       f("reserved",22,2,"zero","must be 0",0),
       f("monotonic_ns",24,8,"u64","same in all parts",123456789012345n),
       f("wall_ns",32,8,"u64","same in all parts",1760000000000000000n),
@@ -245,19 +245,19 @@ const FORMATS = {
       f("busy/rwnd/sndbuf_us",128,24,"raw","3 × u64 TCP limited times",""),
       f("reserved_end",152,8,"zero","must be 0",0),
     ]},
-    summary:"Part 0 body: 130 × u64 (PSI, fds, process io, socket queues, TCP states, net_* counters, memory limits, cgroup files, interface counters) then 128 B NUL-terminated cgroup path = 1168 B body, 1232 B with the header. Unknown values are 0xFFFF…FFFF.",
+    summary:"Part 0 body: 140 × u64 (PSI, fds, process io, socket queues, TCP states, net_* counters, memory limits, cgroup files, interface counters, process Vm sizes, host memory) then 128 B NUL-terminated cgroup path = 1248 B body, 1312 B with the header. Unknown values are 0xFFFF…FFFF.",
     parts:"part / parts", unit:"sockets", per:6,
     encode:[
-      "Sample /proc, sock_diag, cgroup files → 130 summary values + ≤24 fullest sockets",
+      "Sample /proc, sock_diag, cgroup files → 140 summary values + ≤24 fullest sockets",
       "parts = 1 + ⌈sockets/6⌉",
-      "Build Header (same for all parts) and EncodeSummary: kind=1, part=0, count=130",
+      "Build Header (same for all parts) and EncodeSummary: kind=1, part=0, count=140",
       "EncodeSockets for part 1..: kind=2, part=n, count=rows (copy 6 rows per part)",
-      "Each part sent by its own sendto(); length = 64 + rows×160 (summary 1232)"],
+      "Each part sent by its own sendto(); length = 64 + rows×160 (summary 1312)"],
     decode:[
       "Magic TRES → resource_wire::Decode",
       "Check version, known flags, reserved bytes zero, 0 < parts ≤ 5, part < parts",
       "pid, clocks nonzero; interval 1000..60000",
-      "Summary: part==0, count==130, size==1232, cgroup NUL-terminated",
+      "Summary: part==0, count==140, size==1312, cgroup NUL-terminated",
       "Sockets: part≥1, 1≤count≤6, size==64+count×160; each row kind 1..7, known flags, reserved zero",
       "ResourceMonitor assembles by sequence. It publishes when all parts arrive, or after 2 s with a summary. Missing socket parts mark it incomplete; a missing summary discards the sample."]
   },
@@ -526,7 +526,7 @@ function emit(kind) {
   } else if (kind === "TRES") {
     const socks = 14, parts = 1 + Math.ceil(socks / 6);
     schedule(kind, Array.from({length:parts}, (_, p) =>
-      ({part:p, total:parts, bytes: p === 0 ? 1232 : 64 + Math.min(6, socks - (p - 1) * 6) * 160, label:`${p + 1}/${parts}`})));
+      ({part:p, total:parts, bytes: p === 0 ? 1312 : 64 + Math.min(6, socks - (p - 1) * 6) * 160, label:`${p + 1}/${parts}`})));
   } else {
     const full = (state.memCycle++ % 2) === 0, regions = 47;
     const parts = full ? 1 + Math.ceil(regions / 20) : 1;

@@ -1,6 +1,23 @@
 const storageKey = (name: string, target: string) =>
   target ? `${name}:${target}` : name;
 const DEPARTURE = "triangulator:departure";
+const LAST_TARGET = "triangulator:last-target";
+/** The target page records itself, so the overview can keep its series. */
+export function rememberTarget(target: string) {
+  try {
+    sessionStorage.setItem(LAST_TARGET, target);
+  } catch {
+    /* Storage is blocked: the overview keeps no series. */
+  }
+}
+/** The target page this tab showed last, or null. */
+export function lastTarget(): string | null {
+  try {
+    return sessionStorage.getItem(LAST_TARGET) || null;
+  } catch {
+    return null;
+  }
+}
 /** Entry names that a target switch clears for both targets. */
 export const VIEW_CACHES = [
   "triangulator:buffer",

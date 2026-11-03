@@ -48,7 +48,7 @@ inline constexpr std::uint64_t kUnavailable =
 // queues and memory in bytes, sockstat memory and tcp_mem/udp_mem in pages,
 // everything else a count. "net_" counters are cumulative for the target's
 // network namespace; the others are current values.
-inline constexpr std::array<std::string_view, 130> kSummaryFields{
+inline constexpr std::array<std::string_view, 140> kSummaryFields{
     // Pressure stall information, /proc/pressure and the cgroup's files.
     "host_cpu_some_avg10", "host_cpu_some_total", "host_cpu_full_avg10",
     "host_cpu_full_total", "host_memory_some_avg10", "host_memory_some_total",
@@ -99,6 +99,12 @@ inline constexpr std::array<std::string_view, 130> kSummaryFields{
     // The peak is the high-water mark since the process started.
     "rss_bytes", "rss_anon_bytes", "rss_file_bytes", "rss_shmem_bytes",
     "rss_peak_bytes", "swap_bytes",
+    // Virtual size, data, stack, and executable text, from the same read.
+    "vm_size_bytes", "vm_data_bytes", "vm_stack_bytes", "vm_exe_bytes",
+    // Host memory, /proc/meminfo, in bytes. Every target's sample carries the
+    // same values: the sampler reads the file once for all targets.
+    "host_mem_total_bytes", "host_mem_available_bytes", "host_mem_free_bytes",
+    "host_mem_cached_bytes", "host_swap_total_bytes", "host_swap_free_bytes",
     // The target's own cgroup v2 files: memory.current/max/high/events,
     // cpu.max, cpu.stat, pids.current/max. Unlimited ("max") is unavailable.
     "cgroup_memory_current", "cgroup_memory_max", "cgroup_memory_high",
@@ -136,7 +142,7 @@ inline constexpr std::size_t kSummaryPartSize =
     kHeaderSize + kSummaryFields.size() * 8 + kCgroupSize;
 inline constexpr std::size_t kMaxPartSize =
     std::max(kSummaryPartSize, kHeaderSize + kSocketsPerPart * kSocketSize);
-static_assert(kSummaryPartSize == 1232);
+static_assert(kSummaryPartSize == 1312);
 // Fits an unfragmented UDP datagram on a 1,500-byte Ethernet MTU, and is the
 // size the collector's receive buffer must exceed.
 static_assert(kMaxPartSize <= 1400);

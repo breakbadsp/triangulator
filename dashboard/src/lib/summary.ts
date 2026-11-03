@@ -2,13 +2,39 @@ import type {
   LiveResponse,
   ProcessExit,
   ProcessInfo,
+  Resources,
   Thread,
 } from "../api/types";
 import { endedTarget, exitReason, exitStatusText } from "./exit";
 import type { Level } from "./findings";
-import { ago, date, duration, isNum, num, pct, perSec } from "./format";
+import {
+  ago,
+  date,
+  duration,
+  isNum,
+  memoryBytes,
+  num,
+  pct,
+  perSec,
+} from "./format";
 import type { Point, Series } from "./series";
 import { isIdle, stateLabels } from "./threads";
+
+/** Host memory still available, as a share of the total, and a detail line. */
+export function hostMemory(resources: Resources | undefined) {
+  const host =
+    resources?.available && !resources.stale ? resources.host_memory : null;
+  if (!host || !isNum(host.total) || host.total <= 0 || !isNum(host.available))
+    return null;
+  const swap =
+    isNum(host.swap_total) && host.swap_total > 0 && isNum(host.swap_free)
+      ? ` · swap ${memoryBytes(host.swap_total - host.swap_free)} of ${memoryBytes(host.swap_total)} used`
+      : "";
+  return {
+    available_pct: (100 * host.available) / host.total,
+    detail: `${memoryBytes(host.available)} of ${memoryBytes(host.total)} available${swap}`,
+  };
+}
 
 /** One sentence on what the threads are doing, for the Assessment card. */
 export function profile(threads: readonly Thread[]) {
