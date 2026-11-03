@@ -87,6 +87,52 @@ about 1,000 samples and did not attribute kernel CPU time to kernel functions.
 All candidates need a before-and-after measurement and must retain the
 sampler's single-thread, bounded-work, and no-allocation constraints.
 
+## C++ code candidates
+
+Recorded on 2026-11-03 from a code reading at `master` revision `9a090fe5`.
+That revision includes the parsing optimisation (`e59a2d3a`) and the
+`constexpr` changes (#238, #239). Nothing below is measured. The order is the
+expected effect on the profile above.
+
+Worth trying:
+
+- **Do not zero-fill read buffers.** `Thread::TakeSample` declares an 8 KB
+  buffer with `{}` for each thread on each tick. `ReadProcessStat` does the
+  same with a 4 KB buffer. `ReadAtStart` returns a view of only the bytes
+  that `pread` wrote, so the zero-fill has no use. Remove the `{}`, or use the
+  C++26 `[[indeterminate]]` attribute. This is the most probable source of
+  the memory-clearing share.
+- **`[[likely]]` and `[[unlikely]]` on error branches in the hot parsers.**
+  The sampler has none now. Keep only the hints that the parsing benchmarks
+  show to help.
+- **C++23 `[[assume(...)]]` for proved bounds in `parsing.hpp`.** It can
+  remove repeated length checks. A false assumption is undefined behavior, so
+  use it only after a check that proves the bound.
+- **A `Rescan` lookup table that needs no clear.** `ThreadCache::Rescan`
+  clears a 64 KB table on each call. A table that keeps a generation number
+  in each slot needs no clear. This has an effect only when thread lists change often.
+
+Safety, with no expected speed gain:
+
+- `std::unreachable()` in switches that cover every case.
+- C++26 `std::inplace_vector` in place of a fixed array and a count, when the
+  standard library supports it.
+- C++26 contracts (`pre` and `post`) for preconditions, when compiler support
+  is no longer experimental.
+
+Larger gains that are not C++ features:
+
+- **Fewer system calls.** Kernel time is the largest cost. Read `io` and
+  `wchan` less often than `stat` and `schedstat`. This makes the data less
+  fresh, so it needs a product decision. Batched reads with `io_uring` are in
+  conflict with the "no async runtimes" sampler rule and need owner approval.
+- **Profile-guided optimisation** with the existing benchmarks as the
+  training run. This is a build change only.
+
+Not recommended for the tick path: coroutines, `std::ranges` pipelines, and
+`std::simd`. The `/proc` lines are short, so the gain is small, and the code
+becomes harder to read.
+
 ## Heavy-probe measurements
 
 The existing probe benchmark measured one 500-thread target at a time. Each
