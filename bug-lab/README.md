@@ -32,7 +32,7 @@ The command runs one scenario at a time. The default duration is 1,800 seconds.
 It installs the fixture in `~/triangular/bin/` and shares the agent's saved
 session in `~/triangular/bugbench-session/`. Use `--home DIR` for a separate
 session. It preserves the CPU and memory limits described in the skill below.
-Select the reported PID as the dashboard target. For `mem-oom`, select it
+The command adds `bb-*` to the local sampler discovery patterns and reloads the sampler. The pattern stays in `sampler.toml` after the session stops. Open the reported process on the dashboard. For `mem-oom`, select it
 immediately. For `thread-leak`, observe it for at least 165 seconds.
 
 For an interactive agent session, use

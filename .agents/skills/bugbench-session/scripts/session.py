@@ -4,13 +4,53 @@
 import argparse
 import fcntl
 import json
+import os
+import importlib.util
 from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
+import urllib.error
+import urllib.request
 import uuid
+
+
+def enable_discovery():
+    root = Path(__file__).resolve().parents[4]
+    spec = importlib.util.spec_from_file_location("sampler_control", root / "scripts/sampler_control.py")
+    control = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(control)
+
+    def add_pattern(text):
+        names = (control.rule_list(text, "process_names") or ([],))[0]
+        patterns = (control.rule_list(text, "process_patterns") or ([],))[0]
+        if any(pattern.lower() in {"bb-*", "*"} for pattern in patterns):
+            return text
+        if len(names) + len(patterns) >= 16:
+            raise RuntimeError("Cannot add bb-* discovery: sampler rule limit reached.")
+        return control.replace_rule_list(text, "process_patterns", patterns + ["bb-*"])
+
+    try:
+        control.update_config(root, None, None, transform=add_pattern)
+    except control.ControlError as error:
+        raise RuntimeError(f"Cannot enable bugbench discovery: {error}") from error
+
+
+def warn_collector_capacity():
+    config = Path(os.environ.get("TRIANGULATOR_HOME") or Path.home() / "triangulator") / "config/collector.toml"
+    try:
+        with config.open("rb") as source:
+            port = tomllib.load(source).get("http_port", 9401)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/targets", timeout=2) as response:
+            targets = json.load(response)
+        if len(targets["targets"]) >= targets["max_targets"]:
+            print("Warning: The collector target limit is full. Remove a target or raise "
+                  "max_targets in collector.toml and restart the collector.")
+    except (OSError, ValueError, KeyError, tomllib.TOMLDecodeError) as error:
+        print(f"Warning: Could not check collector target capacity: {error}")
 
 
 def command(args):
@@ -73,7 +113,7 @@ class Session:
         print(f"Log: {state['log']}")
         print(f"Command: {shlex.join(state['command'])}")
         if active:
-            print(f"Select PID {properties['MainPID']} as the dashboard target.")
+            print(f"Find bb-{state['scenario'][:12]} (PID {properties['MainPID']}) on the dashboard.")
             if state["scenario"] == "mem-oom":
                 print("Select it immediately. The kernel can kill it in about 30 seconds.")
             elif state["scenario"] == "thread-leak":
@@ -89,6 +129,7 @@ class Session:
             self.save(state)
 
     def launch(self, scenario, seconds):
+        enable_discovery()
         # Check prerequisites before stopping the current workload.
         command(["systemctl", "--user", "show-environment"])
         unit = "triangular-bugbench-" + uuid.uuid4().hex
@@ -113,6 +154,7 @@ class Session:
         self.save({"scenario": scenario, "seconds": seconds, "unit": unit + ".service",
                    "storage": str(storage), "log": str(log), "command": args})
         self.status()
+        warn_collector_capacity()
 
     def dispatch(self, action, scenario, seconds):
         if action == "status":
@@ -134,7 +176,9 @@ class Session:
         if action == "start":
             properties = self.properties(state)
             if properties.get("ActiveState") == "active":
+                enable_discovery()
                 self.status()
+                warn_collector_capacity()
                 return
             chosen = state.get("scenario", names[0])
         elif action == "run":
