@@ -96,6 +96,27 @@ test.each(["/", "/?target=host%2Fworker"])(
     const sections = screen.queryByRole("navigation", { name: "Sections" });
     if (url.includes("target")) {
       expect(container.querySelector('[data-activity="idle"]')).not.toBeNull();
+      const timeline = container.querySelector<HTMLElement>("#timeline");
+      if (!timeline) throw Error("Missing Timeline");
+      expect(container.querySelector("#overview")?.nextElementSibling).toBe(
+        timeline,
+      );
+      const fold = timeline.querySelector("details");
+      expect(fold?.open).toBe(false);
+      fireEvent.click(within(timeline).getByText("Timeline"));
+      expect(fold?.open).toBe(true);
+      expect(
+        screen.getByRole("button", { name: "Previous recording" }),
+      ).toBeDefined();
+      expect(localStorage.getItem("triangulator:fold:timeline")).toBe("open");
+      if (!sections) throw Error("Missing section navigation");
+      expect(
+        within(sections)
+          .getAllByRole("link")
+          .slice(0, 2)
+          .map((link) => link.textContent),
+      ).toEqual(["Summary", "Timeline"]);
+
       expect(
         screen.getByRole("link", { name: "Summary" }).getAttribute("href"),
       ).toBe("#overview");

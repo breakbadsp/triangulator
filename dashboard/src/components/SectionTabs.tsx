@@ -6,8 +6,8 @@ export interface Section {
   label: string;
 }
 export const sections: readonly Section[] = [
-  { id: "timeline", label: "Timeline" },
   { id: "overview", label: "Summary" },
+  { id: "timeline", label: "Timeline" },
   { id: "threads-section", label: "Threads" },
   { id: "resources", label: "Resources" },
   { id: "memory-map", label: "Memory" },

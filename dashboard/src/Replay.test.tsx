@@ -171,6 +171,7 @@ beforeEach(() => {
   history.replaceState(null, "", "/?target=host%2Fapp");
   sessionStorage.clear();
   localStorage.clear();
+  localStorage.setItem("triangulator:fold:timeline", "open");
   current = frame(2000);
   snapshot = frame(1000, "old");
   kept = { available: false };

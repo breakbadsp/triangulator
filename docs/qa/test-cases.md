@@ -10,6 +10,7 @@
 
 | Case ID | Status | Tested package version | Run | Evidence |
 | --- | --- | --- | --- | --- |
+| QA-141 | NOT_RUN | - | - | - |
 | QA-123 | NOT_RUN | - | - | - |
 | QA-124 | NOT_RUN | - | - | - |
 | QA-125 | NOT_RUN | - | - | - |
@@ -365,6 +366,13 @@
 - Driver: judged
 - Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. Select its past-assessment row, inspect its mark, and filter by severity and type.
 - Expected: Recorded assessment, thread, timestamp, and row agree. Stepping selects real recordings. Filters affect rows and marks consistently; Live resumes current data.
+
+## QA-141: Compact Timeline below Summary
+
+- Tier: Full. Driver: judged. Status: NOT_RUN.
+- Setup: Open a target dashboard with recordings. Remove the `triangulator:fold:timeline` local storage key.
+- Test: Confirm Timeline follows Summary and starts closed. Open it with the pointer, then close and open it with the keyboard. Reload after each choice. Check Previous, Next, recorded-time selection, Live, past-assessment filters, and header help. Repeat at a narrow viewport and with no recordings.
+- Expected: The closed panel shows one compact header. The open panel has less spacing and no empty status rows. The saved choice survives reload. All recording controls, history, and help remain usable. No horizontal overflow appears.
 
 ## QA-039: Earlier Timeline periods, empty states, and help
 

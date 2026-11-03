@@ -794,6 +794,19 @@ details.fold[open] > .fold-summary {
 }
 
 /* Timeline marks and Past assessments. */
+#timeline {
+  padding: 12px 18px;
+}
+#timeline .fold-summary h2 {
+  margin: 0;
+}
+#timeline .timeline-controls p {
+  margin: 6px 0;
+}
+#timeline .timeline-controls p:empty {
+  display: none;
+}
+
 .timeline-marks {
   position: relative;
   height: 10px;

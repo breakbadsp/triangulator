@@ -177,22 +177,6 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
               </button>
             </div>
           </Help>
-          <Timeline
-            bounds={display.bounds}
-            observation={observation}
-            latestAt={display.state.latest?.view.health.last_seen ?? 0}
-            note={display.note}
-            onInspect={(at, direction) => {
-              void display.inspect(at, direction).then((selected) => {
-                if (selected) closeThread();
-              });
-            }}
-            onLive={() => {
-              closeThread();
-              display.live();
-            }}
-            past={past}
-          />
           <Summary
             view={view}
             mode={mode}
@@ -214,6 +198,22 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
               </>
             )}
           </Summary>
+          <Timeline
+            bounds={display.bounds}
+            observation={observation}
+            latestAt={display.state.latest?.view.health.last_seen ?? 0}
+            note={display.note}
+            onInspect={(at, direction) => {
+              void display.inspect(at, direction).then((selected) => {
+                if (selected) closeThread();
+              });
+            }}
+            onLive={() => {
+              closeThread();
+              display.live();
+            }}
+            past={past}
+          />
           <Threads
             view={view}
             recorded={mode.kind === "recorded"}
