@@ -98,12 +98,7 @@ class SharedState
     std::lock_guard lock{mutex_};
     RetainReleased(p_targets);
     descriptions_ = p_description;
-    for (const auto& archived : archived_)
-    {
-      p_description.Find("targets")->AsArray().push_back(archived.description_);
-    }
-    fleet_targets_json_ =
-        std::make_shared<const std::string>(DumpJson(p_description));
+    PublishFleetDescription();
     targets_ = std::move(p_targets);
     targets_json_ =
         std::make_shared<const std::string>(DumpJson(descriptions_));
@@ -117,6 +112,27 @@ class SharedState
       last_target_ = target.last_target_;
       memory_map_ = target.memory_map_;
     }
+  }
+
+  // Match the session too: a stale tile must not remove a replacement.
+  [[nodiscard]] bool RemoveArchived(std::string_view p_key,
+                                    std::uint64_t p_session)
+  {
+    std::lock_guard lock{mutex_};
+    const auto found =
+        std::ranges::find_if(archived_,
+                             [&](const ArchivedTarget& p_target)
+                             {
+                               return p_target.target_.key_ == p_key &&
+                                      p_target.target_.session_ == p_session;
+                             });
+    if (found == archived_.end())
+    {
+      return false;
+    }
+    archived_.erase(found);
+    PublishFleetDescription();
+    return true;
   }
 
   [[nodiscard]] std::optional<PublishedTarget> Select(std::string_view p_key)
@@ -190,6 +206,17 @@ class SharedState
     PublishedTarget target_;
     Json description_;
   };
+
+  void PublishFleetDescription()
+  {
+    auto description = descriptions_;
+    for (const auto& archived : archived_)
+    {
+      description.Find("targets")->AsArray().push_back(archived.description_);
+    }
+    fleet_targets_json_ =
+        std::make_shared<const std::string>(DumpJson(description));
+  }
 
   // Keep final views separately so process churn can release all live slots.
   // The oldest entries expire first; a returning key replaces its old view.

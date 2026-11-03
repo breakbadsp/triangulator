@@ -1745,6 +1745,7 @@ void TestRetainedTargetViews()
     PublishedTarget target;
     target.key_ = key;
     target.id_ = id;
+    target.session_ = index + 1;
     target.live_ = std::make_shared<const std::string>("{}");
     state.PublishTargets(
         {target}, JsonObject{{"targets", JsonArray{JsonObject{{"key", key},
@@ -1758,6 +1759,16 @@ void TestRetainedTargetViews()
           "latest released view is readable");
   Require(!state.Select(""),
           "retained views do not become the default live target");
+  Require(!state.RemoveArchived("host/64", 64),
+          "a stale session cannot remove a retained view");
+  Require(state.RemoveArchived("host/64", 65),
+          "the matching retained view can be removed");
+  Require(!state.Select("host/64"), "removed view is no longer readable");
+  Require(state.Fleet().live_.size() == 63,
+          "removed view disappears from the overview");
+  state.PublishTargets({}, JsonObject{{"targets", JsonArray{}}});
+  Require(!state.Select("host/64"),
+          "publication does not restore a removed view");
 }
 
 // Classifies exit statuses: a kernel message names the reason first; the

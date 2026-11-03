@@ -524,7 +524,13 @@ test("released target stays searchable and opens its final dashboard", async () 
     url === "/api/targets"
       ? Response.json({
           targets: [
-            { ...fleetTargets[0], archived: true, local: false, excluded: 255 },
+            {
+              ...fleetTargets[0],
+              archived: true,
+              session: "10",
+              local: false,
+              excluded: 255,
+            },
           ],
           max_targets: 1,
           capacity_drops: 1,
@@ -541,4 +547,69 @@ test("released target stays searchable and opens its final dashboard", async () 
     "No longer monitored",
   );
   expect(screen.queryByRole("button", { name: /Remove target/ })).toBeNull();
+});
+
+test("remove retained target works without sampler control and updates the overview", async () => {
+  let removed = false;
+  respond = (url) => {
+    if (url === "/api/targets")
+      return Response.json({
+        targets: removed
+          ? []
+          : [
+              {
+                ...fleetTargets[0],
+                archived: true,
+                session: "10",
+                local: false,
+              },
+            ],
+      });
+    if (url === "/api/targets/retained/remove") {
+      removed = true;
+      return Response.json({ message: "Removed" });
+    }
+    return fleetRespond(url);
+  };
+  await start();
+  await act(() =>
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove retained target api" }),
+    ),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(tiles()).toHaveLength(0);
+  expect(requests).toContain("/api/targets/retained/remove");
+});
+
+test("failed retained removal keeps the tile and explains the failure", async () => {
+  respond = (url) => {
+    if (url === "/api/targets")
+      return Response.json({
+        targets: [
+          { ...fleetTargets[0], archived: true, session: "10", local: false },
+        ],
+      });
+    if (url === "/api/targets/retained/remove")
+      return Response.json(
+        { error: "Target changed. Refresh Targets." },
+        { status: 409 },
+      );
+    return fleetRespond(url);
+  };
+  await start();
+  await act(() =>
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove retained target api" }),
+    ),
+  );
+  expect(screen.getByRole("alert").textContent).toBe(
+    "Target changed. Refresh Targets.",
+  );
+  expect(tiles()).toHaveLength(1);
+  expect(
+    screen
+      .getByRole("button", { name: "Remove retained target api" })
+      .hasAttribute("disabled"),
+  ).toBe(false);
 });

@@ -6,6 +6,7 @@ import { fleetName } from "./target";
 
 export interface TileModel {
   archived: boolean;
+  archivedSession: string | null;
   key: string;
   host: string;
   id: string;
@@ -39,6 +40,7 @@ export function tileModel(
     view?.process?.session === health?.session ? view?.process : null;
   return {
     archived: target.archived === true,
+    archivedSession: target.archived ? (target.session ?? null) : null,
     key: target.key,
     host: target.host,
     id: target.id,

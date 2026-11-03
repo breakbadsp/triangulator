@@ -56,3 +56,27 @@ test("the write boundary reads the error and applied fields", async () => {
     await changeTargets({ action: "add", target: "worker" }, true),
   ).toEqual({ kind: "failed", message: "Rejected", applied: true });
 });
+
+test("retained removal sends its session and uses the protected collector endpoint", async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json({ message: "Removed" }));
+  vi.stubGlobal("fetch", request);
+  await changeTargets({ action: "forget", key: "h/api", session: "10" });
+  expect(request).toHaveBeenCalledWith("/api/targets/retained/remove", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Triangulator": "1" },
+    body: JSON.stringify({ action: "forget", key: "h/api", session: "10" }),
+  });
+});
+
+test("a retained removal preflight never writes", async () => {
+  const request = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", request);
+  const result = await changeTargets(
+    { action: "forget", key: "h/api", session: "10" },
+    true,
+  );
+  expect(result.kind).toBe("failed");
+  expect(request).not.toHaveBeenCalled();
+});

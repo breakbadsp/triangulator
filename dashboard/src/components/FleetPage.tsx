@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { readTargetControl, type TargetControl } from "../api/targetControl";
+import {
+  changeTargets,
+  readTargetControl,
+  type TargetControl,
+} from "../api/targetControl";
 import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
@@ -120,6 +124,52 @@ function TileRemove({
       {explained && blocked && (
         <small className="muted" role="status">
           {blocked}
+        </small>
+      )}
+    </Help>
+  );
+}
+
+function RemoveRetained({
+  tile,
+  refresh,
+}: {
+  tile: TileModel;
+  refresh: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const session = tile.archivedSession;
+  if (!tile.archived) return null;
+  async function remove() {
+    if (busy || !session) return;
+    setBusy(true);
+    setError("");
+    const result = await changeTargets({
+      action: "forget",
+      key: tile.key,
+      session,
+    });
+    if (result.kind === "done") refresh();
+    else setError(result.message);
+    setBusy(false);
+  }
+  return (
+    <Help topic="fleet" as="div" className="ft-foot">
+      <button
+        type="button"
+        className="ft-remove"
+        disabled={busy || !session}
+        aria-label={"Remove retained target " + tile.id}
+        onClick={() => {
+          void remove();
+        }}
+      >
+        Remove from Targets
+      </button>
+      {error && (
+        <small className="bad" role="alert">
+          {error}
         </small>
       )}
     </Help>
@@ -317,6 +367,7 @@ export function FleetPage() {
                 </Help>
               )}
               <TileRemove tile={tile} control={control} editor={editor} />
+              <RemoveRetained tile={tile} refresh={fleet.refresh} />
               {tile.card && (
                 <div className="ft-card">
                   <div className="ft-proc">{tile.card.proc}</div>

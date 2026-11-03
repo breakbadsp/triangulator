@@ -127,7 +127,10 @@ runs in the periodic refresh. The released target disappears from
 last published view of up to 64 released targets until collector restart.
 These entries use no live slots. The oldest entry is removed first; a
 returning key replaces its retained view. `/api/fleet` includes these entries
-with `archived: true`, and explicit target reads can inspect their final data. A sampler that returns later takes
+with `archived: true`, and explicit target reads can inspect their final data.
+Use Remove from Targets to remove a retained tile for every viewer. This
+keeps sampler rules, stored history, and recordings. The removal request
+matches the target key and session so it cannot remove a replacement. A sampler that returns later takes
 a free slot as a new session.
 
 Use `GET /api/targets` to list targets. `GET /api/fleet` returns that list
