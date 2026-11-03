@@ -873,6 +873,14 @@ class ResourceMonitor
                           {"vm_stack", value(Field("vm_stack_bytes"))},
                           {"vm_exe", value(Field("vm_exe_bytes"))},
                           {"rss_growth_per_s", Json(rss_growth)}});
+    result.Set(
+        "host_memory",
+        JsonObject{{"total", value(Field("host_mem_total_bytes"))},
+                   {"available", value(Field("host_mem_available_bytes"))},
+                   {"free", value(Field("host_mem_free_bytes"))},
+                   {"cached", value(Field("host_mem_cached_bytes"))},
+                   {"swap_total", value(Field("host_swap_total_bytes"))},
+                   {"swap_free", value(Field("host_swap_free_bytes"))}});
     const auto throttled = ThrottledPercent(p_sample, p_previous);
     result.Set(
         "cgroup_limits",

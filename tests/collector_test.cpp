@@ -2374,6 +2374,9 @@ void TestMemoryCgroupAndInterfaceRates()
     summary[resource_wire::Field("swap_bytes")] = 0;
     summary[resource_wire::Field("vm_size_bytes")] = 7'000'000;
     summary[resource_wire::Field("vm_exe_bytes")] = 40'000;
+    summary[resource_wire::Field("host_mem_total_bytes")] = 16'000'000;
+    summary[resource_wire::Field("host_mem_available_bytes")] = 4'000'000;
+    summary[resource_wire::Field("host_swap_total_bytes")] = 0;
     summary[resource_wire::Field("cgroup_memory_current")] = 800'000;
     summary[resource_wire::Field("cgroup_memory_max")] = 1'000'000;
     summary[resource_wire::Field("cgroup_memory_oom_kill")] = p_step * 2;
@@ -2404,6 +2407,12 @@ void TestMemoryCgroupAndInterfaceRates()
               ResourceField(live, "memory.vm_exe").AsInt() == 40'000 &&
               ResourceField(live, "memory.vm_data").IsNull(),
           "the resource sample carries the Vm fields");
+  Require(
+      ResourceField(live, "host_memory.total").AsInt() == 16'000'000 &&
+          ResourceField(live, "host_memory.available").AsInt() == 4'000'000 &&
+          ResourceField(live, "host_memory.swap_total").AsInt() == 0 &&
+          ResourceField(live, "host_memory.free").IsNull(),
+      "the resource sample carries host memory; an unread value is null");
   RequireNear(ResourceField(live, "cgroup_limits.cpu.throttled_pct").AsNumber(),
               40, "20 of 50 periods throttled");
   Require(

@@ -208,6 +208,7 @@ int main()
   ThreadCache kept{1024};
   ThreadCache reopened{ThreadCache::kReservedDescriptors};
   ResourceProbe probe;
+  HostMemoryProbe host_memory;
   MemoryProbe memory;
   ProcessInfoProbe process_info;
   RateLimitedLogger logger;
@@ -300,7 +301,8 @@ int main()
       Require(thread.TakeSample(pid, true, logger).has_value(),
               "thread sample with reopened files");
     }
-    const auto sample = probe.Sample(pid);
+    host_memory.Refresh(Nanoseconds{0}, Nanoseconds{0});
+    const auto sample = probe.Sample(pid, host_memory);
     Require(sample.sockets_.size() == resource_wire::kMaxSockets &&
                 resource_wire::HasFlag(sample.flags_,
                                        resource_wire::Flags::SocketsTruncated),

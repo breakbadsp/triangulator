@@ -288,6 +288,46 @@ class FullestSockets
   bool truncated_ = false;
 };
 
+// /proc/meminfo, read for all targets. A target's sample copies the values,
+// so the file is read at most once for each p_max_age, not once for each
+// target.
+class HostMemoryProbe
+{
+ public:
+  // Reads the file unless the values are younger than p_max_age. A failed
+  // read leaves the values unavailable.
+  void Refresh(Nanoseconds p_now, Nanoseconds p_max_age)
+  {
+    if (read_ && p_now - read_at_ < p_max_age)
+    {
+      return;
+    }
+    read_ = true;
+    read_at_ = p_now;
+    values_.fill(resource_wire::kUnavailable);
+    if (const auto text = ReadAtStart(OpenReadonly("/proc/meminfo"), buffer_))
+    {
+      ParseHostMemory(*text, values_);
+    }
+  }
+
+  void CopyTo(resource_wire::SummaryValues& p_summary) const noexcept
+  {
+    using resource_wire::Field;
+    for (std::size_t field = Field("host_mem_total_bytes");
+         field <= Field("host_swap_free_bytes"); ++field)
+    {
+      p_summary[field] = values_[field];
+    }
+  }
+
+ private:
+  std::array<char, 8192> buffer_{};
+  resource_wire::SummaryValues values_ = resource_wire::EmptySummary();
+  Nanoseconds read_at_{0};
+  bool read_ = false;
+};
+
 class ResourceProbe
 {
  public:
@@ -303,9 +343,10 @@ class ResourceProbe
   }
 
   // The result views the probe's storage until the next call.
-  [[nodiscard]] ResourceSample Sample(int p_pid)
+  [[nodiscard]] ResourceSample Sample(int p_pid, const HostMemoryProbe& p_host)
   {
     ResourceSample sample;
+    p_host.CopyTo(sample.summary_);
     ReadPressure(p_pid, sample);
     ReadDescriptors(p_pid, sample);
     ReadProcessIo(p_pid, sample);

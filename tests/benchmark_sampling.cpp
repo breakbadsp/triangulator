@@ -71,9 +71,12 @@ using Records = std::array<wire::Record, wire::kMaxThreads>;
 
 // One resource sample, as the sampler takes it on a tick.
 [[nodiscard]] std::expected<void, std::string_view> SampleResources(
-    int p_pid, ResourceProbe& p_probe)
+    int p_pid, ResourceProbe& p_probe, HostMemoryProbe& p_host)
 {
-  const auto sample = p_probe.Sample(p_pid);
+  // The sampler shares one meminfo read among targets; one sample here has
+  // its own, the costlier case.
+  p_host.Refresh(Nanoseconds{0}, Nanoseconds{0});
+  const auto sample = p_probe.Sample(p_pid, p_host);
   asm volatile("" : : "g"(&sample) : "memory");
   using resource_wire::Field;
   using resource_wire::Flags;
@@ -156,6 +159,7 @@ int main(int p_argc, char** p_argv)
     triangulator::RateLimitedLogger logger;
     triangulator::Records records{};
     triangulator::ResourceProbe resources;
+    triangulator::HostMemoryProbe host_memory;
     triangulator::MemoryProbe memory;
     // Longest single maps read and total read time of each memory sample,
     // in microseconds, as the sampler reports them.
@@ -175,7 +179,8 @@ int main(int p_argc, char** p_argv)
       {
         case triangulator::Kind::Resources:
         {
-          const auto sampled = triangulator::SampleResources(*pid, resources);
+          const auto sampled =
+              triangulator::SampleResources(*pid, resources, host_memory);
           return sampled ? nullptr : sampled.error().data();
         }
         case triangulator::Kind::Memory:
