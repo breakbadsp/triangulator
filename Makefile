@@ -257,11 +257,8 @@ dashboard-check: dashboard/node_modules/.package-lock.json
 scout: dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run build:scout
 
-check: dashboard-check all build/triangulator-sampler-capacity build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling build/benchmark-parse-stat build/benchmark-parse-number build/benchmark-aux-parsing $(CPP_TESTS)
+check: dashboard-check all build/triangulator-sampler-capacity build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
 	python3 tests/run_checks.py $(CPP_TESTS)
-	build/benchmark-parse-stat check
-	build/benchmark-parse-number verify
-	build/benchmark-aux-parsing verify
 
 check-asan:
 	$(MAKE) check SANITIZER=address
@@ -314,6 +311,13 @@ build/benchmark-parse-number: tests/benchmark_parse_number.cpp sampler/parsing.h
 
 build/benchmark-aux-parsing: tests/benchmark_aux_parsing.cpp sampler/parsing.hpp build/compiler_ok Makefile build/build_options
 	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+
+# Not part of make check: benchmark runs are on demand only.
+.PHONY: benchmark-parsing
+benchmark-parsing: build/benchmark-parse-stat build/benchmark-parse-number build/benchmark-aux-parsing
+	build/benchmark-parse-stat check
+	build/benchmark-parse-number verify
+	build/benchmark-aux-parsing verify
 
 .PHONY: benchmark-sampling
 benchmark-sampling: build/benchmark-sampling build/benchmark-target
