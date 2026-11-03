@@ -100,6 +100,13 @@ def window(stream, sampler, target, seconds, keep=True):
     }
 
 
+def require_scheduled_work(datagrams, seconds):
+    # Count from launch, warm-up included: the memory-map timer starts with the sampler.
+    # Without TRES and TVMA the run left out scheduled work and overstates capacity.
+    if seconds > bench.MEMORY_INTERVAL_S and not all(datagrams[kind] for kind in ('TRES', 'TVMA')):
+        raise RuntimeError('resource or memory-map samples were missing')
+
+
 def trial(binary, threads, duration, warmup):
     with tempfile.TemporaryDirectory() as directory, \
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver, \
@@ -117,7 +124,7 @@ def trial(binary, threads, duration, warmup):
         config.write_text(f'process_names = ["bt-{os.getpid()}"]\nrate_hz = 10\n'
                           f'collector = "127.0.0.1:{receiver.getsockname()[1]}"\n'
                           'cpu_budget_pct = 1\nstatus_fallback = false\n'
-                          'resource_interval_s = 5\nmemory_interval_s = 30\n')
+                          f'resource_interval_s = 5\nmemory_interval_s = {bench.MEMORY_INTERVAL_S}\n')
         with bench.child([str(binary), str(config)], stdout=subprocess.DEVNULL,
                          stderr=subprocess.PIPE) as sampler:
             stream = bench.SampleStream(receiver, target.pid, 10, tids)
@@ -126,6 +133,7 @@ def trial(binary, threads, duration, warmup):
                 result = window(stream, sampler, target, duration)
                 # A further complete tick closes the trailing packet/sequence boundary.
                 bench.wait_sample(stream, sampler, target, time.monotonic() + 10)
+                require_scheduled_work(stream.datagrams, warmup + duration)
                 bench.check_sampler_log(bench.read_sampler_log(sampler))
             except (OSError, ValueError, RuntimeError) as error:
                 raise RuntimeError(f'{error}; sampler log: {bench.read_sampler_log(sampler)}') from error
@@ -135,12 +143,19 @@ def trial(binary, threads, duration, warmup):
             return result
 
 
-def comparison(current, baseline):
+def check_baseline(current, baseline):
     keys = ('schema_version', 'method', 'threads', 'duration_s', 'warmup_s', 'repeats',
             'build_options', 'cpu_model', 'kernel', 'allowed_cpus',
             'workload_source_sha256', 'receiver_source_sha256')
     if not baseline.get('complete') or any(current[key] != baseline.get(key) for key in keys):
         raise ValueError('baseline protocol, workload, build flags, or machine differs')
+    rates = [run.get('delivered_records_per_s') for run in baseline.get('runs') or []]
+    if not rates or not all(isinstance(rate, (int, float)) and rate > 0 for rate in rates):
+        raise ValueError('baseline has no usable runs')
+
+
+def comparison(current, baseline):
+    check_baseline(current, baseline)
     old = statistics.median(run['delivered_records_per_s'] for run in baseline['runs'])
     new = statistics.median(run['delivered_records_per_s'] for run in current['runs'])
     return {'baseline_median_records_per_s': old, 'change_percent': 100 * (new / old - 1)}
@@ -192,6 +207,10 @@ def main():
         'limit': 'local delivered capacity; includes receiver and host contention; not collector ingestion',
         'raw_sample_columns': ['sequence', 'monotonic_ns', 'complete_latency_ms'],
     }
+    # Reject an unusable baseline now: a failure after the runs would discard them.
+    baseline = json.loads(args.baseline.read_text()) if args.baseline else None
+    if baseline is not None:
+        check_baseline(report, baseline)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with exclusive_host():
         args.output.write_text(json.dumps(report, indent=2) + '\n')
@@ -205,7 +224,7 @@ def main():
     report['min_records_per_s'] = min(rates)
     report['max_records_per_s'] = max(rates)
     if args.baseline:
-        report['comparison'] = comparison(report, json.loads(args.baseline.read_text()))
+        report['comparison'] = comparison(report, baseline)
     args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f"Local delivered capacity: {report['median_records_per_s']:.1f} thread records/s; {args.output}")
     if args.baseline:
