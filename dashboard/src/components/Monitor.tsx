@@ -72,23 +72,23 @@ export function Monitor({
             !!view && wantsFold(monitorFindings({ view, mode, now }), "monitor")
           }
           summary={
-            <Help key={key} topic="health">
+            <span key={key}>
               <h3>Monitor health</h3>
-            </Help>
+            </span>
           }
         >
-          <Help key={key} topic="health" as="div">
+          <div key={key}>
             <p className="fold-note">
               Is the data trustworthy? Sampler link, packet loss and the
               collector&apos;s buffers.
             </p>
-          </Help>
+          </div>
           <dl id="health" className="health-list" {...hold.handlers}>
-            {shown.map(([label, topic, value]) => (
-              <Help key={`${key}|${label}`} topic={topic} as="div">
+            {shown.map(([label, , value]) => (
+              <div key={`${key}|${label}`}>
                 <dt className="help-fact">{label}</dt>
                 <dd>{value}</dd>
-              </Help>
+              </div>
             ))}
           </dl>
         </Fold>
@@ -96,9 +96,7 @@ export function Monitor({
       <div className="notes">
         <details>
           <summary>
-            <Help key={key} topic="health">
-              Monitor diagnostics (raw health JSON)
-            </Help>
+            <span key={key}>Monitor diagnostics (raw health JSON)</span>
           </summary>
           <pre id="diagnostics">
             {view ? JSON.stringify(view.health, null, 2) : ""}

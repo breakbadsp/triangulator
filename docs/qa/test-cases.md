@@ -181,13 +181,13 @@
 - Test: Record an older installation's custom ports, target, logs, and history. Stop it, extract verified newer packages over it, and restart.
 - Expected: The new package keeps configuration, target, logs, and readable history. Record both versions; use BLOCKED if no older package is available.
 
-## QA-007: Source help placement and access
+## QA-007: Consolidated source help
 
-- Revision: 5
+- Revision: 6
 - Driver: judged
 - Status: NOT_RUN
-- Test: Inspect info buttons without hovering in both themes at 390, 759, 760, and 1440 px. Open section, label, summary, drawer, and native-dialog help with pointer and keyboard. Test Close, Escape, focus return, and target changes.
-- Expected: Light info buttons stay at the top-right of their help area without covering text or controls. Help opens only on request. Summary buttons do not toggle disclosures. Source help contains a brief description and source details. Narrow panels trap focus. Closing restores focus and drawer state. Context changes close old help. Chart readouts retain sample values and timestamps.
+- Test: Inspect both themes at 390 and 1440 px. Open each section info button with pointer and keyboard. Test Close, Escape, drawer focus return, and target changes.
+- Expected: Each major dashboard section has one light info button at the top-right of its heading. Labels, values, tiles, legends, and controls have no info buttons. The Targets page has one page button. Section help groups important sources without examples or related links. Closing restores focus. Context changes dismiss old help. Chart readouts retain sample values and timestamps.
 
 ## QA-008: Memory zoom legend matches the grid
 
@@ -607,10 +607,11 @@
 
 ## QA-082: Targets overview lists every target
 
-- Case revision: 3.
+- Case revision: 4.
+- Status: NOT_RUN
 - Driver: judged
-- Test: Run two bug-lab workloads as targets and one absent named target. Open the dashboard URL without `?target=`. Read each tile.
-- Expected: The Targets overview opens. Each tile face shows only one assessment dot, the process name, `host · id`, and an optional Remove button. No verdict, finding title, no-live-view message, PID, metrics, access badge, or throttle badge appears on the face. The assessment remains available to assistive technology. The issue card and target dashboard show process details. Targets with the same process name remain distinguishable by host and ID.
+- Test: Run two bug-lab workloads as targets and one absent named target. Open the dashboard URL without `?target=`. Read each tile. Inspect the header, search, counts, tile actions, and empty search state. Open the page info button.
+- Expected: The Targets overview opens with exactly one light info button at the top-right of the page heading. Tiles, counts, search, and theme controls have no info buttons. The page info shows the fleet source. Each tile face shows only one assessment dot, the process name, `host · id`, and an optional Remove button. No verdict, finding title, no-live-view message, PID, metrics, access badge, or throttle badge appears on the face. The assessment remains available to assistive technology. The issue card and target dashboard show process details. Targets with the same process name remain distinguishable by host and ID.
 
 ## QA-083: Tile order, colors, and counts
 
@@ -670,14 +671,14 @@
 - Case revision: 2.
 - Setup: `python3 tests/fleet_fixture.py --targets 64` starts an isolated collector with deterministic targets and prints its URL and expected levels. Use `--targets 20` and `--targets 50` for the other counts.
 - Driver: judged
-- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Reload and change the target count between polls. Open old URLs with `layout=comfortable` and `density=comfortable`, and set `triangulator:fleet-density` to `comfortable` in local storage. Repeat with browser storage blocked. Open the `fleet` help.
-- Expected: The overview always uses compact tiles. No Tiles or layout dropdown exists. Tiles and Add target have a 104 px minimum height, with 16 px grid gaps and 12 to 14 px tile padding. Polls, reloads, old settings, and target counts do not change the layout. Nothing scrolls sideways; the page scrolls vertically. Help describes compact tiles and collector order.
+- Test: Open the overview with 20, 50, and 64 targets at 320, 390, 1280, and 1920 px widths. Reload and change the target count between polls. Open old URLs with `layout=comfortable` and `density=comfortable`, and set `triangulator:fleet-density` to `comfortable` in local storage. Repeat with browser storage blocked.
+- Expected: The overview always uses compact tiles. No Tiles or layout dropdown exists. Tiles and Add target have a 104 px minimum height, with 16 px grid gaps and 12 to 14 px tile padding. Polls, reloads, old settings, and target counts do not change the layout. Nothing scrolls sideways; the page scrolls vertically.
 
 ## QA-092: Overview search
 
 - Case revision: 2.
 - Driver: judged
-- Test: Use the QA-091 fixture with targets at different assessment levels and the same process name on different hosts. Search by name, host, and target ID. Search for text that matches nothing. Watch requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters. Open the `fleet-filter` help.
+- Test: Use the QA-091 fixture with targets at different assessment levels and the same process name on different hosts. Search by name, host, and target ID. Search for text that matches nothing. Watch requests while typing. Wait for two polls with focus on a shown tile. Select Clear filters.
 - Expected: No Status dropdown exists. Only search hides tiles; matches retain collector order at every level. "Showing N of M targets" gives the matching count and total count. The count pills always total all targets. Typing starts no request. Polls keep the search, tile elements, and keyboard focus. With no match, Clear filters and Add target remain usable. Clear filters shows every tile. Nothing scrolls sideways at 320 px.
 
 ## QA-093: A searched overview survives navigation

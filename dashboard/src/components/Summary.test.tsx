@@ -257,7 +257,7 @@ test("before the first live view the summary waits", () => {
   expect(document.querySelectorAll("#tiles .tile")).toHaveLength(0);
 });
 
-test("a watched finding keeps its open guide through live re-renders", () => {
+test("the section source stays open through live re-renders", () => {
   vi.useFakeTimers();
   try {
     const live = (now: number) => (
@@ -283,17 +283,16 @@ test("a watched finding keeps its open guide through live re-renders", () => {
       />
     );
     const { rerender } = render(live(1000), { wrapper: HelpGuideProvider });
-    const target = screen
-      .getByText("worker-1 stopped waking up")
-      .closest<HTMLElement>("[data-help]");
-    expect(target?.dataset.help).toBe("watched");
-    if (!target) return;
-    fireEvent.click(within(target).getByRole("button", { name: /^Explain / }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Explain Process overview" }),
+    );
     rerender(live(1001));
-    expect(target.isConnected, "an open guide keeps its row").toBe(true);
     expect(
-      screen.getByRole("complementary", { name: "Watched threads" }),
+      screen.getByRole("complementary", { name: "Process overview" }),
     ).toBeDefined();
+    expect(document.querySelector("#help-guide")?.textContent).toContain(
+      "/proc/PID/status",
+    );
   } finally {
     vi.useRealTimers();
   }

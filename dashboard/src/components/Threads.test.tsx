@@ -86,13 +86,9 @@ test("thread state charts keep Other and No access separate, including earlier s
   const fills = [...container.querySelectorAll("#chart-states polygon")].map(
     (polygon) => polygon.getAttribute("fill"),
   );
-  const legend = [
-    ...container.querySelectorAll("#states-legend [data-help]"),
-  ].map((item) => [
-    item.querySelector(".sw")?.className,
-    item.textContent,
-    item.getAttribute("data-help"),
-  ]);
+  const legend = [...container.querySelectorAll("#states-legend > span")].map(
+    (item) => [item.querySelector(".sw")?.className, item.textContent],
+  );
   for (const [state, label, count] of [
     ["running", "Running", 1],
     ["sleep", "Sleep", 4],
@@ -101,11 +97,7 @@ test("thread state charts keep Other and No access separate, including earlier s
   ] as const) {
     expect(fills).toContain(`var(--s-${state})`);
     // Each state remains in the legend when only an earlier sample has it.
-    expect(legend).toContainEqual([
-      `sw ${state}`,
-      label + String(count),
-      state,
-    ]);
+    expect(legend).toContainEqual([`sw ${state}`, label + String(count)]);
   }
 });
 
@@ -263,7 +255,7 @@ test("a focused row keeps the focus when the sort moves it, and the table holds 
       row.getAttribute("data-tid"),
     );
   const header = (label: string) =>
-    screen.getByText(label, { selector: "th > span" });
+    screen.getByRole("columnheader", { name: label });
   const row = document.querySelector<HTMLElement>('#threads [data-tid="1"]');
   if (!row) throw new Error("no row");
   act(() => {

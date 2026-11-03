@@ -39,6 +39,7 @@ export const HelpPortalTarget = createContext<HTMLElement | null>(null);
 export function Help(props: {
   topic: HelpTopicId;
   children: ReactNode;
+  sources?: readonly HelpTopicId[];
   className?: string;
   as?: "span" | "div" | "tbody";
   id?: string;
@@ -51,11 +52,13 @@ export function Help(props: {
     as: Tag = "span",
     id: anchorId,
     readout,
+    sources,
   } = props;
   const { key: observation, recorded } = useContext(ViewIdentityContext);
   const [seen, setSeen] = useState(observation);
   const guide = useContext(GuideContext);
-  const active = useContext(HelpEnabled) && !guide?.request;
+  const enabled = useContext(HelpEnabled);
+  const active = enabled && !guide?.request;
   const dismissOwner = guide?.dismissOwner;
   const portalTarget = useContext(HelpPortalTarget);
   // Outside a page provider, for example in a unit test, a card owns itself.
@@ -176,7 +179,7 @@ export function Help(props: {
   }
   const content: HelpTopic | null = active && shown ? helpTopics[shown] : null;
   // A table body cannot hold a button.
-  const info = guide && Tag !== "tbody";
+  const info = guide && enabled && !("readout" in props) && Tag !== "tbody";
   const infoButton = info && (
     <button
       type="button"
@@ -187,7 +190,7 @@ export function Help(props: {
         // Inside a summary, the click must not also toggle the details.
         event.preventDefault();
         event.stopPropagation();
-        guide.open(topic, event.currentTarget, portalTarget);
+        guide.open(topic, event.currentTarget, portalTarget, sources);
       }}
     />
   );

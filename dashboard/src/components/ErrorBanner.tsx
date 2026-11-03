@@ -1,5 +1,4 @@
 import type { LiveResponse } from "../api/types";
-import { Help } from "../help/Help";
 
 export function ErrorBanner({
   health,
@@ -16,7 +15,7 @@ export function ErrorBanner({
   if (!message) return null;
   return (
     <div id="error" className="banner" role="status" data-help="health">
-      <Help topic="health">{message}</Help>
+      {message}
     </div>
   );
 }

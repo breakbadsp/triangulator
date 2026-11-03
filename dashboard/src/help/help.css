@@ -188,3 +188,16 @@ span.help-anchor {
     min-height: 44px;
   }
 }
+
+.section-head,
+.drawer-head,
+#timeline > details > summary {
+  position: relative;
+  padding-inline-end: 28px;
+}
+.section-head .help-anchor,
+.drawer-head .help-anchor,
+#timeline > details > summary .help-anchor {
+  position: static;
+  padding-inline-end: 0;
+}

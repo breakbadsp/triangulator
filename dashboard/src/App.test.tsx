@@ -916,33 +916,31 @@ test("the page source explains collection and restores its opener", async () => 
 });
 
 // Pinned 1939, 1969, 1977 and 1997 now inspect React's rendered elements.
-test("all headings, columns, disclosures and table messages have explicit help", async () => {
+test("dashboard has one source button per section and none on labels or controls", async () => {
   await renderLiveTarget();
-  const topic = (element: Element) => {
-    const owner =
-      element.closest<HTMLElement>("[data-help]") ??
-      element.querySelector<HTMLElement>("[data-help]");
-    return owner?.dataset.help;
-  };
-  const labels = [...document.querySelectorAll("h2, h3, th, summary, dt")];
-  expect(labels.length).toBeGreaterThan(20);
-  for (const label of labels)
-    expect(Object.hasOwn(helpTopics, topic(label) ?? ""), label.outerHTML).toBe(
-      true,
-    );
-  for (const table of document.querySelectorAll("main table")) {
-    const card = table.closest(".card, section");
-    const heading = card?.querySelector("h2, h3");
-    expect(
-      heading && Object.hasOwn(helpTopics, topic(heading) ?? ""),
-      table.id,
-    ).toBe(true);
+  const ids = [
+    "overview",
+    "timeline",
+    "threads-section",
+    "resources",
+    "memory-map",
+    "monitor",
+    "collector-settings",
+  ];
+  expect(document.querySelectorAll("main .help-info")).toHaveLength(ids.length);
+  for (const id of ids) {
+    const section = document.getElementById(id);
+    expect(section?.querySelectorAll(".help-info").length, id).toBe(1);
   }
-  for (const message of document.querySelectorAll("td[colspan]")) {
-    const heading = message.closest(".card, section")?.querySelector("h2, h3");
-    expect(
-      topic(message) ?? (heading && topic(heading)),
-      message.outerHTML,
-    ).toBeDefined();
-  }
+  expect(
+    document.querySelectorAll(
+      "header .help-info, #tiles .help-info, th .help-info, .seg .help-info",
+    ),
+  ).toHaveLength(0);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Explain Process overview" }),
+  );
+  const guide = document.getElementById("help-guide");
+  expect(guide?.textContent).toContain("/proc/PID/task/TID/stat");
+  expect(guide?.textContent).toContain("/proc/PID/status");
 });

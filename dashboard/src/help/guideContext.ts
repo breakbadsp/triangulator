@@ -3,6 +3,7 @@ import type { HelpTopicId } from "./topics";
 
 export interface GuideRequest {
   topic: HelpTopicId;
+  sources?: readonly HelpTopicId[];
   opener: HTMLElement;
   portal: HTMLElement | null;
   ancestors: readonly HTMLElement[];
@@ -14,6 +15,7 @@ export const GuideContext = createContext<{
     topic: HelpTopicId,
     opener: HTMLElement,
     portal?: HTMLElement | null,
+    sources?: readonly HelpTopicId[],
   ) => void;
   close: (restore?: boolean) => void;
   dismissOwner: (owner: HTMLElement) => void;

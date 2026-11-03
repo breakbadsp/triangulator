@@ -6,7 +6,7 @@ import { ApiError, getJson } from "../api/client";
 import type { HistoryResponse, HistoryRow, LiveResponse } from "../api/types";
 import { useReadout } from "../hooks/useReadout";
 import { Help, HelpEnabled } from "../help/Help";
-import { isHelpTopicId, type HelpTopicId } from "../help/topics";
+import { type HelpTopicId } from "../help/topics";
 import { watchLine } from "../lib/assess/watch";
 import { bytes, clock, date, num, pct, perSec } from "../lib/format";
 import type { Series } from "../lib/series";
@@ -221,66 +221,60 @@ function History({
       <div className="card" id="history">
         <div className="card-head">
           <div>
-            <Help topic="history" as="div">
-              <h3>History</h3>
-            </Help>
+            <h3>History</h3>
+
             <p>5-second summaries stored by the collector.</p>
           </div>
         </div>
         <div className="range">
-          <Help topic="history" as="div">
-            <div className="seg" role="group" aria-label="History range">
-              {RANGES.map(([seconds, label]) => (
-                <button
-                  key={seconds}
-                  type="button"
-                  data-range={seconds}
-                  aria-pressed={range === seconds}
-                  onClick={() => {
-                    applyRange(seconds);
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </Help>
-          <Help topic="history">
-            <input
-              id="from"
-              type="datetime-local"
-              step="1"
-              aria-label="From"
-              value={from}
-              onChange={(event) => {
-                updateRange({ from: event.target.value });
-              }}
-            />
-          </Help>
-          <Help topic="history">
-            <input
-              id="to"
-              type="datetime-local"
-              step="1"
-              aria-label="To"
-              value={to}
-              onChange={(event) => {
-                updateRange({ to: event.target.value });
-              }}
-            />
-          </Help>
-          <Help topic="history">
-            <button
-              id="load-history"
-              type="button"
-              onClick={() => {
-                updateRange({ range: 0 });
-                load(from, to);
-              }}
-            >
-              Load
-            </button>
-          </Help>
+          <div className="seg" role="group" aria-label="History range">
+            {RANGES.map(([seconds, label]) => (
+              <button
+                key={seconds}
+                type="button"
+                data-range={seconds}
+                aria-pressed={range === seconds}
+                onClick={() => {
+                  applyRange(seconds);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <input
+            id="from"
+            type="datetime-local"
+            step="1"
+            aria-label="From"
+            value={from}
+            onChange={(event) => {
+              updateRange({ from: event.target.value });
+            }}
+          />
+
+          <input
+            id="to"
+            type="datetime-local"
+            step="1"
+            aria-label="To"
+            value={to}
+            onChange={(event) => {
+              updateRange({ to: event.target.value });
+            }}
+          />
+
+          <button
+            id="load-history"
+            type="button"
+            onClick={() => {
+              updateRange({ range: 0 });
+              load(from, to);
+            }}
+          >
+            Load
+          </button>
         </div>
         <p id="history-note" className="muted" style={{ fontSize: 12 }}>
           {!request
@@ -293,7 +287,7 @@ function History({
         </p>
         {data && (
           <>
-            <HistoryHeading topic="cpu">CPU</HistoryHeading>
+            <HistoryHeading>CPU</HistoryHeading>
             <TimeChart
               id="history-cpu"
               topic="cpu"
@@ -310,7 +304,7 @@ function History({
               minMax={5}
               empty={empty}
             />
-            <HistoryHeading topic="delay">Run delay</HistoryHeading>
+            <HistoryHeading>Run delay</HistoryHeading>
             <TimeChart
               id="history-delay"
               topic="delay"
@@ -327,7 +321,7 @@ function History({
               minMax={1}
               empty={empty}
             />
-            <HistoryHeading topic="mix">State mix</HistoryHeading>
+            <HistoryHeading>State mix</HistoryHeading>
             <TimeChart
               id="history-states"
               topic="mix"
@@ -346,13 +340,13 @@ function History({
             />
             <div id="legend" className="legend">
               {STATES.filter((state) => seen.has(state)).map((state) => (
-                <Help key={state} topic={state}>
+                <span key={state}>
                   <i className={`sw ${state}`} />
                   {stateLabels[state]}
-                </Help>
+                </span>
               ))}
             </div>
-            <HistoryHeading topic="sysio">I/O</HistoryHeading>
+            <HistoryHeading>I/O</HistoryHeading>
             <TimeChart
               id="history-io"
               topic="sysio"
@@ -375,28 +369,26 @@ function History({
               empty={empty}
             />
             <div className="legend">
-              <Help topic="sysio">
+              <span>
                 <i
                   className="sw line"
                   style={{ background: "var(--series-1)" }}
                 />
                 Read/s
-              </Help>
-              <Help topic="sysio">
+              </span>
+              <span>
                 <i
                   className="sw line"
                   style={{ background: "var(--series-2)" }}
                 />
                 Write/s
-              </Help>
+              </span>
             </div>
           </>
         )}
         {/* Uncontrolled, so the reader's open choice survives each load. */}
         <details style={{ marginTop: 12 }}>
-          <summary>
-            <Help topic="history">Table view</Help>
-          </summary>
+          <summary>Table view</summary>
           <div className="table-wrap" style={{ maxHeight: 340, marginTop: 8 }}>
             <table>
               <thead>
@@ -411,9 +403,9 @@ function History({
                       ["Samples", "samples", ""],
                       ["State mix", "mix", ""],
                     ] as const
-                  ).map(([label, topic, className]) => (
+                  ).map(([label, , className]) => (
                     <th key={label} className={className || undefined}>
-                      <Help topic={topic}>{label}</Help>
+                      {label}
                     </th>
                   ))}
                 </tr>
@@ -467,18 +459,8 @@ function History({
     </ViewIdentityContext>
   );
 }
-function HistoryHeading({
-  topic,
-  children,
-}: {
-  topic: HelpTopicId;
-  children: string;
-}) {
-  return (
-    <Help topic={topic} as="div">
-      <h3 style={{ marginTop: children === "CPU" ? 6 : 12 }}>{children}</h3>
-    </Help>
-  );
+function HistoryHeading({ children }: { children: string }) {
+  return <h3 style={{ marginTop: children === "CPU" ? 6 : 12 }}>{children}</h3>;
 }
 
 const TILES: readonly [
@@ -595,7 +577,11 @@ export function ThreadDrawer({
         >
           <div className="drawer-head">
             <div style={{ flex: 1, minWidth: 0 }}>
-              <Help topic="thread" as="div">
+              <Help
+                topic="thread"
+                as="div"
+                sources={["history", "cpu", "delay", "sysio"]}
+              >
                 <h2 id="history-title">{selected?.name ?? "Thread"}</h2>
               </Help>
               <div id="drawer-meta" className="muted">
@@ -606,18 +592,17 @@ export function ThreadDrawer({
                       : "")}
               </div>
             </div>
-            <Help topic="thread">
-              <button
-                ref={close}
-                id="drawer-close"
-                type="button"
-                className="icon-btn"
-                aria-label="Close thread details"
-                onClick={onClose}
-              >
-                ✕
-              </button>
-            </Help>
+
+            <button
+              ref={close}
+              id="drawer-close"
+              type="button"
+              className="icon-btn"
+              aria-label="Close thread details"
+              onClick={onClose}
+            >
+              ✕
+            </button>
           </div>
           <div className="drawer-body">
             <div id="drawer-state">
@@ -629,14 +614,7 @@ export function ThreadDrawer({
               )}
               {thread && (
                 <>
-                  <Help
-                    topic={
-                      thread.state && isHelpTopicId(thread.state)
-                        ? thread.state
-                        : "states"
-                    }
-                    as="div"
-                  >
+                  <div>
                     <StatePill thread={thread} />
                     {thread.wchan && (
                       <>
@@ -646,21 +624,15 @@ export function ThreadDrawer({
                     )}
                     <span className="muted"> · last 10 s: </span>
                     <Mix counts={thread.state_mix} inline />
-                  </Help>
-                  {watch && (
-                    <Help topic="watched" as="div" className="muted">
-                      {watch}
-                    </Help>
-                  )}
+                  </div>
+                  {watch && <div className="muted">{watch}</div>}
                 </>
               )}
             </div>
             <div id="drawer-tiles" className="mini-tiles">
-              {tiles.map(([label, topic, value]) => (
+              {tiles.map(([label, , value]) => (
                 <div key={label}>
-                  <Help topic={topic} as="div" className="k">
-                    {label}
-                  </Help>
+                  <div className="k">{label}</div>
                   <div className="v">{value}</div>
                 </div>
               ))}
@@ -668,9 +640,8 @@ export function ThreadDrawer({
             <div className="card" hidden={recorded}>
               <div className="card-head">
                 <div>
-                  <Help topic="cpu" as="div">
-                    <h3>Recent live CPU</h3>
-                  </Help>
+                  <h3>Recent live CPU</h3>
+
                   <p>Last two minutes from the live feed.</p>
                 </div>
               </div>

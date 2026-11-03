@@ -278,7 +278,7 @@ test("pressure history connects nearby readings across an unavailable sample", (
   expect(chart?.querySelectorAll("circle")).toHaveLength(1);
 });
 
-test("every visible resource label has a registered help topic", () => {
+test("resource source topics and network counters remain available", () => {
   render(
     show(
       view(
@@ -299,15 +299,6 @@ test("every visible resource label has a registered help topic", () => {
   if (!section) throw new Error("Missing resources section");
   for (const element of section.querySelectorAll<HTMLElement>("[data-help]"))
     expect(Object.hasOwn(helpTopics, element.dataset.help ?? "")).toBe(true);
-  const unexplained = [
-    ...section.querySelectorAll(
-      "h2, h3, th, .tile .label, .legend > *, .meter, dt, button, select, label, #resource-coverage",
-    ),
-  ].filter(
-    (node) =>
-      !node.closest("[data-help]") && !node.querySelector("[data-help]"),
-  );
-  expect(unexplained.map((node) => node.textContent)).toEqual([]);
   expect(
     [
       ...section.querySelectorAll<HTMLElement>("#netstack tr[data-counter]"),

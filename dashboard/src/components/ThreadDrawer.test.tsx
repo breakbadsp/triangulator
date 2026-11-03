@@ -178,7 +178,7 @@ test("Escape closes drawer help before it closes the drawer", async () => {
   );
   await screen.findByText(/0 summaries/);
   const historyHelp = document.querySelector<HTMLElement>(
-    "#history [data-help='history']",
+    "#drawer [data-help='thread']",
   );
   if (!historyHelp) throw new Error("Missing history help");
   fireEvent.click(

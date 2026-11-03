@@ -150,7 +150,19 @@ export function Summary({
     <section id="overview" className="block overview">
       <div className="section-head">
         <div>
-          <Help topic="overview" as="div">
+          <Help
+            topic="overview"
+            as="div"
+            sources={[
+              "assessment",
+              "cpu",
+              "load",
+              "rss",
+              "vmsize",
+              "switches",
+              "faults",
+            ]}
+          >
             <h2>Summary</h2>
           </Help>
           <p id="overview-sub">
@@ -161,24 +173,23 @@ export function Summary({
                 : "Waiting for the sampler to report the target process."}
           </p>
         </div>
-        <Help topic="overview" as="div">
-          <div className="seg" role="group" aria-label="Chart time window">
-            {CHART_WINDOWS.map(([seconds, label]) => (
-              <button
-                key={seconds}
-                type="button"
-                disabled={mode.kind === "recorded"}
-                data-window={seconds}
-                aria-pressed={windowSecs === seconds}
-                onClick={() => {
-                  onWindow(seconds);
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </Help>
+
+        <div className="seg" role="group" aria-label="Chart time window">
+          {CHART_WINDOWS.map(([seconds, label]) => (
+            <button
+              key={seconds}
+              type="button"
+              disabled={mode.kind === "recorded"}
+              data-window={seconds}
+              aria-pressed={windowSecs === seconds}
+              onClick={() => {
+                onWindow(seconds);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <Assessment
@@ -192,9 +203,7 @@ export function Summary({
         {view &&
           summaryTiles(threads, points, all).map((tile) => (
             <div key={tile.label} className="card tile">
-              <Help topic={tile.topic} as="div" className="label">
-                {tile.label}
-              </Help>
+              <div className="label">{tile.label}</div>
               <div className="value">{tile.value}</div>
               <div className="sub">{tile.sub}</div>
               <Sparkline values={tile.values} color="var(--series-1)" />
@@ -207,9 +216,8 @@ export function Summary({
         <div className="card">
           <div className="card-head">
             <div>
-              <Help topic="load" as="div">
-                <h3>Process load</h3>
-              </Help>
+              <h3>Process load</h3>
+
               <p>
                 Running, waiting for CPU, or blocked in kernel. 1.00 is one core
                 of demand.
@@ -217,33 +225,32 @@ export function Summary({
             </div>
           </div>
           <div className="hero-row">
-            <Help topic="load" as="div">
+            <div>
               <span id="hero-load" className="hero">
                 {facts.load1}
               </span>
               <div className="muted" style={{ fontSize: 12 }}>
                 1-minute load
               </div>
-            </Help>
+            </div>
             <div className="hero-side">
-              <Fact id="hero-load5" label="5 min" topic="load">
+              <Fact id="hero-load5" label="5 min">
                 {facts.load5}
               </Fact>
               <Fact
                 id="hero-load15"
                 labelId="hero-load15-label"
                 label={facts.load15Label}
-                topic="load"
               >
                 {facts.load15}
               </Fact>
-              <Fact id="hero-cpu" label="On CPU now" topic="cpucores">
+              <Fact id="hero-cpu" label="On CPU now">
                 {facts.cpu}
               </Fact>
-              <Fact id="hero-wait" label="Waiting for CPU" topic="demand">
+              <Fact id="hero-wait" label="Waiting for CPU">
                 {facts.wait}
               </Fact>
-              <Fact id="hero-top" label="Busiest thread" topic="thread">
+              <Fact id="hero-top" label="Busiest thread">
                 {facts.busiest}
               </Fact>
             </div>
@@ -274,41 +281,38 @@ export function Summary({
             {bands.map((band) => {
               const value = last ? band.get(last) : null;
               return (
-                <Help key={band.label} topic={band.topic}>
+                <span key={band.label}>
                   <i className="sw" style={{ background: band.color }} />
                   {band.label}
                   <b>{isNum(value) ? value.toFixed(2) : "—"}</b>
-                </Help>
+                </span>
               );
             })}
-            <Help topic="load">
+            <span>
               <i className="sw line" style={{ background: "var(--ink-2)" }} />
               1-min average
-            </Help>
+            </span>
             {/* Fallback mode has CPU but no run delay; a tick with no rates
                 at all is a stall, not fallback. */}
             {threads.some((thread) => isNum(thread.cpu_pct)) &&
               !threads.some((thread) => isNum(thread.run_delay_pct)) && (
-                <Help topic="load" className="muted">
+                <span className="muted">
                   Waiting for CPU is unavailable in status-fallback mode.
-                </Help>
+                </span>
               )}
           </div>
         </div>
         <div id="overview-memory" className="card overview-memory">
           <div className="card-head">
             <div>
-              <Help topic="memory-use" as="div">
-                <h3>Memory use</h3>
-              </Help>
+              <h3>Memory use</h3>
+
               <p>Physical memory and mapped address space.</p>
             </div>
           </div>
           <div>
             <div className="mini-cap">
-              <Help topic="rss" className="help-label">
-                Resident memory (RSS)
-              </Help>
+              <span className="help-label">Resident memory (RSS)</span>
               <b id="overview-rss">{memoryBytes(last?.rss)}</b>
             </div>
             {memoryChart(
@@ -322,9 +326,7 @@ export function Summary({
               "Waiting for resource samples…",
             )}
             <div className="mini-cap">
-              <Help topic="vmsize" className="help-label">
-                Virtual size (VmSize)
-              </Help>
+              <span className="help-label">Virtual size (VmSize)</span>
               <b id="overview-vm">{memoryBytes(last?.vm)}</b>
             </div>
             {memoryChart(
@@ -349,24 +351,22 @@ function Fact({
   id,
   labelId,
   label,
-  topic,
   children,
 }: {
   id: string;
   labelId?: string;
   label: string;
-  topic: "load" | "cpucores" | "demand" | "thread";
   children: ReactNode;
 }) {
   return (
-    <Help topic={topic} as="div" className="kv">
+    <div className="kv">
       <div className="k" id={labelId}>
         {label}
       </div>
       <div id={id} className="v">
         {children}
       </div>
-    </Help>
+    </div>
   );
 }
 
@@ -401,10 +401,9 @@ function Assessment({
       data-level={worst}
     >
       <div className="assessment-heading">
-        <Help topic="assessment" as="div">
-          <h3>Assessment</h3>
-        </Help>
-        <Help topic="verdict" as="div" className="verdict">
+        <h3>Assessment</h3>
+
+        <div className="verdict">
           <span
             id="verdict"
             className="badge"
@@ -418,7 +417,7 @@ function Assessment({
           >
             {worst ? VERDICTS[worst] : "Waiting for data"}
           </span>
-        </Help>
+        </div>
         <span id="assess-time" className="muted">
           {lastTick ? "as of " + clock(lastTick) : ""}
         </span>
@@ -450,32 +449,30 @@ function Assessment({
                 <span className="ic" aria-label={item.level}>
                   {LEVEL_ICONS[item.level]}
                 </span>
-                <Help topic={item.help ?? "assessment"} as="div">
+                <div>
                   <div className="t">{item.title}</div>
                   <div className="d">{item.detail}</div>
-                </Help>
+                </div>
               </li>
             ),
           )}
         </ul>
         {/* The button stays in place across polls, so it keeps keyboard focus. */}
         {hidden > 0 && (
-          <Help topic="assessment">
-            <button
-              id="findings-more"
-              className="findings-more"
-              type="button"
-              aria-controls="findings"
-              aria-expanded={all}
-              onClick={() => {
-                setAll(!all);
-              }}
-            >
-              {all
-                ? "Show fewer findings"
-                : `Show ${String(hidden)} more finding${hidden === 1 ? "" : "s"}`}
-            </button>
-          </Help>
+          <button
+            id="findings-more"
+            className="findings-more"
+            type="button"
+            aria-controls="findings"
+            aria-expanded={all}
+            onClick={() => {
+              setAll(!all);
+            }}
+          >
+            {all
+              ? "Show fewer findings"
+              : `Show ${String(hidden)} more finding${hidden === 1 ? "" : "s"}`}
+          </button>
         )}
       </div>
     </div>

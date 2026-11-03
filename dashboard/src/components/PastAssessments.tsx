@@ -1,4 +1,3 @@
-import { Help } from "../help/Help";
 import type { FindingType, Level } from "../lib/findings";
 import { LEVEL_ICONS } from "../lib/findings";
 import { date } from "../lib/format";
@@ -105,62 +104,56 @@ export function PastAssessments({
       className="fold past"
       summary={
         <>
-          <Help topic="assesshistory" as="div">
-            <h3>Past assessments</h3>
-          </Help>
-          <Help topic="assesshistory">
-            <span id="past-count" className="muted">
-              {scan.oldest === null ? "" : plural(shown.length, "finding")}
-            </span>
-          </Help>
+          <h3>Past assessments</h3>
+
+          <span id="past-count" className="muted">
+            {scan.oldest === null ? "" : plural(shown.length, "finding")}
+          </span>
         </>
       }
     >
       <div className="history-filters">
-        <Help topic="historyfilters">
-          <fieldset id="history-levels">
-            <legend>Severity</legend>
-            {HISTORY_LEVELS.map(([level, label]) => (
-              <label key={level}>
-                <input
-                  type="checkbox"
-                  value={level}
-                  checked={filter.levels.has(level)}
-                  onChange={(event) => {
-                    const levels = new Set(filter.levels);
-                    if (event.currentTarget.checked) levels.add(level);
-                    else levels.delete(level);
-                    onFilter({ ...filter, levels });
-                  }}
-                />{" "}
+        <fieldset id="history-levels">
+          <legend>Severity</legend>
+          {HISTORY_LEVELS.map(([level, label]) => (
+            <label key={level}>
+              <input
+                type="checkbox"
+                value={level}
+                checked={filter.levels.has(level)}
+                onChange={(event) => {
+                  const levels = new Set(filter.levels);
+                  if (event.currentTarget.checked) levels.add(level);
+                  else levels.delete(level);
+                  onFilter({ ...filter, levels });
+                }}
+              />{" "}
+              {label}
+            </label>
+          ))}
+        </fieldset>
+
+        <label>
+          Type{" "}
+          <select
+            id="history-type"
+            value={filter.type}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              onFilter({
+                ...filter,
+                type: value in HISTORY_TYPES ? (value as FindingType) : "",
+              });
+            }}
+          >
+            <option value="">All types</option>
+            {Object.entries(HISTORY_TYPES).map(([type, label]) => (
+              <option key={type} value={type}>
                 {label}
-              </label>
+              </option>
             ))}
-          </fieldset>
-        </Help>
-        <Help topic="historyfilters">
-          <label>
-            Type{" "}
-            <select
-              id="history-type"
-              value={filter.type}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                onFilter({
-                  ...filter,
-                  type: value in HISTORY_TYPES ? (value as FindingType) : "",
-                });
-              }}
-            >
-              <option value="">All types</option>
-              {Object.entries(HISTORY_TYPES).map(([type, label]) => (
-                <option key={type} value={type}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </Help>
+          </select>
+        </label>
       </div>
       <ul
         id="history-list"
@@ -174,11 +167,9 @@ export function PastAssessments({
       >
         {scan.oldest !== null && !shown.length && (
           <li className="muted">
-            <Help topic="assesshistory">
-              {all.length
-                ? "No findings match these filters."
-                : "The Assessment found nothing in the checked recordings."}
-            </Help>
+            {all.length
+              ? "No findings match these filters."
+              : "The Assessment found nothing in the checked recordings."}
           </li>
         )}
         {shown.map((episode) => {
@@ -201,33 +192,30 @@ export function PastAssessments({
               <span className="ic" aria-label={episode.level}>
                 {LEVEL_ICONS[episode.level]}
               </span>
-              <Help topic="assesshistory" as="div">
+              <div>
                 <div className="t">{episode.item.title}</div>
                 <div className="when">{when(episode)}</div>
                 {/* The selected row also shows the detail. */}
                 {current && <div className="d">{episode.item.detail}</div>}
-              </Help>
+              </div>
             </li>
           );
         })}
       </ul>
       <div className="past-foot">
-        <Help topic="assesshistory">
-          <span id="history-status" className="muted" role="status">
-            {status(scan, all, shown.length, recordings)}
-          </span>
-        </Help>
+        <span id="history-status" className="muted" role="status">
+          {status(scan, all, shown.length, recordings)}
+        </span>
+
         {!scan.done && (scan.oldest !== null || scan.error) && (
-          <Help topic="assesshistory">
-            <button
-              id="history-more"
-              type="button"
-              disabled={scan.busy !== null}
-              onClick={onLoadOlder}
-            >
-              {scan.busy === "older" ? "Loading…" : "Load earlier"}
-            </button>
-          </Help>
+          <button
+            id="history-more"
+            type="button"
+            disabled={scan.busy !== null}
+            onClick={onLoadOlder}
+          >
+            {scan.busy === "older" ? "Loading…" : "Load earlier"}
+          </button>
         )}
       </div>
     </Fold>

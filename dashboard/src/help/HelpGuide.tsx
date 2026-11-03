@@ -57,6 +57,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       topic: HelpTopicId,
       opener: HTMLElement,
       portal: HTMLElement | null = null,
+      sources?: readonly HelpTopicId[],
     ) => {
       cards.cancelAll();
       setReturnFocus(false);
@@ -71,6 +72,7 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
       const drawerBody = drawer?.querySelector<HTMLElement>(".drawer-body");
       setRequest({
         topic,
+        sources,
         opener,
         portal,
         ancestors,
@@ -250,17 +252,22 @@ export function HelpGuideProvider({ children }: { children: ReactNode }) {
                       <CodeText text={content.meaning} />
                     </p>
                   )}
-                  {content.source && (
-                    <section>
-                      <h3>Source</h3>
-                      <p>
-                        <CodeText text={content.source} />
-                      </p>
-                      <p>
-                        <CodeText text={content.sourceDetail} />
-                      </p>
-                    </section>
-                  )}
+                  {[request.topic, ...(request.sources ?? [])].map((topic) => {
+                    const source = helpTopics[topic];
+                    return source.source ? (
+                      <section key={topic}>
+                        <h3>
+                          {topic === request.topic ? "Source" : source.title}
+                        </h3>
+                        <p>
+                          <CodeText text={source.source} />
+                        </p>
+                        <p>
+                          <CodeText text={source.sourceDetail} />
+                        </p>
+                      </section>
+                    ) : null;
+                  })}
                 </div>
               </aside>
             </>,

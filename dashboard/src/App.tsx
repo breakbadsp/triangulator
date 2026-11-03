@@ -16,7 +16,6 @@ import { Threads } from "./components/Threads";
 import { WatchRules } from "./components/WatchRules";
 import { Timeline } from "./components/Timeline";
 import { HelpGuideProvider, PageHelp } from "./help/HelpGuide";
-import { Help } from "./help/Help";
 import { ViewIdentityContext } from "./hooks/viewIdentityContext";
 import { useObservation } from "./hooks/useObservation";
 import { usePastAssessments } from "./hooks/usePastAssessments";
@@ -164,29 +163,29 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
         />
         <main aria-label="Dashboard">
           {released && (
-            <Help topic="fleet" as="div" className="card">
+            <div className="card">
               No longer monitored. Showing the last published data. Exit reports
               and recordings remain available when captured.
-            </Help>
-          )}
-          <Help topic="exited" as="div">
-            <div id="exited" className="card" hidden={!display.state.final}>
-              <p id="exited-text">
-                {display.state.final &&
-                  `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}: ${display.state.final.mode.kind === "final" && display.state.final.mode.exit ? `it ended (${exitReason(display.state.final.mode.exit)[0]}).` : "it exited or is no longer the target."} Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
-              </p>
-              <button
-                id="exited-live"
-                type="button"
-                onClick={() => {
-                  closeThread();
-                  display.dismiss();
-                }}
-              >
-                Show live
-              </button>
             </div>
-          </Help>
+          )}
+
+          <div id="exited" className="card" hidden={!display.state.final}>
+            <p id="exited-text">
+              {display.state.final &&
+                `${display.state.final.view.process?.command || "Target process"} (PID ${String(display.state.final.view.health.pid)}) stopped reporting at ${date(display.state.final.now)}: ${display.state.final.mode.kind === "final" && display.state.final.mode.exit ? `it ended (${exitReason(display.state.final.mode.exit)[0]}).` : "it exited or is no longer the target."} Showing its final view${display.state.final.series.points.length > 1 ? " and the trends this tab kept before then." : ". This tab has no earlier trends; thread history and recordings remain available."}${display.unsaved ? " The view is too large to keep across a reload." : ""}${display.state.latest?.view.health.pid && display.state.latest.view.health.session !== display.state.final.view.health.session && !display.state.latest.view.health.target_absent ? ` A new process (PID ${String(display.state.latest.view.health.pid)}) is being monitored.` : ""}`}
+            </p>
+            <button
+              id="exited-live"
+              type="button"
+              onClick={() => {
+                closeThread();
+                display.dismiss();
+              }}
+            >
+              Show live
+            </button>
+          </div>
+
           <Summary
             view={view}
             mode={mode}
