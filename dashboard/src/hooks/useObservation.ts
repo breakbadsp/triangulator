@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { getJson } from "../api/client";
-import { settleArrival } from "../api/viewStorage";
+import { rememberTarget, settleArrival } from "../api/viewStorage";
 import {
   parseBounds,
   parseFrozen,
@@ -30,7 +30,12 @@ import {
   type FrozenView,
   type Observation,
 } from "../lib/observation";
-import { restoreSeries, threadsEntry } from "../lib/series";
+import {
+  ingest,
+  restoreSeries,
+  threadsEntry,
+  type Series,
+} from "../lib/series";
 import { useScopedPoll } from "./useScopedPoll";
 
 const storageKey = (name: string, target: string) =>
@@ -52,8 +57,17 @@ function restored(target: string, session: string | null | undefined) {
   );
 }
 function save(target: string, observation: Observation | undefined) {
-  if (!observation || observation.series.session == null) return;
-  const series = observation.series;
+  if (observation) saveSeries(target, observation.series);
+}
+/**
+ * Appends a live reply to the series that this tab saved for the target, for
+ * the overview page: the target page then returns without a gap.
+ */
+export function appendToSavedSeries(target: string, view: LiveResponse) {
+  saveSeries(target, ingest(restored(target, view.health.session), view));
+}
+function saveSeries(target: string, series: Series) {
+  if (series.session == null) return;
   try {
     sessionStorage.setItem(
       storageKey("triangulator:buffer", target),
@@ -106,6 +120,7 @@ export function useObservation(
   // The live event below reads the caches in a later effect of this commit.
   useLayoutEffect(() => {
     settleArrival(target);
+    rememberTarget(target);
   }, [target]);
   const restoredOnce = useRef(false);
   useLayoutEffect(() => {

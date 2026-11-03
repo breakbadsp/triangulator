@@ -96,6 +96,7 @@ beforeEach(() => {
   vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
   history.replaceState(null, "", "/");
   localStorage.clear();
+  sessionStorage.clear();
   respond = fleetRespond;
   requests = [];
   vi.stubGlobal(
@@ -120,6 +121,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   history.replaceState(null, "", "/");
   localStorage.clear();
+  sessionStorage.clear();
 });
 async function start(search = "") {
   history.replaceState(null, "", "/" + search);
@@ -189,6 +191,32 @@ test("overview page shows one tile per target in API order, and links to each da
   await poll();
   expect(tiles()[0]).toBe(first);
   expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(2);
+});
+
+test("the overview keeps adding points for the target page that was left", async () => {
+  const savedTimes = (target: string) => {
+    const saved = JSON.parse(
+      sessionStorage.getItem(`triangulator:buffer:${target}`) ?? "null",
+    ) as { session: string; points: { t: number }[] } | null;
+    return saved?.points.map((point) => point.t) ?? [];
+  };
+  // The target page of h/api was open, then the overview page loaded.
+  sessionStorage.setItem("triangulator:last-target", "h/api");
+  hidden = true;
+  await start();
+  await act(() => vi.advanceTimersByTimeAsync(4000));
+  const times = savedTimes("h/api");
+  expect(times.length).toBeGreaterThanOrEqual(4);
+  expect(times).toEqual([...times].sort((a, b) => a - b));
+  expect(new Set(times).size).toBe(times.length);
+  // The page reads that series again when it returns, with no gap.
+  expect(times.at(-1) ?? 0).toBeGreaterThan((times[0] ?? 0) + 2);
+  expect(savedTimes("h/busy")).toEqual([]);
+  // Leaving no target page behind means no extra polling.
+  sessionStorage.clear();
+  requests.length = 0;
+  await act(() => vi.advanceTimersByTimeAsync(2000));
+  expect(requests.some((url) => url.startsWith("/api/live"))).toBe(false);
 });
 
 test("overview preserves a non-alphabetical API order through polls and search", async () => {
@@ -278,6 +306,8 @@ test("a target dashboard does not start the overview", async () => {
   expect(requests).toContain("/api/live?target=h%2Fapi");
   expect(document.querySelector("#fleet-grid")).toBeNull();
   expect(requests).not.toContain("/api/live?target=h%2Fbusy");
+  // The overview page reads this to keep the target's series growing.
+  expect(sessionStorage.getItem("triangulator:last-target")).toBe("h/api");
 });
 
 test("a tile with findings carries a card with the worst findings and the process start", async () => {
