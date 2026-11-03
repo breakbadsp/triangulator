@@ -972,6 +972,81 @@ void TestCpuBudget()
           "default CPU budget is ten percent");
 }
 
+// Runs the sampler loop against a cost model: each tick costs p_critical
+// while a critical target is live, plus p_other on the ticks that serve the
+// other targets. The value is the CPU percent of the last ten seconds.
+double RunBudget(CpuBudget& p_budget, Nanoseconds p_duration,
+                 Nanoseconds p_critical, Nanoseconds p_other,
+                 bool p_critical_live, bool p_other_live)
+{
+  Nanoseconds simulated{0};
+  Nanoseconds tail_cpu{0};
+  Nanoseconds tail_elapsed{0};
+  for (std::uint64_t tick = 0; simulated < p_duration; ++tick)
+  {
+    const auto interval = std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_budget.RateHz()});
+    const bool other_served = tick % p_budget.Stride() == 0;
+    const auto cpu = (p_critical_live ? p_critical : Nanoseconds{0}) +
+                     (p_other_live && other_served ? p_other : Nanoseconds{0});
+    p_budget.Add(cpu, interval, p_critical_live, p_other_live);
+    simulated += interval;
+    if (simulated > p_duration - 10s)
+    {
+      tail_cpu += cpu;
+      tail_elapsed += interval;
+    }
+  }
+  return 100.0 * static_cast<double>(tail_cpu.count()) /
+         static_cast<double>(tail_elapsed.count());
+}
+
+// Budget 10%, extra 5%: the ceiling is 15% while a critical target is live.
+void TestCriticalBudget()
+{
+  CpuBudget protect{10, 10, 5};
+  auto percent = RunBudget(protect, 120s, 12ms, 5ms, true, true);
+  Require(protect.RateHz() == 10 && protect.Stride() > 1,
+          "above the budget, other targets slow down and a critical target "
+          "keeps its full rate");
+  Require(protect.RateHz() / protect.Stride() >= kMinRateHz,
+          "other targets keep the minimum rate");
+  Require(percent <= 15, "the total stays within the ceiling");
+
+  for (const bool other_live : {true, false})
+  {
+    CpuBudget hard{10, 10, 5};
+    percent = RunBudget(hard, 180s, 20ms, 5ms, true, other_live);
+    Require(hard.RateHz() < 10 && percent <= 15,
+            "critical work above the ceiling slows the critical target too");
+  }
+
+  // The critical target ends; the same 12% that the ceiling permitted is now
+  // above the budget of the other targets.
+  RunBudget(protect, 60s, 0ms, 12ms, false, true);
+  Require(protect.Stride() == 1 && protect.RateHz() < 10,
+          "without a live critical target the ceiling is the budget");
+
+  CpuBudget window{10, 10, 5};
+  RunBudget(window, 30s, 14ms, 0ms, true, false);
+  Require(window.RateHz() == 10, "critical work within the ceiling");
+  RunBudget(window, 6s, 0ms, 1ms, false, true);
+  Require(window.RateHz() == 10,
+          "the critical work before an exit does not slow the other targets");
+
+  const auto loop = [](double p_rate_hz)
+  {
+    return std::chrono::duration_cast<Nanoseconds>(
+        std::chrono::duration<double>{1.0 / p_rate_hz});
+  };
+  Require(TickIntervalMs(loop(7), 35) == 5000 &&
+              TickIntervalMs(loop(6), 30) == 5000 &&
+              TickIntervalMs(loop(10), 1) == 100,
+          "a strided tick interval is rounded after the multiply");
+  Require(TickIntervalMs(loop(7), 36) == kMaxTickIntervalMs,
+          "a tick interval never exceeds what the collector accepts");
+}
+
 void TestWire()
 {
   ThreadStat stat{.state_ = 'S',
@@ -2713,6 +2788,7 @@ int main()
     TestThreadRescanReadFailure();
     TestSharedDescriptorBudget();
     TestCpuBudget();
+    TestCriticalBudget();
     TestWire();
     TestRaii();
     TestTimestamp();
