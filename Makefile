@@ -80,7 +80,7 @@ SQLITE_OBJECT := build/sqlite3.o
 SQLITE_HEADER := $(dir $(SQLITE_SOURCE))sqlite3.h
 COLLECTOR_LIBS := $(SQLITE_OBJECT) -lm -pthread
 endif
-CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp tests/runtime_threads.hpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
+CPP_SOURCES := examples/buggy-workload/buggy_workload.cpp tests/benchmark_target.cpp tests/benchmark_victim.cpp tests/benchmark_sampling.cpp tests/benchmark_parse_stat.cpp tests/benchmark_parse_number.cpp tests/benchmark_aux_parsing.cpp tests/runtime_threads.hpp $(COMMON_HEADERS) sampler/main.cpp $(SAMPLER_HEADERS) tests/sampler_test.cpp tests/allocation_test.cpp \
 	collector/main.cpp $(COLLECTOR_HEADERS) tests/collector_test.cpp tests/collector_allocation_test.cpp \
 	tests/wire_test.cpp tests/http_server_test.cpp
 
@@ -257,8 +257,11 @@ dashboard-check: dashboard/node_modules/.package-lock.json
 scout: dashboard/node_modules/.package-lock.json
 	cd dashboard && npm run build:scout
 
-check: dashboard-check all build/triangulator-sampler-capacity build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling $(CPP_TESTS)
+check: dashboard-check all build/triangulator-sampler-capacity build/buggy-workload build/benchmark-target build/benchmark-victim build/benchmark-sampling build/benchmark-parse-stat build/benchmark-parse-number build/benchmark-aux-parsing $(CPP_TESTS)
 	python3 tests/run_checks.py $(CPP_TESTS)
+	build/benchmark-parse-stat check
+	build/benchmark-parse-number verify
+	build/benchmark-aux-parsing verify
 
 check-asan:
 	$(MAKE) check SANITIZER=address
@@ -302,6 +305,15 @@ build/benchmark-sampling.o: tests/benchmark_sampling.cpp $(SAMPLER_HEADERS) $(CO
 
 build/benchmark-sampling: build/benchmark-sampling.o build/compiler_ok Makefile build/build_options
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(SAMPLER_LDFLAGS) $(LDLIBS) -o $@
+
+build/benchmark-parse-stat: tests/benchmark_parse_stat.cpp sampler/parsing.hpp build/compiler_ok Makefile build/build_options
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+
+build/benchmark-parse-number: tests/benchmark_parse_number.cpp sampler/parsing.hpp build/compiler_ok Makefile build/build_options
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
+
+build/benchmark-aux-parsing: tests/benchmark_aux_parsing.cpp sampler/parsing.hpp build/compiler_ok Makefile build/build_options
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(LDLIBS) -o $@
 
 .PHONY: benchmark-sampling
 benchmark-sampling: build/benchmark-sampling build/benchmark-target

@@ -4,8 +4,10 @@
 #include <array>
 #include <charconv>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 
 namespace triangulator
 {
@@ -36,6 +38,26 @@ template <typename Number>
   if (p_text.empty())
   {
     return std::nullopt;
+  }
+  if constexpr (std::is_same_v<Number, std::uint64_t>)
+  {
+    // Up to digits10 digits fit in uint64_t without an overflow check.
+    if (p_text.size() <= std::numeric_limits<Number>::digits10)
+    {
+      Number value{};
+      for (const char character : p_text)
+      {
+        const auto digit =
+            static_cast<unsigned>(static_cast<unsigned char>(character)) -
+            static_cast<unsigned>('0');
+        if (digit > 9)
+        {
+          return std::nullopt;
+        }
+        value = value * 10 + digit;
+      }
+      return value;
+    }
   }
   Number value{};
   const auto [end, error] =
@@ -95,13 +117,20 @@ struct ThreadStat
       p_text.substr(first + 1, std::min(last - first - 1, std::size_t{15})),
       result.name_.begin());
   auto fields = p_text.substr(last + 2);
+  constexpr std::string_view kWhitespace = " \t\r\n";
+  // Trimming the entire remainder for every token rescans the same suffix.
   for (int field = 3; field <= 39; ++field)
   {
-    const auto token = NextToken(fields);
-    if (token.empty())
+    const auto first_non_whitespace = fields.find_first_not_of(kWhitespace);
+    if (first_non_whitespace == std::string_view::npos)
     {
       return std::nullopt;
     }
+    fields.remove_prefix(first_non_whitespace);
+    const auto end = fields.find_first_of(kWhitespace);
+    const auto token = fields.substr(0, end);
+    fields =
+        end == std::string_view::npos ? std::string_view{} : fields.substr(end);
     if (field == 3)
     {
       if (token.size() != 1)
@@ -191,19 +220,15 @@ struct IoCounters
     const auto line = p_text.substr(0, end);
     p_text = end == std::string_view::npos ? std::string_view{}
                                            : p_text.substr(end + 1);
-    const auto separator = line.find(':');
-    if (separator == std::string_view::npos)
+    constexpr std::string_view kReadKey = "rchar:";
+    constexpr std::string_view kWriteKey = "wchar:";
+    if (line.starts_with(kReadKey))
     {
-      continue;
+      read = ParseNumber<std::uint64_t>(Trim(line.substr(kReadKey.size())));
     }
-    const auto key = line.substr(0, separator);
-    if (key == "rchar")
+    if (line.starts_with(kWriteKey))
     {
-      read = ParseNumber<std::uint64_t>(Trim(line.substr(separator + 1)));
-    }
-    if (key == "wchar")
-    {
-      written = ParseNumber<std::uint64_t>(Trim(line.substr(separator + 1)));
+      written = ParseNumber<std::uint64_t>(Trim(line.substr(kWriteKey.size())));
     }
   }
   if (!read || !written)
@@ -222,9 +247,24 @@ struct SchedulerCounters
 [[nodiscard]] inline std::optional<SchedulerCounters> ParseSchedstat(
     std::string_view p_text)
 {
-  const auto runtime = ParseNumber<std::uint64_t>(NextToken(p_text));
-  const auto delay = ParseNumber<std::uint64_t>(NextToken(p_text));
-  const auto slices = ParseNumber<std::uint64_t>(NextToken(p_text));
+  auto next = [&p_text]() -> std::string_view
+  {
+    constexpr std::string_view kWhitespace = " \t\r\n";
+    const auto first = p_text.find_first_not_of(kWhitespace);
+    if (first == std::string_view::npos)
+    {
+      p_text = {};
+      return {};
+    }
+    p_text.remove_prefix(first);
+    const auto end = p_text.find_first_of(kWhitespace);
+    const auto token = p_text.substr(0, end);
+    p_text.remove_prefix(token.size());
+    return token;
+  };
+  const auto runtime = ParseNumber<std::uint64_t>(next());
+  const auto delay = ParseNumber<std::uint64_t>(next());
+  const auto slices = ParseNumber<std::uint64_t>(next());
   if (!runtime || !delay || !slices)
   {
     return std::nullopt;

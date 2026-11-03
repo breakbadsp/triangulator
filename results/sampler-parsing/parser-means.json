@@ -1,0 +1,22 @@
+{
+  "stat": {
+    "before_s": 0.358928,
+    "after_s": 0.30684
+  },
+  "number-short": {
+    "before_s": 0.102452,
+    "after_s": 0.082185
+  },
+  "number-mixed": {
+    "before_s": 0.141824,
+    "after_s": 0.108101
+  },
+  "schedstat": {
+    "before_s": 0.120524,
+    "after_s": 0.100062
+  },
+  "io": {
+    "before_s": 0.218741,
+    "after_s": 0.147947
+  }
+}
