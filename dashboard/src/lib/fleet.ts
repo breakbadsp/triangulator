@@ -113,3 +113,26 @@ export function backHref(search: string): string {
   ).toString();
   return "./" + (query ? "?" + query : "");
 }
+
+/** Saved keys that still exist come first, then new keys in server order. */
+export function mergeOrder(
+  saved: readonly string[],
+  keys: readonly string[],
+): string[] {
+  const present = new Set(keys);
+  const kept = [...new Set(saved)].filter((key) => present.has(key));
+  const known = new Set(kept);
+  return [...kept, ...keys.filter((key) => !known.has(key))];
+}
+/** Puts `from` at the place of `to`; the keys in between shift by one. */
+export function moveKey(
+  order: readonly string[],
+  from: string,
+  to: string,
+): string[] {
+  const target = order.indexOf(to);
+  if (from === to || target < 0 || !order.includes(from)) return [...order];
+  const rest = order.filter((key) => key !== from);
+  rest.splice(target, 0, from);
+  return rest;
+}

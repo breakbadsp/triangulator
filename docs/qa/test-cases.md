@@ -880,3 +880,10 @@
 - Driver: judged
 - Test: Run the sampler with `process_names` set to two running processes and `critical_names` set to one of them. Read the sampler stderr.
 - Expected: The "monitoring PID" line of the critical process ends with ` critical=true`. The line of the other process has no `critical` text.
+
+## QA-144: Reorder tiles on the overview
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Use the QA-091 fixture with at least 5 targets. Drag one tile onto another, forward and backward. Reload. Search for text that matches some tiles, drag one shown tile onto another, and clear the search. Focus a tile link and press Alt with each arrow key, with a screen reader on. Click and middle-click a tile link after a drag. Repeat with browser storage blocked, and after a target is added and another is removed.
+- Expected: The dragged tile takes the place of the tile it lands on, at once. The order survives a reload. A search keeps the custom order of the shown tiles, and the drag changes the order of all tiles. Alt with an arrow key moves the focused tile by one shown place, keeps focus on it, and announces its new position, or says that it is first or last. A drag starts no navigation, and a click or middle-click still opens the target. With storage blocked the order works until reload and no error shows. A new target appears after the saved tiles and a removed target leaves no gap. The `fleet` help describes reordering.

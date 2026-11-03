@@ -157,7 +157,7 @@ const topics = {
     title: "Targets overview",
     source: "Collector: `/api/fleet`",
     sourceDetail:
-      "The page makes one `/api/fleet` request every 5 seconds. It returns the target list and the latest live view of each target from one publication.",
+      "The page makes one `/api/fleet` request every 5 seconds. It returns the target list and the latest live view of each target from one publication. Tile order is stored in this browser under `triangulator:fleet-order`.",
   },
   overview: {
     title: "Process overview",
