@@ -210,6 +210,14 @@ export interface Resources {
     vm_exe?: number | null;
     rss_growth_per_s?: number | null;
   };
+  host_memory?: {
+    total?: number | null;
+    available?: number | null;
+    free?: number | null;
+    cached?: number | null;
+    swap_total?: number | null;
+    swap_free?: number | null;
+  };
   cgroup_limits?: {
     memory?: {
       current?: number | null;

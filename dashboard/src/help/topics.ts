@@ -593,8 +593,8 @@ const topics = {
       "Compare both charts over the same period as Process load. Open Memory for mappings and memory findings.",
     limits:
       "Mapped memory is not the same as physical use. Missing samples are gaps, not zero.",
-    related: ["rss", "vmsize", "memmap"],
-    source: "`/proc/PID/status`: VmRSS, VmSize",
+    related: ["rss", "vmsize", "hostmem", "memmap"],
+    source: "`/proc/PID/status`: VmRSS, VmSize; `/proc/meminfo`",
     sourceDetail:
       'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line in the same read. Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
   },
@@ -627,6 +627,21 @@ const topics = {
     source: "`/proc/PID/status`: VmSize, VmPeak",
     sourceDetail:
       'With each resource sample (every 2 s by default), the sampler reads VmSize from `/proc/PID/status`, in the same read as VmRSS. The Memory tab also reads VmPeak with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
+  },
+  hostmem: {
+    title: "Host memory available",
+    scope: "Whole host · share of total RAM",
+    meaning:
+      "How much memory the host can give to programs without swapping, as a share of its total RAM.",
+    example: "8 GiB available of 32 GiB total is 25%.",
+    reading:
+      "A low value with swap in use means the host is short of memory, and it can slow every process on it. Compare with memory pressure.",
+    limits:
+      "This is the whole host, not the target. Page cache counts as available because the kernel can reclaim it. The value is the same for every target on the host.",
+    related: ["rss", "pressure", "cgroupmem"],
+    source: "`/proc/meminfo`: MemTotal, MemAvailable, SwapTotal, SwapFree",
+    sourceDetail:
+      'The sampler reads `/proc/meminfo` once for all targets, at most every half resource interval (1 s by default), and sends MemTotal, MemAvailable, MemFree, Cached, SwapTotal, and SwapFree. The dashboard computes the share. Check it yourself: `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`.',
   },
   collsettings: {
     title: "Collector settings",

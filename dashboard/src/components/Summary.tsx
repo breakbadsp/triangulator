@@ -11,7 +11,7 @@ import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
 import { axisBytes, niceBytes } from "../lib/chart";
-import { clock, isNum, memoryBytes } from "../lib/format";
+import { clock, isNum, memoryBytes, pct } from "../lib/format";
 import {
   LEVEL_ICONS,
   LEVEL_ORDER,
@@ -19,7 +19,7 @@ import {
   type Finding,
 } from "../lib/findings";
 import { windowPoints, type Point, type Series } from "../lib/series";
-import { loadFacts, profile, summaryTiles } from "../lib/summary";
+import { hostMemory, loadFacts, profile, summaryTiles } from "../lib/summary";
 import { viewTargetName } from "../lib/target";
 import { Sparkline } from "./Sparkline";
 import { TimeChart, type ChartSeries } from "./TimeChart";
@@ -119,6 +119,7 @@ export function Summary({
       points.some((point) => point.s.kernel),
   );
   const facts = loadFacts(threads, series, mode.kind !== "recorded");
+  const host = hostMemory(view?.resources);
   const memoryChart = (
     id: string,
     key: "rss" | "vm",
@@ -337,6 +338,15 @@ export function Summary({
               "This collector does not report memory-map samples.",
               "Waiting for memory samples…",
             )}
+            <div className="mini-cap">
+              <Help topic="hostmem" className="help-label">
+                Host memory available
+              </Help>
+              <b id="overview-host-mem">{pct(host?.available_pct)}</b>
+            </div>
+            <p id="overview-host-mem-detail" className="muted">
+              {host?.detail ?? "No host memory reading yet."}
+            </p>
           </div>
         </div>
       </div>
