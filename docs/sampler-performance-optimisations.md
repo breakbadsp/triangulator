@@ -46,9 +46,9 @@ and no missing sequences in the checked measurement windows. They do not
 establish behavior for fully busy threads, thread churn, or packet loss on a
 remote network.
 
-## Default CPU budget
+## Historical 1% CPU budget
 
-With the same 16-by-50 workload, `rate_hz = 5` and the default
+With the same 16-by-50 workload, `rate_hz = 5` and the then-default
 `cpu_budget_pct = 1`, the sampler used 0.957% of one core over a 20-second
 window after a 25-second warm-up. Its reported interval was 873 ms, and the
 observed rate was 1.145 Hz per target.
@@ -59,6 +59,39 @@ budget raised, the median observed interval was 3.2 seconds. In the settled
 sampler permits one heavy scan per tick, so 16 resource scans requested every
 2 seconds exceed the available capacity at 5 Hz; memory-map scans also share
 that capacity.
+
+## 1 Hz with a 5% CPU budget
+
+Measured on 2026-11-03 at revision `69c58c9c` on the same host, with 16
+processes and 50 threads each. One thread per process was busy; the others
+slept. The targets shared one CPU. The sampler and receiver used separate
+CPUs. Each trial had a 5-second warm-up and a 30-second measurement window.
+The configuration used `rate_hz = 1`, `cpu_budget_pct = 5`, resource and
+memory-map intervals of 2 and 30 seconds, and `status_fallback = false`.
+
+| Measurement | Trial 1 | Trial 2 |
+| --- | ---: | ---: |
+| Sampler CPU, one core | 0.889% | 0.868% |
+| User CPU, one core | 0.233% | 0.233% |
+| System CPU, one core | 0.633% | 0.600% |
+| Mean frequency per target | 1.000000 Hz | 1.000012 Hz |
+| Complete samples per target | 30 | 30 |
+
+The packet checks verified exact thread IDs, complete chunks, and continuous
+sequences. The sampler stayed at 1 Hz; the 5% budget did not visibly throttle
+it. Total CPU came from `/proc/PID/schedstat`. User and system CPU came from
+`/proc/PID/stat` ticks, so their lower resolution accounts for the difference
+from total CPU. The host was not isolated.
+
+The user-space `perf` profile recorded 258 samples per trial, with no reported
+lost samples. `ParseStat` accounted for 45.49% and 39.83% of sampled user-mode
+cycles; memory clearing accounted for 8.18% and 11.77%. These are not shares
+of total sampler CPU, and kernel functions were not profiled. Compiler inlining
+prevents a direct comparison with individual symbols in the earlier profile.
+
+At 1 Hz, at most one heavy scan can run per second. The configured 2-second
+resource interval requests eight scans per second across 16 targets, before
+memory-map scans. The requested intervals therefore cannot all be met.
 
 ## Profile and improvement candidates
 
