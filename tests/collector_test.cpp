@@ -2437,6 +2437,9 @@ void TestMemoryCgroupAndInterfaceRates()
             kResourceColumns.begin()]);
   };
   Require(integer("rss_bytes") == 850'000 &&
+              integer("vm_size_bytes") == 7'000'000 &&
+              integer("host_mem_available_bytes") == 4'000'000 &&
+              integer("host_mem_total_bytes") == 16'000'000 &&
               integer("cgroup_memory_max") == 1'000'000 &&
               integer("cgroup_memory_oom_kill_delta") == 2 &&
               integer("if_errors_delta") == 1 &&
@@ -2499,6 +2502,8 @@ void TestExistingDayFileGainsNewResourceColumns()
   ResourceMonitor monitor{sink};
   auto values = resource_wire::EmptySummary();
   values[resource_wire::Field("rss_bytes")] = 123'456;
+  values[resource_wire::Field("vm_size_bytes")] = 7'000'000;
+  values[resource_wire::Field("host_mem_available_bytes")] = 4'000'000;
   monitor.Accept(Summary(ResourceHeader(1), values), 1'700'000'005);
   for (int attempt = 0; attempt < 2; ++attempt)
   {
@@ -2516,6 +2521,14 @@ void TestExistingDayFileGainsNewResourceColumns()
               Field(after.rows_[0], "rss_bytes").IsNull() &&
               Field(after.rows_[1], "rss_bytes").AsInt() == 123'456,
           "the schema update preserves old data and stores new measurements");
+  Require(Field(after.rows_[0], "vm_size_bytes").IsNull() &&
+              Field(after.rows_[0], "host_mem_available_bytes").IsNull() &&
+              Field(after.rows_[1], "vm_size_bytes").AsInt() == 7'000'000 &&
+              Field(after.rows_[1], "host_mem_available_bytes").AsInt() ==
+                  4'000'000,
+          "the added memory-trend columns are NULL in old rows, then stored");
+  Require(Field(after.rows_[1], "host_mem_total_bytes").IsNull(),
+          "a memory reading that was not sent is NULL, not 0");
 }
 
 // Rows reach SQLite, older day files gain the table, and history buckets
@@ -2545,6 +2558,11 @@ void TestResourceStorageAndHistory()
   {
     auto values = GrowingValues(sequence);
     values[resource_wire::Field("fd_open")] = 900 + sequence;
+    values[resource_wire::Field("vm_size_bytes")] = 1'000 + sequence * 10;
+    values[resource_wire::Field("host_mem_available_bytes")] =
+        8'000 - sequence * 100;
+    values[resource_wire::Field("host_mem_total_bytes")] =
+        16'000 + (sequence == 5 ? 500 : 0);
     monitor.Accept(Summary(ResourceHeader(sequence), values),
                    1'700'000'000 + sequence * 5.0);
   }
@@ -2565,6 +2583,11 @@ void TestResourceStorageAndHistory()
   const auto& second = history.rows_[1];
   Require(Field(second, "samples").AsInt() == 4, "four samples per bucket");
   Require(Field(second, "fd_open").AsInt() == 907, "a bucket keeps the peak");
+  Require(Field(second, "vm_size_bytes").AsInt() == 1'070 &&
+              Field(second, "host_mem_available_bytes").AsInt() == 7'300 &&
+              Field(second, "host_mem_total_bytes").AsInt() == 16'500,
+          "a bucket keeps the largest VmSize and host total, and the lowest "
+          "available memory");
   Require(Field(second, "listen_overflows_delta").AsInt() == 12,
           "a bucket adds up counter growth");
   RequireNear(Field(second, "elapsed_s").AsNumber(), 20,
