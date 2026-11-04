@@ -78,11 +78,12 @@ export function memoryRegions(layout: MemoryLayout | null, comm?: string) {
   return regions;
 }
 
-function memorySlope(
-  points: readonly (ResourcePoint & { rss_bytes: number })[],
+/** Least-squares RSS slope in bytes per minute, or null for under two points. */
+export function memorySlope(
+  points: readonly { t: number; rss_bytes: number | null }[],
 ) {
   const values = points.filter(
-    (point): point is ResourcePoint & { rss_bytes: number } =>
+    (point): point is { t: number; rss_bytes: number } =>
       isNum(point.rss_bytes),
   );
   if (values.length < 2) return null;

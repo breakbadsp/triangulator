@@ -248,7 +248,7 @@ const topics = {
     title: "Memory (RSS)",
     source: "`/proc/PID/status`: VmRSS, VmHWM, VmSwap",
     sourceDetail:
-      'With each resource sample (every 2 s by default), the sampler reads the VmRSS (resident), VmHWM (peak), and VmSwap lines of `/proc/PID/status`. Check it yourself: `grep -E "VmRSS|VmHWM|VmSwap" /proc/PID/status`.',
+      'With each resource sample (every 2 s by default), the sampler reads the VmRSS (resident), VmHWM (peak), and VmSwap lines of `/proc/PID/status`. The chart draws the stored samples of the chosen range, combined into about 1,000 time buckets at most, with dashed lines at process restarts. Check it yourself: `grep -E "VmRSS|VmHWM|VmSwap" /proc/PID/status`.',
   },
   vmsize: {
     title: "Virtual size (VmSize)",

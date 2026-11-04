@@ -919,3 +919,10 @@
 - Driver: judged
 - Test: Monitor several processes. End one and wait for its exit report, then its retained view. Reload Targets. Expand Inactive targets with the keyboard. Open its final dashboard and return. Search for its name, clear the search, and remove the retained tile. Repeat with all targets inactive, a silent sampler, a configured name waiting for a process, and a new matching process. Reorder tiles within each group with drag and Alt with an arrow key.
 - Expected: Inactive targets is collapsed on entry and shows its count. Ended processes and retained views appear in this section. Search reveals matching inactive tiles. Clear filters collapses the section. Final dashboards and retained removal still work. Health totals cover the main list. Silent samplers and configured names waiting for a process stay in the main list. A new live process returns to the main list. Order persists within each group. Reordering cannot move a tile between groups. An empty inactive section has no control.
+
+## QA-149: RSS history and memory assessment in the Memory use card
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run a target that grows RSS about 50 MiB each hour (for example `mem-leak`) for at least one hour. Open the dashboard in a new tab. In the Memory use card, select 15 min, 1 h, 6 h, and 24 h. Compare the range with the Resources section range. Then restart the target and look at the chart and the sentence. Resize the window below 1050 px.
+- Expected: The RSS chart shows stored history at once in a new tab, not only the seconds since the tab opened. Both range controls change together. With under 5 minutes of data or 6 samples, the sentence says there is not enough data. With growth, it says "Growing steadily", the rate per hour, and "Grew X in Y". A restart draws a dashed line, and the sentence judges only the data since the restart. The card is full width, and the sentence goes below the chart on narrow windows.

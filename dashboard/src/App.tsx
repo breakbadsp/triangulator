@@ -195,6 +195,8 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
             onWindow={setWindowSecs}
             onFindingAction={findingAction}
             resourcePoints={resourcePoints}
+            resourceRange={resourceRange}
+            onResourceRange={setResourceRange}
             pressureScope={pressureScope}
             memoryLayout={memory.layout}
             memoryHistory={memory.history}
