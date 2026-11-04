@@ -288,17 +288,16 @@ export function useObservation(
   }, [target, final]);
   useEffect(() => {
     if (
-      !next.recorded &&
       !next.final &&
       next.live?.series.points.length &&
       next.live.series.points.length % 5 === 0
     )
       save(target, next.live);
-  }, [target, next.live, next.recorded, next.final]);
+  }, [target, next.live, next.final]);
   useEffect(() => {
     const hide = () => {
       const held = current.current;
-      if (!held.recorded) save(target, held.final ?? held.live);
+      save(target, held.final ?? held.live);
     };
     addEventListener("pagehide", hide);
     return () => {
