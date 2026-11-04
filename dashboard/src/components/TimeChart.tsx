@@ -16,6 +16,7 @@ export interface ChartSeries<P> {
   get: (point: P) => number | null | undefined;
   format?: (value: unknown) => string;
 }
+const NO_MARKERS: readonly number[] = [];
 const PAD = { l: 52, r: 14, t: 10, b: 22 };
 
 /**
@@ -32,6 +33,8 @@ interface TimeChartProps<P extends { t: number }> {
   connectNulls?: boolean;
   stacked?: boolean;
   overlay?: ChartSeries<P> | null;
+  /** Times drawn as dashed vertical lines, such as process restarts. */
+  markers?: readonly number[];
   format?: (value: unknown) => string;
   height?: number;
   minMax?: number;
@@ -48,6 +51,7 @@ export function TimeChart<P extends { t: number }>({
   connectNulls = false,
   stacked = false,
   overlay = null,
+  markers = NO_MARKERS,
   format = num,
   height = 160,
   minMax = 0,
@@ -88,6 +92,7 @@ export function TimeChart<P extends { t: number }>({
             connectNulls,
             stacked,
             overlay,
+            markers,
             format,
             width,
             height,
@@ -102,6 +107,7 @@ export function TimeChart<P extends { t: number }>({
       connectNulls,
       stacked,
       overlay,
+      markers,
       format,
       width,
       height,
@@ -262,6 +268,7 @@ function buildScene<P extends { t: number }>({
   connectNulls,
   stacked,
   overlay,
+  markers,
   format,
   width,
   height,
@@ -275,6 +282,7 @@ function buildScene<P extends { t: number }>({
   connectNulls: boolean;
   stacked: boolean;
   overlay: ChartSeries<P> | null;
+  markers: readonly number[];
   format: (value: unknown) => string;
   width: number;
   height: number;
@@ -353,6 +361,21 @@ function buildScene<P extends { t: number }>({
         {clock(t)}
       </text>,
     );
+  for (const t of markers)
+    if (t >= t0 && t <= t1)
+      marks.push(
+        <line
+          key={`marker${String(t)}`}
+          className="chart-marker"
+          x1={x(t)}
+          x2={x(t)}
+          y1={PAD.t}
+          y2={PAD.t + plotH}
+          stroke="var(--muted)"
+          strokeWidth={1}
+          strokeDasharray="4 3"
+        />,
+      );
   const unknown = (point: P) =>
     stacked && series.every((item) => !isNum(item.get(point)));
   const runs = segments(points, unknown);
