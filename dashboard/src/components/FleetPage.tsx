@@ -105,7 +105,7 @@ function TileRemove({
   if (!discovered) return null;
   const blocked =
     discovered.otherRule || !discovered.rule
-      ? "Another rule selects this process (a process pattern, another name after a rename, or the rule that selects its parent), so Remove would not stop it. Edit sampler.toml on the host."
+      ? "Another rule selects this process (a process pattern, or another name after a rename), so Remove would not stop it. Edit sampler.toml on the host."
       : "";
   return (
     <div key={tile.key + "remove"} className="ft-foot">
