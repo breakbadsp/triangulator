@@ -144,7 +144,6 @@ export function receiveLive(
     next = { ...next, settleSince: since };
     if (now - since < 10) return next;
   } else next.settleSince = null;
-  if (next.recorded) return next;
   return { ...next, live: observe(state.target, view, now, kept, restored) };
 }
 /** The cached memory layout when it is of the recorded process, else null. */

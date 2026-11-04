@@ -370,8 +370,8 @@
 ## QA-038: Timeline and past assessments show a recorded finding
 
 - Driver: judged
-- Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. Select its past-assessment row, inspect its mark, and filter by severity and type.
-- Expected: Recorded assessment, thread, timestamp, and row agree. Stepping selects real recordings. Filters affect rows and marks consistently; Live resumes current data.
+- Test: Record a CPU-spin finding, then recover. Check direct Previous, Next, Timeline preview, keyboard selection, and Live. Select its past-assessment row, inspect its mark, and filter by severity and type. With a live target still sampling, select Analyse, wait at least 30 seconds, then return to Live. Repeat, but return through the Targets overview to the same target.
+- Expected: Recorded assessment, thread, timestamp, and row agree. Stepping selects real recordings. Filters affect rows and marks consistently. The recorded view stays fixed during Analyse. Live resumes current data, and its Summary and thread CPU graphs retain samples from the analysis interval without a navigation gap.
 
 ## QA-141: Compact Timeline below Summary
 

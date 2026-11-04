@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse } from "../api/types";
@@ -80,6 +80,48 @@ test("a reload restores points and thread observations of the same session", () 
   // Another target's tab entries are not read.
   const other = renderHook(() => useSeries("h/other", third));
   expect(other.result.current?.points).toHaveLength(1);
+});
+
+test("leaving recorded analysis saves live history for the return to the dashboard", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) =>
+      Promise.resolve(
+        Response.json(
+          typeof input === "string" && input.startsWith("/api/replay")
+            ? {
+                first: 100,
+                last: 100,
+                interval_s: 1,
+                snapshot: { ...live(100), recorded_at: 100 },
+              }
+            : { rows: [] },
+        ),
+      ),
+    ),
+  );
+  const { result, rerender, unmount } = renderHook(
+    ({ view }: { view: LiveResponse }) =>
+      useObservation("h/w", { view, now: view.health.last_seen ?? 0 }, 900),
+    { initialProps: { view: live(1000) } },
+  );
+  await act(async () => {
+    expect(await result.current.inspect(100)).toBe(true);
+  });
+  for (let t = 1001; t <= 1029; t++) rerender({ view: live(t) });
+  expect(entry("triangulator:buffer")?.points).toHaveLength(30);
+  rerender({ view: live(1030) });
+  expect(result.current.observation?.now).toBe(100);
+  dispatchEvent(new Event("pagehide"));
+  expect(entry("triangulator:buffer")?.points?.map((point) => point.t)).toEqual(
+    Array.from({ length: 31 }, (_, index) => 1000 + index),
+  );
+  unmount();
+  const latest = live(1031);
+  const returned = renderHook(() => useSeries("h/w", latest));
+  expect(returned.result.current?.points.map((point) => point.t)).toEqual(
+    Array.from({ length: 32 }, (_, index) => 1000 + index),
+  );
 });
 
 // StrictMode runs a state initializer twice. The departure intent is consumed

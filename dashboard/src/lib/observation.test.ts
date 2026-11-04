@@ -11,6 +11,7 @@ import {
   observationReducer,
 } from "./observation";
 import { emptySeries } from "./series";
+import { segments } from "./chart";
 export function frame(
   at: number,
   session = "old",
@@ -40,22 +41,33 @@ export function frame(
   };
 }
 describe("displayed observations", () => {
-  it("keeps live CPU analysis isolated during replay and resumes it", () => {
+  it("keeps recorded analysis isolated while retaining every live graph point", () => {
     let state = receiveLive(
       initialObservations("host/app"),
       frame(2000, "live"),
       2000,
     );
-    state = receiveLive(state, frame(2001, "live"), 2001);
-    const kept = state.live;
+    for (let at = 2001; at <= 2010; at++)
+      state = receiveLive(state, frame(at, "live"), at);
     state = selectRecording(state, frame(1000), []);
-    state = receiveLive(state, frame(2002, "live"), 2002);
+    const recorded = displayed(state);
+    for (let at = 2011; at <= 2040; at++)
+      state = receiveLive(state, frame(at, "live"), at);
     expect(displayed(state)?.now).toBe(1000);
-    expect(state.live).toBe(kept);
+    expect(displayed(state)).toBe(recorded);
     expect(displayed(state)?.series.points).toHaveLength(1);
     expect(displayed(state)?.memory.history).toEqual([]);
     state = returnToLive(state);
-    expect(state.live?.series.cpu.get(9)).toHaveLength(3);
+    const expectedTimes = Array.from(
+      { length: 41 },
+      (_, index) => 2000 + index,
+    );
+    const points = displayed(state)?.series.points ?? [];
+    expect(points.map((point) => point.t)).toEqual(expectedTimes);
+    expect(state.live?.series.cpu.get(9)?.map((point) => point.t)).toEqual(
+      expectedTimes,
+    );
+    expect(segments(points, (point) => point.cpu === null)).toHaveLength(1);
     expect(displayed(state)?.view.health.session).toBe("live");
   });
   it("discards old analysis when returning to a new populated session", () => {
