@@ -80,13 +80,12 @@ struct DiscoverySlot
   return selection;
 }
 
-// A slot that critical_names protects. A process that only a pattern selects
-// is not critical: critical_names lists exact names.
+// A slot that critical_names protects. The config check requires each critical
+// name to be in process_names, so a slot with such a name is always selected.
 [[nodiscard]] inline bool IsCritical(const Config& p_config,
                                      const DiscoverySlot& p_slot) noexcept
 {
-  return (p_slot.selection_ & target_wire::kNameSelected) != 0 &&
-         std::ranges::contains(p_config.critical_names_, Text(p_slot.name_));
+  return std::ranges::contains(p_config.critical_names_, Text(p_slot.name_));
 }
 
 // The ID text for a process name: bytes that an ID cannot hold become '_'.

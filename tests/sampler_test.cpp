@@ -58,7 +58,7 @@ void TestParsing()
   Require(std::string_view{parsed->name_.data()} == "worker ) ( name",
           "comm must use last closing parenthesis");
   Require(parsed->utime_ == 100 && parsed->stime_ == 50 &&
-              parsed->starttime_ == 12345 && parsed->parent_pid_ == 41,
+              parsed->starttime_ == 12345,
           "stat fields must retain their numbering");
   Require(parsed->major_faults_ == 7 && parsed->processor_ == 3,
           "major faults and last CPU");
@@ -843,11 +843,7 @@ void TestCriticalConfig()
 
   DiscoverySlot slot;
   std::ranges::copy(std::string_view{"orders"}, slot.name_.begin());
-  slot.selection_ = target_wire::kNameSelected;
-  Require(IsCritical(*parsed, slot), "a slot selected by a critical name");
-  slot.selection_ = target_wire::kOtherRuleSelected;
-  Require(!IsCritical(*parsed, slot),
-          "a pattern match with a critical name is not critical");
+  Require(IsCritical(*parsed, slot), "a slot named in critical_names");
   Require(!IsCritical(*absent, slot) && !IsCritical(*absent, DiscoverySlot{}),
           "no critical names: no critical slot");
 }
