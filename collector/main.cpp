@@ -4,6 +4,7 @@
 // belong in a separate program that reads the rollups or the HTTP API.
 
 #include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/socket.h>
 
@@ -487,6 +488,7 @@ int Run(const std::filesystem::path& p_config_path, bool p_check_config)
 
 int main(int p_argc, char** p_argv)
 {
+  pthread_setname_np(pthread_self(), "collector-main");
   std::optional<std::filesystem::path> config_path;
   bool check_config = false;
   for (int index = 1; index < p_argc; ++index)

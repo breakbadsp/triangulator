@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pthread.h>
+
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -228,6 +230,7 @@ class SnapshotRecorder
       worker_ = std::jthread(
           [this](std::stop_token p_stop)
           {
+            pthread_setname_np(pthread_self(), "replay-writer");
             Work(p_stop);
           });
     }
