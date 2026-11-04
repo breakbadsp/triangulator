@@ -12675,6 +12675,9 @@ inline void ThreadPool::cleanup_finished_threads() {
 }
 
 inline void ThreadPool::worker(bool is_dynamic) {
+#ifdef CPPHTTPLIB_WORKER_START
+  CPPHTTPLIB_WORKER_START();
+#endif
   for (;;) {
     std::function<void()> fn;
     {

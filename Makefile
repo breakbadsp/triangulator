@@ -67,10 +67,10 @@ CLANG_FORMAT ?= clang-format
 SAMPLER_HEADERS := $(wildcard sampler/*.hpp)
 COMMON_HEADERS := $(wildcard common/*.hpp)
 COLLECTOR_HEADERS := $(wildcard collector/*.hpp)
-# cpp-httplib v0.64.0 (MIT), unmodified: https://github.com/yhirose/cpp-httplib/tree/v0.64.0
-# httplib.h SHA-256 805169049e6a6e9ba7729d7e01d14ced825029c88a277586602a6b38df4d5357.
-# To upgrade, replace httplib.h and LICENSE and update the version check in
-# collector/http_server.hpp. -isystem keeps the project warnings off its code.
+# cpp-httplib v0.64.0 (MIT), with a worker-start hook: https://github.com/yhirose/cpp-httplib/tree/v0.64.0
+# httplib.h SHA-256 212c72d186225bb6593a0939a9dda0798b91af3fcdacd829e4086ff099bd5c3e.
+# To upgrade, replace httplib.h and LICENSE, restore CPPHTTPLIB_WORKER_START
+# in ThreadPool::worker, and update the version check in collector/http_server.hpp. -isystem keeps the project warnings off its code.
 HTTPLIB_HEADER := third_party/cpp-httplib/httplib.h
 HTTPLIB_FLAGS := -isystem third_party/cpp-httplib
 COLLECTOR_LIBS ?= -lsqlite3

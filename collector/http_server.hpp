@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pthread.h>
 #include <sys/socket.h>
 
 #include <algorithm>
@@ -31,6 +32,8 @@
 // The library caps form-urlencoded bodies separately. The collector treats
 // every body as raw bytes, so this equals kMaxRequestBodyBytes below.
 #define CPPHTTPLIB_FORM_URL_ENCODED_PAYLOAD_MAX_LENGTH 16384
+#define CPPHTTPLIB_WORKER_START() \
+  pthread_setname_np(pthread_self(), "http-worker")
 #include <httplib.h>
 
 #include "log.hpp"
@@ -366,6 +369,7 @@ class HttpServer final : public httplib::Server
       thread_ = std::jthread(
           [this]
           {
+            pthread_setname_np(pthread_self(), "http-accept");
             listen_after_bind();
           });
     }
