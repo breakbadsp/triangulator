@@ -430,6 +430,10 @@ test("discovery distinguishes waiting and capacity and blocks pattern and remote
   await tick();
   expect(screen.getByText(/^Another rule selects this process/)).toBeTruthy();
   expect(confirm).not.toHaveBeenCalled();
+  await act(() => vi.advanceTimersByTimeAsync(5000));
+  expect(screen.queryByText(/^Another rule selects this process/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Remove target worker" }));
+  expect(screen.getByText(/^Another rule selects this process/)).toBeTruthy();
   expect(
     screen.queryByRole("button", { name: "Remove target remote" }),
   ).toBeNull();
