@@ -95,7 +95,6 @@ struct ThreadStat
 {
   std::array<char, 16> name_{};
   char state_{};
-  int parent_pid_{};
   std::uint64_t major_faults_{};
   std::uint64_t utime_{};
   std::uint64_t stime_{};
@@ -140,15 +139,6 @@ struct ThreadStat
         return std::nullopt;
       }
       result.state_ = token.front();
-    }
-    if (field == 4)
-    {
-      const auto value = ParseNumber<int>(token);
-      if (!value) [[unlikely]]
-      {
-        return std::nullopt;
-      }
-      result.parent_pid_ = *value;
     }
     if (field == 12 || field == 14 || field == 15 || field == 22)
     {
@@ -328,10 +318,9 @@ static_assert(
           "42 (a b) S 41 0 0 0 0 0 0 0 7 0 100 50 0 0 0 0 0 0 12345 0 0 0 0 0 "
           "0 0 0 0 0 0 0 0 0 0 0 3");
       return stat && std::string_view{stat->name_.data()} == "a b" &&
-             stat->state_ == 'S' && stat->parent_pid_ == 41 &&
-             stat->major_faults_ == 7 && stat->utime_ == 100 &&
-             stat->stime_ == 50 && stat->starttime_ == 12345 &&
-             stat->processor_ == 3;
+             stat->state_ == 'S' && stat->major_faults_ == 7 &&
+             stat->utime_ == 100 && stat->stime_ == 50 &&
+             stat->starttime_ == 12345 && stat->processor_ == 3;
     }());
 static_assert(!ParseStat("42 (a) S 41"));
 static_assert(std::string_view{ParseWchan(" do_wait.isra.0\n").data()} ==

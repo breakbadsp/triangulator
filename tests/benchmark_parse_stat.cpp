@@ -44,10 +44,9 @@ constexpr int kFieldCount = kLastField - kFirstField + 1;
 {
   const auto result = ParseStat(p_text);
   return result && std::string_view{result->name_.data()} == p_expected_name &&
-         result->state_ == 'S' && result->parent_pid_ == 41 &&
-         result->major_faults_ == 7 && result->utime_ == 100 &&
-         result->stime_ == 50 && result->starttime_ == 12345 &&
-         result->processor_ == 3;
+         result->state_ == 'S' && result->major_faults_ == 7 &&
+         result->utime_ == 100 && result->stime_ == 50 &&
+         result->starttime_ == 12345 && result->processor_ == 3;
 }
 
 // Check the full returned record and rejection of malformed external input.
@@ -62,8 +61,6 @@ constexpr int kFieldCount = kLastField - kFirstField + 1;
   {
     return false;
   }
-  auto invalid_parent = spaced;
-  invalid_parent.replace(invalid_parent.find("S 41 "), 5, "S 2147483648 ");
   auto invalid_counter = spaced;
   invalid_counter.replace(invalid_counter.find(" 7 "), 3,
                           " 18446744073709551616 ");
@@ -72,8 +69,8 @@ constexpr int kFieldCount = kLastField - kFirstField + 1;
   auto invalid_state = spaced;
   invalid_state.replace(invalid_state.find(" S "), 3, " SS ");
   if (ParseStat("42 (worker) S 41") || ParseStat("42 worker) S 41") ||
-      ParseStat(invalid_parent) || ParseStat(invalid_counter) ||
-      ParseStat(invalid_processor) || ParseStat(invalid_state))
+      ParseStat(invalid_counter) || ParseStat(invalid_processor) ||
+      ParseStat(invalid_state))
   {
     return false;
   }
@@ -121,7 +118,6 @@ constexpr int kFieldCount = kLastField - kFirstField + 1;
         add(static_cast<unsigned char>(byte));
       }
       add(static_cast<unsigned char>(value->state_));
-      add(static_cast<std::uint64_t>(value->parent_pid_));
       add(value->major_faults_);
       add(value->utime_);
       add(value->stime_);
@@ -150,7 +146,7 @@ int main(int p_argc, char** p_argv)
   if (argument == "check")
   {
     // Check the original parser's results for the repeatable input corpus.
-    constexpr std::uint64_t kExpectedFingerprint = 7676192637446121832ULL;
+    constexpr std::uint64_t kExpectedFingerprint = 3392842911711527279ULL;
     if (triangulator::CorpusFingerprint() != kExpectedFingerprint)
     {
       std::fputs("stat parser corpus differs from baseline\n", stderr);
