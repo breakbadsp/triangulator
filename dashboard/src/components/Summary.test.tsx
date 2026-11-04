@@ -11,6 +11,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, MemorySummary, Resources } from "../api/types";
 import { helpTopics } from "../help/topics";
 import { assess } from "../lib/assess";
+import { asResourcePoints, type ResourcePoint } from "../lib/assess/memory";
 import type { Finding } from "../lib/findings";
 import { emptySeries, type Point, type Series } from "../lib/series";
 import { watchedThread } from "../lib/test-fixtures";
@@ -59,7 +60,20 @@ const series = (points: Point[]): Series => ({
   points,
   lastTick: points.at(-1)?.t ?? 0,
 });
-function show(live: LiveResponse | undefined, data: Series = emptySeries) {
+const stored = (count: number, step: number, rss = 2 ** 20): ResourcePoint[] =>
+  asResourcePoints(
+    Array.from({ length: count }, (_, i) => ({
+      ts: i * step,
+      pid: 7,
+      elapsed_s: step,
+      rss_bytes: rss * (i + 1),
+    })),
+  );
+function show(
+  live: LiveResponse | undefined,
+  data: Series = emptySeries,
+  resourcePoints: readonly ResourcePoint[] = [],
+) {
   return render(
     <Summary
       view={live}
@@ -67,7 +81,7 @@ function show(live: LiveResponse | undefined, data: Series = emptySeries) {
       now={10}
       windowSecs={300}
       onWindow={() => undefined}
-      resourcePoints={[]}
+      resourcePoints={resourcePoints}
       pressureScope="cgroup"
     />,
   );
@@ -138,7 +152,8 @@ test("summary memory charts explain sampling that is off or missing", () => {
   ).toEqual(["Waiting for resource samples…", "Waiting for memory samples…"]);
   const { container } = show(
     view({ resources: { available: true } }),
-    series([point(1), point(2, { rss: 2 ** 20 }), point(3)]),
+    series([point(1), point(2), point(3)]),
+    stored(3, 1),
   );
   expect(empty(container, "chart-rss")).toBeNull();
   expect(container.querySelector("#chart-rss svg")).not.toBeNull();
@@ -150,21 +165,35 @@ test("a memory chart reads a missing sample as not available, not 0 B", () => {
   try {
     const { container } = show(
       view({ resources: { available: true } }),
-      series([point(1), point(2, { rss: 2 ** 20 }), point(3)]),
+      series([point(1), point(2, { vm: 2 ** 20 }), point(3)]),
     );
     // jsdom has no layout: the plot spans x=52 (t=1) to x=586 (t=3).
-    const hit = container.querySelector("#chart-rss rect") as SVGRectElement;
+    const hit = container.querySelector("#chart-vm rect") as SVGRectElement;
     fireEvent.pointerMove(hit, { clientX: 586, clientY: 40 });
     act(() => {
       vi.advanceTimersByTime(HELP_DELAY);
     });
     const card = screen.getByRole("dialog");
     expect(card.querySelector(".help-reading")?.textContent).toBe(
-      "Not availableResident (RSS)",
+      "Not availableVirtual size (VmSize)",
     );
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("a fresh tab draws the RSS chart from stored points and judges them", () => {
+  // 6 h of stored points, one each minute, growing 1 MiB each. No live points.
+  const { container } = show(
+    view({ resources: { available: true } }),
+    emptySeries,
+    stored(361, 60, 2 ** 20),
+  );
+  const line = container.querySelector("#chart-rss polyline");
+  expect(line?.getAttribute("points")?.split(" ")).toHaveLength(361);
+  expect(container.querySelector("#rss-assessment")?.textContent).toContain(
+    "Growing steadily",
+  );
 });
 
 test("the assessment lists 8 findings and shows the rest on request", () => {

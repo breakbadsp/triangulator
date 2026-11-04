@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import type {
   LiveResponse,
   MemoryLayout,
@@ -10,6 +10,7 @@ import type { ViewMode } from "../lib/assess";
 import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
+import { classifyMemory, restartTimes } from "../lib/memoryTrend";
 import { axisBytes, niceBytes } from "../lib/chart";
 import { clock, isNum, memoryBytes, pct } from "../lib/format";
 import {
@@ -21,6 +22,7 @@ import {
 import { windowPoints, type Point, type Series } from "../lib/series";
 import { hostMemory, loadFacts, profile, summaryTiles } from "../lib/summary";
 import { viewTargetName } from "../lib/target";
+import { RESOURCE_RANGES, type ResourceRange } from "./Resources";
 import { Sparkline } from "./Sparkline";
 import { TimeChart, type ChartSeries } from "./TimeChart";
 import "./summary.css";
@@ -67,6 +69,8 @@ export function Summary({
   onWindow,
   onFindingAction,
   resourcePoints,
+  resourceRange = 900,
+  onResourceRange = () => undefined,
   pressureScope,
   memoryLayout = null,
   memoryHistory = [],
@@ -79,6 +83,9 @@ export function Summary({
   now: number;
   /** Stored resource samples of the Resources range, as the old page used. */
   resourcePoints: readonly ResourcePoint[];
+  /** The history range shared with the Resources section. */
+  resourceRange?: ResourceRange;
+  onResourceRange?: (seconds: ResourceRange) => void;
   pressureScope: PressureScope;
   /** The held memory-map layout and live memory history (Memory map). */
   memoryLayout?: MemoryLayout | null;
@@ -120,6 +127,14 @@ export function Summary({
   );
   const facts = loadFacts(threads, series, mode.kind !== "recorded");
   const host = hostMemory(view?.resources);
+  // The RSS chart draws the stored points of the shared range, so a new tab
+  // shows history at once. The live buffer keeps only 15 minutes.
+  const stored = useMemo(
+    () => resourcePoints.filter((point) => isNum(point.rss_bytes)),
+    [resourcePoints],
+  );
+  const trend = useMemo(() => classifyMemory(resourcePoints), [resourcePoints]);
+  const restarts = useMemo(() => restartTimes(stored), [stored]);
   const memoryChart = (
     id: string,
     key: "rss" | "vm",
@@ -315,18 +330,65 @@ export function Summary({
           <div>
             <div className="mini-cap">
               <span className="help-label">Resident memory (RSS)</span>
-              <b id="overview-rss">{memoryBytes(last?.rss)}</b>
+              <b id="overview-rss">
+                {memoryBytes(last?.rss ?? stored.at(-1)?.rss_bytes)}
+              </b>
             </div>
-            {memoryChart(
-              "chart-rss",
-              "rss",
-              "rss",
-              "Resident (RSS)",
-              "var(--series-1)",
-              view?.resources,
-              "This collector does not report resource samples.",
-              "Waiting for resource samples…",
-            )}
+            <div className="rss-row">
+              <div className="rss-chart" hidden={mode.kind === "recorded"}>
+                <TimeChart
+                  id="chart-rss"
+                  topic="rss"
+                  points={stored}
+                  series={[
+                    {
+                      label: "Resident (RSS)",
+                      color: "var(--series-1)",
+                      get: (point) => point.rss_bytes,
+                    },
+                  ]}
+                  markers={restarts}
+                  format={axisBytes}
+                  nice={niceBytes}
+                  height={140}
+                  minMax={2 ** 20}
+                  empty={
+                    view?.resources?.available
+                      ? "Waiting for resource samples…"
+                      : view?.resources?.reason ||
+                        "This collector does not report resource samples."
+                  }
+                />
+              </div>
+              <div className="rss-assess" id="rss-assessment">
+                <div
+                  className="seg"
+                  role="group"
+                  aria-label="Memory history range"
+                >
+                  {RESOURCE_RANGES.map(([seconds, label]) => (
+                    <button
+                      key={seconds}
+                      type="button"
+                      aria-pressed={resourceRange === seconds}
+                      onClick={() => {
+                        onResourceRange(seconds);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p data-kind={trend.kind}>{trend.text}</p>
+                {trend.change && <p className="muted">{trend.change}.</p>}
+                {restarts.length > 0 && (
+                  <p className="muted">
+                    Dashed lines mark process restarts; a drop there is not a
+                    leak fix.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="mini-cap">
               <span className="help-label">Virtual size (VmSize)</span>
               <b id="overview-vm">{memoryBytes(last?.vm)}</b>

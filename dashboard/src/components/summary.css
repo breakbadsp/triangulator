@@ -1,10 +1,7 @@
 /* Summary, ported from 777cf3a:collector/dashboard.html. */
 .g-hero {
-  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
-  margin-bottom: 16px;
-}
-.g-hero:has(> #overview-memory[hidden]) {
   grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 16px;
 }
 .tiles {
   display: grid;
@@ -13,7 +10,6 @@
   margin: 16px 0;
 }
 @media (max-width: 1050px) {
-  .g-hero,
   .g-2-1,
   .g-1-1 {
     grid-template-columns: minmax(0, 1fr);
@@ -225,5 +221,25 @@ details[open] > .exit-summary #exit-brief {
   }
   .hero {
     font-size: 40px;
+  }
+}
+.rss-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.rss-assess {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+.rss-assess p {
+  margin: 0;
+}
+@media (max-width: 1050px) {
+  .rss-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

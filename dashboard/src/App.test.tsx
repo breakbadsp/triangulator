@@ -603,8 +603,11 @@ test("resource range changes keep one polling loop, with overlapping requests an
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(calls.map((call) => span(call.url))).toEqual([900]);
     expect(calls[0]?.url).toContain("target=host%2Fworker");
-    fireEvent.click(screen.getByRole("button", { name: "1 h" }));
-    fireEvent.click(screen.getByRole("button", { name: "6 h" }));
+    const range = within(
+      screen.getByRole("group", { name: "Resource history range" }),
+    );
+    fireEvent.click(range.getByRole("button", { name: "1 h" }));
+    fireEvent.click(range.getByRole("button", { name: "6 h" }));
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(calls.map((call) => span(call.url))).toEqual([900, 3600, 21600]);
     // The answers arrive in reverse order; only the 6 h answer is shown.
