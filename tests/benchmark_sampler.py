@@ -2,7 +2,8 @@
 """Measure sampler CPU, RSS, complete-sample latency, and delivered throughput.
 
 Use `make benchmark-sampler-matrix` for 100, 300, and 500 threads at four rates.
-One target thread burns CPU. All other target threads sleep. No root is needed.
+One target thread burns CPU. All other target threads sleep; with --wake they
+wake every 0.1-1.6 s and run for 50 us. No root is needed.
 Latency uses kernel receive timestamps (`SO_TIMESTAMPNS_NEW`), which need
 Linux 5.1 or later (or a vendor backport). Older kernels, such as the 4.18
 kernel in AlmaLinux 8, fail with "kernel receive timestamp is missing".
@@ -292,10 +293,11 @@ def named_link(directory, program):
     return link
 
 
-def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS):
+def trial(binary, rate, duration_s, warmup_s, thread_count=TARGET_THREADS, wake=False):
     with tempfile.TemporaryDirectory() as directory, \
             socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as receiver, \
-            child([str(named_link(directory, TARGET)), str(thread_count)], stdout=subprocess.PIPE,
+            child([str(named_link(directory, TARGET)), str(thread_count)] + (["wake"] if wake else []),
+                  stdout=subprocess.PIPE,
                   text=True) as target:
         if not select.select([target.stdout], [], [], 10)[0]:
             raise RuntimeError("workload did not start within 10 seconds")
@@ -360,6 +362,8 @@ def main():
     parser.add_argument("--threads", type=int, nargs="+", default=[500])
     parser.add_argument("--rates", type=int, nargs="+", choices=RATES, default=list(RATES))
     parser.add_argument("--output", type=Path, default=ROOT / "build/sampler-benchmark.json")
+    parser.add_argument("--wake", action="store_true",
+                        help="sleeping target threads wake every 0.1-1.6 s and run 50 us")
     args = parser.parse_args()
     if (not math.isfinite(args.duration) or args.duration < 2
             or not math.isfinite(args.warmup) or args.warmup < 0 or args.repeats < 1):
@@ -387,7 +391,7 @@ def main():
         "allowed_cpus": sorted(os.sched_getaffinity(0)), "python": platform.python_version(),
         "duration_s": args.duration, "warmup_s": args.warmup, "repeats": args.repeats,
         "thread_counts": args.threads, "rates_hz": args.rates,
-        "busy_threads": 1, "resource_interval_s": 5, "memory_interval_s": MEMORY_INTERVAL_S,
+        "busy_threads": 1, "sleepers_wake": args.wake, "resource_interval_s": 5, "memory_interval_s": MEMORY_INTERVAL_S,
         "status_fallback": False, "runs": [],
         "cpu_method": "100 * delta schedstat runtime_ns / delta monotonic_ns; sum all target threads",
         "memory_method": "smaps_rollup Rss each second and at end; MiB = 1024 KiB; excludes kernel allocations",
@@ -401,7 +405,7 @@ def main():
         offset = repeat * len(args.threads) % len(pairs)
         for count, rate in pairs[offset:] + pairs[:offset]:
             print(f"Run {repeat + 1}/{args.repeats}: {count} threads / {rate} Hz", file=sys.stderr, flush=True)
-            run = trial(binary, rate, args.duration, args.warmup, count)
+            run = trial(binary, rate, args.duration, args.warmup, count, args.wake)
             run["repeat"] = repeat + 1
             report["runs"].append(run)
             print(f"  p50 {run['latency_p50_ms']:.3f} ms; p95 {run['latency_p95_ms']:.3f} ms; "
