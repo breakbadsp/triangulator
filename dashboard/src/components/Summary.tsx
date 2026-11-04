@@ -11,7 +11,7 @@ import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
 import { axisBytes, niceBytes } from "../lib/chart";
-import { clock, isNum, memoryBytes } from "../lib/format";
+import { clock, isNum, memoryBytes, pct } from "../lib/format";
 import {
   LEVEL_ICONS,
   LEVEL_ORDER,
@@ -19,7 +19,7 @@ import {
   type Finding,
 } from "../lib/findings";
 import { windowPoints, type Point, type Series } from "../lib/series";
-import { loadFacts, profile, summaryTiles } from "../lib/summary";
+import { hostMemory, loadFacts, profile, summaryTiles } from "../lib/summary";
 import { viewTargetName } from "../lib/target";
 import { Sparkline } from "./Sparkline";
 import { TimeChart, type ChartSeries } from "./TimeChart";
@@ -119,6 +119,7 @@ export function Summary({
       points.some((point) => point.s.kernel),
   );
   const facts = loadFacts(threads, series, mode.kind !== "recorded");
+  const host = hostMemory(view?.resources);
   const memoryChart = (
     id: string,
     key: "rss" | "vm",
@@ -159,6 +160,7 @@ export function Summary({
               "load",
               "rss",
               "vmsize",
+              "hostmem",
               "switches",
               "faults",
             ]}
@@ -339,6 +341,36 @@ export function Summary({
               "This collector does not report memory-map samples.",
               "Waiting for memory samples…",
             )}
+            <div className="mini-cap">
+              <span className="help-label">Host memory available</span>
+              <b id="overview-host-mem">{pct(host?.available_pct)}</b>
+            </div>
+            <p id="overview-host-mem-detail" className="muted">
+              {host?.detail ?? "No host memory reading yet."}
+            </p>
+            <div hidden={mode.kind === "recorded"}>
+              <TimeChart
+                id="chart-host-memory"
+                topic="hostmem"
+                points={
+                  points.some((point) => isNum(point.hostAvailable))
+                    ? points
+                    : []
+                }
+                series={[
+                  {
+                    label: "Host memory available",
+                    color: "var(--series-3)",
+                    get: (point) => point.hostAvailable,
+                  },
+                ]}
+                format={pct}
+                height={100}
+                minMax={100}
+                from={from}
+                empty="Waiting for host memory samples…"
+              />
+            </div>
           </div>
         </div>
       </div>

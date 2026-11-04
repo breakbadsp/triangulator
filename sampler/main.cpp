@@ -191,11 +191,11 @@ class TargetSampler final
     }
   }
 
-  void ScanResources()
+  void ScanResources(const HostMemoryProbe& p_host)
   {
     if (previous_target_)
     {
-      SendResources(*previous_target_);
+      SendResources(*previous_target_, p_host);
     }
   }
 
@@ -530,11 +530,12 @@ class TargetSampler final
 
   // Sends one resource sample: the summary, then the fullest sockets. It
   // shares the thread ticks' session, so the collector can match the two.
-  void SendResources(const TargetIdentity& p_target)
+  void SendResources(const TargetIdentity& p_target,
+                     const HostMemoryProbe& p_host)
   {
     const auto monotonic = ClockNow(CLOCK_MONOTONIC);
     const auto wall = ClockNow(CLOCK_REALTIME);
-    const auto sample = resources_.Sample(p_target.pid_);
+    const auto sample = resources_.Sample(p_target.pid_, p_host);
     const resource_wire::Header header{
         .parts_ = resource_wire::PartCount(sample.sockets_.size()),
         .session_ = session_,
@@ -768,6 +769,7 @@ class Sampler final
   // One sampler for each discovery slot, made at startup or reload.
   std::vector<std::unique_ptr<TargetSampler>> pool_;
   HeavySchedule heavy_schedule_;
+  HostMemoryProbe host_memory_;
   std::size_t memory_cursor_ = 0;
   // Slots sampled with a process. A slot skipped by its stride keeps the
   // value of its last served tick.
@@ -990,7 +992,7 @@ class Sampler final
     });
     if (resource_target)
     {
-      ScanResources(p_live, *resource_target);
+      ScanResources(p_live, *resource_target, now);
     }
     else
     {
@@ -1000,8 +1002,14 @@ class Sampler final
 
   // Resources of live target number p_number. A target that ended since the
   // cycle started leaves its position empty.
-  void ScanResources(std::span<const bool> p_live, std::size_t p_number)
+  void ScanResources(std::span<const bool> p_live, std::size_t p_number,
+                     Nanoseconds p_now)
   {
+    // One /proc/meminfo read serves every target's samples within half an
+    // interval, so no sample's host values are older than that.
+    host_memory_.Refresh(p_now, Nanoseconds{std::chrono::seconds{
+                                    config_.settings_.resource_interval_s_}} /
+                                    2);
     auto& samplers = pool_;
     std::size_t number = 0;
     for (std::size_t index = 0; index < samplers.size(); ++index)
@@ -1010,7 +1018,7 @@ class Sampler final
       {
         if (number == p_number)
         {
-          samplers[index]->ScanResources();
+          samplers[index]->ScanResources(host_memory_);
           return;
         }
         ++number;

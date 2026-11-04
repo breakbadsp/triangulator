@@ -1554,6 +1554,38 @@ void TestMemoryCgroupAndInterfaceParsing()
               FindKilobytes(status, "VmHWM") == 2048 * 1024 &&
               FindKilobytes(status, "VmSwap") == 0,
           "status memory lines are in bytes");
+  resource_wire::SummaryValues parsed = resource_wire::EmptySummary();
+  ParseProcessMemory(
+      "Name:\tworker\nVmPeak:\t 9000 kB\nVmSize:\t 8000 kB\n"
+      "VmData:\t 3000 kB\nVmStk:\t 132 kB\nVmExe:\t 44 kB\n"
+      "VmRSS:\t 1024 kB\n",
+      parsed);
+  Require(parsed[Field("vm_size_bytes")] == 8000 * 1024 &&
+              parsed[Field("vm_data_bytes")] == 3000 * 1024 &&
+              parsed[Field("vm_stack_bytes")] == 132 * 1024 &&
+              parsed[Field("vm_exe_bytes")] == 44 * 1024 &&
+              parsed[Field("rss_bytes")] == 1024 * 1024 &&
+              parsed[Field("swap_bytes")] == resource_wire::kUnavailable,
+          "status gives the four Vm fields and RSS in one read; a missing "
+          "line stays unavailable");
+  resource_wire::SummaryValues host = resource_wire::EmptySummary();
+  ParseHostMemory(
+      "MemTotal:       16000 kB\nMemFree:         2000 kB\n"
+      "MemAvailable:    9000 kB\nBuffers:          100 kB\n"
+      "Cached:          5000 kB\nSwapCached:       300 kB\n"
+      "SwapTotal:       4000 kB\nSwapFree:        3500 kB\n",
+      host);
+  Require(host[Field("host_mem_total_bytes")] == 16000 * 1024 &&
+              host[Field("host_mem_available_bytes")] == 9000 * 1024 &&
+              host[Field("host_mem_free_bytes")] == 2000 * 1024 &&
+              host[Field("host_mem_cached_bytes")] == 5000 * 1024 &&
+              host[Field("host_swap_total_bytes")] == 4000 * 1024 &&
+              host[Field("host_swap_free_bytes")] == 3500 * 1024,
+          "meminfo values are in bytes; SwapCached is not Cached");
+  ParseHostMemory("MemTotal:\t16000 kB\n", host);
+  Require(
+      host[Field("host_mem_available_bytes")] == resource_wire::kUnavailable,
+      "an old kernel without MemAvailable leaves it unavailable");
   Require(!FindKilobytes("VmRSS:\t12 MB\n", "VmRSS"),
           "a line that is not in kB is unavailable");
   Require(!FindKilobytes("Name:\tx\n", "VmRSS"),
@@ -1696,7 +1728,9 @@ void TestResourceProbe()
   }
 
   ResourceProbe probe;
-  const auto sample = probe.Sample(::getpid());
+  HostMemoryProbe host_memory;
+  host_memory.Refresh(Nanoseconds{0}, Nanoseconds{0});
+  const auto sample = probe.Sample(::getpid(), host_memory);
   const auto& summary = sample.summary_;
   Require(sample.flags_ == resource_wire::Flags::None,
           "nothing hidden from the sampler's own user");
@@ -1745,6 +1779,15 @@ void TestResourceProbe()
               summary[Field("rss_peak_bytes")] >= rss &&
               summary[Field("rss_anon_bytes")] <= rss,
           "process memory: peak is at least the current size");
+  const auto host_total = summary[Field("host_mem_total_bytes")];
+  Require(host_total != resource_wire::kUnavailable && host_total > 0 &&
+              summary[Field("host_mem_available_bytes")] <= host_total &&
+              summary[Field("host_swap_free_bytes")] <=
+                  summary[Field("host_swap_total_bytes")],
+          "host memory: available is at most the total, free swap at most "
+          "the swap total");
+  Require(summary[Field("vm_size_bytes")] >= rss,
+          "the resource sample carries VmSize, at least the resident size");
   Require(summary[Field("net_if_rx_dropped")] == resource_wire::kUnavailable ||
               summary[Field("net_if_rx_dropped")] <
                   std::numeric_limits<std::uint64_t>::max() / 2,

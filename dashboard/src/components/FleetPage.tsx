@@ -14,6 +14,8 @@ import { useTargetControl } from "../hooks/useTargetControl";
 import { TargetDialog } from "./TargetDialog";
 import { getJson } from "../api/client";
 import { readTileOrder, saveTileOrder } from "../api/fleetOrder";
+import { lastTarget } from "../api/viewStorage";
+import { appendToSavedSeries } from "../hooks/useObservation";
 import { parseLive } from "../api/replay";
 import type { FleetResponse, LiveResponse } from "../api/types";
 import { HelpGuideProvider } from "../help/HelpGuide";
@@ -189,7 +191,24 @@ function moveStep(event: KeyboardEvent): -1 | 0 | 1 {
   return 0;
 }
 
+const loadLastTarget = async (signal: AbortSignal) => {
+  const target = lastTarget();
+  if (!target) return null;
+  const view = parseLive(
+    await getJson<unknown>(
+      `/api/live?${new URLSearchParams({ target })}`,
+      signal,
+    ),
+  );
+  appendToSavedSeries(target, view);
+  return view;
+};
+
 export function FleetPage() {
+  // The target page was left a moment ago. Keep its series growing, at its
+  // own 1 Hz rate and also in a hidden tab, so its charts have no gap when the
+  // page returns. Other targets still have a gap.
+  usePoll(loadLastTarget, 1000);
   // The overview is a snapshot, so it may pause in a hidden tab. The target
   // page must not: its charts and findings are built from every 1 Hz reply,
   // and a pause would leave a gap in them.

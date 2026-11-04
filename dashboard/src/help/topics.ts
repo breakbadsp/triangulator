@@ -240,9 +240,9 @@ const topics = {
   },
   "memory-use": {
     title: "Memory use",
-    source: "`/proc/PID/status`: VmRSS, VmSize",
+    source: "`/proc/PID/status`: VmRSS, VmSize; `/proc/meminfo`",
     sourceDetail:
-      'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
+      'The sampler reads the VmRSS line of `/proc/PID/status` with each resource sample (every 2 s by default) and the VmSize line in the same read. Check it yourself: `grep -E "VmRSS|VmSize" /proc/PID/status`.',
   },
   rss: {
     title: "Memory (RSS)",
@@ -254,7 +254,13 @@ const topics = {
     title: "Virtual size (VmSize)",
     source: "`/proc/PID/status`: VmSize, VmPeak",
     sourceDetail:
-      'With each memory sample, the sampler reads VmSize and VmPeak from `/proc/PID/status`. Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
+      'With each resource sample (every 2 s by default), the sampler reads VmSize from `/proc/PID/status`, in the same read as VmRSS. The Memory tab also reads VmPeak with each memory sample (every 30 s by default). Check it yourself: `grep -E "VmSize|VmPeak" /proc/PID/status`.',
+  },
+  hostmem: {
+    title: "Host memory available",
+    source: "`/proc/meminfo`: MemTotal, MemAvailable, SwapTotal, SwapFree",
+    sourceDetail:
+      'The sampler reads `/proc/meminfo` once for all targets, at most every half resource interval (1 s by default), and sends MemTotal, MemAvailable, MemFree, Cached, SwapTotal, and SwapFree. The dashboard computes the share. Check it yourself: `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`.',
   },
   collsettings: {
     title: "Collector settings",

@@ -17,6 +17,7 @@ export interface Point {
   died: number;
   rss: number | null;
   vm: number | null;
+  hostAvailable?: number | null;
   /** The 1-min load average after this point, or null when its rates are unknown. */
   l1?: number | null;
 }
@@ -122,6 +123,7 @@ const POINT_FIELDS = [
   "died",
   "rss",
   "vm",
+  "hostAvailable",
   "l1",
 ] as const;
 const isPoint = (value: unknown): value is Point =>
@@ -206,7 +208,11 @@ export function restoreSeries(
     session,
     points,
     lastTick,
-    ids: null,
+    ids:
+      Array.isArray(savedBuffer?.ids) &&
+      savedBuffer.ids.every((id: unknown) => typeof id === "string")
+        ? new Set<string>(savedBuffer.ids)
+        : null,
     seen,
     load,
     cpu: new Map(),
@@ -301,17 +307,22 @@ export function ingest(series: Series, view: LiveResponse): Series {
   }
   // Memory samples must belong to the process in this view after a restart.
   const { resources, memory } = view;
-  point.rss =
+  const resourcesCurrent =
     resources?.available &&
     !resources.stale &&
     resources.session === health.session &&
-    resources.pid === health.pid
-      ? (resources.memory?.rss ?? null)
-      : null;
+    resources.pid === health.pid;
+  point.rss = resourcesCurrent ? (resources.memory?.rss ?? null) : null;
+  const host = resourcesCurrent ? resources.host_memory : null;
+  if (isNum(host?.total) && host.total > 0 && isNum(host.available))
+    point.hostAvailable = (100 * host.available) / host.total;
+  // VmSize comes with each resource sample. The sparse memory sample fills in
+  // only when the resource sample lacks it.
   point.vm =
-    memory?.available && !memory.stale && memory.pid === health.pid
+    (resourcesCurrent ? resources.memory?.vm_size : null) ??
+    (memory?.available && !memory.stale && memory.pid === health.pid
       ? (memory.values?.vm_size_bytes ?? null)
-      : null;
+      : null);
   // Missing rates after a sampler pause must leave a gap, not an idle point.
   if (!threads.some((thread) => isNum(thread.cpu_pct)))
     Object.assign(point, {

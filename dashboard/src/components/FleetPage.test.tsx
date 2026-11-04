@@ -96,6 +96,7 @@ beforeEach(() => {
   vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
   history.replaceState(null, "", "/");
   localStorage.clear();
+  sessionStorage.clear();
   respond = fleetRespond;
   requests = [];
   vi.stubGlobal(
@@ -120,6 +121,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   history.replaceState(null, "", "/");
   localStorage.clear();
+  sessionStorage.clear();
 });
 async function start(search = "") {
   history.replaceState(null, "", "/" + search);
@@ -210,6 +212,56 @@ test("overview page shows one tile per target in API order, and links to each da
   expect(requests.filter((url) => url === "/api/fleet")).toHaveLength(2);
 });
 
+test("the overview keeps adding points for the target page that was left", async () => {
+  const savedTimes = (target: string) => {
+    const saved = JSON.parse(
+      sessionStorage.getItem(`triangulator:buffer:${target}`) ?? "null",
+    ) as { session: string; points: { t: number }[] } | null;
+    return saved?.points.map((point) => point.t) ?? [];
+  };
+  // The target page of h/api was open, then the overview page loaded.
+  sessionStorage.setItem("triangulator:last-target", "h/api");
+  hidden = true;
+  await start();
+  await act(() => vi.advanceTimersByTimeAsync(4000));
+  const times = savedTimes("h/api");
+  expect(times.length).toBeGreaterThanOrEqual(4);
+  expect(times).toEqual([...times].sort((a, b) => a - b));
+  expect(new Set(times).size).toBe(times.length);
+  // The page reads that series again when it returns, with no gap.
+  expect(times.at(-1) ?? 0).toBeGreaterThan((times[0] ?? 0) + 2);
+  expect(savedTimes("h/busy")).toEqual([]);
+  // Leaving no target page behind means no extra polling.
+  sessionStorage.clear();
+  requests.length = 0;
+  await act(() => vi.advanceTimersByTimeAsync(2000));
+  expect(requests.some((url) => url.startsWith("/api/live"))).toBe(false);
+});
+
+test("the overview records thread starts and exits between polls", async () => {
+  sessionStorage.setItem("triangulator:last-target", "h/api");
+  const startTime = Date.now();
+  respond = (url) => {
+    if (url !== "/api/live?target=h%2Fapi") return fleetRespond(url);
+    const view = fleetView(10, "api", 5);
+    if (Date.now() - startTime >= 1000 && Date.now() - startTime < 3000)
+      return Response.json({
+        ...view,
+        threads: [...view.threads, { ...view.threads[0], tid: 11 }],
+      });
+    return Response.json(view);
+  };
+  await start();
+  await act(() => vi.advanceTimersByTimeAsync(4000));
+  const saved = JSON.parse(
+    sessionStorage.getItem("triangulator:buffer:h/api") ?? "null",
+  ) as {
+    points: { born: number; died: number }[];
+  };
+  expect(saved.points.some((point) => point.born === 1)).toBe(true);
+  expect(saved.points.some((point) => point.died === 1)).toBe(true);
+});
+
 test("overview preserves a non-alphabetical API order through polls and search", async () => {
   const targets = [fleetTargets[2], fleetTargets[0], fleetTargets[1]];
   let cpu = 99;
@@ -297,6 +349,8 @@ test("a target dashboard does not start the overview", async () => {
   expect(requests).toContain("/api/live?target=h%2Fapi");
   expect(document.querySelector("#fleet-grid")).toBeNull();
   expect(requests).not.toContain("/api/live?target=h%2Fbusy");
+  // The overview page reads this to keep the target's series growing.
+  expect(sessionStorage.getItem("triangulator:last-target")).toBe("h/api");
 });
 
 test("a tile with findings carries a card with the worst findings and the process start", async () => {

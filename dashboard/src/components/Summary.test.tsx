@@ -1,5 +1,12 @@
 import { HELP_DELAY } from "../help/createHelpTimer";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { LiveResponse, MemorySummary, Resources } from "../api/types";
 import { helpTopics } from "../help/topics";
@@ -248,6 +255,49 @@ test("the summary shows load, tiles, and trends from the live series", () => {
   // Every visible part names a registered topic.
   for (const element of container.querySelectorAll<HTMLElement>("[data-help]"))
     expect(Object.hasOwn(helpTopics, element.dataset.help ?? "")).toBe(true);
+});
+
+test("the memory card shows how much host memory is available", () => {
+  const GiB = 2 ** 30;
+  show(
+    view({
+      resources: {
+        available: true,
+        host_memory: {
+          total: 32 * GiB,
+          available: 8 * GiB,
+          swap_total: 4 * GiB,
+          swap_free: 3 * GiB,
+        },
+      },
+    }),
+  );
+  expect(document.getElementById("overview-host-mem")?.textContent).toBe(
+    "25.0%",
+  );
+  expect(document.getElementById("overview-host-mem-detail")?.textContent).toBe(
+    "8.0 GiB of 32.0 GiB available · swap 1.0 GiB of 4.0 GiB used",
+  );
+  cleanup();
+  // A stale or missing reading is not shown as a number.
+  show(
+    view({
+      resources: {
+        available: true,
+        stale: true,
+        host_memory: { total: 32 * GiB, available: 8 * GiB },
+      },
+    }),
+  );
+  expect(document.getElementById("overview-host-mem")?.textContent).toBe("—");
+});
+
+test("the memory card charts host memory history", () => {
+  const { container } = show(
+    view(),
+    series([point(1, { hostAvailable: 80 }), point(2, { hostAvailable: 50 })]),
+  );
+  expect(container.querySelector("#chart-host-memory polyline")).not.toBeNull();
 });
 
 test("before the first live view the summary waits", () => {
