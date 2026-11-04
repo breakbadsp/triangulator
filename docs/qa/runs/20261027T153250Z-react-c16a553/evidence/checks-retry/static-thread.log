@@ -1,1 +1,0 @@
-Makefile:35: *** STATIC=1 is incompatible with SANITIZER.  Stop.

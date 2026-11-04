@@ -54,6 +54,9 @@ def render(rows):
 
 def check(rows):
     errors = []
+    for path in (CASES.parent / "runs").rglob("*"):
+        if path.is_file() and (path.name != "index.md" or len(path.relative_to(CASES.parent / "runs").parts) != 2):
+            errors.append(f"extra QA run file: {path.relative_to(ROOT)}")
     seen = set()
     for case, status, _, run, evidence in rows:
         if case in seen:

@@ -6,6 +6,6 @@
 - Use an isolated `TRIANGULATOR_HOME`, unused ports, and owned fixtures. A QA run must not replace the user's installation.
 - Test the downloaded binaries. Build only the fixture; record its revision separately from the package version.
 - Cases define actions and expected results. [Current results](qa/test-cases.md#current-results) describe tested versions, not the current source.
-- Keep evidence for current results. Git history preserves removed run records.
+- Keep one Markdown report per run, and retain only the latest and ongoing reports. Keep temporary evidence outside `docs/qa/runs/`. Reset results to `NOT_RUN` when their report is removed.
 - After recording a run, refresh and validate the README summary with `python3 scripts/qa_summary.py --write-readme --check`.
 - Use the shared tools in [scripts/qa/README.md](../scripts/qa/README.md) for setup, browser steps, records, and the QA-060 sweep.

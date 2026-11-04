@@ -56,7 +56,7 @@ def main():
         path = ROOT / name
         if path.name.lower().startswith("readme") and not path.is_file():
             errors.append(f"removed README: {name}")
-        if path.suffix.lower() in MEDIA:
+        if path.suffix.lower() in MEDIA and not name.startswith("docs/qa/runs/"):
             if not path.is_file() or path.read_bytes() != git("show", f"{args.base}:{name}"):
                 errors.append(f"changed or removed visual: {name}")
     for error in errors:
