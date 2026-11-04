@@ -157,7 +157,7 @@ const topics = {
     title: "Targets overview",
     source: "Collector: `/api/fleet`",
     sourceDetail:
-      "The page makes one `/api/fleet` request every 5 seconds. It returns the target list and the latest live view of each target from one publication. Tile order is stored in this browser under `triangulator:fleet-order`.",
+      "The page makes one `/api/fleet` request every 5 seconds. It returns the target list and the latest live view of each target from one publication. Inactive targets are collapsed below the main list. They contain ended processes and retained final views. Search reveals matching inactive targets. Health totals cover active targets, including silent samplers and configured names waiting for a process. Reorder tiles within each group with drag or Alt and an arrow key. Tile order is stored in this browser under `triangulator:fleet-order`.",
   },
   overview: {
     title: "Process overview",

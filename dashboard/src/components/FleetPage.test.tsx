@@ -136,7 +136,7 @@ function element(selector: string): HTMLElement {
   return found;
 }
 const tiles = () =>
-  Array.from(document.querySelectorAll<HTMLElement>("#fleet-grid > article"));
+  Array.from(document.querySelectorAll<HTMLElement>(".fleet-grid > article"));
 const link = (tile: HTMLElement) =>
   within(tile).getByRole("link", { hidden: true });
 const tileFor = (key: string) =>
@@ -528,11 +528,11 @@ test("search shows matching tiles with no request while the counts keep every ta
   await start();
   const before = requests.length;
   const original = tiles();
-  expect(element("#fleet-shown").textContent).toBe("Showing 3 of 3 targets");
+  expect(element("#fleet-shown").textContent).toBe("Listed 3 of 3 targets");
   expect(document.querySelector("#fleet-clear")).toBeNull();
   filterFleet("API");
   expect(shownTiles()).toEqual(["h · api"]);
-  expect(element("#fleet-shown").textContent).toBe("Showing 1 of 3 targets");
+  expect(element("#fleet-shown").textContent).toBe("Matching 1 of 3 targets");
   filterFleet("h/");
   expect(shownTiles()).toEqual(["h · api", "h · busy", "h · gone"]);
   expect(requests).toHaveLength(before);
@@ -544,7 +544,7 @@ test("search shows matching tiles with no request while the counts keep every ta
     "No targets match this search. Clear filters shows every target.",
   );
   expect(element("#fleet-counts").textContent).toMatch(
-    /Totals for all targets.*1.*Serious.*1.*Healthy.*1.*No data/,
+    /Totals for active targets.*1.*Serious.*1.*Healthy.*1.*No data/,
   );
   filterFleet("busy");
   await poll();
@@ -646,6 +646,7 @@ test("remove retained target works without sampler control and updates the overv
     return fleetRespond(url);
   };
   await start();
+  fireEvent.click(screen.getByRole("button", { name: /Inactive targets/ }));
   await act(() =>
     fireEvent.click(
       screen.getByRole("button", { name: "Remove retained target api" }),
@@ -672,6 +673,7 @@ test("failed retained removal keeps the tile and explains the failure", async ()
     return fleetRespond(url);
   };
   await start();
+  fireEvent.click(screen.getByRole("button", { name: /Inactive targets/ }));
   await act(() =>
     fireEvent.click(
       screen.getByRole("button", { name: "Remove retained target api" }),
@@ -778,4 +780,149 @@ test("blocked storage keeps the default order and still lets a tile move", async
   expect(order()).toEqual(["h/api", "h/busy", "h/gone"]);
   dragOnto("h/api", "h/gone");
   expect(order()).toEqual(["h/busy", "h/gone", "h/api"]);
+});
+
+test("inactive targets collapse by default, search reveals them, and totals exclude them", async () => {
+  respond = (url) =>
+    url === "/api/targets"
+      ? Response.json({
+          targets: [
+            fleetTargets[0],
+            fleetTargets[2],
+            { ...fleetTargets[1], archived: true, session: "20" },
+          ],
+        })
+      : fleetRespond(url);
+  await start();
+  const toggle = screen.getByRole("button", { name: "Inactive targets (1)" });
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(element("#fleet-inactive-grid").hidden).toBe(true);
+  expect(element("#fleet-counts").textContent).not.toContain("Serious");
+  expect(tileFor("h/gone").closest("#fleet-grid")).not.toBeNull();
+  fireEvent.click(toggle);
+  expect(element("#fleet-inactive-grid").hidden).toBe(false);
+  expect(
+    screen.getByRole("link", { name: /busy.*Open its dashboard/ }),
+  ).toBeDefined();
+  fireEvent.click(toggle);
+  filterFleet("busy");
+  expect(element("#fleet-inactive-grid").hidden).toBe(false);
+  expect(
+    screen.getByRole("button", { name: "Inactive targets (1 of 1)" }),
+  ).toBeDefined();
+  fireEvent.click(element("#fleet-clear"));
+  expect(element("#fleet-inactive-grid").hidden).toBe(true);
+});
+
+test("a confirmed exit moves a target below the main list and a new session returns it", async () => {
+  let ended = false;
+  respond = (url) => {
+    if (url === "/api/live?target=h%2Fapi" && ended) {
+      const view = fleetView(10, "api", 0);
+      return Response.json({
+        ...view,
+        health: { ...view.health, target_absent: true },
+        exit: {
+          pid: 10,
+          process_start: 1,
+          name: "api",
+          ended_at: Date.now() / 1000,
+          next_session: "10",
+          reason: "exited",
+          exit_code: 0,
+          kernel_log: "read",
+          messages: [],
+        },
+      });
+    }
+    return fleetRespond(url);
+  };
+  await start();
+  expect(screen.queryByRole("button", { name: /Inactive targets/ })).toBeNull();
+  ended = true;
+  await poll();
+  expect(tileFor("h/api").closest("#fleet-inactive-grid")).not.toBeNull();
+  expect(element("#fleet-inactive-grid").hidden).toBe(true);
+  ended = false;
+  await poll();
+  expect(tileFor("h/api").closest("#fleet-grid")).not.toBeNull();
+  expect(screen.queryByRole("button", { name: /Inactive targets/ })).toBeNull();
+});
+
+test("inactive tiles reorder within their group and keep focus", async () => {
+  respond = (url) =>
+    url === "/api/targets"
+      ? Response.json({
+          targets: [
+            fleetTargets[0],
+            ...fleetTargets.slice(1).map((target) => ({
+              ...target,
+              archived: true,
+              session: String(target.pid),
+            })),
+          ],
+        })
+      : fleetRespond(url);
+  await start();
+  fireEvent.click(screen.getByRole("button", { name: /Inactive targets/ }));
+  const inactiveOrder = () =>
+    Array.from(element("#fleet-inactive-grid").querySelectorAll("article")).map(
+      (tile) => tile.getAttribute("data-key"),
+    );
+  expect(inactiveOrder()).toEqual(["h/busy", "h/gone"]);
+  dragOnto("h/busy", "h/api");
+  expect(inactiveOrder()).toEqual(["h/busy", "h/gone"]);
+  dragOnto("h/gone", "h/busy");
+  expect(inactiveOrder()).toEqual(["h/gone", "h/busy"]);
+  const first = link(tileFor("h/gone"));
+  first.focus();
+  fireEvent.keyDown(first, { key: "ArrowRight", altKey: true });
+  expect(inactiveOrder()).toEqual(["h/busy", "h/gone"]);
+  expect(document.activeElement).toBe(link(tileFor("h/gone")));
+  fireEvent.keyDown(link(tileFor("h/gone")), {
+    key: "ArrowRight",
+    altKey: true,
+  });
+  expect(element("#fleet-order-status").textContent).toBe(
+    "gone is already last.",
+  );
+});
+
+test("a configured name waiting after an exit stays in the main list", async () => {
+  respond = (url) => {
+    if (url === "/api/targets")
+      return Response.json({
+        targets: [
+          {
+            ...fleetTargets[0],
+            status: "absent",
+            name_selected: true,
+            rule: "api",
+          },
+        ],
+      });
+    if (url === "/api/live?target=h%2Fapi") {
+      const view = fleetView(10, "api", 0);
+      return Response.json({
+        ...view,
+        health: { ...view.health, pid: 0, target_absent: true },
+        exit: {
+          pid: 10,
+          process_start: 1,
+          name: "api",
+          ended_at: Date.now() / 1000,
+          next_session: "10",
+          reason: "exited",
+          exit_code: 0,
+          kernel_log: "read",
+          messages: [],
+        },
+      });
+    }
+    return fleetRespond(url);
+  };
+  await start();
+  expect(screen.getByText("Waiting for a process named api")).toBeDefined();
+  expect(tileFor("h/api").closest("#fleet-grid")).not.toBeNull();
+  expect(screen.queryByRole("button", { name: /Inactive targets/ })).toBeNull();
 });

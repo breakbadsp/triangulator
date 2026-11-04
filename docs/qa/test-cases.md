@@ -911,3 +911,11 @@
 - Driver: judged
 - Test: Open a target dashboard and wait 30 s. Use All targets and wait 30 s. Use the target tile to return. Repeat with the tab in the background while on All targets. Then open a second target, use All targets, and wait 30 s.
 - Expected: The Process load and Memory use charts of the last viewed target continue with no gap across the 30 s on All targets, also with the tab in the background. The second target, when it was not the last viewed one, may show a gap. Reload of All targets keeps the polling. With browser storage blocked, All targets works and the chart has a gap.
+
+
+## QA-148: Inactive targets are grouped below monitored processes
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Monitor several processes. End one and wait for its exit report, then its retained view. Reload Targets. Expand Inactive targets with the keyboard. Open its final dashboard and return. Search for its name, clear the search, and remove the retained tile. Repeat with all targets inactive, a silent sampler, a configured name waiting for a process, and a new matching process. Reorder tiles within each group with drag and Alt with an arrow key.
+- Expected: Inactive targets is collapsed on entry and shows its count. Ended processes and retained views appear in this section. Search reveals matching inactive tiles. Clear filters collapses the section. Final dashboards and retained removal still work. Health totals cover the main list. Silent samplers and configured names waiting for a process stay in the main list. A new live process returns to the main list. Order persists within each group. Reordering cannot move a tile between groups. An empty inactive section has no control.
