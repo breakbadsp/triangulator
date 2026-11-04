@@ -75,13 +75,12 @@ void PrintMiss(const wire::Record& p_sent, const wire::Record& p_full)
 {
   const auto print = [](const char* p_label, const wire::Record& p_record)
   {
-    std::printf(" %s state %c utime %llu stime %llu wchan %.*s comm %.*s;",
-                p_label, p_record.state_,
-                static_cast<unsigned long long>(p_record.utime_),
-                static_cast<unsigned long long>(p_record.stime_),
-                static_cast<int>(p_record.wchan_.size()),
-                p_record.wchan_.data(), static_cast<int>(p_record.comm_.size()),
-                p_record.comm_.data());
+    std::printf(
+        " %s state %c utime %llu stime %llu wchan %.*s comm %.*s;", p_label,
+        p_record.state_, static_cast<unsigned long long>(p_record.utime_),
+        static_cast<unsigned long long>(p_record.stime_),
+        static_cast<int>(p_record.wchan_.size()), p_record.wchan_.data(),
+        static_cast<int>(p_record.comm_.size()), p_record.comm_.data());
   };
   std::printf("miss tid %u:", p_sent.tid_);
   print("sent", p_sent);
@@ -169,16 +168,17 @@ int main(int p_argc, char** p_argv)
     {
       deadline += period;
       const timespec wake{
-          .tv_sec = static_cast<time_t>(deadline.count() / kNanosecondsPerSecond),
-          .tv_nsec = static_cast<long>(deadline.count() % kNanosecondsPerSecond)};
+          .tv_sec =
+              static_cast<time_t>(deadline.count() / kNanosecondsPerSecond),
+          .tv_nsec =
+              static_cast<long>(deadline.count() % kNanosecondsPerSecond)};
       ::clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wake, nullptr);
       Tick(*pid, kept, full, logger, totals);
     }
-    const auto share =
-        totals.thread_ticks_
-            ? 100.0 * static_cast<double>(totals.reused_) /
-                  static_cast<double>(totals.thread_ticks_)
-            : 0.0;
+    const auto share = totals.thread_ticks_
+                           ? 100.0 * static_cast<double>(totals.reused_) /
+                                 static_cast<double>(totals.thread_ticks_)
+                           : 0.0;
     std::printf(
         "ticks %llu thread_ticks %llu reused %llu (%.1f%%) races %llu "
         "misses %llu\n",

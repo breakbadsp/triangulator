@@ -857,9 +857,9 @@ void TestExitedThreadIsSilent()
                           "1/task/2/schedstat");
   fake.WriteStat('S', 1);
   Thread unreadable{2, true, fake.Root()};
-  Require(!unreadable.TakeSample(1, false, logger).has_value() &&
-              logger.Warned(),
-          "unreadable schedstat of a live thread warns");
+  Require(
+      !unreadable.TakeSample(1, false, logger).has_value() && logger.Warned(),
+      "unreadable schedstat of a live thread warns");
 }
 
 // A task directory read that fails part way keeps the cached threads that it
