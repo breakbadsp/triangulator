@@ -2,9 +2,11 @@ import type { LiveResponse, Target } from "../api/types";
 import { fleetAssessment } from "./assess";
 import { VERDICTS, type Finding, type Level } from "./findings";
 import { ago, isNum } from "./format";
+import { endedTarget } from "./exit";
 import { fleetName } from "./target";
 
 export interface TileModel {
+  inactive: boolean;
   archived: boolean;
   archivedSession: string | null;
   key: string;
@@ -38,7 +40,13 @@ export function tileModel(
   const health = view?.health;
   const process =
     view?.process?.session === health?.session ? view?.process : null;
+  const waiting =
+    target.status === "absent" && target.name_selected && target.rule
+      ? target.rule
+      : null;
   return {
+    inactive:
+      target.archived === true || (!waiting && !!view && !!endedTarget(view)),
     archived: target.archived === true,
     archivedSession: target.archived ? (target.session ?? null) : null,
     key: target.key,
@@ -60,10 +68,7 @@ export function tileModel(
             otherRule: target.other_rule_selected === true,
           }
         : null,
-    waiting:
-      target.status === "absent" && target.name_selected && target.rule
-        ? target.rule
-        : null,
+    waiting,
     card: findings.some((item) => item.level !== "info")
       ? {
           proc: [

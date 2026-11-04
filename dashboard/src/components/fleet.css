@@ -423,3 +423,15 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.fleet-inactive {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.fleet-inactive > button {
+  font-weight: 600;
+}
+.fleet-inactive p {
+  margin: 12px 0;
+}

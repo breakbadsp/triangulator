@@ -240,6 +240,7 @@ export function FleetPage() {
   const search = useRef<HTMLInputElement>(null);
   const [savedOrder, setSavedOrder] = useState(readTileOrder);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [inactiveOpen, setInactiveOpen] = useState(() => !!query.trim());
   const [announcement, setAnnouncement] = useState("");
   const refocus = useRef<string | null>(null);
   const modelled = (fleet.data?.targets ?? []).map((target) =>
@@ -260,19 +261,22 @@ export function FleetPage() {
   const tiles = [...modelled].sort(
     (a, b) => (rank.get(a.key) ?? 0) - (rank.get(b.key) ?? 0),
   );
-  const counts = fleetCounts(tiles);
+  const active = tiles.filter((tile) => !tile.inactive);
+  const inactive = tiles.filter((tile) => tile.inactive);
+  const counts = fleetCounts(active);
   const attention = counts.critical + counts.serious + counts.warning;
   const matchesSearch = (tile: TileModel) =>
     tile.search.includes(query.trim().toLowerCase());
   const shown = tiles.filter(matchesSearch).length;
   const filtered = !!query.trim();
+  const inactiveShown = inactive.filter(matchesSearch).length;
   // A moved element can lose focus, so the moved tile takes it back.
   useEffect(() => {
     const key = refocus.current;
     refocus.current = null;
     if (key === null) return;
     const tile = [
-      ...document.querySelectorAll<HTMLElement>("#fleet-grid > article"),
+      ...document.querySelectorAll<HTMLElement>(".fleet-grid > article"),
     ].find((element) => element.dataset.key === key);
     tile?.querySelector<HTMLElement>(".ft-name")?.focus();
   }, [savedOrder]);
@@ -289,7 +293,12 @@ export function FleetPage() {
       to.key,
     );
     const visible = next.filter((key) =>
-      tiles.some((item) => item.key === key && matchesSearch(item)),
+      tiles.some(
+        (item) =>
+          item.key === key &&
+          item.inactive === tile.inactive &&
+          matchesSearch(item),
+      ),
     );
     setSavedOrder(next);
     saveTileOrder(next);
@@ -301,7 +310,9 @@ export function FleetPage() {
     const step = moveStep(event);
     if (!step) return;
     event.preventDefault();
-    const visible = tiles.filter(matchesSearch);
+    const visible = tiles.filter(
+      (item) => item.inactive === tile.inactive && matchesSearch(item),
+    );
     const at = visible.indexOf(tile) + step;
     const neighbour = at < 0 ? undefined : visible.at(at);
     if (neighbour) {
@@ -314,6 +325,7 @@ export function FleetPage() {
   }
   function changeSearch(next: string) {
     setQuery(next);
+    setInactiveOpen(!!next.trim());
     const query = fleetQuery(next).toString();
     history.replaceState(
       null,
@@ -321,6 +333,98 @@ export function FleetPage() {
       location.pathname + (query ? "?" + query : ""),
     );
   }
+  const renderTile = (tile: TileModel) => (
+    <article
+      key={tile.key}
+      className={"fleet-tile" + (dragging === tile.key ? " dragging" : "")}
+      data-key={tile.key}
+      data-level={tile.level}
+      hidden={!matchesSearch(tile)}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", tile.key);
+        setDragging(tile.key);
+      }}
+      onDragOver={(event) => {
+        if (dragging !== null) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        const from = tiles.find((item) => item.key === dragging);
+        setDragging(null);
+        if (from && from !== tile && from.inactive === tile.inactive)
+          move(from, tile);
+      }}
+      onDragEnd={() => {
+        setDragging(null);
+      }}
+      onKeyDown={(event) => {
+        keyMove(event, tile);
+      }}
+      onFocus={() => {
+        setFocused({ key: tile.key, model: tile });
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setFocused(null);
+      }}
+    >
+      <div className="ft-top">
+        <span
+          className="status-dot ft-assessment"
+          role="img"
+          aria-label={"Assessment: " + tile.verdict}
+          title={tile.verdict}
+        />
+        <a
+          className="ft-name"
+          href={targetHref(tile.key, query)}
+          title={tile.name}
+          draggable={false}
+          aria-describedby="fleet-order-hint"
+          aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" && !tile.archived ? "no data" : tile.verdict}. Open its dashboard.`}
+        >
+          {tile.name}
+        </a>
+      </div>
+      <div key={tile.key + "identity"} className="ft-key">
+        {tile.host} · {tile.id}
+      </div>
+      {tile.archived && (
+        <div className="ft-waiting muted">No longer monitored · Final data</div>
+      )}
+      {tile.waiting && (
+        <div key={tile.key + "waiting"} className="ft-waiting muted">
+          Waiting for a process named {tile.waiting}
+        </div>
+      )}
+      <TileRemove tile={tile} control={control} editor={editor} />
+      <RemoveRetained tile={tile} refresh={fleet.refresh} />
+      {tile.card && (
+        <div className="ft-card">
+          <div className="ft-proc">{tile.card.proc}</div>
+          <ul>
+            {tile.card.findings.map((item, index) => (
+              <li key={index} className={"lvl-" + item.level}>
+                <span className="ic">{LEVEL_ICONS[item.level]}</span>
+                <div>
+                  {item.title}
+                  {item.detail && <small>{item.detail}</small>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {tile.card.more > 0 && (
+            <div className="ft-more">
+              {tile.card.more} more finding
+              {tile.card.more > 1 ? "s" : ""} on the dashboard
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  );
   return (
     <HelpGuideProvider>
       <header className="topbar">
@@ -332,13 +436,13 @@ export function FleetPage() {
           <div>
             <h2 id="fleet-title">Targets</h2>
             <p>
-              Every monitored process and its current assessment. Select a tile
+              Monitored processes and their current assessments. Select a tile
               to open its dashboard.
             </p>
           </div>
           {tiles.length > 0 && (
             <div id="fleet-counts" className="fleet-counts" aria-live="polite">
-              <small>Totals for all targets</small>
+              <small>Totals for active targets</small>
               {COUNT_GROUPS.map(([level, label, color]) => {
                 const count =
                   counts[level] + (level === "good" ? counts.info : 0);
@@ -378,7 +482,8 @@ export function FleetPage() {
           )}
           {tiles.length > 0 && (
             <span id="fleet-shown" className="muted" aria-live="polite">
-              Showing {shown} of {tiles.length} targets
+              {filtered ? "Matching" : "Listed"} {shown} of {tiles.length}{" "}
+              targets
             </span>
           )}
         </div>
@@ -406,101 +511,7 @@ export function FleetPage() {
           </div>
         ))}
         <div id="fleet-grid" className="fleet-grid">
-          {tiles.map((tile) => (
-            <article
-              key={tile.key}
-              className={
-                "fleet-tile" + (dragging === tile.key ? " dragging" : "")
-              }
-              data-key={tile.key}
-              data-level={tile.level}
-              hidden={!matchesSearch(tile)}
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", tile.key);
-                setDragging(tile.key);
-              }}
-              onDragOver={(event) => {
-                if (dragging !== null) event.preventDefault();
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const from = tiles.find((item) => item.key === dragging);
-                setDragging(null);
-                if (from && from !== tile) move(from, tile);
-              }}
-              onDragEnd={() => {
-                setDragging(null);
-              }}
-              onKeyDown={(event) => {
-                keyMove(event, tile);
-              }}
-              onFocus={() => {
-                setFocused({ key: tile.key, model: tile });
-              }}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget))
-                  setFocused(null);
-              }}
-            >
-              <div className="ft-top">
-                <span
-                  className="status-dot ft-assessment"
-                  role="img"
-                  aria-label={"Assessment: " + tile.verdict}
-                  title={tile.verdict}
-                />
-                <a
-                  className="ft-name"
-                  href={targetHref(tile.key, query)}
-                  title={tile.name}
-                  draggable={false}
-                  aria-describedby="fleet-order-hint"
-                  aria-label={`${tile.name}, ${tile.host} · ${tile.id}: ${tile.level === "unknown" && !tile.archived ? "no data" : tile.verdict}. Open its dashboard.`}
-                >
-                  {tile.name}
-                </a>
-              </div>
-              <div key={tile.key + "identity"} className="ft-key">
-                {tile.host} · {tile.id}
-              </div>
-              {tile.archived && (
-                <div className="ft-waiting muted">
-                  No longer monitored · Final data
-                </div>
-              )}
-              {tile.waiting && (
-                <div key={tile.key + "waiting"} className="ft-waiting muted">
-                  Waiting for a process named {tile.waiting}
-                </div>
-              )}
-              <TileRemove tile={tile} control={control} editor={editor} />
-              <RemoveRetained tile={tile} refresh={fleet.refresh} />
-              {tile.card && (
-                <div className="ft-card">
-                  <div className="ft-proc">{tile.card.proc}</div>
-                  <ul>
-                    {tile.card.findings.map((item, index) => (
-                      <li key={index} className={"lvl-" + item.level}>
-                        <span className="ic">{LEVEL_ICONS[item.level]}</span>
-                        <div>
-                          {item.title}
-                          {item.detail && <small>{item.detail}</small>}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  {tile.card.more > 0 && (
-                    <div className="ft-more">
-                      {tile.card.more} more finding
-                      {tile.card.more > 1 ? "s" : ""} on the dashboard
-                    </div>
-                  )}
-                </div>
-              )}
-            </article>
-          ))}
+          {active.map(renderTile)}
           {(control.enabled || control.reason) && (
             <div key="fleet-add" className="fleet-add-help">
               <button
@@ -525,6 +536,33 @@ export function FleetPage() {
             </div>
           )}
         </div>
+        {inactive.length > 0 && (
+          <section
+            className="fleet-inactive"
+            aria-labelledby="fleet-inactive-toggle"
+          >
+            <button
+              id="fleet-inactive-toggle"
+              type="button"
+              aria-expanded={inactiveOpen}
+              aria-controls="fleet-inactive-grid"
+              onClick={() => {
+                setInactiveOpen(!inactiveOpen);
+              }}
+            >
+              <span aria-hidden="true">{inactiveOpen ? "▾" : "▸"}</span>{" "}
+              Inactive targets ({filtered ? `${String(inactiveShown)} of ` : ""}
+              {inactive.length})
+            </button>
+            <div id="fleet-inactive-grid" hidden={!inactiveOpen}>
+              <p className="muted">
+                These processes ended or are no longer monitored. Open a tile
+                for final data and recordings.
+              </p>
+              <div className="fleet-grid">{inactive.map(renderTile)}</div>
+            </div>
+          </section>
+        )}
         {tiles.length > 0 && shown === 0 && (
           <p id="fleet-none" className="fleet-empty">
             No targets match this search. Clear filters shows every target.
