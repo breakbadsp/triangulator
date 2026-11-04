@@ -106,8 +106,10 @@ Sampler CPU, measured with `tests/benchmark_sampler.py --rates 5 10
 --threads 100 300 500 --duration 30 --repeats 2`: the master binary
 (`ce31a804`) against this change. "Quiet" is the default target, whose
 sleeping threads never wake. "Waking" adds `--wake`: each sleeping thread
-wakes every 0.1-1.6 s and runs for 50 us. Kept records is the share that
-`build/skip-differential` measured on the same targets.
+wakes every 0.1-1.6 s and runs for 50 us. "Busy" is `--busy`: every thread
+burns CPU at nice 19, so the sampler can skip none. Kept records is the share
+that `build/skip-differential` measured in separate 20-second runs on the same
+kinds of target (the timed runs do not report it).
 
 | Target | Threads | Rate | CPU before | CPU after | Change | Kept records |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -123,11 +125,26 @@ wakes every 0.1-1.6 s and runs for 50 us. Kept records is the share that
 | Waking | 300 | 10 Hz | 2.422% | 1.343% | -45% | 87.0% |
 | Waking | 500 | 5 Hz | 1.997% | 1.250% | -37% | 75.2% |
 | Waking | 500 | 10 Hz | 3.997% | 2.182% | -45% | 87.2% |
+| Busy | 100 | 5 Hz | 0.536% | 0.544% | +1.5% | 0.0% |
+| Busy | 100 | 10 Hz | 0.964% | 0.986% | +2.3% | 0.0% |
+| Busy | 300 | 5 Hz | 1.295% | 1.296% | +0.1% | - |
+| Busy | 300 | 10 Hz | 2.484% | 2.499% | +0.6% | - |
+| Busy | 500 | 5 Hz | 2.038% | 2.074% | +1.8% | 0.0% |
+| Busy | 500 | 10 Hz | 3.982% | 4.021% | +1.0% | 0.0% |
 
 The p50 latency of a complete 500-thread tick fell from 3.83 ms to 1.84 ms
 (quiet, 5 Hz). RSS grew by less than 0.1 MiB: each thread keeps one record.
 A kept record still costs two reads, so the cut stays near half of the CPU
 even when almost every thread is quiet.
+
+A target where every thread runs between ticks is the worst case: no record
+is kept, and each thread still pays the reordered full read and the compare.
+There the change costs 0.1-2.3% more sampler CPU than master (mean +1.2%, all
+six cells positive; the two repeats of one cell differ by up to 2%, so the
+size is near the noise). It is a small cost, not a saving. The busy target uses
+about 570% of the 6 cores, so the sampler also competes for CPU there. The kept
+share is 0.0% (0 misses, 0 races) at 100 and 500 threads; 300 threads was not
+run separately.
 
 ## Historical 1% CPU budget
 

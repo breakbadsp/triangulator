@@ -1,3 +1,5 @@
+#include <sys/resource.h>
+
 #include <atomic>
 #include <charconv>
 #include <chrono>
@@ -16,14 +18,17 @@
 
 // One thread burns CPU. The other threads remain asleep. With "wake", each
 // of them wakes every 0.1 to 1.6 s and runs for 50 us, like the idle
-// workers of a server; the sampler then reads more of them in full. The
-// benchmark stops this process with SIGTERM after it has measured the
+// workers of a server; the sampler then reads more of them in full. With
+// "busy", every thread burns CPU at nice 19, so the sampler never skips one.
+// The benchmark stops this process with SIGTERM after it has measured the
 // sampler.
 int main(int p_argc, char** p_argv)
 {
   int thread_count = 500;
-  const bool wake = p_argc == 3 && std::string_view{p_argv[2]} == "wake";
-  if (p_argc == 2 || wake)
+  const std::string_view mode = p_argc == 3 ? p_argv[2] : std::string_view{};
+  const bool wake = mode == "wake";
+  const bool busy = mode == "busy";
+  if (p_argc == 2 || wake || busy)
   {
     const std::string_view argument{p_argv[1]};
     const auto parsed = std::from_chars(
@@ -38,7 +43,13 @@ int main(int p_argc, char** p_argv)
   }
   else if (p_argc != 1)
   {
-    std::fputs("usage: benchmark-target [THREADS [wake]]\n", stderr);
+    std::fputs("usage: benchmark-target [THREADS [wake|busy]]\n", stderr);
+    return 1;
+  }
+  // Spinning threads at nice 0 would starve the sampler and the host.
+  if (busy && ::setpriority(PRIO_PROCESS, 0, 19) != 0)
+  {
+    std::fputs("benchmark target: cannot lower the priority\n", stderr);
     return 1;
   }
   try
@@ -59,7 +70,7 @@ int main(int p_argc, char** p_argv)
     for (int index = 1; index < worker_threads; ++index)
     {
       sleepers.emplace_back(
-          [ready_latch = &ready, wake, index](std::stop_token p_stop)
+          [ready_latch = &ready, wake, busy, index](std::stop_token p_stop)
           {
             std::mutex mutex;
             std::unique_lock lock{mutex};
@@ -69,6 +80,18 @@ int main(int p_argc, char** p_argv)
             {
               return false;
             };
+            if (busy)
+            {
+              std::atomic<std::uint64_t> state{
+                  static_cast<std::uint64_t>(index)};
+              while (!p_stop.stop_requested())
+              {
+                const auto value = state.load(std::memory_order_relaxed);
+                state.store(value * 1664525 + 1013904223,
+                            std::memory_order_relaxed);
+              }
+              return;
+            }
             if (!wake)
             {
               stopped.wait(lock, p_stop, never);

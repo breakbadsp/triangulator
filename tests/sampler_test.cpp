@@ -6,6 +6,7 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
@@ -831,7 +832,8 @@ void TestExitedThreadIsSilent()
   std::binary_semaphore finish{0};
   std::thread worker{[&]
                      {
-                       tid = ::gettid();
+                       // glibc 2.28 (AlmaLinux 8) has no gettid wrapper.
+                       tid = static_cast<pid_t>(::syscall(SYS_gettid));
                        tid.notify_one();
                        finish.acquire();
                      }};
