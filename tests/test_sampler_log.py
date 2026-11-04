@@ -175,7 +175,8 @@ class SamplerLogTests(unittest.TestCase):
             ended.wait()
             self.log.wait_for(rf"^{TIME} triangulator: target \S+: PID {ended.pid} ended$")
             self.start_target()
-            self.log.wait_for_count(MONITORING, number + 1)
+            # A restarted process is admitted at the next periodic discovery pass.
+            self.log.wait_for_count(MONITORING, number + 1, seconds=25)
         self.log.assert_count_stays(MONITORING, restarts + 1)
         self.assertEqual(self.log.count(ENDED), restarts)
         self.log.stop()
