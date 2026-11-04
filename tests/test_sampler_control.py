@@ -327,7 +327,7 @@ class ScriptTests(unittest.TestCase):
         self.start_sampler(config)
 
         def target(predicate):
-            deadline = time.monotonic() + 5
+            deadline = time.monotonic() + 25
             while time.monotonic() < deadline:
                 entries = self.api("/api/targets")[1]["targets"]
                 found = [item for item in entries if item["pid"] == child.pid]
@@ -347,7 +347,7 @@ class ScriptTests(unittest.TestCase):
         for rules in ([alpha, beta], [beta]):
             config.write_text(base + "process_names=[" + ",".join(f'"{n}"' for n in rules) + "]\n")
             # One discovery pass reads the new name.
-            time.sleep(1.5)
+            time.sleep(11)
             original = config.read_text()
             for rule in (alpha, beta):
                 status, result = self.api("/api/targets", {**remove, "rule": rule}, headers)

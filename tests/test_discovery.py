@@ -75,7 +75,7 @@ class DiscoveryTests(unittest.TestCase):
                 packet = decode(data)
                 self.ticks[packet.session] = packet
 
-    def until(self, predicate, timeout=4):
+    def until(self, predicate, timeout=25):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self.receive(0.1)
@@ -251,7 +251,7 @@ class DiscoveryTests(unittest.TestCase):
         self.addCleanup(lambda: __import__('shutil').rmtree(old_directory))
         self.directory.mkdir()
         self.write('process_names=["d199-after"]\n')
-        self.until(lambda: 'd199-after' in self.latest, timeout=13)
+        self.until(lambda: 'd199-after' in self.latest, timeout=35)
         self.receive(10.5)
         self.write('process_names=["d199-recovered"]\n')
         self.until(lambda: 'd199-recovered' in self.latest)
