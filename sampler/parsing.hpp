@@ -235,6 +235,11 @@ struct SchedulerCounters
 {
   std::uint64_t run_delay_{};
   std::uint64_t timeslices_{};
+  // Nanoseconds on a CPU, from schedstat only; not sent. A thread alone on a
+  // core runs on without new timeslices or run delay, so only this shows it
+  // ran.
+  std::uint64_t runtime_{};
+  bool operator==(const SchedulerCounters&) const = default;
 };
 
 [[nodiscard]] constexpr std::optional<SchedulerCounters> ParseSchedstat(
@@ -262,7 +267,7 @@ struct SchedulerCounters
   {
     return std::nullopt;
   }
-  return SchedulerCounters{*delay, *slices};
+  return SchedulerCounters{*delay, *slices, *runtime};
 }
 
 [[nodiscard]] constexpr std::optional<SchedulerCounters> ParseStatus(
@@ -329,7 +334,8 @@ static_assert(std::string_view{ParseWchan(" do_wait.isra.0\n").data()} ==
 static_assert(ParseIo("rchar: 5\nwchar: 7\n")->read_bytes_ == 5 &&
               ParseIo("rchar: 5\nwchar: 7\n")->write_bytes_ == 7 &&
               !ParseIo("rchar: 5\n"));
-static_assert(ParseSchedstat("1 2 3\n")->run_delay_ == 2 &&
+static_assert(ParseSchedstat("1 2 3\n")->runtime_ == 1 &&
+              ParseSchedstat("1 2 3\n")->run_delay_ == 2 &&
               ParseSchedstat("1 2 3\n")->timeslices_ == 3 &&
               !ParseSchedstat("1 2"));
 static_assert(ParseStatus("voluntary_ctxt_switches:\t4\n"

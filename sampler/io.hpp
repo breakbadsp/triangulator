@@ -402,6 +402,12 @@ class RateLimitedLogger
     last_warning_.reset();
   }
 
+  // True once a Warn() has printed. Lets a test check that a path is silent.
+  [[nodiscard]] bool Warned() const noexcept
+  {
+    return last_warning_.has_value();
+  }
+
  private:
   std::optional<Nanoseconds> last_warning_;
 };
