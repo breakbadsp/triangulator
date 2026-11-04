@@ -2,7 +2,7 @@ import { memoryBytes, signed, duration, isNum } from "./format";
 import { memorySlope, type ResourcePoint } from "./assess/memory";
 
 export type MemoryTrendKind =
-  "steady" | "growing" | "stepping" | "shrinking" | "unknown";
+  "steady" | "growing" | "stepping" | "shrinking" | "mixed" | "unknown";
 export interface MemoryTrend {
   kind: MemoryTrendKind;
   /** One plain sentence for a support user. */
@@ -61,6 +61,15 @@ export function classifyMemory(points: readonly ResourcePoint[]): MemoryTrend {
       typical = (total / span) * (b.t - a.t);
     if (rise >= Math.max(MIN_JUMP, 4 * typical)) jumps.push(rise);
   }
+  const slope = memorySlope(run) ?? 0;
+  // The end-to-end change and the fitted trend can disagree after a rise
+  // followed by a longer fall. Do not call that growth or shrinkage.
+  if (big && total * slope < 0)
+    return {
+      kind: "mixed",
+      text: `Memory went up and down (peak ${memoryBytes(Math.max(...run.map((point) => point.rss_bytes)))}, now ${memoryBytes(last.rss_bytes)})${over}${afterRestart}.`,
+      change: null,
+    };
   const jumped = jumps.reduce((sum, value) => sum + value, 0);
   if (big && jumps.length && total > 0 && jumped >= 0.5 * total)
     return {
@@ -80,7 +89,7 @@ export function classifyMemory(points: readonly ResourcePoint[]): MemoryTrend {
       text: `Shrinking: memory fell ${memoryBytes(-total)}${over}${afterRestart}. This is normal after a busy period.`,
       change: null,
     };
-  const rate = (memorySlope(run) ?? 0) * 60;
+  const rate = slope * 60;
   return {
     kind: "growing",
     text: `Growing steadily: ${signed(rate)}/h over ${duration(span)}${afterRestart}. A leak is likely if the load did not rise.`,

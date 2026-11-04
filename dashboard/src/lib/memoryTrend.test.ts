@@ -99,3 +99,17 @@ it("calls a fast ramp over 87 s points growing, not stepping", () => {
   );
   expect(classifyMemory(points).kind).toBe("growing");
 });
+it("calls a rise then a longer fall mixed, not growing, when the end is above the start", () => {
+  // 500 -> 1000 MiB in 10 min, then down to 600 MiB over 50 min.
+  const trend = classifyMemory(
+    series(HOUR, (t) =>
+      t <= 600
+        ? 500 * MB + (500 * MB * t) / 600
+        : 1000 * MB - (400 * MB * (t - 600)) / 3000,
+    ),
+  );
+  expect(trend.kind).toBe("mixed");
+  expect(trend.text).toContain("up and down");
+  expect(trend.text).toContain("1000.0 MiB");
+  expect(trend.text).not.toContain("leak");
+});
