@@ -1,7 +1,8 @@
 # Collector HTTP server
 
 The collector uses [cpp-httplib](https://github.com/yhirose/cpp-httplib)
-v0.64.0, vendored unmodified in `third_party/cpp-httplib/`. The library parses
+v0.64.0, vendored in `third_party/cpp-httplib/` with a worker-start hook
+for thread names. The library parses
 and frames messages and writes responses. `collector/http_server.hpp` enforces
 the limits it lacks. The route handlers and API contract are unchanged.
 
