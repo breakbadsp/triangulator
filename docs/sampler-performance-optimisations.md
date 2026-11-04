@@ -46,6 +46,89 @@ and no missing sequences in the checked measurement windows. They do not
 establish behavior for fully busy threads, thread churn, or packet loss on a
 remote network.
 
+## Quiet threads: two reads, not four
+
+Measured on 2026-11-05 on the same host, with Linux `7.2.15-1-omarchy`. A
+full read of a thread costs four `/proc` reads: stat (2.5 us), schedstat (1.1 us), io (1.4 us), and wchan
+(1.5 us). Most target threads sleep for many ticks. The sampler reads
+schedstat and wchan first. When both equal the kept full read, and that read
+showed state S, the sampler sends the kept record again and does not read
+stat and io.
+
+- **schedstat, not stat, shows a run.** stat utime and stime move in 10 ms
+  clock ticks: 3-6% of thread-ticks with an unchanged stat had a changed
+  schedstat. The comparison includes the runtime (ns), not only run delay
+  and timeslices. A thread alone on a core runs on with no new timeslice or
+  run delay.
+- **wchan covers a thread that was woken but has not run yet.** Such a
+  thread keeps its schedstat and shows state R. The kernel's `get_wchan`
+  returns 0 for a task that is running, waking, or on a run queue, so the
+  wchan does not match and the sampler reads in full. A wchan of `0` or
+  empty never matches, so a target whose wchan is hidden (another user, or
+  `kptr_restrict`) gets full reads.
+- **Not PSI.** An earlier design skipped only when the `/proc/pressure/cpu`
+  "some" total did not grow. On 2026-11-04 (Linux `7.2.8-9-omarchy`), at 5
+  and 10 Hz the total grew between every pair of ticks in 16 runs (open in
+  0% of ticks). The target's cgroup
+  `cpu.pressure` was open in 0-6%. A growth threshold was not safe: it
+  missed events at 36 us.
+- **schedstat is read first in every full read.** A run during the full
+  read then changes schedstat at the next tick, so the kept stat is never
+  older than the kept schedstat.
+- **Accepted limit.** Another thread can rename a sleeping thread through
+  `/proc/PID/task/TID/comm`. schedstat and wchan do not change, so the old
+  name is sent until the thread runs again.
+
+To verify on a live process, run `build/skip-differential PID RATE_HZ
+SECONDS`. It compares each sent kept record with a full read in the same tick
+and exits with status 1 on a miss. Results over 20-second runs of a test
+process with busy threads and nice-19 sleepers that wake every 0.1-1.6 s and
+run for 50 us. "Pinned" means `taskset -c 0`, and "quota" means
+`systemd-run --user --scope -p CPUQuota=50%`. A race is a thread that woke or
+ran after the first read; the sampler sends what it saw first.
+
+| Workload | Kept records at 5 Hz | Kept records at 10 Hz |
+| --- | ---: | ---: |
+| 300 sleepers | 74.6% | 86.9% |
+| 1 busy, 100 sleepers | 74.0% | 86.1% |
+| 6 busy, 100 sleepers | 70.4% | 82.0% |
+| 12 busy, 100 sleepers | 66.7% | 77.6% |
+| Pinned, 1 busy, 100 sleepers | 73.9% | 86.1% |
+| Pinned, 3 busy, 100 sleepers | 72.4% | 84.3% |
+| Pinned, 300 sleepers | 74.5% | 86.8% |
+| Quota, 4 busy, 100 sleepers | 70.4% | 83.8% |
+
+The 16 runs had 370,500 thread-ticks, 0 misses, and 6 races. A target of
+another user (wchan hidden) had 0% kept records. With the comm rename, the
+only differences were the names.
+
+Sampler CPU, measured with `tests/benchmark_sampler.py --rates 5 10
+--threads 100 300 500 --duration 30 --repeats 2`: the master binary
+(`ce31a804`) against this change. "Quiet" is the default target, whose
+sleeping threads never wake. "Waking" adds `--wake`: each sleeping thread
+wakes every 0.1-1.6 s and runs for 50 us. Kept records is the share that
+`build/skip-differential` measured on the same targets.
+
+| Target | Threads | Rate | CPU before | CPU after | Change | Kept records |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Quiet | 100 | 5 Hz | 0.459% | 0.264% | -42% | 97.0% |
+| Quiet | 100 | 10 Hz | 0.907% | 0.482% | -47% | 98.0% |
+| Quiet | 300 | 5 Hz | 1.225% | 0.623% | -49% | 97.7% |
+| Quiet | 300 | 10 Hz | 2.477% | 1.196% | -52% | 98.7% |
+| Quiet | 500 | 5 Hz | 1.984% | 0.989% | -50% | 97.8% |
+| Quiet | 500 | 10 Hz | 3.993% | 1.960% | -51% | 98.8% |
+| Waking | 100 | 5 Hz | 0.461% | 0.307% | -33% | 74.6% |
+| Waking | 100 | 10 Hz | 0.876% | 0.501% | -43% | 86.4% |
+| Waking | 300 | 5 Hz | 1.233% | 0.772% | -37% | 75.5% |
+| Waking | 300 | 10 Hz | 2.422% | 1.343% | -45% | 87.0% |
+| Waking | 500 | 5 Hz | 1.997% | 1.250% | -37% | 75.2% |
+| Waking | 500 | 10 Hz | 3.997% | 2.182% | -45% | 87.2% |
+
+The p50 latency of a complete 500-thread tick fell from 3.83 ms to 1.84 ms
+(quiet, 5 Hz). RSS grew by less than 0.1 MiB: each thread keeps one record.
+A kept record still costs two reads, so the cut stays near half of the CPU
+even when almost every thread is quiet.
+
 ## Historical 1% CPU budget
 
 With the same 16-by-50 workload, `rate_hz = 5` and the then-default
