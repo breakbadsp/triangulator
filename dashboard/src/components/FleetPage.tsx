@@ -100,6 +100,13 @@ function TileRemove({
 }) {
   // A blocked Remove explains itself only after a click, not on every tile.
   const [explained, setExplained] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+    },
+    [],
+  );
   if (!control.enabled || !tile.local) return null;
   const discovered = tile.discovered;
   if (!discovered) return null;
@@ -115,8 +122,13 @@ function TileRemove({
         aria-label={"Remove target " + tile.id}
         disabled={editor.busy}
         onClick={() => {
-          if (blocked) setExplained(true);
-          else if (discovered.rule)
+          if (blocked) {
+            clearTimeout(timer.current);
+            setExplained(true);
+            timer.current = setTimeout(() => {
+              setExplained(false);
+            }, 5000);
+          } else if (discovered.rule)
             void editor.change({
               action: "remove",
               key: tile.key,

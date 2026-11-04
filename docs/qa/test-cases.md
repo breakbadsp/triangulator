@@ -496,7 +496,7 @@
 - Revision: 3
 - Driver: judged
 - Test: On the Targets overview, use Add target and Remove on tiles to add and remove owned PIDs and names. Cancel confirmations; try invalid IDs, duplicate IDs, and removing the last target. Open a metric guide from the dialog below 1200 px, use related topics and Escape, then complete Add target. Check a remote dashboard and a stopped sampler.
-- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove on the last target, or on a target that a pattern selects, changes nothing and only then shows the reason. Remove is absent on remote hosts. The guide remains inside the native dialog; its dialog ancestor stays usable. Escape closes the guide before the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
+- Expected: Confirmed valid changes affect the shared set, and other open overviews update their Remove buttons on the next poll. Cancellation and invalid input preserve configuration and active targets. Remove on the last target, or on a target that a pattern selects, changes nothing and only then shows the reason. The pattern warning disappears after five seconds and appears again on another click. Remove is absent on remote hosts. The guide remains inside the native dialog; its dialog ancestor stays usable. Escape closes the guide before the dialog. A remote dashboard or stopped sampler shows no error until the user acts.
 
 ## QA-063: Target access and sampler budget badges
 
