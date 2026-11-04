@@ -37,9 +37,8 @@
 ## Scope and execution limits
 
 The user authorized a source build. `make -j2 all scout` succeeded at source
-`97ed406a035772d50a2099fc966d2c50fed6f622`. Component SHA-256 values,
-fixture source hash, Node version, host, and isolated ports are in
-[evidence/identity.json](evidence/identity.json). No published package or
+`97ed406a035772d50a2099fc966d2c50fed6f622`. The host ran Linux 7.2.8 on x86_64 and Node v26.8.1.
+The HTTP port was 55059. No published package or
 published checksum was used. The MCP server reports version `0.1.0`.
 
 All 20 bugbench scenarios and QA-126 through QA-133 were selected. All 28
@@ -56,7 +55,7 @@ The concurrency proof was not run because it starts another sampler.
 
 ## Observations
 
-[Real stdio MCP requests and replies](evidence/mcp.json) show initialization,
+MCP requests showed initialization,
 seven advertised tools, empty current target lists, a missing incident store
 with unknown coverage and explicit gaps, invalid incident window and ID errors,
 and an invalid history target error. After `enabled=false`, the next status
@@ -75,7 +74,6 @@ or dashboard case pass. The tab was closed after inspection.
 
 No fault was collected. Current verdict correctness, incident/history evidence,
 detection delays, false positives, and data gaps for each scenario are unknown.
-The earlier blocked package run from PR #206 remains unchanged.
 
 The reusable driver is `scripts/qa/qa_scout_mcp.py`. It starts only an isolated
 collector, scanner, and MCP server. It never starts a sampler. An initial local
@@ -83,7 +81,6 @@ driver attempt failed in its process-search regular expression before component
 startup. The corrected inspection found the existing sampler. A preliminary
 MCP run and the final retained run gave the same empty-target behavior.
 
-Browser observations are saved in [evidence/browser.json](evidence/browser.json).
 All test-owned collector, scanner, and serve processes were stopped. The
 existing user sampler remained running. No product code was changed.
 

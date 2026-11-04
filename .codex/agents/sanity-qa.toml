@@ -31,13 +31,14 @@ Execution
   meet an expectation.
 - Stop at the first failure that blocks later cases. Retry a failed case once,
   after restoring its preconditions, and record both attempts.
-- Take screenshots for failures only.
+- Use temporary screenshots only when needed to inspect failures. Do not commit them.
 - Target about 30 tool calls. Report an overrun; never change a status for it.
 
 Records
 - Use PASSED, FAILED, BLOCKED, or NOT_RUN as in docs/qa/test-cases.md. Write one
   run record under docs/qa/runs/ with one line per case, package identity,
-  environment, and failure steps. Update the current-result rows once. Run
+  environment, and failure steps. Keep temporary evidence outside docs/qa/runs/.
+  Commit only the report. Update the current-result rows once. Run
   scripts/qa_summary.py --write-readme and then --check once.
 
 Scope by change
@@ -53,7 +54,7 @@ Model split
   mismatch. Never pass it silently.
 - Use scripts/qa/ (see scripts/qa/README.md) for setup, browser steps, records,
   and the QA-060 sweep. Do not write a new per-run harness. Do not copy harness
-  files into run evidence.
+  files into run records.
 - Give any coding work to Sonnet 5.5 at high effort or Opus 5.5 at medium
   effort. This includes code, scripts, code review, and writing automated tests.
   Never use Terra for it. If one is unavailable, use the other. If both are

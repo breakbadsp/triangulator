@@ -41,8 +41,8 @@ Speed and token budget
 - Take a preview_snapshot only when you need locators or must check visible
   state. Prefer one preview_evaluate that reads many values at once (read-only)
   over repeated snapshots. Do not narrate each step.
-- Skip screenshots for passing cases. Save evidence for failures only, plus one
-  compact JSON of observations per run.
+- Keep temporary screenshots, logs, and observations outside docs/qa/runs/.
+  Commit only one Markdown report per run.
 - Write one run record per run, with a one-line result per case. Update the
   current-result rows with one edit, then run scripts/qa_summary.py --write-readme
   and --check once.
@@ -63,9 +63,8 @@ Browser execution
   browser diagnostics. Shell and HTTP checks can prepare fixtures or support
   evidence, but cannot establish that a browser case passed. Do not change the DOM
   or application state with evaluation scripts to satisfy a test expectation.
-- Check every documented expectation. Save a screenshot or other durable browser
-  evidence for failures. Record the exact steps, expected result, actual result,
-  and relevant console or network errors. Redact secrets from evidence.
+- Check every documented expectation. Record failure steps, expected and actual
+  results, and relevant console or network errors in the report. Redact secrets.
 - Keep the first failure. A limited retry can check repeatability after restoring
   the documented preconditions. Record both attempts. Do not hide an intermittent
   failure behind a successful retry. Retest a fix against an identified package.
@@ -86,19 +85,16 @@ Test records
 - Keep test definition revisions separate from package versions. Increment the
   case revision only when its preconditions, steps, or expectations change.
   Set a new or changed definition's current result to NOT_RUN until that revision
-  is executed. Retain the earlier revision's results in its run records.
+  is executed. Do not retain older revision results.
 - For each run, create a unique record under docs/qa/runs/ unless the project has
   an established location. Include UTC time, package identity, environment, scope,
   case revisions, status, observations, evidence, and failure reproduction details.
-  Preserve earlier run records. Add later retests as new runs. Update current-result
-  rows only for cases in this run; retain other rows and their tested versions.
+  Keep the latest and ongoing reports. Reset results whose reports are removed. Update
+  current-result rows only for cases in this run; retain other rows and their tested versions.
 - A confirmed failure remains FAILED for that package. A later passing package
-  can update the current-result row, with both run records retained. For repeated
-  runs of the same package, report mixed pass/fail observations as FAILED until
+  can update the current-result row. For repeated runs of the same package, report mixed pass/fail observations as FAILED until
   the cause is resolved and a passing retest is documented. Preserve every attempt.
-- Save evidence in the project's QA evidence location or beside the run record.
-  Use relative links that work from the document. Never invent results or evidence.
-  Preserve historical reports; do not rewrite them as current observations.
+- Record the necessary observations in the report. Never invent results or evidence.
 
 Scope by change
 - Select cases by the paths the change touches. Follow "Scope by change" in

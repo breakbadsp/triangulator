@@ -25,128 +25,128 @@
 | QA-138 | NOT_RUN | - | - | - |
 | QA-139 | NOT_RUN | - | - | - |
 | QA-140 | NOT_RUN | - | - | - |
-| QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-129 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-130 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-131 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-132 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
-| QA-133 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/evidence/results.json) |
+| QA-126 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-127 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-128 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-129 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-130 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-131 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-132 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
+| QA-133 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T034910Z-source-97ed406-scout/index.md) | [Evidence](runs/20261030T034910Z-source-97ed406-scout/index.md) |
 | QA-001 | NOT_RUN | - | - | - |
 | QA-002 | NOT_RUN | - | - | - |
 | QA-003 | NOT_RUN | - | - | - |
 | QA-004 | NOT_RUN | - | - | - |
-| QA-005 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-006 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-005 | NOT_RUN | - | - | - |
+| QA-006 | NOT_RUN | - | - | - |
 | QA-007 | NOT_RUN | - | - | - |
-| QA-008 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-009 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-010 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-011 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-012 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-013 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-014 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-015 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-016 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-017 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-018 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-019 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-020 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-021 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-022 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-023 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-024 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-025 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-026 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-028 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-029 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-030 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-031 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-032 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-033 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-034 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-035 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-036 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-037 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-038 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-039 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-045 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-046 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-047 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-048 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-049 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-050 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-051 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-052 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-053 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-054 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-055 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-056 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-057 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-058 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-059 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-060 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-061 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-008 | NOT_RUN | - | - | - |
+| QA-009 | NOT_RUN | - | - | - |
+| QA-010 | NOT_RUN | - | - | - |
+| QA-011 | NOT_RUN | - | - | - |
+| QA-012 | NOT_RUN | - | - | - |
+| QA-013 | NOT_RUN | - | - | - |
+| QA-014 | NOT_RUN | - | - | - |
+| QA-015 | NOT_RUN | - | - | - |
+| QA-016 | NOT_RUN | - | - | - |
+| QA-017 | NOT_RUN | - | - | - |
+| QA-018 | NOT_RUN | - | - | - |
+| QA-019 | NOT_RUN | - | - | - |
+| QA-020 | NOT_RUN | - | - | - |
+| QA-021 | NOT_RUN | - | - | - |
+| QA-022 | NOT_RUN | - | - | - |
+| QA-023 | NOT_RUN | - | - | - |
+| QA-024 | NOT_RUN | - | - | - |
+| QA-025 | NOT_RUN | - | - | - |
+| QA-026 | NOT_RUN | - | - | - |
+| QA-028 | NOT_RUN | - | - | - |
+| QA-029 | NOT_RUN | - | - | - |
+| QA-030 | NOT_RUN | - | - | - |
+| QA-031 | NOT_RUN | - | - | - |
+| QA-032 | NOT_RUN | - | - | - |
+| QA-033 | NOT_RUN | - | - | - |
+| QA-034 | NOT_RUN | - | - | - |
+| QA-035 | NOT_RUN | - | - | - |
+| QA-036 | NOT_RUN | - | - | - |
+| QA-037 | NOT_RUN | - | - | - |
+| QA-038 | NOT_RUN | - | - | - |
+| QA-039 | NOT_RUN | - | - | - |
+| QA-045 | NOT_RUN | - | - | - |
+| QA-046 | NOT_RUN | - | - | - |
+| QA-047 | NOT_RUN | - | - | - |
+| QA-048 | NOT_RUN | - | - | - |
+| QA-049 | NOT_RUN | - | - | - |
+| QA-050 | NOT_RUN | - | - | - |
+| QA-051 | NOT_RUN | - | - | - |
+| QA-052 | NOT_RUN | - | - | - |
+| QA-053 | NOT_RUN | - | - | - |
+| QA-054 | NOT_RUN | - | - | - |
+| QA-055 | NOT_RUN | - | - | - |
+| QA-056 | NOT_RUN | - | - | - |
+| QA-057 | NOT_RUN | - | - | - |
+| QA-058 | NOT_RUN | - | - | - |
+| QA-059 | NOT_RUN | - | - | - |
+| QA-060 | NOT_RUN | - | - | - |
+| QA-061 | NOT_RUN | - | - | - |
 | QA-062 | NOT_RUN | - | - | - |
-| QA-063 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-064 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-063 | NOT_RUN | - | - | - |
+| QA-064 | NOT_RUN | - | - | - |
 | QA-065 | NOT_RUN | - | - | - |
-| QA-067 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-067 | NOT_RUN | - | - | - |
 | QA-068 | NOT_RUN | - | - | - |
 | QA-069 | NOT_RUN | - | - | - |
 | QA-070 | NOT_RUN | - | - | - |
-| QA-071 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-072 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-073 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-074 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-075 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-071 | NOT_RUN | - | - | - |
+| QA-072 | NOT_RUN | - | - | - |
+| QA-073 | NOT_RUN | - | - | - |
+| QA-074 | NOT_RUN | - | - | - |
+| QA-075 | NOT_RUN | - | - | - |
 | QA-076 | NOT_RUN | - | - | - |
-| QA-077 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-078 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-079 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-080 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-081 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-082 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-077 | NOT_RUN | - | - | - |
+| QA-078 | NOT_RUN | - | - | - |
+| QA-079 | NOT_RUN | - | - | - |
+| QA-080 | NOT_RUN | - | - | - |
+| QA-081 | NOT_RUN | - | - | - |
+| QA-082 | NOT_RUN | - | - | - |
 | QA-083 | NOT_RUN | - | - | - |
 | QA-084 | NOT_RUN | - | - | - |
-| QA-085 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-086 | BLOCKED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-085 | NOT_RUN | - | - | - |
+| QA-086 | NOT_RUN | - | - | - |
 | QA-087 | NOT_RUN | - | - | - |
-| QA-088 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-088 | NOT_RUN | - | - | - |
 | QA-089 | NOT_RUN | - | - | - |
-| QA-090 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-090 | NOT_RUN | - | - | - |
 | QA-091 | NOT_RUN | - | - | - |
 | QA-092 | NOT_RUN | - | - | - |
 | QA-093 | NOT_RUN | - | - | - |
-| QA-094 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-095 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-096 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-098 | FAILED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-099 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-100 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-101 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-102 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-103 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-104 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-105 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-106 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
+| QA-094 | NOT_RUN | - | - | - |
+| QA-095 | NOT_RUN | - | - | - |
+| QA-096 | NOT_RUN | - | - | - |
+| QA-098 | NOT_RUN | - | - | - |
+| QA-099 | NOT_RUN | - | - | - |
+| QA-100 | NOT_RUN | - | - | - |
+| QA-101 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-102 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-103 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-104 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-105 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-106 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
 | QA-107 | NOT_RUN | - | - | - |
-| QA-108 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-109 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-110 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-111 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-112 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-113 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-114 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-115 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-116 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-117 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-118 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-119 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-120 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/evidence/results.json) |
-| QA-121 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
-| QA-122 | PASSED | dev-c16a553 (CI) | [Run](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/index.md) | [Evidence](https://github.com/breakbadsp/triangulator/blob/0dfcbeaf8be7825fa67cef182e8c20de3fd13600/docs/qa/runs/20261027T153250Z-react-c16a553/observations.json) |
+| QA-108 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-109 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-110 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-111 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-112 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-113 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-114 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-115 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-116 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-117 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-118 | BLOCKED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-119 | FAILED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-120 | PASSED | source 97ed406 (0.1.0) | [Run](runs/20261030T035838Z-isolated-97ed406-scout/index.md) | [Evidence](runs/20261030T035838Z-isolated-97ed406-scout/index.md) |
+| QA-121 | NOT_RUN | - | - | - |
+| QA-122 | NOT_RUN | - | - | - |
 
 ## QA-001: Package installation and live dashboard
 

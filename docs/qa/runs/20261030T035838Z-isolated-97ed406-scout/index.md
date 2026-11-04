@@ -30,10 +30,8 @@
 
 The user approved source-build testing. Binaries came from the prior successful
 build of `97ed406a035772d50a2099fc966d2c50fed6f622`. No product source differs
-from that revision. No published package or checksum was used. Component and
-fixture SHA-256 values, Node version, platform, and ports are in
-[evidence/identity.json](evidence/identity.json). Its revision field identifies
-the QA checkout commit, not a different product build.
+from that revision. No published package or checksum was used. The QA checkout was `bdc16008f565d552d8195bb08baf9a279b0a887c`.
+The host ran Linux 7.2.8 on x86_64 and Node v26.8.1. The HTTP port was 49889.
 
 Run time: 2026-10-30 03:58:38–04:21:25 UTC. One sampler, collector, scanner,
 and MCP server ran in one user/PID namespace with private `/proc`. Fixtures
@@ -46,9 +44,7 @@ at `/home/daksh/triangulator/bin/triangulator-sampler` and was not signalled.
 The test sampler could not read `/dev/kmsg`; kernel exit messages were unavailable.
 
 The T3 browser used Chrome 152.0.7977.167, viewport 1280×800, and the isolated
-HTTP port from identity.json. Browser text is in [evidence/browser.json](evidence/browser.json).
-Capture filenames describe the intended capture point. The text identifies the
-actual process: some captures occurred after the next fixture started. Those
+HTTP port 49889. Some captures occurred after the next fixture started. Those
 captures do not prove the prior fixture passed. Healthy control was also observed
 in the initial browser session. Full help and thread-detail interactions were
 not completed. No screenshot files were available from the preview tools.
@@ -63,9 +59,7 @@ records and QA-126 through QA-133 results remain unchanged.
 The main failures are the missing stuck-thread response and live MCP parity for
 RSS and thread growth. To reproduce, run the isolated driver on this source,
 observe deadlock for 70 s, mem-leak for 70 s, and thread-leak for 165 s. Compare
-`status_now` with the current dashboard and `list_incidents`. Raw data are in
-[evidence/observations.json](evidence/observations.json),
-[evidence/fleet.json](evidence/fleet.json), and [evidence/mcp.json](evidence/mcp.json).
+`status_now` with the current dashboard and `list_incidents`.
 Finding delays have 10-second polling resolution. Healthy control had no false
 positive. The yield fixture had an unrelated namespace-wide TCP warning. This
 run shared the host network namespace, so network-wide findings can include
@@ -77,16 +71,14 @@ The driver queried up to three incident details per window. Empty lists do not
 prove complete coverage. The scanner stored RSS and thread-growth incidents
 that live MCP omitted.
 
-After collector restart, all 54 history queries failed with Unknown target:
-[evidence/history-mcp-first.json](evidence/history-mcp-first.json). A single retry
+After collector restart, all 54 history queries failed with Unknown target.
+A single retry
 started one isolated sampler on an owned namespace process to restore the target
 key. All 54 `timeseries`, `top_threads`, and `compare` calls then succeeded across
-the 18 recorded fixture windows: [evidence/history-mcp.json](evidence/history-mcp.json).
+the 18 recorded fixture windows.
 CPU-spin history ranked the hot thread near 99.3% CPU. Coverage remains unknown;
 replies disclose missing samples, discovery limits, and unknown throttle history.
 This also exposes a restart limitation: history requires a currently known target.
 
-The first setup attempt is retained in [evidence/setup-attempt.json](evidence/setup-attempt.json).
 Only test-owned processes and services were stopped. No product fixes were made.
-`make check` passed; see [evidence/check.log](evidence/check.log). The source build
-and checksum provenance remain in the preceding run record.
+`make check` passed.

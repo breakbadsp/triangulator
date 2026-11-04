@@ -14,7 +14,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES = ROOT / "docs" / "qa" / "test-cases.md"
@@ -55,6 +54,9 @@ def render(rows):
 
 def check(rows):
     errors = []
+    for path in (CASES.parent / "runs").rglob("*"):
+        if path.is_file() and (path.name != "index.md" or len(path.relative_to(CASES.parent / "runs").parts) != 2):
+            errors.append(f"extra QA run file: {path.relative_to(ROOT)}")
     seen = set()
     for case, status, _, run, evidence in rows:
         if case in seen:
@@ -64,7 +66,7 @@ def check(rows):
             errors.append(f"{case}: unknown status {status}")
         for cell in (run, evidence):
             for target in LINK.findall(cell):
-                if not urlsplit(target).scheme and not (CASES.parent / target).exists():
+                if not (CASES.parent / target).exists():
                     errors.append(f"{case}: missing link target {target}")
         if status == "NOT_RUN" and (run != "-" or evidence != "-"):
             errors.append(f"{case}: NOT_RUN row must not link a run")
