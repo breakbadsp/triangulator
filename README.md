@@ -253,8 +253,10 @@ three repeats of 10,000 batches, each after a 5-second warm-up.
 | 300 | 149,685 | 2.004 | 1.901 | 2.337 | 2.641 | 5.725 | 6.681 |
 | 500 | 153,726 | 3.253 | 3.152 | 3.525 | 4.435 | 9.008 | 6.505 |
 
-A batch validates the PID, scans the thread list, reads each thread's `stat`,
-`schedstat`, `io`, and `wchan`, and constructs its sample record. The benchmark
+A batch validates the PID, scans the thread list, reads each thread's
+`schedstat` and `wchan`, and then its `stat` and `io` unless the thread did not
+run since its last full read. It then constructs the sample record. The table
+was measured before this skip existed, when every thread had four reads. The benchmark
 uses the production sampler functions and keeps their file descriptors open.
 `CLOCK_MONOTONIC` measures each batch. Timing ends when the thread records are
 complete. UDP, collector processing, resource scans, and memory-map scans are

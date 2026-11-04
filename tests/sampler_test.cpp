@@ -6,13 +6,16 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <semaphore>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -697,6 +700,168 @@ void BreakDirectory(int p_descriptor)
   Require(::dup2(pipe_ends[0], p_descriptor) == p_descriptor, "dup2");
   ::close(pipe_ends[0]);
   ::close(pipe_ends[1]);
+}
+
+// Thread 2 of process 1 in a test /proc tree. Each write replaces the text
+// of a file in place, so a descriptor held open reads the new text.
+class FakeThread final
+{
+ public:
+  FakeThread()
+  {
+    Require(::mkdtemp(root_.data()) != nullptr, "thread fixture directory");
+    std::filesystem::create_directories(Directory());
+    Write("schedstat", "100 20 3\n");
+    Write("status",
+          "voluntary_ctxt_switches:\t4\nnonvoluntary_ctxt_switches:\t5\n");
+    Write("io", "rchar: 1\nwchar: 2\n");
+    Write("wchan", "do_wait\n");
+  }
+  ~FakeThread()
+  {
+    std::filesystem::remove_all(root_);
+  }
+  FakeThread(const FakeThread&) = delete;
+  FakeThread& operator=(const FakeThread&) = delete;
+  FakeThread(FakeThread&&) = delete;
+  FakeThread& operator=(FakeThread&&) = delete;
+
+  void Write(std::string_view p_name, std::string_view p_text) const
+  {
+    std::ofstream{Directory() / p_name} << p_text;
+  }
+  void WriteStat(char p_state, int p_utime) const
+  {
+    std::string stat = std::format("2 (worker) {}", p_state);
+    for (int field = 4; field <= 52; ++field)
+    {
+      stat += std::format(" {}", field == 14 ? p_utime : field == 22 ? 9 : 0);
+    }
+    Write("stat", stat + "\n");
+  }
+  [[nodiscard]] const char* Root() const noexcept
+  {
+    return root_.c_str();
+  }
+
+ private:
+  [[nodiscard]] std::filesystem::path Directory() const
+  {
+    return std::filesystem::path{root_} / "1/task/2";
+  }
+  std::string root_ = "/tmp/thread-skip-XXXXXX";
+};
+
+// The utime of the next sample, after the stat file is set to p_utime. A
+// sample that shows an older utime sent its kept record.
+[[nodiscard]] std::uint64_t SampledUtime(const FakeThread& p_fake,
+                                         Thread& p_thread, char p_state,
+                                         int p_utime, bool p_fallback = false)
+{
+  p_fake.WriteStat(p_state, p_utime);
+  RateLimitedLogger logger;
+  const auto sample = p_thread.TakeSample(1, p_fallback, logger);
+  Require(sample.has_value(), "fake thread sample");
+  return sample->record_.utime_;
+}
+
+// A sleeping thread whose schedstat and wchan stay the same sends its kept
+// record. A change in any schedstat value, the wchan, or a kept state other
+// than S brings a full read. The stat file changes before each sample, so
+// utime shows which read it was.
+void TestQuietThreadSkip()
+{
+  const FakeThread fake;
+  Thread thread{2, true, fake.Root()};
+  Require(SampledUtime(fake, thread, 'S', 1) == 1, "first sample: full read");
+  Require(SampledUtime(fake, thread, 'S', 2) == 1,
+          "a thread that did not run sends its kept record");
+  // A thread alone on a core runs on with no new timeslice or run delay.
+  fake.Write("schedstat", "101 20 3\n");
+  Require(SampledUtime(fake, thread, 'S', 3) == 3,
+          "a runtime change alone brings a full read");
+  fake.Write("schedstat", "101 21 3\n");
+  Require(SampledUtime(fake, thread, 'S', 4) == 4, "run delay change");
+  fake.Write("schedstat", "101 21 4\n");
+  Require(SampledUtime(fake, thread, 'S', 5) == 5, "timeslice change");
+  Require(SampledUtime(fake, thread, 'S', 6) == 5, "kept again");
+  fake.Write("wchan", "futex_wait_queue\n");
+  Require(SampledUtime(fake, thread, 'S', 7) == 7, "a wchan change");
+  // A woken thread that has not run yet shows wchan 0, and so does a sleeping
+  // thread whose wchan is hidden.
+  fake.Write("wchan", "0\n");
+  Require(SampledUtime(fake, thread, 'S', 8) == 8, "wchan 0");
+  Require(SampledUtime(fake, thread, 'S', 9) == 9, "wchan 0 is never kept");
+  fake.Write("wchan", "do_wait\n");
+  Require(SampledUtime(fake, thread, 'D', 10) == 10, "full read in state D");
+  Require(SampledUtime(fake, thread, 'S', 11) == 11,
+          "a kept state other than S brings a full read");
+}
+
+// Threads with files reopened each tick, status counters, or all-zero
+// schedstat get a full read every tick.
+void TestFullReadEveryTick()
+{
+  struct Case
+  {
+    bool keep_descriptors_;
+    bool fallback_;
+    std::string_view schedstat_;
+    std::string_view what_;
+  };
+  for (const auto& test :
+       {Case{false, false, "100 20 3\n", "files reopened each tick"},
+        Case{true, true, "100 20 3\n", "status_fallback"},
+        Case{true, false, "0 0 0\n", "all-zero schedstat"}})
+  {
+    const FakeThread fake;
+    fake.Write("schedstat", test.schedstat_);
+    Thread thread{2, test.keep_descriptors_, fake.Root()};
+    Require(SampledUtime(fake, thread, 'S', 1, test.fallback_) == 1 &&
+                SampledUtime(fake, thread, 'S', 2, test.fallback_) == 2,
+            test.what_);
+  }
+}
+
+// A thread that exits while its files are held open ends with no sample and
+// no warning: the schedstat failure goes to the stat read, which finds the
+// thread gone. A schedstat failure for a live thread still warns.
+void TestExitedThreadIsSilent()
+{
+  std::atomic<int> tid{0};
+  std::binary_semaphore finish{0};
+  std::thread worker{[&]
+                     {
+                       // glibc 2.28 (AlmaLinux 8) has no gettid wrapper.
+                       tid = static_cast<pid_t>(::syscall(SYS_gettid));
+                       tid.notify_one();
+                       finish.acquire();
+                     }};
+  tid.wait(0);
+  Thread thread{tid.load(), true};
+  RateLimitedLogger logger;
+  Require(thread.TakeSample(::getpid(), false, logger).has_value() &&
+              thread.TakeSample(::getpid(), false, logger).has_value(),
+          "live thread samples");
+  finish.release();
+  worker.join();
+  const auto task = std::format("/proc/self/task/{}", tid.load());
+  for (int wait = 0; wait < 1000 && std::filesystem::exists(task); ++wait)
+  {
+    std::this_thread::sleep_for(1ms);
+  }
+  Require(!thread.TakeSample(::getpid(), false, logger).has_value(),
+          "an exited thread has no sample");
+  Require(!logger.Warned(), "an exited thread logs no warning");
+
+  const FakeThread fake;
+  std::filesystem::remove(std::filesystem::path{fake.Root()} /
+                          "1/task/2/schedstat");
+  fake.WriteStat('S', 1);
+  Thread unreadable{2, true, fake.Root()};
+  Require(
+      !unreadable.TakeSample(1, false, logger).has_value() && logger.Warned(),
+      "unreadable schedstat of a live thread warns");
 }
 
 // A task directory read that fails part way keeps the cached threads that it
@@ -2866,6 +3031,9 @@ int main()
     TestDirectoryReadErrors();
     TestUncertainIdentity();
     TestThreadRescanReadFailure();
+    TestQuietThreadSkip();
+    TestFullReadEveryTick();
+    TestExitedThreadIsSilent();
     TestSharedDescriptorBudget();
     TestCpuBudget();
     TestCriticalConfig();

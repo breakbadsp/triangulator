@@ -90,14 +90,15 @@ struct DescriptorBudget
 class Thread
 {
  public:
-  // Files read per thread each tick: stat, schedstat or status, io, wchan.
+  // Files read per thread each tick: schedstat or status, wchan, stat, io.
   static constexpr std::size_t kDescriptorsPerThread = 4;
 
   // keep_descriptors: hold the /proc files open between ticks (cheap pread
   // per tick). Otherwise every read opens and closes the file, so this thread
-  // costs no descriptors between ticks.
-  Thread(int p_tid, bool p_keep_descriptors)
-      : tid_(p_tid), keep_descriptors_(p_keep_descriptors)
+  // costs no descriptors between ticks. p_root is /proc, or a test directory
+  // in the same layout.
+  Thread(int p_tid, bool p_keep_descriptors, const char* p_root = "/proc")
+      : tid_(p_tid), keep_descriptors_(p_keep_descriptors), root_(p_root)
   {
   }
   [[nodiscard]] int Tid() const noexcept
@@ -114,17 +115,37 @@ class Thread
   {
     wire::Record record_;
     bool wchan_hidden_;
+    // The kept record of a thread that did not run: stat and io not read.
+    bool reused_ = false;
   };
 
+  // Reads schedstat first, so a run during the later reads changes it at the
+  // next tick and forces another full read. A thread that did not run since
+  // its kept full read sends that record again; see
+  // docs/sampler-performance-optimisations.md.
   [[nodiscard]] std::optional<Sample> TakeSample(int p_pid, bool p_fallback,
                                                  RateLimitedLogger& p_logger)
   {
     std::array<char, 8192> buffer;
+    auto counters = ReadCounters(p_pid, p_fallback, buffer);
+    std::optional<WaitChannel> wchan;
+    if (counters)
+    {
+      wchan = ReadWchan(p_pid, buffer);
+      if (kept_ && DidNotRun(*kept_, *counters, *wchan))
+      {
+        auto sample = kept_->sample_;
+        sample.reused_ = true;
+        return sample;
+      }
+    }
+    kept_.reset();
     auto contents = ReadFile(stat_, p_pid, "stat", buffer);
     if (!contents)
     {
       stat_.Reset();
       ResetCounterDescriptors();
+      counters.reset();
       contents = ReadFile(stat_, p_pid, "stat", buffer);
     }
     const auto stat = contents.and_then(ParseStat);
@@ -135,13 +156,17 @@ class Thread
     if (starttime_ && *starttime_ != stat->starttime_)
     {
       ResetCounterDescriptors();
+      counters.reset();
     }
     starttime_ = stat->starttime_;
-    const auto counters =
-        p_fallback
-            ? ReadFile(status_, p_pid, "status", buffer).and_then(ParseStatus)
-            : ReadFile(schedstat_, p_pid, "schedstat", buffer)
-                  .and_then(ParseSchedstat);
+    // Read after stat, the counters cannot show a run during the stat read,
+    // so this record is not kept.
+    const bool counters_first = counters.has_value();
+    if (!counters)
+    {
+      counters = ReadCounters(p_pid, p_fallback, buffer);
+      wchan.reset();
+    }
     if (!counters)
     {
       p_logger.Warn("{}", p_fallback
@@ -151,15 +176,59 @@ class Thread
       return std::nullopt;
     }
     const auto io = ReadFile(io_, p_pid, "io", buffer).and_then(ParseIo);
-    const auto wchan = ReadFile(wchan_, p_pid, "wchan", buffer)
-                           .transform(ParseWchan)
-                           .value_or(WaitChannel{});
+    if (!wchan)
+    {
+      wchan = ReadWchan(p_pid, buffer);
+    }
     const bool sleeping = stat->state_ == 'S' || stat->state_ == 'D';
-    return Sample{wire::EncodeSample(tid_, *stat, *counters, io, wchan),
-                  sleeping && wchan.front() == '\0'};
+    const Sample sample{wire::EncodeSample(tid_, *stat, *counters, io, *wchan),
+                        sleeping && wchan->front() == '\0'};
+    // A descriptor held open stays on this task, so a reused tid cannot pass
+    // for it. The status counters do not show every run.
+    if (counters_first && keep_descriptors_ && !p_fallback)
+    {
+      kept_ = Kept{sample, *counters};
+    }
+    return sample;
   }
 
  private:
+  // The last full read and the schedstat read before it.
+  struct Kept
+  {
+    Sample sample_;
+    SchedulerCounters counters_;
+  };
+
+  // Running changes schedstat. A thread woken but not yet run keeps its
+  // schedstat, but the kernel shows wchan 0 for a running, waking or queued
+  // task (get_wchan), so an unchanged wchan means it still sleeps there.
+  [[nodiscard]] static bool DidNotRun(const Kept& p_kept,
+                                      const SchedulerCounters& p_counters,
+                                      const WaitChannel& p_wchan) noexcept
+  {
+    return p_kept.sample_.record_.state_ == 'S' &&
+           p_counters == p_kept.counters_ &&
+           p_counters != SchedulerCounters{} && p_wchan.front() != '\0' &&
+           p_wchan == p_kept.sample_.record_.wchan_;
+  }
+
+  [[nodiscard]] std::optional<SchedulerCounters> ReadCounters(
+      int p_pid, bool p_fallback, std::span<char> p_buffer)
+  {
+    return p_fallback ? ReadFile(status_, p_pid, "status", p_buffer)
+                            .and_then(ParseStatus)
+                      : ReadFile(schedstat_, p_pid, "schedstat", p_buffer)
+                            .and_then(ParseSchedstat);
+  }
+
+  [[nodiscard]] WaitChannel ReadWchan(int p_pid, std::span<char> p_buffer)
+  {
+    return ReadFile(wchan_, p_pid, "wchan", p_buffer)
+        .transform(ParseWchan)
+        .value_or(WaitChannel{});
+  }
+
   void ResetCounterDescriptors() noexcept
   {
     schedstat_.Reset();
@@ -177,7 +246,7 @@ class Thread
       return ReadAtStart(p_descriptor, p_buffer);
     }
     auto opened = OpenReadonly(
-        FixedString{"/proc/{}/task/{}/{}", p_pid, tid_, p_name}.CStr());
+        FixedString{"{}/{}/task/{}/{}", root_, p_pid, tid_, p_name}.CStr());
     const auto contents = ReadAtStart(opened, p_buffer);
     if (keep_descriptors_)
     {
@@ -188,12 +257,14 @@ class Thread
 
   int tid_;
   bool keep_descriptors_;
+  const char* root_;
   FileDescriptor stat_;
   FileDescriptor schedstat_;
   FileDescriptor status_;
   FileDescriptor io_;
   FileDescriptor wchan_;
   std::optional<std::uint64_t> starttime_;
+  std::optional<Kept> kept_;
 };
 
 class ThreadCache
