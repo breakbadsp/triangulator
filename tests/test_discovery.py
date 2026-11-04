@@ -17,6 +17,10 @@ from wire import decode
 
 ROOT = Path(__file__).resolve().parents[1]
 ANNOUNCE = struct.Struct('<4sBBBBQIIQQQII32s64s')
+# Discovery passes start 10 s apart (kDiscoveryInterval). A wait that depends on
+# a periodic pass, not on a rule reload, needs the bound of 10.4 s plus margin.
+PASS = 25
+DISCOVERY_PASS_WAIT = 11
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -89,7 +93,7 @@ class DiscoveryTests(unittest.TestCase):
         self.start()
         self.until(lambda: self.latest.get(self.name, {}).get('pid') == 0)
         first, second = self.child(), self.child()
-        self.until(lambda: {v['pid'] for v in self.latest.values()} == {first.pid, second.pid})
+        self.until(lambda: {v['pid'] for v in self.latest.values()} == {first.pid, second.pid}, PASS)
         original = {k: (v['pid'], v['session']) for k, v in self.latest.items()}
         self.write(f'process_patterns=["{self.name}*"]\n', atomic=True)
         self.until(lambda: all(v['flags'] & 6 == 4 for v in self.latest.values()))
@@ -112,7 +116,7 @@ class DiscoveryTests(unittest.TestCase):
         stop(first)
         self.until(lambda: not any(v['pid'] == first.pid for v in self.latest.values()))
         third = self.child()
-        self.until(lambda: third.pid in {v['pid'] for v in self.latest.values()})
+        self.until(lambda: third.pid in {v['pid'] for v in self.latest.values()}, PASS)
         self.assertTrue(all(v['session'] != original[self.name][1]
                             for v in self.latest.values() if v['pid'] == third.pid))
         # Exactly one sampling thread, including reload and churn.
@@ -141,7 +145,8 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual({v['pid'] for v in self.latest.values()}, {p.pid for p in children[:2]})
         before = {k: v['session'] for k, v in self.latest.items()}
         extra = self.child()
-        self.receive(1.2)
+        # Wait for a later pass: it must neither admit extra nor evict a target.
+        self.receive(DISCOVERY_PASS_WAIT)
         self.assertEqual(before, {k: v['session'] for k, v in self.latest.items()})
         self.assertNotIn(extra.pid, {v['pid'] for v in self.latest.values()})
         # A file without a rule, or with a removed selector, is rejected; the
@@ -222,7 +227,7 @@ class DiscoveryTests(unittest.TestCase):
         self.until(lambda: self.latest.get(self.name, {}).get('pid') == child.pid)
         session = self.latest[self.name]['session']
         child.send_signal(signal.SIGUSR1)
-        self.until(lambda: self.latest[self.name]['flags'] & 6 == 4)
+        self.until(lambda: self.latest[self.name]['flags'] & 6 == 4, PASS)
         self.assertEqual(self.latest[self.name]['session'], session)
         self.write('process_patterns=["renamed-*"]\n')
         self.receive(1.2)
@@ -235,7 +240,7 @@ class DiscoveryTests(unittest.TestCase):
         self.until(lambda: self.latest.get(self.name, {}).get('pid') == child.pid)
         session = self.latest[self.name]['session']
         child.send_signal(signal.SIGUSR1)
-        self.until(lambda: (self.name, session) in self.releases)
+        self.until(lambda: (self.name, session) in self.releases, PASS)
         self.assertNotIn(self.name, self.latest)
 
     def test_directory_watch_recovery(self):

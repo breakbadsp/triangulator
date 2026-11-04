@@ -147,7 +147,7 @@ Only a process whose own name a rule matches is monitored. Its children
 are not, unless a rule matches their names too. A child that a rule selects
 is collected once, as its own match.
 
-A scan starts no more often than once a second. Each sampling tick examines
+A scan starts no more often than once every 10 seconds. Each sampling tick examines
 at most 512 `/proc` directory entries, each with at most 16 bounded 15-byte
 rule comparisons and one `/proc/PID/stat` read (name and start time).
 At pass end, at most 32 fixed candidates get one identity check. Admission
@@ -157,11 +157,11 @@ complete pass reports excluded matches in sampler logs and announcements.
 The dashboard shows the sampler count, capped at 255, and collector drops.
 
 For a readable process that stays alive through a full pass, with a slot
-available, a conservative discovery bound is `1 second + 2 * ceil(P/512) * T`.
+available, a conservative discovery bound is `10 seconds + 2 * ceil(P/512) * T`.
 P includes all directory entries during a pass; T is the largest actual
 sampling interval during these two passes. The two passes cover arrival
 just after the cursor passed its PID. At 5 Hz and at most 512 entries this
-is 1.4 seconds. CPU throttling can increase T to 5 seconds. Scheduling and
+is 10.4 seconds. CPU throttling can increase T to 5 seconds. Scheduling and
 existing slow-probe delays add to T. Under unbounded process churn, repeated
 read failures, or exhausted capacity there is no fixed admission deadline.
 Run `python3 tests/benchmark_discovery.py` for reproducible local measurements.

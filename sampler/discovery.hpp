@@ -21,7 +21,7 @@ using namespace std::chrono_literals;
 // A pass over /proc starts at most this often. One tick reads at most
 // kScanEntriesPerTick entries and the pass continues on the next tick, so a
 // host with many processes spreads the pass instead of delaying a tick.
-inline constexpr Nanoseconds kDiscoveryInterval = 1s;
+inline constexpr Nanoseconds kDiscoveryInterval = 10s;
 inline constexpr std::size_t kScanEntriesPerTick = 512;
 // Ticks that a slot keeps after its process ends: the exit report goes out
 // on 5 of them, then the release notice on 5 more. Datagrams can be lost.

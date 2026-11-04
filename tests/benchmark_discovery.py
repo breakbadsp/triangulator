@@ -18,6 +18,13 @@ import time
 from wire import decode
 
 ROOT = Path(__file__).resolve().parents[1]
+# Read the interval from the sampler so the timings below follow it.
+DISCOVERY_INTERVAL_S = int(re.search(r'kDiscoveryInterval = (\d+)s',
+                                     (ROOT / 'sampler/discovery.hpp').read_text())[1])
+# A churn child must live longer than one interval, or no pass sees it.
+CHURN_PERIOD_S = DISCOVERY_INTERVAL_S + 2
+# The CPU window starts at 1 s and must hold at least two passes.
+MIN_DURATION_S = 2.5 * DISCOVERY_INTERVAL_S
 
 
 def run_case(mode, duration, sampler):
@@ -67,7 +74,7 @@ def run_case(mode, duration, sampler):
                     child = start('db-match')
                     active = [child]
                     arrivals[child.pid] = time.monotonic()
-                    next_churn += 2
+                    next_churn += CHURN_PERIOD_S
                 for _, _ in selector.select(0.05):
                     while True:
                         try:
@@ -133,12 +140,12 @@ def run_case(mode, duration, sampler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--duration', type=float, default=10)
+    parser.add_argument('--duration', type=float, default=MIN_DURATION_S + DISCOVERY_INTERVAL_S)
     parser.add_argument('--sampler', type=Path, default=ROOT / 'build/triangulator-sampler')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/discovery-benchmark.json')
     args = parser.parse_args()
-    if not 6 <= args.duration <= 60:
-        parser.error('duration must be 6..60 seconds')
+    if not MIN_DURATION_S <= args.duration <= 60:
+        parser.error(f'duration must be {MIN_DURATION_S:g}..60 seconds')
     rows = []
     for case in ('unchanged', 'churn', 'unrelated64', 'matches24'):
         row = run_case(case, args.duration, args.sampler)

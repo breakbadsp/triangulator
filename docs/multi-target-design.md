@@ -126,7 +126,7 @@ process_patterns = ["worker-*"]
   did not choose. A child needs its own rule.
 - Instance IDs are the sanitized comm name, then `.2`, `.3`, and so on.
   Admission fixes the ID for the instance lifetime. Overlap edits keep it.
-- One pass starts no more often than once a second. Each tick examines at most
+- One pass starts no more often than once every 10 seconds. Each tick examines at most
   512 directory entries. Fixed candidate storage selects the lowest PIDs at
   pass completion. Existing instances are never evicted. `/proc` directory
   enumeration order is not an admission-order guarantee.
