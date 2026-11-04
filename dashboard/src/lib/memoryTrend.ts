@@ -26,14 +26,16 @@ export function restartTimes(points: readonly ResourcePoint[]): number[] {
 
 /**
  * Judge the stored RSS points of the shown window. Only the newest process
- * run counts: a restart drops RSS and is not a jump or a shrink.
+ * run counts: a restart drops RSS and is not a jump or a shrink. The stored
+ * bucket that spans a restart holds the new pid but the old peak RSS, so the
+ * run starts after it.
  */
 export function classifyMemory(points: readonly ResourcePoint[]): MemoryTrend {
   const restarts = restartTimes(points),
     since = restarts.at(-1) ?? -Infinity;
   const run = points.filter(
     (point): point is ResourcePoint & { rss_bytes: number } =>
-      point.t >= since && isNum(point.rss_bytes),
+      point.t > since && isNum(point.rss_bytes),
   );
   const first = run[0],
     last = run.at(-1);
@@ -47,14 +49,20 @@ export function classifyMemory(points: readonly ResourcePoint[]): MemoryTrend {
   const total = last.rss_bytes - first.rss_bytes,
     over = ` in ${duration(span)}`,
     afterRestart = restarts.length ? " since the last restart" : "";
+  const big = Math.abs(total) >= Math.max(MIN_CHANGE, 0.05 * first.rss_bytes);
+  // A jump is a rise well above the average rise for that point interval, so
+  // a smooth ramp over wide buckets is not stepping.
   const jumps: number[] = [];
   for (let i = 1; i < run.length; i++) {
-    const rise = (run[i]?.rss_bytes ?? 0) - (run[i - 1]?.rss_bytes ?? 0);
-    if (rise >= MIN_JUMP) jumps.push(rise);
+    const a = run[i - 1],
+      b = run[i];
+    if (!a || !b) continue;
+    const rise = b.rss_bytes - a.rss_bytes,
+      typical = (total / span) * (b.t - a.t);
+    if (rise >= Math.max(MIN_JUMP, 4 * typical)) jumps.push(rise);
   }
   const jumped = jumps.reduce((sum, value) => sum + value, 0);
-  const big = Math.abs(total) >= Math.max(MIN_CHANGE, 0.05 * first.rss_bytes);
-  if (jumps.length && total > 0 && jumped >= 0.5 * total)
+  if (big && jumps.length && total > 0 && jumped >= 0.5 * total)
     return {
       kind: "stepping",
       text: `Memory rose in ${String(jumps.length)} sudden ${jumps.length === 1 ? "jump" : "jumps"} (${signed(jumped)} in total)${afterRestart}. Check what the process did at those times, such as loading data or starting a job.`,

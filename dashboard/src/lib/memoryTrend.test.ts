@@ -69,3 +69,33 @@ it("does not read a restart as a step or a drop", () => {
   expect(classifyMemory(up).kind).toBe("steady");
   expect(classifyMemory(down).kind).toBe("steady");
 });
+it("ignores the stored bucket that mixes the new pid with the old peak RSS", () => {
+  // Bucket at t=1800 has the max pid (2) and the max RSS (old 2 GiB).
+  const trend = classifyMemory(
+    series(
+      HOUR,
+      (t) => (t < 1800 ? 2048 * MB : t === 1800 ? 2048 * MB : 100 * MB),
+      (t) => (t < 1800 ? 1 : 2),
+    ),
+  );
+  expect(trend.kind).toBe("steady");
+});
+it("does not call a spike that returns to its start stepping", () => {
+  const trend = classifyMemory(
+    series(HOUR, (t) =>
+      t === 1800 ? 540 * MB : t === HOUR ? 500.5 * MB : 500 * MB,
+    ),
+  );
+  expect(trend.kind).toBe("steady");
+});
+it("calls a fast ramp over 87 s points growing, not stepping", () => {
+  const points = asResourcePoints(
+    Array.from({ length: 100 }, (_, i) => ({
+      ts: 1000 + i * 87,
+      pid: 1,
+      elapsed_s: 87,
+      rss_bytes: 500 * MB + (1536 * MB * i * 87) / HOUR,
+    })),
+  );
+  expect(classifyMemory(points).kind).toBe("growing");
+});
