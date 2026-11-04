@@ -703,7 +703,7 @@ void BreakDirectory(int p_descriptor)
 
 // Thread 2 of process 1 in a test /proc tree. Each write replaces the text
 // of a file in place, so a descriptor held open reads the new text.
-class FakeThread
+class FakeThread final
 {
  public:
   FakeThread()

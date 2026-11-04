@@ -25,6 +25,8 @@ namespace triangulator
 namespace
 {
 
+constexpr std::int64_t kNanosecondsPerSecond = 1'000'000'000;
+
 struct Totals
 {
   std::uint64_t ticks_ = 0;
@@ -160,15 +162,15 @@ int main(int p_argc, char** p_argv)
     ThreadCache full{ThreadCache::kReservedDescriptors};
     RateLimitedLogger logger;
     Totals totals;
-    const Nanoseconds period{1'000'000'000 / *rate};
+    const Nanoseconds period{kNanosecondsPerSecond / *rate};
     auto deadline = ClockNow(CLOCK_MONOTONIC);
-    const auto end = deadline + Nanoseconds{1'000'000'000LL * *seconds};
+    const auto end = deadline + Nanoseconds{kNanosecondsPerSecond * *seconds};
     while (deadline < end)
     {
       deadline += period;
       const timespec wake{
-          .tv_sec = static_cast<time_t>(deadline.count() / 1'000'000'000),
-          .tv_nsec = static_cast<long>(deadline.count() % 1'000'000'000)};
+          .tv_sec = static_cast<time_t>(deadline.count() / kNanosecondsPerSecond),
+          .tv_nsec = static_cast<long>(deadline.count() % kNanosecondsPerSecond)};
       ::clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wake, nullptr);
       Tick(*pid, kept, full, logger, totals);
     }
