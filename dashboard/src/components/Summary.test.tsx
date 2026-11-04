@@ -87,6 +87,28 @@ test("each theme gives every thread state a distinct color", () => {
   }
 });
 
+test("every series color a component uses is defined in each theme", () => {
+  const sources = import.meta.glob<string>("../**/*.{ts,tsx,css}", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  });
+  const used = new Set(
+    Object.values(sources)
+      .flatMap((text) => [...text.matchAll(/var\(--(series-\d+)\)/g)])
+      .map(([, name = ""]) => name),
+  );
+  expect(used.has("series-3"), "the host memory chart uses series 3").toBe(
+    true,
+  );
+  const palettes = [...css.matchAll(/\{([^{}]*--s-running:[^{}]*)\}/g)];
+  for (const [, declarations = ""] of palettes) {
+    for (const name of used) {
+      expect(declarations, name).toMatch(new RegExp(`--${name}:\\s*#`));
+    }
+  }
+});
+
 // With memory sampling off the load chart still supplies points, so the
 // memory charts must get no points and a reason instead of drawing bare axes.
 test("summary memory charts explain sampling that is off or missing", () => {
