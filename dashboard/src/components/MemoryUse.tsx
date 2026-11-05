@@ -169,7 +169,7 @@ export function MemoryUse({
         changes={changes.vm}
         selected={selected}
         format={signed}
-        pill={risingInEveryWindow(changes.vm)}
+        pill={false}
         recorded={recorded}
       >
         <TimeChart

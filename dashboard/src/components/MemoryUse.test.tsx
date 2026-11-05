@@ -125,6 +125,21 @@ test("the tile shows two charts on one time axis, chips, and two bars", () => {
   expect(container.querySelector(".help-info")).toBeNull();
 });
 
+test("VmSize that rises in every window gets no pill, only RSS has it", () => {
+  const rising = rows(DAY, (age) => ({
+    vm_size_bytes: 300 * MB + (DAY - age) * 200000,
+    rss_bytes: 1 * GiB,
+  }));
+  const { container } = render(<Tile dayPoints={rising} />);
+  expect(text(container, "#vm-changes li")).toEqual([
+    "15 m ▲ +171.7 MiB",
+    "1 h ▲ +686.6 MiB",
+    "6 h ▲ +4.0 GiB",
+    "24 h ▲ +16.1 GiB",
+  ]);
+  expect(container.querySelector(".mem-pill")).toBeNull();
+});
+
 test("a range changes the chart and the highlight, not the chips", () => {
   const { container, getByRole } = render(<Tile />);
   const chips = text(container, "#rss-changes li");
