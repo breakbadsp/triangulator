@@ -195,6 +195,7 @@ function TargetPage({ page }: { page: Extract<Page, { kind: "target" }> }) {
             onWindow={setWindowSecs}
             onFindingAction={findingAction}
             resourcePoints={resourcePoints}
+            dayPoints={display.dayResources}
             resourceRange={resourceRange}
             onResourceRange={setResourceRange}
             pressureScope={pressureScope}

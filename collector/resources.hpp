@@ -984,6 +984,12 @@ class ResourceMonitor
     }
     for (const auto& [column, field] :
          {std::pair{ResourceColumnIndex("rss_bytes"), Field("rss_bytes")},
+          std::pair{ResourceColumnIndex("vm_size_bytes"),
+                    Field("vm_size_bytes")},
+          std::pair{ResourceColumnIndex("host_mem_available_bytes"),
+                    Field("host_mem_available_bytes")},
+          std::pair{ResourceColumnIndex("host_mem_total_bytes"),
+                    Field("host_mem_total_bytes")},
           std::pair{ResourceColumnIndex("swap_bytes"), Field("swap_bytes")},
           std::pair{ResourceColumnIndex("cgroup_memory_current"),
                     Field("cgroup_memory_current")},

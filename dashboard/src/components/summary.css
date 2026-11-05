@@ -72,27 +72,6 @@
   display: block;
   margin-top: 6px;
 }
-.overview-memory .mini-cap {
-  margin: 16px 0 8px;
-  font-size: 13px;
-}
-.overview-memory .mini-cap b {
-  font-size: 18px;
-  letter-spacing: -0.02em;
-}
-.mini-cap {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink-2);
-  margin: 6px 0 2px;
-}
-.mini-cap b {
-  font-weight: 600;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
 section.overview {
   margin-top: 0;
 }
@@ -223,23 +202,113 @@ details[open] > .exit-summary #exit-brief {
     font-size: 40px;
   }
 }
-.rss-row {
-  display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(220px, 1fr);
-  gap: 16px;
-  align-items: start;
+/* Memory use: one panel per measure, then the host and swap bars. */
+.mem-panel {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
 }
-.rss-assess {
+.mem-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
   font-size: 13px;
 }
-.rss-assess p {
-  margin: 0;
+.mem-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
 }
-@media (max-width: 1050px) {
-  .rss-row {
+.mem-name .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.mem-head b {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.mem-rate {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.mem-pill {
+  font-size: 12px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent);
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
+}
+.mem-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.mem-chips li {
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mem-chips li.on {
+  border-color: var(--ink-2);
+  background: var(--surface-2);
+}
+.mem-chip-window {
+  color: var(--muted);
+}
+.mem-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  padding-top: 4px;
+}
+.mem-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+.mem-bar-head b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mem-bar .track {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--raised);
+}
+/* Host memory: the used part is the muted track, available is on the right. */
+.mem-bar .track.rest {
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--muted) 35%, var(--raised));
+}
+.mem-bar .track i {
+  display: block;
+  min-width: 2px;
+}
+.mem-bar small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+@media (max-width: 560px) {
+  .mem-bars {
     grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type {
   LiveResponse,
   MemoryLayout,
@@ -10,9 +10,7 @@ import type { ViewMode } from "../lib/assess";
 import { assess, assessRecorded } from "../lib/assess";
 import type { ResourcePoint } from "../lib/assess/memory";
 import type { MemoryPoint } from "../lib/memoryView";
-import { classifyMemory, restartTimes } from "../lib/memoryTrend";
-import { axisBytes, niceBytes } from "../lib/chart";
-import { clock, isNum, memoryBytes, pct } from "../lib/format";
+import { clock, isNum } from "../lib/format";
 import {
   LEVEL_ICONS,
   LEVEL_ORDER,
@@ -20,9 +18,10 @@ import {
   type Finding,
 } from "../lib/findings";
 import { windowPoints, type Point, type Series } from "../lib/series";
-import { hostMemory, loadFacts, profile, summaryTiles } from "../lib/summary";
+import { loadFacts, profile, summaryTiles } from "../lib/summary";
 import { viewTargetName } from "../lib/target";
-import { RESOURCE_RANGES, type ResourceRange } from "./Resources";
+import { MemoryUse } from "./MemoryUse";
+import type { ResourceRange } from "./Resources";
 import { Sparkline } from "./Sparkline";
 import { TimeChart, type ChartSeries } from "./TimeChart";
 import "./summary.css";
@@ -69,6 +68,7 @@ export function Summary({
   onWindow,
   onFindingAction,
   resourcePoints,
+  dayPoints = [],
   resourceRange = 900,
   onResourceRange = () => undefined,
   pressureScope,
@@ -83,6 +83,8 @@ export function Summary({
   now: number;
   /** Stored resource samples of the Resources range, as the old page used. */
   resourcePoints: readonly ResourcePoint[];
+  /** Stored resource samples of the last 24 h, for the memory chips. */
+  dayPoints?: readonly ResourcePoint[];
   /** The history range shared with the Resources section. */
   resourceRange?: ResourceRange;
   onResourceRange?: (seconds: ResourceRange) => void;
@@ -126,42 +128,6 @@ export function Summary({
       points.some((point) => point.s.kernel),
   );
   const facts = loadFacts(threads, series, mode.kind !== "recorded");
-  const host = hostMemory(view?.resources);
-  // The RSS chart draws the stored points of the shared range, so a new tab
-  // shows history at once. The live buffer keeps only 15 minutes.
-  const stored = useMemo(
-    () => resourcePoints.filter((point) => isNum(point.rss_bytes)),
-    [resourcePoints],
-  );
-  const trend = useMemo(() => classifyMemory(resourcePoints), [resourcePoints]);
-  const restarts = useMemo(() => restartTimes(stored), [stored]);
-  const memoryChart = (
-    id: string,
-    key: "rss" | "vm",
-    topic: "rss" | "vmsize",
-    label: string,
-    color: string,
-    source: { available: boolean; reason?: string } | undefined,
-    missing: string,
-    waiting: string,
-  ) => (
-    // The load chart supplies the points, so with sampling off or every
-    // sample stale the memory charts would draw empty axes. Show why instead.
-    <div hidden={mode.kind === "recorded"}>
-      <TimeChart
-        id={id}
-        topic={topic}
-        points={points.some((point) => isNum(point[key])) ? points : []}
-        series={[{ label, color, get: (point) => point[key] }]}
-        format={axisBytes}
-        nice={niceBytes}
-        height={100}
-        minMax={2 ** 20}
-        from={from}
-        empty={source?.available ? waiting : source?.reason || missing}
-      />
-    </div>
-  );
   return (
     <section id="overview" className="block overview">
       <div className="section-head">
@@ -319,122 +285,16 @@ export function Summary({
               )}
           </div>
         </div>
-        <div id="overview-memory" className="card overview-memory">
-          <div className="card-head">
-            <div>
-              <h3>Memory use</h3>
-
-              <p>Physical memory and mapped address space.</p>
-            </div>
-          </div>
-          <div>
-            <div className="mini-cap">
-              <span className="help-label">Resident memory (RSS)</span>
-              <b id="overview-rss">
-                {memoryBytes(last?.rss ?? stored.at(-1)?.rss_bytes)}
-              </b>
-            </div>
-            <div className="rss-row">
-              <div className="rss-chart" hidden={mode.kind === "recorded"}>
-                <TimeChart
-                  id="chart-rss"
-                  topic="rss"
-                  points={stored}
-                  series={[
-                    {
-                      label: "Resident (RSS)",
-                      color: "var(--series-1)",
-                      get: (point) => point.rss_bytes,
-                    },
-                  ]}
-                  markers={restarts}
-                  format={axisBytes}
-                  nice={niceBytes}
-                  height={140}
-                  minMax={2 ** 20}
-                  empty={
-                    view?.resources?.available
-                      ? "Waiting for resource samples…"
-                      : view?.resources?.reason ||
-                        "This collector does not report resource samples."
-                  }
-                />
-              </div>
-              <div className="rss-assess" id="rss-assessment">
-                <div
-                  className="seg"
-                  role="group"
-                  aria-label="Memory history range"
-                >
-                  {RESOURCE_RANGES.map(([seconds, label]) => (
-                    <button
-                      key={seconds}
-                      type="button"
-                      aria-pressed={resourceRange === seconds}
-                      onClick={() => {
-                        onResourceRange(seconds);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p data-kind={trend.kind}>{trend.text}</p>
-                {trend.change && <p className="muted">{trend.change}.</p>}
-                {restarts.length > 0 && (
-                  <p className="muted">
-                    Dashed lines mark process restarts; a drop there is not a
-                    leak fix.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mini-cap">
-              <span className="help-label">Virtual size (VmSize)</span>
-              <b id="overview-vm">{memoryBytes(last?.vm)}</b>
-            </div>
-            {memoryChart(
-              "chart-vm",
-              "vm",
-              "vmsize",
-              "Virtual size (VmSize)",
-              "var(--series-2)",
-              view?.memory,
-              "This collector does not report memory-map samples.",
-              "Waiting for memory samples…",
-            )}
-            <div className="mini-cap">
-              <span className="help-label">Host memory available</span>
-              <b id="overview-host-mem">{pct(host?.available_pct)}</b>
-            </div>
-            <p id="overview-host-mem-detail" className="muted">
-              {host?.detail ?? "No host memory reading yet."}
-            </p>
-            <div hidden={mode.kind === "recorded"}>
-              <TimeChart
-                id="chart-host-memory"
-                topic="hostmem"
-                points={
-                  points.some((point) => isNum(point.hostAvailable))
-                    ? points
-                    : []
-                }
-                series={[
-                  {
-                    label: "Host memory available",
-                    color: "var(--series-3)",
-                    get: (point) => point.hostAvailable,
-                  },
-                ]}
-                format={pct}
-                height={100}
-                minMax={100}
-                from={from}
-                empty="Waiting for host memory samples…"
-              />
-            </div>
-          </div>
-        </div>
+        <MemoryUse
+          resources={view?.resources}
+          rangePoints={resourcePoints}
+          dayPoints={dayPoints}
+          liveRss={last?.rss}
+          liveVm={last?.vm}
+          range={resourceRange}
+          onRange={onResourceRange}
+          recorded={mode.kind === "recorded"}
+        />
       </div>
       {children}
     </section>

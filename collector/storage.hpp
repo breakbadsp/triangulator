@@ -131,7 +131,7 @@ struct ResourceColumn
 // over the interval since the previous sample (elapsed_s); "_delta" columns
 // are how much a namespace counter grew in that interval. The schema, the
 // insert statement and history buckets all come from this list.
-inline constexpr std::array<ResourceColumn, 61> kResourceColumns{{
+inline constexpr std::array<ResourceColumn, 64> kResourceColumns{{
     {"ts", "REAL NOT NULL", Combine::Min},
     {"session", "TEXT NOT NULL", Combine::None},
     {"sequence", "INTEGER NOT NULL", Combine::None},
@@ -180,6 +180,9 @@ inline constexpr std::array<ResourceColumn, 61> kResourceColumns{{
     {"udp_in_errors_delta", "INTEGER", Combine::Sum},
     {"sockstat_tcp_mem", "INTEGER", Combine::Max},
     {"rss_bytes", "INTEGER", Combine::Max},
+    {"vm_size_bytes", "INTEGER", Combine::Max},
+    {"host_mem_available_bytes", "INTEGER", Combine::Min},
+    {"host_mem_total_bytes", "INTEGER", Combine::Max},
     {"swap_bytes", "INTEGER", Combine::Max},
     {"cgroup_memory_current", "INTEGER", Combine::Max},
     {"cgroup_memory_max", "INTEGER", Combine::Max},
