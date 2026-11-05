@@ -41,6 +41,14 @@ interface TimeChartProps<P extends { t: number }> {
   nice?: (value: number) => number;
   from?: number | undefined;
   to?: number | undefined;
+  /**
+   * A y-axis range that need not start at 0, for a chart of change. The
+   * chart then marks the newest value with a dot and draws `base`, such as
+   * the window-start value, as a dashed level line.
+   */
+  trend?: { min: number; max: number; base?: number | null } | null;
+  /** False hides the time labels, for a chart above another on one axis. */
+  timeLabels?: boolean;
   empty?: string;
 }
 export function TimeChart<P extends { t: number }>({
@@ -58,6 +66,8 @@ export function TimeChart<P extends { t: number }>({
   nice = niceMax,
   from,
   to,
+  trend = null,
+  timeLabels = true,
   empty = "Collecting data…",
 }: TimeChartProps<P>) {
   const host = useRef<HTMLDivElement>(null);
@@ -100,6 +110,8 @@ export function TimeChart<P extends { t: number }>({
             nice,
             from,
             to,
+            trend,
+            timeLabels,
           }),
     [
       points,
@@ -115,6 +127,8 @@ export function TimeChart<P extends { t: number }>({
       nice,
       from,
       to,
+      trend,
+      timeLabels,
     ],
   );
   let body: ReactNode, readout: Readout | undefined;
@@ -276,6 +290,8 @@ function buildScene<P extends { t: number }>({
   nice,
   from,
   to,
+  trend,
+  timeLabels,
 }: {
   points: readonly P[];
   series: readonly ChartSeries<P>[];
@@ -290,9 +306,11 @@ function buildScene<P extends { t: number }>({
   nice: (value: number) => number;
   from: number | undefined;
   to: number | undefined;
+  trend: TimeChartProps<P>["trend"];
+  timeLabels: boolean;
 }): Scene<P> {
   const plotW = width - PAD.l - PAD.r,
-    plotH = height - PAD.t - PAD.b;
+    plotH = height - PAD.t - (timeLabels ? PAD.b : 4);
   const t0 = from ?? points[0]?.t ?? 0,
     t1 = to ?? points.at(-1)?.t ?? 0;
   const x = (t: number) =>
@@ -319,11 +337,14 @@ function buildScene<P extends { t: number }>({
     });
     return points[best] as P;
   };
-  const top = nice(max),
-    y = (value: number) => PAD.t + (1 - value / top) * plotH;
+  const floor = trend?.min ?? 0,
+    top = trend ? trend.max : nice(max),
+    y = (value: number) =>
+      PAD.t + (1 - (value - floor) / (top - floor || 1)) * plotH;
   const marks: ReactNode[] = [];
   for (const fraction of [0, 0.5, 1]) {
-    const py = y(top * fraction);
+    const level = floor + (top - floor) * fraction,
+      py = y(level);
     marks.push(
       <line
         key={`grid${String(fraction)}`}
@@ -341,25 +362,40 @@ function buildScene<P extends { t: number }>({
         textAnchor="end"
         className="axis-label"
       >
-        {format(top * fraction)}
+        {format(level)}
       </text>,
     );
   }
-  for (const [t, anchor] of [
-    [t0, "start"],
-    [(t0 + t1) / 2, "middle"],
-    [t1, "end"],
-  ] as const)
+  if (timeLabels)
+    for (const [t, anchor] of [
+      [t0, "start"],
+      [(t0 + t1) / 2, "middle"],
+      [t1, "end"],
+    ] as const)
+      marks.push(
+        <text
+          key={`time${anchor}`}
+          x={x(t)}
+          y={height - 5}
+          textAnchor={anchor}
+          className="axis-label"
+        >
+          {clock(t)}
+        </text>,
+      );
+  if (isNum(trend?.base))
     marks.push(
-      <text
-        key={`time${anchor}`}
-        x={x(t)}
-        y={height - 5}
-        textAnchor={anchor}
-        className="axis-label"
-      >
-        {clock(t)}
-      </text>,
+      <line
+        key="base"
+        className="chart-base"
+        x1={PAD.l}
+        x2={width - PAD.r}
+        y1={y(trend.base)}
+        y2={y(trend.base)}
+        stroke="var(--muted)"
+        strokeWidth={1}
+        strokeDasharray="4 3"
+      />,
     );
   for (const t of markers)
     if (t >= t0 && t <= t1)
@@ -448,7 +484,7 @@ function buildScene<P extends { t: number }>({
               marks.push(
                 <polygon
                   key={`wash${key}`}
-                  points={`${String(x(first.t))},${String(y(0))} ${points} ${String(x(last.t))},${String(y(0))}`}
+                  points={`${String(x(first.t))},${String(y(floor))} ${points} ${String(x(last.t))},${String(y(floor))}`}
                   fill={item.color}
                   fillOpacity={0.12}
                 />,
@@ -487,6 +523,21 @@ function buildScene<P extends { t: number }>({
         flush();
       });
     });
+    const item = series[0],
+      end = item && points.findLast((point) => isNum(item.get(point)));
+    if (trend && item && end)
+      marks.push(
+        <circle
+          key="end"
+          className="chart-end"
+          cx={x(end.t)}
+          cy={y(item.get(end) ?? floor)}
+          r={3.5}
+          fill={item.color}
+          stroke="var(--surface)"
+          strokeWidth={2}
+        />,
+      );
   }
 
   return { marks, plotW, plotH, t0, t1, x, y, nearest };

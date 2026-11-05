@@ -163,3 +163,34 @@ test("a hover moves the crosshair without drawing the chart again", () => {
   // Each hover reads the hovered sample, not the whole series.
   expect(get.mock.calls.length - drawn).toBeLessThan(many.length);
 });
+
+test("a trend chart scales around its range and marks the newest value", () => {
+  const data = [
+    { t: 0, v: 100 },
+    { t: 10, v: 104 },
+  ];
+  const { container } = render(
+    <TimeChart
+      topic="rss"
+      points={data}
+      series={[{ label: "V", color: "red", get: (point) => point.v }]}
+      trend={{ min: 98, max: 106, base: 100 }}
+      timeLabels={false}
+      height={64}
+    />,
+  );
+  const labels = [...container.querySelectorAll(".axis-label")].map(
+    (label) => label.textContent,
+  );
+  // Value labels only, from the range minimum, and no time labels.
+  expect(labels).toEqual(["98.0", "102.0", "106.0"]);
+  // Plot: y = 10 (106) to y = 60 (98). The base 100 is at 47.5.
+  expect(container.querySelector(".chart-base")?.getAttribute("y1")).toBe(
+    "47.5",
+  );
+  const end = container.querySelector(".chart-end");
+  expect([end?.getAttribute("cx"), end?.getAttribute("cy")]).toEqual([
+    "586",
+    "22.5",
+  ]);
+});
