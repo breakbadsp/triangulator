@@ -648,6 +648,61 @@ test("resource range changes keep one polling loop, with overlapping requests an
   }
 });
 
+// The Memory use chips read their own 24 h query, so a range change must not
+// empty them while a new read is on the way.
+test("the Memory use chips keep their values when the range changes, also at 24 h", async () => {
+  history.replaceState(null, "", "/?target=host%2Fworker");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = typeof input === "string" ? input : "";
+      if (url.startsWith("/api/targets"))
+        return Promise.resolve(Response.json(targets));
+      if (!url.startsWith("/api/resources"))
+        return Promise.resolve(Response.json(resourceLive()));
+      // RSS doubles every 4 h, so every chip is a rise.
+      const seconds = span(url);
+      const end = Number(new URL(url, "http://test").searchParams.get("end"));
+      const rows = Array.from({ length: seconds / 60 + 1 }, (_, i) => {
+        const age = seconds - i * 60;
+        return {
+          ts: Math.round(end - age),
+          pid: 42,
+          elapsed_s: 60,
+          rss_bytes: Math.round(64 * 2 ** 20 * 2 ** ((86400 - age) / 14400)),
+        };
+      });
+      return Promise.resolve(
+        Response.json({
+          rows,
+          bucket_s: 60,
+          truncated: false,
+          read_error: false,
+        }),
+      );
+    }),
+  );
+  render(<App />);
+  const chips = () =>
+    [...document.querySelectorAll("#rss-changes li")].map((li) =>
+      li.textContent.replace(/\s+/g, " "),
+    );
+  await waitFor(() => {
+    expect(chips().every((chip) => chip.includes("▲"))).toBe(true);
+  });
+  const settled = chips();
+  const range = within(
+    screen.getByRole("group", { name: "Memory history range" }),
+  );
+  // Read right after each click, before any new answer arrives.
+  for (const label of ["24 h", "6 h", "1 h", "15 min", "24 h"]) {
+    fireEvent.click(range.getByRole("button", { name: label }));
+    expect(chips()).toEqual(settled);
+    await act(() => new Promise((done) => setTimeout(done, 20)));
+    expect(chips()).toEqual(settled);
+  }
+});
+
 test("the Summary findings use the Resources history and pressure scope", async () => {
   history.replaceState(null, "", "/?target=host%2Fworker");
   const now = Date.now() / 1000;

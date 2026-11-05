@@ -203,14 +203,16 @@ export function useObservation(
     mode === "live" ? 5000 : null,
   );
   // The Memory use chips need 24 h whatever the selected range. A 24 h
-  // bucket is 87 s, so a faster poll would get no new bucket.
+  // bucket is 87 s, so a faster poll would get no new bucket. The query runs
+  // for every range, also 24 h, so a range change never empties the chips.
+  // At 24 h it repeats the selected query once a minute: 1.5 MB more.
   const dayLoader = useCallback(
     (signal: AbortSignal) =>
       resources(signal, historicalEnd ?? Date.now() / 1000, DAY),
     [historicalEnd],
   );
   const dayResult = useScopedPoll(
-    scope && range !== DAY ? `${scope}|resources|day` : null,
+    scope ? `${scope}|resources|day` : null,
     dayLoader,
     mode === "live" ? 60000 : null,
   );
@@ -415,11 +417,8 @@ export function useObservation(
   const rules = useCallback((value: readonly WatchRule[] | null) => {
     dispatch({ type: "watch-rules", rules: value });
   }, []);
-  // Same range: the selected query already holds the 24 h.
-  const dayResources =
-    range === DAY ? shown?.resources : (dayResult?.data ?? NO_POINTS);
   return {
-    dayResources: dayResources ?? NO_POINTS,
+    dayResources: dayResult?.data ?? NO_POINTS,
     observation: shown,
     state: next,
     mode,
