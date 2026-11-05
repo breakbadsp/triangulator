@@ -895,15 +895,15 @@
 
 - Status: NOT_RUN
 - Driver: judged
-- Test: Run the sampler with `resource_interval_s = 2` and `memory_interval_s = 30` on a target that maps memory every few seconds. Watch the "Virtual size (VmSize)" chart and readout in the Memory use card for 60 s. Compare the readout with `grep VmSize /proc/PID/status`. Open the `vmsize` help.
-- Expected: The readout and chart change about every 2 s, not every 30 s. The value matches `VmSize` within one interval. With the memory-map sample off, the chart still updates. Help names the resource sample and its 2 s default.
+- Test: Run the sampler with `resource_interval_s = 2` and `memory_interval_s = 30` on a target that maps memory every few seconds. Watch the "Virtual (VmSize)" chart and readout in the Memory use card for 60 s. Compare the readout with `grep VmSize /proc/PID/status`. Open the `vmsize` help.
+- Expected: The readout changes about every 2 s, not every 30 s, and the chart about every 5 s (the stored-history poll). The value matches `VmSize` within one interval. With the memory-map sample off, the chart still updates. Help names the resource sample and its 2 s default.
 
 ## QA-146: Host memory available in the Memory use card
 
 - Status: NOT_RUN
 - Driver: judged
-- Test: Open a target with two or more targets on the host. Compare "Host memory available" and its detail line with `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`. Allocate several GiB on the host and watch the readout and chart. Open the Summary source help. Check the sampler with `strace -f -e trace=openat -p SAMPLER_PID` for 10 s.
-- Expected: The percentage is MemAvailable divided by MemTotal, and the line shows the amounts and the swap in use. The readout and chart fall while memory is allocated. With no swap, the line has no swap text. The strace output shows one `/proc/meminfo` open for each half resource interval, not one for each target sample. The source help identifies `/proc/meminfo`.
+- Test: Open a target with two or more targets on the host. Compare "Host available", its detail line, and the "Host memory" and "Swap" bars with `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`. Allocate several GiB on the host and watch the readout and bars. Open the Summary source help. Check the sampler with `strace -f -e trace=openat -p SAMPLER_PID` for 10 s.
+- Expected: The percentage is MemAvailable divided by MemTotal. The detail line shows the available and total amounts, the Host memory bar shows "available / total free", and the Swap bar shows "used / total used" and its share. The readout and the available part of the bar fall while memory is allocated. With no swap, the Swap bar says "No swap". The strace output shows one `/proc/meminfo` open for each half resource interval, not one for each target sample. The source help identifies `/proc/meminfo`.
 
 ## QA-147: Charts have no gap after All targets
 
@@ -924,5 +924,12 @@
 
 - Status: NOT_RUN
 - Driver: judged
-- Test: Run a target that grows RSS about 50 MiB each hour (for example `mem-leak`) for at least one hour. Open the dashboard in a new tab. In the Memory use card, select 15 min, 1 h, 6 h, and 24 h. Compare the range with the Resources section range. Then restart the target and look at the chart and the sentence. Resize the window below 1050 px.
-- Expected: The RSS chart shows stored history at once in a new tab, not only the seconds since the tab opened. Both range controls change together. With under 5 minutes of data or 6 samples, the sentence says there is not enough data. With growth, it says "Growing steadily", the rate per hour, and "Grew X in Y". A restart draws a dashed line, and the sentence judges only the data since the restart. The card is full width, and the sentence goes below the chart on narrow windows.
+- Test: Run a target that grows RSS about 50 MiB each hour (for example `mem-leak`) for at least one hour. Open the dashboard in a new tab. In the Memory use card, select 15 min, 1 h, 6 h, and 24 h. Compare the range with the Resources section range. Then restart the target and look at the chart and the sentence. Resize the window below 560 px.
+- Expected: The RSS chart shows stored history at once in a new tab, not only the seconds since the tab opened. Both range controls change together. With under 5 minutes of data or 6 samples, the subtitle sentence says there is not enough data. With growth, it says "Growing steadily" and the rate per hour. A restart draws a dashed vertical line, and the sentence judges only the data since the restart. On narrow windows the chips wrap and the Host memory and Swap bars stack.
+
+## QA-150: Memory use change chips and trend charts
+
+- Status: NOT_RUN
+- Driver: judged
+- Test: Run a target that grows RSS about 50 MiB each hour (for example `mem-leak`) for at least 6 h, on a collector that stores VmSize and host memory (#267). Open the Memory use card and select 15 min, 1 h, 6 h, and 24 h. Compare each RSS chip with the stored values: `/api/resources?start=NOW-W&end=NOW` for each window W. Restart the target. Then open a day file written before #267 (or a host with less than 24 h of new history). Read the arrows with a screen reader.
+- Expected: RSS and VmSize have their own charts on one time axis, with time labels only below VmSize, and axes fitted to the values, not from 0. The dashed level line is the value at the start of the selected range, and a dot marks the newest value. The four chips do not change when the range changes; only the highlight moves. Each chip is the newest value minus the value at its window start, ► under 1% of the start value. With growth in every window, RSS shows "Rising in every window" in the warning color; the arrows and chips stay neutral. A rate shows only for 1 h and longer ranges. VmSize shows "flat for" and its ratio to RSS. After the restart, chips whose window reaches before the restart show "–". With old or short history, the VmSize and host chips show "–" until enough history exists, and the RSS chips are not affected. The arrows are text (▲ ▼ ►), not only color. A recorded view shows the values and bars, but no chips, rates, charts, or range control.
