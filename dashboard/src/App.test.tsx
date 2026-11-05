@@ -586,12 +586,18 @@ test("resource range changes keep one polling loop, with overlapping requests an
       resolve: (response: Response) => void;
       reject: (error: Error) => void;
     }[] = [];
+    let dayCalls = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>().mockImplementation((input) => {
         const url = typeof input === "string" ? input : "";
         if (url.startsWith("/api/targets"))
           return Promise.resolve(Response.json(targets));
+        // The Memory use chips read 24 h in a separate, slower loop.
+        if (url.startsWith("/api/resources") && span(url) === 86400) {
+          dayCalls++;
+          return Promise.resolve(timeouts(0));
+        }
         if (url.startsWith("/api/resources"))
           return new Promise((resolve, reject) => {
             calls.push({ url, resolve, reject });
@@ -635,6 +641,8 @@ test("resource range changes keep one polling loop, with overlapping requests an
     expect(inRange()).toBe("7");
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(calls).toHaveLength(5);
+    // A range change does not read the 24 h again; it polls each 60 s.
+    expect(dayCalls).toBe(1);
   } finally {
     vi.useRealTimers();
   }

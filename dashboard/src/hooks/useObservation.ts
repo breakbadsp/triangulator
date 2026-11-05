@@ -21,7 +21,7 @@ import type {
   ResourceHistory,
   WatchRule,
 } from "../api/types";
-import { asResourcePoints } from "../lib/assess/memory";
+import { asResourcePoints, type ResourcePoint } from "../lib/assess/memory";
 import type { MemoryAction } from "../lib/memoryView";
 import {
   displayed,
@@ -104,6 +104,8 @@ async function resources(signal: AbortSignal, end: number, range: number) {
 }
 const loadBounds = async (signal: AbortSignal) =>
   parseBounds(await getJson<unknown>("/api/replay", signal));
+const DAY = 86400;
+const NO_POINTS: readonly ResourcePoint[] = [];
 export const LIVE_NOTE =
   "Live view. Drag the Timeline back to inspect a recording.";
 
@@ -199,6 +201,18 @@ export function useObservation(
     scope ? `${scope}|resources|${String(range)}` : null,
     resourceLoader,
     mode === "live" ? 5000 : null,
+  );
+  // The Memory use chips need 24 h whatever the selected range. A 24 h
+  // bucket is 87 s, so a faster poll would get no new bucket.
+  const dayLoader = useCallback(
+    (signal: AbortSignal) =>
+      resources(signal, historicalEnd ?? Date.now() / 1000, DAY),
+    [historicalEnd],
+  );
+  const dayResult = useScopedPoll(
+    scope && range !== DAY ? `${scope}|resources|day` : null,
+    dayLoader,
+    mode === "live" ? 60000 : null,
   );
   const layoutId =
     mode === "live" &&
@@ -401,7 +415,11 @@ export function useObservation(
   const rules = useCallback((value: readonly WatchRule[] | null) => {
     dispatch({ type: "watch-rules", rules: value });
   }, []);
+  // Same range: the selected query already holds the 24 h.
+  const dayResources =
+    range === DAY ? shown?.resources : (dayResult?.data ?? NO_POINTS);
   return {
+    dayResources: dayResources ?? NO_POINTS,
     observation: shown,
     state: next,
     mode,
