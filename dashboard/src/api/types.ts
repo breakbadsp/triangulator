@@ -417,6 +417,10 @@ export interface ResourceRow {
   pid: number;
   elapsed_s: number | null;
   rss_bytes: number | null;
+  /** Null in rows stored before the collector kept these columns. */
+  vm_size_bytes?: number | null;
+  host_mem_available_bytes?: number | null;
+  host_mem_total_bytes?: number | null;
 }
 // Source: History and HistoryRow (collector/http.hpp, collector/storage.hpp).
 export interface HistoryRow {
