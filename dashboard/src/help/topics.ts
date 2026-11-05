@@ -248,7 +248,7 @@ const topics = {
     title: "Memory (RSS)",
     source: "`/proc/PID/status`: VmRSS, VmHWM, VmSwap",
     sourceDetail:
-      'With each resource sample (every 2 s by default), the sampler reads the VmRSS (resident), VmHWM (peak), and VmSwap lines of `/proc/PID/status`. The chart draws the stored samples of the chosen range, combined into about 1,000 time buckets at most, with dashed lines at process restarts. Check it yourself: `grep -E "VmRSS|VmHWM|VmSwap" /proc/PID/status`.',
+      'With each resource sample (every 2 s by default), the sampler reads the VmRSS (resident), VmHWM (peak), and VmSwap lines of `/proc/PID/status`. The chart draws the stored samples of the chosen range, combined into about 1,000 time buckets at most, with dashed vertical lines at process restarts. The Memory use card charts RSS and VmSize on axes fitted to their values, not from 0; the dashed level line is the value at the start of the chosen range. Each change chip is the newest value minus the value at the start of its window (15 min, 1 h, 6 h, 24 h), from the stored samples of the last 24 h and the newest process run only. ► is a change under 1% of the start value; – is a restart in the window or too little stored history. Check it yourself: `grep -E "VmRSS|VmHWM|VmSwap" /proc/PID/status`.',
   },
   vmsize: {
     title: "Virtual size (VmSize)",
@@ -260,7 +260,7 @@ const topics = {
     title: "Host memory available",
     source: "`/proc/meminfo`: MemTotal, MemAvailable, SwapTotal, SwapFree",
     sourceDetail:
-      'The sampler reads `/proc/meminfo` once for all targets, at most every half resource interval (1 s by default), and sends MemTotal, MemAvailable, MemFree, Cached, SwapTotal, and SwapFree. The dashboard computes the share. Check it yourself: `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`.',
+      'The sampler reads `/proc/meminfo` once for all targets, at most every half resource interval (1 s by default), and sends MemTotal, MemAvailable, MemFree, Cached, SwapTotal, and SwapFree. The collector stores MemTotal and MemAvailable with each resource sample. The dashboard computes the share, its change chips, and the swap used (SwapTotal − SwapFree). Check it yourself: `grep -E "MemTotal|MemAvailable|SwapTotal|SwapFree" /proc/meminfo`.',
   },
   collsettings: {
     title: "Collector settings",

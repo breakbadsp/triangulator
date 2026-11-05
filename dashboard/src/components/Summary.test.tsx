@@ -1,14 +1,6 @@
-import { HELP_DELAY } from "../help/createHelpTimer";
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import type { LiveResponse, MemorySummary, Resources } from "../api/types";
+import type { LiveResponse } from "../api/types";
 import { helpTopics } from "../help/topics";
 import { assess } from "../lib/assess";
 import { asResourcePoints, type ResourcePoint } from "../lib/assess/memory";
@@ -73,6 +65,7 @@ function show(
   live: LiveResponse | undefined,
   data: Series = emptySeries,
   resourcePoints: readonly ResourcePoint[] = [],
+  dayPoints: readonly ResourcePoint[] = [],
 ) {
   return render(
     <Summary
@@ -82,6 +75,7 @@ function show(
       windowSecs={300}
       onWindow={() => undefined}
       resourcePoints={resourcePoints}
+      dayPoints={dayPoints}
       pressureScope="cgroup"
     />,
   );
@@ -112,88 +106,13 @@ test("every series color a component uses is defined in each theme", () => {
       .flatMap((text) => [...text.matchAll(/var\(--(series-\d+)\)/g)])
       .map(([, name = ""]) => name),
   );
-  expect(used.has("series-3"), "the host memory chart uses series 3").toBe(
-    true,
-  );
+  expect(used.has("series-3"), "the host memory bar uses series 3").toBe(true);
   const palettes = [...css.matchAll(/\{([^{}]*--s-running:[^{}]*)\}/g)];
   for (const [, declarations = ""] of palettes) {
     for (const name of used) {
       expect(declarations, name).toMatch(new RegExp(`--${name}:\\s*#`));
     }
   }
-});
-
-// With memory sampling off the load chart still supplies points, so the
-// memory charts must get no points and a reason instead of drawing bare axes.
-test("summary memory charts explain sampling that is off or missing", () => {
-  const empty = (container: HTMLElement, id: string) =>
-    container.querySelector(`#${id} .chart-empty`)?.textContent ?? null;
-  const points = [1, 2, 3].map((t) => point(t));
-  const draw = (resources?: Resources, memory?: MemorySummary) => {
-    const { container, unmount } = show(
-      view({ resources, memory }),
-      series(points),
-    );
-    const result = [
-      empty(container, "chart-rss"),
-      empty(container, "chart-vm"),
-    ];
-    unmount();
-    return result;
-  };
-  expect(
-    draw({ available: false, reason: "Resource sampling is off." }, undefined),
-  ).toEqual([
-    "Resource sampling is off.",
-    "This collector does not report memory-map samples.",
-  ]);
-  expect(
-    draw({ available: true, stale: true }, { available: true, stale: true }),
-  ).toEqual(["Waiting for resource samples…", "Waiting for memory samples…"]);
-  const { container } = show(
-    view({ resources: { available: true } }),
-    series([point(1), point(2), point(3)]),
-    stored(3, 1),
-  );
-  expect(empty(container, "chart-rss")).toBeNull();
-  expect(container.querySelector("#chart-rss svg")).not.toBeNull();
-  expect(container.querySelector("#chart-load svg")).not.toBeNull();
-});
-
-test("a memory chart reads a missing sample as not available, not 0 B", () => {
-  vi.useFakeTimers();
-  try {
-    const { container } = show(
-      view({ resources: { available: true } }),
-      series([point(1), point(2, { vm: 2 ** 20 }), point(3)]),
-    );
-    // jsdom has no layout: the plot spans x=52 (t=1) to x=586 (t=3).
-    const hit = container.querySelector("#chart-vm rect") as SVGRectElement;
-    fireEvent.pointerMove(hit, { clientX: 586, clientY: 40 });
-    act(() => {
-      vi.advanceTimersByTime(HELP_DELAY);
-    });
-    const card = screen.getByRole("dialog");
-    expect(card.querySelector(".help-reading")?.textContent).toBe(
-      "Not availableVirtual size (VmSize)",
-    );
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
-test("a fresh tab draws the RSS chart from stored points and judges them", () => {
-  // 6 h of stored points, one each minute, growing 1 MiB each. No live points.
-  const { container } = show(
-    view({ resources: { available: true } }),
-    emptySeries,
-    stored(361, 60, 2 ** 20),
-  );
-  const line = container.querySelector("#chart-rss polyline");
-  expect(line?.getAttribute("points")?.split(" ")).toHaveLength(361);
-  expect(container.querySelector("#rss-assessment")?.textContent).toContain(
-    "Growing steadily",
-  );
 });
 
 test("the assessment lists 8 findings and shows the rest on request", () => {
@@ -308,47 +227,29 @@ test("the summary shows load, tiles, and trends from the live series", () => {
     expect(Object.hasOwn(helpTopics, element.dataset.help ?? "")).toBe(true);
 });
 
-test("the memory card shows how much host memory is available", () => {
-  const GiB = 2 ** 30;
-  show(
-    view({
-      resources: {
-        available: true,
-        host_memory: {
-          total: 32 * GiB,
-          available: 8 * GiB,
-          swap_total: 4 * GiB,
-          swap_free: 3 * GiB,
-        },
-      },
-    }),
-  );
-  expect(document.getElementById("overview-host-mem")?.textContent).toBe(
-    "25.0%",
-  );
-  expect(document.getElementById("overview-host-mem-detail")?.textContent).toBe(
-    "8.0 GiB of 32.0 GiB available · swap 1.0 GiB of 4.0 GiB used",
-  );
-  cleanup();
-  // A stale or missing reading is not shown as a number.
-  show(
-    view({
-      resources: {
-        available: true,
-        stale: true,
-        host_memory: { total: 32 * GiB, available: 8 * GiB },
-      },
-    }),
-  );
-  expect(document.getElementById("overview-host-mem")?.textContent).toBe("—");
-});
-
-test("the memory card charts host memory history", () => {
+test("the memory card judges the range and takes its chips from 24 h", () => {
+  // 6 h of stored points, one each minute, growing 1 MiB each. The range
+  // holds the last 15 min only: its verdict is steady (under 5%).
+  const points = stored(361, 60);
   const { container } = show(
-    view(),
-    series([point(1, { hostAvailable: 80 }), point(2, { hostAvailable: 50 })]),
+    view({ resources: { available: true } }),
+    emptySeries,
+    points.slice(-16),
+    points,
   );
-  expect(container.querySelector("#chart-host-memory polyline")).not.toBeNull();
+  expect(container.querySelector("#memory-verdict")?.textContent).toContain(
+    "Steady:",
+  );
+  expect(
+    [...container.querySelectorAll("#rss-changes li")].map(
+      (chip) => chip.textContent,
+    ),
+  ).toEqual([
+    "15 m ▲ +15.0 MiB",
+    "1 h ▲ +60.0 MiB",
+    "6 h ▲ +360.0 MiB",
+    "24 h –",
+  ]);
 });
 
 test("before the first live view the summary waits", () => {
