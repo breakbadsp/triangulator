@@ -116,8 +116,9 @@ export type WindowChange = {
   end: { t: number; v: number };
 } | null;
 
+// No change is flat, also from a start value of 0, where the dead zone is 0.
 const direction = (delta: number, start: number): Direction =>
-  Math.abs(delta) < DEAD_ZONE * Math.abs(start)
+  delta === 0 || Math.abs(delta) < DEAD_ZONE * Math.abs(start)
     ? "flat"
     : delta > 0
       ? "up"
@@ -176,7 +177,11 @@ export function flatFor(run: readonly { t: number; v: number }[]) {
   let since = run[0]?.t ?? end.t;
   for (let i = run.length - 2; i >= 0; i--) {
     const point = run[i];
-    if (point && Math.abs(point.v - end.v) >= DEAD_ZONE * Math.abs(end.v)) {
+    if (
+      point &&
+      point.v !== end.v &&
+      Math.abs(point.v - end.v) >= DEAD_ZONE * Math.abs(end.v)
+    ) {
       since = run[i + 1]?.t ?? end.t;
       break;
     }

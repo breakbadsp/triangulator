@@ -143,6 +143,35 @@ it("counts how long the value stayed inside the dead zone", () => {
   expect(flatFor([])).toBeNull();
 });
 
+it("calls a value that stays at zero flat", () => {
+  // Host available 0% all day, and a zero RSS: no change is never "down".
+  expect(arrows(rows(DAY, () => ({ rss_bytes: 0 })))).toEqual([
+    "flat",
+    "flat",
+    "flat",
+    "flat",
+  ]);
+  // A fall from nothing to a value is still a change.
+  expect(
+    arrows(rows(DAY, (age) => ({ rss_bytes: age > 600 ? 0 : 5 * MB }))),
+  ).toEqual(["up", "up", "up", "up"]);
+  // The newest value is 0: only points that differ end the flat time.
+  expect(
+    flatFor([
+      { t: 0, v: 0 },
+      { t: 60, v: 0 },
+      { t: 120, v: 0 },
+    ]),
+  ).toBe(120);
+  expect(
+    flatFor([
+      { t: 0, v: 5 },
+      { t: 60, v: 0 },
+      { t: 120, v: 0 },
+    ]),
+  ).toBe(60);
+});
+
 it("scales an axis around the values with a minimum span", () => {
   // A 10 KiB wobble at 10 MiB gets the 1 MiB minimum, centred on it.
   expect(autoSpan([10 * MB, 10 * MB + 10240])).toEqual({
