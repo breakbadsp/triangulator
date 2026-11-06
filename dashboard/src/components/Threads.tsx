@@ -7,12 +7,7 @@ import type { HelpTopicId } from "../help/topics";
 import { useReadout } from "../hooks/useReadout";
 import { useHeld, useHolding } from "../hooks/useHeld";
 import { num, pct } from "../lib/format";
-import {
-  schedulerState,
-  windowPoints,
-  type Point,
-  type Series,
-} from "../lib/series";
+import { windowPoints, type Point, type Series } from "../lib/series";
 import {
   threadRows,
   isSelected,
@@ -21,6 +16,7 @@ import {
   type ThreadView,
 } from "../lib/threadView";
 import {
+  STATES,
   coreColumns,
   familyItems,
   mapCells,
@@ -36,30 +32,6 @@ import { Fold } from "./Fold";
 import { TimeChart } from "./TimeChart";
 import { ThreadTable } from "./ThreadTable";
 import "./threads.css";
-
-const schedulerStates = [
-  "running",
-  "sleep",
-  "kernel",
-  "stopped",
-  "other",
-] as const;
-const schedulerLabels: Readonly<
-  Record<(typeof schedulerStates)[number], string>
-> = {
-  running: "Running or runnable (R)",
-  sleep: "Sleeping (S)",
-  kernel: "Kernel wait (D)",
-  stopped: "Stopped (T/t)",
-  other: "Other or unknown",
-};
-const schedulerCount = (point: Point, state: string) =>
-  Object.entries(point.ss ?? point.s).reduce((total, [key, count]) => {
-    const category = key.startsWith("sched_")
-      ? key
-      : schedulerState(undefined, key);
-    return total + (category === `sched_${state}` ? count : 0);
-  }, 0);
 
 function BarList({
   id,
@@ -456,7 +428,8 @@ export function Threads({
               <h3>What the threads are doing</h3>
 
               <p>
-                Thread count by Linux scheduler state. Hover to read a moment.
+                Thread count by activity and wait type, stacked. Hover to read a
+                moment.
               </p>
             </div>
           </div>
@@ -468,26 +441,23 @@ export function Threads({
             format={(value) => num(value, 0)}
             height={200}
             from={from}
-            series={schedulerStates.map((state) => ({
-              label: schedulerLabels[state],
+            series={STATES.map((state) => ({
+              label: String(stateLabels[state]),
               color: stateColor(state),
-              get: (point: Point) => schedulerCount(point, state),
+              get: (point: Point) => point.s[state] || 0,
             }))}
           />
           <div id="states-legend" className="legend">
-            {schedulerStates
-              .filter(
-                (state) =>
-                  (now && schedulerCount(now, state)) ||
-                  points.some((point) => schedulerCount(point, state)),
-              )
-              .map((state) => (
-                <span key={state}>
-                  <i className={`sw ${state}`} />
-                  {schedulerLabels[state]}
-                  <b>{String(now ? schedulerCount(now, state) : 0)}</b>
-                </span>
-              ))}
+            {STATES.filter(
+              (state) =>
+                now?.s[state] || points.some((point) => point.s[state]),
+            ).map((state) => (
+              <span key={state}>
+                <i className={`sw ${state}`} />
+                {stateLabels[state]}
+                <b>{String(now?.s[state] || 0)}</b>
+              </span>
+            ))}
           </div>
         </div>
         <div className="card">

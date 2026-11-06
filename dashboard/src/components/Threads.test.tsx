@@ -71,13 +71,13 @@ const advance = (ms: number) => {
 };
 
 // Old test 258.
-test("thread state chart keeps scheduler states and unknown historical samples", () => {
+test("thread state charts keep Other and No access separate, including earlier samples", () => {
   const series: Series = {
     ...emptySeries,
     lastTick: 2,
     points: [
-      point(1, { sched_running: 1, sched_sleep: 4, other: 2, no_access: 3 }),
-      point(2, { sched_running: 1, sched_sleep: 4 }),
+      point(1, { running: 1, sleep: 4, other: 2, no_access: 3 }),
+      point(2, { running: 1, sleep: 4 }),
     ],
   };
   const { container } = render(
@@ -90,14 +90,50 @@ test("thread state chart keeps scheduler states and unknown historical samples",
     (item) => [item.querySelector(".sw")?.className, item.textContent],
   );
   for (const [state, label, count] of [
-    ["running", "Running or runnable (R)", 1],
-    ["sleep", "Sleeping (S)", 4],
-    ["other", "Other or unknown", 0],
+    ["running", "Running", 1],
+    ["sleep", "Sleep", 4],
+    ["other", "Other", 0],
+    ["no_access", "No access", 0],
   ] as const) {
     expect(fills).toContain(`var(--s-${state})`);
     // Each state remains in the legend when only an earlier sample has it.
     expect(legend).toContainEqual([`sw ${state}`, label + String(count)]);
   }
+});
+
+test("thread activity chart shows changes between wait types", () => {
+  let series = emptySeries;
+  for (const [index, state] of [
+    "futex",
+    "poll",
+    "socket",
+    "pipe",
+    "sleep",
+  ].entries()) {
+    series = ingest(
+      series,
+      liveView({
+        threads: [thread(1, { state, last_sample: 1000 + index })],
+      }),
+    );
+  }
+  const { container } = render(
+    <Page view={liveView({ threads: [] })} series={series} />,
+  );
+  const fills = [...container.querySelectorAll("#chart-states polygon")].map(
+    (polygon) => polygon.getAttribute("fill"),
+  );
+  for (const state of ["futex", "poll", "socket", "pipe", "sleep"])
+    expect(fills).toContain(`var(--s-${state})`);
+  const legend = container.querySelector("#states-legend");
+  for (const label of [
+    "Futex wait0",
+    "Poll / epoll0",
+    "Socket wait0",
+    "Pipe / eventfd0",
+    "Sleep1",
+  ])
+    expect(legend?.textContent).toContain(label);
 });
 
 // Old test 276.

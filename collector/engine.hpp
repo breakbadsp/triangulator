@@ -500,7 +500,6 @@ class Monitor
           {"name", current.comm_.View()},
           {"group", thread.group_},
           {"state", sample.state_},
-          {"scheduler_state", std::string(1, current.state_)},
           {"wchan", current.wchan_.View()},
           {"cpu", current.processor_},
           {"cpu_pct", Json(cpu_pct)},

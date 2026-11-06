@@ -422,7 +422,7 @@ const topics = {
     title: "Thread states",
     source: "`/proc/PID/task/TID/stat` field 3, and `wchan`",
     sourceDetail:
-      "Field 3 of `/proc/PID/task/TID/stat` is the scheduler state letter. For a sleeping thread, `/proc/PID/task/TID/wchan` names the kernel function it waits in. The graph shows R as Running or runnable, S as Sleeping, D as Kernel wait, and T or t as Stopped. The thread details also classify the wait channel: futex; epoll, poll, or select; socket functions; pipe or eventfd; and nanosleep. An empty wait channel is No access. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
+      "Field 3 of `/proc/PID/task/TID/stat` is the scheduler state letter. For a sleeping thread, `/proc/PID/task/TID/wchan` names the kernel function it waits in. The graph and thread details show Running, Kernel wait, Stopped, and classified waits: futex; epoll, poll, or select; socket functions; pipe or eventfd; and nanosleep. An empty wait channel is No access. An unmatched wait channel shows as Other. Check it yourself: `ps -L -o tid,stat,wchan:32,comm -p PID`.",
   },
   mix: {
     title: "State mix",
