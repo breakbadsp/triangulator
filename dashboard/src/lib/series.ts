@@ -1,19 +1,6 @@
 import type { LiveResponse } from "../api/types";
 import { isNum } from "./format";
 import { STATES, isIdle } from "./threads";
-// Older recordings lack raw scheduler states. Only R, D, and T/t were
-// classified directly; the remaining categories cannot establish the state.
-export function schedulerState(raw?: string, legacy?: string): string {
-  if (raw === "R" || (raw === undefined && legacy === "running"))
-    return "sched_running";
-  if (raw === "S") return "sched_sleep";
-  if (raw === "D" || (raw === undefined && legacy === "kernel"))
-    return "sched_kernel";
-  if (raw === "T" || raw === "t" || (raw === undefined && legacy === "stopped"))
-    return "sched_stopped";
-  return "sched_other";
-}
-
 export interface Point {
   t: number;
   cpu: number | null;
@@ -26,7 +13,6 @@ export interface Point {
   busy: number | null;
   active: number | null;
   s: Record<string, number>;
-  ss?: Record<string, number>;
   born: number;
   died: number;
   rss: number | null;
@@ -147,9 +133,7 @@ const isPoint = (value: unknown): value is Point =>
     (key) => value[key] === undefined || isNumOrNull(value[key]),
   ) &&
   isRecord(value.s) &&
-  Object.values(value.s).every(isNum) &&
-  (value.ss === undefined ||
-    (isRecord(value.ss) && Object.values(value.ss).every(isNum)));
+  Object.values(value.s).every(isNum);
 const isSeenEntry = (value: unknown): value is [number, ThreadSeen] => {
   if (!Array.isArray(value) || value.length !== 2) return false;
   const [tid, seen] = value as [unknown, unknown];
@@ -265,9 +249,6 @@ export function ingest(series: Series, view: LiveResponse): Series {
     busy: 0,
     active: 0,
     s: {},
-    ...(threads.some((thread) => thread.scheduler_state !== undefined)
-      ? { ss: {} }
-      : {}),
     born: 0,
     died: 0,
     rss: null,
@@ -288,10 +269,8 @@ export function ingest(series: Series, view: LiveResponse): Series {
     point.rb = (point.rb ?? 0) + (thread.read_bps || 0);
     point.wb = (point.wb ?? 0) + (thread.write_bps || 0);
     point.mf = (point.mf ?? 0) + (thread.major_faults_per_s || 0);
-    const state = STATES.find((known) => known === thread.state) ?? "other";
+    const state = STATES.find((state) => state === thread.state) ?? "other";
     point.s[state] = (point.s[state] || 0) + 1;
-    const scheduler = schedulerState(thread.scheduler_state, thread.state);
-    if (point.ss) point.ss[scheduler] = (point.ss[scheduler] || 0) + 1;
     ids.add(`${String(thread.tid)}:${String(thread.generation)}`);
     const previous = seen.get(thread.tid);
     const observation: ThreadSeen =

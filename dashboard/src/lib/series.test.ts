@@ -203,38 +203,24 @@ test("a pause leaves unknown rates and series retention stays at 900 seconds", (
   expect(series.points.map((point) => point.t)).toEqual([1001, 1901]);
 });
 
-test("scheduler graph uses raw state even when the wait channel is unknown", () => {
+test("saved history with obsolete scheduler counts keeps its activity counts", () => {
   const series = ingest(
     emptySeries,
     view({
-      threads: [
-        {
-          tid: 1,
-          name: "worker",
-          last_sample: 1,
-          state: "other",
-          scheduler_state: "S",
-          wchan: "io_wq_worker",
-        },
-        {
-          tid: 2,
-          name: "worker",
-          last_sample: 1,
-          state: "no_access",
-          scheduler_state: "S",
-        },
-        {
-          tid: 3,
-          name: "worker",
-          last_sample: 1,
-          state: "running",
-          scheduler_state: "R",
-        },
-      ],
+      threads: [{ tid: 1, name: "worker", state: "futex", last_sample: 1000 }],
     }),
   );
-  expect(series.points.at(-1)?.ss).toEqual({
-    sched_sleep: 2,
-    sched_running: 1,
-  });
+  const restored = restoreSeries(
+    {
+      session: "s",
+      points: series.points.map((point) => ({
+        ...point,
+        ss: { sched_sleep: 1 },
+      })),
+    },
+    null,
+    "s",
+  );
+  expect(restored.points).toHaveLength(1);
+  expect(restored.points[0]?.s).toEqual({ futex: 1 });
 });

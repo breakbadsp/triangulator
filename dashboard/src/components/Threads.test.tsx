@@ -101,7 +101,7 @@ test("thread state charts keep Other and No access separate, including earlier s
   }
 });
 
-test("thread activity chart shows wait changes while scheduler states stay asleep", () => {
+test("thread activity chart shows changes between wait types", () => {
   let series = emptySeries;
   for (const [index, state] of [
     "futex",
@@ -113,9 +113,7 @@ test("thread activity chart shows wait changes while scheduler states stay aslee
     series = ingest(
       series,
       liveView({
-        threads: [
-          thread(1, { state, scheduler_state: "S", last_sample: 1000 + index }),
-        ],
+        threads: [thread(1, { state, last_sample: 1000 + index })],
       }),
     );
   }
