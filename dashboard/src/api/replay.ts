@@ -140,7 +140,7 @@ function view(value: unknown, live: boolean): LiveResponse {
     fields(
       thread as Record<string, unknown>,
       "tid cpu generation last_sample last_ran wake_ms cpu_pct system_pct run_delay_pct switches_per_s major_faults_per_s read_bps write_bps",
-      "name group state wchan",
+      "name group state scheduler_state wchan",
       "stale",
     );
   if (

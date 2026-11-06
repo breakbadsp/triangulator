@@ -71,13 +71,13 @@ const advance = (ms: number) => {
 };
 
 // Old test 258.
-test("thread state charts keep Other and No access separate, including earlier samples", () => {
+test("thread state chart keeps scheduler states and unknown historical samples", () => {
   const series: Series = {
     ...emptySeries,
     lastTick: 2,
     points: [
-      point(1, { running: 1, sleep: 4, other: 2, no_access: 3 }),
-      point(2, { running: 1, sleep: 4 }),
+      point(1, { sched_running: 1, sched_sleep: 4, other: 2, no_access: 3 }),
+      point(2, { sched_running: 1, sched_sleep: 4 }),
     ],
   };
   const { container } = render(
@@ -90,10 +90,9 @@ test("thread state charts keep Other and No access separate, including earlier s
     (item) => [item.querySelector(".sw")?.className, item.textContent],
   );
   for (const [state, label, count] of [
-    ["running", "Running", 1],
-    ["sleep", "Sleep", 4],
-    ["other", "Other", 0],
-    ["no_access", "No access", 0],
+    ["running", "Running or runnable (R)", 1],
+    ["sleep", "Sleeping (S)", 4],
+    ["other", "Other or unknown", 0],
   ] as const) {
     expect(fills).toContain(`var(--s-${state})`);
     // Each state remains in the legend when only an earlier sample has it.

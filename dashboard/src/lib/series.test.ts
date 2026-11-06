@@ -202,3 +202,39 @@ test("a pause leaves unknown rates and series retention stays at 900 seconds", (
   );
   expect(series.points.map((point) => point.t)).toEqual([1001, 1901]);
 });
+
+test("scheduler graph uses raw state even when the wait channel is unknown", () => {
+  const series = ingest(
+    emptySeries,
+    view({
+      threads: [
+        {
+          tid: 1,
+          name: "worker",
+          last_sample: 1,
+          state: "other",
+          scheduler_state: "S",
+          wchan: "io_wq_worker",
+        },
+        {
+          tid: 2,
+          name: "worker",
+          last_sample: 1,
+          state: "no_access",
+          scheduler_state: "S",
+        },
+        {
+          tid: 3,
+          name: "worker",
+          last_sample: 1,
+          state: "running",
+          scheduler_state: "R",
+        },
+      ],
+    }),
+  );
+  expect(series.points.at(-1)?.ss).toEqual({
+    sched_sleep: 2,
+    sched_running: 1,
+  });
+});

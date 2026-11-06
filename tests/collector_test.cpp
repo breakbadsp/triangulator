@@ -509,6 +509,9 @@ void TestHealthAbsenceAccessAndSilence()
   Require(
       Field(fixture.Thread(1'700'000'012), "state").AsString() == "no_access",
       "an empty wait channel shows as no_access");
+  Require(
+      Field(fixture.Thread(1'700'000'012), "scheduler_state").AsString() == "S",
+      "the scheduler state remains visible when the wait channel is hidden");
 }
 
 // Checks that the live view splits CPU time into user and system parts: 25
