@@ -359,3 +359,17 @@ build/triangulator-sampler-capacity: sampler/main.cpp $(SAMPLER_HEADERS) $(COMMO
 .PHONY: benchmark-capacity
 benchmark-capacity: build/triangulator-sampler-capacity build/benchmark-target
 	python3 tests/benchmark_capacity.py
+
+# Isolated, nondeployed experiment. Default builds need no liburing.
+EXPERIMENTAL_SOURCES := sampler/experimental/uring.hpp sampler/experimental/runner.cpp tests/experimental_sampling_test.cpp
+CPP_SOURCES += $(EXPERIMENTAL_SOURCES)
+
+build/experimental-sampling: sampler/experimental/runner.cpp sampler/experimental/uring.hpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile build/build_options
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $$(pkg-config --cflags --libs liburing) -o $@
+
+build/experimental-sampling-test: tests/experimental_sampling_test.cpp sampler/experimental/uring.hpp $(SAMPLER_HEADERS) $(COMMON_HEADERS) build/compiler_ok Makefile build/build_options
+	$(COMPILER_CACHE) $(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++23 $< $(LDFLAGS) $(RUNTIME_LDFLAGS) $(LDLIBS) $$(pkg-config --cflags --libs liburing) -o $@
+
+.PHONY: check-experimental
+check-experimental:
+	python3 tests/check_experimental.py
