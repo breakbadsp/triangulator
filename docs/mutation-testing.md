@@ -11,11 +11,14 @@ From the repository root, use a Python environment with fork support:
 ```sh
 python3 -m venv /tmp/triangulator-mutation-venv
 /tmp/triangulator-mutation-venv/bin/pip install -r tests/requirements-mutation.txt
+rm -rf mutants/
 /tmp/triangulator-mutation-venv/bin/mutmut run --max-children 2
 /tmp/triangulator-mutation-venv/bin/mutmut results
 ```
 
-This mutates `alerting/` and runs `tests/test_alerting.py`. The tool keeps its
+The removal clears cached results, including results from earlier runs. This
+ensures test changes are checked. This mutates `alerting/` and runs
+`tests/test_alerting.py`. The tool keeps its
 working copies and results in `mutants/`. See a change with
 `/tmp/triangulator-mutation-venv/bin/mutmut show <mutant-name>`. Delete `mutants/` to start a fresh run.
 
