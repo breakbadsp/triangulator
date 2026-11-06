@@ -23,8 +23,12 @@ MUTATIONS = {
 def main():
     with tempfile.TemporaryDirectory(prefix="sampler-mutations-") as directory:
         copy = Path(directory) / "source"
-        shutil.copytree(ROOT, copy, ignore=shutil.ignore_patterns(
-            ".git", "build", "node_modules", "dist", "__pycache__"))
+        copy.mkdir()
+        shutil.copy2(ROOT / "Makefile", copy / "Makefile")
+        for name in ("sampler", "common"):
+            shutil.copytree(ROOT / name, copy / name)
+        (copy / "tests").mkdir()
+        shutil.copy2(ROOT / "tests/sampler_test.cpp", copy / "tests/sampler_test.cpp")
         source = copy / "sampler/parsing.hpp"
         original = source.read_text()
         for name, (before, _) in MUTATIONS.items():
