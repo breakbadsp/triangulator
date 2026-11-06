@@ -1,6 +1,7 @@
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <array>
@@ -217,9 +218,67 @@ void TestReuseAndErrors()
   Require(sampler->ReadErrors() >= 4, "completion errors counted");
 }
 
+void TestPendingDeadline()
+{
+  // A stalled FIFO keeps a real request pending across ticks, then closes so
+  // recovery cannot accidentally use the discarded late wait channel.
+  Fixture fixture;
+  const auto path = fixture.Path(1, "wchan");
+  std::filesystem::remove(path);
+  Require(::mkfifo(path.c_str(), 0600) == 0, "create stalled wait channel");
+  FileDescriptor writer{::open(path.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC)};
+  Require(static_cast<bool>(writer), "open FIFO keeper");
+  std::array<int, 65> tids{};
+  for (std::size_t index = 0; index < tids.size(); ++index)
+  {
+    tids[index] = static_cast<int>(index + 1);
+  }
+  auto sampler = Make(fixture, tids);
+  const auto expired =
+      sampler->Tick(ClockNow(CLOCK_MONOTONIC) + std::chrono::milliseconds{100});
+  Require(expired.has_value(), "stalled tick expires");
+  Require(sampler->Pending() > 0, "real FIFO request remains pending");
+  Require(expired->published_ == 0 && expired->pending_completion_ == 32 &&
+              expired->deadline_before_chunk_ == 33,
+          "expired chunk and later chunks are counted");
+  const auto blocked =
+      sampler->Tick(ClockNow(CLOCK_MONOTONIC) + std::chrono::seconds{2});
+  Require(blocked.has_value(), "next tick preserves pending chunk");
+  Require(sampler->Pending() > 0, "next tick cannot release stalled read");
+  Require(blocked->published_ == 0 && blocked->pending_completion_ == 32 &&
+              blocked->blocked_by_pending_chunk_ == 33 && blocked->reads_ == 0,
+          "reserved pool blocks new reads and counts every omission");
+  constexpr std::string_view kLateChannel = "late_wait\n";
+  Require(::write(writer.Get(), kLateChannel.data(), kLateChannel.size()) ==
+              static_cast<ssize_t>(kLateChannel.size()),
+          "release stalled completion");
+  writer.Reset();
+  bool recovered = false;
+  for (int attempt = 0; attempt < 1000 && !recovered; ++attempt)
+  {
+    recovered = Take(*sampler).published_ == tids.size();
+    if (!recovered)
+    {
+      ::usleep(1000);
+    }
+  }
+  Require(recovered && sampler->Pending() == 0, "all chunks recover");
+  for (std::size_t index = 0; index < tids.size(); ++index)
+  {
+    const auto& sample = sampler->Output()[index];
+    Require(sample && sample->record_.tid_ == index + 1 &&
+                sample->record_.read_bytes_ == (index + 1) * 11,
+            "recovery preserves each thread identity and counters");
+    Require(sample->record_.wchan_[0] == (index == 0 ? '\0' : 'f'),
+            "late wait channel is discarded without corrupting other slots");
+  }
+}
+
 void TestDeadlineAndAllocation()
 {
-  // Expired chunks keep buffers reserved and later chunks are counted.
+  // Pending reads retain ownership; recovered full and reuse ticks allocate
+  // no userspace memory.
+  TestPendingDeadline();
   Fixture fixture;
   std::array<int, 65> tids{};
   for (std::size_t index = 0; index < tids.size(); ++index)
