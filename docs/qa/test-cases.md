@@ -934,9 +934,9 @@
 - Test: Run a target that grows RSS about 50 MiB each hour (for example `mem-leak`) for at least 6 h, on a collector that stores VmSize and host memory (#267). Open the Memory use card and select 15 min, 1 h, 6 h, and 24 h. Compare each RSS chip with the stored values: `/api/resources?start=NOW-W&end=NOW` for each window W. Restart the target. Then open a day file written before #267 (or a host with less than 24 h of new history). Read the arrows with a screen reader.
 - Expected: RSS and VmSize have their own charts on one time axis, with time labels only below VmSize, and axes fitted to the values, not from 0. The dashed level line is the value at the start of the selected range, and a dot marks the newest value. The four chips do not change when the range changes; only the highlight moves. Each chip is the newest value minus the value at its window start, ► under 1% of the start value. With growth in every window, RSS shows "Rising in every window" in the warning color; the arrows and chips stay neutral. A rate shows only for 1 h and longer ranges. VmSize shows "flat for" and its ratio to RSS. After the restart, chips whose window reaches before the restart show "–". With old or short history, the VmSize and host chips show "–" until enough history exists, and the RSS chips are not affected. The arrows are text (▲ ▼ ►), not only color. A recorded view shows the values and bars, but no chips, rates, charts, or range control.
 
-## QA-151: Scheduler state graph
+## QA-151: Thread activity graph
 
 - Status: NOT_RUN
 - Driver: judged
-- Test: Monitor a process with sleeping io_uring workers. Compare the thread graph with `ps -L -o tid,stat,wchan:32,comm -p PID`. Repeat with a hidden wait channel and a recording made before this change.
-- Expected: Sleeping workers count as Sleeping even when their wait channel is unfamiliar or hidden. The wait channel remains visible when available. Old samples without a known scheduler state show as unknown.
+- Test: Monitor a process whose threads change between futex, poll, socket, pipe, and timer waits while their Linux state stays S. Compare the graph with the thread table and `ps -L -o tid,stat,wchan:32,comm -p PID`. Repeat with an unfamiliar or hidden wait channel and with a saved recording.
+- Expected: The graph shows separate wait categories and changes when threads move between them. It does not combine all S samples into one sleeping band. Unknown waits show as Other, and hidden wait channels show as No access. Earlier categories stay in the legend with a current count of zero.
