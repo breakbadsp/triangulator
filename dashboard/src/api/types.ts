@@ -80,6 +80,7 @@ export interface Thread {
   cpu?: number;
   generation?: number;
   state?: string;
+  scheduler_state?: string;
   state_mix?: Readonly<Record<string, number>>;
   wchan?: string;
   stale?: boolean;
