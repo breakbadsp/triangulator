@@ -78,3 +78,30 @@ test("a panel the user chose stays closed when storage is blocked", () => {
   rerender(panel("health-d", critical, "monitor"));
   expect(isOpen("health-d")).toBe(false);
 });
+
+test.each([false, true])(
+  "an open choice survives remount when storage writes fail (reads blocked: %s)",
+  (readsBlocked) => {
+    const name = `remount-${String(readsBlocked)}`;
+    localStorage.setItem(`triangulator:fold:${name}`, "closed");
+    if (readsBlocked)
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw Error("blocked");
+      });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw Error("quota exceeded");
+    });
+    const { unmount } = render(panel(name, [], "monitor"));
+    fireEvent.click(screen.getByText(name));
+    expect(isOpen(name)).toBe(true);
+    unmount();
+    render(panel(name, [], "monitor"));
+    expect(isOpen(name)).toBe(true);
+  },
+);
+
+test("an invalid stored choice does not prevent a warning from opening a panel", () => {
+  localStorage.setItem("triangulator:fold:invalid-choice", "invalid");
+  render(panel("invalid-choice", [finding("monitor", "critical")], "monitor"));
+  expect(isOpen("invalid-choice")).toBe(true);
+});

@@ -2,10 +2,13 @@ import { useState, type ReactNode } from "react";
 
 const foldKey = (name: string) => `triangulator:fold:${name}`;
 // Remembered in memory too, so a panel stays closed when storage is blocked.
-const chosen = new Set<string>();
+const chosen = new Map<string, boolean>();
 function savedChoice(name: string) {
+  const choice = chosen.get(name);
+  if (choice !== undefined) return choice;
   try {
-    return localStorage.getItem(foldKey(name));
+    const saved = localStorage.getItem(foldKey(name));
+    return saved === "open" ? true : saved === "closed" ? false : null;
   } catch {
     return null;
   }
@@ -32,9 +35,8 @@ export function Fold({
   className?: string;
   summaryClassName?: string;
 }) {
-  const [open, setOpen] = useState(() => savedChoice(name) === "open");
-  if (autoOpen && !open && !chosen.has(name) && savedChoice(name) === null)
-    setOpen(true);
+  const [open, setOpen] = useState(() => savedChoice(name) === true);
+  if (autoOpen && !open && savedChoice(name) === null) setOpen(true);
   return (
     <details
       className={className}
@@ -51,7 +53,7 @@ export function Fold({
           // open is not.
           event.preventDefault();
           const next = !open;
-          chosen.add(name);
+          chosen.set(name, next);
           try {
             localStorage.setItem(foldKey(name), next ? "open" : "closed");
           } catch {
